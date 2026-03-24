@@ -8,21 +8,48 @@ const ai = new GoogleGenAI({
 async function callGeminiWithRetry<T>(
   fn: () => Promise<T>,
   retries = 3,
-  delay = 1000,
+  initialDelay = 2000,
 ): Promise<T> {
-  try {
-    return await fn();
-  } catch (error) {
-    if (retries > 0) {
-      console.warn(
-        `Gemini API call failed, retrying... (${retries} left)`,
-        error,
-      );
-      await new Promise((resolve) => setTimeout(resolve, delay));
-      return callGeminiWithRetry(fn, retries - 1, delay * 2);
+  let currentDelay = initialDelay;
+
+  for (let i = 0; i <= retries; i++) {
+    try {
+      return await fn();
+    } catch (error: any) {
+      // Detect 429 (Rate Limit) or Quota errors
+      const isRateLimit =
+        error?.message?.includes("429") ||
+        error?.status === 429 ||
+        error?.message?.includes("quota");
+
+      if (i < retries) {
+        // If it's a rate limit, we need a significant wait (at least 10s)
+        const waitTime = isRateLimit
+          ? Math.max(currentDelay, 10000)
+          : currentDelay;
+
+        console.warn(
+          `Gemini ${isRateLimit ? "Rate Limit (429)" : "Error"}. ` +
+            `Waiting ${waitTime}ms before retry ${i + 1}/${retries}...`,
+        );
+
+        await new Promise((resolve) => setTimeout(resolve, waitTime));
+
+        // Exponentially increase the delay for the next potential retry
+        currentDelay *= 2;
+        continue;
+      }
+
+      // If we've exhausted retries and it's a 429, throw a user-friendly message
+      if (isRateLimit) {
+        throw new Error(
+          "Garden AI is currently busy (quota reached). Please wait 60 seconds and try again.",
+        );
+      }
+      throw error;
     }
-    throw error;
   }
+  throw new Error("Gemini API failed after multiple attempts.");
 }
 
 export interface DiagnosisResult {
@@ -40,7 +67,13 @@ export async function diagnosePlant(
   mimeType: string,
   plantName: string,
   mode: UserMode,
+  aiEnabled: boolean = true,
 ): Promise<DiagnosisResult> {
+  if (!aiEnabled) {
+    throw new Error(
+      "AI features are currently disabled by your profile settings.",
+    );
+  }
   const model = "gemini-3-flash-preview";
   const prompt = `Analyze this image of a ${plantName || "plant"}. If it's sick, provide a ${
     mode === "Novice"
@@ -116,7 +149,13 @@ export async function identifyPlant(
   imageBuffer: string,
   mimeType: string,
   mode: UserMode,
+  aiEnabled: boolean = true,
 ) {
+  if (!aiEnabled) {
+    throw new Error(
+      "AI features are currently disabled by your profile settings.",
+    );
+  }
   const model = "gemini-3-flash-preview";
   const prompt = `Identify the plant in this image. Provide its common name, scientific name, and a brief description. ${
     mode === "Novice"
@@ -153,7 +192,13 @@ export async function generatePlantingSchedule(
   environment: string,
   careGuide?: Plant["careGuide"],
   currentDate?: string,
+  aiEnabled: boolean = true,
 ): Promise<GeminiTaskResponse[]> {
+  if (!aiEnabled) {
+    throw new Error(
+      "AI features are currently disabled by your profile settings.",
+    );
+  }
   const model = "gemini-3-flash-preview";
   const prompt = `Today's date is ${currentDate || new Date().toLocaleDateString()}.
   Generate a gardening task schedule for a ${isEstablished ? "mature/established" : "newly planted"} "${plantName}" growing ${environment}.
@@ -211,7 +256,13 @@ export async function generatePlantingSchedule(
 
 export async function generateCareGuide(
   plantName: string,
+  aiEnabled: boolean = true,
 ): Promise<Partial<Plant>> {
+  if (!aiEnabled) {
+    throw new Error(
+      "AI features are currently disabled by your profile settings.",
+    );
+  }
   const model = "gemini-3-flash-preview";
   const prompt = `Generate a comprehensive care guide for the plant "${plantName}".
   Include:
@@ -257,7 +308,15 @@ export async function generateCareGuide(
   });
 }
 
-export async function searchPlants(query: string): Promise<Partial<Plant>[]> {
+export async function searchPlants(
+  query: string,
+  aiEnabled: boolean = true,
+): Promise<Partial<Plant>[]> {
+  if (!aiEnabled) {
+    throw new Error(
+      "AI features are currently disabled by your profile settings.",
+    );
+  }
   const model = "gemini-3-flash-preview";
   const prompt = `Search for common garden plants matching "${query}". Return a list of 3-5 most likely matches with their common name, scientific name, and a brief care guide summary (sun, water, soil, plantingMonth, harvestMonth). Return as JSON array.`;
 
@@ -298,7 +357,13 @@ export async function searchPlants(query: string): Promise<Partial<Plant>[]> {
 
 export async function getCommonNames(
   scientificName: string,
+  aiEnabled: boolean = true,
 ): Promise<string[]> {
+  if (!aiEnabled) {
+    throw new Error(
+      "AI features are currently disabled by your profile settings.",
+    );
+  }
   const model = "gemini-3-flash-preview";
   const prompt = `Provide a list of common names for the plant "${scientificName}". Return as a JSON array of strings.`;
 
@@ -323,7 +388,15 @@ export async function getCommonNames(
   }
 }
 
-export async function getScientificName(commonName: string): Promise<string> {
+export async function getScientificName(
+  commonName: string,
+  aiEnabled: boolean = true,
+): Promise<string> {
+  if (!aiEnabled) {
+    throw new Error(
+      "AI features are currently disabled by your profile settings.",
+    );
+  }
   const model = "gemini-3-flash-preview";
   const prompt = `What is the scientific name for the plant "${commonName}"? Return ONLY the scientific name as a string, nothing else.`;
 

@@ -6,6 +6,7 @@ export interface UserProfile {
   display_name: string; // Changed from displayName
   mode: "Novice" | "Expert";
   onboarded: boolean;
+  aiEnabled: boolean;
   home_id?: string; // Changed from homeId
   notification_interval_hours?: number; // Changed from notificationIntervalHours
 }
@@ -106,6 +107,7 @@ export interface WeatherData {
   rainExpected: boolean;
   rainAmount: number;
   isFrostWarning: boolean;
+  timestamp?: number;
   forecast: Array<{
     date: string;
     temp: number;

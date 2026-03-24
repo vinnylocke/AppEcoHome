@@ -207,6 +207,7 @@ export default function App() {
           mode: data.mode,
           onboarded: data.onboarded,
           home_id: data.home_id,
+          aiEnabled: data.ai_enabled,
         });
       }
     };
@@ -232,6 +233,7 @@ export default function App() {
             mode: data.mode,
             onboarded: data.onboarded,
             home_id: data.home_id,
+            aiEnabled: data.ai_enabled,
           });
         },
       )
@@ -261,14 +263,18 @@ export default function App() {
             id: item.id,
             plantId: item.plant_id,
             plantName: item.plant_name,
+            plantCode: item.plant_code,
             status: item.status,
             locationId: item.location_id,
             locationName: item.location_name,
             areaId: item.area_id,
             areaName: item.area_name,
+            environment: item.environment,
+            isEstablished: item.is_established,
             plantedAt: item.planted_at,
             createdAt: item.created_at,
             yieldData: item.yield_data,
+            logs: item.logs,
           })),
         );
 
@@ -280,9 +286,11 @@ export default function App() {
             description: task.description,
             status: task.status,
             dueDate: task.due_date,
+            completedAt: task.completed_at,
             type: task.type,
             plantId: task.plant_id,
             inventoryItemId: task.inventory_item_id,
+            isVirtual: task.is_virtual,
           })),
         );
 
@@ -373,35 +381,36 @@ export default function App() {
     if (!user || !authReady || !locations.length) return;
 
     const updateWeather = async () => {
-      const activeMocks = MOCK_SCENARIOS.filter((s) => s.enabled);
-      const globalWeather = activeMocks.find((s) => s.weather)?.weather;
+      const now = Date.now();
+      const CACHE_DURATION = 30 * 60 * 1000; // 30 minutes
 
       for (const loc of locations) {
-        if (globalWeather) {
-          setWeatherMap((prev) => ({ ...prev, [loc.id]: globalWeather }));
-        } else {
-          const mockScenario = activeMocks.find(
-            (s) => s.location?.id === loc.id,
-          );
-          if (mockScenario && mockScenario.weather) {
-            setWeatherMap((prev) => ({
-              ...prev,
-              [loc.id]: mockScenario.weather!,
-            }));
-          } else {
-            try {
-              const data = await fetchWeather(loc.lat, loc.lng);
-              setWeatherMap((prev) => ({ ...prev, [loc.id]: data }));
-            } catch (err) {
-              console.error(`Weather fetch error for ${loc.name}:`, err);
-            }
-          }
+        // 1. CHECK CACHE: If we already have fresh weather for this location, skip it!
+        const existingWeather = weatherMap[loc.id];
+        const lastFetch = existingWeather?.timestamp || 0; // You'll need to add timestamp to your type
+
+        if (existingWeather && now - lastFetch < CACHE_DURATION) {
+          continue;
+        }
+
+        // 2. DELAY: Add a small 500ms delay between locations to prevent "bursting"
+        await new Promise((resolve) => setTimeout(resolve, 500));
+
+        try {
+          const data = await fetchWeather(loc.lat, loc.lng);
+          // Add a timestamp to the data so we know when it was fetched
+          setWeatherMap((prev) => ({
+            ...prev,
+            [loc.id]: { ...data, timestamp: now },
+          }));
+        } catch (err) {
+          console.error(`Weather fetch error for ${loc.name}:`, err);
         }
       }
     };
 
     updateWeather();
-  }, [locations, mockUpdateCounter, user, authReady]);
+  }, [locations.length, authReady, user]);
 
   const handleRefreshWeather = async (locationId?: string) => {
     const locsToUpdate = locationId
@@ -964,6 +973,8 @@ export default function App() {
                     inventory={inventory}
                   />
                   <PlantDoctor
+                    userId={user.id}
+                    userProfile={userProfile}
                     mode={userProfile.mode}
                     homeId={userProfile.home_id || user.id}
                     inventory={inventory}
@@ -998,6 +1009,7 @@ export default function App() {
                 <InventoryManager
                   userId={user.id}
                   homeId={userProfile.home_id || user.id}
+                  userProfile={userProfile}
                   inventory={inventory}
                   plants={plants}
                   locations={locations}

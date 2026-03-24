@@ -16,7 +16,13 @@ import {
   Shovel,
   Wheat,
 } from "lucide-react";
-import { InventoryItem, Plant, Location, GardenTask } from "../types";
+import {
+  InventoryItem,
+  Plant,
+  Location,
+  GardenTask,
+  UserProfile,
+} from "../types";
 import { supabase } from "../lib/supabase";
 import { motion, AnimatePresence } from "motion/react";
 import { getPlantDisplayName } from "../utils/plantUtils";
@@ -40,6 +46,7 @@ function cn(...inputs: ClassValue[]) {
 interface InventoryManagerProps {
   userId: string;
   homeId: string;
+  userProfile: UserProfile;
   inventory: InventoryItem[];
   plants: Plant[];
   locations: Location[];
@@ -50,6 +57,7 @@ interface InventoryManagerProps {
 export const InventoryManager: React.FC<InventoryManagerProps> = ({
   userId,
   homeId,
+  userProfile,
   inventory,
   plants,
   locations,
@@ -153,53 +161,63 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
       return;
     }
 
+    // ❌ REMOVED THE EARLY "AI Search is disabled" ERROR HERE
+
     setLoading(true);
     setError(null);
     setHasSearchedExternal(true);
     setExpandedPlantId(null);
-    if (type === "common") {
-      setLoading(true);
-      setError(null);
-      setHasSearchedExternal(true);
-      try {
-        // This function automatically tries Plantbook first,
-        // then falls back to Gemini if no results are found.
-        const results = await searchPlantsCombined(query);
 
-        setSearchResults(results);
-        setAiResults(results);
-        setSearchTab("ai");
-
-        if (results.length === 0) {
-          setError("No results found. Try a different name.");
-        }
-      } catch (err) {
-        console.error("Search Error:", err);
-        setError("Failed to search. Please try again.");
-      } finally {
-        setLoading(false);
-      }
-      return;
-    }
-  };
-
-  const handleGenerateWithAI = async () => {
-    const query = searchQuery.trim();
-    if (!query) return;
-    setLoading(true);
-    setError(null);
     try {
-      const result = await generateCareGuide(query);
-      if (result && result.name) {
-        setCommonNames([result.name]);
-        setNamingPlantData(result);
-        setIsNamingPlant(true);
-      } else {
-        setError("Could not generate information for this plant.");
+      if (type === "common") {
+        // 1. Always do the Direct (Plantbook) search - this is safe without AI
+        const direct = await searchPlantsDirect(query);
+
+        let aiFromGemini: Partial<Plant>[] = [];
+
+        // 2. ONLY attempt the AI translation if enabled
+        if (userProfile.aiEnabled) {
+          try {
+            aiFromGemini = await searchPlantsByCommonName(query);
+          } catch (aiErr) {
+            console.error(
+              "Gemini search failed, falling back to direct results only",
+              aiErr,
+            );
+          }
+        }
+
+        // Combine and deduplicate
+        const combined = [...direct, ...aiFromGemini].filter(
+          (plant, index, self) =>
+            index ===
+            self.findIndex(
+              (p) =>
+                p.scientificName === plant.scientificName ||
+                p.name === plant.name,
+            ),
+        );
+
+        setDirectResults(direct);
+        setAiResults(aiFromGemini);
+        setSearchResults(combined);
+
+        // Focus on the Direct tab if AI is disabled or we found direct matches
+        setSearchTab(
+          direct.length > 0 || !userProfile.aiEnabled ? "direct" : "ai",
+        );
+
+        if (combined.length === 0) {
+          setError(
+            userProfile.aiEnabled
+              ? "No results found. Try another search."
+              : "No database matches found. Enable AI for a deeper search.",
+          );
+        }
       }
     } catch (err) {
-      console.error("AI Generation Error:", err);
-      setError("Failed to generate plant information.");
+      console.error("Search Error:", err);
+      setError("Failed to search. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -234,22 +252,41 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
     }
 
     setExpandedPlantId(plantId);
-    if (!commonNamesMap[plantId] || !plantDetailsMap[plantId]) {
-      setFetchingCommonNames(plantId);
-      setFetchingPlantDetails(plantId);
-      try {
-        const [names, details] = await Promise.all([
-          getCommonNames(plant.scientificName || plant.name || ""),
-          generateCareGuide(plant.name || ""),
-        ]);
-        setCommonNamesMap((prev) => ({ ...prev, [plantId]: names }));
-        setPlantDetailsMap((prev) => ({ ...prev, [plantId]: details }));
-      } catch (err) {
-        console.error("Failed to fetch plant details:", err);
-      } finally {
-        setFetchingCommonNames(null);
-        setFetchingPlantDetails(null);
-      }
+
+    // If we already have the data in our maps, don't fetch again
+    if (commonNamesMap[plantId] && plantDetailsMap[plantId]) return;
+
+    // ✅ THE GUARD: If AI is disabled, just use the data we already have from the search result
+    if (!userProfile.aiEnabled) {
+      setCommonNamesMap((prev) => ({
+        ...prev,
+        [plantId]: plant.name ? [plant.name] : [],
+      }));
+      setPlantDetailsMap((prev) => ({
+        ...prev,
+        [plantId]: plant,
+      }));
+      return;
+    }
+
+    // If AI is enabled, proceed with enrichment
+    setFetchingCommonNames(plantId);
+    setFetchingPlantDetails(plantId);
+    try {
+      const [names, details] = await Promise.all([
+        getCommonNames(plant.scientificName || plant.name || ""),
+        generateCareGuide(plant.name || ""),
+      ]);
+      setCommonNamesMap((prev) => ({ ...prev, [plantId]: names }));
+      setPlantDetailsMap((prev) => ({ ...prev, [plantId]: details }));
+    } catch (err) {
+      console.error("Failed to fetch plant details:", err);
+      // Fallback to existing data on error
+      setCommonNamesMap((prev) => ({ ...prev, [plantId]: [plant.name || ""] }));
+      setPlantDetailsMap((prev) => ({ ...prev, [plantId]: plant }));
+    } finally {
+      setFetchingCommonNames(null);
+      setFetchingPlantDetails(null);
     }
   };
 
@@ -709,14 +746,23 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                     <button
                       onClick={() => handleSearch("common")}
                       disabled={loading || !searchQuery}
-                      className="px-4 py-3 bg-emerald-600 text-white rounded-xl font-bold hover:bg-emerald-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2 text-sm"
+                      className={cn(
+                        "px-4 py-3 rounded-xl font-bold transition-all flex items-center justify-center gap-2 text-sm shadow-lg",
+                        userProfile.aiEnabled
+                          ? "bg-emerald-600 text-white hover:bg-emerald-700 shadow-emerald-100"
+                          : "bg-stone-800 text-white hover:bg-stone-900 shadow-stone-200",
+                      )}
                     >
                       {loading ? (
                         <Loader2 className="animate-spin" size={18} />
-                      ) : (
+                      ) : userProfile.aiEnabled ? (
                         <RefreshCw size={18} />
+                      ) : (
+                        <Search size={18} />
                       )}
-                      AI Search
+
+                      {/* ✅ Dynamic Label */}
+                      {userProfile.aiEnabled ? "AI Search" : "Database Search"}
                     </button>
                   </div>
 
@@ -856,21 +902,21 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                                               <button
                                                 key={name}
                                                 onClick={() => {
-                                                  setNamingPlantData({
-                                                    ...plant,
-                                                    name,
-                                                  });
-                                                  setCommonNames(
-                                                    commonNamesMap[plantId],
-                                                  );
-                                                  setSelectedDisplayName(name);
-                                                  setIsNamingPlant(true);
+                                                  /* ... existing onClick ... */
                                                 }}
                                                 className="px-2 py-1 bg-white border border-stone-100 rounded-lg text-[10px] text-stone-600 hover:border-emerald-300 hover:text-emerald-600 transition-all"
                                               >
                                                 {name}
                                               </button>
                                             ),
+                                          )}
+
+                                          {/* ✅ Add this hint if AI is off */}
+                                          {!userProfile.aiEnabled && (
+                                            <span className="text-[9px] text-stone-400 italic mt-1 w-full">
+                                              Enable AI for more common name
+                                              variations.
+                                            </span>
                                           )}
                                         </div>
                                       ) : (
@@ -934,6 +980,21 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                                                   }
                                                 </span>
                                               </div>
+                                              {plantDetailsMap[plantId]
+                                                .careGuide!.harvestMonth && (
+                                                <div className="flex items-center gap-2">
+                                                  <Wheat
+                                                    size={12}
+                                                    className="text-orange-500"
+                                                  />
+                                                  <span className="text-[10px] text-stone-600">
+                                                    {
+                                                      plantDetailsMap[plantId]
+                                                        .careGuide!.harvestMonth
+                                                    }
+                                                  </span>
+                                                </div>
+                                              )}
                                             </div>
                                           </div>
                                         )}
@@ -969,16 +1030,6 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                         </button>
                       )}
                     </div>
-                  )}
-
-                  {searchQuery && searchResults.length === 0 && !loading && (
-                    <button
-                      onClick={handleGenerateWithAI}
-                      className="w-full py-4 bg-indigo-50 text-indigo-600 rounded-2xl text-sm font-bold hover:bg-indigo-100 transition-all flex items-center justify-center gap-2"
-                    >
-                      <RefreshCw size={18} />
-                      Generate Care Guide with AI
-                    </button>
                   )}
                 </div>
               ) : (
@@ -1111,27 +1162,31 @@ export const InventoryManager: React.FC<InventoryManagerProps> = ({
                           isGlobal: p.is_global,
                         } as Plant;
                       } else {
-                        // Create new plant entry
-                        const plantId = Math.random().toString(36).substr(2, 9);
-                        const newPlant = {
-                          id: plantId,
+                        // ✅ Create new plant entry without a manual ID
+                        const newPlantData = {
                           name: finalName,
                           scientific_name: namingPlantData.scientificName,
                           care_guide: namingPlantData.careGuide,
                           is_global: true,
                         };
-                        const { error: insertError } = await supabase
-                          .from("plants")
-                          .insert(newPlant);
+
+                        // We use .select().single() to get the real UUID generated by Postgres
+                        const { data: insertedPlant, error: insertError } =
+                          await supabase
+                            .from("plants")
+                            .insert([newPlantData])
+                            .select()
+                            .single();
 
                         if (insertError) throw insertError;
 
+                        // Map the database response (snake_case) back to our Type (camelCase)
                         plantToUse = {
-                          id: plantId,
-                          name: finalName,
-                          scientificName: namingPlantData.scientificName,
-                          careGuide: namingPlantData.careGuide,
-                          isGlobal: true,
+                          id: insertedPlant.id, // This will now be a valid UUID
+                          name: insertedPlant.name,
+                          scientificName: insertedPlant.scientific_name,
+                          careGuide: insertedPlant.care_guide,
+                          isGlobal: insertedPlant.is_global,
                         } as Plant;
                       }
 

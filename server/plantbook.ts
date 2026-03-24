@@ -47,17 +47,14 @@ export async function searchPlantbookServer(query: string) {
   const token = await getAccessToken();
   if (!token) return [];
 
-  // Lowercase the query as Plantbook PIDs are typically lowercase
+  // Normalize the query to lowercase for PID/Name matching
   const searchTerms = query.toLowerCase().trim();
 
   try {
-    // Try searching by alias first
+    // 1. Try searching by alias (common names)
     const urlAlias = `https://open.plantbook.io/api/v1/plant/search?alias=${encodeURIComponent(searchTerms)}&limit=5`;
-    console.log("Plantbook search URL (alias):", urlAlias);
     const responseAlias = await fetch(urlAlias, {
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
+      headers: { Authorization: `Bearer ${token}` },
     });
 
     let data = { results: [] as any[] };
@@ -65,14 +62,11 @@ export async function searchPlantbookServer(query: string) {
       data = (await responseAlias.json()) as any;
     }
 
-    // If no results, try searching by name
+    // 2. If no alias results, try searching by PID/Name (case-sensitive on server side)
     if (!data.results || data.results.length === 0) {
       const urlName = `https://open.plantbook.io/api/v1/plant/search?name=${encodeURIComponent(searchTerms)}&limit=5`;
-      console.log("Plantbook search URL (name):", urlName);
       const responseName = await fetch(urlName, {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
+        headers: { Authorization: `Bearer ${token}` },
       });
       if (responseName.ok) {
         data = (await responseName.json()) as any;
