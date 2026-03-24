@@ -18,6 +18,9 @@ export const HomeManager: React.FC<HomeManagerProps> = ({
   useEffect(() => {
     if (userProfile.home_id) {
       getHome(userProfile.home_id).then(setCurrentHome);
+    } else {
+      // CRITICAL: Clear the home if the user is no longer in one
+      setCurrentHome(null);
     }
   }, [userProfile.home_id]);
 

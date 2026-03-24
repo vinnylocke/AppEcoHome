@@ -1,4 +1,4 @@
-import fetch from 'node-fetch';
+import fetch from "node-fetch";
 
 let accessToken: string | null = null;
 let tokenExpiry: number | null = null;
@@ -8,7 +8,7 @@ async function getAccessToken(): Promise<string | null> {
   const clientSecret = process.env.PLANTBOOK_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    console.warn('Plantbook API credentials missing.');
+    console.warn("Plantbook API credentials missing.");
     return null;
   }
 
@@ -17,13 +17,13 @@ async function getAccessToken(): Promise<string | null> {
   }
 
   try {
-    const response = await fetch('https://open.plantbook.io/api/v1/token/', {
-      method: 'POST',
+    const response = await fetch("https://open.plantbook.io/api/v1/token/", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        "Content-Type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({
-        grant_type: 'client_credentials',
+        grant_type: "client_credentials",
         client_id: clientId,
         client_secret: clientSecret,
       }),
@@ -33,12 +33,12 @@ async function getAccessToken(): Promise<string | null> {
       throw new Error(`Failed to get Plantbook token: ${response.statusText}`);
     }
 
-    const data = await response.json() as any;
+    const data = (await response.json()) as any;
     accessToken = data.access_token;
-    tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000; // 1 minute buffer
+    tokenExpiry = Date.now() + data.expires_in * 1000 - 60000; // 1 minute buffer
     return accessToken;
   } catch (error) {
-    console.error('Plantbook auth error:', error);
+    console.error("Plantbook auth error:", error);
     return null;
   }
 }
@@ -47,65 +47,70 @@ export async function searchPlantbookServer(query: string) {
   const token = await getAccessToken();
   if (!token) return [];
 
+  // Lowercase the query as Plantbook PIDs are typically lowercase
+  const searchTerms = query.toLowerCase().trim();
+
   try {
     // Try searching by alias first
-    const urlAlias = `https://open.plantbook.io/api/v1/plant/search?alias=${encodeURIComponent(query)}&limit=5`;
-    console.log('Plantbook search URL (alias):', urlAlias);
+    const urlAlias = `https://open.plantbook.io/api/v1/plant/search?alias=${encodeURIComponent(searchTerms)}&limit=5`;
+    console.log("Plantbook search URL (alias):", urlAlias);
     const responseAlias = await fetch(urlAlias, {
       headers: {
-        'Authorization': `Bearer ${token}`,
+        Authorization: `Bearer ${token}`,
       },
     });
 
     let data = { results: [] as any[] };
     if (responseAlias.ok) {
-      data = await responseAlias.json() as any;
+      data = (await responseAlias.json()) as any;
     }
 
     // If no results, try searching by name
     if (!data.results || data.results.length === 0) {
-      const urlName = `https://open.plantbook.io/api/v1/plant/search?name=${encodeURIComponent(query)}&limit=5`;
-      console.log('Plantbook search URL (name):', urlName);
+      const urlName = `https://open.plantbook.io/api/v1/plant/search?name=${encodeURIComponent(searchTerms)}&limit=5`;
+      console.log("Plantbook search URL (name):", urlName);
       const responseName = await fetch(urlName, {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          Authorization: `Bearer ${token}`,
         },
       });
       if (responseName.ok) {
-        data = await responseName.json() as any;
+        data = (await responseName.json()) as any;
       }
     }
 
-    console.log('Plantbook search response:', data);
+    console.log("Plantbook search response:", data);
     const results = data.results || [];
 
     const detailedResults = await Promise.all(
       results.map(async (result: any) => {
         return await getPlantbookDetail(result.pid, token);
-      })
+      }),
     );
 
     return detailedResults.filter(Boolean);
   } catch (error) {
-    console.error('Plantbook search error:', error);
+    console.error("Plantbook search error:", error);
     return [];
   }
 }
 
 async function getPlantbookDetail(pid: string, token: string) {
   try {
-    const response = await fetch(`https://open.plantbook.io/api/v1/plant/detail/${pid}/`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
+    console.log(`Fetching details for PID: ${pid}`); // ADD THIS LOG
+    const response = await fetch(
+      `https://open.plantbook.io/api/v1/plant/detail/${pid}/`,
+      {
+        headers: { Authorization: `Bearer ${token}` },
       },
-    });
+    );
 
     if (!response.ok) {
       throw new Error(`Plantbook detail failed: ${response.statusText}`);
     }
 
-    const data = await response.json() as any;
-    
+    const data = (await response.json()) as any;
+
     return {
       name: data.display_pid || data.pid,
       scientificName: data.alias || data.pid,
@@ -115,10 +120,10 @@ async function getPlantbookDetail(pid: string, token: string) {
         soil: translateSoil(data.max_soil_ec, data.min_soil_ec),
         plantingMonth: "Spring/Summer (Typical)",
         harvestMonth: "Varies by region",
-      }
+      },
     };
   } catch (error) {
-    console.error('Plantbook detail error:', error);
+    console.error("Plantbook detail error:", error);
     return null;
   }
 }

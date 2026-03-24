@@ -349,7 +349,7 @@ export default function App() {
           table: "locations",
           filter: `home_id=eq.${homeId}`,
         },
-        fetchData,
+        fetchData, // This triggers a re-fetch of all data whenever a location changes
       )
       .subscribe();
     const plantChannel = supabase

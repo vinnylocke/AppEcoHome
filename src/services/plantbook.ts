@@ -1,4 +1,4 @@
-import { Plant } from '../types';
+import { Plant } from "../types";
 
 let accessToken: string | null = null;
 let tokenExpiry: number | null = null;
@@ -8,7 +8,7 @@ async function getAccessToken(): Promise<string | null> {
   const clientSecret = process.env.PLANTBOOK_CLIENT_SECRET;
 
   if (!clientId || !clientSecret) {
-    console.warn('Plantbook API credentials missing. Falling back to Gemini.');
+    console.warn("Plantbook API credentials missing. Falling back to Gemini.");
     return null;
   }
 
@@ -17,13 +17,13 @@ async function getAccessToken(): Promise<string | null> {
   }
 
   try {
-    const response = await fetch('https://open.plantbook.io/api/v1/token/', {
-      method: 'POST',
+    const response = await fetch("https://open.plantbook.io/api/v1/token/", {
+      method: "POST",
       headers: {
-        'Content-Type': 'application/x-www-form-urlencoded',
+        "Content-Type": "application/x-www-form-urlencoded",
       },
       body: new URLSearchParams({
-        grant_type: 'client_credentials',
+        grant_type: "client_credentials",
         client_id: clientId,
         client_secret: clientSecret,
       }),
@@ -35,15 +35,17 @@ async function getAccessToken(): Promise<string | null> {
 
     const data = await response.json();
     accessToken = data.access_token;
-    tokenExpiry = Date.now() + (data.expires_in * 1000) - 60000; // 1 minute buffer
+    tokenExpiry = Date.now() + data.expires_in * 1000 - 60000; // 1 minute buffer
     return accessToken;
   } catch (error) {
-    console.error('Plantbook auth error:', error);
+    console.error("Plantbook auth error:", error);
     return null;
   }
 }
 
-export async function searchPlantbook(query: string): Promise<Partial<Plant>[]> {
+export async function searchPlantbook(
+  query: string,
+): Promise<Partial<Plant>[]> {
   try {
     const url = `/api/plantbook/search?q=${encodeURIComponent(query)}`;
     const response = await fetch(url);
@@ -54,28 +56,33 @@ export async function searchPlantbook(query: string): Promise<Partial<Plant>[]> 
 
     return await response.json();
   } catch (error) {
-    console.error('Plantbook search error:', error);
+    console.error("Plantbook search error:", error);
     return [];
   }
 }
 
-export async function getPlantbookDetail(pid: string): Promise<Partial<Plant> | null> {
+export async function getPlantbookDetail(
+  pid: string,
+): Promise<Partial<Plant> | null> {
   const token = await getAccessToken();
   if (!token) return null;
 
   try {
-    const response = await fetch(`https://open.plantbook.io/api/v1/plant/detail/${pid}/`, {
-      headers: {
-        'Authorization': `Bearer ${token}`,
+    const response = await fetch(
+      `https://open.plantbook.io/api/v1/plant/detail/${pid}/`,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
       },
-    });
+    );
 
     if (!response.ok) {
       throw new Error(`Plantbook detail failed: ${response.statusText}`);
     }
 
     const data = await response.json();
-    
+
     // Map Plantbook data to our Plant type
     // Note: Plantbook uses specific metrics, we'll translate them to friendly text
     return {
@@ -87,10 +94,10 @@ export async function getPlantbookDetail(pid: string): Promise<Partial<Plant> | 
         soil: translateSoil(data.max_soil_ec, data.min_soil_ec),
         plantingMonth: "Spring/Summer (Typical)", // Plantbook doesn't always provide this
         harvestMonth: "Varies by region",
-      }
+      },
     };
   } catch (error) {
-    console.error('Plantbook detail error:', error);
+    console.error("Plantbook detail error:", error);
     return null;
   }
 }

@@ -102,9 +102,25 @@ export const Layout: React.FC<LayoutProps> = ({ children, userProfile }) => {
   const handleLeaveHome = async (homeId: string) => {
     if (!userProfile) return;
     try {
+      // 1. Tell the database to remove the membership
       await leaveHome(userProfile.uid, homeId);
+
+      // 2. Refresh the local homes list
+      const updatedHomes = await getHomesForUser(userProfile.uid);
+      setHomes(updatedHomes);
+
+      // 3. Logic to select the next home if we just left the active one
+      if (userProfile.home_id === homeId) {
+        if (updatedHomes.length > 0) {
+          // Select the first remaining home in the list
+          await handleSwitchHome(updatedHomes[0].id);
+        } else {
+          // No homes left, set active home to null
+          await handleSwitchHome(null);
+        }
+      }
     } catch (error) {
-      console.error(error);
+      console.error("Error leaving home:", error);
     }
   };
 
@@ -294,9 +310,16 @@ export const Layout: React.FC<LayoutProps> = ({ children, userProfile }) => {
                 <div className="pt-6 border-t border-stone-100">
                   <HomeManager
                     userProfile={userProfile}
-                    onHomeUpdated={() => {
-                      // This forces the Layout to fetch the new list of homes immediately
-                      getHomesForUser(userProfile.uid).then(setHomes);
+                    onHomeUpdated={async () => {
+                      // 1. Manually re-fetch the list of homes
+                      if (userProfile) {
+                        const updatedHomes = await getHomesForUser(
+                          userProfile.uid,
+                        );
+                        setHomes(updatedHomes);
+                      }
+                      // 2. Optionally close the modal
+                      setIsProfileModalOpen(false);
                     }}
                   />
                 </div>
