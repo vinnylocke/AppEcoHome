@@ -22,7 +22,7 @@ interface LayoutProps {
 export const Layout: React.FC<LayoutProps> = ({ children, userProfile }) => {
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [localInterval, setLocalInterval] = useState(
-    userProfile?.notificationIntervalHours || 8,
+    userProfile?.notification_interval_hours || 8,
   );
   const [homes, setHomes] = useState<Home[]>([]);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -35,21 +35,25 @@ export const Layout: React.FC<LayoutProps> = ({ children, userProfile }) => {
 
   // Sync local state when profile opens or changes from outside
   React.useEffect(() => {
-    if (userProfile?.notificationIntervalHours) {
-      setLocalInterval(userProfile.notificationIntervalHours);
+    if (userProfile?.notification_interval_hours) {
+      setLocalInterval(userProfile.notification_interval_hours);
     }
-  }, [userProfile?.notificationIntervalHours]);
+  }, [userProfile?.notification_interval_hours]);
 
   // Debounce the Supabase update
   React.useEffect(() => {
-    if (!userProfile || localInterval === userProfile.notificationIntervalHours)
+    if (
+      !userProfile ||
+      localInterval === userProfile.notification_interval_hours
+    )
       return;
 
+    // Inside the debounce useEffect
     const timeoutId = setTimeout(async () => {
       try {
         const { error } = await supabase
           .from("user_profiles")
-          .update({ notificationIntervalHours: localInterval })
+          .update({ notification_interval_hours: localInterval }) // Changed key to snake_case
           .eq("uid", userProfile.uid);
         if (error) throw error;
 
@@ -86,7 +90,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, userProfile }) => {
     try {
       const { error } = await supabase
         .from("user_profiles")
-        .update({ homeId })
+        .update({ home_id: homeId }) // Changed homeId to home_id
         .eq("uid", userProfile.uid);
       if (error) throw error;
       setIsDropdownOpen(false);
@@ -104,7 +108,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, userProfile }) => {
     }
   };
 
-  const currentHome = homes.find((h) => h.id === userProfile?.homeId);
+  const currentHome = homes.find((h) => h.id === userProfile?.home_id);
 
   return (
     <div className="min-h-screen bg-stone-50 text-stone-900 font-sans">
@@ -164,7 +168,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, userProfile }) => {
                 className="flex flex-col items-end hover:bg-stone-50 p-2 rounded-xl transition-colors text-right"
               >
                 <span className="text-sm font-medium">
-                  {userProfile.displayName}
+                  {userProfile.display_name}
                 </span>
                 <span className="text-xs text-stone-500">
                   {userProfile.mode} Mode

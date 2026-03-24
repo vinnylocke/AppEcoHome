@@ -1,13 +1,13 @@
-export type UserMode = 'Novice' | 'Expert';
+export type UserMode = "Novice" | "Expert";
 
 export interface UserProfile {
   uid: string;
   email: string;
-  displayName: string;
-  mode: UserMode;
+  display_name: string; // Changed from displayName
+  mode: "Novice" | "Expert";
   onboarded: boolean;
-  notificationIntervalHours?: number;
-  homeId?: string;
+  home_id?: string; // Changed from homeId
+  notification_interval_hours?: number; // Changed from notificationIntervalHours
 }
 
 export interface Home {
@@ -19,7 +19,7 @@ export interface Home {
 export interface Area {
   id: string;
   name: string;
-  type: 'inside' | 'outside';
+  type: "inside" | "outside";
 }
 
 export interface Location {
@@ -48,7 +48,7 @@ export interface Plant {
 
 export interface PlantLog {
   id: string;
-  type: 'comment' | 'picture';
+  type: "comment" | "picture";
   content: string;
   createdAt: string;
 }
@@ -74,14 +74,14 @@ export interface InventoryItem {
   plantName: string;
   plantCode?: string;
   identifier?: string;
-  status: 'In Shed' | 'Planted';
+  status: "In Shed" | "Planted";
   locationId?: string;
   locationName?: string;
   areaId?: string;
   areaName?: string;
   plantedAt?: string;
   createdAt: string;
-  environment?: 'Indoors' | 'Outdoors';
+  environment?: "Indoors" | "Outdoors";
   isEstablished?: boolean;
   logs?: PlantLog[];
   yieldData?: YieldData;
@@ -91,10 +91,10 @@ export interface GardenTask {
   id: string;
   title: string;
   description: string;
-  status: 'Pending' | 'Completed' | 'Postponed - Rain Expected';
+  status: "Pending" | "Completed" | "Postponed - Rain Expected";
   dueDate: string;
   completedAt?: string;
-  type: 'Watering' | 'Feeding' | 'Pruning' | 'Harvesting';
+  type: "Watering" | "Feeding" | "Pruning" | "Harvesting";
   plantId?: string;
   inventoryItemId?: string;
   isVirtual?: boolean;
@@ -120,11 +120,11 @@ export interface WeatherData {
   nextDayWarnings?: {
     frost: { active: boolean; timePeriod?: string };
     heat: { active: boolean; timePeriod?: string };
-    wind: { 
-      active: boolean; 
-      timePeriod?: string; 
+    wind: {
+      active: boolean;
+      timePeriod?: string;
       maxSpeed?: number;
-      severity?: 'Low to Moderate' | 'Moderate to Strong' | 'High' | 'Extreme';
+      severity?: "Low to Moderate" | "Moderate to Strong" | "High" | "Extreme";
       description?: string;
     };
     rain: { active: boolean; timePeriod?: string; amount?: number };
@@ -132,11 +132,11 @@ export interface WeatherData {
   todayWarnings?: {
     frost: { active: boolean; timePeriod?: string };
     heat: { active: boolean; timePeriod?: string };
-    wind: { 
-      active: boolean; 
-      timePeriod?: string; 
+    wind: {
+      active: boolean;
+      timePeriod?: string;
       maxSpeed?: number;
-      severity?: 'Low to Moderate' | 'Moderate to Strong' | 'High' | 'Extreme';
+      severity?: "Low to Moderate" | "Moderate to Strong" | "High" | "Extreme";
       description?: string;
     };
     rain: { active: boolean; timePeriod?: string; amount?: number };
@@ -144,11 +144,11 @@ export interface WeatherData {
   tomorrowWarnings?: {
     frost: { active: boolean; timePeriod?: string };
     heat: { active: boolean; timePeriod?: string };
-    wind: { 
-      active: boolean; 
-      timePeriod?: string; 
+    wind: {
+      active: boolean;
+      timePeriod?: string;
       maxSpeed?: number;
-      severity?: 'Low to Moderate' | 'Moderate to Strong' | 'High' | 'Extreme';
+      severity?: "Low to Moderate" | "Moderate to Strong" | "High" | "Extreme";
       description?: string;
     };
     rain: { active: boolean; timePeriod?: string; amount?: number };
@@ -157,7 +157,7 @@ export interface WeatherData {
 
 export interface WeatherAlert {
   id: string;
-  type: 'wind' | 'frost' | 'rain' | 'heat';
+  type: "wind" | "frost" | "rain" | "heat";
   locationName: string;
   message: string;
   date?: string;
@@ -169,7 +169,7 @@ export interface Guide {
   description: string;
   content: string;
   videoUrl?: string;
-  category: 'Propagation' | 'Pruning' | 'Planting' | 'Harvesting' | 'General';
+  category: "Propagation" | "Pruning" | "Planting" | "Harvesting" | "General";
   tags: string[];
   imageUrl?: string;
 }
