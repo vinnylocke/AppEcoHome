@@ -1,0 +1,5 @@
+{
+  "name": "EcoHome",
+  "description": "A context-aware, AI-driven gardening web application with plant diagnosis, weather-aware tasks, and inventory management.",
+  "requestFramePermissions": ["camera"]
+}
