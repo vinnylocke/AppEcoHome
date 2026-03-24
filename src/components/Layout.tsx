@@ -53,7 +53,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, userProfile }) => {
       try {
         const { error } = await supabase
           .from("user_profiles")
-          .update({ notification_interval_hours: localInterval }) // Changed key to snake_case
+          .update({ notification_interval_hours: localInterval }) // CHANGED: naming to snake_case
           .eq("uid", userProfile.uid);
         if (error) throw error;
 
@@ -90,7 +90,7 @@ export const Layout: React.FC<LayoutProps> = ({ children, userProfile }) => {
     try {
       const { error } = await supabase
         .from("user_profiles")
-        .update({ home_id: homeId }) // Changed homeId to home_id
+        .update({ home_id: homeId }) // CHANGED: homeId -> home_id
         .eq("uid", userProfile.uid);
       if (error) throw error;
       setIsDropdownOpen(false);
@@ -294,7 +294,10 @@ export const Layout: React.FC<LayoutProps> = ({ children, userProfile }) => {
                 <div className="pt-6 border-t border-stone-100">
                   <HomeManager
                     userProfile={userProfile}
-                    onHomeUpdated={() => {}}
+                    onHomeUpdated={() => {
+                      // This forces the Layout to fetch the new list of homes immediately
+                      getHomesForUser(userProfile.uid).then(setHomes);
+                    }}
                   />
                 </div>
               </div>
