@@ -1,22 +1,25 @@
-import React, { useState, useEffect } from 'react';
-import { createHome, joinHome, getHome } from '../services/homeService';
-import { UserProfile, Home } from '../types';
+import React, { useState, useEffect } from "react";
+import { createHome, joinHome, getHome } from "../services/homeService";
+import { UserProfile, Home } from "../types";
 
 interface HomeManagerProps {
   userProfile: UserProfile;
   onHomeUpdated: () => void;
 }
 
-export const HomeManager: React.FC<HomeManagerProps> = ({ userProfile, onHomeUpdated }) => {
-  const [homeName, setHomeName] = useState('');
-  const [joinHomeId, setJoinHomeId] = useState('');
+export const HomeManager: React.FC<HomeManagerProps> = ({
+  userProfile,
+  onHomeUpdated,
+}) => {
+  const [homeName, setHomeName] = useState("");
+  const [joinHomeId, setJoinHomeId] = useState("");
   const [currentHome, setCurrentHome] = useState<Home | null>(null);
 
   useEffect(() => {
-    if (userProfile.homeId) {
-      getHome(userProfile.homeId).then(setCurrentHome);
+    if (userProfile.home_id) {
+      getHome(userProfile.home_id).then(setCurrentHome);
     }
-  }, [userProfile.homeId]);
+  }, [userProfile.home_id]);
 
   const handleCreateHome = async () => {
     if (!homeName) return;
@@ -35,11 +38,17 @@ export const HomeManager: React.FC<HomeManagerProps> = ({ userProfile, onHomeUpd
       <h2 className="text-xl font-bold text-stone-900 mb-4">Manage Home</h2>
       {currentHome ? (
         <div className="mb-6 p-4 bg-emerald-50 rounded-xl border border-emerald-100">
-          <p className="text-sm font-bold text-emerald-900">Current Home: {currentHome.name}</p>
-          <p className="text-xs text-emerald-700 font-mono mt-1">ID: {currentHome.id}</p>
+          <p className="text-sm font-bold text-emerald-900">
+            Current Home: {currentHome.name}
+          </p>
+          <p className="text-xs text-emerald-700 font-mono mt-1">
+            ID: {currentHome.id}
+          </p>
         </div>
       ) : (
-        <p className="text-sm text-stone-500 mb-4">You are not currently in a home.</p>
+        <p className="text-sm text-stone-500 mb-4">
+          You are not currently in a home.
+        </p>
       )}
       <div className="space-y-4">
         <div>
@@ -50,7 +59,10 @@ export const HomeManager: React.FC<HomeManagerProps> = ({ userProfile, onHomeUpd
             placeholder="New Home Name"
             className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl text-sm"
           />
-          <button onClick={handleCreateHome} className="mt-2 w-full py-2 bg-emerald-600 text-white rounded-xl font-semibold">
+          <button
+            onClick={handleCreateHome}
+            className="mt-2 w-full py-2 bg-emerald-600 text-white rounded-xl font-semibold"
+          >
             Create Home
           </button>
         </div>
@@ -62,7 +74,10 @@ export const HomeManager: React.FC<HomeManagerProps> = ({ userProfile, onHomeUpd
             placeholder="Home ID to Join"
             className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl text-sm"
           />
-          <button onClick={handleJoinHome} className="mt-2 w-full py-2 bg-indigo-600 text-white rounded-xl font-semibold">
+          <button
+            onClick={handleJoinHome}
+            className="mt-2 w-full py-2 bg-indigo-600 text-white rounded-xl font-semibold"
+          >
             Join Home
           </button>
         </div>
