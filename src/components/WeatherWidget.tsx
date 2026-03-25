@@ -63,14 +63,6 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
         <h2 className="text-xl font-bold text-stone-900">
           Locations & Weather
         </h2>
-        <button
-          onClick={handleRefresh}
-          disabled={isRefreshing}
-          className="p-2 text-stone-400 hover:text-stone-600 hover:bg-stone-100 rounded-full transition-all disabled:opacity-50"
-          title="Refresh Weather"
-        >
-          <RefreshCw size={20} className={isRefreshing ? "animate-spin" : ""} />
-        </button>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {locations.map((loc) => {
@@ -83,7 +75,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
             now.getDate(),
           );
 
-          // Filter real tasks for this location (today or overdue)
+          // ✅ FIX 1: Filter real tasks for this location for TODAY ONLY
           const locationTasks = tasks.filter((task) => {
             if (task.status === "Completed") return false;
             const item = inventory.find((i) => i.id === task.inventoryItemId);
@@ -95,18 +87,18 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
               taskDate.getMonth(),
               taskDate.getDate(),
             );
-            return taskDay <= today;
+
+            // Only count if it is exactly today
+            return taskDay.getTime() === today.getTime();
           });
 
-          // Deduplicate tasks for the same plant, type, and day
+          // Deduplicate tasks for the same plant and type
           const deduplicatedTasks = locationTasks.reduce(
             (acc: GardenTask[], current) => {
-              const currentDay = new Date(current.dueDate).toDateString();
               const isDuplicate = acc.some(
                 (item) =>
                   item.inventoryItemId === current.inventoryItemId &&
-                  item.type === current.type &&
-                  new Date(item.dueDate).toDateString() === currentDay,
+                  item.type === current.type,
               );
               if (!isDuplicate) {
                 acc.push(current);
@@ -138,7 +130,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
                       <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center">
-                        {weather.condition.includes("Rain") ? (
+                        {weather.condition?.includes("Rain") ? (
                           <CloudRain size={24} />
                         ) : (
                           <CloudSun size={24} />
@@ -153,15 +145,12 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                         </div>
                       </div>
                     </div>
-                    {(weather.todayWarnings?.frost.active ||
-                      weather.todayWarnings?.heat.active ||
-                      weather.todayWarnings?.wind.active ||
-                      weather.tomorrowWarnings?.frost.active ||
-                      weather.tomorrowWarnings?.heat.active ||
-                      weather.tomorrowWarnings?.wind.active) && (
+                    {(weather.todayWarnings?.frost?.active ||
+                      weather.todayWarnings?.heat?.active ||
+                      weather.todayWarnings?.wind?.active) && (
                       <div
                         className="flex items-center gap-1 bg-amber-100 text-amber-700 px-2 py-1 rounded-lg text-xs font-bold animate-pulse"
-                        title="Weather warning for today or tomorrow"
+                        title="Weather warning active"
                       >
                         <AlertTriangle size={14} />
                         <span>Warning</span>
@@ -185,7 +174,7 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                         className={`${getWindColor(weather.windSpeed)} mb-1`}
                       />
                       <span className="text-sm font-bold text-stone-900">
-                        {weather.windSpeed}{" "}
+                        {Math.round(weather.windSpeed)}{" "}
                         <span className="text-[10px]">km/h</span>
                       </span>
                       <span className="text-[10px] text-stone-400 uppercase tracking-wider">
@@ -195,10 +184,11 @@ export const WeatherWidget: React.FC<WeatherWidgetProps> = ({
                     <div className="flex flex-col items-center p-2 bg-stone-50 rounded-xl">
                       <Sun size={16} className="text-orange-400 mb-1" />
                       <span className="text-sm font-bold text-stone-900">
-                        {weather.uvIndex}
+                        {/* ✅ FIX 2: Population with uvMax (Peak UV) */}
+                        {(weather.uvMax ?? 0).toFixed(1)}
                       </span>
                       <span className="text-[10px] text-stone-400 uppercase tracking-wider">
-                        UV
+                        Peak UV
                       </span>
                     </div>
                   </div>

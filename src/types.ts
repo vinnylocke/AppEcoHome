@@ -41,8 +41,19 @@ export interface Plant {
     sun: string;
     water: string;
     soil: string;
+    minSoilEc?: number; // ✅ Minimum microSiemens per cm
+    maxSoilEc?: number; // ✅ Maximum microSiemens per cm
     plantingMonth: string;
     harvestMonth?: string;
+    minLightLux?: number;
+    maxLightLux?: number;
+    waterFrequency?: number;
+    waterUnit?: string;
+    avgSoilMoisture?: number;
+    plantingStart?: string; // ISO Date String
+    plantingEnd?: string; // ISO Date String
+    harvestStart?: string;
+    harvestEnd?: string;
   };
   isGlobal?: boolean;
 }
@@ -94,6 +105,7 @@ export interface GardenTask {
   description: string;
   status: "Pending" | "Completed" | "Postponed - Rain Expected";
   dueDate: string;
+  startDate?: string; // ✅ Add this for the "Start" date
   completedAt?: string;
   type: "Watering" | "Feeding" | "Pruning" | "Harvesting";
   plantId?: string;
@@ -101,14 +113,21 @@ export interface GardenTask {
   isVirtual?: boolean;
 }
 
+export interface HourlyForecast {
+  time: string;
+  temp: number;
+  code: number;
+  uv: number;
+}
+
 export interface WeatherData {
   temp: number;
   condition: string;
   rainExpected: boolean;
-  rainAmount: number;
-  isFrostWarning: boolean;
+  rainAmount?: number;      // ✅ Changed to optional
+  isFrostWarning?: boolean; // ✅ Changed to optional
   timestamp?: number;
-  forecast: Array<{
+  forecast?: Array<{       // ✅ Changed to optional
     date: string;
     temp: number;
     condition: string;
@@ -117,8 +136,10 @@ export interface WeatherData {
   humidity: number;
   windSpeed: number;
   dewPoint: number;
-  uvIndex: number;
+  forecast24h: HourlyForecast[];
+  uvIndex?: number;         // ✅ Changed to optional
   pressure: number;
+  uvMax: number;
   nextDayWarnings?: {
     frost: { active: boolean; timePeriod?: string };
     heat: { active: boolean; timePeriod?: string };
@@ -163,6 +184,7 @@ export interface WeatherAlert {
   locationName: string;
   message: string;
   date?: string;
+  locationId: string;
 }
 
 export interface Guide {
