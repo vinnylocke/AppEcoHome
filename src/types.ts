@@ -3,12 +3,12 @@ export type UserMode = "Novice" | "Expert";
 export interface UserProfile {
   uid: string;
   email: string;
-  display_name: string; // Changed from displayName
+  display_name: string;
   mode: "Novice" | "Expert";
   onboarded: boolean;
   aiEnabled: boolean;
-  home_id?: string; // Changed from homeId
-  notification_interval_hours?: number; // Changed from notificationIntervalHours
+  home_id?: string;
+  notification_interval_hours?: number;
 }
 
 export interface Home {
@@ -25,6 +25,7 @@ export interface Area {
 
 export interface Location {
   id: string;
+  home_id: string; // ✅ Added to match App.tsx mapping
   name: string;
   address: string;
   lat: number;
@@ -34,28 +35,35 @@ export interface Location {
 }
 
 export interface Plant {
-  id: string;
-  name: string;
-  scientificName?: string;
-  careGuide: {
-    sun: string;
-    water: string;
-    soil: string;
-    minSoilEc?: number; // ✅ Minimum microSiemens per cm
-    maxSoilEc?: number; // ✅ Maximum microSiemens per cm
-    plantingMonth: string;
-    harvestMonth?: string;
-    minLightLux?: number;
-    maxLightLux?: number;
-    waterFrequency?: number;
-    waterUnit?: string;
-    avgSoilMoisture?: number;
-    plantingStart?: string; // ISO Date String
-    plantingEnd?: string; // ISO Date String
-    harvestStart?: string;
-    harvestEnd?: string;
+  // ✅ FIX: Change number to string to support Universal ID strategy
+  id: string; 
+  common_name: string;
+  scientific_name: string[]; 
+  other_names?: string[];
+  family?: string;
+  type?: string; 
+  cycle: "Perennial" | "Annual" | "Biennial" | "Unknown" | string;
+  
+  image_url?: string;
+  thumbnail_url?: string;
+
+  watering: "Frequent" | "Average" | "Minimum" | "None" | string;
+  watering_benchmark?: {
+    value: string;
+    unit: string;
   };
-  isGlobal?: boolean;
+  sunlight: string[]; 
+  care_level: "Beginner" | "Intermediate" | "Advanced" | string;
+  hardiness_zone?: { min: string; max: string };
+  
+  is_edible: boolean;
+  is_toxic_pets: boolean;
+  is_toxic_humans: boolean;
+  attracts?: string[]; 
+  propagation?: string[];
+  
+  description?: string;
+  maintenance_notes?: string;
 }
 
 export interface PlantLog {
@@ -82,18 +90,20 @@ export interface YieldData {
 
 export interface InventoryItem {
   id: string;
-  plantId: string;
-  plantName: string;
-  plantCode?: string;
+  // ✅ FIX: Change number to string to support both API IDs and Library UUIDs
+  plant_id: string; 
+  plant_name: string;
+  plant_code?: string; // snake_case to match DB
   identifier?: string;
-  status: "In Shed" | "Planted";
+  status: string;
+  home_id: string;
   locationId?: string;
   locationName?: string;
   areaId?: string;
   areaName?: string;
-  plantedAt?: string;
-  createdAt: string;
-  environment?: "Indoors" | "Outdoors";
+  plantedAt?: string | null;
+  created_at: string;
+  environment?: "Indoors" | "Outdoors" | string;
   isEstablished?: boolean;
   logs?: PlantLog[];
   yieldData?: YieldData;
@@ -101,14 +111,15 @@ export interface InventoryItem {
 
 export interface GardenTask {
   id: string;
+  home_id: string; // ✅ Added to match App.tsx mapping
   title: string;
   description: string;
-  status: "Pending" | "Completed" | "Postponed - Rain Expected";
+  status: "Pending" | "Completed" | "Postponed - Rain Expected" | string;
   dueDate: string;
-  startDate?: string; // ✅ Add this for the "Start" date
-  completedAt?: string;
-  type: "Watering" | "Feeding" | "Pruning" | "Harvesting";
-  plantId?: string;
+  startDate?: string;
+  completedAt?: string | null;
+  type: "Watering" | "Feeding" | "Pruning" | "Harvesting" | string;
+  plantId?: string; // Already string
   inventoryItemId?: string;
   isVirtual?: boolean;
 }
@@ -124,56 +135,27 @@ export interface WeatherData {
   temp: number;
   condition: string;
   rainExpected: boolean;
-  rainAmount?: number;      // ✅ Changed to optional
-  isFrostWarning?: boolean; // ✅ Changed to optional
+  rainAmount?: number;
+  isFrostWarning?: boolean;
   timestamp?: number;
-  forecast?: Array<{       // ✅ Changed to optional
-    date: string;
-    temp: number;
-    condition: string;
-    rain: number;
-  }>;
   humidity: number;
   windSpeed: number;
   dewPoint: number;
   forecast24h: HourlyForecast[];
-  uvIndex?: number;         // ✅ Changed to optional
   pressure: number;
   uvMax: number;
-  nextDayWarnings?: {
-    frost: { active: boolean; timePeriod?: string };
-    heat: { active: boolean; timePeriod?: string };
-    wind: {
-      active: boolean;
-      timePeriod?: string;
-      maxSpeed?: number;
-      severity?: "Low to Moderate" | "Moderate to Strong" | "High" | "Extreme";
-      description?: string;
-    };
-    rain: { active: boolean; timePeriod?: string; amount?: number };
-  };
+
+  // ✅ ONLY the two warning windows your app actually uses
   todayWarnings?: {
     frost: { active: boolean; timePeriod?: string };
     heat: { active: boolean; timePeriod?: string };
-    wind: {
-      active: boolean;
-      timePeriod?: string;
-      maxSpeed?: number;
-      severity?: "Low to Moderate" | "Moderate to Strong" | "High" | "Extreme";
-      description?: string;
-    };
+    wind: { active: boolean; timePeriod?: string; maxSpeed?: number };
     rain: { active: boolean; timePeriod?: string; amount?: number };
   };
   tomorrowWarnings?: {
     frost: { active: boolean; timePeriod?: string };
     heat: { active: boolean; timePeriod?: string };
-    wind: {
-      active: boolean;
-      timePeriod?: string;
-      maxSpeed?: number;
-      severity?: "Low to Moderate" | "Moderate to Strong" | "High" | "Extreme";
-      description?: string;
-    };
+    wind: { active: boolean; timePeriod?: string; maxSpeed?: number };
     rain: { active: boolean; timePeriod?: string; amount?: number };
   };
 }

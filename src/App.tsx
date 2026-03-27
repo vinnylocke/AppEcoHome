@@ -23,26 +23,9 @@ import { GuideView } from "./components/GuideView";
 import { TestingPanel } from "./components/TestingPanel";
 import { useTaskNotifications } from "./hooks/useTaskNotifications";
 import { MOCK_SCENARIOS } from "./config/mockScenarios";
-import { getPlantDisplayName } from "./utils/plantUtils";
 import { motion, AnimatePresence } from "motion/react";
-import {
-  LogIn,
-  Leaf,
-  Loader2,
-  Sun,
-  Droplets,
-  Shovel,
-  Calendar,
-  Wheat,
-  X,
-  AlertTriangle,
-} from "lucide-react";
-import { clsx, type ClassValue } from "clsx";
-import { twMerge } from "tailwind-merge";
-
-function cn(...inputs: ClassValue[]) {
-  return twMerge(clsx(inputs));
-}
+import { Leaf, Loader2, Sun, X } from "lucide-react";
+import { cn } from "./lib/utils";
 
 const WMO_CODE_MAP: Record<number, string> = {
   0: "Clear sky",
@@ -66,25 +49,6 @@ const WMO_CODE_MAP: Record<number, string> = {
   95: "Thunderstorm",
 };
 
-export const SUNLIGHT_OPTIONS: Record<string, { min: number; max: number }> = {
-  "Full Sun": { min: 3500, max: 130000 },
-  "Partial Sun": { min: 2500, max: 60000 },
-  "Indirect Light": { min: 1000, max: 25000 },
-  "Partial Shade": { min: 500, max: 10000 },
-  "Full Shade": { min: 0, max: 2500 },
-};
-export const WATER_UNIT_MULTIPLIERS: Record<string, number> = {
-  "Every Week": 1,
-  "Every Two Weeks": 0.5,
-  "Every Month": 0.25,
-};
-export const SOIL_OPTIONS: Record<string, { min: number; max: number }> = {
-  "Very Rich Nutrient Soil": { min: 2400, max: 3200 },
-  "Rich Nutrient Soil": { min: 1600, max: 2400 },
-  "Low Nutrient Soil": { min: 800, max: 1600 },
-  "Very Low Nutrient Soil": { min: 0, max: 800 },
-};
-
 export default function App() {
   const [user, setUser] = useState<SupabaseUser | null>(null);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -95,17 +59,14 @@ export default function App() {
   const [weatherMap, setWeatherMap] = useState<Record<string, WeatherData>>({});
   const [realWeatherAlerts, setRealWeatherAlerts] = useState<WeatherAlert[]>(
     [],
-  ); // ✅ Added Alert State
+  );
   const [selectedLocationId, setSelectedLocationId] = useState<string | null>(
     null,
   );
   const [selectedItem, setSelectedItem] = useState<InventoryItem | null>(null);
   const [selectedShedItem, setSelectedShedItem] =
     useState<InventoryItem | null>(null);
-  const [isEditingCare, setIsEditingCare] = useState(false);
-  const [editedCare, setEditedCare] = useState<Plant["careGuide"] | null>(null);
 
-  const [modalTab, setModalTab] = useState<"search" | "inventory">("search");
   const [activeTab, setActiveTab] = useState<
     "dashboard" | "calendar" | "guides"
   >("dashboard");
@@ -117,14 +78,6 @@ export default function App() {
   const [authReady, setAuthReady] = useState(false);
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [mockUpdateCounter, setMockUpdateCounter] = useState(0);
-
-  const getSunLabelFromLux = (maxLux: number): string => {
-    if (maxLux >= 100000) return "Full Sun";
-    if (maxLux >= 45000) return "Partial Sun";
-    if (maxLux >= 15000) return "Indirect Light";
-    if (maxLux >= 5000) return "Partial Shade";
-    return "Full Shade";
-  };
 
   const inventory = React.useMemo(() => {
     const activeMocks = MOCK_SCENARIOS.filter((s) => s.enabled);
@@ -146,7 +99,6 @@ export default function App() {
     return [...realLocations, ...mockLocations];
   }, [realLocations, mockUpdateCounter]);
 
-  // ✅ UPDATED: Derive alerts directly from the database state
   const weatherAlerts = React.useMemo(() => {
     return realWeatherAlerts.filter(
       (alert) => !dismissedAlertIds.has(alert.id),
@@ -170,31 +122,57 @@ export default function App() {
         supabase.from("locations").select("*").eq("home_id", homeId),
         supabase.from("plants").select("*"),
         supabase.from("weather_snapshots").select("*"),
-        supabase.from("weather_alerts").select("*"), // ✅ Fetch the background manager alerts
+        supabase.from("weather_alerts").select("*"),
       ]);
 
-    if (invRes.data)
+    if (plantRes.data) {
+      setPlants(
+        plantRes.data.map((p: any) => ({
+          id: String(p.id),
+          common_name: p.common_name,
+          scientific_name: p.scientific_name || [],
+          image_url: p.image_url,
+          thumbnail_url: p.thumbnail_url,
+          watering: p.watering,
+          sunlight: p.sunlight || [],
+          cycle: p.cycle,
+          care_level: p.care_level,
+          is_edible: p.is_edible,
+          is_toxic_pets: p.is_toxic_pets,
+          is_toxic_humans: p.is_toxic_humans,
+          description: p.description,
+        })),
+      );
+    }
+
+    if (invRes.data) {
       setRealInventory(
         invRes.data.map((item: any) => ({
           id: item.id,
-          plantId: item.plant_id,
-          plantName: item.plant_name,
+          home_id: item.home_id,
+          plant_id: String(item.plant_id),
+          plant_name: item.plant_name,
+          identifier: item.identifier || item.plant_name, // ✅ Fallback to plant_name if identifier is null
           status: item.status,
           locationId: item.location_id,
+          locationName: item.location_name,
           areaId: item.area_id,
+          areaName: item.area_name,
           environment: item.environment,
           isEstablished: item.is_established,
           plantedAt: item.planted_at,
-          createdAt: item.created_at,
-          logs: item.logs,
+          created_at: item.created_at,
+          logs: item.logs || [],
           yieldData: item.yield_data,
         })),
       );
+    }
 
-    if (taskRes.data)
+    if (taskRes.data) {
       setRealTasks(
         taskRes.data.map((task: any) => ({
           id: task.id,
+          home_id: task.home_id, // ✅ Included
           title: task.title,
           description: task.description || "",
           status: task.status,
@@ -202,37 +180,29 @@ export default function App() {
           startDate: task.start_date,
           completedAt: task.completed_at,
           type: task.type,
-          plantId: task.plant_id,
+          plantId: String(task.plant_id),
           inventoryItemId: task.inventory_item_id,
           isVirtual: task.is_virtual,
         })),
       );
+    }
 
-    if (locRes.data)
+    if (locRes.data) {
       setRealLocations(
         locRes.data.map((loc: any) => ({
           id: loc.id,
+          home_id: loc.home_id, // ✅ Included
           name: loc.name,
           address: loc.address,
           lat: loc.lat,
           lng: loc.lng,
           createdAt: loc.created_at,
-          areas: loc.areas,
+          areas: loc.areas || [],
         })),
       );
+    }
 
-    if (plantRes.data)
-      setPlants(
-        plantRes.data.map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          scientificName: p.scientific_name,
-          careGuide: p.care_guide,
-          isGlobal: p.is_global,
-        })),
-      );
-
-    // ✅ Map Weather Snapshots
+    // Weather snapshots mapping logic remains consistent
     if (weatherRes.data) {
       const newMap: Record<string, WeatherData> = {};
       weatherRes.data.forEach((snap: any) => {
@@ -254,15 +224,14 @@ export default function App() {
               temp: d.hourly.temperature_2m[i],
               code: d.hourly.weather_code[i],
               uv: d.hourly.uv_index[i],
-              rain: d.hourly.rain?.[i] || 0, // ✅ Add this
-              wind: d.hourly.wind_speed_10m?.[i] || 0, // ✅ Add this
+              rain: d.hourly.rain?.[i] || 0,
+              wind: d.hourly.wind_speed_10m?.[i] || 0,
             })) || [],
         } as WeatherData;
       });
       setWeatherMap(newMap);
     }
 
-    // ✅ Map Database Alerts into State
     if (alertsRes.data) {
       setRealWeatherAlerts(
         alertsRes.data.map((a: any) => ({
@@ -273,7 +242,7 @@ export default function App() {
             "Unknown",
           message: a.message,
           date: a.starts_at,
-          locationId: a.location_id, // This links the alert to the location filter
+          locationId: a.location_id,
         })),
       );
     }
@@ -283,7 +252,6 @@ export default function App() {
     if (authReady && user && userProfile) fetchData();
   }, [user, userProfile, authReady]);
 
-  // AUTH & PROFILE
   useEffect(() => {
     if (!supabase) {
       setAuthReady(true);
@@ -402,23 +370,25 @@ export default function App() {
             >
               <div className="flex justify-between items-center mb-6">
                 <h2 className="text-2xl font-bold">
-                  {selectedShedItem.plantName}
+                  {selectedShedItem.plant_name}
                 </h2>
                 <button onClick={() => setSelectedShedItem(null)}>
                   <X />
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div className="p-4 bg-amber-50 rounded-2xl">
                   <Sun className="text-amber-500 mb-2" size={20} />
-                  <span className="block text-xs font-bold uppercase">
+                  <span className="block text-xs font-bold uppercase text-amber-900">
                     Sunlight
                   </span>
-                  <span className="text-sm font-bold">
-                    {getSunLabelFromLux(
-                      plants.find((p) => p.id === selectedShedItem.plantId)
-                        ?.careGuide.maxLightLux || 0,
-                    )}
+                  <span className="text-sm font-bold text-amber-800">
+                    {plants
+                      .find(
+                        (p) =>
+                          String(p.id) === String(selectedShedItem.plant_id),
+                      )
+                      ?.sunlight.join(", ") || "Unknown"}
                   </span>
                 </div>
               </div>
@@ -512,6 +482,7 @@ export default function App() {
                   inventory={inventory}
                   plants={plants}
                   locations={locations}
+                  onRefresh={fetchData}
                   onViewPlantedInstance={setSelectedItem}
                   onSelectShedItem={setSelectedShedItem}
                 />
