@@ -1,80 +1,67 @@
-import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 Deno.serve(async (req) => {
   const supabase = createClient(
-    Deno.env.get('SUPABASE_URL') ?? '',
-    Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
-  )
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, // Use service role to bypass RLS
+  );
 
-  // 1. Get all unique locations
+  // 1. Fetch all locations that have a postcode
   const { data: locations } = await supabase
-    .from('locations')
-    .select('id, lat, lng');
+    .from("locations")
+    .select("id, address");
 
-  if (!locations || locations.length === 0) {
-    return new Response("No locations found", { status: 200 });
-  }
+  if (!locations) return new Response("No locations found");
 
-  const results = { updated: 0, errors: 0 };
+  const postcodeMap = new Map(); // Cache for API results
 
-  // 2. Fetch and Cache Weather
   for (const loc of locations) {
-    try {
-      const params = new URLSearchParams({
-        latitude: loc.lat.toString(),
-        longitude: loc.lng.toString(),
-        current: 'temperature_2m,relative_humidity_2m,rain,weather_code,surface_pressure,wind_speed_10m,dew_point_2m',
-        // ✅ Added wind_speed_10m to hourly params
-        hourly: 'temperature_2m,weather_code,uv_index,rain,wind_speed_10m',
-        daily: 'uv_index_max,rain_sum,snowfall_sum',
-        timezone: 'auto',
-        forecast_days: '1'
-      });
+    const postcode = loc.address?.trim().toUpperCase();
+    if (!postcode) continue;
 
-      const response = await fetch(`https://api.open-meteo.com/v1/forecast?${params.toString()}`);
-      const weatherData = await response.json();
+    // Check if we've already fetched weather for this postcode in THIS run
+    if (!postcodeMap.has(postcode)) {
+      try {
+        // A. Geocode Postcode (Postcodes.io)
+        const geoRes = await fetch(
+          `https://api.postcodes.io/postcodes/${postcode}`,
+        );
+        const geoData = await geoRes.json();
 
-      const { error: upsertError } = await supabase
-        .from('weather_snapshots')
-        .upsert({ 
-          location_id: loc.id, 
-          data: weatherData,
-          updated_at: new Date().toISOString()
-        }, { onConflict: 'location_id' });
+        if (geoData.status === 200) {
+          const { latitude: lat, longitude: lng } = geoData.result;
 
-      if (upsertError) throw upsertError;
-      results.updated++;
-      
-      await new Promise(r => setTimeout(r, 200)); 
-    } catch (err) {
-      console.error(`Error for ${loc.id}:`, err);
-      results.errors++;
+          // B. Fetch Open-Meteo Data
+          const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=weather_code,temperature_2m,relative_humidity_2m,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,rain_sum,showers_sum,snowfall_sum&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,precipitation_probability,rain,showers,snowfall,weather_code,soil_temperature_6cm,soil_moisture_0_to_1cm,wind_speed_10m,wind_direction_10m&timezone=auto`;
+
+          const weatherRes = await fetch(weatherUrl);
+          const weatherData = await weatherRes.json();
+
+          postcodeMap.set(postcode, weatherData);
+        }
+      } catch (err) {
+        console.error(`Failed for ${postcode}:`, err);
+      }
+    }
+
+    // C. Upsert into weather_snapshots
+    const dataToStore = postcodeMap.get(postcode);
+    if (dataToStore) {
+      await supabase.from("weather_snapshots").upsert(
+        {
+          location_id: loc.id,
+          data: dataToStore,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "location_id" },
+      );
     }
   }
 
-  // 3. Trigger the Manager
-  console.log("Triggering manage-weather...");
-  const { data: manageData, error: invokeError } = await supabase.functions.invoke('manage-weather', {
-    method: 'POST',
-    headers: {
-      "Authorization": `Bearer ${Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')}`
-    },
-    body: { triggered_by: 'sync-weather', timestamp: new Date().toISOString() } 
-  });
-
-  if (invokeError) {
-    console.error("Failed to trigger manage-weather:", invokeError);
-  } else {
-    console.log("Successfully triggered manage-weather:", manageData);
-  }
-
   return new Response(
-    JSON.stringify({ 
-      status: "Sync complete", 
-      weatherResults: results,
-      managerTriggered: !invokeError,
-      managerResponse: manageData 
-    }), 
-    { headers: { 'Content-Type': 'application/json' } }
+    JSON.stringify({ message: "Sync complete", processed: locations.length }),
+    {
+      headers: { "Content-Type": "application/json" },
+    },
   );
-})
+});

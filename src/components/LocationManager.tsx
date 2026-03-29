@@ -1,332 +1,438 @@
-import React, { useState } from 'react';
-import { MapPin, Plus, Loader2, X, Trash2, Edit2, Globe, Home, Sun } from 'lucide-react';
-import { Location, Area } from '../types';
-import { supabase } from '../lib/supabase';
-import { geocodeAddress } from '../services/weather';
-import { motion, AnimatePresence } from 'motion/react';
+import React, { useEffect, useState } from "react";
+import { supabase } from "../lib/supabase";
+import {
+  MapPin,
+  Plus,
+  Home,
+  TreePine,
+  Trash2,
+  Edit3,
+  Check,
+  X,
+} from "lucide-react";
+import type { Location, Area } from "../types";
 
-interface LocationManagerProps {
-  userId: string;
+// UK Postcode Regex: Supports various formats with or without space
+const POSTCODE_REGEX = /^([A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2})$/i;
+
+interface Props {
   homeId: string;
-  locations: Location[];
 }
 
-export const LocationManager: React.FC<LocationManagerProps> = ({ userId, homeId, locations }) => {
-  const [isAdding, setIsAdding] = useState(false);
-  const [editingLocation, setEditingLocation] = useState<Location | null>(null);
-  const [name, setName] = useState('');
-  const [address, setAddress] = useState('');
-  const [areas, setAreas] = useState<Area[]>([]);
-  const [newAreaName, setNewAreaName] = useState('');
-  const [newAreaType, setNewAreaType] = useState<'inside' | 'outside'>('outside');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+export const LocationManager: React.FC<Props> = ({ homeId }) => {
+  const [locations, setLocations] = useState<(Location & { areas: Area[] })[]>(
+    [],
+  );
+  const [loading, setLoading] = useState(true);
 
-  const handleAddArea = () => {
-    if (!newAreaName.trim()) return;
-    const newArea: Area = {
-      id: Math.random().toString(36).substr(2, 9),
-      name: newAreaName.trim(),
-      type: newAreaType,
-    };
-    setAreas([...areas, newArea]);
-    setNewAreaName('');
-  };
+  // State for adding/editing
+  const [isAddingLoc, setIsAddingLoc] = useState(false);
+  const [newLoc, setNewLoc] = useState({ name: "", address: "" });
 
-  const handleRemoveArea = (id: string) => {
-    setAreas(areas.filter(a => a.id !== id));
-  };
+  // New: State for adding an area (prevents immediate DB insert)
+  const [addingAreaToLoc, setAddingAreaToLoc] = useState<string | null>(null);
+  const [newAreaName, setNewAreaName] = useState("");
 
-  const handleSave = async () => {
-    if (!name || !address) return;
+  const [editLocData, setEditLocData] = useState<{
+    id: string;
+    name: string;
+    address: string;
+  } | null>(null);
+  const [editAreaData, setEditAreaData] = useState<{
+    id: string;
+    name: string;
+  } | null>(null);
+
+  const fetchHierarchy = async () => {
     setLoading(true);
-    setError(null);
-    try {
-      const coords = await geocodeAddress(address);
-      if (!coords) {
-        setError('Could not find address. Please be more specific.');
-        setLoading(false);
-        return;
-      }
+    const { data, error } = await supabase
+      .from("locations")
+      .select("*, areas(*)")
+      .eq("home_id", homeId)
+      .order("created_at", { ascending: true });
 
-      const locationData = {
-        name,
-        address,
-        lat: coords.lat,
-        lng: coords.lon,
-        areas,
+    if (!error && data) setLocations(data);
+    setLoading(false);
+  };
+
+  useEffect(() => {
+    fetchHierarchy();
+  }, [homeId]);
+
+  // --- VALIDATION HELPERS ---
+  const validateLocation = (name: string, postcode: string) => {
+    if (!name.trim()) {
+      alert("Location name is required.");
+      return false;
+    }
+    if (!POSTCODE_REGEX.test(postcode.trim())) {
+      alert("Please enter a valid UK postcode (e.g., CR3 5ED).");
+      return false;
+    }
+    return true;
+  };
+
+  // --- ACTIONS ---
+  const handleSaveLocation = async () => {
+    if (!validateLocation(newLoc.name, newLoc.address)) return;
+
+    const { error } = await supabase.from("locations").insert([
+      {
+        name: newLoc.name.trim(),
+        address: newLoc.address.trim().toUpperCase(),
         home_id: homeId,
-      };
+      },
+    ]);
 
-      if (editingLocation) {
-        const { error: updateError } = await supabase
-          .from('locations')
-          .update(locationData)
-          .eq('id', editingLocation.id);
-        
-        if (updateError) throw updateError;
-      } else {
-        const { error: insertError } = await supabase
-          .from('locations')
-          .insert([locationData]);
-        
-        if (insertError) throw insertError;
-      }
-      resetForm();
-    } catch (err: any) {
-      console.error('Error saving location:', err);
-      setError(err.message || 'Failed to save location.');
-    } finally {
-      setLoading(false);
+    if (!error) {
+      setNewLoc({ name: "", address: "" });
+      setIsAddingLoc(false);
+      fetchHierarchy();
     }
   };
 
-  const handleDelete = async (id: string) => {
-    try {
-      const { error: deleteError } = await supabase
-        .from('locations')
-        .delete()
-        .eq('id', id);
-      
-      if (deleteError) throw deleteError;
-      setDeletingId(null);
-    } catch (err: any) {
-      console.error('Error deleting location:', err);
-      setError(err.message || 'Failed to delete location.');
+  const handleUpdateLocation = async () => {
+    if (
+      !editLocData ||
+      !validateLocation(editLocData.name, editLocData.address)
+    )
+      return;
+
+    const { error } = await supabase
+      .from("locations")
+      .update({
+        name: editLocData.name.trim(),
+        address: editLocData.address.trim().toUpperCase(),
+      })
+      .eq("id", editLocData.id);
+
+    if (!error) {
+      setEditLocData(null);
+      fetchHierarchy();
     }
   };
 
-  const resetForm = () => {
-    setIsAdding(false);
-    setEditingLocation(null);
-    setName('');
-    setAddress('');
-    setAreas([]);
-    setNewAreaName('');
-    setError(null);
+  const handleCreateArea = async (locationId: string) => {
+    if (!newAreaName.trim()) {
+      alert("Area name is required.");
+      return;
+    }
+
+    const { error } = await supabase.from("areas").insert([
+      {
+        name: newAreaName.trim(),
+        location_id: locationId,
+        is_outside: false,
+      },
+    ]);
+
+    if (!error) {
+      setNewAreaName("");
+      setAddingAreaToLoc(null);
+      fetchHierarchy();
+    }
   };
 
-  const startEdit = (loc: Location) => {
-    setEditingLocation(loc);
-    setName(loc.name);
-    setAddress(loc.address);
-    setAreas(loc.areas || []);
-    setIsAdding(true);
+  const handleUpdateArea = async (
+    id: string,
+    name: string,
+    is_outside: boolean,
+  ) => {
+    if (!name.trim()) {
+      alert("Area name cannot be empty.");
+      return;
+    }
+    const { error } = await supabase
+      .from("areas")
+      .update({ name: name.trim(), is_outside })
+      .eq("id", id);
+    if (!error) {
+      setEditAreaData(null);
+      fetchHierarchy();
+    }
+  };
+
+  const handleDelete = async (table: "locations" | "areas", id: string) => {
+    if (
+      !window.confirm(
+        `Are you sure you want to delete this ${table === "locations" ? "location" : "area"}?`,
+      )
+    )
+      return;
+    const { error } = await supabase.from(table).delete().eq("id", id);
+    if (!error) fetchHierarchy();
   };
 
   return (
-    <div className="bg-white p-6 rounded-3xl shadow-sm border border-stone-100">
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 bg-blue-100 text-blue-600 rounded-xl flex items-center justify-center">
-            <MapPin size={24} />
+    <div className="space-y-8 pb-24">
+      {/* HEADER SECTION */}
+      <div className="flex justify-between items-center px-2">
+        <div>
+          <h2 className="text-2xl font-black text-stone-900 tracking-tight">
+            Home Management
+          </h2>
+          <p className="text-stone-500 text-sm">
+            Define your locations and growing areas.
+          </p>
+        </div>
+        {!isAddingLoc && (
+          <button
+            onClick={() => setIsAddingLoc(true)}
+            className="flex items-center gap-2 px-6 py-3 bg-stone-900 text-white rounded-2xl text-sm font-bold hover:bg-stone-800 transition-all shadow-lg"
+          >
+            <Plus size={18} /> New Location
+          </button>
+        )}
+      </div>
+
+      {/* ADD LOCATION FORM */}
+      {isAddingLoc && (
+        <div className="bg-emerald-50 p-8 rounded-[40px] border border-emerald-100 animate-in zoom-in-95 duration-200">
+          <h4 className="text-sm font-black text-emerald-700 uppercase tracking-widest mb-4">
+            Create New Location
+          </h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+            <input
+              placeholder="Location Name (Required)"
+              className="px-6 py-4 rounded-2xl border-none focus:ring-2 focus:ring-emerald-500 outline-none font-medium"
+              value={newLoc.name}
+              onChange={(e) => setNewLoc({ ...newLoc, name: e.target.value })}
+            />
+            <input
+              placeholder="Postcode (Required, e.g. CR3 5ED)"
+              className="px-6 py-4 rounded-2xl border-none focus:ring-2 focus:ring-emerald-500 outline-none font-medium uppercase"
+              value={newLoc.address}
+              onChange={(e) =>
+                setNewLoc({ ...newLoc, address: e.target.value })
+              }
+            />
           </div>
-          <div>
-            <h2 className="text-xl font-bold text-stone-900">My Locations</h2>
-            <p className="text-xs text-stone-500">Manage your growing spaces</p>
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => setIsAddingLoc(false)}
+              className="px-6 py-3 text-stone-500 font-bold text-sm"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveLocation}
+              className="px-8 py-3 bg-emerald-600 text-white rounded-xl font-bold text-sm hover:bg-emerald-700 transition-all"
+            >
+              Create Location
+            </button>
           </div>
         </div>
-        <button
-          onClick={() => setIsAdding(true)}
-          className="p-2 bg-blue-600 text-white rounded-xl hover:bg-blue-700 transition-all shadow-lg shadow-blue-100"
-        >
-          <Plus size={20} />
-        </button>
-      </div>
+      )}
 
-      <div className="flex flex-col gap-3">
-        {locations.length === 0 ? (
-          <div className="py-8 text-center bg-stone-50 rounded-2xl border border-stone-100">
-            <p className="text-sm text-stone-400">No locations added yet.</p>
-          </div>
-        ) : (
-          locations.map(loc => (
-            <motion.div
-              key={loc.id}
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              className="p-4 bg-stone-50 border border-stone-100 rounded-2xl flex items-center justify-between group"
-            >
-              <div className="flex flex-col">
-                <span className="text-sm font-bold text-stone-900">{loc.name}</span>
-                <span className="text-[10px] text-stone-400 uppercase tracking-widest truncate max-w-[150px]">
-                  {loc.address}
-                </span>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => startEdit(loc)}
-                  className="p-2 text-stone-400 hover:text-blue-600 hover:bg-white rounded-lg transition-all"
-                >
-                  <Edit2 size={16} />
-                </button>
-                <button
-                  onClick={() => setDeletingId(loc.id)}
-                  className="p-2 text-stone-400 hover:text-red-600 hover:bg-white rounded-lg transition-all"
-                >
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </motion.div>
-          ))
-        )}
-      </div>
-
-      <AnimatePresence>
-        {deletingId && (
-          <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-[60] flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white w-full max-w-sm p-8 rounded-3xl shadow-2xl text-center"
-            >
-              <div className="w-16 h-16 bg-red-100 text-red-600 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Trash2 size={32} />
-              </div>
-              <h3 className="text-xl font-bold text-stone-900 mb-2">Delete Location?</h3>
-              <p className="text-sm text-stone-500 mb-8">
-                This will permanently remove this location and all its settings. This action cannot be undone.
-              </p>
-              <div className="flex gap-3">
-                <button
-                  onClick={() => setDeletingId(null)}
-                  className="flex-1 py-3 bg-stone-100 text-stone-600 rounded-xl font-bold hover:bg-stone-200 transition-all"
-                >
-                  Cancel
-                </button>
-                <button
-                  onClick={() => handleDelete(deletingId)}
-                  className="flex-1 py-3 bg-red-600 text-white rounded-xl font-bold hover:bg-red-700 transition-all shadow-lg shadow-red-100"
-                >
-                  Delete
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
-
-        {isAdding && (
-          <div className="fixed inset-0 bg-stone-900/40 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.9 }}
-              animate={{ opacity: 1, scale: 1 }}
-              exit={{ opacity: 0, scale: 0.9 }}
-              className="bg-white w-full max-w-md p-8 rounded-3xl shadow-2xl"
-            >
-              <div className="flex items-center justify-between mb-6">
-                <h3 className="text-xl font-bold text-stone-900">
-                  {editingLocation ? 'Edit Location' : 'Add Location'}
-                </h3>
-                <button onClick={resetForm} className="p-2 hover:bg-stone-100 rounded-full">
-                  <X size={20} />
-                </button>
-              </div>
-              <div className="flex flex-col gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-stone-600 uppercase tracking-wider ml-1">Location Name</label>
-                  <input
-                    type="text"
-                    value={name}
-                    onChange={(e) => setName(e.target.value)}
-                    placeholder="e.g. Back Garden, Allotment Plot 4"
-                    className="w-full p-3 bg-stone-50 border border-stone-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-xs font-semibold text-stone-600 uppercase tracking-wider ml-1">Address</label>
-                  <div className="relative">
-                    <Globe className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
+      {/* LOCATIONS LIST */}
+      <div className="grid grid-cols-1 gap-8">
+        {locations.map((loc) => (
+          <div
+            key={loc.id}
+            className="bg-white rounded-[48px] border border-stone-100 shadow-sm overflow-hidden"
+          >
+            <div className="p-8 border-b border-stone-50 bg-stone-50/30 flex justify-between items-start">
+              <div className="flex-1">
+                {editLocData?.id === loc.id ? (
+                  <div className="space-y-3 max-w-md animate-in fade-in duration-200">
                     <input
-                      type="text"
-                      value={address}
-                      onChange={(e) => setAddress(e.target.value)}
-                      placeholder="e.g. 123 Garden St, London"
-                      className="w-full pl-10 pr-4 py-3 bg-stone-50 border border-stone-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20 transition-all"
+                      className="w-full text-xl font-bold bg-white px-4 py-2 rounded-xl border-2 border-emerald-200 outline-none"
+                      value={editLocData.name}
+                      onChange={(e) =>
+                        setEditLocData({ ...editLocData, name: e.target.value })
+                      }
                     />
-                  </div>
-                  <p className="text-[10px] text-stone-400 mt-1 ml-1 italic">Used for accurate weather forecasts.</p>
-                </div>
-
-                <div className="flex flex-col gap-2 mt-2">
-                  <label className="text-xs font-semibold text-stone-600 uppercase tracking-wider ml-1">Areas</label>
-                  <div className="flex flex-col gap-2">
-                    {areas.map(area => (
-                      <div key={area.id} className="flex items-center justify-between p-2 bg-stone-50 border border-stone-100 rounded-lg">
-                        <div className="flex items-center gap-2">
-                          {area.type === 'inside' ? (
-                            <div className="flex items-center gap-1.5">
-                              <Home size={14} className="text-blue-500" />
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded">Inside</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5">
-                              <Sun size={14} className="text-orange-500" />
-                              <span className="text-[10px] font-bold uppercase tracking-wider text-orange-600 bg-orange-50 px-1.5 py-0.5 rounded">Outside</span>
-                            </div>
-                          )}
-                          <span className="text-sm font-medium text-stone-700">{area.name}</span>
-                        </div>
-                        <button onClick={() => handleRemoveArea(area.id)} className="text-stone-400 hover:text-red-500 p-1 transition-colors">
-                          <X size={14} />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                  <div className="flex gap-2 mt-1">
                     <input
-                      type="text"
-                      value={newAreaName}
-                      onChange={(e) => setNewAreaName(e.target.value)}
-                      placeholder="e.g. Greenhouse"
-                      className="flex-1 p-2 bg-stone-50 border border-stone-100 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/20"
-                      onKeyDown={(e) => e.key === 'Enter' && handleAddArea()}
+                      className="w-full text-sm bg-white px-4 py-2 rounded-xl border-2 border-emerald-100 outline-none uppercase"
+                      value={editLocData.address}
+                      onChange={(e) =>
+                        setEditLocData({
+                          ...editLocData,
+                          address: e.target.value,
+                        })
+                      }
                     />
-                    <div className="flex bg-stone-100 p-1 rounded-lg">
+                    <div className="flex gap-2">
                       <button
-                        type="button"
-                        onClick={() => setNewAreaType('outside')}
-                        className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${newAreaType === 'outside' ? 'bg-white text-orange-600 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+                        onClick={handleUpdateLocation}
+                        className="p-2 bg-emerald-500 text-white rounded-lg"
                       >
-                        Outside
+                        <Check size={16} />
                       </button>
                       <button
-                        type="button"
-                        onClick={() => setNewAreaType('inside')}
-                        className={`px-2 py-1 rounded-md text-[10px] font-bold uppercase transition-all ${newAreaType === 'inside' ? 'bg-white text-blue-600 shadow-sm' : 'text-stone-500 hover:text-stone-700'}`}
+                        onClick={() => setEditLocData(null)}
+                        className="p-2 bg-stone-200 text-stone-600 rounded-lg"
                       >
-                        Inside
+                        <X size={16} />
                       </button>
                     </div>
+                  </div>
+                ) : (
+                  <>
+                    <h3 className="text-xl font-black text-stone-900 flex items-center gap-3">
+                      <div className="p-2 bg-white rounded-xl shadow-sm">
+                        <MapPin size={18} className="text-emerald-500" />
+                      </div>
+                      {loc.name}
+                    </h3>
+                    <p className="text-stone-400 text-sm mt-2 ml-11 font-bold">
+                      {loc.address}
+                    </p>
+                  </>
+                )}
+              </div>
+
+              {!editLocData && (
+                <div className="flex gap-1">
+                  <button
+                    onClick={() =>
+                      setEditLocData({
+                        id: loc.id,
+                        name: loc.name,
+                        address: loc.address || "",
+                      })
+                    }
+                    className="p-3 text-stone-300 hover:text-stone-900 transition-all"
+                  >
+                    <Edit3 size={18} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete("locations", loc.id)}
+                    className="p-3 text-stone-300 hover:text-red-500 transition-all"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className="p-8">
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {loc.areas.map((area) => (
+                  <div
+                    key={area.id}
+                    className="group flex items-center justify-between p-4 bg-stone-50 rounded-3xl border border-transparent hover:border-stone-200 transition-all"
+                  >
+                    <div className="flex items-center gap-3 flex-1">
+                      <div className="relative group/tooltip">
+                        <button
+                          onClick={() =>
+                            handleUpdateArea(
+                              area.id,
+                              area.name,
+                              !area.is_outside,
+                            )
+                          }
+                          className={`p-2 rounded-xl transition-all hover:scale-110 ${area.is_outside ? "bg-orange-100 text-orange-600" : "bg-blue-100 text-blue-600"}`}
+                        >
+                          {area.is_outside ? (
+                            <TreePine size={16} />
+                          ) : (
+                            <Home size={16} />
+                          )}
+                        </button>
+                        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 hidden group-hover/tooltip:block bg-stone-800 text-white text-[10px] font-bold px-2 py-1 rounded shadow-lg whitespace-nowrap z-50">
+                          {area.is_outside ? "Outside" : "Inside"} (Click to
+                          toggle)
+                        </div>
+                      </div>
+
+                      {editAreaData?.id === area.id ? (
+                        <div className="flex items-center gap-1 flex-1">
+                          <input
+                            autoFocus
+                            className="bg-white px-2 py-1 rounded-lg border border-emerald-300 text-sm font-bold w-full outline-none"
+                            value={editAreaData.name}
+                            onChange={(e) =>
+                              setEditAreaData({
+                                ...editAreaData,
+                                name: e.target.value,
+                              })
+                            }
+                          />
+                          <button
+                            onClick={() =>
+                              handleUpdateArea(
+                                area.id,
+                                editAreaData.name,
+                                area.is_outside,
+                              )
+                            }
+                            className="text-emerald-500"
+                          >
+                            <Check size={14} />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-sm font-bold text-stone-700">
+                          {area.name}
+                        </span>
+                      )}
+                    </div>
+
+                    {!editAreaData && (
+                      <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <button
+                          onClick={() =>
+                            setEditAreaData({ id: area.id, name: area.name })
+                          }
+                          className="p-1 text-stone-300 hover:text-stone-600"
+                        >
+                          <Edit3 size={14} />
+                        </button>
+                        <button
+                          onClick={() => handleDelete("areas", area.id)}
+                          className="p-1 text-stone-300 hover:text-red-500"
+                        >
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+
+                {/* NEW AREA INLINE FORM */}
+                {addingAreaToLoc === loc.id ? (
+                  <div className="flex items-center gap-2 p-3 bg-emerald-50 rounded-3xl border border-emerald-200 animate-in slide-in-from-left-2">
+                    <input
+                      autoFocus
+                      placeholder="Area name..."
+                      className="bg-white px-3 py-1 rounded-xl text-sm font-bold w-full outline-none border-none"
+                      value={newAreaName}
+                      onChange={(e) => setNewAreaName(e.target.value)}
+                      onKeyDown={(e) =>
+                        e.key === "Enter" && handleCreateArea(loc.id)
+                      }
+                    />
                     <button
-                      onClick={handleAddArea}
-                      disabled={!newAreaName.trim()}
-                      className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-all shadow-sm"
+                      onClick={() => handleCreateArea(loc.id)}
+                      className="text-emerald-600 p-1"
                     >
-                      <Plus size={16} />
+                      <Check size={18} />
+                    </button>
+                    <button
+                      onClick={() => setAddingAreaToLoc(null)}
+                      className="text-stone-400 p-1"
+                    >
+                      <X size={18} />
                     </button>
                   </div>
-                </div>
-
-                {error && (
-                  <div className="p-3 bg-red-50 text-red-600 rounded-xl text-xs">
-                    {error}
-                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddingAreaToLoc(loc.id)}
+                    className="flex items-center justify-center gap-2 p-4 border-2 border-dashed border-stone-100 rounded-3xl text-stone-400 hover:border-emerald-200 hover:text-emerald-600 transition-all"
+                  >
+                    <Plus size={16} />
+                    <span className="text-xs font-black uppercase tracking-widest">
+                      Add Area
+                    </span>
+                  </button>
                 )}
-
-                <button
-                  onClick={handleSave}
-                  disabled={!name || !address || loading}
-                  className="w-full py-4 bg-blue-600 text-white rounded-xl font-semibold shadow-lg shadow-blue-200 hover:bg-blue-700 disabled:opacity-50 transition-all flex items-center justify-center gap-2"
-                >
-                  {loading ? <Loader2 className="animate-spin" size={20} /> : 'Save Location'}
-                </button>
               </div>
-            </motion.div>
+            </div>
           </div>
-        )}
-      </AnimatePresence>
+        ))}
+      </div>
     </div>
   );
 };
