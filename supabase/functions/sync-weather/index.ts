@@ -1,67 +1,142 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type",
+};
+
 Deno.serve(async (req) => {
-  const supabase = createClient(
-    Deno.env.get("SUPABASE_URL")!,
-    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, // Use service role to bypass RLS
-  );
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
 
-  // 1. Fetch all locations that have a postcode
-  const { data: locations } = await supabase
-    .from("locations")
-    .select("id, address");
+  try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
 
-  if (!locations) return new Response("No locations found");
+    let body = {};
+    try {
+      body = await req.json();
+    } catch (e) {}
+    const targetHomeId = body.home_id;
 
-  const postcodeMap = new Map(); // Cache for API results
+    let query = supabase.from("homes").select("id, address");
+    if (targetHomeId) {
+      console.log(`🎯 Targeted sync triggered for home: ${targetHomeId}`);
+      query = query.eq("id", targetHomeId);
+    }
 
-  for (const loc of locations) {
-    const postcode = loc.address?.trim().toUpperCase();
-    if (!postcode) continue;
+    const { data: homes, error } = await query;
 
-    // Check if we've already fetched weather for this postcode in THIS run
-    if (!postcodeMap.has(postcode)) {
+    if (error || !homes || homes.length === 0) {
+      return new Response(JSON.stringify({ error: "No homes found" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 400,
+      });
+    }
+
+    let processedHomesCount = 0;
+
+    for (const home of homes) {
+      const locationQuery = home.address?.trim();
+
+      if (!locationQuery) continue;
+
+      console.log(`🌍 Locating coordinates for: "${locationQuery}"...`);
+
       try {
-        // A. Geocode Postcode (Postcodes.io)
-        const geoRes = await fetch(
-          `https://api.postcodes.io/postcodes/${postcode}`,
+        let lat, lng, locationName, country;
+
+        // --- GEOCODER 1: OPEN-METEO (Great for Cities) ---
+        const meteoRes = await fetch(
+          `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(locationQuery)}&count=1`,
         );
-        const geoData = await geoRes.json();
+        const meteoData = await meteoRes.json();
 
-        if (geoData.status === 200) {
-          const { latitude: lat, longitude: lng } = geoData.result;
+        if (meteoData.results && meteoData.results.length > 0) {
+          lat = meteoData.results[0].latitude;
+          lng = meteoData.results[0].longitude;
+          locationName = meteoData.results[0].name;
+          country = meteoData.results[0].country;
+          console.log(`📍 Found via Open-Meteo: ${locationName}, ${country}`);
+        }
+        // --- GEOCODER 2: POSTCODES.IO FALLBACK (Great for UK Postcodes) ---
+        else {
+          console.log(
+            `⚠️ Open-Meteo missed it. Trying UK Postcode Database...`,
+          );
+          // Clean the postcode (remove spaces) for the API
+          const cleanPostcode = locationQuery.replace(/\s+/g, "");
+          const pcRes = await fetch(
+            `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`,
+          );
 
-          // B. Fetch Open-Meteo Data
-          const weatherUrl = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&current=weather_code,temperature_2m,relative_humidity_2m,wind_speed_10m&daily=weather_code,temperature_2m_max,temperature_2m_min,uv_index_max,rain_sum,showers_sum,snowfall_sum&hourly=temperature_2m,relative_humidity_2m,dew_point_2m,precipitation_probability,rain,showers,snowfall,weather_code,soil_temperature_6cm,soil_moisture_0_to_1cm,wind_speed_10m,wind_direction_10m&timezone=auto`;
+          if (pcRes.status === 200) {
+            const pcData = await pcRes.json();
+            lat = pcData.result.latitude;
+            lng = pcData.result.longitude;
+            locationName = pcData.result.postcode;
+            country = "UK";
+            console.log(
+              `📍 Found via Postcodes.io: ${locationName}, ${country}`,
+            );
+          }
+        }
 
-          const weatherRes = await fetch(weatherUrl);
+        // --- DID WE FIND COORDINATES? ---
+        if (lat !== undefined && lng !== undefined) {
+          console.log(`⛅ Fetching weather for Lat: ${lat}, Lng: ${lng}...`);
+
+          const baseUrl = "https://api.open-meteo.com/v1/forecast";
+          const params = new URLSearchParams({
+            latitude: lat.toString(),
+            longitude: lng.toString(),
+            hourly:
+              "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code",
+            timezone: "auto",
+            forecast_days: "2",
+          });
+
+          const weatherRes = await fetch(`${baseUrl}?${params.toString()}`);
           const weatherData = await weatherRes.json();
 
-          postcodeMap.set(postcode, weatherData);
+          console.log(`💾 Saving weather to database...`);
+          await supabase.from("weather_snapshots").upsert(
+            {
+              home_id: home.id,
+              data: weatherData,
+              updated_at: new Date().toISOString(),
+            },
+            { onConflict: "home_id" },
+          );
+
+          console.log(`✅ Successfully updated weather for Home ${home.id}`);
+          processedHomesCount++;
+        } else {
+          console.error(
+            `❌ BOTH Geocoders failed to find anything for "${locationQuery}"`,
+          );
         }
       } catch (err) {
-        console.error(`Failed for ${postcode}:`, err);
+        console.error(`❌ Fatal error processing ${locationQuery}:`, err);
       }
     }
 
-    // C. Upsert into weather_snapshots
-    const dataToStore = postcodeMap.get(postcode);
-    if (dataToStore) {
-      await supabase.from("weather_snapshots").upsert(
-        {
-          location_id: loc.id,
-          data: dataToStore,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: "location_id" },
-      );
-    }
+    return new Response(
+      JSON.stringify({
+        message: "Sync complete",
+        homesUpdated: processedHomesCount,
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  } catch (error: any) {
+    console.error("🔥 CRITICAL EDGE FUNCTION CRASH:", error);
+    return new Response(JSON.stringify({ error: error.message }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+      status: 500,
+    });
   }
-
-  return new Response(
-    JSON.stringify({ message: "Sync complete", processed: locations.length }),
-    {
-      headers: { "Content-Type": "application/json" },
-    },
-  );
 });

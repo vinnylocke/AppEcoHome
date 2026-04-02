@@ -13,6 +13,7 @@ import {
   ChevronDown,
   ArrowUp,
 } from "lucide-react";
+import { Logger } from "../lib/errorHandler";
 
 // Helper to map WMO codes to Icons
 const getWeatherIcon = (code: number, size = 20) => {

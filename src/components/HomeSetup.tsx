@@ -1,6 +1,9 @@
 import React, { useState } from "react";
 import { supabase } from "../lib/supabase";
-import { Home, UserPlus, ArrowRight, Loader2, Sparkles, X } from "lucide-react";
+import { Home, Plus, ArrowLeft, X, Key, Loader2 } from "lucide-react";
+import { Logger } from "../lib/errorHandler";
+
+type SetupStep = "selection" | "create" | "join";
 
 interface Props {
   user: { id: string; email?: string };
@@ -15,172 +18,299 @@ export const HomeSetup: React.FC<Props> = ({
   onCancel,
   hasExistingHome,
 }) => {
+  const [step, setStep] = useState<SetupStep>("selection");
   const [loading, setLoading] = useState(false);
-  const [homeName, setHomeName] = useState("");
-  const [inviteCode, setInviteCode] = useState("");
-  const [view, setView] = useState<"selection" | "create" | "join">(
-    "selection",
-  );
 
-  const handleCreateHome = async (e: React.FormEvent) => {
+  // Create Home State
+  const [homeName, setHomeName] = useState("");
+  const [postcode, setPostcode] = useState("");
+
+  // Join Home State
+  const [homeId, setHomeId] = useState("");
+
+  const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!homeName.trim()) return;
+    if (!homeName.trim() || !postcode.trim()) return;
 
     setLoading(true);
     try {
+      Logger.log("Starting home creation process...");
+
+      // 1. Create the home AND set the address in one single, bulletproof step
       const { data: newHomeId, error } = await supabase.rpc("create_new_home", {
-        home_name: homeName,
+        home_name: homeName.trim(),
+        postcode: postcode.trim().toUpperCase(),
       });
       if (error) throw error;
+
+      // 2. Fetch the initial weather for THIS specific home
+      const { error: funcError } = await supabase.functions.invoke(
+        "sync-weather",
+        {
+          body: { home_id: newHomeId },
+        },
+      );
+
+      if (funcError) {
+        Logger.warn("Edge Function failed during home creation", funcError);
+      }
+
+      // ✨ NEW: Show a beautiful success toast!
+      Logger.success("Home created successfully!");
+
+      // 3. Send them to the dashboard
       onHomeCreated(newHomeId);
     } catch (err: any) {
-      alert(`Setup failed: ${err.message}`);
+      // ✨ NEW: Send technical data to Sentry, but show a polite toast to the user!
+      Logger.error(
+        "Failed to create new home",
+        err,
+        { attemptedName: homeName, attemptedPostcode: postcode },
+        "We couldn't create your home right now. Please try again.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  const handleJoinHome = async (e: React.FormEvent) => {
+  const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inviteCode.trim()) return;
+    if (!homeId.trim()) return;
 
     setLoading(true);
     try {
+      Logger.log("Starting home join process...");
+
       // 1. Join the membership table
       const { error: joinError } = await supabase.from("home_members").insert([
         {
-          home_id: inviteCode.trim(),
+          home_id: homeId.trim(),
           user_id: user.id,
           role: "member",
         },
       ]);
 
-      if (joinError)
+      if (joinError) {
         throw new Error("Invalid Home ID or you are already a member.");
+      }
 
       // 2. Set as the active home in the profile
       const { error: profileError } = await supabase
         .from("user_profiles")
-        .update({ home_id: inviteCode.trim() })
+        .update({ home_id: homeId.trim() })
         .eq("uid", user.id);
 
       if (profileError) throw profileError;
 
-      onHomeCreated(inviteCode.trim());
+      // ✨ NEW: Show a beautiful success toast!
+      Logger.success("Successfully joined the home!");
+
+      onHomeCreated(homeId.trim());
     } catch (err: any) {
-      alert(err.message);
+      // ✨ NEW: Send technical data to Sentry, but show the specific error in a toast!
+      Logger.error(
+        "Failed to join home",
+        err,
+        { attemptedHomeId: homeId },
+        err.message || "Could not join this home. Please check the ID.",
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  // --- SELECTION VIEW ---
-  if (view === "selection") {
-    return (
-      <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6 relative">
-        {/* Cancel Button: Only shows if user already has a home to go back to */}
-        {hasExistingHome && (
-          <button
-            onClick={onCancel}
-            className="absolute top-8 right-8 p-3 bg-white rounded-full shadow-sm text-stone-400 hover:text-stone-900 transition-all"
-          >
-            <X size={20} />
-          </button>
-        )}
-
-        <div className="max-w-md w-full text-center">
-          <div className="inline-flex p-4 bg-emerald-100 text-emerald-600 rounded-3xl mb-6">
-            <Sparkles size={32} />
-          </div>
-          <h2 className="text-3xl font-black text-stone-900 mb-2">
-            Almost there!
-          </h2>
-          <p className="text-stone-500 mb-8">
-            Every great garden needs a home. How would you like to start?
-          </p>
-
-          <div className="grid gap-4">
-            <button
-              onClick={() => setView("create")}
-              className="p-6 bg-white border-2 border-transparent hover:border-emerald-500 rounded-3xl shadow-sm text-left transition-all group"
-            >
-              <Home className="text-emerald-500 mb-2" />
-              <h3 className="font-bold text-stone-900">Create a New Home</h3>
-              <p className="text-xs text-stone-400">
-                Start your own garden from scratch.
-              </p>
-            </button>
-
-            <button
-              onClick={() => setView("join")}
-              className="p-6 bg-white border-2 border-transparent hover:border-emerald-500 rounded-3xl shadow-sm text-left transition-all"
-            >
-              <UserPlus className="text-blue-500 mb-2" />
-              <h3 className="font-bold text-stone-900">
-                Join an Existing Home
-              </h3>
-              <p className="text-xs text-stone-400">
-                Enter an invite code from a friend.
-              </p>
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  // --- CREATE / JOIN VIEW ---
   return (
-    <div className="min-h-screen bg-stone-50 flex items-center justify-center p-6 text-stone-900">
-      <div className="max-w-sm w-full bg-white p-8 rounded-[40px] shadow-xl border border-stone-100">
-        <button
-          onClick={() => setView("selection")}
-          className="text-xs font-bold text-stone-400 uppercase tracking-widest mb-6 block hover:text-stone-700 transition-colors"
-        >
-          ← Back to Selection
-        </button>
+    <div className="min-h-screen bg-rhozly-bg flex items-center justify-center p-4">
+      <div className="max-w-2xl mx-auto w-full space-y-8 animate-in fade-in duration-500">
+        <div className="bg-rhozly-surface-lowest rounded-3xl p-8 shadow-sm border border-rhozly-outline/20">
+          {/* Selection Step */}
+          {step === "selection" && (
+            <div className="space-y-8">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h2 className="text-3xl font-black font-display text-rhozly-on-surface tracking-tight">
+                    Add a Home
+                  </h2>
+                  <p className="text-sm font-bold text-rhozly-on-surface/50 mt-1">
+                    Create a new home or join an existing one.
+                  </p>
+                </div>
+                {hasExistingHome && onCancel && (
+                  <button
+                    onClick={onCancel}
+                    className="p-2 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors"
+                  >
+                    <X className="w-6 h-6" />
+                  </button>
+                )}
+              </div>
 
-        <h2 className="text-2xl font-black mb-2">
-          {view === "create" ? "Name your home" : "Enter invite code"}
-        </h2>
-        <p className="text-sm text-stone-500 mb-8">
-          {view === "create"
-            ? "This could be 'The Backyard' or 'Apt 4B Garden'."
-            : "Paste the secret code shared with you."}
-        </p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
+                <button
+                  onClick={() => setStep("create")}
+                  className="flex flex-col items-center justify-center p-8 text-center bg-rhozly-surface-low hover:bg-rhozly-primary/5 border-2 border-transparent hover:border-rhozly-primary/20 rounded-3xl transition-all group"
+                >
+                  <div className="w-16 h-16 bg-rhozly-primary/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <Plus className="w-8 h-8 text-rhozly-primary" />
+                  </div>
+                  <h3 className="text-xl font-black font-display text-rhozly-on-surface mb-2">
+                    Create New Home
+                  </h3>
+                  <p className="text-sm font-bold text-rhozly-on-surface/50">
+                    Start fresh and set up a brand new home for your gardens.
+                  </p>
+                </button>
 
-        <form
-          onSubmit={view === "create" ? handleCreateHome : handleJoinHome}
-          className="space-y-4"
-        >
-          <input
-            required
-            autoFocus
-            className="w-full px-6 py-4 bg-stone-50 rounded-2xl border-none focus:ring-2 focus:ring-emerald-500 outline-none font-medium placeholder:text-stone-300"
-            placeholder={
-              view === "create" ? "Home Name" : "Paste Home ID here..."
-            }
-            value={view === "create" ? homeName : inviteCode}
-            onChange={(e) =>
-              view === "create"
-                ? setHomeName(e.target.value)
-                : setInviteCode(e.target.value)
-            }
-          />
-          <button
-            disabled={loading}
-            className="w-full py-4 bg-stone-900 text-white rounded-2xl font-bold flex items-center justify-center gap-2 hover:bg-stone-800 transition-all disabled:opacity-50"
-          >
-            {loading ? (
-              <Loader2 className="animate-spin" />
-            ) : (
-              <>
-                {view === "create" ? "Create Home" : "Join Home"}{" "}
-                <ArrowRight size={18} />
-              </>
-            )}
-          </button>
-        </form>
+                <button
+                  onClick={() => setStep("join")}
+                  className="flex flex-col items-center justify-center p-8 text-center bg-rhozly-surface-low hover:bg-rhozly-primary/5 border-2 border-transparent hover:border-rhozly-primary/20 rounded-3xl transition-all group"
+                >
+                  <div className="w-16 h-16 bg-rhozly-primary/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
+                    <Key className="w-8 h-8 text-rhozly-primary" />
+                  </div>
+                  <h3 className="text-xl font-black font-display text-rhozly-on-surface mb-2">
+                    Join Existing Home
+                  </h3>
+                  <p className="text-sm font-bold text-rhozly-on-surface/50">
+                    Enter a Home ID to join a home someone else has set up.
+                  </p>
+                </button>
+              </div>
+            </div>
+          )}
+
+          {/* Create Home Step */}
+          {step === "create" && (
+            <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setStep("selection")}
+                  className="p-2 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors"
+                >
+                  <ArrowLeft className="w-6 h-6" />
+                </button>
+                <div>
+                  <h2 className="text-3xl font-black font-display text-rhozly-on-surface tracking-tight">
+                    Create New Home
+                  </h2>
+                  <p className="text-sm font-bold text-rhozly-on-surface/50 mt-1">
+                    Enter details for your new home.
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleCreate} className="space-y-6 max-w-md">
+                <div className="space-y-2">
+                  <label
+                    htmlFor="homeName"
+                    className="block text-sm font-bold text-rhozly-on-surface"
+                  >
+                    Home Name
+                  </label>
+                  <input
+                    id="homeName"
+                    type="text"
+                    required
+                    autoFocus
+                    value={homeName}
+                    onChange={(e) => setHomeName(e.target.value)}
+                    className="w-full px-4 py-3 bg-rhozly-surface-low border border-rhozly-outline/20 rounded-xl focus:outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary transition-all font-bold text-rhozly-on-surface"
+                    placeholder="e.g. My Summer House"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <label
+                    htmlFor="postcode"
+                    className="block text-sm font-bold text-rhozly-on-surface"
+                  >
+                    Postcode / Zip Code
+                  </label>
+                  <input
+                    id="postcode"
+                    type="text"
+                    required
+                    value={postcode}
+                    onChange={(e) => setPostcode(e.target.value)}
+                    className="w-full px-4 py-3 bg-rhozly-surface-low border border-rhozly-outline/20 rounded-xl focus:outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary transition-all font-bold text-rhozly-on-surface uppercase"
+                    placeholder="e.g. CR3 5ED"
+                  />
+                </div>
+
+                <div className="pt-4">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-rhozly-primary text-white font-bold rounded-xl hover:bg-rhozly-primary/90 transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      "Create Home"
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+
+          {/* Join Home Step */}
+          {step === "join" && (
+            <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+              <div className="flex items-center gap-4">
+                <button
+                  onClick={() => setStep("selection")}
+                  className="p-2 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors"
+                >
+                  <ArrowLeft className="w-6 h-6" />
+                </button>
+                <div>
+                  <h2 className="text-3xl font-black font-display text-rhozly-on-surface tracking-tight">
+                    Join Existing Home
+                  </h2>
+                  <p className="text-sm font-bold text-rhozly-on-surface/50 mt-1">
+                    Enter the Home ID provided by the owner.
+                  </p>
+                </div>
+              </div>
+
+              <form onSubmit={handleJoin} className="space-y-6 max-w-md">
+                <div className="space-y-2">
+                  <label
+                    htmlFor="homeId"
+                    className="block text-sm font-bold text-rhozly-on-surface"
+                  >
+                    Home ID
+                  </label>
+                  <input
+                    id="homeId"
+                    type="text"
+                    required
+                    autoFocus
+                    value={homeId}
+                    onChange={(e) => setHomeId(e.target.value)}
+                    className="w-full px-4 py-3 bg-rhozly-surface-low border border-rhozly-outline/20 rounded-xl focus:outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary transition-all font-bold text-rhozly-on-surface font-mono uppercase tracking-wider"
+                    placeholder="e.g. HOME-1234-ABCD"
+                  />
+                </div>
+
+                <div className="pt-4">
+                  <button
+                    type="submit"
+                    disabled={loading}
+                    className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-rhozly-primary text-white font-bold rounded-xl hover:bg-rhozly-primary/90 transition-colors shadow-sm disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      "Join Home"
+                    )}
+                  </button>
+                </div>
+              </form>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );

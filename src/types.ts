@@ -12,8 +12,6 @@ export interface Home {
   id: string;
   name: string;
   created_at: string;
-  // Note: We don't need 'created_by' here because
-  // permissions are handled in the home_members table.
 }
 
 export interface HomeMember {
@@ -27,9 +25,7 @@ export interface Location {
   id: string;
   home_id: string;
   name: string;
-  address: string | null;
-  lat: number | null;
-  lng: number | null;
+  placement: string;
   created_at: string;
 }
 

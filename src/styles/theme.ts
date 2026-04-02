@@ -1,27 +1,44 @@
-// theme.ts - The Eco-Tech Design System
-
-export const ecoTheme = {
+export const rhozlyTheme = {
   colors: {
-    primary: "#006E1C", // Life/Action
-    primaryContainer: "#4CAF50", // Leaf Green
-    secondary: "#725A39", // Sand/Warmth
-    tertiary: "#795900", // Amber/Alerts
-    background: "#FAF9F7", // Sterile Off-White
-    onSurface: "#1A1C1B", // "No Pure Black" text
-    surfaceLow: "#F1EFED", // For "No-Line" sectioning
-    surfaceLowest: "#FFFFFF", // Floating cards
-    glass: "rgba(250, 249, 247, 0.8)", // 80% Opacity for Glassmorphism
+    // 2. Colors & Surface Hierarchy
+    background: "#faf9f7", // The Base
+    surfaceContainerLow: "#f4f3f1", // The Zone (Sidebar)
+    surfaceContainer: "#efeeec", // Functional Areas
+    surfaceContainerLowest: "#ffffff", // The Focus (Cards)
+
+    // Brand Colors
+    primary: "#075737", // Deep Forest
+    primaryContainer: "#2a704d", // Leaf Green
+    tertiaryFixed: "#ffdad8", // AI "Thought" Glow (Rose Red)
+    onSurface: "#1a1c1b", // "No Pure Black" text
+    outlineVariant: "rgba(26, 28, 27, 0.15)", // Ghost Border
   },
+
+  gradients: {
+    // The "Soul" of the interface
+    primary: "linear-gradient(135deg, #075737 0%, #2a704d 100%)",
+  },
+
   fonts: {
-    display: "'Newsreader', serif", // Editorial warmth
-    ui: "'Manrope', sans-serif", // Tech precision
+    display: "'Plus Jakarta Sans', sans-serif", // Modern Clarity
+    body: "'Inter', sans-serif", // Editorial Precision
   },
-  spacing: {
-    pageMargin: "5.5rem", // "spacing-16" for luxury feel
-    section: "2rem", // "spacing-6" instead of borders
+
+  shadows: {
+    // Ambient Shadow (Natural light filtered through canopy)
+    ambient: "0 8px 24px -4px rgba(26, 28, 27, 0.1)",
   },
-  radius: {
-    standard: "0.5rem", // "rounded-lg"
-    button: "0.375rem", // "rounded-md"
+
+  glass: {
+    background: "rgba(239, 238, 236, 0.7)",
+    blur: "blur(20px)",
+  },
+
+  typography: {
+    heroTitle: "text-xl md:text-4xl font-extrabold tracking-tight",
+    tagline: "text-sm md:text-lg font-medium mt-1 opacity-80",
+    fieldLabel:
+      "block text-xs font-bold uppercase tracking-widest opacity-70 mb-2 ml-1",
+    signInButton: "py-2 text-base md:text-lg",
   },
 };
