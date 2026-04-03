@@ -17,7 +17,7 @@ Deno.serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
-    let body = {};
+    let body: any = {};
     try {
       body = await req.json();
     } catch (e) {}
@@ -95,7 +95,7 @@ Deno.serve(async (req) => {
             latitude: lat.toString(),
             longitude: lng.toString(),
             hourly:
-              "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code",
+              "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,precipitation_probability",
             timezone: "auto",
             forecast_days: "2",
           });
@@ -114,6 +114,30 @@ Deno.serve(async (req) => {
           );
 
           console.log(`✅ Successfully updated weather for Home ${home.id}`);
+
+          // =================================================================
+          // 🚀 THE NATIVE FUNCTION CHAIN
+          // =================================================================
+          console.log(`🔗 Triggering analyse-weather for home ${home.id}...`);
+
+          const { error: invokeError } = await supabase.functions.invoke(
+            "analyse-weather",
+            {
+              body: {
+                record: { home_id: home.id },
+              },
+            },
+          );
+
+          if (invokeError) {
+            console.error(`❌ Failed to trigger analyse-weather:`, invokeError);
+          } else {
+            console.log(
+              `✅ analyse-weather completed successfully for home ${home.id}!`,
+            );
+          }
+          // =================================================================
+
           processedHomesCount++;
         } else {
           console.error(
@@ -134,6 +158,7 @@ Deno.serve(async (req) => {
     );
   } catch (error: any) {
     console.error("🔥 CRITICAL EDGE FUNCTION CRASH:", error);
+
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,

@@ -18,6 +18,7 @@ import {
   CloudLightning,
   CloudFog,
   CloudDrizzle,
+  Database,
 } from "lucide-react";
 
 // Import your components
@@ -30,9 +31,12 @@ import { HomeSetup } from "./components/HomeSetup";
 import type { UserProfile } from "./types";
 import { Logger } from "./lib/errorHandler";
 import * as Sentry from "@sentry/react";
+import WeatherForecast from "./components/WeatherForecast";
+import { WeatherAlertBanner } from "./components/WeatherAlertBanner";
+import TheShed from "./components/TheShed";
+import TaskCalendar from "./components/TaskCalendar"; // 🚀 NEW: Import the Calendar
 
-// --- WEATHER & CACHE HELPERS (OUTSIDE THE COMPONENT) ---
-
+// --- WEATHER & CACHE HELPERS ---
 const getMidnightTonight = () => {
   const now = new Date();
   const midnight = new Date(
@@ -47,40 +51,24 @@ const getMidnightTonight = () => {
   return midnight.getTime();
 };
 
-// Weather Helpers
 const getCachedWeatherData = (homeId: string) => {
   const cacheKey = `weather_cache_${homeId}`;
   const cached = sessionStorage.getItem(cacheKey);
-
-  if (!cached) {
-    console.log("🔍 [Cache] No local weather found for this home.");
-    return null;
-  }
-
+  if (!cached) return null;
   const { data, expiresAt } = JSON.parse(cached);
-
   if (Date.now() > expiresAt) {
-    console.log("🗑️ [Cache] Local weather expired at midnight. Deleting...");
     sessionStorage.removeItem(cacheKey);
     return null;
   }
-
-  console.log("⚡ [Cache] Valid weather found! Skipping database for weather.");
   return data;
 };
 
 const extractCurrentWeather = (meteoData: any) => {
-  // 1. Safely handle the nested data structure
   const data = meteoData?.data || meteoData;
   const hourly = data?.hourly;
   const targetTimezone = data?.timezone || "Europe/London";
+  if (!hourly) return null;
 
-  if (!hourly) {
-    console.error("❌ [Weather] No 'hourly' object found:", data);
-    return null;
-  }
-
-  // 2. Format the current time INTO the home's timezone
   const now = new Date();
   const formatter = new Intl.DateTimeFormat("en-US", {
     timeZone: targetTimezone,
@@ -91,22 +79,11 @@ const extractCurrentWeather = (meteoData: any) => {
     hour12: false,
   });
 
-  // Extract the specific parts
   const p: Record<string, string> = {};
   formatter.formatToParts(now).forEach((part) => (p[part.type] = part.value));
-
-  // Browsers sometimes format midnight as '24', so we fix that safely
   const hr = p.hour === "24" ? "00" : p.hour;
-
-  // Build the exact string Open-Meteo uses: "YYYY-MM-DDTHH:00"
   const currentHourTarget = `${p.year}-${p.month}-${p.day}T${hr}:00`;
 
-  console.log(`🕒 [Timezone Check] API Timezone: ${targetTimezone}`);
-  console.log(
-    `🎯 [Timezone Check] Looking for exact time: ${currentHourTarget}`,
-  );
-
-  // 3. Find the matching index
   const index = hourly.time.findIndex((t: string) =>
     t.startsWith(currentHourTarget),
   );
@@ -137,163 +114,112 @@ const extractCurrentWeather = (meteoData: any) => {
   };
 };
 
-// Location Helpers
 const getCachedLocations = (homeId: string) => {
   const cacheKey = `locations_cache_${homeId}`;
   const cached = sessionStorage.getItem(cacheKey);
-
   if (!cached) return null;
-
   const { data, expiresAt } = JSON.parse(cached);
-
-  // Locations don't need to expire at midnight like weather,
-  // but we'll set a 1-hour "sanity" TTL just in case.
   if (Date.now() > expiresAt) {
     sessionStorage.removeItem(cacheKey);
     return null;
   }
-
-  console.log("⚡ [Cache] Locations loaded from memory.");
   return data;
 };
 
 const setLocationCache = (homeId: string, data: any[]) => {
   const cacheKey = `locations_cache_${homeId}`;
-  const payload = {
-    data: data,
-    expiresAt: Date.now() + 60 * 60 * 1000, // 1 hour TTL
-  };
+  const payload = { data: data, expiresAt: Date.now() + 60 * 60 * 1000 };
   sessionStorage.setItem(cacheKey, JSON.stringify(payload));
 };
 
 export default function App() {
-  // ==========================================
-  // 1. THE BRAIN: SUPABASE & STATE MANAGEMENT
-  // ==========================================
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [isAddingHome, setIsAddingHome] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
   const [weather, setWeather] = useState<any>(null);
+  const [rawWeather, setRawWeather] = useState<any>(null);
+  const [alerts, setAlerts] = useState<any[]>([]);
 
-  // ==========================================
-  // UI STATE (With Local Storage Persistence)
-  // ==========================================
-
-  const [activeTab, setActiveTab] = useState(() => {
-    return localStorage.getItem("rhozly_tab") || "dashboard";
-  });
-
+  const [activeTab, setActiveTab] = useState(
+    () => localStorage.getItem("rhozly_tab") || "dashboard",
+  );
   const [dashboardView, setDashboardView] = useState<
     "locations" | "calendar" | "weather"
-  >(() => {
-    return (localStorage.getItem("rhozly_view") as any) || "locations";
-  });
-
+  >(() => (localStorage.getItem("rhozly_view") as any) || "locations");
   const [selectedLocationId, setSelectedLocationId] = useState<
     number | string | null
-  >(() => {
-    return localStorage.getItem("rhozly_locationId") || null;
-  });
-
-  const [isNavCollapsed, setIsNavCollapsed] = useState(() => {
-    return localStorage.getItem("rhozly_nav") === "true";
-  });
-
-  // --- UI STATE SAVERS ---
-  // These effects silently save the user's place every time they click a button
+  >(() => localStorage.getItem("rhozly_locationId") || null);
+  const [isNavCollapsed, setIsNavCollapsed] = useState(
+    () => localStorage.getItem("rhozly_nav") === "true",
+  );
 
   useEffect(() => {
     localStorage.setItem("rhozly_tab", activeTab);
   }, [activeTab]);
-
   useEffect(() => {
     localStorage.setItem("rhozly_view", dashboardView);
   }, [dashboardView]);
-
   useEffect(() => {
-    if (selectedLocationId) {
+    if (selectedLocationId)
       localStorage.setItem("rhozly_locationId", selectedLocationId.toString());
-    } else {
-      localStorage.removeItem("rhozly_locationId");
-    }
+    else localStorage.removeItem("rhozly_locationId");
   }, [selectedLocationId]);
-
   useEffect(() => {
     localStorage.setItem("rhozly_nav", isNavCollapsed.toString());
   }, [isNavCollapsed]);
 
-  // Fetching Logic
   const fetchDashboardData = useCallback(async () => {
     if (!profile?.home_id) return;
 
-    // 1. PEEK AT THE CACHES
     const cachedWeather = getCachedWeatherData(profile.home_id);
     const cachedLocs = getCachedLocations(profile.home_id);
 
-    // 2. APPLY CACHES TO UI
-    if (cachedWeather) setWeather(extractCurrentWeather(cachedWeather));
-    if (cachedLocs) setLocations(cachedLocs);
-
-    // 3. THE "STRICT" KILL SWITCH
-    if (cachedWeather && cachedLocs) {
-      console.log("🛑 [Database] Skipped! Both caches are valid.");
-      return;
+    if (cachedWeather) {
+      setRawWeather(cachedWeather);
+      setWeather(extractCurrentWeather(cachedWeather));
     }
-
-    // 4. WE ONLY GET HERE IF SOMETHING IS MISSING
-    console.log("🌐 [Database] Cache missing. Fetching from cloud...");
-
-    let query = "*";
-    if (cachedWeather && !cachedLocs) {
-      query = "*, locations ( * )";
-    } else if (!cachedWeather && cachedLocs) {
-      query = "*, weather_snapshots ( data )";
-    } else {
-      query = "*, weather_snapshots ( data ), locations ( * )";
+    if (cachedLocs) {
+      setLocations(cachedLocs);
     }
-
-    console.log(`📡 [Database] Sending Query: ${query}`);
 
     const { data, error } = await supabase
       .from("homes")
-      .select(query)
+      .select("*, weather_snapshots ( data ), locations ( * )")
       .eq("id", profile.home_id)
       .single();
 
-    // --- X-RAY LOGS START HERE ---
-    console.log("📦 [Database] Raw response received:", { data, error });
-
     if (error) {
-      console.error("❌ [Database] Supabase returned an error:", error);
+      Logger.error("Failed to fetch home data", error);
       return;
     }
 
     if (data) {
-      // Handle Locations
       if (data.locations) {
-        console.log("✅ [Data] Locations found, updating UI/Cache.");
         setLocations(data.locations);
         setLocationCache(profile.home_id, data.locations);
+
+        const locationIds = data.locations.map((l: any) => l.id);
+        if (locationIds.length > 0) {
+          const { data: alertData } = await supabase
+            .from("weather_alerts")
+            .select("*")
+            .in("location_id", locationIds)
+            .eq("is_active", true)
+            .order("starts_at", { ascending: true });
+
+          setAlerts(alertData || []);
+        }
       }
 
-      // Handle Weather
       if (data.weather_snapshots) {
-        console.log(
-          "✅ [Data] Weather snapshots array found:",
-          data.weather_snapshots,
-        );
-
         const snapshots = data.weather_snapshots;
         const freshRawData = Array.isArray(snapshots)
           ? snapshots[0]?.data
           : snapshots?.data;
-
         if (freshRawData) {
-          console.log(
-            "✅ [Data] Extracted raw weather JSON, updating UI/Cache.",
-          );
+          setRawWeather(freshRawData);
           setWeather(extractCurrentWeather(freshRawData));
           sessionStorage.setItem(
             `weather_cache_${profile.home_id}`,
@@ -302,233 +228,142 @@ export default function App() {
               expiresAt: getMidnightTonight(),
             }),
           );
-        } else {
-          console.warn(
-            "⚠️ [Data] The snapshot array is empty! No weather exists yet.",
-          );
-          setWeather(null);
         }
-      } else if (!cachedWeather) {
-        console.warn(
-          "⚠️ [Data] 'weather_snapshots' key is completely missing.",
-        );
-        setWeather(null);
       }
     }
   }, [profile?.home_id]);
 
   const refreshProfile = async () => {
     if (!session?.user) return;
-
-    // 1. Fetch the user's current profile
     const { data: profileData } = await supabase
       .from("user_profiles")
       .select("*")
       .eq("uid", session.user.id)
       .single();
-
-    // 2. THE SAFETY NET: If they have no active home, check for backups!
     if (profileData && !profileData.home_id) {
-      console.log(
-        "🛡️ [Fallback] No active home detected. Checking for other memberships...",
-      );
-
       const { data: otherMemberships } = await supabase
         .from("home_members")
         .select("home_id")
         .eq("user_id", session.user.id)
         .limit(1);
-
       if (otherMemberships && otherMemberships.length > 0) {
-        const fallbackHomeId = otherMemberships[0].home_id;
-        console.log(
-          `♻️ [Fallback] Found another home! Auto-switching to: ${fallbackHomeId}`,
-        );
-
-        // Auto-update their profile in the database to point to the backup home
+        const fallbackId = otherMemberships[0].home_id;
         await supabase
           .from("user_profiles")
-          .update({ home_id: fallbackHomeId })
+          .update({ home_id: fallbackId })
           .eq("uid", session.user.id);
-
-        // Update our local variable so the UI doesn't flash the setup screen
-        profileData.home_id = fallbackHomeId;
+        profileData.home_id = fallbackId;
       }
     }
-
-    // 3. Finally, set the profile state
     setProfile(profileData);
   };
 
   const handleSwitchHome = async (homeId: string) => {
-    // Optimistically clear the UI to prevent data leakage
     setWeather(null);
+    setRawWeather(null);
     setLocations([]);
-
+    setAlerts([]);
     try {
       const { error } = await supabase
         .from("user_profiles")
         .update({ home_id: homeId })
         .eq("uid", session.user.id);
-
       if (error) throw error;
-
       setProfile((prev: any) => (prev ? { ...prev, home_id: homeId } : null));
       setIsAddingHome(false);
       setSelectedLocationId(null);
     } catch (err: any) {
-      Logger.error(
-        "Failed to switch active home",
-        err,
-        { attemptedHomeId: homeId },
-        "Could not switch homes. Please try again.",
-      );
+      Logger.error("Failed to switch home", err);
     }
   };
 
-  // Real Time Listener Effect
   useEffect(() => {
     if (!profile?.home_id) return;
-
-    const isLocal = import.meta.env.DEV;
-    let homeChannel: any = null;
-
-    // The centralized change handler
-    const handleDatabaseChange = (payload: any) => {
-      const table = payload.table;
-      console.log(`🔄 [Logic] Database change detected in: ${table}`);
-      if (["locations", "areas", "homes"].includes(table)) {
-        console.log("✨ [Logic] Refreshing dashboard data...");
-        // KILL THE CACHE so the next fetch gets fresh data
-        sessionStorage.removeItem(`locations_cache_${profile.home_id}`);
-        fetchDashboardData();
-      }
-      if (table === "user_profiles" || table === "home_members") {
-        console.log("👤 [Logic] Refreshing profile...");
-        refreshProfile();
-      }
-    };
-
-    if (!isLocal) {
-      console.log("🌐 [Realtime] Connecting to Cloud Realtime...");
-      homeChannel = supabase
-        .channel("home-updates")
-        .on("postgres_changes", { event: "*", schema: "public" }, (payload) => {
-          handleDatabaseChange(payload);
-        })
-        .subscribe();
-    } else {
-      console.log(
-        "🏠 [Realtime] Local mode: Realtime container disabled. Use simulateUpdate() to test.",
-      );
-    }
-
-    // Attach simulator to window for manual testing
-    window.simulateUpdate = (tableName = "locations") => {
-      console.warn(
-        `🧪 [Simulation] Manually triggering update for: ${tableName}`,
-      );
-      handleDatabaseChange({ table: tableName });
-    };
-
+    const homeChannel = supabase
+      .channel("home-updates")
+      .on("postgres_changes", { event: "*", schema: "public" }, (payload) => {
+        if (
+          ["locations", "areas", "homes", "weather_alerts"].includes(
+            payload.table,
+          )
+        ) {
+          sessionStorage.removeItem(`locations_cache_${profile.home_id}`);
+          fetchDashboardData();
+        }
+        if (["user_profiles", "home_members"].includes(payload.table))
+          refreshProfile();
+      })
+      .subscribe();
     return () => {
-      if (homeChannel) supabase.removeChannel(homeChannel);
-      delete (window as any).simulateUpdate;
+      supabase.removeChannel(homeChannel);
     };
   }, [profile?.home_id, fetchDashboardData]);
 
-  // Auth Effect
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       if (!session) setLoading(false);
     });
-
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-    });
-
+    } = supabase.auth.onAuthStateChange((_event, session) =>
+      setSession(session),
+    );
     return () => subscription.unsubscribe();
   }, []);
 
-  // Profile Effect
   useEffect(() => {
-    if (session?.user) {
-      refreshProfile().then(() => setLoading(false));
-    }
+    if (session?.user) refreshProfile().then(() => setLoading(false));
   }, [session]);
 
-  // Trigger Dashboard Data Fetch on Home change
   useEffect(() => {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // ==========================================
-  // 2. EARLY RETURNS (LOADING, LOGIN, SETUP)
-  // ==========================================
-  if (loading) {
+  if (loading)
     return (
       <div className="h-screen flex items-center justify-center bg-rhozly-bg">
         <Loader2 className="animate-spin text-rhozly-primary" size={40} />
       </div>
     );
-  }
-
   if (!session) return <Auth />;
-
-  if (profile && (!profile.home_id || isAddingHome)) {
+  if (profile && (!profile.home_id || isAddingHome))
     return (
       <HomeSetup
         user={session.user}
         hasExistingHome={!!profile.home_id}
         onCancel={() => setIsAddingHome(false)}
-        onHomeCreated={(newId: string) => {
-          setProfile({ ...profile, home_id: newId } as any);
+        onHomeCreated={(id) => {
+          setProfile({ ...profile, home_id: id } as any);
           setIsAddingHome(false);
         }}
       />
     );
-  }
 
-  // ==========================================
-  // 3. THE BODY: RHOZLY DIGITAL ARBORETUM UI
-  // ==========================================
   return (
-    <Sentry.ErrorBoundary
-      fallback={
-        <p>An unexpected error occurred. Our team has been notified!</p>
-      }
-    >
-      {/* 🚀 ONLY ONE TOASTER HERE! */}
+    <Sentry.ErrorBoundary fallback={<p>An unexpected error occurred.</p>}>
       <Toaster />
-
       <div className="min-h-screen bg-rhozly-bg text-rhozly-on-surface font-body flex flex-col relative selection:bg-rhozly-primary/20">
         <div className="fixed top-0 left-1/4 w-96 h-96 bg-rhozly-primary/5 rounded-full blur-3xl pointer-events-none" />
-        <div className="fixed bottom-0 right-1/4 w-[30rem] h-[30rem] bg-rhozly-primary-container/5 rounded-full blur-3xl pointer-events-none" />
 
         <header className="sticky top-0 z-30 bg-rhozly-primary border-b border-rhozly-primary-container px-4 md:px-8 py-4 flex justify-between items-center shadow-md">
-          <div className="flex items-center gap-3 font-display font-black text-2xl tracking-tight">
+          <div className="flex items-center gap-3 font-display font-black text-2xl tracking-tight text-white">
             <button
               onClick={() => setIsNavCollapsed(!isNavCollapsed)}
-              className="hidden md:flex text-white hover:bg-white/20 p-2 rounded-xl transition-colors items-center justify-center mr-1"
+              className="hidden md:flex hover:bg-white/20 p-2 rounded-xl transition-colors items-center justify-center mr-1"
             >
               <Menu className="w-6 h-6" />
             </button>
-
-            <div className="bg-white p-2 rounded-xl shadow-sm backdrop-blur-sm">
+            <div className="bg-white p-2 rounded-xl shadow-sm">
               <img
                 src="/images/logo_small_rhozly.png"
                 alt="Rhozly"
-                className="h-8 w-auto object-contain drop-shadow-sm"
+                className="h-8 w-auto"
               />
-              {/*<Leaf className="w-6 h-6 text-white" />*/}
             </div>
-            <span className="text-white uppercase tracking-wider text-xl hidden sm:block">
+            <span className="uppercase tracking-wider text-xl hidden sm:block">
               Rhozly
             </span>
-
             <div className="relative ml-2 md:ml-6">
               <HomeDropdown
                 currentHomeId={profile?.home_id || null}
@@ -538,7 +373,6 @@ export default function App() {
               />
             </div>
           </div>
-
           <div className="flex items-center gap-4 cursor-pointer group">
             <button
               onClick={() => supabase.auth.signOut()}
@@ -546,15 +380,15 @@ export default function App() {
             >
               Sign Out
             </button>
-            <div className="text-right hidden sm:block">
-              <p className="text-sm font-bold text-white group-hover:text-white/80 transition-colors">
+            <div className="text-right hidden sm:block text-white">
+              <p className="text-sm font-bold">
                 {profile?.full_name || "Guest"}
               </p>
               <p className="text-[10px] uppercase tracking-widest text-white/60 font-semibold">
                 Master Gardener
               </p>
             </div>
-            <div className="w-11 h-11 rounded-full bg-white/20 p-[2px] shadow-sm group-hover:shadow-md transition-all backdrop-blur-sm">
+            <div className="w-11 h-11 rounded-full bg-white/20 p-[2px] backdrop-blur-sm">
               <div className="w-full h-full rounded-full border-2 border-white/30 bg-rhozly-primary-container flex items-center justify-center overflow-hidden">
                 <User className="w-5 h-5 text-white" />
               </div>
@@ -564,13 +398,7 @@ export default function App() {
 
         <div className="flex flex-1 overflow-hidden relative z-10 w-full">
           <nav
-            className={`
-          fixed bottom-0 left-0 w-full z-40 bg-rhozly-primary-container border-t border-rhozly-primary/50 pb-safe shadow-[0_-8px_24px_rgba(7,87,55,0.15)]
-          md:relative md:border-t-0 md:border-r md:border-rhozly-primary/20 md:bg-rhozly-primary-container md:pb-0 md:shadow-none
-          flex md:flex-col justify-around md:justify-start p-3 md:p-6 gap-2 md:gap-3
-          transition-all duration-300 ease-in-out
-          ${isNavCollapsed ? "md:w-28 md:items-center md:px-4" : "md:w-72"}
-        `}
+            className={`fixed bottom-0 left-0 w-full z-40 bg-rhozly-primary-container border-t border-rhozly-primary/50 md:relative md:border-t-0 md:border-r md:border-rhozly-primary/20 flex md:flex-col justify-around md:justify-start p-3 md:p-6 gap-2 transition-all duration-300 ${isNavCollapsed ? "md:w-28 md:items-center" : "md:w-72"}`}
           >
             <NavItem
               icon={<Home />}
@@ -583,10 +411,23 @@ export default function App() {
               isCollapsed={isNavCollapsed}
             />
             <NavItem
+              icon={<Database />}
+              label="The Shed"
+              active={activeTab === "shed"}
+              onClick={() => {
+                setActiveTab("shed");
+                setSelectedLocationId(null);
+              }}
+              isCollapsed={isNavCollapsed}
+            />
+            <NavItem
               icon={<Wrench />}
               label="Location Management"
               active={activeTab === "management"}
-              onClick={() => setActiveTab("management")}
+              onClick={() => {
+                setActiveTab("management");
+                setSelectedLocationId(null);
+              }}
               isCollapsed={isNavCollapsed}
             />
           </nav>
@@ -596,72 +437,73 @@ export default function App() {
               <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
                 {selectedLocationId ? (
                   <div className="w-full">
-                    <LocationPage
-                      location={locations.find(
+                    {(() => {
+                      const loc = locations.find(
                         (l) => l.id === selectedLocationId,
-                      )}
-                      onBack={() => setSelectedLocationId(null)}
-                    />
+                      );
+                      if (!loc)
+                        return (
+                          <div className="flex flex-col items-center py-20">
+                            <Loader2 className="animate-spin text-rhozly-primary mb-4" />
+                            <p className="text-sm font-bold opacity-40">
+                              Loading location details...
+                            </p>
+                          </div>
+                        );
+                      return (
+                        <LocationPage
+                          location={loc}
+                          onBack={() => setSelectedLocationId(null)}
+                        />
+                      );
+                    })()}
                   </div>
                 ) : (
-                  // Dashboard Grid View
                   <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
-                    {/* Left Column (Expands to full width if Tasks are hidden) */}
                     <div
-                      className={`${dashboardView === "weather" ? "col-span-full" : "lg:col-span-7 xl:col-span-8"} space-y-6 transition-all duration-500 ease-in-out`}
+                      className={`${dashboardView === "weather" || dashboardView === "calendar" ? "col-span-full" : "lg:col-span-7 xl:col-span-8"} space-y-6`}
                     >
+                      <WeatherAlertBanner
+                        alerts={alerts}
+                        isForecastScreen={dashboardView === "weather"}
+                      />
+
                       <div className="flex items-center justify-between px-1">
                         <div className="bg-rhozly-primary/5 p-1 rounded-2xl inline-flex">
-                          <button
-                            onClick={() => setDashboardView("locations")}
-                            className={`px-4 py-1.5 rounded-xl font-bold text-sm transition-all duration-300 ${dashboardView === "locations" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-primary/60 hover:text-rhozly-primary"}`}
-                          >
-                            Overview
-                          </button>
-                          <button
-                            onClick={() => setDashboardView("calendar")}
-                            className={`px-4 py-1.5 rounded-xl font-bold text-sm transition-all duration-300 ${dashboardView === "calendar" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-primary/60 hover:text-rhozly-primary"}`}
-                          >
-                            Calendar
-                          </button>
-                          <button
-                            onClick={() => setDashboardView("weather")}
-                            className={`px-4 py-1.5 rounded-xl font-bold text-sm transition-all duration-300 ${dashboardView === "weather" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-primary/60 hover:text-rhozly-primary"}`}
-                          >
-                            Weather
-                          </button>
+                          {["locations", "calendar", "weather"].map((v) => (
+                            <button
+                              key={v}
+                              onClick={() => setDashboardView(v as any)}
+                              className={`px-4 py-1.5 rounded-xl font-bold text-sm transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-primary/60 hover:text-rhozly-primary"}`}
+                            >
+                              {v.charAt(0).toUpperCase() + v.slice(1)}
+                            </button>
+                          ))}
                         </div>
-                        {dashboardView === "locations" &&
-                          locations?.length > 0 && (
-                            <span className="text-xs font-bold text-rhozly-primary bg-rhozly-primary/10 px-3 py-1 rounded-full hidden sm:block">
-                              {locations.length} Active
-                            </span>
-                          )}
                       </div>
 
-                      {/* Dynamic View Logic */}
                       {dashboardView === "locations" ? (
                         <div className="space-y-5">
-                          {/* Weather Banner */}
-                          <div className="bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container text-white rounded-3xl p-5 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 animate-in fade-in duration-500">
+                          {/* ... Location Logic intact ... */}
+                          <div className="bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container text-white rounded-3xl p-5 shadow-md flex justify-between items-center">
                             <div className="flex items-center gap-4">
-                              <div className="bg-white/20 p-3 rounded-2xl backdrop-blur-sm">
+                              <div className="bg-white/20 p-3 rounded-2xl">
                                 {weather?.Icon ? (
-                                  <weather.Icon className="w-8 h-8 text-white" />
+                                  <weather.Icon className="w-8 h-8" />
                                 ) : (
-                                  <Cloud className="w-8 h-8 text-white" />
+                                  <Cloud className="w-8 h-8" />
                                 )}
                               </div>
                               <div>
-                                <p className="font-display font-black text-2xl tracking-tight leading-none mb-1">
+                                <p className="font-black text-2xl mb-1">
                                   {weather
                                     ? `${Math.round(weather.temp)}°C`
                                     : "--°C"}{" "}
-                                  <span className="text-lg font-bold text-white/80 ml-1">
+                                  <span className="text-lg opacity-80">
                                     {weather?.description || "Loading..."}
                                   </span>
                                 </p>
-                                <p className="text-xs font-bold text-white/70 uppercase tracking-widest">
+                                <p className="text-xs font-bold opacity-70">
                                   Humidity: {weather?.humidity || "--"}% • Wind:{" "}
                                   {weather?.wind || "--"} km/h
                                 </p>
@@ -669,82 +511,73 @@ export default function App() {
                             </div>
                             <button
                               onClick={() => setDashboardView("weather")}
-                              className="text-xs font-bold bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl transition-colors whitespace-nowrap border border-white/20"
+                              className="text-xs font-bold bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl border border-white/20"
                             >
                               Full Forecast
                             </button>
                           </div>
-
-                          {/* Location Tiles */}
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                            {locations?.length > 0 ? (
-                              locations.map((loc: any, index: number) => (
+                            {locations.length > 0 ? (
+                              locations.map((loc: any, idx: number) => (
                                 <LocationTile
                                   key={loc.id}
                                   site={loc}
-                                  index={index}
+                                  index={idx}
                                   onClick={() => setSelectedLocationId(loc.id)}
                                 />
                               ))
                             ) : (
-                              <div className="col-span-full p-8 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/30 text-rhozly-on-surface/50 font-bold text-sm">
-                                No locations found. Add one in Home Management!
+                              <div className="col-span-full p-8 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/30 opacity-50">
+                                No locations found.
                               </div>
                             )}
                           </div>
                         </div>
                       ) : dashboardView === "calendar" ? (
-                        <div className="bg-rhozly-surface-lowest rounded-3xl p-8 shadow-[0_8px_24px_-4px_rgba(26,28,27,0.04)] border border-rhozly-outline/30 flex flex-col items-center justify-center min-h-[300px] text-center animate-in fade-in duration-500">
-                          <div className="w-16 h-16 bg-rhozly-primary/10 rounded-2xl flex items-center justify-center mb-4">
-                            <Calendar className="w-8 h-8 text-rhozly-primary" />
-                          </div>
-                          <h3 className="text-xl font-display font-black text-rhozly-primary mb-2">
-                            Calendar View
-                          </h3>
-                          <p className="text-rhozly-on-surface/60 max-w-md text-sm">
-                            Your upcoming gardening tasks will appear here.
-                          </p>
+                        /* 🚀 NEW: Removed placeholder and replaced with TaskCalendar component */
+                        <div className="bg-rhozly-surface-lowest rounded-[3rem] border border-rhozly-outline/10 overflow-hidden shadow-sm">
+                          {profile?.home_id && (
+                            <TaskCalendar homeId={profile.home_id} />
+                          )}
                         </div>
                       ) : (
-                        <div className="bg-rhozly-surface-lowest rounded-3xl p-8 shadow-[0_8px_24px_-4px_rgba(26,28,27,0.04)] border border-rhozly-outline/30 flex flex-col items-center justify-center min-h-[300px] text-center animate-in fade-in duration-500">
-                          <div className="w-16 h-16 bg-rhozly-primary/10 rounded-2xl flex items-center justify-center mb-4">
-                            <Cloud className="w-8 h-8 text-rhozly-primary" />
-                          </div>
-                          <h3 className="text-xl font-display font-black text-rhozly-primary mb-2">
-                            Weather Forecast
-                          </h3>
-                          <p className="text-rhozly-on-surface/60 max-w-md text-sm">
-                            Detailed predictions for your locations appear here.
-                          </p>
+                        <div className="space-y-6">
+                          <WeatherForecast
+                            weatherData={rawWeather}
+                            alerts={alerts}
+                          />
                         </div>
                       )}
                     </div>
 
-                    {/* Right Column: Tasks Placeholder (HIDDEN ON WEATHER VIEW) */}
-                    {dashboardView !== "weather" && (
-                      <div className="lg:col-span-5 xl:col-span-4 space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-                        <div className="flex items-center justify-between px-1">
-                          <h2 className="font-display font-black text-rhozly-on-surface/60 uppercase tracking-widest text-sm">
+                    {/* 🚀 HIDDEN when Calendar is active because Calendar has its own right-hand sidebar agenda! */}
+                    {dashboardView !== "weather" &&
+                      dashboardView !== "calendar" && (
+                        <div className="lg:col-span-5 xl:col-span-4 space-y-6">
+                          <h2 className="font-black opacity-60 uppercase tracking-widest text-sm px-1">
                             Daily Tasks
                           </h2>
+                          <div className="bg-rhozly-surface-lowest/80 rounded-3xl p-6 border border-rhozly-outline/40 text-center text-sm font-bold opacity-50">
+                            Task list goes here
+                          </div>
                         </div>
-                        <div className="bg-rhozly-surface-lowest/80 backdrop-blur-sm rounded-3xl p-6 shadow-[0_8px_24px_-4px_rgba(26,28,27,0.05)] border border-rhozly-outline/40 text-center text-sm font-bold text-rhozly-on-surface/50">
-                          Task list component goes here
-                        </div>
-                      </div>
-                    )}
+                      )}
                   </div>
                 )}
               </div>
             )}
 
+            {activeTab === "shed" && profile?.home_id && (
+              <TheShed homeId={profile.home_id} />
+            )}
+
             {activeTab === "management" && (
-              <section className="animate-in fade-in slide-in-from-bottom-4 duration-500 h-full">
+              <section className="h-full">
                 {profile?.home_id ? (
                   <LocationManager homeId={profile.home_id} />
                 ) : (
-                  <div className="w-full h-full border-2 border-dashed border-rhozly-primary/20 rounded-3xl p-10 text-center text-rhozly-primary font-bold">
-                    Please select or create a home first.
+                  <div className="p-10 text-center opacity-50 font-bold border-2 border-dashed rounded-3xl">
+                    Please select a home.
                   </div>
                 )}
               </section>
@@ -758,36 +591,21 @@ export default function App() {
 
 function NavItem({ icon, label, active, onClick, isCollapsed }: any) {
   return (
-    <Sentry.ErrorBoundary
-      fallback={
-        <p>An unexpected error occurred. Our team has been notified!</p>
-      }
+    <button
+      onClick={onClick}
+      className={`relative flex flex-col md:flex-row items-center gap-1.5 p-2.5 rounded-2xl transition-all duration-300 overflow-hidden group shrink-0 ${isCollapsed ? "md:w-14 md:h-14 md:justify-center" : "md:gap-4 md:px-5 md:py-4 w-full"} ${active ? "text-rhozly-primary shadow-md" : "text-white/60 hover:text-white hover:bg-white/10"}`}
     >
-      <button
-        onClick={onClick}
-        className={`relative flex flex-col md:flex-row items-center gap-1.5 p-2.5 rounded-2xl transition-all duration-300 overflow-hidden group shrink-0
-        ${isCollapsed ? "md:gap-0 md:p-0 md:justify-center w-full md:w-14 md:h-14" : "md:gap-4 md:justify-start md:px-5 md:py-4 w-full"}
-        ${active ? "text-rhozly-primary shadow-[0_4px_16px_rgba(0,0,0,0.1)]" : "text-white/60 hover:text-white hover:bg-white/10"}`}
+      {active && <div className="absolute inset-0 bg-white" />}
+      <div
+        className={`relative z-10 flex items-center justify-center transition-transform ${active ? "scale-110" : "group-hover:scale-110"}`}
       >
-        {active && (
-          <>
-            <div className="absolute inset-0 bg-white opacity-100" />
-            <div
-              className={`absolute left-0 top-1/4 bottom-1/4 w-1.5 bg-rhozly-primary-container rounded-r-full z-20 ${isCollapsed ? "hidden" : "hidden md:block"}`}
-            />
-          </>
-        )}
-        <div
-          className={`relative z-10 flex items-center justify-center transition-transform duration-300 ${active ? "scale-110 md:scale-100" : "group-hover:scale-110 md:group-hover:scale-100"}`}
-        >
-          {React.cloneElement(icon, { className: "w-5 h-5 md:w-6 md:h-6" })}
-        </div>
-        <span
-          className={`relative z-10 text-[10px] md:text-sm transition-all duration-300 ${active ? "font-black" : "font-bold"} ${isCollapsed ? "md:hidden" : "md:block whitespace-nowrap"}`}
-        >
-          {label}
-        </span>
-      </button>
-    </Sentry.ErrorBoundary>
+        {React.cloneElement(icon, { className: "w-5 h-5 md:w-6 md:h-6" })}
+      </div>
+      <span
+        className={`relative z-10 text-[10px] md:text-sm ${active ? "font-black" : "font-bold"} ${isCollapsed ? "md:hidden" : "md:block"}`}
+      >
+        {label}
+      </span>
+    </button>
   );
 }
