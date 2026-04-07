@@ -1,4 +1,4 @@
-import { Toaster } from "react-hot-toast";
+import { Toaster, toast } from "react-hot-toast";
 import React, { useEffect, useState, useCallback } from "react";
 import { supabase } from "./lib/supabase";
 import {
@@ -6,15 +6,10 @@ import {
   Menu,
   Home,
   User,
-  LogOut,
-  MapPin,
   Wrench,
-  Leaf,
-  Calendar,
   Loader2,
   Sun,
   CloudRain,
-  CloudSnow,
   CloudLightning,
   CloudFog,
   CloudDrizzle,
@@ -143,7 +138,6 @@ export default function App() {
   const [rawWeather, setRawWeather] = useState<any>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
 
-  // 🚀 UPGRADED: Cross-Platform Notification Listener
   useEffect(() => {
     if (!profile?.home_id) return;
 
@@ -164,9 +158,6 @@ export default function App() {
         (payload) => {
           const { title, body } = payload.new;
 
-          // 🚀 DIAGNOSTIC LOG: Check your browser console!
-          console.log("🔔 REALTIME NOTIFICATION RECEIVED:", title, body);
-
           if (
             "Notification" in window &&
             Notification.permission === "granted"
@@ -176,12 +167,10 @@ export default function App() {
                 body: body,
                 icon: "/images/logo_small_rhozly.png",
               });
-              // Also show a toast just in case the OS swallows the native notification
-              toast.success(`📲 Notification Sent to OS:\n${title}`, {
+              toast.success(`📲 OS Notification:\n${title}`, {
                 duration: 4000,
               });
             } catch (err) {
-              console.error("OS Blocked Notification:", err);
               toast.success(`${title}\n${body}`, { duration: 6000 });
             }
           } else {
@@ -450,7 +439,7 @@ export default function App() {
             </button>
             <div className="text-right hidden sm:block text-white">
               <p className="text-sm font-bold">
-                {profile?.full_name || "Guest"}
+                {profile?.display_name || "Guest"}
               </p>
               <p className="text-[10px] uppercase tracking-widest text-white/60 font-semibold">
                 Master Gardener
@@ -616,7 +605,6 @@ export default function App() {
                       )}
                     </div>
 
-                    {/* 🚀 REAL TASK LIST INTEGRATION */}
                     {dashboardView !== "weather" &&
                       dashboardView !== "calendar" && (
                         <div className="lg:col-span-5 xl:col-span-4 space-y-6">
