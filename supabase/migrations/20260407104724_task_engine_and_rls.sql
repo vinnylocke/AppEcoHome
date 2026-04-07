@@ -8,7 +8,7 @@ alter table "public"."tasks" drop constraint "tasks_type_check";
 
 drop view if exists "public"."active_species_details";
 
-drop index if exists "public"."species_cache_pkey";
+ALTER TABLE "public"."species_cache" DROP CONSTRAINT IF EXISTS "species_cache_pkey";
 
 
   create table "public"."plant_schedules" (
@@ -61,7 +61,7 @@ alter table "public"."species_cache" drop column "sunlight";
 
 alter table "public"."species_cache" drop column "watering_freq";
 
-alter table "public"."species_cache" add column "raw_data" jsonb not null;
+alter table "public"."species_cache" add column "raw_data" jsonb not null default '{}'::jsonb;
 
 alter table "public"."species_cache" add column "updated_at" timestamp with time zone default now();
 

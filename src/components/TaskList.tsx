@@ -16,6 +16,7 @@ import {
   FileText,
   X,
   Leaf,
+  CloudRain,
 } from "lucide-react";
 import type { Task } from "./TaskCalendar";
 import toast from "react-hot-toast";
@@ -27,7 +28,6 @@ interface TaskListProps {
   inventoryItemId?: string;
   targetDate?: Date;
   onTaskUpdated?: () => void;
-  // 🚀 NEW: Added filter props
   locationId?: string;
   selectedTypes?: string[];
 }
@@ -54,8 +54,6 @@ export default function TaskList({
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
 
   const dateStr = getLocalDateString(targetDate || new Date());
-
-  // 🚀 FIX: Convert array to string so it doesn't cause infinite React renders!
   const typesFilterStr = selectedTypes?.join(",") || "";
 
   const fetchTasksAndGhosts = useCallback(async () => {
@@ -63,10 +61,27 @@ export default function TaskList({
     const targetDateMs = new Date(dateStr).getTime();
 
     try {
+      // 🚀 1. Query the actual database for rain alerts
+      let isRainingTargetDate = false;
+
+      const { data: rainAlerts, error: alertError } = await supabase
+        .from("weather_alerts")
+        .select("starts_at, locations!inner(home_id)")
+        .eq("locations.home_id", homeId)
+        .eq("type", "rain");
+
+      if (!alertError && rainAlerts && rainAlerts.length > 0) {
+        // If there is a rain alert that starts on our target date, it's a rainy day!
+        isRainingTargetDate = rainAlerts.some((alert) =>
+          alert.starts_at.startsWith(dateStr),
+        );
+      }
+
+      // 🚀 2. FETCH PHYSICAL TASKS
       let physicalQuery = supabase
         .from("tasks")
         .select(
-          `*, inventory_items(plant_name, identifier, location_name, area_name, plants(thumbnail_url))`,
+          `*, inventory_items(plant_name, identifier, location_name, area_name, plants(thumbnail_url)), locations(is_outside)`,
         )
         .eq("home_id", homeId)
         .eq("due_date", dateStr)
@@ -78,12 +93,27 @@ export default function TaskList({
 
       const { data: physicalData, error: physicalError } = await physicalQuery;
       if (physicalError) throw physicalError;
-      const physicalTasks = physicalData || [];
 
+      // Apply the weather logic to physical tasks too!
+      const physicalTasks = (physicalData || []).map((t) => {
+        const isOutside = t.locations?.is_outside;
+        const isAutoCompleted =
+          isRainingTargetDate &&
+          isOutside &&
+          t.type === "Watering" &&
+          t.status === "Pending";
+
+        if (isAutoCompleted) {
+          return { ...t, status: "Completed", isAutoCompleted: true };
+        }
+        return t;
+      });
+
+      // 🚀 3. FETCH BLUEPRINTS FOR GHOST GENERATION
       let bpQuery = supabase
         .from("task_blueprints")
         .select(
-          `*, inventory_items(plant_name, identifier, location_name, area_name, plants(thumbnail_url))`,
+          `*, inventory_items(plant_name, identifier, location_name, area_name, plants(thumbnail_url)), locations(is_outside)`,
         )
         .eq("home_id", homeId)
         .eq("is_recurring", true);
@@ -96,6 +126,7 @@ export default function TaskList({
       if (bpError) throw bpError;
       const blueprints = bpData || [];
 
+      // 🚀 4. GENERATE GHOSTS
       const ghostTasks: any[] = [];
 
       blueprints.forEach((bp) => {
@@ -116,7 +147,12 @@ export default function TaskList({
           const hasPhysical = physicalTasks.some(
             (t) => t.blueprint_id === bp.id,
           );
+
           if (!hasPhysical) {
+            const isOutside = bp.locations?.is_outside;
+            const isAutoCompleted =
+              isRainingTargetDate && isOutside && bp.task_type === "Watering";
+
             ghostTasks.push({
               id: `ghost-${bp.id}-${dateStr}`,
               home_id: bp.home_id,
@@ -124,12 +160,13 @@ export default function TaskList({
               title: bp.title,
               description: bp.description,
               type: bp.task_type,
-              status: "Pending",
+              status: isAutoCompleted ? "Completed" : "Pending",
               due_date: dateStr,
               location_id: bp.location_id,
               area_id: bp.area_id,
               inventory_item_id: bp.inventory_item_id,
               isGhost: true,
+              isAutoCompleted: isAutoCompleted,
               inventory_items: bp.inventory_items,
             });
           }
@@ -138,7 +175,6 @@ export default function TaskList({
 
       let allTasks = [...physicalTasks, ...ghostTasks];
 
-      // 🚀 THE NEW FILTER ENGINE: Applies calendar filters!
       if (locationId && locationId !== "all") {
         allTasks = allTasks.filter((t) => t.location_id === locationId);
       }
@@ -159,7 +195,7 @@ export default function TaskList({
     } finally {
       setLoading(false);
     }
-  }, [homeId, areaId, inventoryItemId, dateStr, locationId, typesFilterStr]); // 🚀 Added filters to dependencies
+  }, [homeId, areaId, inventoryItemId, dateStr, locationId, typesFilterStr]);
 
   useEffect(() => {
     fetchTasksAndGhosts();
@@ -197,8 +233,9 @@ export default function TaskList({
           .single();
 
         if (error) throw error;
-        setTasks(tasks.map((t) => (t.id === task.id ? data : t)));
-        if (selectedTask?.id === task.id) setSelectedTask(data);
+        const finalData = { ...data, isAutoCompleted: false };
+        setTasks(tasks.map((t) => (t.id === task.id ? finalData : t)));
+        if (selectedTask?.id === task.id) setSelectedTask(finalData);
       } else {
         const { error } = await supabase
           .from("tasks")
@@ -211,7 +248,11 @@ export default function TaskList({
 
         if (error) throw error;
 
-        const updatedTask = { ...task, status: newStatus };
+        const updatedTask = {
+          ...task,
+          status: newStatus,
+          isAutoCompleted: false,
+        };
         setTasks(tasks.map((t) => (t.id === task.id ? updatedTask : t)));
         if (selectedTask?.id === task.id) setSelectedTask(updatedTask);
       }
@@ -321,11 +362,15 @@ export default function TaskList({
                 ${isCompleted ? "opacity-60 bg-gray-50" : ""}
               `}
             >
-              {task.isGhost && !isCompleted && (
-                <div className="absolute -top-2 -right-2 text-[8px] font-black uppercase text-white bg-rhozly-primary px-2 py-1 rounded-full shadow-md flex items-center gap-1">
+              {task.isAutoCompleted ? (
+                <div className="absolute -top-2 -right-2 z-10 text-[8px] font-black uppercase text-white bg-blue-500 px-2 py-1 rounded-full shadow-md flex items-center gap-1">
+                  <CloudRain size={8} /> Nature Watered
+                </div>
+              ) : task.isGhost && !isCompleted ? (
+                <div className="absolute -top-2 -right-2 z-10 text-[8px] font-black uppercase text-white bg-rhozly-primary px-2 py-1 rounded-full shadow-md flex items-center gap-1">
                   <Sparkles size={8} /> Auto
                 </div>
-              )}
+              ) : null}
 
               <div className="flex items-center gap-4 w-full">
                 <button
@@ -450,6 +495,19 @@ export default function TaskList({
                 <X size={18} />
               </button>
             </div>
+
+            {selectedTask.isAutoCompleted && (
+              <div className="mb-6 bg-blue-50 border border-blue-100 p-4 rounded-2xl flex items-start gap-3 text-blue-800">
+                <CloudRain className="shrink-0 mt-0.5" size={18} />
+                <div>
+                  <p className="text-sm font-black">Nature handled this!</p>
+                  <p className="text-xs font-bold opacity-80 mt-0.5">
+                    We forecasted rain on this day for this outside area, so we
+                    automatically checked this off for you.
+                  </p>
+                </div>
+              </div>
+            )}
 
             {selectedTask.description && (
               <div className="mb-6 bg-rhozly-surface-lowest p-4 rounded-2xl border border-rhozly-outline/5">

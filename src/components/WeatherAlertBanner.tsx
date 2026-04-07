@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Thermometer, Wind, X, Clock } from "lucide-react";
+import { Thermometer, Wind, X, Clock, CloudRain } from "lucide-react"; // 🚀 Added CloudRain
 
 interface WeatherAlert {
   id: string;
@@ -34,26 +34,19 @@ export const WeatherAlertBanner = ({
     );
   };
 
-  // --- 🕒 TIME FORMATTING HELPER ---
   const formatAlertTime = (isoString: string) => {
     const date = new Date(isoString);
     const now = new Date();
-
-    // Check if it's today or tomorrow
     const isToday = date.toDateString() === now.toDateString();
     const dayLabel = isToday ? "Today" : "Tomorrow";
-
     const timeLabel = date.toLocaleTimeString("en-GB", {
       hour: "numeric",
       minute: "2-digit",
       hour12: true,
     });
-
     return `${dayLabel} at ${timeLabel}`;
   };
 
-  // --- 🧹 DEDUPLICATION ---
-  // If 3 locations have a frost alert, we only want to show 1 banner
   const uniqueAlerts = alerts.filter(
     (alert, index, self) =>
       index === self.findIndex((t) => t.type === alert.type),
@@ -68,25 +61,32 @@ export const WeatherAlertBanner = ({
   return (
     <div className="space-y-3">
       {visibleAlerts.map((alert) => {
-        const isCritical = alert.severity === "critical";
+        // 🚀 Determine styling based on severity
+        const styleMap = {
+          critical: "bg-red-50 border-red-200 text-red-900 icon-bg-red-200",
+          warning:
+            "bg-amber-50 border-amber-200 text-amber-900 icon-bg-amber-200",
+          info: "bg-blue-50 border-blue-200 text-blue-900 icon-bg-blue-200",
+        };
+
+        const currentStyle = styleMap[alert.severity] || styleMap.info;
 
         return (
           <div
             key={alert.id}
-            className={`group relative overflow-hidden rounded-3xl border p-4 transition-all animate-in slide-in-from-top-4 duration-500 ${
-              isCritical
-                ? "bg-red-50 border-red-200 text-red-900"
-                : "bg-amber-50 border-amber-200 text-amber-900"
-            }`}
+            className={`group relative overflow-hidden rounded-3xl border p-4 transition-all animate-in slide-in-from-top-4 duration-500 ${currentStyle.split("icon-bg")[0]}`}
           >
             <div className="flex items-start gap-4">
               <div
-                className={`mt-1 p-2 rounded-xl ${isCritical ? "bg-red-200" : "bg-amber-200"}`}
+                className={`mt-1 p-2 rounded-xl ${currentStyle.split("icon-bg-")[1]}`}
               >
+                {/* 🚀 Render the right icon */}
                 {alert.type === "frost" ? (
                   <Thermometer className="w-5 h-5" />
-                ) : (
+                ) : alert.type === "wind" ? (
                   <Wind className="w-5 h-5" />
+                ) : (
+                  <CloudRain className="w-5 h-5" />
                 )}
               </div>
 
@@ -101,7 +101,6 @@ export const WeatherAlertBanner = ({
                     {formatAlertTime(alert.starts_at)}
                   </div>
                 </div>
-
                 <p className="text-sm font-bold leading-tight">
                   {alert.message}
                 </p>

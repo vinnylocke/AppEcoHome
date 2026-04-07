@@ -35,7 +35,7 @@ import WeatherForecast from "./components/WeatherForecast";
 import { WeatherAlertBanner } from "./components/WeatherAlertBanner";
 import TheShed from "./components/TheShed";
 import TaskCalendar from "./components/TaskCalendar";
-import TaskList from "./components/TaskList"; // 🚀 NEW: Imported the TaskList
+import TaskList from "./components/TaskList";
 
 // --- WEATHER & CACHE HELPERS ---
 const getMidnightTonight = () => {
@@ -142,6 +142,59 @@ export default function App() {
   const [weather, setWeather] = useState<any>(null);
   const [rawWeather, setRawWeather] = useState<any>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
+
+  // 🚀 UPGRADED: Cross-Platform Notification Listener
+  useEffect(() => {
+    if (!profile?.home_id) return;
+
+    if ("Notification" in window && Notification.permission === "default") {
+      Notification.requestPermission();
+    }
+
+    const notificationChannel = supabase
+      .channel("system-notifications")
+      .on(
+        "postgres_changes",
+        {
+          event: "INSERT",
+          schema: "public",
+          table: "notifications",
+          filter: `home_id=eq.${profile.home_id}`,
+        },
+        (payload) => {
+          const { title, body } = payload.new;
+
+          // 🚀 DIAGNOSTIC LOG: Check your browser console!
+          console.log("🔔 REALTIME NOTIFICATION RECEIVED:", title, body);
+
+          if (
+            "Notification" in window &&
+            Notification.permission === "granted"
+          ) {
+            try {
+              new Notification(title, {
+                body: body,
+                icon: "/images/logo_small_rhozly.png",
+              });
+              // Also show a toast just in case the OS swallows the native notification
+              toast.success(`📲 Notification Sent to OS:\n${title}`, {
+                duration: 4000,
+              });
+            } catch (err) {
+              console.error("OS Blocked Notification:", err);
+              toast.success(`${title}\n${body}`, { duration: 6000 });
+            }
+          } else {
+            toast.success(`${title}\n${body}`, { duration: 6000 });
+          }
+        },
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(notificationChannel);
+    };
+  }, [profile?.home_id]);
 
   const [activeTab, setActiveTab] = useState(
     () => localStorage.getItem("rhozly_tab") || "dashboard",
