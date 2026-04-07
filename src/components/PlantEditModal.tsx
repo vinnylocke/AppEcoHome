@@ -1,8 +1,12 @@
-import React, { useState } from "react";
-import { X, Droplets, Calendar, XCircle } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { X, Droplets, Calendar, Database, Loader2 } from "lucide-react";
 import ManualPlantCreation from "./ManualPlantCreation";
+import PlantScheduleTab from "./PlantScheduleTab";
+import { PerenualService } from "../lib/perenualService";
+import toast from "react-hot-toast";
 
 interface PlantEditModalProps {
+  homeId: string;
   plant: any;
   onSave: (updatedData: any) => void;
   onClose: () => void;
@@ -10,6 +14,7 @@ interface PlantEditModalProps {
 }
 
 export default function PlantEditModal({
+  homeId,
   plant,
   onSave,
   onClose,
@@ -17,22 +22,48 @@ export default function PlantEditModal({
 }: PlantEditModalProps) {
   const [activeTab, setActiveTab] = useState("care");
 
+  // 🚀 NEW: State to hold the dynamic API data
+  const [fullPlantData, setFullPlantData] = useState<any>(plant);
+  const [isFetchingApiData, setIsFetchingApiData] = useState(false);
+
   const tabs = [
     { id: "care", label: "Care Guide", icon: Droplets },
-    { id: "schedules", label: "Schedules", icon: Calendar }, // Placeholders for later
+    { id: "schedules", label: "Automations", icon: Calendar },
   ];
+
+  // 🚀 NEW: Fetch deep data on the fly for API plants
+  useEffect(() => {
+    const fetchApiDetails = async () => {
+      if (plant.source === "api" && plant.perenual_id) {
+        setIsFetchingApiData(true);
+        try {
+          const apiData = await PerenualService.getPlantDetails(
+            plant.perenual_id,
+          );
+          // Merge the DB skeleton with the rich API data
+          setFullPlantData({ ...plant, ...apiData });
+        } catch (error) {
+          toast.error("Failed to load live care guide.");
+        } finally {
+          setIsFetchingApiData(false);
+        }
+      }
+    };
+
+    fetchApiDetails();
+  }, [plant]);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
-      <div className="bg-rhozly-surface-lowest w-full max-w-2xl h-[90vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden">
+      <div className="bg-rhozly-surface-lowest w-full max-w-3xl h-[90vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden">
         {/* Header */}
-        <div className="p-8 pb-4 flex justify-between items-start">
+        <div className="p-8 pb-4 flex justify-between items-start shrink-0">
           <div>
             <h3 className="text-3xl font-black text-rhozly-on-surface">
               {plant.common_name}
             </h3>
             <p className="text-[10px] font-black text-rhozly-primary uppercase tracking-widest mt-1">
-              Refining Care Details
+              Plant Management
             </p>
           </div>
           <button
@@ -44,7 +75,7 @@ export default function PlantEditModal({
         </div>
 
         {/* Tab Navigation */}
-        <div className="px-8 flex gap-2 border-b border-rhozly-outline/10 bg-rhozly-surface-low/30">
+        <div className="px-8 flex gap-2 border-b border-rhozly-outline/10 bg-rhozly-surface-low/30 shrink-0">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -62,28 +93,28 @@ export default function PlantEditModal({
         </div>
 
         {/* Scrollable Body */}
-        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
-          {activeTab === "care" ? (
+        <div className="flex-1 overflow-y-auto p-8 custom-scrollbar relative">
+          {isFetchingApiData ? (
+            <div className="h-full flex flex-col items-center justify-center opacity-50 animate-in fade-in">
+              <Loader2
+                className="animate-spin text-rhozly-primary mb-4"
+                size={32}
+              />
+              <p className="font-bold text-sm">Loading encyclopedia data...</p>
+            </div>
+          ) : activeTab === "care" ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-              {/* 🚀 REUSING the Manual Creation Form here */}
               <ManualPlantCreation
-                initialData={plant}
+                initialData={fullPlantData} // 🚀 Passes the dynamically fetched data!
                 onSave={onSave}
                 submitLabel="Save Updates"
                 isSaving={isSaving}
+                isReadOnly={plant.source === "api"}
               />
             </div>
           ) : (
-            <div className="h-full flex flex-col items-center justify-center text-center space-y-4 opacity-40 py-20">
-              <Calendar size={48} />
-              <div>
-                <p className="font-black uppercase tracking-widest text-sm">
-                  Schedules Coming Soon
-                </p>
-                <p className="text-xs font-bold">
-                  Automated reminders and tasks are in development.
-                </p>
-              </div>
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <PlantScheduleTab homeId={homeId} plant={fullPlantData} />
             </div>
           )}
         </div>

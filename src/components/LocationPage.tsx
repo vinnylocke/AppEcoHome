@@ -13,6 +13,7 @@ import AreaDetails from "./AreaDetails";
 import { ConfirmModal } from "./ConfirmModal";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
+import TaskList from "./TaskList"; // 🚀 NEW: Import the TaskList!
 
 interface LocationPageProps {
   location: any;
@@ -40,7 +41,6 @@ export const LocationPage: React.FC<LocationPageProps> = ({
   const fetchAreas = async () => {
     setLoading(true);
     try {
-      // Clever query: Fetches areas AND counts how many plants are inside them!
       const { data, error } = await supabase
         .from("areas")
         .select("*, inventory_items(count)")
@@ -65,7 +65,6 @@ export const LocationPage: React.FC<LocationPageProps> = ({
     setIsUpdatingEnv(true);
     const newEnv = !isOutside;
 
-    // Optimistic UI
     setIsOutside(newEnv);
 
     try {
@@ -77,7 +76,6 @@ export const LocationPage: React.FC<LocationPageProps> = ({
       if (error) throw error;
       Logger.success(`Location is now ${newEnv ? "Outside" : "Inside"}`);
     } catch (error: any) {
-      // Revert UI if it fails
       setIsOutside(!newEnv);
       Logger.error("Failed to update environment", error, {
         locationId: location.id,
@@ -99,7 +97,7 @@ export const LocationPage: React.FC<LocationPageProps> = ({
       if (error) throw error;
 
       Logger.success("Area deleted successfully");
-      setAreas(areas.filter((a) => a.id !== areaToDelete.id)); // Optimistic UI
+      setAreas(areas.filter((a) => a.id !== areaToDelete.id));
     } catch (error: any) {
       Logger.error("Failed to delete area", error, { areaId: areaToDelete.id });
       toast.error("Could not delete this area.");
@@ -111,7 +109,7 @@ export const LocationPage: React.FC<LocationPageProps> = ({
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-      {/* 1. Header & Environment Toggle (Always Visible) */}
+      {/* 1. Header & Environment Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <button
@@ -148,18 +146,14 @@ export const LocationPage: React.FC<LocationPageProps> = ({
       {/* 2. Main Split Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
         {/* Left Side: Dynamic Area Rendering */}
-        <div className="lg:col-span-8">
+        <div className="lg:col-span-7 xl:col-span-8">
           {focusedArea ? (
-            // Show the detailed Plant list if an area is clicked
             <AreaDetails
+              homeId={location.home_id}
               area={focusedArea}
-              onClose={() => {
-                setFocusedArea(null);
-                fetchAreas(); // Refresh areas list to get updated plant counts!
-              }}
+              onClose={() => setFocusedArea(null)}
             />
           ) : (
-            // Show the Area Grid if nothing is focused
             <div className="space-y-6">
               <div className="flex items-center justify-between px-1">
                 <h3 className="font-display font-black text-rhozly-on-surface/60 uppercase tracking-widest text-sm">
@@ -186,7 +180,6 @@ export const LocationPage: React.FC<LocationPageProps> = ({
                         onClick={() => setFocusedArea(area)}
                         className="bg-white rounded-3xl p-6 border border-rhozly-outline/10 shadow-sm cursor-pointer group hover:border-rhozly-primary/30 hover:shadow-md transition-all relative overflow-hidden"
                       >
-                        {/* Hover Gradient */}
                         <div className="absolute inset-0 bg-gradient-to-br from-rhozly-primary/0 to-rhozly-primary/[0.03] opacity-0 group-hover:opacity-100 transition-opacity" />
 
                         <div className="relative z-10 flex justify-between items-start">
@@ -204,7 +197,6 @@ export const LocationPage: React.FC<LocationPageProps> = ({
                             </div>
                           </div>
 
-                          {/* Delete Button - stops event propagation so it doesn't open the area */}
                           <button
                             onClick={(e) => {
                               e.stopPropagation();
@@ -225,24 +217,34 @@ export const LocationPage: React.FC<LocationPageProps> = ({
         </div>
 
         {/* Right Side: Tasks Panel (Always Visible) */}
-        <div className="lg:col-span-4">
-          <div className="bg-rhozly-surface-lowest rounded-3xl p-6 border border-rhozly-outline/30 shadow-sm h-full min-h-[400px]">
+        <div className="lg:col-span-5 xl:col-span-4">
+          <div className="bg-rhozly-surface-lowest rounded-3xl p-6 border border-rhozly-outline/30 shadow-sm h-full min-h-[500px] flex flex-col">
             <div className="flex items-center gap-3 mb-6 border-b border-rhozly-outline/10 pb-4">
               <div className="bg-rhozly-primary/10 p-2 rounded-xl">
                 <CheckSquare className="w-5 h-5 text-rhozly-primary" />
               </div>
-              <h3 className="font-display font-black text-rhozly-on-surface text-lg">
-                Location Tasks
-              </h3>
+              <div>
+                <h3 className="font-display font-black text-rhozly-on-surface text-lg leading-tight">
+                  {focusedArea ? focusedArea.name : location.name}
+                </h3>
+                <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">
+                  Tasks Today
+                </p>
+              </div>
             </div>
-            <div className="text-center py-10 text-rhozly-on-surface/40 font-bold text-sm">
-              Task list component goes here
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar -mx-2 px-2 relative">
+              {/* 🚀 THE DYNAMIC TASK LIST */}
+              <TaskList
+                homeId={location.home_id}
+                locationId={!focusedArea ? location.id : undefined} // Only filter by location if no area is focused
+                areaId={focusedArea ? focusedArea.id : undefined} // If an area IS focused, drill down!
+              />
             </div>
           </div>
         </div>
       </div>
 
-      {/* CONFIRM DELETE MODAL FOR AREAS */}
       <ConfirmModal
         isOpen={areaToDelete !== null}
         isLoading={isDeleting}

@@ -34,7 +34,8 @@ import * as Sentry from "@sentry/react";
 import WeatherForecast from "./components/WeatherForecast";
 import { WeatherAlertBanner } from "./components/WeatherAlertBanner";
 import TheShed from "./components/TheShed";
-import TaskCalendar from "./components/TaskCalendar"; // 🚀 NEW: Import the Calendar
+import TaskCalendar from "./components/TaskCalendar";
+import TaskList from "./components/TaskList"; // 🚀 NEW: Imported the TaskList
 
 // --- WEATHER & CACHE HELPERS ---
 const getMidnightTonight = () => {
@@ -186,7 +187,17 @@ export default function App() {
 
     const { data, error } = await supabase
       .from("homes")
-      .select("*, weather_snapshots ( data ), locations ( * )")
+      .select(
+        `
+        *, 
+        weather_snapshots ( data ), 
+        locations ( 
+          *,
+          areas ( id ),
+          inventory_items ( id, status )
+        )
+      `,
+      )
       .eq("id", profile.home_id)
       .single();
 
@@ -283,9 +294,13 @@ export default function App() {
       .channel("home-updates")
       .on("postgres_changes", { event: "*", schema: "public" }, (payload) => {
         if (
-          ["locations", "areas", "homes", "weather_alerts"].includes(
-            payload.table,
-          )
+          [
+            "locations",
+            "areas",
+            "homes",
+            "weather_alerts",
+            "inventory_items",
+          ].includes(payload.table)
         ) {
           sessionStorage.removeItem(`locations_cache_${profile.home_id}`);
           fetchDashboardData();
@@ -484,7 +499,6 @@ export default function App() {
 
                       {dashboardView === "locations" ? (
                         <div className="space-y-5">
-                          {/* ... Location Logic intact ... */}
                           <div className="bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container text-white rounded-3xl p-5 shadow-md flex justify-between items-center">
                             <div className="flex items-center gap-4">
                               <div className="bg-white/20 p-3 rounded-2xl">
@@ -534,7 +548,6 @@ export default function App() {
                           </div>
                         </div>
                       ) : dashboardView === "calendar" ? (
-                        /* 🚀 NEW: Removed placeholder and replaced with TaskCalendar component */
                         <div className="bg-rhozly-surface-lowest rounded-[3rem] border border-rhozly-outline/10 overflow-hidden shadow-sm">
                           {profile?.home_id && (
                             <TaskCalendar homeId={profile.home_id} />
@@ -550,15 +563,25 @@ export default function App() {
                       )}
                     </div>
 
-                    {/* 🚀 HIDDEN when Calendar is active because Calendar has its own right-hand sidebar agenda! */}
+                    {/* 🚀 REAL TASK LIST INTEGRATION */}
                     {dashboardView !== "weather" &&
                       dashboardView !== "calendar" && (
                         <div className="lg:col-span-5 xl:col-span-4 space-y-6">
-                          <h2 className="font-black opacity-60 uppercase tracking-widest text-sm px-1">
-                            Daily Tasks
-                          </h2>
-                          <div className="bg-rhozly-surface-lowest/80 rounded-3xl p-6 border border-rhozly-outline/40 text-center text-sm font-bold opacity-50">
-                            Task list goes here
+                          <div className="flex items-center justify-between px-1">
+                            <h2 className="font-black opacity-60 uppercase tracking-widest text-sm">
+                              Daily Tasks
+                            </h2>
+                            <button
+                              onClick={() => setDashboardView("calendar")}
+                              className="text-[10px] font-black text-rhozly-primary uppercase tracking-widest hover:underline transition-all"
+                            >
+                              View Calendar
+                            </button>
+                          </div>
+                          <div className="bg-rhozly-surface-lowest/80 rounded-[2.5rem] p-4 sm:p-6 border border-rhozly-outline/10 shadow-sm min-h-[400px]">
+                            {profile?.home_id && (
+                              <TaskList homeId={profile.home_id} />
+                            )}
                           </div>
                         </div>
                       )}

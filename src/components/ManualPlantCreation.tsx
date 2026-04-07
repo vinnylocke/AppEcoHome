@@ -10,7 +10,6 @@ import {
   Info,
   Save,
   Loader2,
-  X,
   Check,
   Scissors,
   Calendar,
@@ -21,10 +20,11 @@ import toast from "react-hot-toast";
 
 interface ManualPlantCreationProps {
   initialData?: any;
-  onSave: (data: any) => void;
+  onSave?: (data: any) => void;
   onCancel?: () => void;
   isSaving?: boolean;
   submitLabel?: string;
+  isReadOnly?: boolean; // 🚀 NEW: Locks the form
 }
 
 const SUNLIGHT_OPTIONS = [
@@ -78,6 +78,7 @@ export default function ManualPlantCreation({
   onCancel,
   isSaving,
   submitLabel = "Save to Shed",
+  isReadOnly = false, // 🚀 Default is false so your manual flow works normally
 }: ManualPlantCreationProps) {
   const [activeSection, setActiveSection] = useState<string | null>("basics");
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -121,7 +122,6 @@ export default function ManualPlantCreation({
     cuisine: false,
   });
 
-  // Load existing data for editing
   useEffect(() => {
     if (initialData) {
       setFormData({
@@ -134,6 +134,7 @@ export default function ManualPlantCreation({
   }, [initialData]);
 
   const handleInputChange = (e: any) => {
+    if (isReadOnly) return;
     const { name, value, type, checked } = e.target;
     if (name === "common_name" && errors.common_name) {
       setErrors((prev) => ({ ...prev, common_name: "" }));
@@ -145,6 +146,7 @@ export default function ManualPlantCreation({
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (isReadOnly) return;
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -178,6 +180,7 @@ export default function ManualPlantCreation({
   };
 
   const toggleArrayItem = (field: keyof typeof formData, value: string) => {
+    if (isReadOnly) return;
     setFormData((prev) => {
       const current = prev[field] as string[];
       return {
@@ -191,6 +194,7 @@ export default function ManualPlantCreation({
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isReadOnly || !onSave) return;
 
     if (!formData.common_name.trim()) {
       setErrors({ common_name: "Required" });
@@ -216,11 +220,13 @@ export default function ManualPlantCreation({
       </label>
       <button
         type="button"
+        disabled={isReadOnly}
         onClick={() => setOpenDropdown(openDropdown === field ? null : field)}
-        className="w-full p-4 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/10 flex items-center justify-between font-bold text-sm"
+        className={`w-full p-4 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/10 flex items-center justify-between font-bold text-sm ${isReadOnly ? "opacity-80 cursor-default" : ""}`}
       >
         <div className="flex flex-wrap gap-1">
-          {(formData[field as keyof typeof formData] as string[]).length > 0 ? (
+          {(formData[field as keyof typeof formData] as string[])?.length >
+          0 ? (
             (formData[field as keyof typeof formData] as string[]).map(
               (val) => (
                 <span
@@ -235,19 +241,21 @@ export default function ManualPlantCreation({
             <span className="opacity-40 italic">Select...</span>
           )}
         </div>
-        <ChevronDown
-          className={`transition-transform ${openDropdown === field ? "rotate-180" : ""}`}
-          size={16}
-        />
+        {!isReadOnly && (
+          <ChevronDown
+            className={`transition-transform ${openDropdown === field ? "rotate-180" : ""}`}
+            size={16}
+          />
+        )}
       </button>
-      {openDropdown === field && (
+      {openDropdown === field && !isReadOnly && (
         <div className="absolute z-50 w-full mt-2 bg-white rounded-2xl shadow-2xl border border-rhozly-outline/10 overflow-hidden py-1 max-h-60 overflow-y-auto">
           {options.map((opt: any) => {
             const val = typeof opt === "string" ? opt : opt.value;
             const label = typeof opt === "string" ? opt : opt.label;
             const isSelected = (
               formData[field as keyof typeof formData] as string[]
-            ).includes(val);
+            )?.includes(val);
             return (
               <button
                 key={val}
@@ -306,19 +314,21 @@ export default function ManualPlantCreation({
               {/* IMAGE UPLOAD SLOT */}
               <div className="flex flex-col items-center justify-center gap-4">
                 <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="relative w-40 h-40 rounded-[2.5rem] bg-rhozly-surface-low border-2 border-dashed border-rhozly-outline/20 overflow-hidden group cursor-pointer hover:border-rhozly-primary/40 transition-all"
+                  onClick={() => !isReadOnly && fileInputRef.current?.click()}
+                  className={`relative w-40 h-40 rounded-[2.5rem] bg-rhozly-surface-low border-2 border-dashed border-rhozly-outline/20 overflow-hidden group transition-all ${!isReadOnly ? "cursor-pointer hover:border-rhozly-primary/40" : ""}`}
                 >
-                  {formData.thumbnail_url ? (
+                  {formData.thumbnail_url || formData.image_url ? (
                     <>
                       <img
-                        src={formData.thumbnail_url}
+                        src={formData.thumbnail_url || formData.image_url}
                         className="w-full h-full object-cover"
                         alt="Preview"
                       />
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[10px] font-black uppercase tracking-widest">
-                        Change Photo
-                      </div>
+                      {!isReadOnly && (
+                        <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity text-white text-[10px] font-black uppercase tracking-widest">
+                          Change Photo
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full text-rhozly-on-surface/30">
@@ -327,9 +337,11 @@ export default function ManualPlantCreation({
                       ) : (
                         <Camera size={32} />
                       )}
-                      <span className="text-[10px] font-black uppercase mt-2">
-                        Add Photo
-                      </span>
+                      {!isReadOnly && (
+                        <span className="text-[10px] font-black uppercase mt-2">
+                          Add Photo
+                        </span>
+                      )}
                     </div>
                   )}
                 </div>
@@ -359,8 +371,9 @@ export default function ManualPlantCreation({
                   name="common_name"
                   value={formData.common_name}
                   onChange={handleInputChange}
+                  disabled={isReadOnly}
                   placeholder="e.g. Ground Plum"
-                  className={`w-full p-4 rounded-2xl outline-none border transition-all font-bold ${errors.common_name ? "bg-red-50 border-red-300" : "bg-rhozly-surface-low border-rhozly-outline/10 focus:border-rhozly-primary/30"}`}
+                  className={`w-full p-4 rounded-2xl outline-none border transition-all font-bold ${errors.common_name ? "bg-red-50 border-red-300" : "bg-rhozly-surface-low border-rhozly-outline/10 focus:border-rhozly-primary/30"} ${isReadOnly ? "opacity-80" : ""}`}
                 />
               </div>
 
@@ -373,7 +386,8 @@ export default function ManualPlantCreation({
                   rows={3}
                   value={formData.description || ""}
                   onChange={handleInputChange}
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none border border-rhozly-outline/10 font-bold resize-none"
+                  disabled={isReadOnly}
+                  className={`w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none border border-rhozly-outline/10 font-bold resize-none ${isReadOnly ? "opacity-80" : ""}`}
                 />
               </div>
             </div>
@@ -395,9 +409,10 @@ export default function ManualPlantCreation({
                 </label>
                 <select
                   name="cycle"
-                  value={formData.cycle}
+                  value={formData.cycle || ""}
                   onChange={handleInputChange}
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+                  disabled={isReadOnly}
+                  className={`w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 ${isReadOnly ? "opacity-80 appearance-none" : ""}`}
                 >
                   {CYCLE_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
@@ -414,7 +429,8 @@ export default function ManualPlantCreation({
                   name="plant_type"
                   value={formData.plant_type || ""}
                   onChange={handleInputChange}
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+                  disabled={isReadOnly}
+                  className={`w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 ${isReadOnly ? "opacity-80 appearance-none" : ""}`}
                 >
                   <option value="">Select...</option>
                   <option value="Shrub">Shrub</option>
@@ -446,7 +462,8 @@ export default function ManualPlantCreation({
                     name="flowering_season"
                     value={formData.flowering_season || ""}
                     onChange={handleInputChange}
-                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 text-sm"
+                    disabled={isReadOnly}
+                    className={`w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 text-sm ${isReadOnly ? "opacity-80 appearance-none" : ""}`}
                   >
                     <option value="">Select...</option>
                     {SEASON_OPTIONS.map((s) => (
@@ -464,7 +481,8 @@ export default function ManualPlantCreation({
                     name="harvest_season"
                     value={formData.harvest_season || ""}
                     onChange={handleInputChange}
-                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 text-sm"
+                    disabled={isReadOnly}
+                    className={`w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 text-sm ${isReadOnly ? "opacity-80 appearance-none" : ""}`}
                   >
                     <option value="">Select...</option>
                     {SEASON_OPTIONS.map((s) => (
@@ -480,18 +498,21 @@ export default function ManualPlantCreation({
                 field="pruning_month"
                 options={MONTH_OPTIONS}
                 icon={Scissors}
+                isReadOnly={isReadOnly}
               />
               <MultiSelect
                 label="Propagation Methods"
                 field="propagation"
                 options={PROPAGATION_OPTIONS}
                 icon={Sparkles}
+                isReadOnly={isReadOnly}
               />
               <MultiSelect
                 label="Attracts Wildlife"
                 field="attracts"
                 options={ATTRACTS_OPTIONS}
                 icon={Sparkles}
+                isReadOnly={isReadOnly}
               />
             </div>
           )}
@@ -507,6 +528,7 @@ export default function ManualPlantCreation({
                 field="sunlight"
                 options={SUNLIGHT_OPTIONS}
                 icon={Check}
+                isReadOnly={isReadOnly}
               />
               <div className="space-y-4">
                 <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
@@ -519,8 +541,9 @@ export default function ManualPlantCreation({
                       name="watering_min_days"
                       value={formData.watering_min_days}
                       onChange={handleInputChange}
+                      disabled={isReadOnly}
                       placeholder="Min"
-                      className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none border border-rhozly-outline/10 font-bold"
+                      className={`w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none border border-rhozly-outline/10 font-bold ${isReadOnly ? "opacity-80" : ""}`}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black opacity-20 uppercase">
                       Min
@@ -532,8 +555,9 @@ export default function ManualPlantCreation({
                       name="watering_max_days"
                       value={formData.watering_max_days}
                       onChange={handleInputChange}
+                      disabled={isReadOnly}
                       placeholder="Max"
-                      className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none border border-rhozly-outline/10 font-bold"
+                      className={`w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none border border-rhozly-outline/10 font-bold ${isReadOnly ? "opacity-80" : ""}`}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black opacity-20 uppercase">
                       Max
@@ -559,73 +583,84 @@ export default function ManualPlantCreation({
                 label="Flowers"
                 checked={formData.flowers}
                 onChange={handleInputChange}
+                isReadOnly={isReadOnly}
               />
               <Toggle
                 name="is_edible"
                 label="Edible Fruit"
                 checked={formData.is_edible}
                 onChange={handleInputChange}
+                isReadOnly={isReadOnly}
               />
               <Toggle
                 name="indoor"
                 label="Indoor"
                 checked={formData.indoor}
                 onChange={handleInputChange}
+                isReadOnly={isReadOnly}
               />
               <Toggle
                 name="is_toxic_pets"
                 label="Toxic (Pets)"
                 checked={formData.is_toxic_pets}
                 onChange={handleInputChange}
+                isReadOnly={isReadOnly}
               />
               <Toggle
                 name="medicinal"
                 label="Medicinal"
                 checked={formData.medicinal}
                 onChange={handleInputChange}
+                isReadOnly={isReadOnly}
               />
               <Toggle
                 name="cuisine"
                 label="Culinary"
                 checked={formData.cuisine}
                 onChange={handleInputChange}
+                isReadOnly={isReadOnly}
               />
             </div>
           )}
         </div>
 
-        <div className="flex gap-4 pt-8 pb-4">
-          {onCancel && (
-            <button
-              type="button"
-              onClick={onCancel}
-              className="flex-1 py-4 rounded-2xl font-black text-rhozly-on-surface/40 hover:bg-rhozly-surface-low transition-all"
-            >
-              Cancel
-            </button>
-          )}
-          <button
-            type="submit"
-            disabled={isSaving}
-            className="flex-[2] py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg flex items-center justify-center gap-2"
-          >
-            {isSaving ? (
-              <Loader2 className="animate-spin" size={20} />
-            ) : (
-              <>
-                <Save size={20} /> {submitLabel}
-              </>
+        {/* 🚀 HIDDEN IN READ-ONLY MODE */}
+        {!isReadOnly && (
+          <div className="flex gap-4 pt-8 pb-4">
+            {onCancel && (
+              <button
+                type="button"
+                onClick={onCancel}
+                className="flex-1 py-4 rounded-2xl font-black text-rhozly-on-surface/40 hover:bg-rhozly-surface-low transition-all"
+              >
+                Cancel
+              </button>
             )}
-          </button>
-        </div>
+            <button
+              type="submit"
+              disabled={isSaving}
+              className="flex-[2] py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg flex items-center justify-center gap-2"
+            >
+              {isSaving ? (
+                <Loader2 className="animate-spin" size={20} />
+              ) : (
+                <>
+                  <Save size={20} /> {submitLabel}
+                </>
+              )}
+            </button>
+          </div>
+        )}
       </form>
     </div>
   );
 }
 
-function Toggle({ name, label, checked, onChange }: any) {
+function Toggle({ name, label, checked, onChange, isReadOnly }: any) {
   return (
-    <label className="flex items-center justify-between p-4 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/5 cursor-pointer">
+    <label
+      className={`flex items-center justify-between p-4 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/5 ${isReadOnly ? "opacity-80 cursor-default" : "cursor-pointer"}`}
+    >
       <span className="text-[10px] font-black uppercase tracking-tight text-rhozly-on-surface/60">
         {label}
       </span>
@@ -634,7 +669,8 @@ function Toggle({ name, label, checked, onChange }: any) {
         name={name}
         checked={checked}
         onChange={onChange}
-        className="w-5 h-5 accent-rhozly-primary"
+        disabled={isReadOnly}
+        className="w-5 h-5 accent-rhozly-primary disabled:opacity-80"
       />
     </label>
   );

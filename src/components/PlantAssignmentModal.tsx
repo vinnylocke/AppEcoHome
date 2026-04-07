@@ -13,7 +13,7 @@ import {
 
 interface PlantAssignmentModalProps {
   plant: any;
-  locations: any[]; // 🚀 Changed from availableAreas to structured locations
+  locations: any[];
   onAssign: (data: any) => void;
   onClose: () => void;
   isAssigning: boolean;
@@ -38,7 +38,7 @@ export default function PlantAssignmentModal({
   isAssigning,
 }: PlantAssignmentModalProps) {
   const [step, setStep] = useState<1 | 2>(1);
-  const [selectedLoc, setSelectedLoc] = useState(""); // 🚀 New State for Location Filter
+  const [selectedLoc, setSelectedLoc] = useState("");
 
   const [formData, setFormData] = useState({
     areaId: "",
@@ -49,7 +49,6 @@ export default function PlantAssignmentModal({
     growthState: "Vegetative",
   });
 
-  // 🚀 Dynamically get areas based on the selected location
   const availableAreas = selectedLoc
     ? locations.find((l) => l.id === selectedLoc)?.areas || []
     : [];
@@ -62,7 +61,7 @@ export default function PlantAssignmentModal({
   const handleSubmit = () => {
     onAssign({
       ...formData,
-      status: formData.isPlanted ? "Planted" : "In Shed",
+      status: formData.isPlanted ? "Planted" : "Unplanted", // 🚀 Updated to 'Unplanted'
     });
   };
 
@@ -90,7 +89,6 @@ export default function PlantAssignmentModal({
         {step === 1 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 relative z-10">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              {/* 🚀 NEW: Location Dropdown */}
               <div className="space-y-3">
                 <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
                   <MapPin size={14} /> 1. Location
@@ -99,7 +97,7 @@ export default function PlantAssignmentModal({
                   value={selectedLoc}
                   onChange={(e) => {
                     setSelectedLoc(e.target.value);
-                    setFormData({ ...formData, areaId: "" }); // Reset area when location changes
+                    setFormData({ ...formData, areaId: "" });
                   }}
                   className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-transparent focus:border-rhozly-primary outline-none cursor-pointer text-sm"
                 >
@@ -112,7 +110,6 @@ export default function PlantAssignmentModal({
                 </select>
               </div>
 
-              {/* 🚀 UPDATED: Area Dropdown (Filtered) */}
               <div className="space-y-3">
                 <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
                   <Navigation size={14} /> 2. Area *
@@ -180,21 +177,22 @@ export default function PlantAssignmentModal({
           </div>
         )}
 
-        {/* STEP 2: Planting Status (Unchanged) */}
+        {/* STEP 2: Planting Status */}
         {step === 2 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 relative z-10">
+            {/* 🚀 UPDATED: Simplified Toggle Buttons */}
             <div className="p-1 bg-rhozly-surface-low rounded-2xl flex">
               <button
                 onClick={() => setFormData({ ...formData, isPlanted: false })}
                 className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${!formData.isPlanted ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
               >
-                In Pots / Unplanted
+                Unplanted
               </button>
               <button
                 onClick={() => setFormData({ ...formData, isPlanted: true })}
                 className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${formData.isPlanted ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
               >
-                Planted in Ground
+                Planted
               </button>
             </div>
 
