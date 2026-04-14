@@ -18,6 +18,9 @@ import {
   X,
 } from "lucide-react";
 
+// 🚀 NATIVE IMPORT: Aliased to avoid conflict with the 'App' component name
+import { App as CapApp } from "@capacitor/app";
+
 // Import your components
 import LocationTile from "./components/LocationTile";
 import { HomeDropdown } from "./components/HomeDropdown";
@@ -141,8 +144,43 @@ export default function App() {
   const [rawWeather, setRawWeather] = useState<any>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
 
-  // 🚀 NEW: Mobile Nav State
+  // Mobile Nav State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+
+  // 🚀 NATIVE DEEP LINK LISTENER: Handles the "Return Flight" from Google OAuth
+  useEffect(() => {
+    const handleDeepLink = async () => {
+      CapApp.addListener("appUrlOpen", async (event) => {
+        // Log the event so we can see it in Chrome Inspect
+        Logger.log("Deep link received: " + event.url);
+
+        // Capacitor URLs often use '#' for tokens. We convert to '?' so URLSearchParams can read them.
+        const url = new URL(event.url.replace("#", "?"));
+        const accessToken = url.searchParams.get("access_token");
+        const refreshToken = url.searchParams.get("refresh_token");
+
+        if (accessToken && refreshToken) {
+          const { error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken,
+          });
+
+          if (!error) {
+            Logger.success("Login Successful!");
+            // The auth state change listener below will handle updating the UI session
+          } else {
+            Logger.error("Native session restoration failed", error);
+          }
+        }
+      });
+    };
+
+    handleDeepLink();
+
+    return () => {
+      CapApp.removeAllListeners();
+    };
+  }, []);
 
   useEffect(() => {
     if (!profile?.home_id) return;
@@ -467,7 +505,7 @@ export default function App() {
         </header>
 
         <div className="flex flex-1 overflow-hidden relative z-10 w-full">
-          {/* 🚀 DESKTOP SIDEBAR */}
+          {/* DESKTOP SIDEBAR */}
           <nav
             className={`hidden md:flex flex-col justify-start p-6 gap-2 transition-all duration-300 border-r border-rhozly-primary/20 bg-rhozly-primary-container ${isNavCollapsed ? "w-28 items-center" : "w-72"}`}
           >
@@ -487,7 +525,7 @@ export default function App() {
             ))}
           </nav>
 
-          {/* 🚀 MOBILE NAVIGATION OVERLAY & MENU */}
+          {/* MOBILE NAVIGATION OVERLAY & MENU */}
           <div
             className={`md:hidden fixed inset-0 z-40 bg-rhozly-bg/80 backdrop-blur-sm transition-opacity duration-300 ${isMobileMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
             onClick={() => setIsMobileMenuOpen(false)}
@@ -513,7 +551,7 @@ export default function App() {
             ))}
           </nav>
 
-          {/* 🚀 UPDATED MOBILE FLOATING ACTION BUTTON (Smaller & Bottom-Left) */}
+          {/* MOBILE FLOATING ACTION BUTTON */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className={`md:hidden fixed bottom-6 left-6 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl z-50 transition-all duration-300 ${isMobileMenuOpen ? "bg-white text-rhozly-primary" : "bg-rhozly-primary text-white"}`}
