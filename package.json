@@ -10,6 +10,7 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@google/generative-ai": "^0.24.1",
     "@sentry/react": "^10.47.0",
     "@supabase/supabase-js": "^2.100.1",
     "clsx": "^2.1.1",

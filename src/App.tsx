@@ -14,6 +14,8 @@ import {
   CloudFog,
   CloudDrizzle,
   Database,
+  Stethoscope,
+  X,
 } from "lucide-react";
 
 // Import your components
@@ -31,6 +33,7 @@ import { WeatherAlertBanner } from "./components/WeatherAlertBanner";
 import TheShed from "./components/TheShed";
 import TaskCalendar from "./components/TaskCalendar";
 import TaskList from "./components/TaskList";
+import PlantDoctor from "./components/PlantDoctor";
 
 // --- WEATHER & CACHE HELPERS ---
 const getMidnightTonight = () => {
@@ -137,6 +140,9 @@ export default function App() {
   const [weather, setWeather] = useState<any>(null);
   const [rawWeather, setRawWeather] = useState<any>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
+
+  // 🚀 NEW: Mobile Nav State
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
     if (!profile?.home_id) return;
@@ -397,6 +403,13 @@ export default function App() {
       />
     );
 
+  const navLinks = [
+    { id: "dashboard", icon: <Home />, label: "Dashboard" },
+    { id: "shed", icon: <Database />, label: "The Shed" },
+    { id: "doctor", icon: <Stethoscope />, label: "Plant Doctor" },
+    { id: "management", icon: <Wrench />, label: "Location Management" },
+  ];
+
   return (
     <Sentry.ErrorBoundary fallback={<p>An unexpected error occurred.</p>}>
       <Toaster />
@@ -454,40 +467,59 @@ export default function App() {
         </header>
 
         <div className="flex flex-1 overflow-hidden relative z-10 w-full">
+          {/* 🚀 DESKTOP SIDEBAR */}
           <nav
-            className={`fixed bottom-0 left-0 w-full z-40 bg-rhozly-primary-container border-t border-rhozly-primary/50 md:relative md:border-t-0 md:border-r md:border-rhozly-primary/20 flex md:flex-col justify-around md:justify-start p-3 md:p-6 gap-2 transition-all duration-300 ${isNavCollapsed ? "md:w-28 md:items-center" : "md:w-72"}`}
+            className={`hidden md:flex flex-col justify-start p-6 gap-2 transition-all duration-300 border-r border-rhozly-primary/20 bg-rhozly-primary-container ${isNavCollapsed ? "w-28 items-center" : "w-72"}`}
           >
-            <NavItem
-              icon={<Home />}
-              label="Dashboard"
-              active={activeTab === "dashboard"}
-              onClick={() => {
-                setActiveTab("dashboard");
-                setSelectedLocationId(null);
-              }}
-              isCollapsed={isNavCollapsed}
-            />
-            <NavItem
-              icon={<Database />}
-              label="The Shed"
-              active={activeTab === "shed"}
-              onClick={() => {
-                setActiveTab("shed");
-                setSelectedLocationId(null);
-              }}
-              isCollapsed={isNavCollapsed}
-            />
-            <NavItem
-              icon={<Wrench />}
-              label="Location Management"
-              active={activeTab === "management"}
-              onClick={() => {
-                setActiveTab("management");
-                setSelectedLocationId(null);
-              }}
-              isCollapsed={isNavCollapsed}
-            />
+            {navLinks.map((link) => (
+              <NavItem
+                key={link.id}
+                icon={link.icon}
+                label={link.label}
+                active={activeTab === link.id}
+                onClick={() => {
+                  setActiveTab(link.id);
+                  setSelectedLocationId(null);
+                }}
+                isCollapsed={isNavCollapsed}
+                isMobile={false}
+              />
+            ))}
           </nav>
+
+          {/* 🚀 MOBILE NAVIGATION OVERLAY & MENU */}
+          <div
+            className={`md:hidden fixed inset-0 z-40 bg-rhozly-bg/80 backdrop-blur-sm transition-opacity duration-300 ${isMobileMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+            onClick={() => setIsMobileMenuOpen(false)}
+          />
+
+          <nav
+            className={`md:hidden fixed bottom-24 right-6 left-6 bg-rhozly-primary-container p-4 rounded-[2rem] shadow-2xl flex flex-col gap-2 z-50 transition-all duration-300 border border-rhozly-primary/20 ${isMobileMenuOpen ? "scale-100 opacity-100 translate-y-0" : "scale-90 opacity-0 translate-y-10 pointer-events-none origin-bottom-left"}`}
+          >
+            {navLinks.map((link) => (
+              <NavItem
+                key={link.id}
+                icon={link.icon}
+                label={link.label}
+                active={activeTab === link.id}
+                onClick={() => {
+                  setActiveTab(link.id);
+                  setSelectedLocationId(null);
+                  setIsMobileMenuOpen(false);
+                }}
+                isCollapsed={false}
+                isMobile={true}
+              />
+            ))}
+          </nav>
+
+          {/* 🚀 UPDATED MOBILE FLOATING ACTION BUTTON (Smaller & Bottom-Left) */}
+          <button
+            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+            className={`md:hidden fixed bottom-6 left-6 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl z-50 transition-all duration-300 ${isMobileMenuOpen ? "bg-white text-rhozly-primary" : "bg-rhozly-primary text-white"}`}
+          >
+            {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+          </button>
 
           <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-28 md:pb-8 w-full">
             {activeTab === "dashboard" && (
@@ -634,7 +666,16 @@ export default function App() {
             {activeTab === "shed" && profile?.home_id && (
               <TheShed homeId={profile.home_id} />
             )}
-
+            {activeTab === "doctor" && (
+              <div className="h-full animate-in fade-in duration-500">
+                <PlantDoctor
+                  homeId={profile.home_id}
+                  aiEnabled={profile.ai_enabled}
+                  isPremium={profile.enable_perenual}
+                  perenualEnabled={profile.enable_perenual}
+                />
+              </div>
+            )}
             {activeTab === "management" && (
               <section className="h-full">
                 {profile?.home_id ? (
@@ -653,20 +694,20 @@ export default function App() {
   );
 }
 
-function NavItem({ icon, label, active, onClick, isCollapsed }: any) {
+function NavItem({ icon, label, active, onClick, isCollapsed, isMobile }: any) {
   return (
     <button
       onClick={onClick}
-      className={`relative flex flex-col md:flex-row items-center gap-1.5 p-2.5 rounded-2xl transition-all duration-300 overflow-hidden group shrink-0 ${isCollapsed ? "md:w-14 md:h-14 md:justify-center" : "md:gap-4 md:px-5 md:py-4 w-full"} ${active ? "text-rhozly-primary shadow-md" : "text-white/60 hover:text-white hover:bg-white/10"}`}
+      className={`relative flex items-center gap-4 p-4 rounded-2xl w-full transition-all duration-300 group shrink-0 ${isCollapsed && !isMobile ? "md:w-14 md:h-14 md:justify-center md:p-0" : ""} ${active ? "text-rhozly-primary shadow-md" : "text-white/60 hover:text-white hover:bg-white/10"}`}
     >
-      {active && <div className="absolute inset-0 bg-white" />}
+      {active && <div className="absolute inset-0 bg-white rounded-2xl" />}
       <div
         className={`relative z-10 flex items-center justify-center transition-transform ${active ? "scale-110" : "group-hover:scale-110"}`}
       >
-        {React.cloneElement(icon, { className: "w-5 h-5 md:w-6 md:h-6" })}
+        {React.cloneElement(icon, { className: "w-6 h-6" })}
       </div>
       <span
-        className={`relative z-10 text-[10px] md:text-sm ${active ? "font-black" : "font-bold"} ${isCollapsed ? "md:hidden" : "md:block"}`}
+        className={`relative z-10 text-sm ${active ? "font-black" : "font-bold"} ${isCollapsed && !isMobile ? "hidden" : "block"}`}
       >
         {label}
       </span>

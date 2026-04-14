@@ -13,7 +13,7 @@ import AreaDetails from "./AreaDetails";
 import { ConfirmModal } from "./ConfirmModal";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
-import TaskList from "./TaskList"; // 🚀 NEW: Import the TaskList!
+import TaskList from "./TaskList";
 
 interface LocationPageProps {
   location: any;
@@ -37,6 +37,9 @@ export const LocationPage: React.FC<LocationPageProps> = ({
   // Delete Area State
   const [areaToDelete, setAreaToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // 🚀 NEW: A key to force the TaskList to refresh when tasks change
+  const [taskRefreshKey, setTaskRefreshKey] = useState(0);
 
   const fetchAreas = async () => {
     setLoading(true);
@@ -107,6 +110,12 @@ export const LocationPage: React.FC<LocationPageProps> = ({
     }
   };
 
+  // 🚀 NEW: The master refresh function passed down to AreaDetails
+  const handleDataRefresh = () => {
+    fetchAreas(); // Refresh the area counts
+    setTaskRefreshKey((prev) => prev + 1); // Refresh the task list on the right side
+  };
+
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
       {/* 1. Header & Environment Toggle */}
@@ -152,6 +161,9 @@ export const LocationPage: React.FC<LocationPageProps> = ({
               homeId={location.home_id}
               area={focusedArea}
               onClose={() => setFocusedArea(null)}
+              onTasksUpdated={handleDataRefresh}
+              onAreaUpdated={fetchAreas}
+              isOutside={isOutside}
             />
           ) : (
             <div className="space-y-6">
@@ -234,11 +246,11 @@ export const LocationPage: React.FC<LocationPageProps> = ({
             </div>
 
             <div className="flex-1 overflow-y-auto custom-scrollbar -mx-2 px-2 relative">
-              {/* 🚀 THE DYNAMIC TASK LIST */}
               <TaskList
+                key={taskRefreshKey} // 🚀 NEW: This forces the list to reload when taskRefreshKey increments!
                 homeId={location.home_id}
-                locationId={!focusedArea ? location.id : undefined} // Only filter by location if no area is focused
-                areaId={focusedArea ? focusedArea.id : undefined} // If an area IS focused, drill down!
+                locationId={!focusedArea ? location.id : undefined}
+                areaId={focusedArea ? focusedArea.id : undefined}
               />
             </div>
           </div>

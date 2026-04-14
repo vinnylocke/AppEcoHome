@@ -15,6 +15,7 @@ import {
   Calendar,
   AlertCircle,
   Camera,
+  Sun,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -24,7 +25,7 @@ interface ManualPlantCreationProps {
   onCancel?: () => void;
   isSaving?: boolean;
   submitLabel?: string;
-  isReadOnly?: boolean; // 🚀 NEW: Locks the form
+  isReadOnly?: boolean;
 }
 
 const SUNLIGHT_OPTIONS = [
@@ -78,7 +79,7 @@ export default function ManualPlantCreation({
   onCancel,
   isSaving,
   submitLabel = "Save to Shed",
-  isReadOnly = false, // 🚀 Default is false so your manual flow works normally
+  isReadOnly = false,
 }: ManualPlantCreationProps) {
   const [activeSection, setActiveSection] = useState<string | null>("basics");
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
@@ -108,8 +109,8 @@ export default function ManualPlantCreation({
     tropical: false,
     indoor: false,
     flowers: false,
-    flowering_season: "",
-    harvest_season: "",
+    flowering_season: [] as string[], // 🚀 NOW AN ARRAY
+    harvest_season: [] as string[], // 🚀 NOW AN ARRAY
     is_edible: false,
     leaf: true,
     edible_leaf: false,
@@ -124,12 +125,38 @@ export default function ManualPlantCreation({
 
   useEffect(() => {
     if (initialData) {
-      setFormData({
-        ...formData,
+      // 🚀 AI SANITIZERS
+      const safeSunlight = Array.isArray(initialData.sunlight)
+        ? initialData.sunlight.map((s: string) => s.toLowerCase())
+        : [];
+
+      const safeCycle = initialData.cycle
+        ? initialData.cycle.charAt(0).toUpperCase() + initialData.cycle.slice(1)
+        : formData.cycle;
+
+      // Ensure seasons are arrays even if AI sends a single string by mistake
+      const safeFlowering = Array.isArray(initialData.flowering_season)
+        ? initialData.flowering_season
+        : initialData.flowering_season
+          ? [initialData.flowering_season]
+          : [];
+
+      const safeHarvest = Array.isArray(initialData.harvest_season)
+        ? initialData.harvest_season
+        : initialData.harvest_season
+          ? [initialData.harvest_season]
+          : [];
+
+      setFormData((prev) => ({
+        ...prev,
         ...initialData,
+        cycle: safeCycle,
+        sunlight: safeSunlight.length > 0 ? safeSunlight : prev.sunlight,
+        flowering_season: safeFlowering, // 🚀 Apply safe array
+        harvest_season: safeHarvest, // 🚀 Apply safe array
         watering_min_days: initialData.watering_min_days?.toString() || "",
         watering_max_days: initialData.watering_max_days?.toString() || "",
-      });
+      }));
     }
   }, [initialData]);
 
@@ -182,7 +209,7 @@ export default function ManualPlantCreation({
   const toggleArrayItem = (field: keyof typeof formData, value: string) => {
     if (isReadOnly) return;
     setFormData((prev) => {
-      const current = prev[field] as string[];
+      const current = (prev[field] as string[]) || [];
       return {
         ...prev,
         [field]: current.includes(value)
@@ -311,7 +338,6 @@ export default function ManualPlantCreation({
           <SectionHeader id="basics" title="Identity & Basics" icon={Info} />
           {activeSection === "basics" && (
             <div className="p-2 space-y-6 animate-in slide-in-from-top-2">
-              {/* IMAGE UPLOAD SLOT */}
               <div className="flex flex-col items-center justify-center gap-4">
                 <div
                   onClick={() => !isReadOnly && fileInputRef.current?.click()}
@@ -453,46 +479,22 @@ export default function ManualPlantCreation({
           />
           {activeSection === "phenology" && (
             <div className="p-2 space-y-6 animate-in slide-in-from-top-2">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                    Flowering
-                  </label>
-                  <select
-                    name="flowering_season"
-                    value={formData.flowering_season || ""}
-                    onChange={handleInputChange}
-                    disabled={isReadOnly}
-                    className={`w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 text-sm ${isReadOnly ? "opacity-80 appearance-none" : ""}`}
-                  >
-                    <option value="">Select...</option>
-                    {SEASON_OPTIONS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-                <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                    Harvest
-                  </label>
-                  <select
-                    name="harvest_season"
-                    value={formData.harvest_season || ""}
-                    onChange={handleInputChange}
-                    disabled={isReadOnly}
-                    className={`w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 text-sm ${isReadOnly ? "opacity-80 appearance-none" : ""}`}
-                  >
-                    <option value="">Select...</option>
-                    {SEASON_OPTIONS.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              {/* 🚀 REPLACED SELECTS WITH MULTI-SELECTS */}
+              <MultiSelect
+                label="Flowering Seasons"
+                field="flowering_season"
+                options={SEASON_OPTIONS}
+                icon={Sun}
+                isReadOnly={isReadOnly}
+              />
+              <MultiSelect
+                label="Harvest Seasons"
+                field="harvest_season"
+                options={SEASON_OPTIONS}
+                icon={Leaf}
+                isReadOnly={isReadOnly}
+              />
+
               <MultiSelect
                 label="Pruning Months"
                 field="pruning_month"

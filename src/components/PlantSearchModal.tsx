@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   X,
   Search,
@@ -14,13 +14,14 @@ import {
 import { PerenualService } from "../lib/perenualService";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
-import ManualPlantCreation from "./ManualPlantCreation"; // 🚀 THE MISSING IMPORT!
+import ManualPlantCreation from "./ManualPlantCreation";
 
 interface Props {
   homeId: string;
   isPremium: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (newPlant?: any) => void; // 🚀 UPDATED: Can now return the saved plant!
+  initialSearchTerm?: string;
 }
 
 export default function PlantSearchModal({
@@ -28,24 +29,23 @@ export default function PlantSearchModal({
   isPremium,
   onClose,
   onSuccess,
+  initialSearchTerm,
 }: Props) {
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useState(initialSearchTerm || "");
   const [results, setResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
 
-  // New State for the Preview Flow
   const [previewPlant, setPreviewPlant] = useState<any | null>(null);
   const [isFetchingPreview, setIsFetchingPreview] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  const performSearch = async (searchQuery: string) => {
+    if (!searchQuery.trim()) return;
 
     setIsSearching(true);
-    setPreviewPlant(null); // Reset preview if searching again
+    setPreviewPlant(null);
     try {
-      const data = await PerenualService.searchPlants(query);
+      const data = await PerenualService.searchPlants(searchQuery);
       setResults(data);
     } catch (err) {
       toast.error("Search failed. Check your connection.");
@@ -54,7 +54,20 @@ export default function PlantSearchModal({
     }
   };
 
-  // 1. Fetch details just to PREVIEW
+  const handleSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    performSearch(query);
+  };
+
+  const hasAutoSearched = useRef(false);
+
+  useEffect(() => {
+    if (initialSearchTerm && isPremium && !hasAutoSearched.current) {
+      hasAutoSearched.current = true;
+      performSearch(initialSearchTerm);
+    }
+  }, [initialSearchTerm, isPremium]);
+
   const handlePreviewPlant = async (perenualId: number) => {
     setIsFetchingPreview(true);
     try {
@@ -67,15 +80,41 @@ export default function PlantSearchModal({
     }
   };
 
-  // 2. Commit the previewed plant to the database (SKELETON ONLY)
   const handleAddToShed = async () => {
     if (!previewPlant) return;
     setIsAdding(true);
 
     try {
-      const manualId = Math.floor(Date.now() / 1000);
+      const pId = String(previewPlant.perenual_id || previewPlant.id);
 
-      // 🚀 COMPLIANCE FIX: Only save basic "Bookmark" data to the permanent database
+      // 🚀 1. DUPLICATE CHECK (Simplified select to avoid "status" error)
+      const { data: existingPlant, error: checkError } = await supabase
+        .from("plants")
+        .select("id") // Only select 'id' since 'status' doesn't exist
+        .eq("home_id", homeId)
+        .eq("perenual_id", pId)
+        .maybeSingle();
+
+      // If the query itself fails (like a missing column), we should stop!
+      if (checkError) {
+        console.error("Duplicate check failed:", checkError);
+        throw new Error(
+          "Could not verify if plant exists in Shed. Please try again.",
+        );
+      }
+
+      // 🚀 2. BLOCK IF EXISTS
+      if (existingPlant) {
+        toast.error(`${previewPlant.common_name} is already in your Shed!`, {
+          duration: 4000,
+          icon: "🚫",
+        });
+        setIsAdding(false);
+        return; // 🛑 CRITICAL: This stops the insert from happening
+      }
+
+      // 🚀 3. PROCEED TO INSERT IF CLEAR
+      const manualId = Math.floor(Date.now() / 1000);
       const skeletonPlant = {
         id: manualId,
         home_id: homeId,
@@ -83,7 +122,7 @@ export default function PlantSearchModal({
         scientific_name: previewPlant.scientific_name,
         thumbnail_url: previewPlant.thumbnail_url || previewPlant.image_url,
         source: "api",
-        perenual_id: previewPlant.perenual_id,
+        perenual_id: pId,
       };
 
       const { data: savedPlant, error } = await supabase
@@ -94,7 +133,7 @@ export default function PlantSearchModal({
 
       if (error) throw error;
 
-      // 🚀 AUTO-GENERATE SCHEDULES: We can still use the transient 'previewPlant' data to build our own rules!
+      // Auto-generate schedules
       if (previewPlant.harvest_season) {
         await supabase.from("plant_schedules").insert([
           {
@@ -114,18 +153,15 @@ export default function PlantSearchModal({
         ]);
       }
 
-      toast.success(`${previewPlant.common_name} added to your Shed!`, {
-        id: "add-api",
-      });
-      onSuccess();
-    } catch (err) {
-      toast.error("Failed to add plant.", { id: "add-api" });
+      toast.success(`${previewPlant.common_name} added to your Shed!`);
+      onSuccess(savedPlant);
+    } catch (err: any) {
+      console.error("Failed to add plant:", err);
+      toast.error(err.message || "Failed to add plant.");
     } finally {
       setIsAdding(false);
     }
   };
-
-  // 🔒 PREMIUM GATE UI
   if (!isPremium) {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
@@ -152,11 +188,9 @@ export default function PlantSearchModal({
     );
   }
 
-  // 🌍 STANDARD SEARCH & PREVIEW UI
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
       <div className="bg-rhozly-surface-lowest w-full max-w-2xl h-[85vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden relative">
-        {/* Loading Overlay for Detail Fetch */}
         {isFetchingPreview && (
           <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-50 flex flex-col items-center justify-center animate-in fade-in">
             <Loader2
@@ -184,7 +218,6 @@ export default function PlantSearchModal({
           </button>
         </div>
 
-        {/* 🚀 If viewing a PREVIEW, show the fully mapped Care Guide! */}
         {previewPlant ? (
           <div className="flex-1 overflow-y-auto p-8 custom-scrollbar animate-in slide-in-from-right-4 flex flex-col">
             <button
@@ -195,14 +228,12 @@ export default function PlantSearchModal({
             </button>
 
             <div className="flex-1">
-              {/* REUSING YOUR EXACT COMPONENT IN READ-ONLY MODE */}
               <ManualPlantCreation
                 initialData={previewPlant}
                 isReadOnly={true}
               />
             </div>
 
-            {/* Sticky bottom button to add to shed */}
             <div className="mt-8 pt-4 border-t border-rhozly-outline/10 shrink-0">
               <button
                 onClick={handleAddToShed}
@@ -220,7 +251,6 @@ export default function PlantSearchModal({
             </div>
           </div>
         ) : (
-          /* Otherwise, show the Search Form & Results List */
           <>
             <div className="p-8 pb-4 shrink-0">
               <form

@@ -34,7 +34,7 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
   const [blueprints, setBlueprints] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
 
-  // 🚀 NEW: A key to force the TaskList to refresh when we manually add a new task
+  // A key to force the TaskList to refresh when we manually add a new task
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -131,7 +131,7 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
     d1.getMonth() === d2.getMonth() &&
     d1.getDate() === d2.getDate();
 
-  // 🚀 THIS GHOST ENGINE NOW ONLY DRIVES THE DOTS ON THE CALENDAR
+  // 🚀 GHOST ENGINE DRIVES THE DOTS ON THE CALENDAR
   const getTasksForDate = (date: Date) => {
     const dateStr = getLocalDateString(date);
     const targetDateMs = new Date(dateStr).getTime();
@@ -360,8 +360,9 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
                     {dayObj.date.getDate()}
                   </span>
 
+                  {/* 🚀 NEW: Render max 3 dots, then a +X indicator */}
                   {pendingTasks.length > 0 && (
-                    <div className="absolute bottom-2 sm:bottom-3 flex gap-1">
+                    <div className="absolute bottom-2 sm:bottom-3 flex items-center justify-center gap-0.5 sm:gap-1">
                       {pendingTasks.slice(0, 3).map((t, i) => (
                         <span
                           key={i}
@@ -370,8 +371,10 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
                       ))}
                       {pendingTasks.length > 3 && (
                         <span
-                          className={`w-1.5 h-1.5 rounded-full ${isSelected ? "bg-white/50" : "bg-rhozly-primary/50"}`}
-                        />
+                          className={`text-[8px] font-black leading-none ml-0.5 ${isSelected ? "text-white" : "text-rhozly-primary"}`}
+                        >
+                          +{pendingTasks.length - 3}
+                        </span>
                       )}
                     </div>
                   )}
@@ -393,7 +396,6 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
                 })}
               </p>
             </div>
-            {/* The "Add Task" Button remains up here! */}
             <button
               onClick={() => setIsAddingTask(true)}
               className="flex items-center gap-1 text-xs font-black bg-rhozly-primary text-white px-4 py-2.5 rounded-xl shadow-md hover:scale-105 transition-transform active:scale-95"
@@ -408,7 +410,6 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
               homeId={homeId}
               targetDate={selectedDate}
               onTaskUpdated={fetchTasksAndBlueprints}
-              // 🚀 NEW: Pass the active calendar filters straight into the list!
               locationId={selectedLoc}
               areaId={selectedArea === "all" ? undefined : selectedArea}
               selectedTypes={selectedTypes}
@@ -425,7 +426,7 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
           onSuccess={() => {
             setIsAddingTask(false);
             fetchTasksAndBlueprints(); // Update dots
-            setRefreshKey((prev) => prev + 1); // 🚀 Force the TaskList to refresh immediately
+            setRefreshKey((prev) => prev + 1); // Force the TaskList to refresh immediately
           }}
         />
       )}

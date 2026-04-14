@@ -10,7 +10,9 @@ import {
   Loader2,
   Trash2,
   Edit3,
-  Search, // 🚀 NEW: Added Search Icon
+  Search,
+  Sparkles, // 🚀 NEW: Icon for AI
+  BrainCircuit, // 🚀 NEW: Icon for AI
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -40,7 +42,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const [filterSource, setFilterSource] = useState<"all" | "manual" | "api">(
     "all",
   );
-  const [searchQuery, setSearchQuery] = useState(""); // 🚀 NEW: Search state
+  const [searchQuery, setSearchQuery] = useState("");
 
   const [isPremium, setIsPremium] = useState(false);
 
@@ -48,6 +50,14 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isAddingManual, setIsAddingManual] = useState(false);
   const [isSearchingApi, setIsSearchingApi] = useState(false);
+
+  // 🚀 NEW: AI Generation States
+  const [isAiGenerating, setIsAiGenerating] = useState(false);
+  const [aiSearchQuery, setAiSearchQuery] = useState("");
+  const [aiSearchResults, setAiSearchResults] = useState<string[]>([]);
+  const [isAiSearching, setIsAiSearching] = useState(false);
+  const [isAiDrafting, setIsAiDrafting] = useState<string | null>(null);
+  const [aiDraftedData, setAiDraftedData] = useState<any>(null);
 
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
   const [editingPlant, setEditingPlant] = useState<any | null>(null);
@@ -169,6 +179,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
       ]);
       toast.success(`${plantData.common_name} added to shed!`);
       setIsAddingManual(false);
+      setAiDraftedData(null); // Reset drafted data
       fetchData();
     } finally {
       setActionLoading(false);
@@ -239,16 +250,51 @@ export default function TheShed({ homeId }: { homeId: string }) {
     }
   };
 
-  // 🚀 UPDATED: Includes the real-time search filtering!
+  // 🚀 AI FUNCTIONS
+  const handleAiSearch = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!aiSearchQuery.trim()) return;
+    setIsAiSearching(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("plant-doctor", {
+        body: { action: "search_plants_text", plantSearch: aiSearchQuery },
+      });
+      if (error) throw error;
+      setAiSearchResults(data.matches || []);
+    } catch (err: any) {
+      toast.error("Failed to search. Try again.");
+    } finally {
+      setIsAiSearching(false);
+    }
+  };
+
+  const handleAiDrafting = async (plantName: string) => {
+    setIsAiDrafting(plantName);
+    try {
+      const { data, error } = await supabase.functions.invoke("plant-doctor", {
+        body: { action: "generate_care_guide", targetPlant: plantName },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setAiDraftedData(data.plantData);
+
+      // Close the AI generator modal, reset states, and open the manual form!
+      setIsAiGenerating(false);
+      setAiSearchResults([]);
+      setAiSearchQuery("");
+      setIsAddingManual(true);
+    } catch (error: any) {
+      toast.error("Failed to auto-fill plant data.");
+    } finally {
+      setIsAiDrafting(null);
+    }
+  };
+
   const filteredPlants = plants.filter((p) => {
-    // 1. Check Tabs
     if (viewTab === "active" && p.is_archived) return false;
     if (viewTab === "archived" && !p.is_archived) return false;
-
-    // 2. Check Source Filter
     if (filterSource !== "all" && p.source !== filterSource) return false;
-
-    // 3. Check Text Search
     if (searchQuery.trim()) {
       const query = searchQuery.toLowerCase();
       const matchesCommon = p.common_name.toLowerCase().includes(query);
@@ -257,7 +303,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
       );
       if (!matchesCommon && !matchesScientific) return false;
     }
-
     return true;
   });
 
@@ -280,7 +325,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
           </p>
         </div>
 
-        {/* 🚀 NEW: Added Search Bar to the Controls Area */}
         <div className="flex flex-col md:flex-row flex-wrap items-stretch md:items-center gap-4">
           <div className="relative flex-1 md:flex-none flex items-center min-w-[200px]">
             <Search
@@ -429,6 +473,16 @@ export default function TheShed({ homeId }: { homeId: string }) {
       <div className="fixed bottom-10 right-10 z-40 flex flex-col items-end gap-4">
         {isAddMenuOpen && (
           <div className="flex flex-col gap-3 animate-in slide-in-from-bottom-2 fade-in">
+            {/* 🚀 NEW: AI GENERATE OPTION */}
+            <button
+              onClick={() => {
+                setIsAiGenerating(true);
+                setIsAddMenuOpen(false);
+              }}
+              className="flex items-center gap-3 bg-white text-rhozly-on-surface px-6 py-4 rounded-[2rem] shadow-2xl font-black border border-rhozly-outline/10 hover:border-rhozly-primary/30 hover:text-rhozly-primary transition-all active:scale-95"
+            >
+              <Sparkles size={20} className="text-amber-500" /> AI Generate
+            </button>
             <button
               onClick={() => {
                 setIsAddingManual(true);
@@ -460,6 +514,108 @@ export default function TheShed({ homeId }: { homeId: string }) {
           <Plus size={40} strokeWidth={3} />
         </button>
       </div>
+
+      {/* 🚀 NEW: AI SEARCH AND DRAFT MODAL */}
+      {isAiGenerating && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in zoom-in-95">
+          <div className="bg-rhozly-surface-lowest w-full max-w-lg rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 flex flex-col max-h-[85vh]">
+            <div className="flex justify-between items-start mb-8">
+              <div className="flex items-center gap-3">
+                <div className="bg-amber-500/10 p-3 rounded-2xl text-amber-600">
+                  <BrainCircuit size={28} />
+                </div>
+                <div>
+                  <h3 className="text-2xl font-black text-rhozly-on-surface">
+                    AI Auto-Fill
+                  </h3>
+                  <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mt-1">
+                    Draft a custom plant profile
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={() => {
+                  setIsAiGenerating(false);
+                  setAiSearchResults([]);
+                  setAiSearchQuery("");
+                }}
+                className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
+              >
+                <X size={24} />
+              </button>
+            </div>
+
+            <form
+              onSubmit={handleAiSearch}
+              className="relative flex items-center mb-6"
+            >
+              <input
+                type="text"
+                value={aiSearchQuery}
+                onChange={(e) => setAiSearchQuery(e.target.value)}
+                placeholder="Search common or scientific name..."
+                className="w-full pl-6 pr-14 py-4 bg-white rounded-2xl font-bold border border-rhozly-outline/10 focus:border-amber-500 outline-none shadow-sm"
+              />
+              <button
+                type="submit"
+                disabled={isAiSearching || !aiSearchQuery.trim()}
+                className="absolute right-2 p-2 bg-amber-500 text-white rounded-xl hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
+              >
+                <Search size={20} />
+              </button>
+            </form>
+
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">
+              {isAiSearching ? (
+                <div className="py-12 flex flex-col items-center justify-center opacity-50">
+                  <Loader2
+                    className="animate-spin text-amber-500 mb-4"
+                    size={32}
+                  />
+                  <p className="text-sm font-bold">
+                    Scanning Botanical Database...
+                  </p>
+                </div>
+              ) : aiSearchResults.length > 0 ? (
+                aiSearchResults.map((match, i) => (
+                  <button
+                    key={i}
+                    onClick={() => handleAiDrafting(match)}
+                    disabled={!!isAiDrafting}
+                    className="w-full text-left p-5 bg-white border border-rhozly-outline/10 rounded-2xl hover:border-amber-500/40 hover:bg-amber-50 transition-colors flex justify-between items-center group disabled:opacity-50 disabled:cursor-wait"
+                  >
+                    <span className="font-bold text-rhozly-on-surface">
+                      {match}
+                    </span>
+                    {isAiDrafting === match ? (
+                      <Loader2
+                        size={18}
+                        className="animate-spin text-amber-500"
+                      />
+                    ) : (
+                      <Sparkles
+                        size={18}
+                        className="text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity"
+                      />
+                    )}
+                  </button>
+                ))
+              ) : (
+                <div className="py-12 flex flex-col items-center justify-center text-center opacity-40">
+                  <BrainCircuit
+                    size={48}
+                    className="mb-4 text-rhozly-on-surface/50"
+                  />
+                  <p className="font-black text-lg">Instant Care Guides</p>
+                  <p className="text-sm font-bold mt-1">
+                    Search for any plant to instantly generate a custom profile.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* MODALS BELOW */}
       {confirmState.isOpen && confirmState.plant && (
@@ -510,25 +666,36 @@ export default function TheShed({ homeId }: { homeId: string }) {
       )}
 
       {isAddingManual && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rhozly-bg/90 backdrop-blur-xl animate-in zoom-in-95 duration-300">
-          <div className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 custom-scrollbar">
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/90 backdrop-blur-xl animate-in zoom-in-95 duration-300">
+          <div className="bg-rhozly-surface-lowest w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[3rem] p-6 shadow-2xl border border-rhozly-outline/20 custom-scrollbar">
             <div className="flex justify-between items-center mb-8">
               <div>
-                <h3 className="text-3xl font-black">Add to Shed</h3>
+                <h3 className="text-3xl font-black">
+                  {aiDraftedData
+                    ? `Review ${aiDraftedData.common_name}`
+                    : "Add to Shed"}
+                </h3>
                 <p className="text-xs font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
                   Manual Entry
                 </p>
               </div>
               <button
-                onClick={() => setIsAddingManual(false)}
+                onClick={() => {
+                  setIsAddingManual(false);
+                  setAiDraftedData(null); // Reset on close
+                }}
                 className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
               >
                 <X size={24} />
               </button>
             </div>
             <ManualPlantCreation
+              initialData={aiDraftedData} // 🚀 Feeds AI data right into the form
               onSave={handleManualSave}
-              onCancel={() => setIsAddingManual(false)}
+              onCancel={() => {
+                setIsAddingManual(false);
+                setAiDraftedData(null);
+              }}
               isSaving={actionLoading}
             />
           </div>
