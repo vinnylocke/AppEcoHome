@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Rhozly</string>
+    <string name="title_activity_main">Rhozly</string>
+    <string name="package_name">com.rhozly.app</string>
+    <string name="custom_url_scheme">com.rhozly.app</string>
+</resources>

@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
-  Camera,
+  Camera as CameraIcon, // 🚀 FIXED: Renamed to avoid conflict with Capacitor
   Upload,
   X,
   Search,
@@ -23,6 +23,8 @@ import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
 
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera"; // 🚀 Capacitor Camera
+
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantSearchModal from "./PlantSearchModal";
 
@@ -30,7 +32,7 @@ interface PlantDoctorProps {
   homeId: string;
   aiEnabled: boolean;
   isPremium: boolean;
-  perenualEnabled: boolean; // 🚀 NEW: Added the Perenual lock prop
+  perenualEnabled: boolean;
   onTasksAdded?: () => void;
 }
 
@@ -82,7 +84,6 @@ export default function PlantDoctor({
   const [showPerenualSearch, setShowPerenualSearch] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const cameraInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -108,6 +109,42 @@ export default function PlantDoctor({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // 🚀 NATIVE CAMERA LOGIC
+  const handleNativeCamera = async () => {
+    try {
+      const photo = await Camera.getPhoto({
+        quality: 80,
+        allowEditing: false,
+        resultType: CameraResultType.Base64,
+        source: CameraSource.Camera,
+      });
+
+      if (photo.base64String) {
+        // Convert the Capacitor Base64 output back into a standard File object
+        // so it plugs perfectly into your existing file logic!
+        const base64Data = `data:image/${photo.format};base64,${photo.base64String}`;
+        const res = await fetch(base64Data);
+        const blob = await res.blob();
+        const file = new File(
+          [blob],
+          `camera_photo_${Date.now()}.${photo.format}`,
+          { type: `image/${photo.format}` },
+        );
+
+        setImagePreview(URL.createObjectURL(file));
+        setSelectedFile(file);
+
+        // Reset states just like a normal file upload
+        setAiResult(null);
+        setSelectedPlantName(null);
+        setSelectedDisease(null);
+        setSickInventoryId(null);
+      }
+    } catch (error) {
+      console.log("User cancelled camera or it failed", error);
+    }
+  };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
@@ -139,7 +176,6 @@ export default function PlantDoctor({
     setSelectedDisease(null);
     setSickInventoryId(null);
     if (fileInputRef.current) fileInputRef.current.value = "";
-    if (cameraInputRef.current) cameraInputRef.current.value = "";
   };
 
   const compressImage = async (file: File): Promise<string> => {
@@ -190,19 +226,6 @@ export default function PlantDoctor({
       toast.success(
         `Successfully ${action === "identify" ? "identified" : "diagnosed"}!`,
       );
-
-      if (action === "diagnose") {
-        if (data.possible_diseases && data.possible_diseases.length > 0) {
-          console.log(
-            "🩺 [Plant Doctor] AI extracted potential diseases:",
-            data.possible_diseases,
-          );
-        } else {
-          console.log(
-            "🩺 [Plant Doctor] Diagnosis complete, but no specific disease name was found.",
-          );
-        }
-      }
     } catch (error: any) {
       toast.error(error.message || "Failed to analyze plant.");
     } finally {
@@ -485,11 +508,12 @@ export default function PlantDoctor({
                 >
                   <Upload className="w-5 h-5 text-rhozly-primary" /> Upload File
                 </button>
+                {/* 🚀 FIXED: Swapped for handleNativeCamera */}
                 <button
-                  onClick={() => cameraInputRef.current?.click()}
+                  onClick={handleNativeCamera}
                   className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-rhozly-primary rounded-2xl shadow-md text-white font-bold hover:bg-rhozly-primary-container transition-colors"
                 >
-                  <Camera className="w-5 h-5" /> Open Camera
+                  <CameraIcon className="w-5 h-5" /> Open Camera
                 </button>
               </div>
             </div>
@@ -585,7 +609,6 @@ export default function PlantDoctor({
                         Save {selectedPlantName}
                       </h3>
                       <div className="flex flex-col sm:flex-row gap-3 mt-4">
-                        {/* 🚀 FIXED: Locked Identify Perenual Search */}
                         <button
                           onClick={() =>
                             perenualEnabled
@@ -665,7 +688,6 @@ export default function PlantDoctor({
                         </p>
 
                         <div className="flex flex-col sm:flex-row gap-3">
-                          {/* 🚀 FIXED: Locked Diagnose Perenual Search */}
                           <button
                             onClick={() =>
                               perenualEnabled
@@ -893,14 +915,7 @@ export default function PlantDoctor({
             ref={fileInputRef}
             onChange={handleFileChange}
           />
-          <input
-            type="file"
-            accept="image/*"
-            capture="environment"
-            className="hidden"
-            ref={cameraInputRef}
-            onChange={handleFileChange}
-          />
+          {/* We safely removed the old HTML camera input since it is fully handled by Capacitor now! */}
         </div>
       </div>
     </>

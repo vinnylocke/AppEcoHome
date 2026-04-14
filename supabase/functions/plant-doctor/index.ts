@@ -27,7 +27,6 @@ serve(async (req) => {
       diagnosisContext,
       diseaseName,
       notes,
-      // 🚀 NEW FIELDS FOR RECOMMENDATIONS
       areaData,
       existingPlants,
       tasks,
@@ -94,8 +93,9 @@ serve(async (req) => {
 
     const genAI = new GoogleGenerativeAI(apiKey);
     const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash-lite",
+      model: "gemini-2.5-flash",
     });
+
     let promptText = "";
     let contents: any[] = [];
 
@@ -189,11 +189,13 @@ serve(async (req) => {
         }
       `;
       contents = [promptText];
-    } else if (action === "search_plants_text") {
+    }
+    // 🚀 THE SEARCH ACTION YOU NEED
+    else if (action === "search_plants_text") {
       if (!plantSearch) throw new Error("No search query provided.");
       promptText = `
         The user is searching for a plant using the query: "${plantSearch}".
-        Return the top 5 most likely specific plant matches.
+        Return the top 5 most likely specific plant matches based on common names.
         
         You MUST respond ONLY in valid JSON format using this exact schema:
         {
@@ -242,9 +244,7 @@ serve(async (req) => {
         }
       `;
       contents = [promptText];
-    }
-    // 🚀 NEW: RECOMMENDATION LOGIC
-    else if (action === "recommend_plants") {
+    } else if (action === "recommend_plants") {
       promptText = `
         You are an expert botanical consultant. Recommend exactly 5 plants for a specific area based on the following data:
         
@@ -271,6 +271,11 @@ serve(async (req) => {
         }
       `;
       contents = [promptText];
+    }
+
+    // Safety catch: If action isn't recognized, contents will be empty, causing Gemini to fail.
+    if (contents.length === 0) {
+      throw new Error(`Unknown action: ${action}`);
     }
 
     const result = (await Promise.race([
