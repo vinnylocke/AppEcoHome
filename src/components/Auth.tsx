@@ -51,8 +51,8 @@ export const Auth: React.FC = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: getRedirectUrl(),
-          skipBrowserRedirect: false,
+          redirectTo: "com.rhozly.app://google-callback",
+          skipBrowserRedirect: true,
         },
       });
 
