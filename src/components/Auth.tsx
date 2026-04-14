@@ -5,6 +5,8 @@ import { motion } from "framer-motion";
 import { rhozlyTheme as theme } from "../styles/theme";
 import { Logger } from "../lib/errorHandler";
 
+import { Browser } from "@capacitor/browser";
+
 export const Auth: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
@@ -48,7 +50,8 @@ export const Auth: React.FC = () => {
   const handleGoogleLogin = async () => {
     try {
       Logger.log("Starting Google OAuth login...");
-      const { error } = await supabase.auth.signInWithOAuth({
+
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
           redirectTo: "com.rhozly.app://google-callback",
@@ -57,8 +60,13 @@ export const Auth: React.FC = () => {
       });
 
       if (error) throw error;
+
+      // 🚀 THE MISSING LINK:
+      // Because skipBrowserRedirect is true, we must manually open the URL
+      if (data?.url) {
+        await Browser.open({ url: data.url });
+      }
     } catch (err: any) {
-      // ✨ UPGRADED: Track Google OAuth failures in Sentry and show a toast
       Logger.error(
         "Google Login Error",
         err,
