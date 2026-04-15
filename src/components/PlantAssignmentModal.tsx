@@ -9,7 +9,12 @@ import {
   Loader2,
   Info,
   Navigation,
+  Sparkles,
+  BrainCircuit,
+  CloudSun,
 } from "lucide-react";
+import toast from "react-hot-toast";
+import { supabase } from "../lib/supabase";
 
 interface PlantAssignmentModalProps {
   plant: any;
@@ -17,6 +22,7 @@ interface PlantAssignmentModalProps {
   onAssign: (data: any) => void;
   onClose: () => void;
   isAssigning: boolean;
+  homeId: string; // 🚀 NEW: We need the homeId to fetch coordinates
 }
 
 const GROWTH_STATES = [
@@ -30,12 +36,21 @@ const GROWTH_STATES = [
   "Senescence",
 ];
 
+const PROPAGATION_OPTIONS = [
+  "Seed",
+  "Cuttings",
+  "Division",
+  "Layering",
+  "Grafting",
+];
+
 export default function PlantAssignmentModal({
   plant,
   locations,
   onAssign,
   onClose,
   isAssigning,
+  homeId,
 }: PlantAssignmentModalProps) {
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedLoc, setSelectedLoc] = useState("");
@@ -49,6 +64,10 @@ export default function PlantAssignmentModal({
     growthState: "Vegetative",
   });
 
+  const [isAiLoading, setIsAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<any>(null);
+  const [selectedSchedules, setSelectedSchedules] = useState<string[]>([]);
+
   const availableAreas = selectedLoc
     ? locations.find((l) => l.id === selectedLoc)?.areas || []
     : [];
@@ -58,16 +77,141 @@ export default function PlantAssignmentModal({
     setStep(2);
   };
 
+  const handleSmartSchedule = async () => {
+    setIsAiLoading(true);
+
+    try {
+      // 🚀 1. THE DATABASE CACHE CHECK
+      const { data: cacheRecord, error: cacheError } = await supabase
+        .from("ai_schedule_cache")
+        .select("schedule_data, updated_at")
+        .eq("plant_id", plant.id)
+        .eq("area_id", formData.areaId)
+        .maybeSingle();
+
+      if (cacheRecord) {
+        const cacheAgeMs =
+          new Date().getTime() - new Date(cacheRecord.updated_at).getTime();
+        const hoursOld = cacheAgeMs / (1000 * 60 * 60);
+
+        // If the cache is less than 24 hours old, use it instantly!
+        if (hoursOld < 24) {
+          console.log("🟢 Loaded Smart Schedule from Cloud Cache!");
+          setAiResult(cacheRecord.schedule_data);
+
+          if (cacheRecord.schedule_data.schedules?.length > 0) {
+            setSelectedSchedules([
+              cacheRecord.schedule_data.schedules[0].method,
+            ]);
+          }
+          toast.success("Loaded saved smart schedule!");
+          setIsAiLoading(false);
+          return; // Bypass the API completely!
+        } else {
+          console.log(
+            "🟡 Cloud cache expired (>24 hours). Fetching fresh data.",
+          );
+        }
+      }
+
+      // 2. Fetch the Home Address from DB
+      const { data: homeData, error: homeError } = await supabase
+        .from("homes")
+        .select("address")
+        .eq("id", homeId)
+        .single();
+
+      if (homeError || !homeData?.address) {
+        toast.error("Please set your Home's postcode in settings first!");
+        setIsAiLoading(false);
+        return;
+      }
+
+      const selectedAreaObj = availableAreas.find(
+        (a: any) => a.id === formData.areaId,
+      );
+
+      // 3. Call the Edge Function
+      const { data: aiData, error } = await supabase.functions.invoke(
+        "smart-plant-scheduler",
+        {
+          body: {
+            plantName: plant.common_name,
+            areaDetails: selectedAreaObj,
+            address: homeData.address,
+            availableMethods: PROPAGATION_OPTIONS,
+          },
+        },
+      );
+
+      if (error) {
+        const realError = await error.context?.json().catch(() => null);
+        throw new Error(realError?.error || error.message);
+      }
+
+      // Clean up hallucinated methods
+      const viableSchedules =
+        aiData.schedules?.filter((s: any) => s.is_viable) || [];
+      aiData.schedules = viableSchedules;
+
+      // 🚀 4. SAVE TO CLOUD CACHE (UPSERT)
+      // Upsert will create a new row, or overwrite the existing one if the plant_id/area_id combo already exists
+      const { error: upsertError } = await supabase
+        .from("ai_schedule_cache")
+        .upsert(
+          {
+            plant_id: plant.id,
+            area_id: formData.areaId,
+            schedule_data: aiData,
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: "plant_id, area_id" },
+        );
+
+      if (upsertError) {
+        console.error("Failed to save to cloud cache:", upsertError);
+        // We don't throw here because the user still got their AI data successfully
+      }
+
+      setAiResult(aiData);
+
+      if (viableSchedules.length > 0) {
+        setSelectedSchedules([viableSchedules[0].method]);
+      }
+
+      toast.success("AI generated a fresh planting schedule!");
+    } catch (error: any) {
+      console.error("AI Schedule Error:", error);
+      toast.error(`Failed: ${error.message}`);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
+  const toggleScheduleSelection = (method: string) => {
+    setSelectedSchedules((prev) =>
+      prev.includes(method)
+        ? prev.filter((m) => m !== method)
+        : [...prev, method],
+    );
+  };
+
   const handleSubmit = () => {
+    const finalSchedules =
+      aiResult?.schedules?.filter((s: any) =>
+        selectedSchedules.includes(s.method),
+      ) || [];
+
     onAssign({
       ...formData,
-      status: formData.isPlanted ? "Planted" : "Unplanted", // 🚀 Updated to 'Unplanted'
+      status: formData.isPlanted ? "Planted" : "Unplanted",
+      smartSchedules: finalSchedules,
     });
   };
 
   return (
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
-      <div className="bg-rhozly-surface-lowest w-full max-w-lg rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 relative overflow-hidden">
+      <div className="bg-rhozly-surface-lowest w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 relative">
         <div className="flex justify-between items-start mb-8 relative z-10">
           <div>
             <h3 className="text-3xl font-black text-rhozly-on-surface">
@@ -85,7 +229,6 @@ export default function PlantAssignmentModal({
           </button>
         </div>
 
-        {/* STEP 1: Location & Quantity */}
         {step === 1 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 relative z-10">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -162,9 +305,6 @@ export default function PlantAssignmentModal({
                   +
                 </button>
               </div>
-              <p className="text-[10px] font-bold text-center text-rhozly-on-surface/40">
-                This will create {formData.quantity} individual plant records.
-              </p>
             </div>
 
             <button
@@ -177,24 +317,145 @@ export default function PlantAssignmentModal({
           </div>
         )}
 
-        {/* STEP 2: Planting Status */}
         {step === 2 && (
           <div className="space-y-6 animate-in slide-in-from-right-4 relative z-10">
-            {/* 🚀 UPDATED: Simplified Toggle Buttons */}
             <div className="p-1 bg-rhozly-surface-low rounded-2xl flex">
               <button
                 onClick={() => setFormData({ ...formData, isPlanted: false })}
                 className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${!formData.isPlanted ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
               >
-                Unplanted
+                Unplanted (In Shed)
               </button>
               <button
-                onClick={() => setFormData({ ...formData, isPlanted: true })}
+                onClick={() => {
+                  setFormData({ ...formData, isPlanted: true });
+                  setAiResult(null);
+                }}
                 className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${formData.isPlanted ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
               >
-                Planted
+                Already Planted
               </button>
             </div>
+
+            {!formData.isPlanted && (
+              <div className="space-y-4 animate-in fade-in zoom-in-95">
+                {!aiResult ? (
+                  <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-3xl border border-indigo-100 shadow-sm text-center">
+                    <CloudSun
+                      className="mx-auto text-indigo-400 mb-3"
+                      size={32}
+                    />
+                    <h4 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-2">
+                      Smart Schedule
+                    </h4>
+                    <p className="text-xs font-bold text-indigo-800/70 mb-6 leading-relaxed">
+                      Use AI and a live 14-day weather forecast to determine the
+                      best propagation methods and perfect days to plant this{" "}
+                      {plant.common_name}.
+                    </p>
+                    <button
+                      onClick={handleSmartSchedule}
+                      disabled={isAiLoading}
+                      className="w-full py-4 bg-indigo-600 text-white rounded-xl font-black shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                    >
+                      {isAiLoading ? (
+                        <>
+                          <Loader2 className="animate-spin" size={20} />{" "}
+                          Analyzing Area...
+                        </>
+                      ) : (
+                        <>
+                          <Sparkles size={20} /> Generate Plan
+                        </>
+                      )}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="bg-white p-5 rounded-3xl border border-rhozly-outline/10 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500 rounded-l-3xl" />
+                      <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                        <BrainCircuit size={18} />
+                        <span className="text-[10px] font-black uppercase tracking-widest">
+                          Site Analysis
+                        </span>
+                      </div>
+                      <p className="text-[11px] font-bold text-rhozly-on-surface/80 leading-relaxed">
+                        {aiResult.personalized_assessment}
+                      </p>
+                    </div>
+
+                    <div className="space-y-3">
+                      <p className="text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
+                        Select Methods to Schedule
+                      </p>
+                      {aiResult.schedules.length === 0 && (
+                        <p className="text-xs text-red-500 font-bold p-4 bg-red-50 rounded-xl">
+                          No viable methods found for this environment.
+                        </p>
+                      )}
+                      {aiResult.schedules.map((schedule: any) => (
+                        <div
+                          key={schedule.method}
+                          onClick={() =>
+                            toggleScheduleSelection(schedule.method)
+                          }
+                          className={`p-4 rounded-2xl border transition-all cursor-pointer flex gap-4 ${
+                            selectedSchedules.includes(schedule.method)
+                              ? "bg-indigo-50 border-indigo-200 shadow-sm"
+                              : "bg-white border-rhozly-outline/10 hover:border-indigo-200/50"
+                          }`}
+                        >
+                          <div className="pt-1">
+                            <div
+                              className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${
+                                selectedSchedules.includes(schedule.method)
+                                  ? "bg-indigo-600 border-indigo-600 text-white"
+                                  : "border-rhozly-outline/30 bg-rhozly-surface-lowest"
+                              }`}
+                            >
+                              {selectedSchedules.includes(schedule.method) && (
+                                <Check size={14} strokeWidth={4} />
+                              )}
+                            </div>
+                          </div>
+                          <div className="flex-1">
+                            <div className="flex justify-between items-center mb-1">
+                              <span className="font-black text-sm text-rhozly-on-surface">
+                                {schedule.method}
+                              </span>
+                              <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 px-2 py-1 rounded-md">
+                                {schedule.phases.length} Tasks
+                              </span>
+                            </div>
+                            <p className="text-[10px] font-bold text-rhozly-on-surface/60 line-clamp-2 leading-relaxed mb-3">
+                              {schedule.reasoning}
+                            </p>
+
+                            {/* 🚀 UI Update: Show the multiple phases under the method */}
+                            <div className="space-y-2 mt-2 pt-2 border-t border-indigo-100/50">
+                              {schedule.phases.map((phase: any, i: number) => (
+                                <div
+                                  key={i}
+                                  className="flex justify-between items-center bg-white/50 p-2 rounded-lg"
+                                >
+                                  <span className="text-[10px] font-black text-indigo-900">
+                                    {phase.phase_name}
+                                  </span>
+                                  <span className="text-[10px] font-bold text-indigo-600">
+                                    {phase.recommended_date}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
 
             {formData.isPlanted && (
               <div className="space-y-6 p-6 bg-rhozly-surface-low rounded-3xl animate-in zoom-in-95 border border-rhozly-outline/5">
@@ -235,7 +496,7 @@ export default function PlantAssignmentModal({
                   ) : (
                     <div className="w-full p-4 bg-white/50 rounded-xl border border-dashed border-rhozly-outline/20 text-center opacity-60">
                       <p className="text-xs font-bold flex items-center justify-center gap-2">
-                        <Info size={14} /> Date unknown (Established)
+                        <Info size={14} /> Date unknown
                       </p>
                     </div>
                   )}
@@ -271,7 +532,12 @@ export default function PlantAssignmentModal({
               </button>
               <button
                 onClick={handleSubmit}
-                disabled={isAssigning}
+                disabled={
+                  isAssigning ||
+                  (!formData.isPlanted &&
+                    aiResult &&
+                    selectedSchedules.length === 0)
+                }
                 className="flex-1 py-5 bg-rhozly-primary text-white rounded-2xl font-black text-lg shadow-xl shadow-rhozly-primary/20 flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
               >
                 {isAssigning ? (

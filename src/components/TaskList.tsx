@@ -32,6 +32,7 @@ interface TaskListProps {
   onTaskUpdated?: () => void;
   locationId?: string;
   selectedTypes?: string[];
+  showOverdue?: boolean;
 }
 
 const getLocalDateString = (date: Date) => {
@@ -62,6 +63,7 @@ export default function TaskList({
   onTaskUpdated,
   locationId,
   selectedTypes,
+  showOverdue, // 🚀 NEW PROP DESTRUCTURED
 }: TaskListProps) {
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -84,7 +86,6 @@ export default function TaskList({
     }
   }, [selectedTask]);
 
-  // 🚀 FIX: Added "silent" parameter to allow background refreshing without flashes
   const fetchTasksAndGhosts = useCallback(
     async (silent = false) => {
       if (!silent) setLoading(true);
@@ -111,8 +112,14 @@ export default function TaskList({
             `*, inventory_items(plant_name, identifier, location_name, area_name, plants(thumbnail_url)), locations(is_outside)`,
           )
           .eq("home_id", homeId)
-          .neq("status", "Skipped")
-          .lte("due_date", dateStr);
+          .neq("status", "Skipped");
+
+        // 🚀 NEW LOGIC: Only fetch past tasks if we explicitly want to show overdue
+        if (showOverdue) {
+          physicalQuery = physicalQuery.lte("due_date", dateStr);
+        } else {
+          physicalQuery = physicalQuery.eq("due_date", dateStr);
+        }
 
         if (areaId) physicalQuery = physicalQuery.eq("area_id", areaId);
         if (inventoryItemId)
@@ -126,8 +133,10 @@ export default function TaskList({
         if (physicalError) throw physicalError;
 
         const filteredPhysicalData = (physicalData || []).filter((t) => {
-          if (t.due_date === dateStr) return true;
-          if (t.due_date < dateStr && t.status === "Pending") return true;
+          if (t.due_date === dateStr) return true; // Always show tasks for the selected date
+          // 🚀 NEW LOGIC: Only include overdue tasks if showOverdue is true
+          if (showOverdue && t.due_date < dateStr && t.status === "Pending")
+            return true;
           return false;
         });
 
@@ -235,7 +244,15 @@ export default function TaskList({
         setLoading(false);
       }
     },
-    [homeId, areaId, inventoryItemId, dateStr, locationId, typesFilterStr],
+    [
+      homeId,
+      areaId,
+      inventoryItemId,
+      dateStr,
+      locationId,
+      typesFilterStr,
+      showOverdue,
+    ], // 🚀 ADDED showOverdue TO DEPENDENCIES
   );
 
   useEffect(() => {
@@ -394,7 +411,6 @@ export default function TaskList({
       setIsPostponing(false);
       onTaskUpdated?.();
 
-      // 🚀 THE FIX: Silently refresh to update the overdue badge and the new modal date
       fetchTasksAndGhosts(true);
     } catch (err) {
       toast.error("Failed to reschedule task.");

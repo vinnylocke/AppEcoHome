@@ -718,10 +718,22 @@ export default function App() {
               </div>
             )}
 
-            {/* 🚀 NEW: LIGHT SENSOR TAB ROUTING */}
+            {/* 🚀 FIXED: Passing the homeId prop to the LightSensor */}
             {activeTab === "lightsensor" && (
               <div className="h-full animate-in fade-in duration-500">
-                <LightSensor />
+                {profile?.home_id ? (
+                  <LightSensor homeId={profile.home_id} />
+                ) : (
+                  <div className="h-full flex flex-col items-center justify-center p-10 text-center">
+                    <Loader2
+                      className="animate-spin text-rhozly-primary mb-4"
+                      size={40}
+                    />
+                    <p className="font-bold text-rhozly-on-surface/40 uppercase tracking-widest text-[10px]">
+                      Loading Home Data...
+                    </p>
+                  </div>
+                )}
               </div>
             )}
 

@@ -37,21 +37,17 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState(false);
 
-  // View & Filter States
   const [viewTab, setViewTab] = useState<"active" | "archived">("active");
   const [filterSource, setFilterSource] = useState<"all" | "manual" | "api">(
     "all",
   );
   const [searchQuery, setSearchQuery] = useState("");
-
   const [isPremium, setIsPremium] = useState(false);
 
-  // Modal & Menu States
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isAddingManual, setIsAddingManual] = useState(false);
   const [isSearchingApi, setIsSearchingApi] = useState(false);
 
-  // AI Generation States
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [aiSearchQuery, setAiSearchQuery] = useState("");
   const [aiSearchResults, setAiSearchResults] = useState<string[]>([]);
@@ -79,13 +75,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
           .select("enable_perenual")
           .eq("uid", user.id)
           .single();
-
-        if (error) {
-          console.error("Supabase Error fetching profile:", error);
-          return;
-        }
-
-        if (data) setIsPremium(!!data.enable_perenual);
+        if (!error && data) setIsPremium(!!data.enable_perenual);
       }
     } catch (err) {
       Logger.error("Failed to fetch user premium status", err);
@@ -111,9 +101,10 @@ export default function TheShed({ homeId }: { homeId: string }) {
         })),
       );
 
+      // 🚀 NEW: Grab ALL columns for areas so the AI gets soil/light/indoor context
       const { data: locData, error: locError } = await supabase
         .from("locations")
-        .select(`id, name, areas ( id, name )`)
+        .select(`id, name, areas ( * )`)
         .eq("home_id", homeId);
 
       if (locError) throw locError;
@@ -140,9 +131,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
         .from("plants")
         .update({ is_archived: !plant.is_archived })
         .eq("id", plant.id);
-
       if (error) throw error;
-
       toast.success(
         plant.is_archived ? "Restored to active" : "Moved to archive",
       );
@@ -165,7 +154,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
         .delete()
         .eq("id", plant.id);
       if (error) throw error;
-
       toast.success(`${plant.common_name} deleted.`);
       setConfirmState({ isOpen: false, type: "delete", plant: null });
       fetchData();
@@ -189,10 +177,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
           perenual_id: null,
         },
       ]);
-
-      // 🚀 EXPLICIT ERROR CHECK added here
       if (error) throw error;
-
       toast.success(`${plantData.common_name} added to shed!`);
       setIsAddingManual(false);
       setAiDraftedData(null);
@@ -205,28 +190,17 @@ export default function TheShed({ homeId }: { homeId: string }) {
     }
   };
 
-  // 🚀 REPLACEMENT FUNCTION FOR TheShed.tsx
   const handleUpdatePlant = async (updatedData: any) => {
     setActionLoading(true);
     try {
-      // 1. Strip virtual columns so Supabase doesn't throw a 400 error
       const { instance_count, inventory_items, ...cleanPayload } = updatedData;
-
-      // 2. Save to database
       const { error } = await supabase
         .from("plants")
         .update(cleanPayload)
         .eq("id", cleanPayload.id);
-
       if (error) throw error;
-
       toast.success(`${cleanPayload.common_name} updated!`);
-
-      // 🛑 THE MAGIC FIX: Update the state with the NEW data instead of 'null'
-      // This forces the modal to stay open and display the fresh changes!
       setEditingPlant(updatedData);
-
-      // Refresh the background list silently
       fetchData();
     } catch (err: any) {
       Logger.error("Failed to update plant", err);
@@ -276,14 +250,64 @@ export default function TheShed({ homeId }: { homeId: string }) {
           .padStart(4, "0")}`,
       }));
 
-      const { error: insertError } = await supabase
+      const { data: insertedItems, error: insertError } = await supabase
         .from("inventory_items")
-        .insert(recordsToInsert);
+        .insert(recordsToInsert)
+        .select();
+
       if (insertError) throw insertError;
 
-      toast.success(`Successfully assigned ${assignmentData.quantity} plants!`);
+      // 🚀 NEW: Create multiple tasks for every phase of every checked method
+      if (
+        assignmentData.smartSchedules &&
+        assignmentData.smartSchedules.length > 0 &&
+        insertedItems
+      ) {
+        const tasksToInsert: any[] = [];
+
+        insertedItems.forEach((item: any) => {
+          assignmentData.smartSchedules.forEach((schedule: any) => {
+            schedule.phases.forEach((phase: any) => {
+              const formattedSteps = phase.steps
+                .map((s: string, i: number) => `${i + 1}. ${s}`)
+                .join("\n");
+              const taskNotes = `Method: ${schedule.method}\nPhase: ${phase.phase_name}\n\nInstructions:\n${formattedSteps}\n\nReasoning:\n${schedule.reasoning}`;
+
+              tasksToInsert.push({
+                home_id: homeId,
+                location_id: areaData.location_id,
+                area_id: assignmentData.areaId,
+                inventory_item_id: item.id,
+                type: "Planting",
+                title: `${phase.phase_name} (${selectedPlant.common_name})`,
+                description: taskNotes,
+                due_date: phase.recommended_date,
+                status: "Pending",
+              });
+            });
+          });
+        });
+
+        const { error: taskError } = await supabase
+          .from("tasks")
+          .insert(tasksToInsert);
+
+        if (taskError) {
+          Logger.error("Failed to schedule tasks", taskError);
+          toast.error("Plants assigned, but scheduling failed.");
+        } else {
+          toast.success(
+            `Assigned and scheduled ${tasksToInsert.length} distinct planting tasks!`,
+          );
+        }
+      } else {
+        toast.success(
+          `Successfully assigned ${assignmentData.quantity} plants!`,
+        );
+      }
 
       fetchData();
+      setSelectedPlant(null);
     } catch (err: any) {
       toast.error(`Assignment failed: ${err.message}`);
     } finally {
@@ -316,9 +340,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
-
       setAiDraftedData(data.plantData);
-
       setIsAiGenerating(false);
       setAiSearchResults([]);
       setAiSearchQuery("");
@@ -508,7 +530,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
         )}
       </div>
 
-      {/* FAB AND MENUS */}
       <div className="fixed bottom-10 right-10 z-40 flex flex-col items-end gap-4">
         {isAddMenuOpen && (
           <div className="flex flex-col gap-3 animate-in slide-in-from-bottom-2 fade-in">
@@ -654,7 +675,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
         </div>
       )}
 
-      {/* MODALS BELOW */}
       {confirmState.isOpen && confirmState.plant && (
         <ConfirmModal
           isOpen={confirmState.isOpen}
@@ -699,6 +719,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
           onAssign={handleAssign}
           onClose={() => setSelectedPlant(null)}
           isAssigning={actionLoading}
+          homeId={homeId} // 🚀 Added this prop!
         />
       )}
 

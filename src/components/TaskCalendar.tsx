@@ -34,7 +34,6 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
   const [blueprints, setBlueprints] = useState<any[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
 
-  // A key to force the TaskList to refresh when we manually add a new task
   const [refreshKey, setRefreshKey] = useState(0);
 
   const [isAddingTask, setIsAddingTask] = useState(false);
@@ -131,7 +130,6 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
     d1.getMonth() === d2.getMonth() &&
     d1.getDate() === d2.getDate();
 
-  // 🚀 GHOST ENGINE DRIVES THE DOTS ON THE CALENDAR
   const getTasksForDate = (date: Date) => {
     const dateStr = getLocalDateString(date);
     const targetDateMs = new Date(dateStr).getTime();
@@ -177,6 +175,9 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
     selectedLoc === "all"
       ? []
       : locations.find((l) => l.id === selectedLoc)?.areas || [];
+
+  // 🚀 Figure out if the currently selected date is TODAY
+  const isTodaySelected = isSameDay(selectedDate, new Date());
 
   return (
     <div className="w-full h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-700">
@@ -360,7 +361,6 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
                     {dayObj.date.getDate()}
                   </span>
 
-                  {/* 🚀 NEW: Render max 3 dots, then a +X indicator */}
                   {pendingTasks.length > 0 && (
                     <div className="absolute bottom-2 sm:bottom-3 flex items-center justify-center gap-0.5 sm:gap-1">
                       {pendingTasks.slice(0, 3).map((t, i) => (
@@ -409,6 +409,7 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
               key={`agenda-${selectedDate.toISOString()}-${refreshKey}`}
               homeId={homeId}
               targetDate={selectedDate}
+              showOverdue={isTodaySelected} // 🚀 PASSING DOWN THE NEW RULE
               onTaskUpdated={fetchTasksAndBlueprints}
               locationId={selectedLoc}
               areaId={selectedArea === "all" ? undefined : selectedArea}
@@ -425,8 +426,8 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
           onClose={() => setIsAddingTask(false)}
           onSuccess={() => {
             setIsAddingTask(false);
-            fetchTasksAndBlueprints(); // Update dots
-            setRefreshKey((prev) => prev + 1); // Force the TaskList to refresh immediately
+            fetchTasksAndBlueprints();
+            setRefreshKey((prev) => prev + 1);
           }}
         />
       )}
