@@ -9,12 +9,11 @@ import {
   Play,
   Info,
   Circle,
-  Zap, // 🚀 Icon for Exposure
+  Zap,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 
-// 🚀 Native Capacitor Plugin
 import { LightSensor as NativeLightSensor } from "@capgo/capacitor-light-sensor";
 
 type SensorMethod = "Native Sensor" | "Pixel Analysis";
@@ -34,15 +33,15 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     useState<SensorMethod>("Pixel Analysis");
   const [showCalibration, setShowCalibration] = useState(false);
 
-  // --- 🚀 NEW: Persistence States ---
   const [calibrationFactor, setCalibrationFactor] = useState<number>(() => {
     const saved = localStorage.getItem("rhozly_lux_calibration");
     return saved ? parseFloat(saved) : 0.2;
   });
 
+  // 🚀 Exposure Offset (Software + Hardware attempts)
   const [exposureLevel, setExposureLevel] = useState<number>(() => {
     const saved = localStorage.getItem("rhozly_exposure_offset");
-    return saved ? parseFloat(saved) : 0; // Default 0 (no offset)
+    return saved ? parseFloat(saved) : 0;
   });
 
   const [locations, setLocations] = useState<any[]>([]);
@@ -61,7 +60,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
   const calibrationRef = useRef<number>(calibrationFactor);
   const exposureRef = useRef<number>(exposureLevel);
 
-  // Sync Persistence to Refs
   useEffect(() => {
     calibrationRef.current = calibrationFactor;
     localStorage.setItem(
@@ -73,30 +71,25 @@ export default function LightSensor({ homeId }: LightSensorProps) {
   useEffect(() => {
     exposureRef.current = exposureLevel;
     localStorage.setItem("rhozly_exposure_offset", exposureLevel.toString());
-
-    // 🚀 LIVE UPDATE: If scanning, apply the exposure change immediately
     applyExposureConstraints();
   }, [exposureLevel]);
 
-  // Helper to apply camera constraints
   const applyExposureConstraints = async () => {
     if (!streamRef.current) return;
     const track = streamRef.current.getVideoTracks()[0];
     const capabilities: any = track.getCapabilities?.() || {};
 
     try {
+      // Try hardware first (might be ignored by WebView)
       if (capabilities.exposureCompensation) {
         await track.applyConstraints({
-          advanced: [
-            {
-              exposureMode: "manual",
-              exposureCompensation: exposureRef.current,
-            },
-          ],
+          advanced: [{ exposureCompensation: exposureRef.current }],
         } as any);
       }
     } catch (e) {
-      console.warn("Could not apply exposure compensation", e);
+      console.warn(
+        "Hardware exposure lock failed - falling back to software gain.",
+      );
     }
   };
 
@@ -180,8 +173,16 @@ export default function LightSensor({ homeId }: LightSensorProps) {
       const brightness =
         0.2126 * (r / count) + 0.7152 * (g / count) + 0.0722 * (b / count);
 
-      // Lux calculation based on brightness
-      const rawLux = Math.pow(brightness / 255, 2.5) * 40000;
+      // 🚀 SOFTWARE GAIN CALCULATION:
+      // We manually boost the brightness value based on the exposure slider
+      // An EV of +2 roughly equates to 4x light intensity.
+      const softwareExposureMultiplier = Math.pow(2, exposureRef.current);
+      const boostedBrightness = Math.min(
+        255,
+        brightness * softwareExposureMultiplier,
+      );
+
+      const rawLux = Math.pow(boostedBrightness / 255, 2.5) * 40000;
       return Math.round(rawLux * calibrationRef.current);
     }
     return 0;
@@ -205,17 +206,14 @@ export default function LightSensor({ homeId }: LightSensorProps) {
   const startCameraFallback = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment", width: 640, height: 480 },
+        video: { facingMode: "environment" },
       });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
-
-      // 🚀 Apply initial Exposure (Offset)
       await applyExposureConstraints();
-
       setIsScanning(true);
       processingLoop();
     } catch (err) {
@@ -325,12 +323,11 @@ export default function LightSensor({ homeId }: LightSensorProps) {
       {/* TUNING PANEL */}
       {showCalibration && method === "Pixel Analysis" && (
         <div className="mb-6 p-5 bg-white rounded-3xl border border-rhozly-outline/10 shadow-lg animate-in slide-in-from-top-4 space-y-6">
-          {/* Exposure Slider */}
           <div>
             <div className="flex justify-between items-center mb-2">
               <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1 text-rhozly-on-surface/60">
                 <Zap size={12} className="text-amber-500 fill-amber-500" />{" "}
-                Exposure Offset
+                Sensor Gain (Exposure)
               </span>
               <span className="text-xs font-bold text-rhozly-primary">
                 {exposureLevel > 0 ? `+${exposureLevel}` : exposureLevel} EV
@@ -347,11 +344,10 @@ export default function LightSensor({ homeId }: LightSensorProps) {
             />
           </div>
 
-          {/* Calibration Slider */}
           <div>
             <div className="flex justify-between items-center mb-2">
               <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/60">
-                Math Calibration
+                Final Calibration
               </span>
               <span className="text-xs font-bold text-rhozly-primary">
                 {calibrationFactor.toFixed(2)}x
@@ -370,7 +366,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         </div>
       )}
 
-      {/* MODE TOGGLES */}
       <div className="bg-rhozly-surface-low p-1.5 rounded-2xl flex items-center mb-6">
         <button
           onClick={() => setIsManualMode(false)}
@@ -400,19 +395,23 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         </div>
       )}
 
-      {/* METER DISPLAY */}
       <div className="flex-1 flex flex-col items-center justify-center py-6">
         <div
           className={`relative w-64 h-64 rounded-full flex flex-col items-center justify-center border-[12px] shadow-2xl transition-all duration-700 overflow-hidden ${method === "Pixel Analysis" && isScanning ? "border-rhozly-outline/20" : category.border} ${category.bg}`}
         >
+          {/* 🚀 LIVE VISUAL REFLECTION OF THE SLIDER */}
           <video
             ref={videoRef}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isScanning && method === "Pixel Analysis" ? "opacity-100" : "opacity-0"}`}
+            className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${isScanning && method === "Pixel Analysis" ? "opacity-100" : "opacity-0"}`}
+            style={{
+              filter: `brightness(${Math.pow(1.5, exposureLevel)}) contrast(${1 + Math.abs(exposureLevel) * 0.1})`,
+            }}
             playsInline
             muted
           />
+
           {isScanning && method === "Pixel Analysis" && (
-            <div className="absolute inset-0 bg-black/40" />
+            <div className="absolute inset-0 bg-black/20" />
           )}
           <div className="relative z-10 flex flex-col items-center">
             {isScanning ? (
@@ -452,8 +451,36 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         </div>
       </div>
 
-      {/* FOOTER ACTIONS */}
       <div className="space-y-4 mt-auto">
+        <div
+          className={`p-4 rounded-2xl flex gap-3 border shadow-sm transition-colors duration-300 ${method === "Native Sensor" ? "bg-green-50 text-green-900 border-green-200" : "bg-blue-50 text-blue-900 border-blue-200"}`}
+        >
+          <Info size={24} className="shrink-0 mt-0.5" />
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-black uppercase tracking-widest opacity-70">
+              How to use
+            </span>
+            <p className="text-[12px] font-bold leading-snug">
+              {method === "Native Sensor" ? (
+                <>
+                  Lay your phone flat with the{" "}
+                  <strong className="text-green-700">
+                    screen facing the light
+                  </strong>
+                  . The sensor is near your selfie camera.
+                </>
+              ) : (
+                <>
+                  Point your{" "}
+                  <strong className="text-blue-700">rear camera</strong>{" "}
+                  directly at the light source. Adjust "Sensor Gain" if the room
+                  looks too dark.
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+
         {!isScanning && lux > 0 ? (
           <div className="p-5 bg-rhozly-surface-low rounded-[2rem] border border-rhozly-outline/10 shadow-inner animate-in slide-in-from-bottom-4">
             <div className="flex flex-col gap-2 mb-4">
