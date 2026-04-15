@@ -2,10 +2,11 @@ import React, { useState, useEffect, useRef } from "react";
 import { Sun, Camera, Cpu, AlertTriangle, Loader2, Info } from "lucide-react";
 import toast from "react-hot-toast";
 
-// 🚀 NEW: Import the Native Capacitor Plugin
+// 🚀 Native Capacitor Plugin
 import { LightSensor as NativeLightSensor } from "@capgo/capacitor-light-sensor";
 
-type SensorMethod = "Native Sensor" | "Camera Metadata" | "Pixel Analysis";
+// 🚀 Removed Metadata mode
+type SensorMethod = "Native Sensor" | "Pixel Analysis";
 
 export default function LightSensor() {
   const [lux, setLux] = useState<number>(0);
@@ -23,13 +24,10 @@ export default function LightSensor() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const animationFrameRef = useRef<number>();
-
-  // 🚀 NEW: Reference to store the Capacitor Listener
   const sensorListenerRef = useRef<any>(null);
 
   const targetLuxRef = useRef<number>(0);
   const currentLuxRef = useRef<number>(0);
-  const lastMetadataRef = useRef<string>("");
 
   const getLightCategory = (luxValue: number) => {
     if (luxValue < 500)
@@ -73,11 +71,9 @@ export default function LightSensor() {
   // --- PRONG 1: THE CAPACITOR NATIVE SENSOR ---
   const tryNativeSensor = async () => {
     try {
-      // 1. Ask the hardware if the sensor exists (Fails gracefully on iOS)
       const { available } = await NativeLightSensor.isAvailable();
       if (!available) return false;
 
-      // 2. Set up the listener to catch data coming over the bridge
       sensorListenerRef.current = await NativeLightSensor.addListener(
         "lightSensorChange",
         (data) => {
@@ -88,11 +84,8 @@ export default function LightSensor() {
         },
       );
 
-      // 3. Start the hardware sensor (updates every 500ms for smoothness)
       await NativeLightSensor.start({ updateInterval: 500 });
       setIsScanning(true);
-
-      // We still need the processing loop just for the visual smoothing effect
       processingLoop(true);
       return true;
     } catch (err) {
@@ -101,33 +94,7 @@ export default function LightSensor() {
     }
   };
 
-  // --- PRONG 2: METADATA ---
-  const calculateLuxFromMetadata = (videoTrack: MediaStreamTrack) => {
-    try {
-      const settings: any = videoTrack.getSettings();
-      if (settings.exposureTime && settings.iso) {
-        const currentMeta = `${settings.exposureTime}-${settings.iso}`;
-
-        if (
-          lastMetadataRef.current !== "" &&
-          lastMetadataRef.current === currentMeta
-        ) {
-          return null; // Data is frozen by WebView
-        }
-        lastMetadataRef.current = currentMeta;
-
-        const N = 1.8;
-        const t = settings.exposureTime / 1000000;
-        const iso = settings.iso;
-        return Math.round((250 * (N * N)) / (t * iso));
-      }
-    } catch (e) {
-      return null;
-    }
-    return null;
-  };
-
-  // --- PRONG 3: ADVANCED SPOT-METER PIXEL ANALYSIS ---
+  // --- PRONG 2: ADVANCED SPOT-METER PIXEL ANALYSIS ---
   const calculateLuxFromPixels = () => {
     if (!videoRef.current || !canvasRef.current) return 0;
     const video = videoRef.current;
@@ -166,27 +133,10 @@ export default function LightSensor() {
   const processingLoop = (isNativeOnly = false) => {
     if (!isNativeOnly) {
       if (!streamRef.current) return;
-      const track = streamRef.current.getVideoTracks()[0];
 
-      if (isManualMode) {
-        if (manualMethod === "Camera Metadata") {
-          const m = calculateLuxFromMetadata(track);
-          targetLuxRef.current = m || 0;
-          setMethod("Camera Metadata");
-        } else if (manualMethod === "Pixel Analysis") {
-          targetLuxRef.current = calculateLuxFromPixels();
-          setMethod("Pixel Analysis");
-        }
-      } else {
-        const metadataLux = calculateLuxFromMetadata(track);
-        if (metadataLux !== null) {
-          targetLuxRef.current = metadataLux;
-          setMethod("Camera Metadata");
-        } else {
-          targetLuxRef.current = calculateLuxFromPixels();
-          setMethod("Pixel Analysis");
-        }
-      }
+      // If we are here, we are using Pixel Analysis
+      targetLuxRef.current = calculateLuxFromPixels();
+      setMethod("Pixel Analysis");
     }
 
     // 🚀 SMOOTHING (Linear Interpolation)
@@ -206,6 +156,28 @@ export default function LightSensor() {
         video: { facingMode: "environment" },
       });
       streamRef.current = stream;
+
+      // 🚀 NEW: Attempt to lock the camera's Auto-Exposure
+      const track = stream.getVideoTracks()[0];
+      try {
+        const capabilities: any = track.getCapabilities();
+        if (capabilities.exposureMode) {
+          if (capabilities.exposureMode.includes("manual")) {
+            await track.applyConstraints({
+              advanced: [{ exposureMode: "manual" }],
+            } as any);
+            toast.success("Exposure locked for accuracy!", { icon: "🔒" });
+          } else if (capabilities.exposureMode.includes("none")) {
+            await track.applyConstraints({
+              advanced: [{ exposureMode: "none" }],
+            } as any);
+            toast.success("Auto-exposure disabled!", { icon: "🔒" });
+          }
+        }
+      } catch (e) {
+        console.warn("WebView blocked exposure lock.", e);
+      }
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
@@ -223,17 +195,14 @@ export default function LightSensor() {
     targetLuxRef.current = 0;
     currentLuxRef.current = 0;
 
-    // First, try the true native hardware approach
     const nativeSuccess = await tryNativeSensor();
 
-    // If it fails (or user forces manual camera modes), fallback to video feed
     if (!nativeSuccess || (isManualMode && manualMethod !== "Native Sensor")) {
       await startCameraFallback();
     }
   };
 
   const stopScanning = async () => {
-    // Stop native plugin
     try {
       await NativeLightSensor.stop();
       if (sensorListenerRef.current) {
@@ -257,7 +226,6 @@ export default function LightSensor() {
 
   return (
     <div className="max-w-md mx-auto h-full flex flex-col p-6 animate-in fade-in duration-500">
-      <video ref={videoRef} className="hidden" playsInline muted />
       <canvas ref={canvasRef} className="hidden" />
 
       <div className="flex justify-between items-start mb-6">
@@ -287,53 +255,87 @@ export default function LightSensor() {
       </div>
 
       <div className="flex-1 flex flex-col items-center justify-center py-6">
+        {/* 🚀 THE GAUGE WITH VIDEO BACKGROUND */}
         <div
-          className={`relative w-64 h-64 rounded-full flex flex-col items-center justify-center border-[12px] shadow-2xl transition-all duration-700 ${category.bg} ${category.border}`}
+          className={`relative w-64 h-64 rounded-full flex flex-col items-center justify-center border-[12px] shadow-2xl transition-all duration-700 overflow-hidden ${
+            method === "Pixel Analysis" && isScanning
+              ? "border-rhozly-outline/20"
+              : category.border
+          } ${category.bg}`}
         >
-          {isScanning ? (
-            <>
-              <span
-                className={`text-6xl font-black font-display tracking-tighter ${category.color} transition-colors duration-700`}
-              >
-                {lux.toLocaleString()}
-              </span>
-              <span className="text-sm font-bold uppercase tracking-widest opacity-50 mt-1">
-                LUX
-              </span>
-              <div
-                className={`absolute -bottom-4 px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest text-white shadow-lg ${category.color.replace("text-", "bg-")}`}
-              >
-                {category.label}
-              </div>
-            </>
-          ) : (
-            <Loader2
-              size={48}
-              className="animate-spin text-rhozly-primary/30"
-            />
+          {/* Live Camera Feed */}
+          <video
+            ref={videoRef}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
+              isScanning && method === "Pixel Analysis"
+                ? "opacity-100"
+                : "opacity-0"
+            }`}
+            playsInline
+            muted
+          />
+
+          {/* Dark Overlay so text is readable over the camera */}
+          {isScanning && method === "Pixel Analysis" && (
+            <div className="absolute inset-0 bg-black/40" />
           )}
+
+          {/* Text Content */}
+          <div className="relative z-10 flex flex-col items-center">
+            {isScanning ? (
+              <>
+                <span
+                  className={`text-6xl font-black font-display tracking-tighter transition-colors duration-700 ${
+                    method === "Pixel Analysis" ? "text-white" : category.color
+                  }`}
+                >
+                  {lux.toLocaleString()}
+                </span>
+                <span
+                  className={`text-sm font-bold uppercase tracking-widest mt-1 ${
+                    method === "Pixel Analysis" ? "text-white/70" : "opacity-50"
+                  }`}
+                >
+                  LUX
+                </span>
+                <div
+                  className={`absolute -bottom-16 px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest text-white shadow-lg transition-colors duration-700 ${category.color.replace(
+                    "text-",
+                    "bg-",
+                  )}`}
+                >
+                  {category.label}
+                </div>
+              </>
+            ) : (
+              <Loader2
+                size={48}
+                className="animate-spin text-rhozly-primary/30"
+              />
+            )}
+          </div>
         </div>
 
         {isManualMode ? (
-          <div className="mt-10 flex flex-wrap justify-center gap-2">
-            {(
-              [
-                "Native Sensor",
-                "Camera Metadata",
-                "Pixel Analysis",
-              ] as SensorMethod[]
-            ).map((m) => (
-              <button
-                key={m}
-                onClick={() => setManualMethod(m)}
-                className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase border transition-all ${manualMethod === m ? "bg-rhozly-primary text-white border-rhozly-primary" : "bg-white text-rhozly-on-surface/40 border-rhozly-outline/10"}`}
-              >
-                {m}
-              </button>
-            ))}
+          <div className="mt-14 flex flex-wrap justify-center gap-2">
+            {(["Native Sensor", "Pixel Analysis"] as SensorMethod[]).map(
+              (m) => (
+                <button
+                  key={m}
+                  onClick={() => setManualMethod(m)}
+                  className={`px-3 py-2 rounded-xl text-[9px] font-black uppercase border transition-all ${
+                    manualMethod === m
+                      ? "bg-rhozly-primary text-white border-rhozly-primary"
+                      : "bg-white text-rhozly-on-surface/40 border-rhozly-outline/10"
+                  }`}
+                >
+                  {m}
+                </button>
+              ),
+            )}
           </div>
         ) : (
-          <div className="mt-12 flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-rhozly-outline/10 shadow-sm">
+          <div className="mt-14 flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-rhozly-outline/10 shadow-sm">
             <div
               className={`w-2 h-2 rounded-full animate-pulse ${method === "Native Sensor" ? "bg-green-500" : "bg-amber-500"}`}
             />
@@ -345,12 +347,42 @@ export default function LightSensor() {
       </div>
 
       <div className="space-y-4 mt-auto">
-        <div className="bg-blue-50 p-4 rounded-2xl flex gap-3 text-blue-800 border border-blue-100 shadow-sm">
-          <Info size={20} className="shrink-0" />
-          <p className="text-[11px] font-bold leading-tight">
-            Point your phone directly at the light source from where the plant
-            sits. If using Pixel mode, it analyzes the center of the camera.
-          </p>
+        {/* 🚀 DYNAMIC INSTRUCTION BOX */}
+        <div
+          className={`p-4 rounded-2xl flex gap-3 border shadow-sm transition-colors duration-300 ${
+            method === "Native Sensor"
+              ? "bg-green-50 text-green-900 border-green-200"
+              : "bg-blue-50 text-blue-900 border-blue-200"
+          }`}
+        >
+          <Info size={24} className="shrink-0 mt-0.5" />
+          <div className="flex flex-col gap-1">
+            <span className="text-[10px] font-black uppercase tracking-widest opacity-70">
+              How to hold your phone
+            </span>
+            <p className="text-[12px] font-bold leading-snug">
+              {method === "Initializing..." && "Waiting for sensor data..."}
+
+              {method === "Native Sensor" && (
+                <>
+                  Lay your phone flat with the{" "}
+                  <strong className="text-green-700">
+                    screen facing the light source
+                  </strong>
+                  . The sensor is near your selfie camera.
+                </>
+              )}
+
+              {method === "Pixel Analysis" && (
+                <>
+                  Point your{" "}
+                  <strong className="text-blue-700">rear camera</strong>{" "}
+                  directly at the light source. The circle shows exactly what
+                  the meter is seeing.
+                </>
+              )}
+            </p>
+          </div>
         </div>
 
         <button
