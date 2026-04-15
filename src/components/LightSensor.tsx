@@ -8,7 +8,8 @@ import {
   Save,
   Play,
   Info,
-  Circle, // 🚀 NEW: Record Icon
+  Circle,
+  Zap, // 🚀 Icon for Exposure
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
@@ -28,15 +29,20 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     SensorMethod | "Initializing..." | "Paused"
   >("Initializing...");
   const [isScanning, setIsScanning] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
   const [isManualMode, setIsManualMode] = useState(false);
   const [manualMethod, setManualMethod] =
     useState<SensorMethod>("Pixel Analysis");
   const [showCalibration, setShowCalibration] = useState(false);
+
+  // --- 🚀 NEW: Persistence States ---
   const [calibrationFactor, setCalibrationFactor] = useState<number>(() => {
     const saved = localStorage.getItem("rhozly_lux_calibration");
     return saved ? parseFloat(saved) : 0.2;
+  });
+
+  const [exposureLevel, setExposureLevel] = useState<number>(() => {
+    const saved = localStorage.getItem("rhozly_exposure_offset");
+    return saved ? parseFloat(saved) : 0; // Default 0 (no offset)
   });
 
   const [locations, setLocations] = useState<any[]>([]);
@@ -51,8 +57,11 @@ export default function LightSensor({ homeId }: LightSensorProps) {
   const sensorListenerRef = useRef<any>(null);
   const targetLuxRef = useRef<number>(0);
   const currentLuxRef = useRef<number>(0);
-  const calibrationRef = useRef<number>(calibrationFactor);
 
+  const calibrationRef = useRef<number>(calibrationFactor);
+  const exposureRef = useRef<number>(exposureLevel);
+
+  // Sync Persistence to Refs
   useEffect(() => {
     calibrationRef.current = calibrationFactor;
     localStorage.setItem(
@@ -60,6 +69,36 @@ export default function LightSensor({ homeId }: LightSensorProps) {
       calibrationFactor.toString(),
     );
   }, [calibrationFactor]);
+
+  useEffect(() => {
+    exposureRef.current = exposureLevel;
+    localStorage.setItem("rhozly_exposure_offset", exposureLevel.toString());
+
+    // 🚀 LIVE UPDATE: If scanning, apply the exposure change immediately
+    applyExposureConstraints();
+  }, [exposureLevel]);
+
+  // Helper to apply camera constraints
+  const applyExposureConstraints = async () => {
+    if (!streamRef.current) return;
+    const track = streamRef.current.getVideoTracks()[0];
+    const capabilities: any = track.getCapabilities?.() || {};
+
+    try {
+      if (capabilities.exposureCompensation) {
+        await track.applyConstraints({
+          advanced: [
+            {
+              exposureMode: "manual",
+              exposureCompensation: exposureRef.current,
+            },
+          ],
+        } as any);
+      }
+    } catch (e) {
+      console.warn("Could not apply exposure compensation", e);
+    }
+  };
 
   useEffect(() => {
     if (!homeId || homeId === "undefined") return;
@@ -140,6 +179,8 @@ export default function LightSensor({ homeId }: LightSensorProps) {
       const count = data.length / 4;
       const brightness =
         0.2126 * (r / count) + 0.7152 * (g / count) + 0.0722 * (b / count);
+
+      // Lux calculation based on brightness
       const rawLux = Math.pow(brightness / 255, 2.5) * 40000;
       return Math.round(rawLux * calibrationRef.current);
     }
@@ -164,41 +205,25 @@ export default function LightSensor({ homeId }: LightSensorProps) {
   const startCameraFallback = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: { facingMode: "environment" },
+        video: { facingMode: "environment", width: 640, height: 480 },
       });
       streamRef.current = stream;
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         await videoRef.current.play();
       }
-      const track = stream.getVideoTracks()[0];
-      const capabilities: any = track.getCapabilities?.() || {};
-      if (capabilities.exposureMode) {
-        await track.applyConstraints({
-          advanced: [{ exposureMode: "continuous" }],
-        } as any);
-        await new Promise((resolve) => setTimeout(resolve, 500));
-        const lockMode = capabilities.exposureMode.includes("manual")
-          ? "manual"
-          : "none";
-        await track.applyConstraints({
-          advanced: [{ exposureMode: lockMode }],
-        } as any);
-        toast.success("Exposure Balanced & Locked", {
-          icon: "🔒",
-          duration: 1500,
-        });
-      }
+
+      // 🚀 Apply initial Exposure (Offset)
+      await applyExposureConstraints();
+
       setIsScanning(true);
       processingLoop();
     } catch (err) {
-      setError("Camera access denied.");
-      toast.error("Pixel Analysis requires Camera!");
+      toast.error("Camera Access Denied");
     }
   };
 
   const startScanning = async () => {
-    setError(null);
     targetLuxRef.current = 0;
     currentLuxRef.current = 0;
     try {
@@ -297,6 +322,55 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         )}
       </div>
 
+      {/* TUNING PANEL */}
+      {showCalibration && method === "Pixel Analysis" && (
+        <div className="mb-6 p-5 bg-white rounded-3xl border border-rhozly-outline/10 shadow-lg animate-in slide-in-from-top-4 space-y-6">
+          {/* Exposure Slider */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1 text-rhozly-on-surface/60">
+                <Zap size={12} className="text-amber-500 fill-amber-500" />{" "}
+                Exposure Offset
+              </span>
+              <span className="text-xs font-bold text-rhozly-primary">
+                {exposureLevel > 0 ? `+${exposureLevel}` : exposureLevel} EV
+              </span>
+            </div>
+            <input
+              type="range"
+              min="-2"
+              max="2"
+              step="0.1"
+              value={exposureLevel}
+              onChange={(e) => setExposureLevel(parseFloat(e.target.value))}
+              className="w-full accent-rhozly-primary"
+            />
+          </div>
+
+          {/* Calibration Slider */}
+          <div>
+            <div className="flex justify-between items-center mb-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/60">
+                Math Calibration
+              </span>
+              <span className="text-xs font-bold text-rhozly-primary">
+                {calibrationFactor.toFixed(2)}x
+              </span>
+            </div>
+            <input
+              type="range"
+              min="0.01"
+              max="2.00"
+              step="0.01"
+              value={calibrationFactor}
+              onChange={(e) => setCalibrationFactor(parseFloat(e.target.value))}
+              className="w-full accent-rhozly-primary"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* MODE TOGGLES */}
       <div className="bg-rhozly-surface-low p-1.5 rounded-2xl flex items-center mb-6">
         <button
           onClick={() => setIsManualMode(false)}
@@ -326,28 +400,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         </div>
       )}
 
-      {showCalibration && method === "Pixel Analysis" && (
-        <div className="mb-6 p-4 bg-white rounded-2xl border border-rhozly-outline/10 shadow-sm animate-in slide-in-from-top-4">
-          <div className="flex justify-between items-center mb-2">
-            <span className="text-xs font-black uppercase text-rhozly-on-surface">
-              Tune Camera
-            </span>
-            <span className="text-xs font-bold text-rhozly-primary bg-rhozly-primary/10 px-2 py-1 rounded-md">
-              {calibrationFactor.toFixed(2)}x
-            </span>
-          </div>
-          <input
-            type="range"
-            min="0.01"
-            max="2.00"
-            step="0.01"
-            value={calibrationFactor}
-            onChange={(e) => setCalibrationFactor(parseFloat(e.target.value))}
-            className="w-full accent-rhozly-primary"
-          />
-        </div>
-      )}
-
+      {/* METER DISPLAY */}
       <div className="flex-1 flex flex-col items-center justify-center py-6">
         <div
           className={`relative w-64 h-64 rounded-full flex flex-col items-center justify-center border-[12px] shadow-2xl transition-all duration-700 overflow-hidden ${method === "Pixel Analysis" && isScanning ? "border-rhozly-outline/20" : category.border} ${category.bg}`}
@@ -375,7 +428,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
                   LUX
                 </span>
                 <div
-                  className={`absolute -bottom-16 px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest text-white shadow-lg transition-colors duration-700 ${category.banner.replace("text-", "bg-")}`}
+                  className={`absolute -bottom-16 px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest text-white shadow-lg transition-colors duration-700 ${category.banner}`}
                 >
                   {category.label}
                 </div>
@@ -399,36 +452,8 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         </div>
       </div>
 
+      {/* FOOTER ACTIONS */}
       <div className="space-y-4 mt-auto">
-        <div
-          className={`p-4 rounded-2xl flex gap-3 border shadow-sm transition-colors duration-300 ${method === "Native Sensor" ? "bg-green-50 text-green-900 border-green-200" : "bg-blue-50 text-blue-900 border-blue-200"}`}
-        >
-          <Info size={24} className="shrink-0 mt-0.5" />
-          <div className="flex flex-col gap-1">
-            <span className="text-[10px] font-black uppercase tracking-widest opacity-70">
-              How to use
-            </span>
-            <p className="text-[12px] font-bold leading-snug">
-              {method === "Native Sensor" ? (
-                <>
-                  Lay your phone flat with the{" "}
-                  <strong className="text-green-700">
-                    screen facing the light
-                  </strong>
-                  . The sensor is near your selfie camera.
-                </>
-              ) : (
-                <>
-                  Point your{" "}
-                  <strong className="text-blue-700">rear camera</strong>{" "}
-                  directly at the light source. The circle shows exactly what
-                  the meter is seeing.
-                </>
-              )}
-            </p>
-          </div>
-        </div>
-
         {!isScanning && lux > 0 ? (
           <div className="p-5 bg-rhozly-surface-low rounded-[2rem] border border-rhozly-outline/10 shadow-inner animate-in slide-in-from-bottom-4">
             <div className="flex flex-col gap-2 mb-4">
@@ -487,7 +512,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
             </div>
           </div>
         ) : (
-          /* 🚀 UPDATED RECORD BUTTON: RED COLOR + RECORD ICON */
           <button
             onClick={() => stopScanning()}
             className="w-full py-5 rounded-2xl font-black text-lg shadow-xl flex items-center justify-center gap-2 bg-red-600 text-white active:scale-95 transition-all hover:bg-red-700"
