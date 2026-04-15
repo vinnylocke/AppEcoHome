@@ -6,10 +6,9 @@ import {
   SlidersHorizontal,
   MapPin,
   Save,
-  Pause,
   Play,
   Info,
-  AlertTriangle,
+  Circle, // 🚀 NEW: Record Icon
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
@@ -24,7 +23,6 @@ interface LightSensorProps {
 }
 
 export default function LightSensor({ homeId }: LightSensorProps) {
-  // --- Core States ---
   const [lux, setLux] = useState<number>(0);
   const [method, setMethod] = useState<
     SensorMethod | "Initializing..." | "Paused"
@@ -32,7 +30,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
   const [isScanning, setIsScanning] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // --- Mode States ---
   const [isManualMode, setIsManualMode] = useState(false);
   const [manualMethod, setManualMethod] =
     useState<SensorMethod>("Pixel Analysis");
@@ -42,13 +39,11 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     return saved ? parseFloat(saved) : 0.2;
   });
 
-  // --- Assignment States ---
   const [locations, setLocations] = useState<any[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>("");
   const [selectedAreaId, setSelectedAreaId] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
 
-  // --- Hardware Refs ---
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -58,7 +53,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
   const currentLuxRef = useRef<number>(0);
   const calibrationRef = useRef<number>(calibrationFactor);
 
-  // Sync Calibration
   useEffect(() => {
     calibrationRef.current = calibrationFactor;
     localStorage.setItem(
@@ -67,7 +61,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     );
   }, [calibrationFactor]);
 
-  // Fetch Areas for recording
   useEffect(() => {
     if (!homeId || homeId === "undefined") return;
     const fetchAreas = async () => {
@@ -122,9 +115,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     };
   };
 
-  const category = getLightCategory(lux);
-
-  // --- PIXEL ENGINE ---
   const calculateLuxFromPixels = () => {
     if (!videoRef.current || !canvasRef.current) return 0;
     const video = videoRef.current;
@@ -171,43 +161,39 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     );
   };
 
-  // --- SCANNING CONTROL ---
   const startCameraFallback = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { facingMode: "environment" },
       });
       streamRef.current = stream;
-
-      // 🔒 RESTORED: Auto-Exposure Lock logic
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+        await videoRef.current.play();
+      }
       const track = stream.getVideoTracks()[0];
       const capabilities: any = track.getCapabilities?.() || {};
       if (capabilities.exposureMode) {
-        const mode = capabilities.exposureMode.includes("manual")
+        await track.applyConstraints({
+          advanced: [{ exposureMode: "continuous" }],
+        } as any);
+        await new Promise((resolve) => setTimeout(resolve, 500));
+        const lockMode = capabilities.exposureMode.includes("manual")
           ? "manual"
-          : capabilities.exposureMode.includes("none")
-            ? "none"
-            : null;
-        if (mode) {
-          await track.applyConstraints({
-            advanced: [{ exposureMode: mode }],
-          } as any);
-          toast.success("Exposure locked for accuracy!", {
-            icon: "🔒",
-            duration: 1000,
-          });
-        }
-      }
-
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-        videoRef.current.play();
+          : "none";
+        await track.applyConstraints({
+          advanced: [{ exposureMode: lockMode }],
+        } as any);
+        toast.success("Exposure Balanced & Locked", {
+          icon: "🔒",
+          duration: 1500,
+        });
       }
       setIsScanning(true);
       processingLoop();
     } catch (err) {
       setError("Camera access denied.");
-      toast.error("Camera required for this mode!");
+      toast.error("Pixel Analysis requires Camera!");
     }
   };
 
@@ -215,8 +201,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     setError(null);
     targetLuxRef.current = 0;
     currentLuxRef.current = 0;
-
-    // Try Native
     try {
       const { available } = await NativeLightSensor.isAvailable();
       if (available && (!isManualMode || manualMethod === "Native Sensor")) {
@@ -235,8 +219,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         return;
       }
     } catch (e) {}
-
-    // Fallback to Camera
     await startCameraFallback();
   };
 
@@ -270,7 +252,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
           ),
         })),
       );
-      startScanning(); // Resume
+      startScanning();
     } catch (e) {
       toast.error("Save failed.");
     } finally {
@@ -285,6 +267,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     };
   }, [isManualMode, manualMethod]);
 
+  const category = getLightCategory(lux);
   const availableAreas = selectedLocationId
     ? locations.find((l) => l.id === selectedLocationId)?.areas || []
     : [];
@@ -293,7 +276,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     <div className="max-w-md mx-auto h-full flex flex-col p-6 animate-in fade-in duration-500 overflow-y-auto custom-scrollbar pb-32">
       <canvas ref={canvasRef} className="hidden" />
 
-      {/* HEADER */}
       <div className="flex justify-between items-start mb-6">
         <div>
           <h2 className="text-3xl font-black font-display text-rhozly-on-surface">
@@ -315,7 +297,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         )}
       </div>
 
-      {/* MODE TOGGLES */}
       <div className="bg-rhozly-surface-low p-1.5 rounded-2xl flex items-center mb-6">
         <button
           onClick={() => setIsManualMode(false)}
@@ -345,7 +326,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         </div>
       )}
 
-      {/* CALIBRATION */}
       {showCalibration && method === "Pixel Analysis" && (
         <div className="mb-6 p-4 bg-white rounded-2xl border border-rhozly-outline/10 shadow-sm animate-in slide-in-from-top-4">
           <div className="flex justify-between items-center mb-2">
@@ -368,12 +348,10 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         </div>
       )}
 
-      {/* THE METER CIRCLE */}
       <div className="flex-1 flex flex-col items-center justify-center py-6">
         <div
           className={`relative w-64 h-64 rounded-full flex flex-col items-center justify-center border-[12px] shadow-2xl transition-all duration-700 overflow-hidden ${method === "Pixel Analysis" && isScanning ? "border-rhozly-outline/20" : category.border} ${category.bg}`}
         >
-          {/* 🚀 FIXED: Video only shows if method is Pixel Analysis */}
           <video
             ref={videoRef}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${isScanning && method === "Pixel Analysis" ? "opacity-100" : "opacity-0"}`}
@@ -383,7 +361,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
           {isScanning && method === "Pixel Analysis" && (
             <div className="absolute inset-0 bg-black/40" />
           )}
-
           <div className="relative z-10 flex flex-col items-center">
             {isScanning ? (
               <>
@@ -398,7 +375,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
                   LUX
                 </span>
                 <div
-                  className={`absolute -bottom-16 px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest text-white shadow-lg transition-colors duration-700 ${category.banner}`}
+                  className={`absolute -bottom-16 px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest text-white shadow-lg transition-colors duration-700 ${category.banner.replace("text-", "bg-")}`}
                 >
                   {category.label}
                 </div>
@@ -412,7 +389,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
           </div>
         </div>
 
-        {/* Status Indicator */}
         <div className="mt-14 flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-rhozly-outline/10 shadow-sm">
           <div
             className={`w-2 h-2 rounded-full animate-pulse ${method === "Native Sensor" ? "bg-green-500" : "bg-amber-500"}`}
@@ -423,7 +399,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         </div>
       </div>
 
-      {/* 🚀 RESTORED: Contextual Instructions */}
       <div className="space-y-4 mt-auto">
         <div
           className={`p-4 rounded-2xl flex gap-3 border shadow-sm transition-colors duration-300 ${method === "Native Sensor" ? "bg-green-50 text-green-900 border-green-200" : "bg-blue-50 text-blue-900 border-blue-200"}`}
@@ -454,7 +429,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
           </div>
         </div>
 
-        {/* ASSIGNMENT UI */}
         {!isScanning && lux > 0 ? (
           <div className="p-5 bg-rhozly-surface-low rounded-[2rem] border border-rhozly-outline/10 shadow-inner animate-in slide-in-from-bottom-4">
             <div className="flex flex-col gap-2 mb-4">
@@ -513,11 +487,13 @@ export default function LightSensor({ homeId }: LightSensorProps) {
             </div>
           </div>
         ) : (
+          /* 🚀 UPDATED RECORD BUTTON: RED COLOR + RECORD ICON */
           <button
             onClick={() => stopScanning()}
-            className="w-full py-5 rounded-2xl font-black text-lg shadow-xl flex items-center justify-center gap-2 bg-rhozly-on-surface text-white active:scale-95 transition-all"
+            className="w-full py-5 rounded-2xl font-black text-lg shadow-xl flex items-center justify-center gap-2 bg-red-600 text-white active:scale-95 transition-all hover:bg-red-700"
           >
-            <Pause size={20} fill="currentColor" /> Capture Reading
+            <Circle size={20} fill="white" className="animate-pulse" /> Capture
+            Reading
           </button>
         )}
       </div>
