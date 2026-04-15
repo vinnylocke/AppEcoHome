@@ -11,8 +11,8 @@ import {
   Trash2,
   Edit3,
   Search,
-  Sparkles, // 🚀 NEW: Icon for AI
-  BrainCircuit, // 🚀 NEW: Icon for AI
+  Sparkles,
+  BrainCircuit,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -51,7 +51,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const [isAddingManual, setIsAddingManual] = useState(false);
   const [isSearchingApi, setIsSearchingApi] = useState(false);
 
-  // 🚀 NEW: AI Generation States
+  // AI Generation States
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [aiSearchQuery, setAiSearchQuery] = useState("");
   const [aiSearchResults, setAiSearchResults] = useState<string[]>([]);
@@ -136,14 +136,19 @@ export default function TheShed({ homeId }: { homeId: string }) {
     if (!plant) return;
     setActionLoading(true);
     try {
-      await supabase
+      const { error } = await supabase
         .from("plants")
         .update({ is_archived: !plant.is_archived })
         .eq("id", plant.id);
+
+      if (error) throw error;
+
       toast.success(
         plant.is_archived ? "Restored to active" : "Moved to archive",
       );
       fetchData();
+    } catch (err: any) {
+      toast.error(`Failed to update status: ${err.message}`);
     } finally {
       setActionLoading(false);
       setConfirmState({ isOpen: false, type: "delete", plant: null });
@@ -155,10 +160,17 @@ export default function TheShed({ homeId }: { homeId: string }) {
     if (!plant) return;
     setActionLoading(true);
     try {
-      await supabase.from("plants").delete().eq("id", plant.id);
+      const { error } = await supabase
+        .from("plants")
+        .delete()
+        .eq("id", plant.id);
+      if (error) throw error;
+
       toast.success(`${plant.common_name} deleted.`);
       setConfirmState({ isOpen: false, type: "delete", plant: null });
       fetchData();
+    } catch (err: any) {
+      toast.error(`Failed to delete: ${err.message}`);
     } finally {
       setActionLoading(false);
     }
@@ -168,7 +180,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
     setActionLoading(true);
     try {
       const manualId = Math.floor(Date.now() / 1000);
-      await supabase.from("plants").insert([
+      const { error } = await supabase.from("plants").insert([
         {
           ...plantData,
           id: manualId,
@@ -177,25 +189,48 @@ export default function TheShed({ homeId }: { homeId: string }) {
           perenual_id: null,
         },
       ]);
+
+      // 🚀 EXPLICIT ERROR CHECK added here
+      if (error) throw error;
+
       toast.success(`${plantData.common_name} added to shed!`);
       setIsAddingManual(false);
-      setAiDraftedData(null); // Reset drafted data
+      setAiDraftedData(null);
       fetchData();
+    } catch (err: any) {
+      Logger.error("Failed to add manual plant", err);
+      toast.error(`Failed to save: ${err.message}`);
     } finally {
       setActionLoading(false);
     }
   };
 
+  // 🚀 REPLACEMENT FUNCTION FOR TheShed.tsx
   const handleUpdatePlant = async (updatedData: any) => {
     setActionLoading(true);
     try {
-      await supabase
+      // 1. Strip virtual columns so Supabase doesn't throw a 400 error
+      const { instance_count, inventory_items, ...cleanPayload } = updatedData;
+
+      // 2. Save to database
+      const { error } = await supabase
         .from("plants")
-        .update(updatedData)
-        .eq("id", updatedData.id);
-      toast.success(`${updatedData.common_name} updated!`);
-      setEditingPlant(null);
+        .update(cleanPayload)
+        .eq("id", cleanPayload.id);
+
+      if (error) throw error;
+
+      toast.success(`${cleanPayload.common_name} updated!`);
+
+      // 🛑 THE MAGIC FIX: Update the state with the NEW data instead of 'null'
+      // This forces the modal to stay open and display the fresh changes!
+      setEditingPlant(updatedData);
+
+      // Refresh the background list silently
       fetchData();
+    } catch (err: any) {
+      Logger.error("Failed to update plant", err);
+      toast.error(`Update failed: ${err.message}`);
     } finally {
       setActionLoading(false);
     }
@@ -205,11 +240,13 @@ export default function TheShed({ homeId }: { homeId: string }) {
     if (!selectedPlant) return;
     setActionLoading(true);
     try {
-      const { data: areaData } = await supabase
+      const { data: areaData, error: areaError } = await supabase
         .from("areas")
         .select("name, location_id, locations(name)")
         .eq("id", assignmentData.areaId)
         .single();
+
+      if (areaError) throw areaError;
       if (!areaData) throw new Error("Area not found");
 
       const locationName = areaData.locations?.name || "Unknown Location";
@@ -239,9 +276,13 @@ export default function TheShed({ homeId }: { homeId: string }) {
           .padStart(4, "0")}`,
       }));
 
-      await supabase.from("inventory_items").insert(recordsToInsert);
+      const { error: insertError } = await supabase
+        .from("inventory_items")
+        .insert(recordsToInsert);
+      if (insertError) throw insertError;
+
       toast.success(`Successfully assigned ${assignmentData.quantity} plants!`);
-      setSelectedPlant(null);
+
       fetchData();
     } catch (err: any) {
       toast.error(`Assignment failed: ${err.message}`);
@@ -250,7 +291,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
     }
   };
 
-  // 🚀 AI FUNCTIONS
   const handleAiSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!aiSearchQuery.trim()) return;
@@ -279,7 +319,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
 
       setAiDraftedData(data.plantData);
 
-      // Close the AI generator modal, reset states, and open the manual form!
       setIsAiGenerating(false);
       setAiSearchResults([]);
       setAiSearchQuery("");
@@ -473,7 +512,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
       <div className="fixed bottom-10 right-10 z-40 flex flex-col items-end gap-4">
         {isAddMenuOpen && (
           <div className="flex flex-col gap-3 animate-in slide-in-from-bottom-2 fade-in">
-            {/* 🚀 NEW: AI GENERATE OPTION */}
             <button
               onClick={() => {
                 setIsAiGenerating(true);
@@ -515,7 +553,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
         </button>
       </div>
 
-      {/* 🚀 NEW: AI SEARCH AND DRAFT MODAL */}
       {isAiGenerating && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in zoom-in-95">
           <div className="bg-rhozly-surface-lowest w-full max-w-lg rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 flex flex-col max-h-[85vh]">
@@ -682,7 +719,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
               <button
                 onClick={() => {
                   setIsAddingManual(false);
-                  setAiDraftedData(null); // Reset on close
+                  setAiDraftedData(null);
                 }}
                 className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
               >
@@ -690,7 +727,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
               </button>
             </div>
             <ManualPlantCreation
-              initialData={aiDraftedData} // 🚀 Feeds AI data right into the form
+              initialData={aiDraftedData}
               onSave={handleManualSave}
               onCancel={() => {
                 setIsAddingManual(false);
@@ -727,7 +764,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
   );
 }
 
-// Dummy ConfirmModal
 function ConfirmModal({
   isOpen,
   isLoading,

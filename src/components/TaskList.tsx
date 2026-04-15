@@ -17,6 +17,8 @@ import {
   X,
   Leaf,
   CloudRain,
+  AlertCircle,
+  CalendarClock,
 } from "lucide-react";
 import type { Task } from "./TaskCalendar";
 import toast from "react-hot-toast";
@@ -39,6 +41,19 @@ const getLocalDateString = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const formatDisplayDate = (dateString: string) => {
+  if (!dateString) return "";
+  const [y, m, d] = dateString.split("-");
+  return new Date(parseInt(y), parseInt(m) - 1, parseInt(d)).toLocaleDateString(
+    "en-US",
+    {
+      month: "short",
+      day: "numeric",
+      year: "numeric",
+    },
+  );
+};
+
 export default function TaskList({
   homeId,
   areaId,
@@ -53,149 +68,175 @@ export default function TaskList({
   const [isUpdatingTask, setIsUpdatingTask] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
 
+  const [isPostponing, setIsPostponing] = useState(false);
+  const [postponeDate, setPostponeDate] = useState("");
+
   const dateStr = getLocalDateString(targetDate || new Date());
+  const todayStr = getLocalDateString(new Date());
   const typesFilterStr = selectedTypes?.join(",") || "";
 
-  const fetchTasksAndGhosts = useCallback(async () => {
-    setLoading(true);
-    const targetDateMs = new Date(dateStr).getTime();
+  useEffect(() => {
+    if (selectedTask) {
+      const tomorrow = new Date();
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      setPostponeDate(getLocalDateString(tomorrow));
+      setIsPostponing(false);
+    }
+  }, [selectedTask]);
 
-    try {
-      // 🚀 1. Query the actual database for rain alerts
-      let isRainingTargetDate = false;
+  // 🚀 FIX: Added "silent" parameter to allow background refreshing without flashes
+  const fetchTasksAndGhosts = useCallback(
+    async (silent = false) => {
+      if (!silent) setLoading(true);
+      const targetDateMs = new Date(dateStr).getTime();
 
-      const { data: rainAlerts, error: alertError } = await supabase
-        .from("weather_alerts")
-        .select("starts_at, locations!inner(home_id)")
-        .eq("locations.home_id", homeId)
-        .eq("type", "rain");
+      try {
+        let isRainingTargetDate = false;
 
-      if (!alertError && rainAlerts && rainAlerts.length > 0) {
-        // If there is a rain alert that starts on our target date, it's a rainy day!
-        isRainingTargetDate = rainAlerts.some((alert) =>
-          alert.starts_at.startsWith(dateStr),
-        );
-      }
+        const { data: rainAlerts, error: alertError } = await supabase
+          .from("weather_alerts")
+          .select("starts_at, locations!inner(home_id)")
+          .eq("locations.home_id", homeId)
+          .eq("type", "rain");
 
-      // 🚀 2. FETCH PHYSICAL TASKS
-      let physicalQuery = supabase
-        .from("tasks")
-        .select(
-          `*, inventory_items(plant_name, identifier, location_name, area_name, plants(thumbnail_url)), locations(is_outside)`,
-        )
-        .eq("home_id", homeId)
-        .eq("due_date", dateStr)
-        .neq("status", "Skipped");
-
-      if (areaId) physicalQuery = physicalQuery.eq("area_id", areaId);
-      if (inventoryItemId)
-        physicalQuery = physicalQuery.eq("inventory_item_id", inventoryItemId);
-
-      const { data: physicalData, error: physicalError } = await physicalQuery;
-      if (physicalError) throw physicalError;
-
-      // Apply the weather logic to physical tasks too!
-      const physicalTasks = (physicalData || []).map((t) => {
-        const isOutside = t.locations?.is_outside;
-        const isAutoCompleted =
-          isRainingTargetDate &&
-          isOutside &&
-          t.type === "Watering" &&
-          t.status === "Pending";
-
-        if (isAutoCompleted) {
-          return { ...t, status: "Completed", isAutoCompleted: true };
+        if (!alertError && rainAlerts && rainAlerts.length > 0) {
+          isRainingTargetDate = rainAlerts.some((alert) =>
+            alert.starts_at.startsWith(dateStr),
+          );
         }
-        return t;
-      });
 
-      // 🚀 3. FETCH BLUEPRINTS FOR GHOST GENERATION
-      let bpQuery = supabase
-        .from("task_blueprints")
-        .select(
-          `*, inventory_items(plant_name, identifier, location_name, area_name, plants(thumbnail_url)), locations(is_outside)`,
-        )
-        .eq("home_id", homeId)
-        .eq("is_recurring", true);
+        let physicalQuery = supabase
+          .from("tasks")
+          .select(
+            `*, inventory_items(plant_name, identifier, location_name, area_name, plants(thumbnail_url)), locations(is_outside)`,
+          )
+          .eq("home_id", homeId)
+          .neq("status", "Skipped")
+          .lte("due_date", dateStr);
 
-      if (areaId) bpQuery = bpQuery.eq("area_id", areaId);
-      if (inventoryItemId)
-        bpQuery = bpQuery.eq("inventory_item_id", inventoryItemId);
-
-      const { data: bpData, error: bpError } = await bpQuery;
-      if (bpError) throw bpError;
-      const blueprints = bpData || [];
-
-      // 🚀 4. GENERATE GHOSTS
-      const ghostTasks: any[] = [];
-
-      blueprints.forEach((bp) => {
-        const safeDateString =
-          bp.start_date || bp.created_at || new Date().toISOString();
-        const anchorDateStr = safeDateString.split("T")[0];
-        const anchorDateMs = new Date(anchorDateStr).getTime();
-
-        if (targetDateMs < anchorDateMs) return;
-        if (bp.end_date && targetDateMs > new Date(bp.end_date).getTime())
-          return;
-
-        const diffDays = Math.round(
-          (targetDateMs - anchorDateMs) / (1000 * 60 * 60 * 24),
-        );
-
-        if (diffDays % bp.frequency_days === 0) {
-          const hasPhysical = physicalTasks.some(
-            (t) => t.blueprint_id === bp.id,
+        if (areaId) physicalQuery = physicalQuery.eq("area_id", areaId);
+        if (inventoryItemId)
+          physicalQuery = physicalQuery.eq(
+            "inventory_item_id",
+            inventoryItemId,
           );
 
-          if (!hasPhysical) {
-            const isOutside = bp.locations?.is_outside;
-            const isAutoCompleted =
-              isRainingTargetDate && isOutside && bp.task_type === "Watering";
+        const { data: physicalData, error: physicalError } =
+          await physicalQuery;
+        if (physicalError) throw physicalError;
 
-            ghostTasks.push({
-              id: `ghost-${bp.id}-${dateStr}`,
-              home_id: bp.home_id,
-              blueprint_id: bp.id,
-              title: bp.title,
-              description: bp.description,
-              type: bp.task_type,
-              status: isAutoCompleted ? "Completed" : "Pending",
-              due_date: dateStr,
-              location_id: bp.location_id,
-              area_id: bp.area_id,
-              inventory_item_id: bp.inventory_item_id,
-              isGhost: true,
-              isAutoCompleted: isAutoCompleted,
-              inventory_items: bp.inventory_items,
-            });
+        const filteredPhysicalData = (physicalData || []).filter((t) => {
+          if (t.due_date === dateStr) return true;
+          if (t.due_date < dateStr && t.status === "Pending") return true;
+          return false;
+        });
+
+        const physicalTasks = filteredPhysicalData.map((t) => {
+          const isOutside = t.locations?.is_outside;
+          const isAutoCompleted =
+            isRainingTargetDate &&
+            isOutside &&
+            t.type === "Watering" &&
+            t.status === "Pending" &&
+            t.due_date === dateStr;
+
+          if (isAutoCompleted) {
+            return { ...t, status: "Completed", isAutoCompleted: true };
           }
+          return t;
+        });
+
+        let bpQuery = supabase
+          .from("task_blueprints")
+          .select(
+            `*, inventory_items(plant_name, identifier, location_name, area_name, plants(thumbnail_url)), locations(is_outside)`,
+          )
+          .eq("home_id", homeId)
+          .eq("is_recurring", true);
+
+        if (areaId) bpQuery = bpQuery.eq("area_id", areaId);
+        if (inventoryItemId)
+          bpQuery = bpQuery.eq("inventory_item_id", inventoryItemId);
+
+        const { data: bpData, error: bpError } = await bpQuery;
+        if (bpError) throw bpError;
+        const blueprints = bpData || [];
+
+        const ghostTasks: any[] = [];
+
+        blueprints.forEach((bp) => {
+          const safeDateString =
+            bp.start_date || bp.created_at || new Date().toISOString();
+          const anchorDateStr = safeDateString.split("T")[0];
+          const anchorDateMs = new Date(anchorDateStr).getTime();
+
+          if (targetDateMs < anchorDateMs) return;
+          if (bp.end_date && targetDateMs > new Date(bp.end_date).getTime())
+            return;
+
+          const diffDays = Math.round(
+            (targetDateMs - anchorDateMs) / (1000 * 60 * 60 * 24),
+          );
+
+          if (diffDays % bp.frequency_days === 0) {
+            const hasPhysical = physicalTasks.some(
+              (t) => t.blueprint_id === bp.id && t.due_date === dateStr,
+            );
+
+            if (!hasPhysical) {
+              const isOutside = bp.locations?.is_outside;
+              const isAutoCompleted =
+                isRainingTargetDate && isOutside && bp.task_type === "Watering";
+
+              ghostTasks.push({
+                id: `ghost-${bp.id}-${dateStr}`,
+                home_id: bp.home_id,
+                blueprint_id: bp.id,
+                title: bp.title,
+                description: bp.description,
+                type: bp.task_type,
+                status: isAutoCompleted ? "Completed" : "Pending",
+                due_date: dateStr,
+                location_id: bp.location_id,
+                area_id: bp.area_id,
+                inventory_item_id: bp.inventory_item_id,
+                isGhost: true,
+                isAutoCompleted: isAutoCompleted,
+                inventory_items: bp.inventory_items,
+              });
+            }
+          }
+        });
+
+        let allTasks = [...physicalTasks, ...ghostTasks];
+
+        if (locationId && locationId !== "all") {
+          allTasks = allTasks.filter((t) => t.location_id === locationId);
         }
-      });
+        if (typesFilterStr) {
+          const typesArray = typesFilterStr.split(",");
+          allTasks = allTasks.filter((t) => typesArray.includes(t.type));
+        }
 
-      let allTasks = [...physicalTasks, ...ghostTasks];
+        allTasks.sort((a, b) => {
+          if (a.status === "Completed" && b.status !== "Completed") return 1;
+          if (a.status !== "Completed" && b.status === "Completed") return -1;
 
-      if (locationId && locationId !== "all") {
-        allTasks = allTasks.filter((t) => t.location_id === locationId);
+          if (a.status === "Pending" && b.status === "Pending") {
+            return a.due_date.localeCompare(b.due_date);
+          }
+          return 0;
+        });
+
+        setTasks(allTasks);
+      } catch (err) {
+        Logger.error("Failed to load dashboard tasks", err);
+      } finally {
+        setLoading(false);
       }
-      if (typesFilterStr) {
-        const typesArray = typesFilterStr.split(",");
-        allTasks = allTasks.filter((t) => typesArray.includes(t.type));
-      }
-
-      allTasks.sort((a, b) => {
-        if (a.status === "Completed" && b.status !== "Completed") return 1;
-        if (a.status !== "Completed" && b.status === "Completed") return -1;
-        return 0;
-      });
-
-      setTasks(allTasks);
-    } catch (err) {
-      Logger.error("Failed to load dashboard tasks", err);
-    } finally {
-      setLoading(false);
-    }
-  }, [homeId, areaId, inventoryItemId, dateStr, locationId, typesFilterStr]);
+    },
+    [homeId, areaId, inventoryItemId, dateStr, locationId, typesFilterStr],
+  );
 
   useEffect(() => {
     fetchTasksAndGhosts();
@@ -307,6 +348,61 @@ export default function TaskList({
     }
   };
 
+  const handlePostponeTask = async (task: any) => {
+    if (!postponeDate) return toast.error("Please select a valid date.");
+    if (postponeDate === task.due_date) return setIsPostponing(false);
+
+    setIsUpdatingTask(task.id);
+    try {
+      if (task.isGhost) {
+        await supabase.from("tasks").insert([
+          {
+            home_id: task.home_id,
+            blueprint_id: task.blueprint_id,
+            title: task.title,
+            description: task.description,
+            type: task.type,
+            due_date: task.due_date,
+            status: "Skipped",
+            location_id: task.location_id,
+            area_id: task.area_id,
+            inventory_item_id: task.inventory_item_id,
+          },
+          {
+            home_id: task.home_id,
+            blueprint_id: task.blueprint_id,
+            title: task.title,
+            description: task.description,
+            type: task.type,
+            due_date: postponeDate,
+            status: "Pending",
+            location_id: task.location_id,
+            area_id: task.area_id,
+            inventory_item_id: task.inventory_item_id,
+          },
+        ]);
+      } else {
+        await supabase
+          .from("tasks")
+          .update({ due_date: postponeDate })
+          .eq("id", task.id);
+      }
+
+      toast.success(`Task postponed to ${formatDisplayDate(postponeDate)}`);
+
+      setSelectedTask(null);
+      setIsPostponing(false);
+      onTaskUpdated?.();
+
+      // 🚀 THE FIX: Silently refresh to update the overdue badge and the new modal date
+      fetchTasksAndGhosts(true);
+    } catch (err) {
+      toast.error("Failed to reschedule task.");
+    } finally {
+      setIsUpdatingTask(null);
+    }
+  };
+
   const getTaskIcon = (type: string) => {
     switch (type) {
       case "Watering":
@@ -354,15 +450,24 @@ export default function TaskList({
           const areaName = task.inventory_items?.area_name;
           const isCompleted = task.status === "Completed";
 
+          const isOverdue = !isCompleted && task.due_date < todayStr;
+
+          let cardStyle = "bg-white border-rhozly-outline/10";
+          if (isCompleted)
+            cardStyle = "opacity-60 bg-gray-50 border-rhozly-outline/10";
+          if (isOverdue) cardStyle = "bg-red-50/50 border-red-200";
+
           return (
             <div
               key={task.id}
               onClick={() => setSelectedTask(task)}
-              className={`bg-white p-5 rounded-3xl border border-rhozly-outline/10 shadow-sm flex items-center justify-between group relative cursor-pointer hover:border-rhozly-primary/30 transition-all
-                ${isCompleted ? "opacity-60 bg-gray-50" : ""}
-              `}
+              className={`p-5 rounded-3xl border shadow-sm flex items-center justify-between group relative cursor-pointer transition-all hover:border-rhozly-primary/30 ${cardStyle}`}
             >
-              {task.isAutoCompleted ? (
+              {isOverdue ? (
+                <div className="absolute -top-2 -right-2 z-10 text-[8px] font-black uppercase text-white bg-red-500 px-2 py-1 rounded-full shadow-md flex items-center gap-1">
+                  <AlertCircle size={8} /> Overdue
+                </div>
+              ) : task.isAutoCompleted ? (
                 <div className="absolute -top-2 -right-2 z-10 text-[8px] font-black uppercase text-white bg-blue-500 px-2 py-1 rounded-full shadow-md flex items-center gap-1">
                   <CloudRain size={8} /> Nature Watered
                 </div>
@@ -382,7 +487,9 @@ export default function TaskList({
                         ? "border-rhozly-primary/30"
                         : isCompleted
                           ? "bg-green-500 border-green-500 text-white"
-                          : "border-rhozly-outline/20 hover:border-rhozly-primary text-transparent hover:text-rhozly-primary/30"
+                          : isOverdue
+                            ? "border-red-300 hover:border-red-500 text-transparent hover:text-red-500/30"
+                            : "border-rhozly-outline/20 hover:border-rhozly-primary text-transparent hover:text-rhozly-primary/30"
                     }
                   `}
                 >
@@ -399,7 +506,8 @@ export default function TaskList({
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1.5">
                     <span
-                      className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md flex items-center gap-1 ${isCompleted ? "bg-gray-200 text-gray-500" : "text-rhozly-primary bg-rhozly-primary/10"}`}
+                      className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md flex items-center gap-1 
+                        ${isCompleted ? "bg-gray-200 text-gray-500" : isOverdue ? "text-red-700 bg-red-100" : "text-rhozly-primary bg-rhozly-primary/10"}`}
                     >
                       {getTaskIcon(task.type)} {task.type}
                     </span>
@@ -421,18 +529,19 @@ export default function TaskList({
                   </div>
 
                   <h4
-                    className={`font-black text-rhozly-on-surface text-sm md:text-base leading-tight truncate ${isCompleted ? "line-through decoration-2 decoration-green-500/50" : ""}`}
+                    className={`font-black text-sm md:text-base leading-tight truncate 
+                    ${isCompleted ? "line-through decoration-2 decoration-green-500/50 text-gray-500" : isOverdue ? "text-red-900" : "text-rhozly-on-surface"}`}
                   >
                     {task.title}
                   </h4>
 
                   {plantName && (
                     <div
-                      className={`text-[11px] font-bold mt-1 flex items-center gap-1.5 truncate ${isCompleted ? "text-gray-400" : "text-rhozly-on-surface/70"}`}
+                      className={`text-[11px] font-bold mt-1 flex items-center gap-1.5 truncate ${isCompleted ? "text-gray-400" : isOverdue ? "text-red-700/70" : "text-rhozly-on-surface/70"}`}
                     >
                       <Leaf
                         size={12}
-                        className={`shrink-0 ${isCompleted ? "text-gray-400" : "text-rhozly-primary/70"}`}
+                        className={`shrink-0 ${isCompleted ? "text-gray-400" : isOverdue ? "text-red-500/70" : "text-rhozly-primary/70"}`}
                       />
                       <span className="truncate">
                         {plantName}{" "}
@@ -471,7 +580,14 @@ export default function TaskList({
             <div className="flex justify-between items-start mb-6">
               <div className="flex gap-3 items-center">
                 <div
-                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${selectedTask.status === "Completed" ? "bg-green-100 text-green-600" : "bg-rhozly-primary/10 text-rhozly-primary"}`}
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 
+                    ${
+                      selectedTask.status === "Completed"
+                        ? "bg-green-100 text-green-600"
+                        : selectedTask.due_date < todayStr
+                          ? "bg-red-100 text-red-600"
+                          : "bg-rhozly-primary/10 text-rhozly-primary"
+                    }`}
                 >
                   {getTaskIcon(selectedTask.type)}
                 </div>
@@ -481,10 +597,14 @@ export default function TaskList({
                   >
                     {selectedTask.title}
                   </h3>
-                  <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+                  <span
+                    className={`text-[10px] font-black uppercase tracking-widest ${selectedTask.due_date < todayStr && selectedTask.status !== "Completed" ? "text-red-500" : "text-rhozly-on-surface/40"}`}
+                  >
                     {selectedTask.status === "Completed"
                       ? "Completed"
-                      : "Pending Task"}
+                      : selectedTask.due_date < todayStr
+                        ? `Overdue (Due: ${formatDisplayDate(selectedTask.due_date)})`
+                        : `Due: ${formatDisplayDate(selectedTask.due_date)}`}
                   </span>
                 </div>
               </div>
@@ -592,34 +712,72 @@ export default function TaskList({
               </div>
             </div>
 
-            <div className="flex gap-3 mt-auto shrink-0">
-              <button
-                onClick={() => handleDeleteTask(selectedTask)}
-                className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shrink-0"
-                title="Remove task"
-              >
-                {isUpdatingTask === selectedTask.id ? (
-                  <Loader2 className="animate-spin" size={20} />
-                ) : (
-                  <Trash2 size={20} />
-                )}
-              </button>
+            {isPostponing ? (
+              <div className="flex gap-2 mt-auto shrink-0 items-stretch">
+                <input
+                  type="date"
+                  value={postponeDate}
+                  min={todayStr}
+                  onChange={(e) => setPostponeDate(e.target.value)}
+                  className="flex-1 p-3 bg-rhozly-surface-low rounded-xl font-bold border border-rhozly-outline/10 focus:border-rhozly-primary outline-none"
+                />
+                <button
+                  onClick={() => setIsPostponing(false)}
+                  disabled={isUpdatingTask === selectedTask.id}
+                  className="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handlePostponeTask(selectedTask)}
+                  disabled={isUpdatingTask === selectedTask.id}
+                  className="px-6 py-3 bg-rhozly-primary hover:scale-[1.02] text-white font-black rounded-xl transition-all flex items-center justify-center min-w-[100px]"
+                >
+                  {isUpdatingTask === selectedTask.id ? (
+                    <Loader2 className="animate-spin" size={20} />
+                  ) : (
+                    "Confirm"
+                  )}
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-3 mt-auto shrink-0">
+                <button
+                  onClick={() => handleDeleteTask(selectedTask)}
+                  className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shrink-0"
+                  title="Remove task"
+                >
+                  {isUpdatingTask === selectedTask.id ? (
+                    <Loader2 className="animate-spin" size={20} />
+                  ) : (
+                    <Trash2 size={20} />
+                  )}
+                </button>
 
-              <button
-                onClick={() => toggleTaskCompletion(selectedTask)}
-                className={`flex-1 h-14 rounded-2xl font-black text-white flex items-center justify-center gap-2 transition-all ${selectedTask.status === "Completed" ? "bg-gray-800 hover:bg-gray-900" : "bg-rhozly-primary hover:scale-[1.02]"}`}
-              >
-                {isUpdatingTask === selectedTask.id ? (
-                  <Loader2 className="animate-spin" size={20} />
-                ) : selectedTask.status === "Completed" ? (
-                  <>Mark as Pending</>
-                ) : (
-                  <>
-                    <CheckSquare size={20} /> Mark as Complete
-                  </>
-                )}
-              </button>
-            </div>
+                <button
+                  onClick={() => setIsPostponing(true)}
+                  className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all shrink-0"
+                  title="Reschedule task"
+                >
+                  <CalendarClock size={20} />
+                </button>
+
+                <button
+                  onClick={() => toggleTaskCompletion(selectedTask)}
+                  className={`flex-1 h-14 rounded-2xl font-black text-white flex items-center justify-center gap-2 transition-all ${selectedTask.status === "Completed" ? "bg-gray-800 hover:bg-gray-900" : "bg-rhozly-primary hover:scale-[1.02]"}`}
+                >
+                  {isUpdatingTask === selectedTask.id ? (
+                    <Loader2 className="animate-spin" size={20} />
+                  ) : selectedTask.status === "Completed" ? (
+                    <>Mark as Pending</>
+                  ) : (
+                    <>
+                      <CheckSquare size={20} /> Mark as Complete
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

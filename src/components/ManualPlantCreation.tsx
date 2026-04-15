@@ -109,8 +109,8 @@ export default function ManualPlantCreation({
     tropical: false,
     indoor: false,
     flowers: false,
-    flowering_season: [] as string[], // 🚀 NOW AN ARRAY
-    harvest_season: [] as string[], // 🚀 NOW AN ARRAY
+    flowering_season: [] as string[],
+    harvest_season: [] as string[],
     is_edible: false,
     leaf: true,
     edible_leaf: false,
@@ -147,13 +147,20 @@ export default function ManualPlantCreation({
           ? [initialData.harvest_season]
           : [];
 
+      const safePruning = Array.isArray(initialData.pruning_month)
+        ? initialData.pruning_month
+        : initialData.pruning_month
+          ? [initialData.pruning_month]
+          : [];
+
       setFormData((prev) => ({
         ...prev,
         ...initialData,
         cycle: safeCycle,
         sunlight: safeSunlight.length > 0 ? safeSunlight : prev.sunlight,
-        flowering_season: safeFlowering, // 🚀 Apply safe array
-        harvest_season: safeHarvest, // 🚀 Apply safe array
+        flowering_season: safeFlowering,
+        harvest_season: safeHarvest,
+        pruning_month: safePruning,
         watering_min_days: initialData.watering_min_days?.toString() || "",
         watering_max_days: initialData.watering_max_days?.toString() || "",
       }));
@@ -233,10 +240,20 @@ export default function ManualPlantCreation({
     const min = parseInt(formData.watering_min_days);
     const max = parseInt(formData.watering_max_days);
 
+    // 🚀 THE FIX: Enforce strict array formatting right before saving
+    const ensureArray = (val: any) =>
+      Array.isArray(val) ? val : val ? [val] : [];
+
     onSave({
       ...formData,
       watering_min_days: isNaN(min) ? null : min,
       watering_max_days: isNaN(max) ? null : max,
+      sunlight: ensureArray(formData.sunlight),
+      flowering_season: ensureArray(formData.flowering_season),
+      harvest_season: ensureArray(formData.harvest_season),
+      pruning_month: ensureArray(formData.pruning_month),
+      propagation: ensureArray(formData.propagation),
+      attracts: ensureArray(formData.attracts),
     });
   };
 
@@ -479,7 +496,6 @@ export default function ManualPlantCreation({
           />
           {activeSection === "phenology" && (
             <div className="p-2 space-y-6 animate-in slide-in-from-top-2">
-              {/* 🚀 REPLACED SELECTS WITH MULTI-SELECTS */}
               <MultiSelect
                 label="Flowering Seasons"
                 field="flowering_season"
@@ -626,7 +642,6 @@ export default function ManualPlantCreation({
           )}
         </div>
 
-        {/* 🚀 HIDDEN IN READ-ONLY MODE */}
         {!isReadOnly && (
           <div className="flex gap-4 pt-8 pb-4">
             {onCancel && (

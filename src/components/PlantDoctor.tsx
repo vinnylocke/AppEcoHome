@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
 import {
-  Camera as CameraIcon, // 🚀 FIXED: Renamed to avoid conflict with Capacitor
+  Camera as CameraIcon,
   Upload,
   X,
   Search,
@@ -18,12 +18,12 @@ import {
   CalendarPlus,
   Globe,
   BrainCircuit,
+  BookOpen, // 🚀 NEW: Journal Icon
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
-
-import { Camera, CameraResultType, CameraSource } from "@capacitor/camera"; // 🚀 Capacitor Camera
+import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantSearchModal from "./PlantSearchModal";
@@ -80,6 +80,9 @@ export default function PlantDoctor({
   const [sickInventoryId, setSickInventoryId] = useState<string | null>(null);
   const [isApplyingTreatment, setIsApplyingTreatment] = useState(false);
 
+  // 🚀 NEW: State to track if the user wants to log this in the journal
+  const [saveToJournal, setSaveToJournal] = useState(true);
+
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [showPerenualSearch, setShowPerenualSearch] = useState(false);
 
@@ -92,7 +95,8 @@ export default function PlantDoctor({
       const { data } = await supabase
         .from("inventory_items")
         .select(`id, plant_id, location_id, area_id, plants ( common_name )`)
-        .eq("home_id", homeId);
+        .eq("home_id", homeId)
+        .eq("status", "Planted"); // Only show planted items for treatment
       if (data) setMyInventory(data);
     };
     fetchInventory();
@@ -110,7 +114,6 @@ export default function PlantDoctor({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // 🚀 NATIVE CAMERA LOGIC
   const handleNativeCamera = async () => {
     try {
       const photo = await Camera.getPhoto({
@@ -121,8 +124,6 @@ export default function PlantDoctor({
       });
 
       if (photo.base64String) {
-        // Convert the Capacitor Base64 output back into a standard File object
-        // so it plugs perfectly into your existing file logic!
         const base64Data = `data:image/${photo.format};base64,${photo.base64String}`;
         const res = await fetch(base64Data);
         const blob = await res.blob();
@@ -134,12 +135,11 @@ export default function PlantDoctor({
 
         setImagePreview(URL.createObjectURL(file));
         setSelectedFile(file);
-
-        // Reset states just like a normal file upload
         setAiResult(null);
         setSelectedPlantName(null);
         setSelectedDisease(null);
         setSickInventoryId(null);
+        setSaveToJournal(true);
       }
     } catch (error) {
       console.log("User cancelled camera or it failed", error);
@@ -161,6 +161,7 @@ export default function PlantDoctor({
       setSelectedPlantName(null);
       setSelectedDisease(null);
       setSickInventoryId(null);
+      setSaveToJournal(true);
     } catch (error) {
       toast.error("Failed to load image.");
     }
@@ -338,6 +339,7 @@ export default function PlantDoctor({
     }
   };
 
+  // 🚀 REFACTORED: Now includes Journal Logic!
   const handleApplyTreatment = async () => {
     if (!sickInventoryId || !aiResult?.remedial_schedules)
       return toast.error("Please select a plant instance first.");
@@ -359,12 +361,11 @@ export default function PlantDoctor({
       const today = new Date();
       const todayStr = today.toISOString().split("T")[0];
 
+      // 1. Create Blueprints
       if (recurringSchedules.length > 0) {
         const blueprintsToInsert = recurringSchedules.map((schedule) => {
           const endDate = new Date(today);
           endDate.setDate(endDate.getDate() + (schedule.end_offset_days || 28));
-          const endDateStr = endDate.toISOString().split("T")[0];
-
           return {
             home_id: homeId,
             inventory_item_id: sickInventoryId,
@@ -376,17 +377,17 @@ export default function PlantDoctor({
             frequency_days: schedule.frequency_days,
             is_recurring: true,
             start_date: todayStr,
-            end_date: endDateStr,
+            end_date: endDate.toISOString().split("T")[0],
             priority: "High",
           };
         });
-
         const { error: blueprintError } = await supabase
           .from("task_blueprints")
           .insert(blueprintsToInsert);
         if (blueprintError) throw blueprintError;
       }
 
+      // 2. Create One-Off Tasks
       if (oneOffTasks.length > 0) {
         const tasksToInsert = oneOffTasks.map((task) => ({
           home_id: homeId,
@@ -399,16 +400,63 @@ export default function PlantDoctor({
           due_date: todayStr,
           status: "Pending",
         }));
-
         const { error: taskError } = await supabase
           .from("tasks")
           .insert(tasksToInsert);
         if (taskError) throw taskError;
       }
 
+      // 3. Trigger Ghost Task Generation
       await supabase.functions.invoke("generate-tasks", {
         body: { homeId: homeId },
       });
+
+      // 🚀 4. NEW: Create the Journal Entry if requested
+      if (saveToJournal && selectedFile) {
+        let uploadedImageUrl = null;
+
+        // Upload the diagnostic image to storage first
+        const fileExt = selectedFile.name.split(".").pop() || "jpg";
+        const fileName = `diagnosis-${sickInventoryId}-${Date.now()}.${fileExt}`;
+        const filePath = `plant-photos/${fileName}`;
+
+        const { error: uploadError } = await supabase.storage
+          .from("plant-images")
+          .upload(filePath, selectedFile);
+
+        if (!uploadError) {
+          const {
+            data: { publicUrl },
+          } = supabase.storage.from("plant-images").getPublicUrl(filePath);
+          uploadedImageUrl = publicUrl;
+        }
+
+        // Build a nice, formatted journal description combining AI notes and the plan
+        let journalBody = `🩺 Initial Diagnosis:\n${aiResult.notes}\n\n`;
+        if (selectedDisease)
+          journalBody += `🦠 Suspected Condition: ${selectedDisease}\n\n`;
+        journalBody += `💊 Applied Treatment Plan:\n`;
+        aiResult.remedial_schedules.forEach((task) => {
+          journalBody += `- ${task.title}\n`;
+        });
+
+        // Insert into the new journal table
+        const { error: journalError } = await supabase
+          .from("plant_journals")
+          .insert([
+            {
+              home_id: homeId,
+              inventory_item_id: sickInventoryId,
+              subject: `Diagnostic Report: ${selectedDisease || "General Checkup"}`,
+              description: journalBody,
+              image_url: uploadedImageUrl,
+            },
+          ]);
+
+        if (journalError)
+          console.error("Failed to save journal:", journalError);
+        else toast.success("Saved to Plant Journal!");
+      }
 
       toast.success(
         "Treatment scheduled! Tasks have been added to your to-do list.",
@@ -508,7 +556,6 @@ export default function PlantDoctor({
                 >
                   <Upload className="w-5 h-5 text-rhozly-primary" /> Upload File
                 </button>
-                {/* 🚀 FIXED: Swapped for handleNativeCamera */}
                 <button
                   onClick={handleNativeCamera}
                   className="flex-1 sm:flex-none flex items-center justify-center gap-2 px-6 py-3.5 bg-rhozly-primary rounded-2xl shadow-md text-white font-bold hover:bg-rhozly-primary-container transition-colors"
@@ -771,7 +818,7 @@ export default function PlantDoctor({
                             className="w-full p-4 bg-rhozly-surface-low rounded-xl border border-transparent focus:border-rhozly-primary font-bold text-sm outline-none transition-colors disabled:opacity-50"
                           >
                             <option value="">
-                              Select a specific plant instance from your shed...
+                              Select a specific planted item from your shed...
                             </option>
                             {myInventory.map((item) => (
                               <option key={item.id} value={item.id}>
@@ -842,6 +889,26 @@ export default function PlantDoctor({
                           ))}
                         </div>
 
+                        {/* 🚀 NEW: The Journal Checkbox */}
+                        <label className="flex items-center gap-3 p-4 mb-6 bg-white rounded-2xl border border-rhozly-outline/10 cursor-pointer hover:border-amber-500/30 transition-colors shadow-sm">
+                          <input
+                            type="checkbox"
+                            checked={saveToJournal}
+                            onChange={(e) => setSaveToJournal(e.target.checked)}
+                            className="w-5 h-5 accent-amber-500"
+                          />
+                          <div>
+                            <p className="font-black text-sm flex items-center gap-1">
+                              <BookOpen size={14} className="text-amber-500" />{" "}
+                              Add to Plant Journal?
+                            </p>
+                            <p className="text-[10px] font-bold text-rhozly-on-surface/50 mt-0.5">
+                              This will attach the photo, diagnosis, and
+                              treatment plan to the plant's history.
+                            </p>
+                          </div>
+                        </label>
+
                         <button
                           onClick={handleApplyTreatment}
                           disabled={isApplyingTreatment}
@@ -861,51 +928,55 @@ export default function PlantDoctor({
                 </div>
               )}
 
-              <div
-                className="pt-4 border-t border-rhozly-outline/10 relative"
-                ref={dropdownRef}
-              >
-                <label className="block text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-2 ml-2">
-                  Context: What do you think this is? (Optional)
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={plantSearch}
-                    disabled={isUIBusy || !aiEnabled}
-                    onChange={(e) => {
-                      setPlantSearch(e.target.value);
-                      setIsDropdownOpen(true);
-                    }}
-                    onFocus={() => setIsDropdownOpen(true)}
-                    className="w-full bg-white border border-rhozly-outline/20 rounded-2xl px-5 py-4 text-rhozly-on-surface font-bold focus:outline-none focus:ring-2 focus:ring-rhozly-primary/30 focus:border-rhozly-primary/50 transition-all disabled:opacity-50 disabled:bg-rhozly-surface-low pr-12"
-                    placeholder="Type a name or select from your shed..."
-                  />
-                  <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-rhozly-on-surface/30" />
-                </div>
-                {isDropdownOpen && (myInventory.length > 0 || plantSearch) && (
-                  <div className="absolute z-10 w-full mt-2 bg-white border border-rhozly-outline/10 rounded-2xl shadow-xl max-h-60 overflow-y-auto overflow-x-hidden p-2">
-                    {filteredInventory.length > 0 ? (
-                      filteredInventory.map((item) => (
-                        <button
-                          key={item.id}
-                          onClick={() => {
-                            setPlantSearch(item.plants?.common_name || "");
-                            setIsDropdownOpen(false);
-                          }}
-                          className="w-full text-left px-4 py-3 hover:bg-rhozly-primary/5 rounded-xl text-sm font-bold text-rhozly-on-surface transition-colors"
-                        >
-                          {item.plants?.common_name}
-                        </button>
-                      ))
-                    ) : (
-                      <div className="px-4 py-3 text-sm font-bold text-rhozly-on-surface/50">
-                        Press 'Identify' and let the AI tell you!
+              {/* Only show the context dropdown if we haven't identified/diagnosed anything yet */}
+              {!aiResult && (
+                <div
+                  className="pt-4 border-t border-rhozly-outline/10 relative"
+                  ref={dropdownRef}
+                >
+                  <label className="block text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-2 ml-2">
+                    Context: What do you think this is? (Optional)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={plantSearch}
+                      disabled={isUIBusy || !aiEnabled}
+                      onChange={(e) => {
+                        setPlantSearch(e.target.value);
+                        setIsDropdownOpen(true);
+                      }}
+                      onFocus={() => setIsDropdownOpen(true)}
+                      className="w-full bg-white border border-rhozly-outline/20 rounded-2xl px-5 py-4 text-rhozly-on-surface font-bold focus:outline-none focus:ring-2 focus:ring-rhozly-primary/30 focus:border-rhozly-primary/50 transition-all disabled:opacity-50 disabled:bg-rhozly-surface-low pr-12"
+                      placeholder="Type a name or select from your shed..."
+                    />
+                    <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 w-5 h-5 text-rhozly-on-surface/30" />
+                  </div>
+                  {isDropdownOpen &&
+                    (myInventory.length > 0 || plantSearch) && (
+                      <div className="absolute z-10 w-full mt-2 bg-white border border-rhozly-outline/10 rounded-2xl shadow-xl max-h-60 overflow-y-auto overflow-x-hidden p-2">
+                        {filteredInventory.length > 0 ? (
+                          filteredInventory.map((item) => (
+                            <button
+                              key={item.id}
+                              onClick={() => {
+                                setPlantSearch(item.plants?.common_name || "");
+                                setIsDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-4 py-3 hover:bg-rhozly-primary/5 rounded-xl text-sm font-bold text-rhozly-on-surface transition-colors"
+                            >
+                              {item.plants?.common_name}
+                            </button>
+                          ))
+                        ) : (
+                          <div className="px-4 py-3 text-sm font-bold text-rhozly-on-surface/50">
+                            Press 'Identify' and let the AI tell you!
+                          </div>
+                        )}
                       </div>
                     )}
-                  </div>
-                )}
-              </div>
+                </div>
+              )}
             </div>
           )}
           <input
@@ -915,7 +986,6 @@ export default function PlantDoctor({
             ref={fileInputRef}
             onChange={handleFileChange}
           />
-          {/* We safely removed the old HTML camera input since it is fully handled by Capacitor now! */}
         </div>
       </div>
     </>

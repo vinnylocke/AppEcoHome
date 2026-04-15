@@ -37,6 +37,7 @@ import TheShed from "./components/TheShed";
 import TaskCalendar from "./components/TaskCalendar";
 import TaskList from "./components/TaskList";
 import PlantDoctor from "./components/PlantDoctor";
+import LightSensor from "./components/LightSensor"; // 🚀 IMPORTED LIGHT SENSOR
 
 // --- WEATHER & CACHE HELPERS ---
 const getMidnightTonight = () => {
@@ -445,6 +446,7 @@ export default function App() {
     { id: "dashboard", icon: <Home />, label: "Dashboard" },
     { id: "shed", icon: <Database />, label: "The Shed" },
     { id: "doctor", icon: <Stethoscope />, label: "Plant Doctor" },
+    { id: "lightsensor", icon: <Sun />, label: "Light Sensor" }, // 🚀 NEW NAV LINK
     { id: "management", icon: <Wrench />, label: "Location Management" },
   ];
 
@@ -704,6 +706,7 @@ export default function App() {
             {activeTab === "shed" && profile?.home_id && (
               <TheShed homeId={profile.home_id} />
             )}
+
             {activeTab === "doctor" && (
               <div className="h-full animate-in fade-in duration-500">
                 <PlantDoctor
@@ -714,6 +717,14 @@ export default function App() {
                 />
               </div>
             )}
+
+            {/* 🚀 NEW: LIGHT SENSOR TAB ROUTING */}
+            {activeTab === "lightsensor" && (
+              <div className="h-full animate-in fade-in duration-500">
+                <LightSensor />
+              </div>
+            )}
+
             {activeTab === "management" && (
               <section className="h-full">
                 {profile?.home_id ? (

@@ -7,6 +7,82 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// 🚀 HELPER: Sleep function for our retry logic
+const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
+
+// 🧠 THE CASCADE: Tries your preferred model, waits on 503s, and falls back if needed
+async function callGeminiWithCascade(contents: any[], apiKey: string) {
+  // We prioritize your preferred 3.1 preview, then fall back to stable 1.5 models if Google is slammed
+  const modelsToTry = [
+    "gemini-3.1-flash-lite-preview", // Primary
+    "gemini-1.5-flash-latest", // Fast fallback
+    "gemini-1.5-pro-latest", // Heavy-duty fallback
+  ];
+  const maxRetriesPerModel = 2; // Try each model up to 2 times
+
+  let lastError;
+  const genAI = new GoogleGenerativeAI(apiKey);
+
+  for (const modelName of modelsToTry) {
+    const model = genAI.getGenerativeModel({ model: modelName });
+
+    for (let attempt = 1; attempt <= maxRetriesPerModel; attempt++) {
+      try {
+        console.log(
+          `🤖 Attempting inference with ${modelName} (Attempt ${attempt})...`,
+        );
+
+        // We still use your 45-second timeout safeguard, but now it's inside the retry loop!
+        const result = (await Promise.race([
+          model.generateContent(contents),
+          new Promise((_, reject) =>
+            setTimeout(
+              () =>
+                reject(new Error("Timeout: Google Gemini API took too long.")),
+              45000,
+            ),
+          ),
+        ])) as any;
+
+        const response = await result.response;
+        console.log(`✅ Success with ${modelName}`);
+        return response.text();
+      } catch (error: any) {
+        lastError = error;
+        console.error(
+          `❌ Error with ${modelName} on attempt ${attempt}:`,
+          error.message,
+        );
+
+        // If Google is busy (503), rate-limiting us (429), or it timed out, we wait and retry
+        if (
+          error.message.includes("503") ||
+          error.message.includes("429") ||
+          error.message.includes("Timeout")
+        ) {
+          if (attempt < maxRetriesPerModel) {
+            const waitTime = attempt * 2000; // Wait 2 seconds, then 4 seconds if needed
+            console.log(
+              `⏳ Network busy/timeout. Waiting ${waitTime / 1000}s before retrying...`,
+            );
+            await delay(waitTime);
+            continue; // Loop back and try this same model again
+          }
+        }
+
+        // If it's a fatal error (like a bad image) or we are out of retries,
+        // break out of this loop and immediately move to the NEXT model in the array.
+        break;
+      }
+    }
+  }
+
+  // If we get here, literally every model and retry failed.
+  throw new Error(
+    `All Gemini models are currently overloaded. Please try again in a minute. Details: ${lastError?.message}`,
+  );
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -90,11 +166,6 @@ serve(async (req) => {
         });
       }
     }
-
-    const genAI = new GoogleGenerativeAI(apiKey);
-    const model = genAI.getGenerativeModel({
-      model: "gemini-2.5-flash",
-    });
 
     let promptText = "";
     let contents: any[] = [];
@@ -189,9 +260,7 @@ serve(async (req) => {
         }
       `;
       contents = [promptText];
-    }
-    // 🚀 THE SEARCH ACTION YOU NEED
-    else if (action === "search_plants_text") {
+    } else if (action === "search_plants_text") {
       if (!plantSearch) throw new Error("No search query provided.");
       promptText = `
         The user is searching for a plant using the query: "${plantSearch}".
@@ -273,24 +342,14 @@ serve(async (req) => {
       contents = [promptText];
     }
 
-    // Safety catch: If action isn't recognized, contents will be empty, causing Gemini to fail.
     if (contents.length === 0) {
       throw new Error(`Unknown action: ${action}`);
     }
 
-    const result = (await Promise.race([
-      model.generateContent(contents),
-      new Promise((_, reject) =>
-        setTimeout(
-          () =>
-            reject(new Error("Google Gemini API timed out. Please try again.")),
-          45000,
-        ),
-      ),
-    ])) as any;
+    // 🚀 INSTEAD OF CRASHING: Hand the request off to our smart Cascade function!
+    let text = await callGeminiWithCascade(contents, apiKey);
 
-    const response = await result.response;
-    let text = response.text();
+    // Clean up markdown block formatting from the final successful response
     text = text
       .replace(/```json/g, "")
       .replace(/```/g, "")
@@ -300,10 +359,10 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error: any) {
-    console.error("🚨 EDGE FUNCTION CRASHED:", error.message);
+    console.error("🚨 EDGE FUNCTION FAILED AFTER ALL RETRIES:", error.message);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 400,
+      status: 400, // or 503 depending on preference, but 400 handles it nicely in your UI
     });
   }
 });

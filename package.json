@@ -19,6 +19,7 @@
     "@sentry/react": "^10.47.0",
     "@supabase/supabase-js": "^2.100.1",
     "clsx": "^2.1.1",
+    "date-fns": "^4.1.0",
     "framer-motion": "^12.38.0",
     "lucide-react": "^1.7.0",
     "motion": "^12.38.0",

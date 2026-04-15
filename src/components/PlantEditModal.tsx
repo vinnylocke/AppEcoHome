@@ -31,7 +31,7 @@ export default function PlantEditModal({
     { id: "schedules", label: "Automations", icon: Calendar },
   ];
 
-  // 🚀 NEW: Fetch deep data on the fly for API plants
+  // 🚀 REPLACEMENT useEffect FOR PlantEditModal.tsx
   useEffect(() => {
     const fetchApiDetails = async () => {
       if (plant.source === "api" && plant.perenual_id) {
@@ -47,11 +47,14 @@ export default function PlantEditModal({
         } finally {
           setIsFetchingApiData(false);
         }
+      } else {
+        // 🚀 THE FIX: If it's a manual plant, instantly sync the fresh data!
+        setFullPlantData(plant);
       }
     };
 
     fetchApiDetails();
-  }, [plant]);
+  }, [plant]); // <--- Because 'plant' is in this array, it runs every time you hit Save!
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">

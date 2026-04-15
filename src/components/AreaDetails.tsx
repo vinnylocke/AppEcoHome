@@ -7,12 +7,6 @@ import {
   Database,
   Sprout,
   Settings2,
-  Navigation,
-  Hash,
-  Calendar,
-  Info,
-  Check,
-  ClipboardList,
   Plus,
   Globe,
   PenTool,
@@ -24,10 +18,10 @@ import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 import { ConfirmModal } from "./ConfirmModal";
-import InstanceCareRoutine from "./InstanceCareRoutine";
 import PlantSearchModal from "./PlantSearchModal";
 import ManualPlantCreation from "./ManualPlantCreation";
 import AreaAdvancedFields from "./AreaAdvancedFields";
+import InstanceEditModal from "./InstanceEditModal"; // 🚀 IMPORT NEW MODAL
 
 interface InventoryItem {
   id: string;
@@ -50,17 +44,6 @@ interface AreaDetailsProps {
   onTasksUpdated?: () => void;
   onAreaUpdated?: () => void;
 }
-
-const GROWTH_STATES = [
-  "Germination",
-  "Seedling",
-  "Vegetative",
-  "Budding/Pre-Flowering",
-  "Flowering/Bloom",
-  "Fruiting/Pollination",
-  "Ripening/Maturity",
-  "Senescence",
-];
 
 export default function AreaDetails({
   homeId,
@@ -94,10 +77,6 @@ export default function AreaDetails({
   const [editingInstance, setEditingInstance] = useState<InventoryItem | null>(
     null,
   );
-  const [editForm, setEditForm] = useState<any>({});
-  const [locations, setLocations] = useState<any[]>([]);
-  const [savingInstance, setSavingInstance] = useState(false);
-  const [activeTab, setActiveTab] = useState<"details" | "routine">("details");
   const [plantToDelete, setPlantToDelete] = useState<InventoryItem | null>(
     null,
   );
@@ -181,7 +160,6 @@ export default function AreaDetails({
     fetchShedPlants();
   }, [area.id]);
 
-  // 🚀 THE RECOMMENDATION ENGINE
   const getPlantRecommendations = async () => {
     setIsGettingRecs(true);
     setRecommendations(null);
@@ -204,13 +182,10 @@ export default function AreaDetails({
       tasks: areaTasks,
     };
 
-    console.log("🧠 [Plant Doctor] Sending Context to AI:", payload);
-
     try {
       const { data, error } = await supabase.functions.invoke("plant-doctor", {
         body: payload,
       });
-
       if (error) throw error;
       if (data.recommendations) {
         setRecommendations(data.recommendations);
@@ -218,13 +193,11 @@ export default function AreaDetails({
       }
     } catch (err: any) {
       toast.error("Could not generate recommendations.");
-      console.error(err);
     } finally {
       setIsGettingRecs(false);
     }
   };
 
-  // 🚀 AI AUTO-FILL WORKFLOW
   const handleAiAutoFill = async (plantName: string) => {
     setDraftingPlant(plantName);
     try {
@@ -235,7 +208,6 @@ export default function AreaDetails({
       if (data?.error) throw new Error(data.error);
 
       setAiGeneratedPlantData(data.plantData);
-      // 🚀 FIX: Removed setRecommendations(null) so they aren't destroyed!
       setAddFlow("manual");
     } catch (error: any) {
       toast.error("Failed to generate care guide automatically.");
@@ -259,25 +231,11 @@ export default function AreaDetails({
       setIsEditingArea(false);
       if (onAreaUpdated) onAreaUpdated();
     } catch (error: any) {
-      Logger.error("Failed to update area settings", error);
       toast.error("Failed to save changes.");
     } finally {
       setSavingArea(false);
     }
   };
-
-  useEffect(() => {
-    if (editingInstance && locations.length === 0) {
-      const fetchLocations = async () => {
-        const { data } = await supabase
-          .from("locations")
-          .select("id, name, areas(id, name)")
-          .eq("home_id", editingInstance.home_id);
-        if (data) setLocations(data);
-      };
-      fetchLocations();
-    }
-  }, [editingInstance]);
 
   const startShedSelection = () => {
     setAddFlow("shed_select");
@@ -295,24 +253,31 @@ export default function AreaDetails({
     setIsAssigning(true);
 
     try {
+      const { data: areaData } = await supabase
+        .from("areas")
+        .select("name, location_id, locations(name)")
+        .eq("id", assignForm.areaId || area.id) // Fallback to current area if missing
+        .single();
+      if (!areaData) throw new Error("Area not found");
+
+      const locationName = areaData.locations?.name || "Unknown Location";
       const payload = {
         home_id: homeId,
         plant_id: selectedMasterPlant.id,
         plant_name: selectedMasterPlant.common_name,
-        location_id: area.location_id,
-        location_name: area.location_name || "Assigned Location",
-        area_id: area.id,
-        area_name: area.name,
-        identifier: assignForm.identifier || selectedMasterPlant.common_name,
         status: assignForm.status,
-        growth_state:
-          assignForm.status === "Planted" ? assignForm.growth_state : null,
-        is_established:
-          assignForm.status === "Planted" ? assignForm.is_established : false,
+        location_id: areaData.location_id,
+        location_name: locationName,
+        area_id: area.id,
+        area_name: areaData.name,
         planted_at:
           assignForm.status === "Planted" && !assignForm.is_established
             ? assignForm.planted_at
             : null,
+        is_established: assignForm.is_established,
+        growth_state:
+          assignForm.status === "Planted" ? assignForm.growth_state : null,
+        identifier: assignForm.identifier || selectedMasterPlant.common_name,
       };
 
       const { error } = await supabase
@@ -321,79 +286,14 @@ export default function AreaDetails({
       if (error) throw error;
 
       toast.success(`${payload.identifier} added to ${area.name}!`);
-
       setAddFlow("hidden");
       setSelectedMasterPlant(null);
       fetchPlants();
       if (onTasksUpdated) onTasksUpdated();
     } catch (error: any) {
-      Logger.error("Failed to assign plant", error);
-      toast.error("Could not assign plant to area.");
+      toast.error(`Assignment failed: ${error.message}`);
     } finally {
       setIsAssigning(false);
-    }
-  };
-
-  const openEditModal = (item: InventoryItem) => {
-    setEditForm({
-      identifier: item.identifier || item.plant_name,
-      location_id: item.location_id,
-      area_id: item.area_id,
-      status: item.status,
-      growth_state: item.growth_state || "Vegetative",
-      is_established: item.is_established,
-      planted_at: item.planted_at
-        ? item.planted_at.split("T")[0]
-        : new Date().toISOString().split("T")[0],
-    });
-    setEditingInstance(item);
-    setActiveTab("details");
-  };
-
-  const handleUpdateInstance = async () => {
-    setSavingInstance(true);
-    try {
-      const loc = locations.find((l) => l.id === editForm.location_id);
-      const areaObj = loc?.areas.find((a: any) => a.id === editForm.area_id);
-
-      const payload = {
-        identifier: editForm.identifier,
-        location_id: editForm.location_id,
-        location_name: loc?.name,
-        area_id: editForm.area_id,
-        area_name: areaObj?.name,
-        status: editForm.status,
-        growth_state:
-          editForm.status === "Planted" ? editForm.growth_state : null,
-        is_established:
-          editForm.status === "Planted" ? editForm.is_established : false,
-        planted_at:
-          editForm.status === "Planted" && !editForm.is_established
-            ? editForm.planted_at
-            : null,
-      };
-
-      const { error } = await supabase
-        .from("inventory_items")
-        .update(payload)
-        .eq("id", editingInstance!.id);
-      if (error) throw error;
-
-      toast.success("Plant instance updated!");
-      if (payload.area_id !== area.id) {
-        setPlants(plants.filter((p) => p.id !== editingInstance!.id));
-      } else {
-        setPlants(
-          plants.map((p) =>
-            p.id === editingInstance!.id ? { ...p, ...payload } : p,
-          ),
-        );
-      }
-      setEditingInstance(null);
-    } catch (error: any) {
-      toast.error("Could not update plant.");
-    } finally {
-      setSavingInstance(false);
     }
   };
 
@@ -416,14 +316,8 @@ export default function AreaDetails({
     }
   };
 
-  const availableAreas = editForm.location_id
-    ? locations.find((l) => l.id === editForm.location_id)?.areas || []
-    : [];
-
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-      {/* 🚀 ENHANCED RECOMMENDATIONS MODAL */}
-      {/* 🚀 FIX: Only render if addFlow is hidden! This hides the modal without destroying the data! */}
       {recommendations && addFlow === "hidden" && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in zoom-in-95">
           <div className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[85vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20">
@@ -442,7 +336,7 @@ export default function AreaDetails({
                 </div>
               </div>
               <button
-                onClick={() => setRecommendations(null)} // This permanently closes the session
+                onClick={() => setRecommendations(null)}
                 className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
               >
                 <X size={24} />
@@ -460,7 +354,6 @@ export default function AreaDetails({
                       .toLowerCase()
                       .includes(sp.common_name.toLowerCase()),
                 );
-
                 return (
                   <div
                     key={i}
@@ -476,11 +369,9 @@ export default function AreaDetails({
                         {rec.scientific_name}
                       </p>
                     </div>
-
                     <h4 className="text-xl font-black text-rhozly-on-surface mb-2">
                       {rec.name}
                     </h4>
-
                     <div className="bg-rhozly-surface-low rounded-2xl p-4 border border-rhozly-outline/5 relative">
                       <div className="absolute -top-2 left-4 px-2 bg-white rounded-md border border-rhozly-outline/10">
                         <p className="text-[8px] font-black uppercase tracking-tighter text-rhozly-primary">
@@ -491,42 +382,37 @@ export default function AreaDetails({
                         "{rec.reason}"
                       </p>
                     </div>
-
                     <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 gap-2">
                       {matchedShedPlant && (
                         <button
-                          onClick={() => {
-                            // 🚀 FIX: Don't setRecommendations(null) here
-                            handleSelectMasterPlant(matchedShedPlant);
-                          }}
+                          onClick={() =>
+                            handleSelectMasterPlant(matchedShedPlant)
+                          }
                           className="w-full py-3 bg-green-50 hover:bg-green-100 text-green-700 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 sm:col-span-2"
                         >
                           <Sprout size={14} /> Add From Shed (
                           {matchedShedPlant.common_name})
                         </button>
                       )}
-
                       <button
                         onClick={() => {
                           setSearchTerm(rec.name);
-                          // 🚀 FIX: Don't setRecommendations(null) here
                           setAddFlow("search");
                         }}
-                        className={`w-full py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 ${!matchedShedPlant ? "sm:col-span-1" : "sm:col-span-1"}`}
+                        className="w-full py-3 bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2"
                       >
                         <Globe size={14} /> Global Search
                       </button>
-
                       <button
                         onClick={() => handleAiAutoFill(rec.name)}
                         disabled={draftingPlant === rec.name}
-                        className={`w-full py-3 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50 ${!matchedShedPlant ? "sm:col-span-1" : "sm:col-span-1"}`}
+                        className="w-full py-3 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-xl font-black text-[10px] uppercase tracking-widest transition-all flex items-center justify-center gap-2 disabled:opacity-50"
                       >
                         {draftingPlant === rec.name ? (
                           <Loader2 size={14} className="animate-spin" />
                         ) : (
                           <BrainCircuit size={14} />
-                        )}
+                        )}{" "}
                         AI Auto-Fill
                       </button>
                     </div>
@@ -534,9 +420,8 @@ export default function AreaDetails({
                 );
               })}
             </div>
-
             <button
-              onClick={() => setRecommendations(null)} // Permanently clears them when done
+              onClick={() => setRecommendations(null)}
               className="w-full py-5 bg-rhozly-primary text-white rounded-2xl font-black text-lg shadow-xl hover:scale-[1.02] active:scale-95 transition-all"
             >
               Done with Consultation
@@ -545,7 +430,6 @@ export default function AreaDetails({
         </div>
       )}
 
-      {/* Search Modal */}
       {addFlow === "search" && (
         <div className="fixed inset-0 z-[100]">
           <PlantSearchModal
@@ -557,18 +441,14 @@ export default function AreaDetails({
               setSearchTerm("");
             }}
             onSuccess={(newMasterPlant) => {
-              if (newMasterPlant) {
-                handleSelectMasterPlant(newMasterPlant);
-              } else {
-                setAddFlow("hidden");
-              }
+              if (newMasterPlant) handleSelectMasterPlant(newMasterPlant);
+              else setAddFlow("hidden");
               setSearchTerm("");
             }}
           />
         </div>
       )}
 
-      {/* Manual Modal */}
       {addFlow === "manual" && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl">
           <div className="bg-white w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[2.5rem] p-6 shadow-2xl border border-rhozly-outline/20">
@@ -617,7 +497,6 @@ export default function AreaDetails({
         </div>
       )}
 
-      {/* Area Header */}
       <div className="flex items-center justify-between bg-rhozly-surface-lowest rounded-3xl p-6 border border-rhozly-outline/30 shadow-sm">
         <div className="flex items-center gap-4">
           <div className="bg-rhozly-primary/10 p-3 rounded-2xl">
@@ -645,7 +524,6 @@ export default function AreaDetails({
               <Sparkles className="w-6 h-6" />
             )}
           </button>
-
           <button
             onClick={() => setIsEditingArea(true)}
             className="p-3 text-rhozly-on-surface/40 hover:text-rhozly-primary hover:bg-rhozly-primary/5 rounded-2xl transition-all border border-rhozly-outline/10"
@@ -662,7 +540,6 @@ export default function AreaDetails({
         </div>
       </div>
 
-      {/* Area Configuration Modal */}
       {isEditingArea && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
           <div className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20">
@@ -680,7 +557,6 @@ export default function AreaDetails({
                 <X size={20} />
               </button>
             </div>
-
             <div className="space-y-8">
               <div className="space-y-2">
                 <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
@@ -693,7 +569,6 @@ export default function AreaDetails({
                     setAreaEditData({ ...areaEditData, name: e.target.value })
                   }
                   className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-black outline-none border border-transparent focus:border-rhozly-primary"
-                  placeholder="e.g. South Border..."
                 />
               </div>
               <hr className="border-rhozly-outline/10" />
@@ -721,7 +596,6 @@ export default function AreaDetails({
         </div>
       )}
 
-      {/* --- STATS SECTION --- */}
       <div className="grid grid-cols-2 gap-4">
         <div className="bg-gradient-to-br from-rhozly-primary to-rhozly-primary-container rounded-3xl p-6 text-white shadow-md">
           <p className="text-xs font-bold text-white/70 uppercase tracking-widest mb-1">
@@ -739,7 +613,6 @@ export default function AreaDetails({
         </div>
       </div>
 
-      {/* --- INVENTORY SECTION --- */}
       <div className="space-y-4">
         <div className="flex items-center justify-between px-1 mt-4">
           <h3 className="font-display font-black text-rhozly-on-surface/60 uppercase tracking-widest text-sm">
@@ -789,7 +662,7 @@ export default function AreaDetails({
               </div>
               <div className="flex items-center gap-1 shrink-0 ml-2">
                 <button
-                  onClick={() => openEditModal(plant)}
+                  onClick={() => setEditingInstance(plant)}
                   className="p-3 text-rhozly-primary/60 hover:text-rhozly-primary hover:bg-rhozly-primary/10 rounded-xl transition-all"
                 >
                   <Settings2 className="w-5 h-5" />
@@ -818,7 +691,6 @@ export default function AreaDetails({
         )}
       </div>
 
-      {/* --- ADD PLANT FLOW MODALS --- */}
       {addFlow !== "hidden" && addFlow !== "search" && addFlow !== "manual" && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
           <div className="bg-rhozly-surface-lowest w-full max-w-lg rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 relative">
@@ -1049,27 +921,6 @@ export default function AreaDetails({
                         </div>
                       )}
                     </div>
-                    <div className="space-y-3">
-                      <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                        <Sprout size={14} /> Current Growth State
-                      </label>
-                      <select
-                        value={assignForm.growth_state}
-                        onChange={(e) =>
-                          setAssignForm({
-                            ...assignForm,
-                            growth_state: e.target.value,
-                          })
-                        }
-                        className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none cursor-pointer text-sm"
-                      >
-                        {GROWTH_STATES.map((state) => (
-                          <option key={state} value={state}>
-                            {state}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
                   </div>
                 )}
                 <button
@@ -1091,216 +942,27 @@ export default function AreaDetails({
         </div>
       )}
 
-      {/* --- EDIT INSTANCE MODAL --- */}
+      {/* 🚀 THE NEW, CLEAN INSTANCE EDIT MODAL! */}
       {editingInstance && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="bg-rhozly-surface-lowest w-full max-w-xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 relative">
-            <div className="flex justify-between items-start mb-6 relative z-10">
-              <div>
-                <h3 className="text-3xl font-black text-rhozly-on-surface">
-                  {editingInstance.identifier}
-                </h3>
-                <p className="text-sm font-bold text-rhozly-primary uppercase tracking-widest mt-1">
-                  {editingInstance.plant_name}
-                </p>
-              </div>
-              <button
-                onClick={() => setEditingInstance(null)}
-                className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <div className="flex bg-rhozly-surface-low p-1 rounded-2xl mb-8">
-              <button
-                onClick={() => setActiveTab("details")}
-                className={`flex-1 py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all ${activeTab === "details" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-              >
-                <Settings2 size={16} /> Details
-              </button>
-              <button
-                onClick={() => setActiveTab("routine")}
-                className={`flex-1 py-3 rounded-xl font-black text-sm flex items-center justify-center gap-2 transition-all ${activeTab === "routine" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-              >
-                <ClipboardList size={16} /> Care Routines
-              </button>
-            </div>
-
-            {activeTab === "details" && (
-              <div className="space-y-6 animate-in slide-in-from-left-4">
-                <div className="space-y-3">
-                  <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                    <Hash size={14} /> Unique Identifier / Nickname
-                  </label>
-                  <input
-                    type="text"
-                    value={editForm.identifier}
-                    onChange={(e) =>
-                      setEditForm({ ...editForm, identifier: e.target.value })
-                    }
-                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-black border border-transparent focus:border-rhozly-primary outline-none"
-                  />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div className="space-y-3">
-                    <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                      <MapPin size={14} /> Location
-                    </label>
-                    <select
-                      value={editForm.location_id}
-                      onChange={(e) =>
-                        setEditForm({
-                          ...editForm,
-                          location_id: e.target.value,
-                          area_id: "",
-                        })
-                      }
-                      className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-transparent focus:border-rhozly-primary outline-none cursor-pointer text-sm"
-                    >
-                      {locations.map((loc) => (
-                        <option key={loc.id} value={loc.id}>
-                          {loc.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div className="space-y-3">
-                    <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                      <Navigation size={14} /> Area
-                    </label>
-                    <select
-                      value={editForm.area_id}
-                      onChange={(e) =>
-                        setEditForm({ ...editForm, area_id: e.target.value })
-                      }
-                      className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-transparent focus:border-rhozly-primary outline-none cursor-pointer text-sm"
-                    >
-                      <option value="" disabled>
-                        Select Area...
-                      </option>
-                      {availableAreas.map((area: any) => (
-                        <option key={area.id} value={area.id}>
-                          {area.name}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-                <hr className="border-rhozly-outline/10" />
-                <div className="p-1 bg-rhozly-surface-low rounded-2xl flex">
-                  <button
-                    onClick={() =>
-                      setEditForm({ ...editForm, status: "Unplanted" })
-                    }
-                    className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${editForm.status === "Unplanted" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-                  >
-                    Unplanted
-                  </button>
-                  <button
-                    onClick={() =>
-                      setEditForm({ ...editForm, status: "Planted" })
-                    }
-                    className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${editForm.status === "Planted" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-                  >
-                    Planted
-                  </button>
-                </div>
-                {editForm.status === "Planted" && (
-                  <div className="space-y-6 p-6 bg-rhozly-surface-low rounded-3xl animate-in zoom-in-95 border border-rhozly-outline/5">
-                    <div className="space-y-3">
-                      <label className="flex items-center justify-between text-[10px] font-black uppercase text-rhozly-on-surface/60">
-                        <div className="flex items-center gap-2">
-                          <Calendar size={14} /> Date Planted
-                        </div>
-                        <label className="flex items-center gap-2 cursor-pointer bg-white px-3 py-1.5 rounded-lg border border-rhozly-outline/10">
-                          <input
-                            type="checkbox"
-                            checked={editForm.is_established}
-                            onChange={(e) =>
-                              setEditForm({
-                                ...editForm,
-                                is_established: e.target.checked,
-                              })
-                            }
-                            className="accent-rhozly-primary"
-                          />
-                          <span className="text-[9px] tracking-widest text-rhozly-primary">
-                            Already Established?
-                          </span>
-                        </label>
-                      </label>
-                      {!editForm.is_established ? (
-                        <input
-                          type="date"
-                          value={editForm.planted_at}
-                          onChange={(e) =>
-                            setEditForm({
-                              ...editForm,
-                              planted_at: e.target.value,
-                            })
-                          }
-                          className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none"
-                        />
-                      ) : (
-                        <div className="w-full p-4 bg-white/50 rounded-xl border border-dashed border-rhozly-outline/20 text-center opacity-60">
-                          <p className="text-xs font-bold flex items-center justify-center gap-2">
-                            <Info size={14} /> Date unknown
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                    <div className="space-y-3">
-                      <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                        <Sprout size={14} /> Current Growth State
-                      </label>
-                      <select
-                        value={editForm.growth_state}
-                        onChange={(e) =>
-                          setEditForm({
-                            ...editForm,
-                            growth_state: e.target.value,
-                          })
-                        }
-                        className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none cursor-pointer text-sm"
-                      >
-                        {GROWTH_STATES.map((state) => (
-                          <option key={state} value={state}>
-                            {state}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-                )}
-                <button
-                  onClick={handleUpdateInstance}
-                  disabled={savingInstance || !editForm.area_id}
-                  className="w-full py-5 mt-4 bg-rhozly-primary text-white rounded-2xl font-black text-lg shadow-xl shadow-rhozly-primary/20 flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
-                >
-                  {savingInstance ? (
-                    <Loader2 className="animate-spin" size={24} />
-                  ) : (
-                    <>
-                      <Check size={24} /> Save Updates
-                    </>
-                  )}
-                </button>
-              </div>
-            )}
-            {activeTab === "routine" && (
-              <div className="animate-in slide-in-from-right-4">
-                <InstanceCareRoutine
-                  inventoryItemId={editingInstance.id}
-                  homeId={homeId}
-                  locationId={editingInstance.location_id}
-                  areaId={editingInstance.area_id}
-                  onRoutineUpdated={onTasksUpdated}
-                />
-              </div>
-            )}
-          </div>
-        </div>
+        <InstanceEditModal
+          homeId={homeId}
+          instance={editingInstance}
+          currentAreaId={area.id}
+          onClose={() => setEditingInstance(null)}
+          onUpdate={(payload) => {
+            // Update the UI locally to match the database changes
+            if (payload.area_id !== area.id) {
+              setPlants(plants.filter((p) => p.id !== editingInstance.id));
+            } else {
+              setPlants(
+                plants.map((p) =>
+                  p.id === editingInstance.id ? { ...p, ...payload } : p,
+                ),
+              );
+            }
+          }}
+          onTasksUpdated={onTasksUpdated}
+        />
       )}
 
       <ConfirmModal
