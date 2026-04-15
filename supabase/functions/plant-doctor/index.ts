@@ -15,8 +15,9 @@ async function callGeminiWithCascade(contents: any[], apiKey: string) {
   // We prioritize your preferred 3.1 preview, then fall back to stable 1.5 models if Google is slammed
   const modelsToTry = [
     "gemini-3.1-flash-lite-preview", // Primary
-    "gemini-1.5-flash-latest", // Fast fallback
-    "gemini-1.5-pro-latest", // Heavy-duty fallback
+    "gemini-2.5-flash-lite", // Fast fallback
+    "gemini-3-flash-preview", // Heavy-duty fallback
+    "gemini-3.1-pro-preview", // Heavy-duty fallback
   ];
   const maxRetriesPerModel = 2; // Try each model up to 2 times
 
