@@ -1,11 +1,18 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Sun, Camera, Cpu, AlertTriangle, Loader2, Info } from "lucide-react";
+import {
+  Sun,
+  Camera,
+  Cpu,
+  AlertTriangle,
+  Loader2,
+  Info,
+  SlidersHorizontal,
+} from "lucide-react";
 import toast from "react-hot-toast";
 
 // 🚀 Native Capacitor Plugin
 import { LightSensor as NativeLightSensor } from "@capgo/capacitor-light-sensor";
 
-// 🚀 Removed Metadata mode
 type SensorMethod = "Native Sensor" | "Pixel Analysis";
 
 export default function LightSensor() {
@@ -20,6 +27,13 @@ export default function LightSensor() {
   const [manualMethod, setManualMethod] =
     useState<SensorMethod>("Pixel Analysis");
 
+  // 🚀 Calibration State
+  const [showCalibration, setShowCalibration] = useState(false);
+  const [calibrationFactor, setCalibrationFactor] = useState<number>(() => {
+    const saved = localStorage.getItem("rhozly_lux_calibration");
+    return saved ? parseFloat(saved) : 0.2;
+  });
+
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -28,6 +42,16 @@ export default function LightSensor() {
 
   const targetLuxRef = useRef<number>(0);
   const currentLuxRef = useRef<number>(0);
+
+  const calibrationRef = useRef<number>(calibrationFactor);
+
+  useEffect(() => {
+    calibrationRef.current = calibrationFactor;
+    localStorage.setItem(
+      "rhozly_lux_calibration",
+      calibrationFactor.toString(),
+    );
+  }, [calibrationFactor]);
 
   const getLightCategory = (luxValue: number) => {
     if (luxValue < 500)
@@ -124,7 +148,9 @@ export default function LightSensor() {
       const count = data.length / 4;
       const brightness =
         0.2126 * (r / count) + 0.7152 * (g / count) + 0.0722 * (b / count);
-      return Math.round(Math.pow(brightness / 255, 2.5) * 40000);
+
+      const rawLux = Math.pow(brightness / 255, 2.5) * 40000;
+      return Math.round(rawLux * calibrationRef.current);
     }
     return 0;
   };
@@ -133,13 +159,10 @@ export default function LightSensor() {
   const processingLoop = (isNativeOnly = false) => {
     if (!isNativeOnly) {
       if (!streamRef.current) return;
-
-      // If we are here, we are using Pixel Analysis
       targetLuxRef.current = calculateLuxFromPixels();
       setMethod("Pixel Analysis");
     }
 
-    // 🚀 SMOOTHING (Linear Interpolation)
     currentLuxRef.current =
       currentLuxRef.current +
       (targetLuxRef.current - currentLuxRef.current) * 0.1;
@@ -157,7 +180,6 @@ export default function LightSensor() {
       });
       streamRef.current = stream;
 
-      // 🚀 NEW: Attempt to lock the camera's Auto-Exposure
       const track = stream.getVideoTracks()[0];
       try {
         const capabilities: any = track.getCapabilities();
@@ -205,9 +227,7 @@ export default function LightSensor() {
   const stopScanning = async () => {
     try {
       await NativeLightSensor.stop();
-      if (sensorListenerRef.current) {
-        sensorListenerRef.current.remove();
-      }
+      if (sensorListenerRef.current) sensorListenerRef.current.remove();
     } catch (e) {}
 
     if (animationFrameRef.current)
@@ -237,6 +257,15 @@ export default function LightSensor() {
             Spot Meter Analysis
           </p>
         </div>
+
+        {method === "Pixel Analysis" && (
+          <button
+            onClick={() => setShowCalibration(!showCalibration)}
+            className={`p-2 rounded-full transition-colors ${showCalibration ? "bg-rhozly-primary text-white" : "bg-rhozly-surface-low text-rhozly-on-surface"}`}
+          >
+            <SlidersHorizontal size={20} />
+          </button>
+        )}
       </div>
 
       <div className="bg-rhozly-surface-low p-1.5 rounded-2xl flex items-center mb-8">
@@ -254,8 +283,48 @@ export default function LightSensor() {
         </button>
       </div>
 
+      {/* 🚀 UPGRADED CALIBRATION UI */}
+      {showCalibration && method === "Pixel Analysis" && (
+        <div className="mb-6 p-4 bg-white rounded-2xl border border-rhozly-outline/10 shadow-sm animate-in slide-in-from-top-4">
+          <div className="flex justify-between items-center mb-4">
+            <span className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface">
+              Tune Camera
+            </span>
+            <span className="text-xs font-bold text-rhozly-primary bg-rhozly-primary/10 px-2 py-1 rounded-md">
+              {calibrationFactor.toFixed(2)}x
+            </span>
+          </div>
+
+          <input
+            type="range"
+            min="0.01"
+            max="2.00"
+            step="0.01"
+            value={calibrationFactor}
+            onChange={(e) => setCalibrationFactor(parseFloat(e.target.value))}
+            className="w-full accent-rhozly-primary mb-4"
+          />
+
+          <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100/50">
+            <span className="block text-[10px] font-black uppercase tracking-widest text-blue-900 mb-1">
+              How to calibrate:
+            </span>
+            <ol className="text-[11px] font-bold text-blue-800/80 space-y-1.5 list-decimal list-inside">
+              <li>
+                Point camera out a window on a normal, non-direct sun day.
+              </li>
+              <li>
+                Adjust slider until the meter reads{" "}
+                <strong className="text-green-600">Bright Indirect</strong> (5k
+                - 10k Lux).
+              </li>
+              <li>Your device will remember this setting!</li>
+            </ol>
+          </div>
+        </div>
+      )}
+
       <div className="flex-1 flex flex-col items-center justify-center py-6">
-        {/* 🚀 THE GAUGE WITH VIDEO BACKGROUND */}
         <div
           className={`relative w-64 h-64 rounded-full flex flex-col items-center justify-center border-[12px] shadow-2xl transition-all duration-700 overflow-hidden ${
             method === "Pixel Analysis" && isScanning
@@ -263,7 +332,6 @@ export default function LightSensor() {
               : category.border
           } ${category.bg}`}
         >
-          {/* Live Camera Feed */}
           <video
             ref={videoRef}
             className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${
@@ -275,34 +343,25 @@ export default function LightSensor() {
             muted
           />
 
-          {/* Dark Overlay so text is readable over the camera */}
           {isScanning && method === "Pixel Analysis" && (
             <div className="absolute inset-0 bg-black/40" />
           )}
 
-          {/* Text Content */}
           <div className="relative z-10 flex flex-col items-center">
             {isScanning ? (
               <>
                 <span
-                  className={`text-6xl font-black font-display tracking-tighter transition-colors duration-700 ${
-                    method === "Pixel Analysis" ? "text-white" : category.color
-                  }`}
+                  className={`text-6xl font-black font-display tracking-tighter transition-colors duration-700 ${method === "Pixel Analysis" ? "text-white" : category.color}`}
                 >
                   {lux.toLocaleString()}
                 </span>
                 <span
-                  className={`text-sm font-bold uppercase tracking-widest mt-1 ${
-                    method === "Pixel Analysis" ? "text-white/70" : "opacity-50"
-                  }`}
+                  className={`text-sm font-bold uppercase tracking-widest mt-1 ${method === "Pixel Analysis" ? "text-white/70" : "opacity-50"}`}
                 >
                   LUX
                 </span>
                 <div
-                  className={`absolute -bottom-16 px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest text-white shadow-lg transition-colors duration-700 ${category.color.replace(
-                    "text-",
-                    "bg-",
-                  )}`}
+                  className={`absolute -bottom-16 px-6 py-2 rounded-full font-black text-xs uppercase tracking-widest text-white shadow-lg transition-colors duration-700 ${category.color.replace("text-", "bg-")}`}
                 >
                   {category.label}
                 </div>
@@ -347,7 +406,6 @@ export default function LightSensor() {
       </div>
 
       <div className="space-y-4 mt-auto">
-        {/* 🚀 DYNAMIC INSTRUCTION BOX */}
         <div
           className={`p-4 rounded-2xl flex gap-3 border shadow-sm transition-colors duration-300 ${
             method === "Native Sensor"
@@ -362,7 +420,6 @@ export default function LightSensor() {
             </span>
             <p className="text-[12px] font-bold leading-snug">
               {method === "Initializing..." && "Waiting for sensor data..."}
-
               {method === "Native Sensor" && (
                 <>
                   Lay your phone flat with the{" "}
@@ -372,7 +429,6 @@ export default function LightSensor() {
                   . The sensor is near your selfie camera.
                 </>
               )}
-
               {method === "Pixel Analysis" && (
                 <>
                   Point your{" "}
