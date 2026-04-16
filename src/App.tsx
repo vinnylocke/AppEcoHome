@@ -21,6 +21,9 @@ import {
 // 🚀 NATIVE IMPORT: Aliased to avoid conflict with the 'App' component name
 import { App as CapApp } from "@capacitor/app";
 
+import AdminGuideGenerator from "./components/AdminGuideGenerator";
+import { Wand2 } from "lucide-react"; // Don't forget the icon for the nav link!
+
 // Import your components
 import LocationTile from "./components/LocationTile";
 import { HomeDropdown } from "./components/HomeDropdown";
@@ -38,6 +41,9 @@ import TaskCalendar from "./components/TaskCalendar";
 import TaskList from "./components/TaskList";
 import PlantDoctor from "./components/PlantDoctor";
 import LightSensor from "./components/LightSensor"; // 🚀 IMPORTED LIGHT SENSOR
+
+import GuideList from "./components/GuideList";
+import { BookOpen } from "lucide-react"; // Import the book icon
 
 // --- WEATHER & CACHE HELPERS ---
 const getMidnightTonight = () => {
@@ -442,14 +448,25 @@ export default function App() {
       />
     );
 
+  // 🚀 Build the base links everyone gets
   const navLinks = [
     { id: "dashboard", icon: <Home />, label: "Dashboard" },
     { id: "shed", icon: <Database />, label: "The Shed" },
     { id: "doctor", icon: <Stethoscope />, label: "Plant Doctor" },
-    { id: "lightsensor", icon: <Sun />, label: "Light Sensor" }, // 🚀 NEW NAV LINK
+    { id: "lightsensor", icon: <Sun />, label: "Light Sensor" },
+    { id: "guides", icon: <BookOpen />, label: "Guides" },
     { id: "management", icon: <Wrench />, label: "Location Management" },
   ];
 
+  // 🚀 Push the Admin tab only if they have the flag
+  if (profile?.is_admin) {
+    // Make sure to import { Wand2 } from "lucide-react" at the top of App.tsx!
+    navLinks.push({
+      id: "admin_guides",
+      icon: <Wand2 />,
+      label: "Guide Studio",
+    });
+  }
   return (
     <Sentry.ErrorBoundary fallback={<p>An unexpected error occurred.</p>}>
       <Toaster />
@@ -737,6 +754,12 @@ export default function App() {
               </div>
             )}
 
+            {activeTab === "guides" && (
+              <div className="h-full animate-in fade-in duration-500">
+                <GuideList />
+              </div>
+            )}
+
             {activeTab === "management" && (
               <section className="h-full">
                 {profile?.home_id ? (
@@ -747,6 +770,12 @@ export default function App() {
                   </div>
                 )}
               </section>
+            )}
+            {/* 🚀 NEW: THE ADMIN ROUTE */}
+            {activeTab === "admin_guides" && profile?.is_admin && (
+              <div className="h-full animate-in fade-in duration-500">
+                <AdminGuideGenerator />
+              </div>
             )}
           </main>
         </div>
