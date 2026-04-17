@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom"; // 🚀 IMPORTED REACT PORTALS
 import { supabase } from "../lib/supabase";
 import {
   CheckSquare,
@@ -108,24 +107,6 @@ export default function TaskList({
   const todayStr = getLocalDateString(new Date());
   const typesFilterStr = selectedTypes?.join(",") || "";
 
-  // 🚀 UX UPGRADE: Lock body scroll when any modal is open
-  const isAnyModalOpen = !!(
-    selectedTask ||
-    archivePrompts ||
-    showBulkDeleteModal ||
-    taskToDelete
-  );
-  useEffect(() => {
-    if (isAnyModalOpen) {
-      document.body.style.overflow = "hidden";
-    } else {
-      document.body.style.overflow = "unset";
-    }
-    return () => {
-      document.body.style.overflow = "unset";
-    };
-  }, [isAnyModalOpen]);
-
   useEffect(() => {
     if (selectedTask) {
       const tomorrow = new Date();
@@ -231,6 +212,7 @@ export default function TaskList({
         const blueprints = bpData || [];
 
         const ghostTasks: any[] = [];
+        const uniqueGhostKeys = new Set(); // 🚀 UI ARMOR: Prevent overlapping identical blueprints from creating multiple ghosts
 
         blueprints.forEach((bp) => {
           const safeDateString =
@@ -247,31 +229,41 @@ export default function TaskList({
           );
 
           if (diffDays % bp.frequency_days === 0) {
-            const hasPhysical = physicalTasks.some(
-              (t) => t.blueprint_id === bp.id && t.due_date === dateStr,
-            );
+            // 🚀 UI ARMOR: Create a unique fingerprint for this task on this specific day
+            const ghostKey = `${bp.task_type}-${bp.inventory_item_id}-${dateStr}`;
 
-            if (!hasPhysical) {
-              const isOutside = bp.locations?.is_outside;
-              const isAutoCompleted =
-                isRainingTargetDate && isOutside && bp.task_type === "Watering";
+            if (!uniqueGhostKeys.has(ghostKey)) {
+              const hasPhysical = physicalTasks.some(
+                (t) => t.blueprint_id === bp.id && t.due_date === dateStr,
+              );
 
-              ghostTasks.push({
-                id: `ghost-${bp.id}-${dateStr}`,
-                home_id: bp.home_id,
-                blueprint_id: bp.id,
-                title: bp.title,
-                description: bp.description,
-                type: bp.task_type,
-                status: isAutoCompleted ? "Completed" : "Pending",
-                due_date: dateStr,
-                location_id: bp.location_id,
-                area_id: bp.area_id,
-                inventory_item_id: bp.inventory_item_id,
-                isGhost: true,
-                isAutoCompleted: isAutoCompleted,
-                inventory_items: bp.inventory_items,
-              });
+              if (!hasPhysical) {
+                uniqueGhostKeys.add(ghostKey);
+                ghostTasks.push({
+                  id: `ghost-${bp.id}-${dateStr}`,
+                  home_id: bp.home_id,
+                  blueprint_id: bp.id,
+                  title: bp.title,
+                  description: bp.description,
+                  type: bp.task_type,
+                  status:
+                    isRainingTargetDate &&
+                    bp.locations?.is_outside &&
+                    bp.task_type === "Watering"
+                      ? "Completed"
+                      : "Pending",
+                  due_date: dateStr,
+                  location_id: bp.location_id,
+                  area_id: bp.area_id,
+                  inventory_item_id: bp.inventory_item_id,
+                  isGhost: true,
+                  isAutoCompleted:
+                    isRainingTargetDate &&
+                    bp.locations?.is_outside &&
+                    bp.task_type === "Watering",
+                  inventory_items: bp.inventory_items,
+                });
+              }
             }
           }
         });
@@ -317,6 +309,10 @@ export default function TaskList({
   useEffect(() => {
     fetchTasksAndGhosts();
   }, [fetchTasksAndGhosts]);
+
+  // ---------------------------------------------------------
+  // BULK OPERATIONS LOGIC
+  // ---------------------------------------------------------
 
   const toggleTaskSelection = (taskId: string) => {
     const newSet = new Set(selectedTaskIds);
@@ -964,232 +960,217 @@ export default function TaskList({
         })}
       </div>
 
-      {/* 🚀 TELEPORTED MODALS: All floating overlays now use React Portals to fix positioning! */}
-
-      {isBulkEditing &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-md px-4 z-[90] animate-in slide-in-from-bottom-8">
-            <div className="bg-white rounded-[2rem] shadow-2xl border border-rhozly-outline/20 p-4 flex flex-col gap-3">
-              <div className="flex items-center justify-between px-2">
-                <span className="text-sm font-black text-rhozly-on-surface">
-                  {selectedTaskIds.size} selected
-                </span>
-                <button
-                  onClick={() => setIsBulkEditing(false)}
-                  className="text-xs font-bold text-rhozly-on-surface/50 hover:text-rhozly-on-surface uppercase tracking-widest"
-                >
-                  Cancel
-                </button>
-              </div>
-
-              {isBulkPostponing ? (
-                <div className="flex gap-2">
-                  <input
-                    type="date"
-                    value={bulkPostponeDate}
-                    min={todayStr}
-                    onChange={(e) => setBulkPostponeDate(e.target.value)}
-                    className="flex-1 p-3 bg-rhozly-surface-low rounded-xl font-bold border border-rhozly-outline/10 focus:border-rhozly-primary outline-none"
-                  />
-                  <button
-                    onClick={() => setIsBulkPostponing(false)}
-                    className="px-4 py-3 bg-gray-100 font-bold rounded-xl text-gray-500 hover:bg-gray-200"
-                  >
-                    <X size={18} />
-                  </button>
-                  <button
-                    onClick={handleBulkPostpone}
-                    disabled={isBulkProcessing || !bulkPostponeDate}
-                    className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl transition-all disabled:opacity-50 flex items-center justify-center min-w-[80px]"
-                  >
-                    {isBulkProcessing ? (
-                      <Loader2 className="animate-spin" size={18} />
-                    ) : (
-                      <CheckSquare size={18} />
-                    )}
-                  </button>
-                </div>
-              ) : (
-                <div className="flex gap-2">
-                  <button
-                    onClick={handleBulkComplete}
-                    disabled={selectedTaskIds.size === 0 || isBulkProcessing}
-                    className="flex-1 py-3 bg-rhozly-primary text-white rounded-xl font-black shadow-md hover:bg-rhozly-primary/90 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
-                  >
-                    {isBulkProcessing ? (
-                      <Loader2 className="animate-spin" size={16} />
-                    ) : (
-                      <CheckSquare size={16} />
-                    )}{" "}
-                    Done
-                  </button>
-                  <button
-                    onClick={() => setIsBulkPostponing(true)}
-                    disabled={selectedTaskIds.size === 0 || isBulkProcessing}
-                    className="flex-1 py-3 bg-blue-50 text-blue-600 rounded-xl font-black transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 hover:bg-blue-100"
-                  >
-                    <CalendarClock size={16} /> Postpone
-                  </button>
-                  <button
-                    onClick={() => {
-                      setDeleteBlueprints(false);
-                      setShowBulkDeleteModal(true);
-                    }}
-                    disabled={selectedTaskIds.size === 0 || isBulkProcessing}
-                    className="flex-1 py-3 bg-red-50 text-red-600 rounded-xl font-black transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 hover:bg-red-100"
-                  >
-                    <Trash2 size={16} /> Delete
-                  </button>
-                </div>
-              )}
-            </div>
-          </div>,
-          document.body,
-        )}
-
-      {showBulkDeleteModal &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-md animate-in fade-in zoom-in-95">
-            <div className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col items-center text-center relative overflow-hidden">
+      {isBulkEditing && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-md px-4 z-[90] animate-in slide-in-from-bottom-8">
+          <div className="bg-white rounded-[2rem] shadow-2xl border border-rhozly-outline/20 p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between px-2">
+              <span className="text-sm font-black text-rhozly-on-surface">
+                {selectedTaskIds.size} selected
+              </span>
               <button
-                onClick={() => setShowBulkDeleteModal(false)}
-                className="absolute top-6 right-6 p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
+                onClick={() => setIsBulkEditing(false)}
+                className="text-xs font-bold text-rhozly-on-surface/50 hover:text-rhozly-on-surface uppercase tracking-widest"
               >
-                <X size={20} className="text-gray-600" />
+                Cancel
               </button>
-              <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
-                <Trash2 size={40} />
-              </div>
-              <h3 className="text-2xl font-black leading-tight text-rhozly-on-surface mb-2">
-                Remove Tasks
-              </h3>
-              <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6 leading-relaxed">
-                You are about to remove{" "}
-                <span className="font-black text-rhozly-primary">
-                  {selectedTaskIds.size}
-                </span>{" "}
-                task(s) from your schedule.
-              </p>
+            </div>
 
-              {selectedTaskObjects.some((t) => t.blueprint_id) && (
-                <label className="flex items-center gap-3 p-4 bg-red-50/50 rounded-2xl border border-red-100 cursor-pointer mb-6 text-left w-full hover:bg-red-50 transition-colors">
-                  <input
-                    type="checkbox"
-                    checked={deleteBlueprints}
-                    onChange={(e) => setDeleteBlueprints(e.target.checked)}
-                    className="accent-red-500 w-5 h-5 shrink-0"
-                  />
-                  <div>
-                    <p className="text-sm font-black text-red-900">
-                      Delete recurring schedules?
-                    </p>
-                    <p className="text-[10px] font-bold text-red-700/70 mt-0.5 leading-tight">
-                      This will permanently stop these specific tasks from ever
-                      appearing again in the future.
-                    </p>
-                  </div>
-                </label>
-              )}
-
-              <div className="flex flex-col sm:flex-row gap-3 w-full mt-2">
+            {isBulkPostponing ? (
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={bulkPostponeDate}
+                  min={todayStr}
+                  onChange={(e) => setBulkPostponeDate(e.target.value)}
+                  className="flex-1 p-3 bg-rhozly-surface-low rounded-xl font-bold border border-rhozly-outline/10 focus:border-rhozly-primary outline-none"
+                />
                 <button
-                  onClick={() => setShowBulkDeleteModal(false)}
-                  disabled={isBulkProcessing}
-                  className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-black transition-colors"
+                  onClick={() => setIsBulkPostponing(false)}
+                  className="px-4 py-3 bg-gray-100 font-bold rounded-xl text-gray-500 hover:bg-gray-200"
                 >
-                  Cancel
+                  <X size={18} />
                 </button>
                 <button
-                  onClick={executeBulkDelete}
-                  disabled={isBulkProcessing}
-                  className="flex-1 py-4 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-black shadow-lg transition-colors flex items-center justify-center gap-2"
+                  onClick={handleBulkPostpone}
+                  disabled={isBulkProcessing || !bulkPostponeDate}
+                  className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl transition-all disabled:opacity-50 flex items-center justify-center min-w-[80px]"
                 >
                   {isBulkProcessing ? (
-                    <Loader2 className="animate-spin" size={20} />
+                    <Loader2 className="animate-spin" size={18} />
                   ) : (
-                    "Remove Tasks"
+                    <CheckSquare size={18} />
                   )}
                 </button>
               </div>
-            </div>
-          </div>,
-          document.body,
-        )}
-
-      {archivePrompts &&
-        archivePrompts.length > 0 &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-md animate-in fade-in zoom-in-95">
-            <div className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col items-center text-center relative overflow-hidden">
-              <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-amber-400 to-orange-500" />
-              <div className="w-20 h-20 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mb-6 shadow-inner">
-                <Archive size={40} />
-              </div>
-              <h3 className="text-2xl font-black leading-tight text-rhozly-on-surface mb-2">
-                Harvest Complete!
-              </h3>
-              <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6 leading-relaxed">
-                You've harvested{" "}
-                {archivePrompts.length > 1
-                  ? `${archivePrompts.length} plants`
-                  : "a plant"}
-                . If they are finished for the season, you can retire them to
-                your History.
-              </p>
-              <div className="w-full bg-rhozly-surface-lowest border border-rhozly-outline/10 rounded-2xl p-4 mb-8 max-h-32 overflow-y-auto custom-scrollbar text-left space-y-2">
-                {archivePrompts.map((p, idx) => (
-                  <p
-                    key={idx}
-                    className="text-xs font-black text-rhozly-on-surface flex items-center gap-2"
-                  >
-                    <Wheat size={12} className="text-amber-500" /> {p.plantName}
-                  </p>
-                ))}
-              </div>
-              <div className="flex flex-col sm:flex-row gap-3 w-full">
+            ) : (
+              <div className="flex gap-2">
                 <button
-                  onClick={() => setArchivePrompts(null)}
-                  disabled={isArchiving}
-                  className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-black transition-colors"
+                  onClick={handleBulkComplete}
+                  disabled={selectedTaskIds.size === 0 || isBulkProcessing}
+                  className="flex-1 py-3 bg-rhozly-primary text-white rounded-xl font-black shadow-md hover:bg-rhozly-primary/90 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
                 >
-                  Keep in Shed
-                </button>
-                <button
-                  onClick={handleArchiveItems}
-                  disabled={isArchiving}
-                  className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black shadow-lg transition-colors flex items-center justify-center gap-2"
-                >
-                  {isArchiving ? (
-                    <Loader2 className="animate-spin" size={20} />
+                  {isBulkProcessing ? (
+                    <Loader2 className="animate-spin" size={16} />
                   ) : (
-                    "Archive All"
-                  )}
+                    <CheckSquare size={16} />
+                  )}{" "}
+                  Done
+                </button>
+                <button
+                  onClick={() => setIsBulkPostponing(true)}
+                  disabled={selectedTaskIds.size === 0 || isBulkProcessing}
+                  className="flex-1 py-3 bg-blue-50 text-blue-600 rounded-xl font-black transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 hover:bg-blue-100"
+                >
+                  <CalendarClock size={16} /> Postpone
+                </button>
+                <button
+                  onClick={() => {
+                    setDeleteBlueprints(false);
+                    setShowBulkDeleteModal(true);
+                  }}
+                  disabled={selectedTaskIds.size === 0 || isBulkProcessing}
+                  className="flex-1 py-3 bg-red-50 text-red-600 rounded-xl font-black transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 hover:bg-red-100"
+                >
+                  <Trash2 size={16} /> Delete
                 </button>
               </div>
-            </div>
-          </div>,
-          document.body,
-        )}
+            )}
+          </div>
+        </div>
+      )}
 
-      {selectedTask &&
-        !isBulkEditing &&
-        typeof document !== "undefined" &&
-        createPortal(
-          <div
-            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/90 backdrop-blur-sm animate-in fade-in"
-            onClick={() => setSelectedTask(null)}
-          >
-            <div
-              className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar"
-              onClick={(e) => e.stopPropagation()}
+      {showBulkDeleteModal && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-md animate-in fade-in zoom-in-95">
+          <div className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col items-center text-center relative overflow-hidden">
+            <button
+              onClick={() => setShowBulkDeleteModal(false)}
+              className="absolute top-6 right-6 p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
             >
-              <div className="flex justify-between items-start mb-6">
-                <div className="flex gap-3 items-center">
-                  <div
-                    className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 
+              <X size={20} className="text-gray-600" />
+            </button>
+            <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
+              <Trash2 size={40} />
+            </div>
+            <h3 className="text-2xl font-black leading-tight text-rhozly-on-surface mb-2">
+              Remove Tasks
+            </h3>
+            <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6 leading-relaxed">
+              You are about to remove{" "}
+              <span className="font-black text-rhozly-primary">
+                {selectedTaskIds.size}
+              </span>{" "}
+              task(s) from your schedule.
+            </p>
+
+            {selectedTaskObjects.some((t) => t.blueprint_id) && (
+              <label className="flex items-center gap-3 p-4 bg-red-50/50 rounded-2xl border border-red-100 cursor-pointer mb-6 text-left w-full hover:bg-red-50 transition-colors">
+                <input
+                  type="checkbox"
+                  checked={deleteBlueprints}
+                  onChange={(e) => setDeleteBlueprints(e.target.checked)}
+                  className="accent-red-500 w-5 h-5 shrink-0"
+                />
+                <div>
+                  <p className="text-sm font-black text-red-900">
+                    Delete recurring schedules?
+                  </p>
+                  <p className="text-[10px] font-bold text-red-700/70 mt-0.5 leading-tight">
+                    This will permanently stop these specific tasks from ever
+                    appearing again in the future.
+                  </p>
+                </div>
+              </label>
+            )}
+
+            <div className="flex flex-col sm:flex-row gap-3 w-full mt-2">
+              <button
+                onClick={() => setShowBulkDeleteModal(false)}
+                disabled={isBulkProcessing}
+                className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-black transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={executeBulkDelete}
+                disabled={isBulkProcessing}
+                className="flex-1 py-4 bg-red-500 hover:bg-red-600 text-white rounded-2xl font-black shadow-lg transition-colors flex items-center justify-center gap-2"
+              >
+                {isBulkProcessing ? (
+                  <Loader2 className="animate-spin" size={20} />
+                ) : (
+                  "Remove Tasks"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {archivePrompts && archivePrompts.length > 0 && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-md animate-in fade-in zoom-in-95">
+          <div className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col items-center text-center relative overflow-hidden">
+            <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-amber-400 to-orange-500" />
+            <div className="w-20 h-20 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mb-6 shadow-inner">
+              <Archive size={40} />
+            </div>
+            <h3 className="text-2xl font-black leading-tight text-rhozly-on-surface mb-2">
+              Harvest Complete!
+            </h3>
+            <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6 leading-relaxed">
+              You've harvested{" "}
+              {archivePrompts.length > 1
+                ? `${archivePrompts.length} plants`
+                : "a plant"}
+              . If they are finished for the season, you can retire them to your
+              History.
+            </p>
+            <div className="w-full bg-rhozly-surface-lowest border border-rhozly-outline/10 rounded-2xl p-4 mb-8 max-h-32 overflow-y-auto custom-scrollbar text-left space-y-2">
+              {archivePrompts.map((p, idx) => (
+                <p
+                  key={idx}
+                  className="text-xs font-black text-rhozly-on-surface flex items-center gap-2"
+                >
+                  <Wheat size={12} className="text-amber-500" /> {p.plantName}
+                </p>
+              ))}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 w-full">
+              <button
+                onClick={() => setArchivePrompts(null)}
+                disabled={isArchiving}
+                className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-black transition-colors"
+              >
+                Keep in Shed
+              </button>
+              <button
+                onClick={handleArchiveItems}
+                disabled={isArchiving}
+                className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black shadow-lg transition-colors flex items-center justify-center gap-2"
+              >
+                {isArchiving ? (
+                  <Loader2 className="animate-spin" size={20} />
+                ) : (
+                  "Archive All"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedTask && !isBulkEditing && (
+        <div
+          className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/90 backdrop-blur-sm animate-in fade-in"
+          onClick={() => setSelectedTask(null)}
+        >
+          <div
+            className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex justify-between items-start mb-6">
+              <div className="flex gap-3 items-center">
+                <div
+                  className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 
                     ${
                       selectedTask.status === "Completed"
                         ? "bg-green-100 text-green-600"
@@ -1197,219 +1178,210 @@ export default function TaskList({
                           ? "bg-red-100 text-red-600"
                           : "bg-rhozly-primary/10 text-rhozly-primary"
                     }`}
-                  >
-                    {getTaskIcon(selectedTask.type)}
-                  </div>
-                  <div>
-                    <h3
-                      className={`text-xl font-black leading-tight ${selectedTask.status === "Completed" ? "line-through decoration-2 decoration-green-500/50" : ""}`}
-                    >
-                      {selectedTask.title}
-                    </h3>
-                    <span
-                      className={`text-[10px] font-black uppercase tracking-widest ${selectedTask.due_date < todayStr && selectedTask.status !== "Completed" ? "text-red-500" : "text-rhozly-on-surface/40"}`}
-                    >
-                      {selectedTask.status === "Completed"
-                        ? "Completed"
-                        : selectedTask.due_date < todayStr
-                          ? `Overdue (Due: ${formatDisplayDate(selectedTask.due_date)})`
-                          : `Due: ${formatDisplayDate(selectedTask.due_date)}`}
-                    </span>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setSelectedTask(null)}
-                  className="p-2 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors shrink-0"
                 >
-                  <X size={18} />
-                </button>
-              </div>
-
-              {selectedTask.isAutoCompleted && (
-                <div className="mb-6 bg-blue-50 border border-blue-100 p-4 rounded-2xl flex items-start gap-3 text-blue-800">
-                  <CloudRain className="shrink-0 mt-0.5" size={18} />
-                  <div>
-                    <p className="text-sm font-black">Nature handled this!</p>
-                    <p className="text-xs font-bold opacity-80 mt-0.5">
-                      We forecasted rain on this day for this outside area, so
-                      we automatically checked this off for you.
-                    </p>
-                  </div>
+                  {getTaskIcon(selectedTask.type)}
                 </div>
-              )}
+                <div>
+                  <h3
+                    className={`text-xl font-black leading-tight ${selectedTask.status === "Completed" ? "line-through decoration-2 decoration-green-500/50" : ""}`}
+                  >
+                    {selectedTask.title}
+                  </h3>
+                  <span
+                    className={`text-[10px] font-black uppercase tracking-widest ${selectedTask.due_date < todayStr && selectedTask.status !== "Completed" ? "text-red-500" : "text-rhozly-on-surface/40"}`}
+                  >
+                    {selectedTask.status === "Completed"
+                      ? "Completed"
+                      : selectedTask.due_date < todayStr
+                        ? `Overdue (Due: ${formatDisplayDate(selectedTask.due_date)})`
+                        : `Due: ${formatDisplayDate(selectedTask.due_date)}`}
+                  </span>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedTask(null)}
+                className="p-2 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors shrink-0"
+              >
+                <X size={18} />
+              </button>
+            </div>
 
-              {selectedTask.description && (
-                <div className="mb-6 bg-rhozly-surface-lowest p-4 rounded-2xl border border-rhozly-outline/5">
-                  <h4 className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 flex items-center gap-1 mb-2">
-                    <FileText size={12} /> Instructions
-                  </h4>
-                  <p className="text-sm font-bold text-rhozly-on-surface/60">
-                    {selectedTask.description}
+            {selectedTask.isAutoCompleted && (
+              <div className="mb-6 bg-blue-50 border border-blue-100 p-4 rounded-2xl flex items-start gap-3 text-blue-800">
+                <CloudRain className="shrink-0 mt-0.5" size={18} />
+                <div>
+                  <p className="text-sm font-black">Nature handled this!</p>
+                  <p className="text-xs font-bold opacity-80 mt-0.5">
+                    We forecasted rain on this day for this outside area, so we
+                    automatically checked this off for you.
                   </p>
                 </div>
+              </div>
+            )}
+
+            {selectedTask.description && (
+              <div className="mb-6 bg-rhozly-surface-lowest p-4 rounded-2xl border border-rhozly-outline/5">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 flex items-center gap-1 mb-2">
+                  <FileText size={12} /> Instructions
+                </h4>
+                <p className="text-sm font-bold text-rhozly-on-surface/60">
+                  {selectedTask.description}
+                </p>
+              </div>
+            )}
+
+            <div className="space-y-3 mb-8">
+              {selectedTask.inventory_items?.plant_name && (
+                <div className="flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl">
+                  {selectedTask.inventory_items?.plants?.thumbnail_url ? (
+                    <img
+                      src={selectedTask.inventory_items.plants.thumbnail_url}
+                      className="w-10 h-10 rounded-xl object-cover shrink-0"
+                      alt="plant"
+                    />
+                  ) : (
+                    <div className="w-10 h-10 bg-rhozly-primary/10 rounded-xl flex items-center justify-center text-rhozly-primary shrink-0">
+                      <Leaf size={16} />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+                      Related Plant
+                    </p>
+                    <p className="text-sm font-bold truncate">
+                      {selectedTask.inventory_items.plant_name}{" "}
+                      <span className="opacity-50 text-xs">
+                        (
+                        {selectedTask.inventory_items.identifier?.split("#")[1]}
+                        )
+                      </span>
+                    </p>
+                  </div>
+                </div>
               )}
 
-              <div className="space-y-3 mb-8">
-                {selectedTask.inventory_items?.plant_name && (
-                  <div className="flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl">
-                    {selectedTask.inventory_items?.plants?.thumbnail_url ? (
-                      <img
-                        src={selectedTask.inventory_items.plants.thumbnail_url}
-                        className="w-10 h-10 rounded-xl object-cover shrink-0"
-                        alt="plant"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 bg-rhozly-primary/10 rounded-xl flex items-center justify-center text-rhozly-primary shrink-0">
-                        <Leaf size={16} />
-                      </div>
-                    )}
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
-                        Related Plant
-                      </p>
-                      <p className="text-sm font-bold truncate">
-                        {selectedTask.inventory_items.plant_name}{" "}
-                        <span className="opacity-50 text-xs">
-                          (
-                          {
-                            selectedTask.inventory_items.identifier?.split(
-                              "#",
-                            )[1]
-                          }
-                          )
-                        </span>
-                      </p>
-                    </div>
-                  </div>
-                )}
-
-                {(selectedTask.inventory_items?.location_name ||
-                  selectedTask.inventory_items?.area_name) && (
-                  <div className="flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl">
-                    <div className="w-10 h-10 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center shrink-0">
-                      <MapPin size={16} />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
-                        Location
-                      </p>
-                      <p className="text-sm font-bold truncate">
-                        {selectedTask.inventory_items.location_name}{" "}
-                        {selectedTask.inventory_items.area_name &&
-                          `• ${selectedTask.inventory_items.area_name}`}
-                      </p>
-                    </div>
-                  </div>
-                )}
-
+              {(selectedTask.inventory_items?.location_name ||
+                selectedTask.inventory_items?.area_name) && (
                 <div className="flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl">
-                  <div
-                    className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${selectedTask.blueprint_id ? "bg-purple-50 text-purple-500" : "bg-orange-50 text-orange-500"}`}
-                  >
-                    {selectedTask.blueprint_id ? (
-                      <Repeat size={16} />
-                    ) : (
-                      <Info size={16} />
-                    )}
+                  <div className="w-10 h-10 bg-blue-50 text-blue-500 rounded-xl flex items-center justify-center shrink-0">
+                    <MapPin size={16} />
                   </div>
-                  <div>
+                  <div className="min-w-0">
                     <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
-                      Origin
+                      Location
                     </p>
-                    <p className="text-sm font-bold">
-                      {selectedTask.blueprint_id
-                        ? "Automated Schedule"
-                        : "Manual Entry"}
+                    <p className="text-sm font-bold truncate">
+                      {selectedTask.inventory_items.location_name}{" "}
+                      {selectedTask.inventory_items.area_name &&
+                        `• ${selectedTask.inventory_items.area_name}`}
                     </p>
                   </div>
+                </div>
+              )}
+
+              <div className="flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl">
+                <div
+                  className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${selectedTask.blueprint_id ? "bg-purple-50 text-purple-500" : "bg-orange-50 text-orange-500"}`}
+                >
+                  {selectedTask.blueprint_id ? (
+                    <Repeat size={16} />
+                  ) : (
+                    <Info size={16} />
+                  )}
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+                    Origin
+                  </p>
+                  <p className="text-sm font-bold">
+                    {selectedTask.blueprint_id
+                      ? "Automated Schedule"
+                      : "Manual Entry"}
+                  </p>
                 </div>
               </div>
-
-              {isPostponing ? (
-                <div className="flex gap-2 mt-auto shrink-0 items-stretch">
-                  <input
-                    type="date"
-                    value={postponeDate}
-                    min={todayStr}
-                    onChange={(e) => setPostponeDate(e.target.value)}
-                    className="flex-1 p-3 bg-rhozly-surface-low rounded-xl font-bold border border-rhozly-outline/10 focus:border-rhozly-primary outline-none"
-                  />
-                  <button
-                    onClick={() => setIsPostponing(false)}
-                    disabled={isUpdatingTask === selectedTask.id}
-                    className="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl transition-all"
-                  >
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => handlePostponeTask(selectedTask)}
-                    disabled={isUpdatingTask === selectedTask.id}
-                    className="px-6 py-3 bg-rhozly-primary hover:scale-[1.02] text-white font-black rounded-xl transition-all flex items-center justify-center min-w-[100px]"
-                  >
-                    {isUpdatingTask === selectedTask.id ? (
-                      <Loader2 className="animate-spin" size={20} />
-                    ) : (
-                      "Confirm"
-                    )}
-                  </button>
-                </div>
-              ) : (
-                <div className="flex gap-3 mt-auto shrink-0">
-                  <button
-                    onClick={() => setTaskToDelete(selectedTask)}
-                    className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shrink-0"
-                    title="Remove task"
-                  >
-                    {isUpdatingTask === selectedTask.id ? (
-                      <Loader2 className="animate-spin" size={20} />
-                    ) : (
-                      <Trash2 size={20} />
-                    )}
-                  </button>
-
-                  <button
-                    onClick={() => setIsPostponing(true)}
-                    className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all shrink-0"
-                    title="Reschedule task"
-                  >
-                    <CalendarClock size={20} />
-                  </button>
-
-                  <button
-                    onClick={() => toggleTaskCompletion(selectedTask)}
-                    className={`flex-1 h-14 rounded-2xl font-black text-white flex items-center justify-center gap-2 transition-all ${selectedTask.status === "Completed" ? "bg-gray-800 hover:bg-gray-900" : "bg-rhozly-primary hover:scale-[1.02]"}`}
-                  >
-                    {isUpdatingTask === selectedTask.id ? (
-                      <Loader2 className="animate-spin" size={20} />
-                    ) : selectedTask.status === "Completed" ? (
-                      <>Mark as Pending</>
-                    ) : (
-                      <>
-                        <CheckSquare size={20} /> Mark as Complete
-                      </>
-                    )}
-                  </button>
-                </div>
-              )}
             </div>
-          </div>,
-          document.body,
-        )}
 
-      {typeof document !== "undefined" &&
-        createPortal(
-          <ConfirmModal
-            isOpen={taskToDelete !== null}
-            isLoading={isUpdatingTask === taskToDelete?.id}
-            onClose={() => setTaskToDelete(null)}
-            onConfirm={() => executeDeleteTask(taskToDelete)}
-            title="Remove Task"
-            description="Are you sure you want to remove this task for today?"
-            confirmText="Remove"
-            isDestructive={true}
-          />,
-          document.body,
-        )}
+            {isPostponing ? (
+              <div className="flex gap-2 mt-auto shrink-0 items-stretch">
+                <input
+                  type="date"
+                  value={postponeDate}
+                  min={todayStr}
+                  onChange={(e) => setPostponeDate(e.target.value)}
+                  className="flex-1 p-3 bg-rhozly-surface-low rounded-xl font-bold border border-rhozly-outline/10 focus:border-rhozly-primary outline-none"
+                />
+                <button
+                  onClick={() => setIsPostponing(false)}
+                  disabled={isUpdatingTask === selectedTask.id}
+                  className="px-4 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 font-bold rounded-xl transition-all"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => handlePostponeTask(selectedTask)}
+                  disabled={isUpdatingTask === selectedTask.id}
+                  className="px-6 py-3 bg-rhozly-primary hover:scale-[1.02] text-white font-black rounded-xl transition-all flex items-center justify-center min-w-[100px]"
+                >
+                  {isUpdatingTask === selectedTask.id ? (
+                    <Loader2 className="animate-spin" size={20} />
+                  ) : (
+                    "Confirm"
+                  )}
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-3 mt-auto shrink-0">
+                <button
+                  onClick={() => setTaskToDelete(selectedTask)}
+                  className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shrink-0"
+                  title="Remove task"
+                >
+                  {isUpdatingTask === selectedTask.id ? (
+                    <Loader2 className="animate-spin" size={20} />
+                  ) : (
+                    <Trash2 size={20} />
+                  )}
+                </button>
+
+                <button
+                  onClick={() => setIsPostponing(true)}
+                  className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all shrink-0"
+                  title="Reschedule task"
+                >
+                  <CalendarClock size={20} />
+                </button>
+
+                <button
+                  onClick={() => toggleTaskCompletion(selectedTask)}
+                  className={`flex-1 h-14 rounded-2xl font-black text-white flex items-center justify-center gap-2 transition-all ${selectedTask.status === "Completed" ? "bg-gray-800 hover:bg-gray-900" : "bg-rhozly-primary hover:scale-[1.02]"}`}
+                >
+                  {isUpdatingTask === selectedTask.id ? (
+                    <Loader2 className="animate-spin" size={20} />
+                  ) : selectedTask.status === "Completed" ? (
+                    <>Mark as Pending</>
+                  ) : (
+                    <>
+                      <CheckSquare size={20} /> Mark as Complete
+                    </>
+                  )}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      <ConfirmModal
+        isOpen={taskToDelete !== null}
+        isLoading={isUpdatingTask === taskToDelete?.id}
+        onClose={() => setTaskToDelete(null)}
+        onConfirm={() => executeDeleteTask(taskToDelete)}
+        title="Remove Task"
+        description="Are you sure you want to remove this task for today?"
+        confirmText="Remove"
+        isDestructive={true}
+      />
     </>
   );
 }

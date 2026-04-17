@@ -9,7 +9,7 @@ import {
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import AddTaskModal, { TASK_CATEGORIES } from "./AddTaskModal";
-import TaskList from "./TaskList"; // 🚀 THE UNIFIER
+import TaskList from "./TaskList";
 
 export interface Task {
   id: string;
@@ -80,9 +80,12 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
       if (taskError) throw taskError;
       if (taskData) setTasks(taskData);
 
+      // 🚀 THE FIX: Included `cycle` in the fetch string
       const { data: bpData, error: bpError } = await supabase
         .from("task_blueprints")
-        .select("*")
+        .select(
+          `*, inventory_items(plant_name, identifier, location_name, area_name, plants(cycle, thumbnail_url)), locations(is_outside)`,
+        )
         .eq("home_id", homeId)
         .eq("is_recurring", true);
 
@@ -134,28 +137,82 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
     const dateStr = getLocalDateString(date);
     const targetDateMs = new Date(dateStr).getTime();
 
+    const todayStr = getLocalDateString(new Date());
+    const todayMs = new Date(todayStr).getTime();
+
     const physicalTasks = tasks.filter((task) => task.due_date === dateStr);
     const ghostTasks: Task[] = [];
+    const uniqueGhostKeys = new Set();
 
-    blueprints.forEach((bp) => {
-      const safeDateString =
-        bp.start_date || bp.created_at || new Date().toISOString();
-      const anchorDateStr = safeDateString.split("T")[0];
-      const anchorDateMs = new Date(anchorDateStr).getTime();
+    if (targetDateMs >= todayMs) {
+      blueprints.forEach((bp) => {
+        const cycle =
+          bp.inventory_items?.plants?.cycle?.toLowerCase() || "annual";
+        const maxYears = cycle.includes("perennial")
+          ? 10
+          : cycle.includes("biennial")
+            ? 2
+            : 1;
 
-      if (targetDateMs < anchorDateMs) return;
-      if (bp.end_date && targetDateMs > new Date(bp.end_date).getTime()) return;
+        const safeDateString =
+          bp.start_date || bp.created_at || new Date().toISOString();
+        const anchorDateStr = safeDateString.split("T")[0];
+        const originalAnchorMs = new Date(anchorDateStr).getTime();
+        const originalAnchorYear = new Date(anchorDateStr).getFullYear();
 
-      const diffDays = Math.round(
-        (targetDateMs - anchorDateMs) / (1000 * 60 * 60 * 24),
-      );
+        const targetYear = new Date(dateStr).getFullYear();
+        const yearShift = targetYear - originalAnchorYear;
 
-      if (diffDays % bp.frequency_days === 0) {
-        const hasPhysical = physicalTasks.some((t) => t.blueprint_id === bp.id);
-        if (!hasPhysical)
-          ghostTasks.push({ ...bp, status: "Pending", isGhost: true });
-      }
-    });
+        // 🚀 THE MAGIC: We test two potential yearly shifts to handle standard seasons AND winter cross-year seasons!
+        const shiftsToTest = [yearShift, yearShift - 1];
+
+        for (const shift of shiftsToTest) {
+          if (shift < 0 || shift >= maxYears) continue;
+
+          let activeAnchorMs = originalAnchorMs;
+          let activeEndMs = bp.end_date
+            ? new Date(bp.end_date).getTime()
+            : Infinity;
+
+          // Shift seasonal (ended) blueprints forward by the exact year difference
+          if (bp.end_date && shift > 0) {
+            const shiftedStart = new Date(anchorDateStr);
+            shiftedStart.setFullYear(originalAnchorYear + shift);
+            activeAnchorMs = shiftedStart.getTime();
+
+            const shiftedEnd = new Date(bp.end_date);
+            shiftedEnd.setFullYear(shiftedEnd.getFullYear() + shift);
+            activeEndMs = shiftedEnd.getTime();
+          }
+
+          if (targetDateMs >= activeAnchorMs && targetDateMs <= activeEndMs) {
+            const diffDays = Math.round(
+              (targetDateMs - activeAnchorMs) / (1000 * 60 * 60 * 24),
+            );
+
+            if (diffDays % bp.frequency_days === 0) {
+              const ghostKey = `${bp.task_type}-${bp.inventory_item_id}-${dateStr}`;
+
+              if (!uniqueGhostKeys.has(ghostKey)) {
+                const hasPhysical = physicalTasks.some(
+                  (t) => t.blueprint_id === bp.id,
+                );
+                if (!hasPhysical) {
+                  uniqueGhostKeys.add(ghostKey);
+                  ghostTasks.push({
+                    ...bp,
+                    status: "Pending",
+                    isGhost: true,
+                    due_date: dateStr,
+                  });
+                }
+              }
+              break; // We found the valid window shift for this date, stop testing other shifts
+            }
+          }
+        }
+      });
+    }
 
     const allTasks = [...physicalTasks, ...ghostTasks];
 
@@ -176,7 +233,6 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
       ? []
       : locations.find((l) => l.id === selectedLoc)?.areas || [];
 
-  // 🚀 Figure out if the currently selected date is TODAY
   const isTodaySelected = isSameDay(selectedDate, new Date());
 
   return (
@@ -409,7 +465,7 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
               key={`agenda-${selectedDate.toISOString()}-${refreshKey}`}
               homeId={homeId}
               targetDate={selectedDate}
-              showOverdue={isTodaySelected} // 🚀 PASSING DOWN THE NEW RULE
+              showOverdue={isTodaySelected}
               onTaskUpdated={fetchTasksAndBlueprints}
               locationId={selectedLoc}
               areaId={selectedArea === "all" ? undefined : selectedArea}

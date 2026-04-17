@@ -7,6 +7,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// Helper for safe timezone math
+const parseSafeDate = (dateStr: string) =>
+  new Date(`${dateStr.split("T")[0]}T12:00:00Z`);
+
 serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
@@ -17,7 +21,6 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    // Optional: Accept a specific blueprint ID to generate tasks immediately upon creation
     const body = await req.json().catch(() => ({}));
     const targetBlueprintId = body.blueprint_id;
 
@@ -26,17 +29,19 @@ serve(async (req) => {
       .from("task_blueprints")
       .select("*")
       .eq("is_recurring", true);
+
     if (targetBlueprintId) query = query.eq("id", targetBlueprintId);
 
     const { data: blueprints, error: bpError } = await query;
     if (bpError) throw bpError;
 
     const tasksToInsert = [];
-    const today = new Date();
-    const maxDate = new Date();
-    maxDate.setDate(today.getDate() + 14); // 🚀 The 14-Day Rolling Window
 
-    // 2. Loop through blueprints and project future tasks
+    // 🚀 THE FIX: Cap the physical task generation strictly at TODAY. Let ghosts handle the future.
+    const todayStr = new Date().toISOString().split("T")[0];
+    const maxDate = parseSafeDate(todayStr);
+
+    // 2. Loop through blueprints and project tasks UP TO TODAY ONLY
     for (const bp of blueprints || []) {
       const { data: lastTask } = await supabase
         .from("tasks")
@@ -46,13 +51,19 @@ serve(async (req) => {
         .limit(1)
         .single();
 
-      let nextDate = lastTask ? new Date(lastTask.due_date) : new Date();
+      // 🚀 THE FIX: If there are no previous tasks, start exactly on the blueprint's start_date!
+      const startStr = bp.start_date || bp.created_at.split("T")[0];
+      let nextDate = lastTask
+        ? parseSafeDate(lastTask.due_date)
+        : parseSafeDate(startStr);
+
       if (lastTask) {
-        nextDate.setDate(nextDate.getDate() + bp.frequency_days); // Step forward
+        nextDate.setDate(nextDate.getDate() + bp.frequency_days); // Step forward from the last task
       }
 
-      const bpEndDate = bp.end_date ? new Date(bp.end_date) : null;
+      const bpEndDate = bp.end_date ? parseSafeDate(bp.end_date) : null;
 
+      // Loop will naturally IGNORE future seasons because nextDate > maxDate!
       while (nextDate <= maxDate) {
         if (bpEndDate && nextDate > bpEndDate) break;
 
@@ -62,7 +73,7 @@ serve(async (req) => {
           title: bp.title,
           description: bp.description,
           type: bp.task_type,
-          due_date: nextDate.toISOString().split("T")[0], // YYYY-MM-DD
+          due_date: nextDate.toISOString().split("T")[0], // Safe YYYY-MM-DD extraction
           location_id: bp.location_id,
           area_id: bp.area_id,
           inventory_item_id: bp.inventory_item_id,
@@ -72,7 +83,7 @@ serve(async (req) => {
       }
     }
 
-    // 3. Batch Insert (FIXED)
+    // 3. Batch Insert
     if (tasksToInsert.length > 0) {
       for (const task of tasksToInsert) {
         const { error } = await supabase.from("tasks").insert(task);

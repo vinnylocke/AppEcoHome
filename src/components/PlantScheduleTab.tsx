@@ -224,7 +224,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     ...dynamicOptions.filter((o) => o.value !== "Trigger Date"),
   ];
 
-  // 🚀 THE FIX: Advanced Mathematical Date Calculator
   const getDatesForBlueprint = (
     startRef: string | null,
     startOffset: number,
@@ -232,8 +231,9 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     endOffset: number,
     freqDays: number,
     plantedAtStr: string,
+    plantCycle: string | null,
+    targetYear: number,
   ) => {
-    // Use midday UTC to safely parse dates without timezone offset bugs shifting the day backwards
     const parseSafeDate = (d: string) => new Date(`${d}T12:00:00Z`).getTime();
     const formatSafeDate = (ms: number) =>
       new Date(ms).toISOString().split("T")[0];
@@ -242,29 +242,51 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
 
     if (startRef?.startsWith("Seasonal:")) {
       const mmdd = startRef.split(":")[1].trim();
-      const year = new Date().getFullYear();
-      startMs = parseSafeDate(`${year}-${mmdd}`);
+      startMs = parseSafeDate(`${targetYear}-${mmdd}`);
     }
     startMs += startOffset * 24 * 60 * 60 * 1000;
 
     let endStr: string | null = null;
+    let endMs: number | null = null;
+
     if (endRef && endRef !== "Ongoing") {
-      let endMs = parseSafeDate(plantedAtStr);
+      endMs = parseSafeDate(plantedAtStr);
       if (endRef.startsWith("Seasonal:")) {
         const mmdd = endRef.split(":")[1].trim();
-        const year = new Date().getFullYear();
-        endMs = parseSafeDate(`${year}-${mmdd}`);
+        endMs = parseSafeDate(`${targetYear}-${mmdd}`);
 
-        // Fix for cross-year seasons (e.g. Winter in Australia starting Dec 1st, ending Feb 28th)
         if (startRef?.startsWith("Seasonal:") && endMs < startMs) {
           endMs += 365 * 24 * 60 * 60 * 1000;
         }
       }
       endMs += endOffset * 24 * 60 * 60 * 1000;
+    }
+
+    let absoluteMaxEndMs: number | null = null;
+    if (plantCycle) {
+      const cycleStr = plantCycle.toLowerCase();
+      const plantedMs = parseSafeDate(plantedAtStr);
+
+      if (cycleStr.includes("annual")) {
+        absoluteMaxEndMs = plantedMs + 365 * 24 * 60 * 60 * 1000;
+      } else if (cycleStr.includes("biennial")) {
+        absoluteMaxEndMs = plantedMs + 730 * 24 * 60 * 60 * 1000;
+      }
+    }
+
+    if (absoluteMaxEndMs) {
+      if (!endMs || endMs > absoluteMaxEndMs) {
+        endMs = absoluteMaxEndMs;
+      }
+      if (startMs > absoluteMaxEndMs) {
+        return { start_date: null, end_date: null };
+      }
+    }
+
+    if (endMs) {
       endStr = formatSafeDate(endMs);
     }
 
-    // 🚀 CLAMP FORWARD: Ensure start date is NEVER in the past relative to planting/today
     const plantedMs = parseSafeDate(plantedAtStr);
     const todayMs = parseSafeDate(new Date().toISOString().split("T")[0]);
     const floorMs = Math.max(plantedMs, todayMs);
@@ -426,7 +448,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         .select();
       if (insertError) throw insertError;
 
-      // 🚀 UPDATED: Query now fetches planted_at
       const { data: existingPlants, error: exPlantErr } = await supabase
         .from("inventory_items")
         .select("id, location_id, area_id, planted_at")
@@ -454,7 +475,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
 
   const applyGeneratedSchedulesToPlants = async () => {
     if (!pendingGeneratedSchedules) return;
-
     setIsAdding(false);
     toast.loading("Applying schedules to active plants...", { id: "sync" });
 
@@ -482,6 +502,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
 
       const blueprintsToCreate: any[] = [];
       const todayStr = new Date().toISOString().split("T")[0];
+      const currentYear = new Date().getFullYear();
 
       for (const p of existingPlants) {
         const plantedAtStr = p.planted_at
@@ -489,7 +510,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           : todayStr;
 
         for (const s of pendingGeneratedSchedules) {
-          // 🚀 THE FIX: Calculate the mathematically safe start date
           const { start_date, end_date } = getDatesForBlueprint(
             s.start_reference,
             s.start_offset_days,
@@ -497,10 +517,22 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             s.end_offset_days,
             s.frequency_days,
             plantedAtStr,
+            plant.cycle,
+            currentYear,
           );
 
-          // Skip generating blueprints that have already completely expired
+          if (!start_date) continue;
           if (end_date && start_date > end_date) continue;
+
+          const cycleStr = (plant.cycle || "").toLowerCase();
+          const isPerennial =
+            cycleStr.includes("perennial") || cycleStr.includes("biennial");
+          if (
+            end_date &&
+            new Date(end_date).getTime() < new Date(todayStr).getTime()
+          ) {
+            if (!isPerennial) continue;
+          }
 
           blueprintsToCreate.push({
             home_id: homeId,
@@ -519,20 +551,28 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       }
 
       if (blueprintsToCreate.length > 0) {
+        // 🚀 THE FIX: Fetch start_date along with ID so we can evaluate if it should trigger the Edge Function!
         const { data: createdBps, error: crBpErr } = await supabase
           .from("task_blueprints")
           .insert(blueprintsToCreate)
-          .select("id");
+          .select("id, start_date");
         if (crBpErr) throw crBpErr;
 
         if (createdBps) {
-          await Promise.all(
-            createdBps.map((bp) =>
-              supabase.functions.invoke("generate-tasks", {
-                body: { blueprint_id: bp.id },
-              }),
-            ),
+          // 🚀 THE SHIELD: Only wake up the Edge Function if the blueprint starts today or earlier.
+          const activeBps = createdBps.filter(
+            (bp) => bp.start_date <= todayStr,
           );
+
+          if (activeBps.length > 0) {
+            await Promise.all(
+              activeBps.map((bp) =>
+                supabase.functions.invoke("generate-tasks", {
+                  body: { blueprint_id: bp.id },
+                }),
+              ),
+            );
+          }
         }
       }
 
@@ -569,7 +609,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     } else {
       setFrequencyMode("interval");
     }
-
     setEditingId(schedule.id);
     setIsAdding(true);
   };
@@ -653,9 +692,11 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             .eq("is_auto_generated", false);
           if (delBpErr) throw delBpErr;
 
+          const blueprintsToCreate: any[] = [];
           const todayStr = new Date().toISOString().split("T")[0];
+          const currentYear = new Date().getFullYear();
 
-          const blueprintsToCreate = existingPlants.map((p) => {
+          for (const p of existingPlants) {
             const plantedAtStr = p.planted_at
               ? p.planted_at.split("T")[0]
               : todayStr;
@@ -666,9 +707,14 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
               newSchedule.end_offset_days,
               newSchedule.frequency_days,
               plantedAtStr,
+              plant.cycle,
+              currentYear,
             );
 
-            return {
+            if (!start_date) continue;
+            if (end_date && start_date > end_date) continue;
+
+            blueprintsToCreate.push({
               home_id: homeId,
               title: newSchedule.title,
               task_type: newSchedule.task_type,
@@ -680,29 +726,31 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
               is_auto_generated: false,
               start_date: start_date,
               end_date: end_date,
-            };
-          });
+            });
+          }
 
-          // Filter out expired schedules
-          const validBlueprints = blueprintsToCreate.filter(
-            (bp) => !(bp.end_date && bp.start_date > bp.end_date),
-          );
-
-          if (validBlueprints.length > 0) {
+          if (blueprintsToCreate.length > 0) {
+            // 🚀 THE FIX: Fetch start_date
             const { data: createdBps, error: crBpErr } = await supabase
               .from("task_blueprints")
-              .insert(validBlueprints)
-              .select("id");
+              .insert(blueprintsToCreate)
+              .select("id, start_date");
             if (crBpErr) throw crBpErr;
 
             if (createdBps) {
-              await Promise.all(
-                createdBps.map((bp) =>
-                  supabase.functions.invoke("generate-tasks", {
-                    body: { blueprint_id: bp.id },
-                  }),
-                ),
+              // 🚀 THE SHIELD
+              const activeBps = createdBps.filter(
+                (bp) => bp.start_date <= todayStr,
               );
+              if (activeBps.length > 0) {
+                await Promise.all(
+                  activeBps.map((bp) =>
+                    supabase.functions.invoke("generate-tasks", {
+                      body: { blueprint_id: bp.id },
+                    }),
+                  ),
+                );
+              }
             }
           }
         }
@@ -837,7 +885,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             <span className="font-bold text-sm text-rhozly-on-surface/60 whitespace-nowrap">
               days after
             </span>
-
             <select
               value={form.start_reference}
               onChange={(e) =>
@@ -873,7 +920,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             <span className="font-bold text-sm text-rhozly-on-surface/60 whitespace-nowrap">
               days after
             </span>
-
             <select
               value={form.end_reference}
               onChange={(e) =>
