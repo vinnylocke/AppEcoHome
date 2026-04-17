@@ -16,6 +16,9 @@ import toast from "react-hot-toast";
 
 import { LightSensor as NativeLightSensor } from "@capgo/capacitor-light-sensor";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 type SensorMethod = "Native Sensor" | "Pixel Analysis";
 
 interface LightSensorProps {
@@ -23,6 +26,9 @@ interface LightSensorProps {
 }
 
 export default function LightSensor({ homeId }: LightSensorProps) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [lux, setLux] = useState<number>(0);
   const [method, setMethod] = useState<
     SensorMethod | "Initializing..." | "Paused"
@@ -38,7 +44,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     return saved ? parseFloat(saved) : 0.2;
   });
 
-  // 🚀 Exposure Offset (Software + Hardware attempts)
   const [exposureLevel, setExposureLevel] = useState<number>(() => {
     const saved = localStorage.getItem("rhozly_exposure_offset");
     return saved ? parseFloat(saved) : 0;
@@ -80,7 +85,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     const capabilities: any = track.getCapabilities?.() || {};
 
     try {
-      // Try hardware first (might be ignored by WebView)
       if (capabilities.exposureCompensation) {
         await track.applyConstraints({
           advanced: [{ exposureCompensation: exposureRef.current }],
@@ -147,13 +151,49 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     };
   };
 
+  const category = getLightCategory(lux);
+
+  // 🧠 LIVE AI SYNC: Update the AI on the current light readings
+  useEffect(() => {
+    const areaName =
+      locations
+        .find((l) => l.id === selectedLocationId)
+        ?.areas.find((a: any) => a.id === selectedAreaId)?.name ||
+      "Unspecified Area";
+
+    setPageContext({
+      action: "Using Light Meter Sensor",
+      sensorReading: {
+        lux: lux,
+        category: category.label,
+        method: method,
+        isScanning: isScanning,
+        calibratedAt: `${calibrationFactor}x`,
+      },
+      targetArea: areaName,
+    });
+
+    // Cleanup on unmount
+    return () => setPageContext(null);
+  }, [
+    lux,
+    method,
+    isScanning,
+    selectedAreaId,
+    locations,
+    selectedLocationId,
+    category.label,
+    calibrationFactor,
+    setPageContext,
+  ]);
+
   const calculateLuxFromPixels = () => {
     if (!videoRef.current || !canvasRef.current) return 0;
     const video = videoRef.current;
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-    if (ctx && video.readyState === video.HAVE_ENOUGH_DATA) {
+    if (ctx && video.readyState === video.HAVE_EN_DATA) {
       const cropSize = Math.min(video.videoWidth, video.videoHeight) * 0.5;
       const startX = (video.videoWidth - cropSize) / 2;
       const startY = (video.videoHeight - cropSize) / 2;
@@ -173,9 +213,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
       const brightness =
         0.2126 * (r / count) + 0.7152 * (g / count) + 0.0722 * (b / count);
 
-      // 🚀 SOFTWARE GAIN CALCULATION:
-      // We manually boost the brightness value based on the exposure slider
-      // An EV of +2 roughly equates to 4x light intensity.
       const softwareExposureMultiplier = Math.pow(2, exposureRef.current);
       const boostedBrightness = Math.min(
         255,
@@ -290,7 +327,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     };
   }, [isManualMode, manualMethod]);
 
-  const category = getLightCategory(lux);
   const availableAreas = selectedLocationId
     ? locations.find((l) => l.id === selectedLocationId)?.areas || []
     : [];
@@ -320,7 +356,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         )}
       </div>
 
-      {/* TUNING PANEL */}
       {showCalibration && method === "Pixel Analysis" && (
         <div className="mb-6 p-5 bg-white rounded-3xl border border-rhozly-outline/10 shadow-lg animate-in slide-in-from-top-4 space-y-6">
           <div>
@@ -399,7 +434,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         <div
           className={`relative w-64 h-64 rounded-full flex flex-col items-center justify-center border-[12px] shadow-2xl transition-all duration-700 overflow-hidden ${method === "Pixel Analysis" && isScanning ? "border-rhozly-outline/20" : category.border} ${category.bg}`}
         >
-          {/* 🚀 LIVE VISUAL REFLECTION OF THE SLIDER */}
           <video
             ref={videoRef}
             className={`absolute inset-0 w-full h-full object-cover transition-all duration-300 ${isScanning && method === "Pixel Analysis" ? "opacity-100" : "opacity-0"}`}

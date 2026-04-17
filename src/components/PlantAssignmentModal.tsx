@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   X,
   MapPin,
@@ -16,13 +16,16 @@ import {
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 interface PlantAssignmentModalProps {
   plant: any;
   locations: any[];
   onAssign: (data: any) => void;
   onClose: () => void;
   isAssigning: boolean;
-  homeId: string; // 🚀 NEW: We need the homeId to fetch coordinates
+  homeId: string;
 }
 
 const GROWTH_STATES = [
@@ -52,6 +55,9 @@ export default function PlantAssignmentModal({
   isAssigning,
   homeId,
 }: PlantAssignmentModalProps) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedLoc, setSelectedLoc] = useState("");
 
@@ -72,6 +78,47 @@ export default function PlantAssignmentModal({
     ? locations.find((l) => l.id === selectedLoc)?.areas || []
     : [];
 
+  // 🧠 LIVE AI SYNC: Update the AI on the current assignment workflow
+  useEffect(() => {
+    const locObj = locations.find((l) => l.id === selectedLoc);
+    const areaObj = availableAreas.find((a: any) => a.id === formData.areaId);
+
+    setPageContext({
+      action: "Assigning Plant to Garden",
+      currentStep: step,
+      plantSpecies: plant.common_name,
+      assignmentDetails: {
+        location: locObj?.name || "Unselected",
+        area: areaObj?.name || "Unselected",
+        quantity: formData.quantity,
+        isAlreadyPlanted: formData.isPlanted,
+        growthState: formData.growthState,
+        isEstablished: formData.isEstablished,
+      },
+      // Provide AI Smart Schedule results if they've been generated
+      smartScheduleContext: aiResult
+        ? {
+            assessment: aiResult.personalized_assessment,
+            suggestedMethods: aiResult.schedules?.map((s: any) => s.method),
+            userSelectedMethods: selectedSchedules,
+          }
+        : null,
+    });
+
+    // Cleanup on close
+    return () => setPageContext(null);
+  }, [
+    step,
+    selectedLoc,
+    formData,
+    aiResult,
+    selectedSchedules,
+    plant.common_name,
+    locations,
+    availableAreas,
+    setPageContext,
+  ]);
+
   const handleNext = () => {
     if (!formData.areaId) return;
     setStep(2);
@@ -81,8 +128,7 @@ export default function PlantAssignmentModal({
     setIsAiLoading(true);
 
     try {
-      // 🚀 1. THE DATABASE CACHE CHECK
-      const { data: cacheRecord, error: cacheError } = await supabase
+      const { data: cacheRecord } = await supabase
         .from("ai_schedule_cache")
         .select("schedule_data, updated_at")
         .eq("plant_id", plant.id)
@@ -94,11 +140,8 @@ export default function PlantAssignmentModal({
           new Date().getTime() - new Date(cacheRecord.updated_at).getTime();
         const hoursOld = cacheAgeMs / (1000 * 60 * 60);
 
-        // If the cache is less than 24 hours old, use it instantly!
         if (hoursOld < 24) {
-          console.log("🟢 Loaded Smart Schedule from Cloud Cache!");
           setAiResult(cacheRecord.schedule_data);
-
           if (cacheRecord.schedule_data.schedules?.length > 0) {
             setSelectedSchedules([
               cacheRecord.schedule_data.schedules[0].method,
@@ -106,15 +149,10 @@ export default function PlantAssignmentModal({
           }
           toast.success("Loaded saved smart schedule!");
           setIsAiLoading(false);
-          return; // Bypass the API completely!
-        } else {
-          console.log(
-            "🟡 Cloud cache expired (>24 hours). Fetching fresh data.",
-          );
+          return;
         }
       }
 
-      // 2. Fetch the Home Address from DB
       const { data: homeData, error: homeError } = await supabase
         .from("homes")
         .select("address")
@@ -131,7 +169,6 @@ export default function PlantAssignmentModal({
         (a: any) => a.id === formData.areaId,
       );
 
-      // 3. Call the Edge Function
       const { data: aiData, error } = await supabase.functions.invoke(
         "smart-plant-scheduler",
         {
@@ -149,29 +186,19 @@ export default function PlantAssignmentModal({
         throw new Error(realError?.error || error.message);
       }
 
-      // Clean up hallucinated methods
       const viableSchedules =
         aiData.schedules?.filter((s: any) => s.is_viable) || [];
       aiData.schedules = viableSchedules;
 
-      // 🚀 4. SAVE TO CLOUD CACHE (UPSERT)
-      // Upsert will create a new row, or overwrite the existing one if the plant_id/area_id combo already exists
-      const { error: upsertError } = await supabase
-        .from("ai_schedule_cache")
-        .upsert(
-          {
-            plant_id: plant.id,
-            area_id: formData.areaId,
-            schedule_data: aiData,
-            updated_at: new Date().toISOString(),
-          },
-          { onConflict: "plant_id, area_id" },
-        );
-
-      if (upsertError) {
-        console.error("Failed to save to cloud cache:", upsertError);
-        // We don't throw here because the user still got their AI data successfully
-      }
+      await supabase.from("ai_schedule_cache").upsert(
+        {
+          plant_id: plant.id,
+          area_id: formData.areaId,
+          schedule_data: aiData,
+          updated_at: new Date().toISOString(),
+        },
+        { onConflict: "plant_id, area_id" },
+      );
 
       setAiResult(aiData);
 
@@ -432,7 +459,6 @@ export default function PlantAssignmentModal({
                               {schedule.reasoning}
                             </p>
 
-                            {/* 🚀 UI Update: Show the multiple phases under the method */}
                             <div className="space-y-2 mt-2 pt-2 border-t border-indigo-100/50">
                               {schedule.phases.map((phase: any, i: number) => (
                                 <div

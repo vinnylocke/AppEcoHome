@@ -21,6 +21,9 @@ import { ConfirmModal } from "./ConfirmModal";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 interface Props {
   homeId: string;
 }
@@ -32,6 +35,9 @@ type DeleteTarget = {
 };
 
 export const LocationManager: React.FC<Props> = ({ homeId }) => {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -45,6 +51,36 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
   // Custom Modal Delete State
   const [itemToDelete, setItemToDelete] = useState<DeleteTarget | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // 🧠 LIVE AI SYNC: Let the AI know the full layout of the home
+  useEffect(() => {
+    setPageContext({
+      action: editingArea
+        ? `Editing metrics for area: ${editingArea.name}`
+        : "Managing Garden Layout",
+      gardenLayout: locations.map((loc) => ({
+        locationName: loc.name,
+        isOutside: loc.is_outside,
+        areas: loc.areas?.map((a: any) => ({
+          name: a.name,
+          medium: a.growing_medium,
+          ph: a.medium_ph,
+          lightLux: a.light_intensity_lux,
+        })),
+      })),
+      currentlyTuningArea: editingArea
+        ? {
+            name: editingArea.name,
+            ph: editingArea.medium_ph,
+            lux: editingArea.light_intensity_lux,
+            medium: editingArea.growing_medium,
+          }
+        : null,
+    });
+
+    // Cleanup when leaving the management screen
+    return () => setPageContext(null);
+  }, [locations, editingArea, setPageContext]);
 
   const fetchHierarchy = async () => {
     setLoading(true);
@@ -127,13 +163,11 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
     if (error) {
       Logger.error("Failed to update area", error);
       toast.error("Failed to save area updates.");
-      fetchHierarchy(); // Revert the UI to DB state if it fails
+      fetchHierarchy();
     } else {
-      // 🚀 THE FIX: Update local state so the UI reflects changes without a refresh
       setLocations((prevLocations) =>
         prevLocations.map((loc) => ({
           ...loc,
-          // We look through the areas of every location
           areas: loc.areas.map((a: any) =>
             a.id === area.id ? { ...area } : a,
           ),

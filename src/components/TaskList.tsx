@@ -29,6 +29,9 @@ import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { ConfirmModal } from "./ConfirmModal";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 interface TaskListProps {
   homeId: string;
   areaId?: string;
@@ -70,6 +73,9 @@ export default function TaskList({
   selectedTypes,
   showOverdue,
 }: TaskListProps) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isUpdatingTask, setIsUpdatingTask] = useState<string | null>(null);
@@ -106,6 +112,48 @@ export default function TaskList({
   const dateStr = getLocalDateString(targetDate || new Date());
   const todayStr = getLocalDateString(new Date());
   const typesFilterStr = selectedTypes?.join(",") || "";
+
+  // 🧠 LIVE AI SYNC: Let the AI see the task list and current user focus
+  useEffect(() => {
+    setPageContext({
+      action: selectedTask
+        ? `Inspecting Task: ${selectedTask.title}`
+        : "Managing Task List",
+      taskContext: {
+        viewingDate: dateStr,
+        totalTasksShown: tasks.length,
+        pendingTasks: tasks.filter((t) => t.status === "Pending").length,
+        completedTasks: tasks.filter((t) => t.status === "Completed").length,
+        isBulkEditingActive: isBulkEditing,
+        selectedCount: selectedTaskIds.size,
+      },
+      // If a task modal is open, give the AI the specifics
+      focusedTask: selectedTask
+        ? {
+            title: selectedTask.title,
+            description: selectedTask.description,
+            type: selectedTask.type,
+            status: selectedTask.status,
+            plant: selectedTask.inventory_items?.plant_name,
+            isGhost: !!selectedTask.isGhost,
+            isAutoCompleted: !!selectedTask.isAutoCompleted,
+          }
+        : null,
+      // Provide archive prompts so the AI can help users decide if a plant is "done"
+      harvestArchivePrompt: archivePrompts,
+    });
+
+    // Note: We don't nullify on unmount here because this component is often
+    // a sub-component of the Calendar or Area details.
+  }, [
+    tasks,
+    selectedTask,
+    isBulkEditing,
+    selectedTaskIds,
+    archivePrompts,
+    dateStr,
+    setPageContext,
+  ]);
 
   useEffect(() => {
     if (selectedTask) {
@@ -212,7 +260,7 @@ export default function TaskList({
         const blueprints = bpData || [];
 
         const ghostTasks: any[] = [];
-        const uniqueGhostKeys = new Set(); // 🚀 UI ARMOR: Prevent overlapping identical blueprints from creating multiple ghosts
+        const uniqueGhostKeys = new Set();
 
         blueprints.forEach((bp) => {
           const safeDateString =
@@ -229,7 +277,6 @@ export default function TaskList({
           );
 
           if (diffDays % bp.frequency_days === 0) {
-            // 🚀 UI ARMOR: Create a unique fingerprint for this task on this specific day
             const ghostKey = `${bp.task_type}-${bp.inventory_item_id}-${dateStr}`;
 
             if (!uniqueGhostKeys.has(ghostKey)) {
@@ -309,10 +356,6 @@ export default function TaskList({
   useEffect(() => {
     fetchTasksAndGhosts();
   }, [fetchTasksAndGhosts]);
-
-  // ---------------------------------------------------------
-  // BULK OPERATIONS LOGIC
-  // ---------------------------------------------------------
 
   const toggleTaskSelection = (taskId: string) => {
     const newSet = new Set(selectedTaskIds);

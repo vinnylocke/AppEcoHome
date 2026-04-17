@@ -5,6 +5,9 @@ import PlantScheduleTab from "./PlantScheduleTab";
 import { PerenualService } from "../lib/perenualService";
 import toast from "react-hot-toast";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 interface PlantEditModalProps {
   homeId: string;
   plant: any;
@@ -20,9 +23,10 @@ export default function PlantEditModal({
   onClose,
   isSaving,
 }: PlantEditModalProps) {
-  const [activeTab, setActiveTab] = useState("care");
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
 
-  // 🚀 NEW: State to hold the dynamic API data
+  const [activeTab, setActiveTab] = useState("care");
   const [fullPlantData, setFullPlantData] = useState<any>(plant);
   const [isFetchingApiData, setIsFetchingApiData] = useState(false);
 
@@ -31,7 +35,26 @@ export default function PlantEditModal({
     { id: "schedules", label: "Automations", icon: Calendar },
   ];
 
-  // 🚀 REPLACEMENT useEffect FOR PlantEditModal.tsx
+  // 🧠 LIVE AI SYNC: Update the AI on the Master Plant Template being viewed/edited
+  useEffect(() => {
+    setPageContext({
+      action: "Managing Master Plant Data (The Shed)",
+      activeTab: activeTab,
+      plantTemplate: {
+        name: fullPlantData?.common_name,
+        source: plant.source, // 'api' or 'manual'
+        careLevel: fullPlantData?.care_level,
+        cycle: fullPlantData?.cycle,
+        wateringNeeds: fullPlantData?.watering,
+        sunlightNeeds: fullPlantData?.sunlight,
+      },
+      isEditingRestricted: plant.source === "api",
+    });
+
+    // Cleanup on close
+    return () => setPageContext(null);
+  }, [fullPlantData, activeTab, plant.source, setPageContext]);
+
   useEffect(() => {
     const fetchApiDetails = async () => {
       if (plant.source === "api" && plant.perenual_id) {
@@ -40,7 +63,6 @@ export default function PlantEditModal({
           const apiData = await PerenualService.getPlantDetails(
             plant.perenual_id,
           );
-          // Merge the DB skeleton with the rich API data
           setFullPlantData({ ...plant, ...apiData });
         } catch (error) {
           toast.error("Failed to load live care guide.");
@@ -48,13 +70,12 @@ export default function PlantEditModal({
           setIsFetchingApiData(false);
         }
       } else {
-        // 🚀 THE FIX: If it's a manual plant, instantly sync the fresh data!
         setFullPlantData(plant);
       }
     };
 
     fetchApiDetails();
-  }, [plant]); // <--- Because 'plant' is in this array, it runs every time you hit Save!
+  }, [plant]);
 
   return (
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
@@ -108,7 +129,7 @@ export default function PlantEditModal({
           ) : activeTab === "care" ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
               <ManualPlantCreation
-                initialData={fullPlantData} // 🚀 Passes the dynamically fetched data!
+                initialData={fullPlantData}
                 onSave={onSave}
                 submitLabel="Save Updates"
                 isSaving={isSaving}

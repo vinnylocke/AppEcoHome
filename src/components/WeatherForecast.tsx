@@ -21,6 +21,9 @@ import {
 } from "recharts";
 import { Logger } from "../lib/errorHandler";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 interface HourlyData {
   time: string;
   temp: number;
@@ -118,6 +121,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 };
 
 export default function WeatherForecast({ weatherData, alerts }: Props) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [day, setDay] = useState<"today" | "tomorrow">("today");
   const [activeMetrics, setActiveMetrics] = useState<string[]>(["temp"]);
   const [selectedHourIndex, setSelectedHourIndex] = useState<number>(
@@ -130,6 +136,38 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
     () => parseWeatherData(weatherData, day),
     [weatherData, day],
   );
+
+  const selectedData = data[selectedHourIndex] || data[0];
+  const avgWind = Math.round(
+    data.reduce((acc, curr) => acc + curr.wind, 0) / data.length,
+  );
+  const maxRain = Math.max(...data.map((d) => d.rain));
+
+  // 🧠 LIVE AI SYNC: Feed the forecast trends and specific selected hour into the AI
+  useEffect(() => {
+    if (!selectedData) return;
+
+    setPageContext({
+      action: "Analyzing Weather Forecast",
+      forecastContext: {
+        viewingDay: day,
+        selectedTime: selectedData.time,
+        hourlySnapshot: {
+          temp: `${selectedData.temp}°C`,
+          rainProbability: `${selectedData.rain}%`,
+          windSpeed: `${selectedData.wind} km/h`,
+          humidity: `${selectedData.humidity}%`,
+        },
+        dailySummary: {
+          maxRainProbability: `${maxRain}%`,
+          averageWindSpeed: `${avgWind} km/h`,
+        },
+        activeAlertsCount: alerts.length,
+      },
+    });
+
+    return () => setPageContext(null);
+  }, [day, selectedData, maxRain, avgWind, alerts, setPageContext]);
 
   useEffect(() => {
     if (selectedHourIndex >= data.length) {
@@ -198,13 +236,6 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
     );
   }
 
-  const selectedData = data[selectedHourIndex] || data[0];
-
-  const avgWind = Math.round(
-    data.reduce((acc, curr) => acc + curr.wind, 0) / data.length,
-  );
-  const maxRain = Math.max(...data.map((d) => d.rain));
-
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Header & Day Toggle */}
@@ -234,12 +265,10 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
         </div>
       </div>
 
-      {/* Main Forecast Card */}
       <div className="bg-rhozly-surface-lowest rounded-[2.5rem] p-6 md:p-10 border border-rhozly-outline/30 shadow-sm overflow-hidden relative">
         <div className="absolute top-0 right-0 w-64 h-64 bg-rhozly-primary/5 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
 
         <div className="relative z-10 space-y-10">
-          {/* Collapsible Filters Section */}
           <div className="space-y-4">
             <div className="flex items-center justify-between">
               <h3 className="text-xs font-black text-rhozly-on-surface/50 uppercase tracking-widest">
@@ -303,7 +332,6 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
             )}
           </div>
 
-          {/* Graph Area */}
           <div className="space-y-4">
             <div className="flex items-center justify-between px-1">
               <p className="text-xs font-black text-rhozly-on-surface/40 uppercase tracking-widest">
@@ -417,7 +445,6 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
             </div>
           </div>
 
-          {/* Summary Footer */}
           <div className="flex flex-wrap items-center justify-center gap-8 pt-6 border-t border-rhozly-outline/10">
             <div className="flex items-center gap-3">
               <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center">

@@ -9,6 +9,9 @@ import {
   Loader2,
 } from "lucide-react";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 interface LocationTileProps {
   site: any;
   index: number;
@@ -27,6 +30,9 @@ export default function LocationTile({
   index,
   onClick,
 }: LocationTileProps) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   // Alternating styles for that premium editorial look
   const isAlternate = index % 2 !== 0;
 
@@ -41,6 +47,38 @@ export default function LocationTile({
   const unplantedCount =
     site.inventory_items?.filter((i: any) => i.status === "Unplanted").length ||
     0;
+
+  // 🧠 LIVE AI SYNC: Update the AI on the stats for this specific location card
+  useEffect(() => {
+    // We provide a summary of this tile to the AI context.
+    // In a list view, the AI will have context for the most recently rendered/updated tile.
+    setPageContext({
+      action: "Browsing Garden Dashboard",
+      currentlyViewingTile: {
+        locationName: site.name,
+        environment: site.is_outside ? "Outdoors" : "Indoors",
+        stats: {
+          areas: areasCount,
+          plantedPlants: plantedCount,
+          unplantedPlants: unplantedCount,
+          tasksToday: tasksCount ?? "Loading...",
+        },
+        hasHazards: !!site.hazard,
+      },
+    });
+
+    // Note: We don't cleanup (set to null) here because other tiles
+    // in the list are also trying to set the context.
+  }, [
+    site.name,
+    site.is_outside,
+    site.hazard,
+    areasCount,
+    plantedCount,
+    unplantedCount,
+    tasksCount,
+    setPageContext,
+  ]);
 
   // 🚀 MINI GHOST ENGINE: Calculates Today's Tasks for this specific location
   useEffect(() => {

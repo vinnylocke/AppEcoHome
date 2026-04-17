@@ -12,14 +12,17 @@ import {
   Check,
   Loader2,
   Sprout,
-  Leaf, // 🚀 NEW ICON
+  Leaf,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import InstanceCareRoutine from "./InstanceCareRoutine";
 import PlantJournalTab from "./PlantJournalTab";
-import ManualPlantCreation from "./ManualPlantCreation"; // 🚀 IMPORT REUSED COMPONENT
-import { PerenualService } from "../lib/perenualService"; // 🚀 IMPORT API SERVICE
+import ManualPlantCreation from "./ManualPlantCreation";
+import { PerenualService } from "../lib/perenualService";
+
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 const GROWTH_STATES = [
   "Germination",
@@ -49,14 +52,15 @@ export default function InstanceEditModal({
   onUpdate,
   onTasksUpdated,
 }: InstanceEditModalProps) {
-  // 🚀 Added "care_guide" to the available tabs
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [activeTab, setActiveTab] = useState<
     "details" | "routine" | "journal" | "care_guide"
   >("details");
   const [savingInstance, setSavingInstance] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
 
-  // 🚀 Care Guide States
   const [careGuideData, setCareGuideData] = useState<any>(null);
   const [loadingCareGuide, setLoadingCareGuide] = useState(false);
 
@@ -72,6 +76,30 @@ export default function InstanceEditModal({
       : new Date().toISOString().split("T")[0],
   });
 
+  // 🧠 LIVE AI SYNC: Update the AI on which plant we are managing and what tab we are in
+  useEffect(() => {
+    setPageContext({
+      action: "Managing Plant Instance",
+      activeTab: activeTab,
+      plantIdentity: {
+        nickname: instance.identifier,
+        species: instance.plant_name,
+        currentStatus: editForm.status,
+        growthState: editForm.growth_state,
+        isEstablished: editForm.is_established,
+      },
+      // If we are in the Care Guide tab, provide the master data to the AI
+      careGuideContext: activeTab === "care_guide" ? careGuideData : null,
+      locationContext: {
+        locationId: editForm.location_id,
+        areaId: editForm.area_id,
+      },
+    });
+
+    // Cleanup when modal closes
+    return () => setPageContext(null);
+  }, [activeTab, editForm, careGuideData, instance, setPageContext]);
+
   useEffect(() => {
     const fetchLocations = async () => {
       const { data } = await supabase
@@ -83,13 +111,11 @@ export default function InstanceEditModal({
     fetchLocations();
   }, [homeId]);
 
-  // 🚀 NEW: Lazy load the Care Guide only when the tab is clicked
   useEffect(() => {
     if (activeTab === "care_guide" && !careGuideData) {
       const fetchCareGuide = async () => {
         setLoadingCareGuide(true);
         try {
-          // 1. Fetch the master plant record from your DB
           const { data: plantRecord, error } = await supabase
             .from("plants")
             .select("*")
@@ -98,14 +124,12 @@ export default function InstanceEditModal({
 
           if (error) throw error;
 
-          // 2. If it's an API plant, fetch the rich data from Perenual
           if (plantRecord.source === "api" && plantRecord.perenual_id) {
             const apiData = await PerenualService.getPlantDetails(
               plantRecord.perenual_id,
             );
             setCareGuideData({ ...plantRecord, ...apiData });
           } else {
-            // If it's manual, your DB already has everything
             setCareGuideData(plantRecord);
           }
         } catch (err) {
@@ -166,7 +190,6 @@ export default function InstanceEditModal({
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
       <div className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 relative">
-        {/* Header */}
         <div className="flex justify-between items-start mb-6 relative z-10">
           <div>
             <h3 className="text-3xl font-black text-rhozly-on-surface">
@@ -184,7 +207,6 @@ export default function InstanceEditModal({
           </button>
         </div>
 
-        {/* Tabs - Added flex-wrap and responsive sizing so 4 tabs fit nicely */}
         <div className="flex bg-rhozly-surface-low p-1 rounded-2xl mb-8 flex-wrap gap-1">
           <button
             onClick={() => setActiveTab("details")}
@@ -215,7 +237,6 @@ export default function InstanceEditModal({
           </button>
         </div>
 
-        {/* DETAILS TAB */}
         {activeTab === "details" && (
           <div className="space-y-6 animate-in slide-in-from-left-4">
             <div className="space-y-3">
@@ -375,7 +396,6 @@ export default function InstanceEditModal({
           </div>
         )}
 
-        {/* 🚀 NEW CARE GUIDE TAB */}
         {activeTab === "care_guide" && (
           <div className="animate-in slide-in-from-right-4">
             {loadingCareGuide ? (
@@ -389,7 +409,6 @@ export default function InstanceEditModal({
                 </p>
               </div>
             ) : careGuideData ? (
-              // Reusing your manual form in read-only mode so it acts as a perfect display screen!
               <div className="-mx-4 sm:-mx-0">
                 <ManualPlantCreation
                   initialData={careGuideData}
@@ -405,7 +424,6 @@ export default function InstanceEditModal({
           </div>
         )}
 
-        {/* CARE ROUTINE TAB */}
         {activeTab === "routine" && (
           <div className="animate-in slide-in-from-right-4">
             <InstanceCareRoutine
@@ -418,7 +436,6 @@ export default function InstanceEditModal({
           </div>
         )}
 
-        {/* JOURNAL TAB */}
         {activeTab === "journal" && (
           <div className="animate-in slide-in-from-right-4">
             <PlantJournalTab inventoryItemId={instance.id} homeId={homeId} />

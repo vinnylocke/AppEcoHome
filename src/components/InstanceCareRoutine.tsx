@@ -14,7 +14,10 @@ import {
   Trash2,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import { ConfirmModal } from "./ConfirmModal"; // 🚀 Imported your confirmation modal!
+import { ConfirmModal } from "./ConfirmModal";
+
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface InstanceCareRoutineProps {
   inventoryItemId: string;
@@ -33,6 +36,9 @@ export default function InstanceCareRoutine({
   areaId,
   onRoutineUpdated,
 }: InstanceCareRoutineProps) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [blueprints, setBlueprints] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
@@ -83,6 +89,43 @@ export default function InstanceCareRoutine({
       setIsLoading(false);
     }
   };
+
+  // 🧠 LIVE AI SYNC: Update context based on current blueprints and form activity
+  useEffect(() => {
+    setPageContext({
+      action: isAdding
+        ? "Creating a Care Routine"
+        : editingId
+          ? "Editing a Care Routine"
+          : "Viewing Care Routines",
+      activeRoutines: blueprints.map((bp) => ({
+        title: bp.title,
+        type: bp.task_type,
+        frequency: bp.is_recurring
+          ? `Every ${bp.frequency_days} days`
+          : "One-time",
+        startDate: bp.start_date,
+        endDate: bp.end_date || "Ongoing",
+      })),
+      formState: isAdding
+        ? {
+            mode: "Creating New",
+            type: newRoutine.task_type,
+            frequency: newRoutine.frequency_days,
+            title: newRoutine.title,
+          }
+        : editingId
+          ? {
+              mode: "Editing Existing",
+              frequency: editData.frequency_days,
+              startDate: editData.start_date,
+            }
+          : null,
+    });
+
+    // Cleanup isn't strictly necessary for sub-components, but good practice
+    // return () => setPageContext(null);
+  }, [blueprints, isAdding, newRoutine, editingId, editData, setPageContext]);
 
   const getTaskIcon = (type: string) => {
     switch (type) {
@@ -144,7 +187,6 @@ export default function InstanceCareRoutine({
     if (!routineToDelete) return;
     setIsDeleting(true);
     try {
-      // 1. Delete all PENDING tasks associated with this blueprint (Preserves completed history!)
       const { error: taskError } = await supabase
         .from("tasks")
         .delete()
@@ -153,7 +195,6 @@ export default function InstanceCareRoutine({
 
       if (taskError) throw taskError;
 
-      // 2. Delete the blueprint itself
       const { error: bpError } = await supabase
         .from("task_blueprints")
         .delete()
@@ -164,7 +205,6 @@ export default function InstanceCareRoutine({
       toast.success("Routine and pending tasks removed.");
       setBlueprints(blueprints.filter((bp) => bp.id !== routineToDelete.id));
 
-      // Update the dashboard counts!
       if (onRoutineUpdated) onRoutineUpdated();
     } catch (error: any) {
       toast.error("Failed to delete routine.");
@@ -463,7 +503,6 @@ export default function InstanceCareRoutine({
                     >
                       <Edit3 size={16} />
                     </button>
-                    {/* 🚀 NEW: Delete Button */}
                     <button
                       onClick={() => setRoutineToDelete(bp)}
                       className="p-2 text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
@@ -544,7 +583,6 @@ export default function InstanceCareRoutine({
         </div>
       )}
 
-      {/* 🚀 NEW: Confirmation Modal for Deletion */}
       <ConfirmModal
         isOpen={routineToDelete !== null}
         isLoading={isDeleting}

@@ -26,6 +26,9 @@ import ManualPlantCreation from "./ManualPlantCreation";
 import AreaAdvancedFields from "./AreaAdvancedFields";
 import InstanceEditModal from "./InstanceEditModal";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 interface InventoryItem {
   id: string;
   home_id: string;
@@ -56,6 +59,9 @@ export default function AreaDetails({
   onTasksUpdated,
   onAreaUpdated,
 }: AreaDetailsProps) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [plants, setPlants] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -167,6 +173,33 @@ export default function AreaDetails({
     fetchAreaTasks();
     fetchShedPlants();
   }, [area.id]);
+
+  // 🧠 LIVE AI SYNC: Let the AI know exactly what Area we are looking at and what's growing inside it!
+  useEffect(() => {
+    if (!area) return;
+
+    setPageContext({
+      action: "Viewing Area Details",
+      areaDetails: {
+        name: area.name,
+        isOutside: isOutside,
+        sunlight: area.sunlight || "Unknown",
+        growingMedium: area.growing_medium || "Unknown",
+        pHLevel: area.medium_ph || "Unknown",
+      },
+      currentPlantsInArea: plants
+        .filter((p) => p.status !== "Archived")
+        .map((p) => ({
+          name: p.plant_name,
+          identifier: p.identifier,
+          status: p.status,
+          growthState: p.growth_state || "Unknown",
+        })),
+    });
+
+    // Cleanup when leaving the area page
+    return () => setPageContext(null);
+  }, [area, plants, isOutside, setPageContext]);
 
   const getPlantRecommendations = async () => {
     setIsGettingRecs(true);

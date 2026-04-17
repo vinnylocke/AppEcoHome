@@ -1,5 +1,3 @@
-alter table "public"."task_blueprints" add column "is_auto_generated" boolean not null default false;
-
 set check_function_bodies = off;
 
 CREATE OR REPLACE FUNCTION public.generate_daily_tasks()

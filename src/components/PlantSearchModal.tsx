@@ -16,11 +16,14 @@ import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import ManualPlantCreation from "./ManualPlantCreation";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 interface Props {
   homeId: string;
   isPremium: boolean;
   onClose: () => void;
-  onSuccess: (newPlant?: any) => void; // 🚀 UPDATED: Can now return the saved plant!
+  onSuccess: (newPlant?: any) => void;
   initialSearchTerm?: string;
 }
 
@@ -31,6 +34,9 @@ export default function PlantSearchModal({
   onSuccess,
   initialSearchTerm,
 }: Props) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [query, setQuery] = useState(initialSearchTerm || "");
   const [results, setResults] = useState<any[]>([]);
   const [isSearching, setIsSearching] = useState(false);
@@ -38,6 +44,33 @@ export default function PlantSearchModal({
   const [previewPlant, setPreviewPlant] = useState<any | null>(null);
   const [isFetchingPreview, setIsFetchingPreview] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+
+  // 🧠 LIVE AI SYNC: Let the AI know the user is hunting for new species
+  useEffect(() => {
+    setPageContext({
+      action: previewPlant
+        ? "Previewing Global Encyclopedia Entry"
+        : "Searching Global Plant Database",
+      searchContext: {
+        currentQuery: query,
+        hasResults: results.length > 0,
+        resultCount: results.length,
+      },
+      previewedPlant: previewPlant
+        ? {
+            commonName: previewPlant.common_name,
+            scientificName: previewPlant.scientific_name?.[0],
+            type: previewPlant.type,
+            cycle: previewPlant.cycle,
+            watering: previewPlant.watering,
+            sunlight: previewPlant.sunlight,
+          }
+        : null,
+    });
+
+    // Cleanup when modal closes
+    return () => setPageContext(null);
+  }, [query, results, previewPlant, setPageContext]);
 
   const performSearch = async (searchQuery: string) => {
     if (!searchQuery.trim()) return;
@@ -87,15 +120,13 @@ export default function PlantSearchModal({
     try {
       const pId = String(previewPlant.perenual_id || previewPlant.id);
 
-      // 🚀 1. DUPLICATE CHECK (Simplified select to avoid "status" error)
       const { data: existingPlant, error: checkError } = await supabase
         .from("plants")
-        .select("id") // Only select 'id' since 'status' doesn't exist
+        .select("id")
         .eq("home_id", homeId)
         .eq("perenual_id", pId)
         .maybeSingle();
 
-      // If the query itself fails (like a missing column), we should stop!
       if (checkError) {
         console.error("Duplicate check failed:", checkError);
         throw new Error(
@@ -103,17 +134,15 @@ export default function PlantSearchModal({
         );
       }
 
-      // 🚀 2. BLOCK IF EXISTS
       if (existingPlant) {
         toast.error(`${previewPlant.common_name} is already in your Shed!`, {
           duration: 4000,
           icon: "🚫",
         });
         setIsAdding(false);
-        return; // 🛑 CRITICAL: This stops the insert from happening
+        return;
       }
 
-      // 🚀 3. PROCEED TO INSERT IF CLEAR
       const manualId = Math.floor(Date.now() / 1000);
       const skeletonPlant = {
         id: manualId,
@@ -133,7 +162,6 @@ export default function PlantSearchModal({
 
       if (error) throw error;
 
-      // Auto-generate schedules
       if (previewPlant.harvest_season) {
         await supabase.from("plant_schedules").insert([
           {
@@ -162,6 +190,7 @@ export default function PlantSearchModal({
       setIsAdding(false);
     }
   };
+
   if (!isPremium) {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">

@@ -1,5 +1,8 @@
 import React, { useState, useEffect } from "react";
-import { Thermometer, Wind, X, Clock, CloudRain } from "lucide-react"; // 🚀 Added CloudRain
+import { Thermometer, Wind, X, Clock, CloudRain } from "lucide-react";
+
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface WeatherAlert {
   id: string;
@@ -18,6 +21,9 @@ export const WeatherAlertBanner = ({
   alerts,
   isForecastScreen = false,
 }: Props) => {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -56,12 +62,33 @@ export const WeatherAlertBanner = ({
     ? uniqueAlerts
     : uniqueAlerts.filter((a) => !dismissedIds.includes(a.id));
 
+  // 🧠 LIVE AI SYNC: Feed any active weather threats into the AI's brain
+  useEffect(() => {
+    if (visibleAlerts.length > 0) {
+      setPageContext({
+        action: "Viewing Weather Alerts",
+        weatherThreats: visibleAlerts.map((a) => ({
+          type: a.type,
+          severity: a.severity,
+          message: a.message,
+          startTime: a.starts_at,
+        })),
+        isHighAlert: visibleAlerts.some((a) => a.severity === "critical"),
+      });
+    }
+
+    // Since this is a banner that might appear/disappear,
+    // we only nullify if there are ZERO alerts visible.
+    if (visibleAlerts.length === 0) {
+      // return () => setPageContext(null);
+    }
+  }, [visibleAlerts, setPageContext]);
+
   if (visibleAlerts.length === 0) return null;
 
   return (
     <div className="space-y-3">
       {visibleAlerts.map((alert) => {
-        // 🚀 Determine styling based on severity
         const styleMap = {
           critical: "bg-red-50 border-red-200 text-red-900 icon-bg-red-200",
           warning:
@@ -80,7 +107,6 @@ export const WeatherAlertBanner = ({
               <div
                 className={`mt-1 p-2 rounded-xl ${currentStyle.split("icon-bg-")[1]}`}
               >
-                {/* 🚀 Render the right icon */}
                 {alert.type === "frost" ? (
                   <Thermometer className="w-5 h-5" />
                 ) : alert.type === "wind" ? (

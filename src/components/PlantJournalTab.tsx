@@ -14,8 +14,11 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 interface PlantJournalTabProps {
-  inventoryItemId: string; // Ensure this matches the parent prop type
+  inventoryItemId: string;
   homeId: string;
 }
 
@@ -23,6 +26,9 @@ export default function PlantJournalTab({
   inventoryItemId,
   homeId,
 }: PlantJournalTabProps) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [entries, setEntries] = useState<any[]>([]);
   const [availableTasks, setAvailableTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,7 +41,7 @@ export default function PlantJournalTab({
     subject: "",
     description: "",
     image_url: "",
-    task_id: "", // 🚀 NEW: Task linking state
+    task_id: "",
   });
 
   useEffect(() => {
@@ -43,9 +49,38 @@ export default function PlantJournalTab({
     fetchTasksForLinking();
   }, [inventoryItemId]);
 
+  // 🧠 LIVE AI SYNC: Let the AI see the plant's history and what the user is currently writing
+  useEffect(() => {
+    setPageContext({
+      action: isAdding
+        ? "Drafting a New Journal Entry"
+        : "Reviewing Plant Journal history",
+      journalContext: {
+        totalEntries: entries.length,
+        historySummary: entries.slice(0, 3).map((e) => ({
+          subject: e.subject,
+          date: e.created_at,
+          hasImage: !!e.image_url,
+        })),
+      },
+      currentDraft: isAdding
+        ? {
+            subject: form.subject || "Untitled",
+            description: form.description,
+            linkedTask:
+              availableTasks.find((t) => t.id === form.task_id)?.title ||
+              "None",
+            hasImageAttached: !!form.image_url,
+          }
+        : null,
+    });
+
+    // Cleanup when moving away from the journal
+    return () => setPageContext(null);
+  }, [isAdding, form, entries, availableTasks, setPageContext]);
+
   const fetchEntries = async () => {
     try {
-      // 🚀 NEW: We join the tasks table so we can display the task title on the entry
       const { data, error } = await supabase
         .from("plant_journals")
         .select("*, tasks(title, type)")
@@ -62,7 +97,6 @@ export default function PlantJournalTab({
     }
   };
 
-  // 🚀 NEW: Fetch recent tasks for this specific plant to populate the dropdown
   const fetchTasksForLinking = async () => {
     try {
       const { data, error } = await supabase
@@ -70,7 +104,7 @@ export default function PlantJournalTab({
         .select("id, title, due_date, status")
         .eq("inventory_item_id", inventoryItemId)
         .order("due_date", { ascending: false })
-        .limit(20); // Just grab the last 20 tasks so the list doesn't get massive
+        .limit(20);
 
       if (error) throw error;
       setAvailableTasks(data || []);
@@ -124,7 +158,7 @@ export default function PlantJournalTab({
           subject: form.subject,
           description: form.description,
           image_url: form.image_url,
-          task_id: form.task_id || null, // 🚀 NEW: Save the linked task (or null if empty)
+          task_id: form.task_id || null,
         },
       ]);
 
@@ -205,7 +239,6 @@ export default function PlantJournalTab({
             className="w-full p-4 bg-white rounded-2xl font-black border border-transparent focus:border-rhozly-primary outline-none text-sm"
           />
 
-          {/* 🚀 NEW: Task Linking Dropdown */}
           {availableTasks.length > 0 && (
             <div className="relative">
               <div className="absolute left-4 top-1/2 -translate-y-1/2 text-rhozly-on-surface/40 pointer-events-none">
@@ -308,7 +341,6 @@ export default function PlantJournalTab({
                     {entry.subject}
                   </h4>
                   <p className="text-[10px] font-bold uppercase tracking-widest text-rhozly-primary">
-                    {/* Using native JS formatting to avoid date-fns error */}
                     {new Date(entry.created_at).toLocaleString("en-US", {
                       month: "short",
                       day: "numeric",
@@ -326,7 +358,6 @@ export default function PlantJournalTab({
                 </button>
               </div>
 
-              {/* 🚀 NEW: Render the linked task badge if it exists */}
               {entry.tasks && (
                 <div className="inline-flex items-center gap-1.5 self-start bg-blue-50 text-blue-700 px-3 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest mt-1">
                   <CheckSquare size={12} />

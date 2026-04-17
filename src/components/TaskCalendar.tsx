@@ -11,6 +11,9 @@ import { Logger } from "../lib/errorHandler";
 import AddTaskModal, { TASK_CATEGORIES } from "./AddTaskModal";
 import TaskList from "./TaskList";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 export interface Task {
   id: string;
   home_id: string;
@@ -27,6 +30,9 @@ export interface Task {
 }
 
 export default function TaskCalendar({ homeId }: { homeId: string }) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
 
@@ -41,6 +47,149 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedLoc, setSelectedLoc] = useState<string>("all");
   const [selectedArea, setSelectedArea] = useState<string>("all");
+
+  const getLocalDateString = (date: Date) => {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  };
+
+  const getTasksForDate = (date: Date) => {
+    const dateStr = getLocalDateString(date);
+    const targetDateMs = new Date(dateStr).getTime();
+
+    const todayStr = getLocalDateString(new Date());
+    const todayMs = new Date(todayStr).getTime();
+
+    const physicalTasks = tasks.filter((task) => task.due_date === dateStr);
+    const ghostTasks: Task[] = [];
+    const uniqueGhostKeys = new Set();
+
+    if (targetDateMs >= todayMs) {
+      blueprints.forEach((bp) => {
+        const cycle =
+          bp.inventory_items?.plants?.cycle?.toLowerCase() || "annual";
+        const maxYears = cycle.includes("perennial")
+          ? 10
+          : cycle.includes("biennial")
+            ? 2
+            : 1;
+
+        const safeDateString =
+          bp.start_date || bp.created_at || new Date().toISOString();
+        const anchorDateStr = safeDateString.split("T")[0];
+        const originalAnchorMs = new Date(anchorDateStr).getTime();
+        const originalAnchorYear = new Date(anchorDateStr).getFullYear();
+
+        const targetYear = new Date(dateStr).getFullYear();
+        const yearShift = targetYear - originalAnchorYear;
+
+        const shiftsToTest = [yearShift, yearShift - 1];
+
+        for (const shift of shiftsToTest) {
+          if (shift < 0 || shift >= maxYears) continue;
+
+          let activeAnchorMs = originalAnchorMs;
+          let activeEndMs = bp.end_date
+            ? new Date(bp.end_date).getTime()
+            : Infinity;
+
+          if (bp.end_date && shift > 0) {
+            const shiftedStart = new Date(anchorDateStr);
+            shiftedStart.setFullYear(originalAnchorYear + shift);
+            activeAnchorMs = shiftedStart.getTime();
+
+            const shiftedEnd = new Date(bp.end_date);
+            shiftedEnd.setFullYear(shiftedEnd.getFullYear() + shift);
+            activeEndMs = shiftedEnd.getTime();
+          }
+
+          if (targetDateMs >= activeAnchorMs && targetDateMs <= activeEndMs) {
+            const diffDays = Math.round(
+              (targetDateMs - activeAnchorMs) / (1000 * 60 * 60 * 24),
+            );
+
+            if (diffDays % bp.frequency_days === 0) {
+              const ghostKey = `${bp.task_type}-${bp.inventory_item_id}-${dateStr}`;
+
+              if (!uniqueGhostKeys.has(ghostKey)) {
+                const hasPhysical = physicalTasks.some(
+                  (t) => t.blueprint_id === bp.id,
+                );
+                if (!hasPhysical) {
+                  uniqueGhostKeys.add(ghostKey);
+                  ghostTasks.push({
+                    ...bp,
+                    status: "Pending",
+                    isGhost: true,
+                    due_date: dateStr,
+                  });
+                }
+              }
+              break;
+            }
+          }
+        }
+      });
+    }
+
+    const allTasks = [...physicalTasks, ...ghostTasks];
+
+    return allTasks.filter((task) => {
+      if (selectedTypes.length > 0 && !selectedTypes.includes(task.type))
+        return false;
+      if (selectedLoc !== "all" && task.location_id !== selectedLoc)
+        return false;
+      if (selectedArea !== "all" && task.area_id !== selectedArea) return false;
+      return true;
+    });
+  };
+
+  // 🧠 LIVE AI SYNC: Let the AI know what's happening on the calendar
+  useEffect(() => {
+    const activeTasksOnSelectedDate = getTasksForDate(selectedDate);
+    const locName =
+      selectedLoc === "all"
+        ? "All Locations"
+        : locations.find((l) => l.id === selectedLoc)?.name ||
+          "Selected Location";
+    const areaName = selectedArea === "all" ? "All Areas" : "Selected Area";
+
+    setPageContext({
+      action: "Viewing Plant Care Schedule",
+      calendarContext: {
+        viewingMonth: currentDate.toLocaleString("default", {
+          month: "long",
+          year: "numeric",
+        }),
+        selectedDate: selectedDate.toDateString(),
+        tasksOnSelectedDate: activeTasksOnSelectedDate.map((t) => ({
+          title: t.title,
+          type: t.type,
+          status: t.status,
+          isGhost: !!t.isGhost,
+        })),
+        filters: {
+          taskTypes: selectedTypes.length > 0 ? selectedTypes : "All",
+          location: locName,
+          area: areaName,
+        },
+      },
+    });
+
+    return () => setPageContext(null);
+  }, [
+    currentDate,
+    selectedDate,
+    tasks,
+    blueprints,
+    selectedTypes,
+    selectedLoc,
+    selectedArea,
+    locations,
+    setPageContext,
+  ]);
 
   useEffect(() => {
     const fetchLocations = async () => {
@@ -80,7 +229,6 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
       if (taskError) throw taskError;
       if (taskData) setTasks(taskData);
 
-      // 🚀 THE FIX: Included `cycle` in the fetch string
       const { data: bpData, error: bpError } = await supabase
         .from("task_blueprints")
         .select(
@@ -99,13 +247,6 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
   useEffect(() => {
     fetchTasksAndBlueprints();
   }, [currentDate, homeId]);
-
-  const getLocalDateString = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
 
   const generateCalendarDays = () => {
     const year = currentDate.getFullYear();
@@ -132,99 +273,6 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
     d1.getFullYear() === d2.getFullYear() &&
     d1.getMonth() === d2.getMonth() &&
     d1.getDate() === d2.getDate();
-
-  const getTasksForDate = (date: Date) => {
-    const dateStr = getLocalDateString(date);
-    const targetDateMs = new Date(dateStr).getTime();
-
-    const todayStr = getLocalDateString(new Date());
-    const todayMs = new Date(todayStr).getTime();
-
-    const physicalTasks = tasks.filter((task) => task.due_date === dateStr);
-    const ghostTasks: Task[] = [];
-    const uniqueGhostKeys = new Set();
-
-    if (targetDateMs >= todayMs) {
-      blueprints.forEach((bp) => {
-        const cycle =
-          bp.inventory_items?.plants?.cycle?.toLowerCase() || "annual";
-        const maxYears = cycle.includes("perennial")
-          ? 10
-          : cycle.includes("biennial")
-            ? 2
-            : 1;
-
-        const safeDateString =
-          bp.start_date || bp.created_at || new Date().toISOString();
-        const anchorDateStr = safeDateString.split("T")[0];
-        const originalAnchorMs = new Date(anchorDateStr).getTime();
-        const originalAnchorYear = new Date(anchorDateStr).getFullYear();
-
-        const targetYear = new Date(dateStr).getFullYear();
-        const yearShift = targetYear - originalAnchorYear;
-
-        // 🚀 THE MAGIC: We test two potential yearly shifts to handle standard seasons AND winter cross-year seasons!
-        const shiftsToTest = [yearShift, yearShift - 1];
-
-        for (const shift of shiftsToTest) {
-          if (shift < 0 || shift >= maxYears) continue;
-
-          let activeAnchorMs = originalAnchorMs;
-          let activeEndMs = bp.end_date
-            ? new Date(bp.end_date).getTime()
-            : Infinity;
-
-          // Shift seasonal (ended) blueprints forward by the exact year difference
-          if (bp.end_date && shift > 0) {
-            const shiftedStart = new Date(anchorDateStr);
-            shiftedStart.setFullYear(originalAnchorYear + shift);
-            activeAnchorMs = shiftedStart.getTime();
-
-            const shiftedEnd = new Date(bp.end_date);
-            shiftedEnd.setFullYear(shiftedEnd.getFullYear() + shift);
-            activeEndMs = shiftedEnd.getTime();
-          }
-
-          if (targetDateMs >= activeAnchorMs && targetDateMs <= activeEndMs) {
-            const diffDays = Math.round(
-              (targetDateMs - activeAnchorMs) / (1000 * 60 * 60 * 24),
-            );
-
-            if (diffDays % bp.frequency_days === 0) {
-              const ghostKey = `${bp.task_type}-${bp.inventory_item_id}-${dateStr}`;
-
-              if (!uniqueGhostKeys.has(ghostKey)) {
-                const hasPhysical = physicalTasks.some(
-                  (t) => t.blueprint_id === bp.id,
-                );
-                if (!hasPhysical) {
-                  uniqueGhostKeys.add(ghostKey);
-                  ghostTasks.push({
-                    ...bp,
-                    status: "Pending",
-                    isGhost: true,
-                    due_date: dateStr,
-                  });
-                }
-              }
-              break; // We found the valid window shift for this date, stop testing other shifts
-            }
-          }
-        }
-      });
-    }
-
-    const allTasks = [...physicalTasks, ...ghostTasks];
-
-    return allTasks.filter((task) => {
-      if (selectedTypes.length > 0 && !selectedTypes.includes(task.type))
-        return false;
-      if (selectedLoc !== "all" && task.location_id !== selectedLoc)
-        return false;
-      if (selectedArea !== "all" && task.area_id !== selectedArea) return false;
-      return true;
-    });
-  };
 
   const days = generateCalendarDays();
   const weekDays = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];

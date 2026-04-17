@@ -21,6 +21,9 @@ import PlantEditModal from "./PlantEditModal";
 import PlantAssignmentModal from "./PlantAssignmentModal";
 import PlantSearchModal from "./PlantSearchModal";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 interface Plant {
   id: number;
   common_name: string;
@@ -32,6 +35,9 @@ interface Plant {
 }
 
 export default function TheShed({ homeId }: { homeId: string }) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [plants, setPlants] = useState<Plant[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -63,6 +69,44 @@ export default function TheShed({ homeId }: { homeId: string }) {
     type: "delete" | "archive" | "unarchive";
     plant: Plant | null;
   }>({ isOpen: false, type: "delete", plant: null });
+
+  // 🧠 LIVE AI SYNC: Provide a high-level overview of the library to the Plant Doctor
+  useEffect(() => {
+    setPageContext({
+      action: isAiGenerating
+        ? "Using AI Plant Drafter"
+        : "Browsing Master Plant Library",
+      shedContext: {
+        viewMode: viewTab,
+        activeSearch: searchQuery || "None",
+        sourceFilter: filterSource,
+        totalLibraryCount: plants.length,
+        visibleCount: plants.filter(
+          (p) => p.is_archived === (viewTab === "archived"),
+        ).length,
+        // Give the AI a taste of what's in the library
+        sampleSpecies: plants.slice(0, 10).map((p) => p.common_name),
+      },
+      currentInteractions: {
+        isEditingPlant: !!editingPlant,
+        isAssigningPlant: !!selectedPlant,
+        aiSearchActive: isAiSearching,
+      },
+    });
+
+    // Cleanup on unmount
+    return () => setPageContext(null);
+  }, [
+    viewTab,
+    filterSource,
+    searchQuery,
+    plants,
+    editingPlant,
+    selectedPlant,
+    isAiGenerating,
+    isAiSearching,
+    setPageContext,
+  ]);
 
   const fetchUserProfile = async () => {
     try {
@@ -101,7 +145,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
         })),
       );
 
-      // 🚀 NEW: Grab ALL columns for areas so the AI gets soil/light/indoor context
       const { data: locData, error: locError } = await supabase
         .from("locations")
         .select(`id, name, areas ( * )`)
@@ -257,7 +300,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
 
       if (insertError) throw insertError;
 
-      // 🚀 NEW: Create multiple tasks for every phase of every checked method
       if (
         assignmentData.smartSchedules &&
         assignmentData.smartSchedules.length > 0 &&
@@ -719,7 +761,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
           onAssign={handleAssign}
           onClose={() => setSelectedPlant(null)}
           isAssigning={actionLoading}
-          homeId={homeId} // 🚀 Added this prop!
+          homeId={homeId}
         />
       )}
 

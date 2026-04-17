@@ -15,6 +15,9 @@ import { TASK_CATEGORIES } from "./AddTaskModal";
 import { Logger } from "../lib/errorHandler";
 import { ConfirmModal } from "./ConfirmModal";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 interface Props {
   homeId: string;
   plant: any;
@@ -29,6 +32,9 @@ const SEASONAL_EVENTS_CONFIG = [
 ];
 
 export default function PlantScheduleTab({ homeId, plant }: Props) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [schedules, setSchedules] = useState<any[]>([]);
   const [homeData, setHomeData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -60,6 +66,41 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
   };
 
   const [form, setForm] = useState(defaultFormState);
+
+  // 🧠 LIVE AI SYNC: Let the AI see the automation logic for this plant
+  useEffect(() => {
+    setPageContext({
+      action: isAdding
+        ? "Configuring Automation Schedule"
+        : "Reviewing Plant Automations",
+      plantSpecies: plant.common_name,
+      existingAutomations: schedules.map((s) => ({
+        title: s.title,
+        type: s.task_type,
+        trigger: s.trigger_event,
+        timing: `Starts ${s.start_reference} (+${s.start_offset_days}d), Ends ${s.end_reference || "Never"}`,
+        frequency: `Every ${s.frequency_days} days`,
+      })),
+      currentFormDraft: isAdding
+        ? {
+            title: form.title,
+            taskType: form.task_type,
+            trigger: form.trigger_event,
+            startRef: form.start_reference,
+            frequency: `${form.frequency_days} days`,
+            isEditingExisting: !!editingId,
+          }
+        : null,
+      seasonalReferenceData: {
+        harvest: plant.harvest_season,
+        pruning: plant.pruning_month,
+        flowering: plant.flowering_season,
+      },
+    });
+
+    // Cleanup on unmount
+    return () => setPageContext(null);
+  }, [plant, schedules, isAdding, editingId, form, setPageContext]);
 
   useEffect(() => {
     fetchSchedules();
@@ -551,7 +592,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       }
 
       if (blueprintsToCreate.length > 0) {
-        // 🚀 THE FIX: Fetch start_date along with ID so we can evaluate if it should trigger the Edge Function!
         const { data: createdBps, error: crBpErr } = await supabase
           .from("task_blueprints")
           .insert(blueprintsToCreate)
@@ -559,7 +599,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         if (crBpErr) throw crBpErr;
 
         if (createdBps) {
-          // 🚀 THE SHIELD: Only wake up the Edge Function if the blueprint starts today or earlier.
           const activeBps = createdBps.filter(
             (bp) => bp.start_date <= todayStr,
           );
@@ -730,7 +769,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           }
 
           if (blueprintsToCreate.length > 0) {
-            // 🚀 THE FIX: Fetch start_date
             const { data: createdBps, error: crBpErr } = await supabase
               .from("task_blueprints")
               .insert(blueprintsToCreate)
@@ -738,7 +776,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             if (crBpErr) throw crBpErr;
 
             if (createdBps) {
-              // 🚀 THE SHIELD
               const activeBps = createdBps.filter(
                 (bp) => bp.start_date <= todayStr,
               );

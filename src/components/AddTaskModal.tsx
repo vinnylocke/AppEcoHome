@@ -4,6 +4,9 @@ import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 interface Props {
   homeId: string;
   selectedDate: Date;
@@ -24,6 +27,9 @@ export default function AddTaskModal({
   onClose,
   onSuccess,
 }: Props) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [loading, setLoading] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
 
@@ -59,6 +65,45 @@ export default function AddTaskModal({
     ? availableAreas.find((a: any) => a.id === form.area_id)?.inventory_items ||
       []
     : [];
+
+  // 🧠 LIVE AI SYNC: Update the AI context whenever the form or selections change
+  useEffect(() => {
+    const locName =
+      locations.find((l) => l.id === form.location_id)?.name || "Unspecified";
+    const areaName =
+      availableAreas.find((a: any) => a.id === form.area_id)?.name ||
+      "Unspecified";
+    const plantName =
+      availablePlants.find((p: any) => p.id === form.inventory_item_id)
+        ?.plant_name || "Unspecified";
+
+    setPageContext({
+      action: "Creating a new Schedule/Task",
+      selectedDate: selectedDate.toLocaleDateString(),
+      taskDetails: {
+        title: form.title || "Untitled Task",
+        type: form.type,
+        description: form.description,
+        isRecurring: form.isRecurring,
+        repeatFrequency: form.isRecurring
+          ? `Every ${form.frequency_days} days`
+          : "One-time",
+        targetLocation: locName,
+        targetArea: areaName,
+        targetPlant: plantName,
+      },
+    });
+
+    // Cleanup when the modal is closed
+    return () => setPageContext(null);
+  }, [
+    form,
+    locations,
+    availableAreas,
+    availablePlants,
+    selectedDate,
+    setPageContext,
+  ]);
 
   const handleSubmit = async () => {
     if (!form.title.trim()) return toast.error("Title is required.");

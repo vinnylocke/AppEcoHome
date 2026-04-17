@@ -19,6 +19,9 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 interface ManualPlantCreationProps {
   initialData?: any;
   onSave?: (data: any) => void;
@@ -81,6 +84,9 @@ export default function ManualPlantCreation({
   submitLabel = "Save to Shed",
   isReadOnly = false,
 }: ManualPlantCreationProps) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [activeSection, setActiveSection] = useState<string | null>("basics");
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -122,6 +128,28 @@ export default function ManualPlantCreation({
     medicinal: false,
     cuisine: false,
   });
+
+  // 🧠 LIVE AI SYNC: Update the AI context whenever the form data changes!
+  useEffect(() => {
+    setPageContext({
+      action: isReadOnly
+        ? "Viewing Plant Details"
+        : "Editing/Creating a Plant Form",
+      currentFormData: {
+        name: formData.common_name || "Unknown Plant",
+        type: formData.plant_type,
+        lifecycle: formData.cycle,
+        sunlightRequirements: formData.sunlight,
+        floweringSeasons: formData.flowering_season,
+        harvestSeasons: formData.harvest_season,
+        isIndoor: formData.indoor,
+        isEdible: formData.is_edible,
+      },
+    });
+
+    // Cleanup when the component unmounts
+    return () => setPageContext(null);
+  }, [formData, isReadOnly, setPageContext]);
 
   useEffect(() => {
     if (initialData) {

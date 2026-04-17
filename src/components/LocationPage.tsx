@@ -15,6 +15,9 @@ import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 import TaskList from "./TaskList";
 
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+
 interface LocationPageProps {
   location: any;
   onBack: () => void;
@@ -24,6 +27,9 @@ export const LocationPage: React.FC<LocationPageProps> = ({
   location,
   onBack,
 }) => {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [areas, setAreas] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -38,8 +44,36 @@ export const LocationPage: React.FC<LocationPageProps> = ({
   const [areaToDelete, setAreaToDelete] = useState<any | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
-  // 🚀 NEW: A key to force the TaskList to refresh when tasks change
   const [taskRefreshKey, setTaskRefreshKey] = useState(0);
+
+  // 🧠 LIVE AI SYNC: Update the AI on the overall Location and active Environment
+  useEffect(() => {
+    setPageContext({
+      action: focusedArea
+        ? `Inspecting Area: ${focusedArea.name}`
+        : `Browsing Location: ${location.name}`,
+      locationContext: {
+        name: location.name,
+        environment: isOutside ? "Outdoor" : "Indoor",
+        totalAreas: areas.length,
+        areaNames: areas.map((a) => a.name),
+      },
+      focusedArea: focusedArea
+        ? {
+            name: focusedArea.name,
+            plantCount: focusedArea.inventory_items?.[0]?.count || 0,
+            metrics: {
+              ph: focusedArea.medium_ph,
+              lux: focusedArea.light_intensity_lux,
+              medium: focusedArea.growing_medium,
+            },
+          }
+        : null,
+    });
+
+    // Clean up when leaving the page or changing locations
+    return () => setPageContext(null);
+  }, [location, areas, isOutside, focusedArea, setPageContext]);
 
   const fetchAreas = async () => {
     setLoading(true);
@@ -110,15 +144,13 @@ export const LocationPage: React.FC<LocationPageProps> = ({
     }
   };
 
-  // 🚀 NEW: The master refresh function passed down to AreaDetails
   const handleDataRefresh = () => {
-    fetchAreas(); // Refresh the area counts
-    setTaskRefreshKey((prev) => prev + 1); // Refresh the task list on the right side
+    fetchAreas();
+    setTaskRefreshKey((prev) => prev + 1);
   };
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500">
-      {/* 1. Header & Environment Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <button
@@ -152,9 +184,7 @@ export const LocationPage: React.FC<LocationPageProps> = ({
         </button>
       </div>
 
-      {/* 2. Main Split Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
-        {/* Left Side: Dynamic Area Rendering */}
         <div className="lg:col-span-7 xl:col-span-8">
           {focusedArea ? (
             <AreaDetails
@@ -228,7 +258,6 @@ export const LocationPage: React.FC<LocationPageProps> = ({
           )}
         </div>
 
-        {/* Right Side: Tasks Panel (Always Visible) */}
         <div className="lg:col-span-5 xl:col-span-4">
           <div className="bg-rhozly-surface-lowest rounded-3xl p-6 border border-rhozly-outline/30 shadow-sm h-full min-h-[500px] flex flex-col">
             <div className="flex items-center gap-3 mb-6 border-b border-rhozly-outline/10 pb-4">
@@ -247,7 +276,7 @@ export const LocationPage: React.FC<LocationPageProps> = ({
 
             <div className="flex-1 overflow-y-auto custom-scrollbar -mx-2 px-2 relative">
               <TaskList
-                key={taskRefreshKey} // 🚀 NEW: This forces the list to reload when taskRefreshKey increments!
+                key={taskRefreshKey}
                 homeId={location.home_id}
                 locationId={!focusedArea ? location.id : undefined}
                 areaId={focusedArea ? focusedArea.id : undefined}

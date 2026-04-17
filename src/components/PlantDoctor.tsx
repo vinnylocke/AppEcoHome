@@ -18,7 +18,7 @@ import {
   CalendarPlus,
   Globe,
   BrainCircuit,
-  BookOpen, // 🚀 NEW: Journal Icon
+  BookOpen,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -27,6 +27,9 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantSearchModal from "./PlantSearchModal";
+
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface PlantDoctorProps {
   homeId: string;
@@ -49,6 +52,9 @@ export default function PlantDoctor({
   perenualEnabled,
   onTasksAdded,
 }: PlantDoctorProps) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
@@ -80,7 +86,6 @@ export default function PlantDoctor({
   const [sickInventoryId, setSickInventoryId] = useState<string | null>(null);
   const [isApplyingTreatment, setIsApplyingTreatment] = useState(false);
 
-  // 🚀 NEW: State to track if the user wants to log this in the journal
   const [saveToJournal, setSaveToJournal] = useState(true);
 
   const [showManualAdd, setShowManualAdd] = useState(false);
@@ -89,6 +94,44 @@ export default function PlantDoctor({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // 🧠 LIVE AI SYNC: Update the Chat AI on the current Vision AI results
+  useEffect(() => {
+    setPageContext({
+      action: "Using Vision AI Identification/Diagnosis",
+      visionSession: {
+        hasImage: !!imagePreview,
+        currentTask: activeAction || "Waiting for upload",
+        isAnalyzing: isProcessing,
+        results: aiResult
+          ? {
+              notes: aiResult.notes,
+              suggestedPlants: aiResult.possible_names,
+              suggestedDiseases: aiResult.possible_diseases,
+              currentDiagnosis: aiResult.diseaseInfo,
+            }
+          : null,
+        userSelections: {
+          plantChosen: selectedPlantName,
+          diseaseChosen: selectedDisease,
+          targetInventoryItem: myInventory.find((i) => i.id === sickInventoryId)
+            ?.plants?.common_name,
+        },
+      },
+    });
+
+    return () => setPageContext(null);
+  }, [
+    imagePreview,
+    activeAction,
+    isProcessing,
+    aiResult,
+    selectedPlantName,
+    selectedDisease,
+    sickInventoryId,
+    myInventory,
+    setPageContext,
+  ]);
+
   useEffect(() => {
     const fetchInventory = async () => {
       if (!homeId) return;
@@ -96,7 +139,7 @@ export default function PlantDoctor({
         .from("inventory_items")
         .select(`id, plant_id, location_id, area_id, plants ( common_name )`)
         .eq("home_id", homeId)
-        .eq("status", "Planted"); // Only show planted items for treatment
+        .eq("status", "Planted");
       if (data) setMyInventory(data);
     };
     fetchInventory();
@@ -339,7 +382,6 @@ export default function PlantDoctor({
     }
   };
 
-  // 🚀 REFACTORED: Now includes Journal Logic!
   const handleApplyTreatment = async () => {
     if (!sickInventoryId || !aiResult?.remedial_schedules)
       return toast.error("Please select a plant instance first.");
@@ -361,7 +403,6 @@ export default function PlantDoctor({
       const today = new Date();
       const todayStr = today.toISOString().split("T")[0];
 
-      // 1. Create Blueprints
       if (recurringSchedules.length > 0) {
         const blueprintsToInsert = recurringSchedules.map((schedule) => {
           const endDate = new Date(today);
@@ -387,7 +428,6 @@ export default function PlantDoctor({
         if (blueprintError) throw blueprintError;
       }
 
-      // 2. Create One-Off Tasks
       if (oneOffTasks.length > 0) {
         const tasksToInsert = oneOffTasks.map((task) => ({
           home_id: homeId,
@@ -406,16 +446,12 @@ export default function PlantDoctor({
         if (taskError) throw taskError;
       }
 
-      // 3. Trigger Ghost Task Generation
       await supabase.functions.invoke("generate-tasks", {
         body: { homeId: homeId },
       });
 
-      // 🚀 4. NEW: Create the Journal Entry if requested
       if (saveToJournal && selectedFile) {
         let uploadedImageUrl = null;
-
-        // Upload the diagnostic image to storage first
         const fileExt = selectedFile.name.split(".").pop() || "jpg";
         const fileName = `diagnosis-${sickInventoryId}-${Date.now()}.${fileExt}`;
         const filePath = `plant-photos/${fileName}`;
@@ -431,7 +467,6 @@ export default function PlantDoctor({
           uploadedImageUrl = publicUrl;
         }
 
-        // Build a nice, formatted journal description combining AI notes and the plan
         let journalBody = `🩺 Initial Diagnosis:\n${aiResult.notes}\n\n`;
         if (selectedDisease)
           journalBody += `🦠 Suspected Condition: ${selectedDisease}\n\n`;
@@ -440,7 +475,6 @@ export default function PlantDoctor({
           journalBody += `- ${task.title}\n`;
         });
 
-        // Insert into the new journal table
         const { error: journalError } = await supabase
           .from("plant_journals")
           .insert([
@@ -610,7 +644,6 @@ export default function PlantDoctor({
 
               {aiResult && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
-                  {/* --- GLOBAL: DOCTOR'S NOTES --- */}
                   <div className="bg-white border border-rhozly-primary/20 rounded-3xl p-6 shadow-sm">
                     <div className="flex items-center gap-2 mb-3">
                       <Sparkles className="w-5 h-5 text-rhozly-primary" />
@@ -623,7 +656,6 @@ export default function PlantDoctor({
                     </div>
                   </div>
 
-                  {/* --- IDENTIFY FLOW --- */}
                   {aiResult.possible_names &&
                     aiResult.possible_names.length > 0 &&
                     !selectedPlantName &&
@@ -695,7 +727,6 @@ export default function PlantDoctor({
                     </div>
                   )}
 
-                  {/* --- DIAGNOSE FLOW: 1. DISEASE DETECTED & SELECTION --- */}
                   {activeAction === "diagnose" &&
                     aiResult.possible_diseases &&
                     aiResult.possible_diseases.length > 0 &&
@@ -718,7 +749,6 @@ export default function PlantDoctor({
                       </div>
                     )}
 
-                  {/* --- DIAGNOSE FLOW: 1.5 OPTIONS --- */}
                   {activeAction === "diagnose" &&
                     selectedDisease &&
                     !aiResult.diseaseInfo &&
@@ -772,7 +802,6 @@ export default function PlantDoctor({
                       </div>
                     )}
 
-                  {/* --- DIAGNOSE FLOW: 2. DETAILED INFO & PATIENT SELECTION --- */}
                   {activeAction === "diagnose" &&
                     (aiResult.diseaseInfo ||
                       ((!aiResult.possible_diseases ||
@@ -850,7 +879,6 @@ export default function PlantDoctor({
                       </div>
                     )}
 
-                  {/* --- DIAGNOSE FLOW: 3. APPROVE AND APPLY TASKS --- */}
                   {aiResult.remedial_schedules &&
                     aiResult.remedial_schedules.length > 0 &&
                     activeAction === "diagnose" && (
@@ -889,7 +917,6 @@ export default function PlantDoctor({
                           ))}
                         </div>
 
-                        {/* 🚀 NEW: The Journal Checkbox */}
                         <label className="flex items-center gap-3 p-4 mb-6 bg-white rounded-2xl border border-rhozly-outline/10 cursor-pointer hover:border-amber-500/30 transition-colors shadow-sm">
                           <input
                             type="checkbox"
@@ -928,7 +955,6 @@ export default function PlantDoctor({
                 </div>
               )}
 
-              {/* Only show the context dropdown if we haven't identified/diagnosed anything yet */}
               {!aiResult && (
                 <div
                   className="pt-4 border-t border-rhozly-outline/10 relative"

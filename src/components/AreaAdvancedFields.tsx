@@ -1,5 +1,8 @@
-import React from "react";
+import React, { useEffect } from "react";
 import { Beaker, Sun, Droplets, FlaskConical, Layers, Zap } from "lucide-react";
+
+// 🧠 IMPORT THE AI CONTEXT
+import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface AreaAdvancedFieldsProps {
   data: any;
@@ -10,12 +13,37 @@ export default function AreaAdvancedFields({
   data,
   onChange,
 }: AreaAdvancedFieldsProps) {
+  // 🧠 GRAB THE SETTER FROM CONTEXT
+  const { setPageContext } = usePlantDoctor();
+
   const handleChange = (
     e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>,
   ) => {
     const { name, value, type } = e.target;
     onChange({ [name]: type === "number" ? parseFloat(value) : value });
   };
+
+  // 🧠 LIVE AI SYNC: Update context when the user tweaks advanced area settings
+  useEffect(() => {
+    setPageContext({
+      action: "Editing Advanced Area Environmental Settings",
+      currentSettings: {
+        growingMedium: data.growing_medium || "Not set",
+        mediumTexture: data.medium_texture || "Not set",
+        pHLevel: data.medium_ph ? `${data.medium_ph}` : "Not set",
+        peakLightLux: data.light_intensity_lux
+          ? `${data.light_intensity_lux} lux`
+          : "Not set",
+        waterMovement: data.water_movement || "Not set",
+        nutrientSource: data.nutrient_source || "Not set",
+      },
+    });
+
+    // We DO NOT return a cleanup function here setting it to null!
+    // Why? Because this is a sub-component. If we set it to null on unmount,
+    // it might wipe out the parent component's context. We just let it update
+    // the global state while it is visible on screen.
+  }, [data, setPageContext]);
 
   return (
     <div className="space-y-6 animate-in fade-in slide-in-from-top-2 duration-500">
