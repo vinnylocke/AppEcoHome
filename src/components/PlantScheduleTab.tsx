@@ -13,7 +13,7 @@ import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import { TASK_CATEGORIES } from "./AddTaskModal";
 import { Logger } from "../lib/errorHandler";
-import { ConfirmModal } from "./ConfirmModal"; // 🚀 Added native confirm modal
+import { ConfirmModal } from "./ConfirmModal";
 
 interface Props {
   homeId: string;
@@ -38,7 +38,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
 
-  // 🚀 NEW STATE: Confirm before overwriting existing plants
   const [pendingGeneratedSchedules, setPendingGeneratedSchedules] = useState<
     any[] | null
   >(null);
@@ -225,19 +224,61 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     ...dynamicOptions.filter((o) => o.value !== "Trigger Date"),
   ];
 
-  // 🚀 Helper to convert "Seasonal:03-01:Context" into a pure "2026-03-01" date string for the blueprints table
-  const extractDateFromReference = (refStr: string | null) => {
-    if (!refStr) return null;
-    if (refStr.startsWith("Seasonal:")) {
-      const parts = refStr.split(":");
-      if (parts.length >= 2) {
-        const mmdd = parts[1].trim(); // e.g., "03-01"
-        const currentYear = new Date().getFullYear();
-        // Construct a safe date string
-        return `${currentYear}-${mmdd}`;
-      }
+  // 🚀 THE FIX: Advanced Mathematical Date Calculator
+  const getDatesForBlueprint = (
+    startRef: string | null,
+    startOffset: number,
+    endRef: string | null,
+    endOffset: number,
+    freqDays: number,
+    plantedAtStr: string,
+  ) => {
+    // Use midday UTC to safely parse dates without timezone offset bugs shifting the day backwards
+    const parseSafeDate = (d: string) => new Date(`${d}T12:00:00Z`).getTime();
+    const formatSafeDate = (ms: number) =>
+      new Date(ms).toISOString().split("T")[0];
+
+    let startMs = parseSafeDate(plantedAtStr);
+
+    if (startRef?.startsWith("Seasonal:")) {
+      const mmdd = startRef.split(":")[1].trim();
+      const year = new Date().getFullYear();
+      startMs = parseSafeDate(`${year}-${mmdd}`);
     }
-    return null;
+    startMs += startOffset * 24 * 60 * 60 * 1000;
+
+    let endStr: string | null = null;
+    if (endRef && endRef !== "Ongoing") {
+      let endMs = parseSafeDate(plantedAtStr);
+      if (endRef.startsWith("Seasonal:")) {
+        const mmdd = endRef.split(":")[1].trim();
+        const year = new Date().getFullYear();
+        endMs = parseSafeDate(`${year}-${mmdd}`);
+
+        // Fix for cross-year seasons (e.g. Winter in Australia starting Dec 1st, ending Feb 28th)
+        if (startRef?.startsWith("Seasonal:") && endMs < startMs) {
+          endMs += 365 * 24 * 60 * 60 * 1000;
+        }
+      }
+      endMs += endOffset * 24 * 60 * 60 * 1000;
+      endStr = formatSafeDate(endMs);
+    }
+
+    // 🚀 CLAMP FORWARD: Ensure start date is NEVER in the past relative to planting/today
+    const plantedMs = parseSafeDate(plantedAtStr);
+    const todayMs = parseSafeDate(new Date().toISOString().split("T")[0]);
+    const floorMs = Math.max(plantedMs, todayMs);
+
+    if (startMs < floorMs) {
+      const freqMs = Math.max(1, freqDays) * 24 * 60 * 60 * 1000;
+      const periods = Math.ceil((floorMs - startMs) / freqMs);
+      startMs += periods * freqMs;
+    }
+
+    return {
+      start_date: formatSafeDate(startMs),
+      end_date: endStr,
+    };
   };
 
   const handleAutoGenerate = async () => {
@@ -368,7 +409,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         is_auto_generated: true,
       });
 
-      // 1. Delete Old Auto-Schedules safely
       const incomingTaskTypes = [
         ...new Set(newSchedules.map((s) => s.task_type)),
       ];
@@ -380,25 +420,23 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         .eq("is_auto_generated", true);
       if (delSchedErr) throw delSchedErr;
 
-      // 2. Insert the fresh Master Schedules
       const { data: insertedSchedules, error: insertError } = await supabase
         .from("plant_schedules")
         .insert(newSchedules)
         .select();
       if (insertError) throw insertError;
 
-      // 3. See if there are any planted instances of this plant
+      // 🚀 UPDATED: Query now fetches planted_at
       const { data: existingPlants, error: exPlantErr } = await supabase
         .from("inventory_items")
-        .select("id, location_id, area_id")
+        .select("id, location_id, area_id, planted_at")
         .eq("home_id", homeId)
         .eq("plant_id", plant.id)
         .eq("status", "Planted");
       if (exPlantErr) throw exPlantErr;
 
-      // 🚀 THE FIX: If there are existing plants, trigger the Confirmation Flow instead of immediately overwriting
       if (existingPlants && existingPlants.length > 0 && insertedSchedules) {
-        toast.dismiss("generate"); // Dismiss the loading toast
+        toast.dismiss("generate");
         setPendingGeneratedSchedules(insertedSchedules);
       } else {
         toast.success("Seasonal schedules safely generated!", {
@@ -410,21 +448,20 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       Logger.error("Failed to auto-generate", err);
       toast.error(`Generation failed: ${err.message}`, { id: "generate" });
     } finally {
-      if (!pendingGeneratedSchedules) setSaving(false); // Only release saving lock if we aren't waiting on the modal
+      if (!pendingGeneratedSchedules) setSaving(false);
     }
   };
 
-  // 🚀 NEW FUNCTION: Executes the blueprint generation AFTER user confirmation
   const applyGeneratedSchedulesToPlants = async () => {
     if (!pendingGeneratedSchedules) return;
 
-    setIsAdding(false); // Close modal if open
+    setIsAdding(false);
     toast.loading("Applying schedules to active plants...", { id: "sync" });
 
     try {
       const { data: existingPlants } = await supabase
         .from("inventory_items")
-        .select("id, location_id, area_id")
+        .select("id, location_id, area_id, planted_at")
         .eq("home_id", homeId)
         .eq("plant_id", plant.id)
         .eq("status", "Planted");
@@ -435,7 +472,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         ...new Set(pendingGeneratedSchedules.map((s) => s.task_type)),
       ];
 
-      // A. Delete OLD AUTO-GENERATED blueprints for active plants
       const { error: delBpErr } = await supabase
         .from("task_blueprints")
         .delete()
@@ -444,13 +480,27 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         .eq("is_auto_generated", true);
       if (delBpErr) throw delBpErr;
 
-      // B. Map the new schedules to the existing plants
       const blueprintsToCreate: any[] = [];
+      const todayStr = new Date().toISOString().split("T")[0];
+
       for (const p of existingPlants) {
+        const plantedAtStr = p.planted_at
+          ? p.planted_at.split("T")[0]
+          : todayStr;
+
         for (const s of pendingGeneratedSchedules) {
-          // 🚀 THE FIX: Extract pure dates from the reference string
-          const pureStartDate = extractDateFromReference(s.start_reference);
-          const pureEndDate = extractDateFromReference(s.end_reference);
+          // 🚀 THE FIX: Calculate the mathematically safe start date
+          const { start_date, end_date } = getDatesForBlueprint(
+            s.start_reference,
+            s.start_offset_days,
+            s.end_reference,
+            s.end_offset_days,
+            s.frequency_days,
+            plantedAtStr,
+          );
+
+          // Skip generating blueprints that have already completely expired
+          if (end_date && start_date > end_date) continue;
 
           blueprintsToCreate.push({
             home_id: homeId,
@@ -462,21 +512,19 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             frequency_days: s.frequency_days,
             is_recurring: true,
             is_auto_generated: true,
-            start_date: pureStartDate, // Safe pure date!
-            end_date: pureEndDate, // Safe pure date!
+            start_date: start_date,
+            end_date: end_date,
           });
         }
       }
 
       if (blueprintsToCreate.length > 0) {
-        // C. Insert the new updated blueprints
         const { data: createdBps, error: crBpErr } = await supabase
           .from("task_blueprints")
           .insert(blueprintsToCreate)
           .select("id");
         if (crBpErr) throw crBpErr;
 
-        // D. Generate immediate tasks FAST using Promise.all
         if (createdBps) {
           await Promise.all(
             createdBps.map((bp) =>
@@ -589,7 +637,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         });
         const { data: existingPlants, error: exPlantErr } = await supabase
           .from("inventory_items")
-          .select("id, location_id, area_id")
+          .select("id, location_id, area_id, planted_at")
           .eq("home_id", homeId)
           .eq("plant_id", plant.id)
           .eq("status", form.trigger_event);
@@ -605,42 +653,57 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             .eq("is_auto_generated", false);
           if (delBpErr) throw delBpErr;
 
-          // 🚀 THE FIX: Extract pure dates for custom blueprints too!
-          const pureStartDate = extractDateFromReference(
-            newSchedule.start_reference,
-          );
-          const pureEndDate = extractDateFromReference(
-            newSchedule.end_reference,
-          );
+          const todayStr = new Date().toISOString().split("T")[0];
 
-          const blueprintsToCreate = existingPlants.map((p) => ({
-            home_id: homeId,
-            title: newSchedule.title,
-            task_type: newSchedule.task_type,
-            location_id: p.location_id,
-            area_id: p.area_id,
-            inventory_item_id: p.id,
-            frequency_days: newSchedule.frequency_days,
-            is_recurring: true,
-            is_auto_generated: false,
-            start_date: pureStartDate,
-            end_date: pureEndDate,
-          }));
-
-          const { data: createdBps, error: crBpErr } = await supabase
-            .from("task_blueprints")
-            .insert(blueprintsToCreate)
-            .select("id");
-          if (crBpErr) throw crBpErr;
-
-          if (createdBps) {
-            await Promise.all(
-              createdBps.map((bp) =>
-                supabase.functions.invoke("generate-tasks", {
-                  body: { blueprint_id: bp.id },
-                }),
-              ),
+          const blueprintsToCreate = existingPlants.map((p) => {
+            const plantedAtStr = p.planted_at
+              ? p.planted_at.split("T")[0]
+              : todayStr;
+            const { start_date, end_date } = getDatesForBlueprint(
+              newSchedule.start_reference,
+              newSchedule.start_offset_days,
+              newSchedule.end_reference,
+              newSchedule.end_offset_days,
+              newSchedule.frequency_days,
+              plantedAtStr,
             );
+
+            return {
+              home_id: homeId,
+              title: newSchedule.title,
+              task_type: newSchedule.task_type,
+              location_id: p.location_id,
+              area_id: p.area_id,
+              inventory_item_id: p.id,
+              frequency_days: newSchedule.frequency_days,
+              is_recurring: true,
+              is_auto_generated: false,
+              start_date: start_date,
+              end_date: end_date,
+            };
+          });
+
+          // Filter out expired schedules
+          const validBlueprints = blueprintsToCreate.filter(
+            (bp) => !(bp.end_date && bp.start_date > bp.end_date),
+          );
+
+          if (validBlueprints.length > 0) {
+            const { data: createdBps, error: crBpErr } = await supabase
+              .from("task_blueprints")
+              .insert(validBlueprints)
+              .select("id");
+            if (crBpErr) throw crBpErr;
+
+            if (createdBps) {
+              await Promise.all(
+                createdBps.map((bp) =>
+                  supabase.functions.invoke("generate-tasks", {
+                    body: { blueprint_id: bp.id },
+                  }),
+                ),
+              );
+            }
           }
         }
         toast.success("Schedule applied!", { id: "apply-sync" });
@@ -932,14 +995,13 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
 
   return (
     <div className="space-y-6 animate-in fade-in relative">
-      {/* 🚀 THE SYNC CONFIRMATION MODAL */}
       <ConfirmModal
         isOpen={pendingGeneratedSchedules !== null}
-        isLoading={saving} // Uses the saving lock we held open
+        isLoading={saving}
         onClose={() => {
           setPendingGeneratedSchedules(null);
           setSaving(false);
-          fetchSchedules(); // Fetch the schedules anyway, since they were saved to the template list
+          fetchSchedules();
         }}
         onConfirm={applyGeneratedSchedulesToPlants}
         title="Sync Active Plants?"
