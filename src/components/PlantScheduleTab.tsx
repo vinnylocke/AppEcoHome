@@ -13,6 +13,7 @@ import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import { TASK_CATEGORIES } from "./AddTaskModal";
 import { Logger } from "../lib/errorHandler";
+import { ConfirmModal } from "./ConfirmModal"; // 🚀 Added native confirm modal
 
 interface Props {
   homeId: string;
@@ -21,7 +22,6 @@ interface Props {
 
 const TRIGGER_EVENTS = ["Added to Area", "Planted", "Potted", "Moved Outside"];
 
-// 🚀 MODULAR CONFIG: Add new care guide extraction fields here!
 const SEASONAL_EVENTS_CONFIG = [
   { dbKey: "harvest_season", eventName: "Harvest" },
   { dbKey: "pruning_month", eventName: "Pruning" },
@@ -37,6 +37,11 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  // 🚀 NEW STATE: Confirm before overwriting existing plants
+  const [pendingGeneratedSchedules, setPendingGeneratedSchedules] = useState<
+    any[] | null
+  >(null);
 
   const [frequencyMode, setFrequencyMode] = useState<"interval" | "weekly">(
     "interval",
@@ -170,7 +175,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
-  // 🚀 UPDATED: Uses the modular array and creates highly unique Context Values
   const buildReferenceOptions = () => {
     const options = [{ label: "Trigger Date", value: "Trigger Date" }];
     const hemisphere = getHemisphere(homeData?.country, homeData?.timezone);
@@ -183,12 +187,9 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       periods.forEach((p) => {
         const nicePeriod = p.charAt(0).toUpperCase() + p.slice(1);
         const { start, end } = getSinglePeriodRange(p, hemisphere);
-
-        // Format: Seasonal:{Date}:{Context}
         const startContext = `${nicePeriod} ${eventName} Start`;
         const endContext = `${nicePeriod} ${eventName} End`;
 
-        // Pushing without existence checks because the Context string makes the value 100% unique!
         options.push({
           label: `${startContext} (${formatMonthDay(start)})`,
           value: `Seasonal:${start}:${startContext}`,
@@ -200,7 +201,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       });
     });
 
-    // Fallback handler for older legacy rows or manually created custom ones
     if (
       form.start_reference?.startsWith("Seasonal:") &&
       !options.find((o) => o.value === form.start_reference)
@@ -225,6 +225,21 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     ...dynamicOptions.filter((o) => o.value !== "Trigger Date"),
   ];
 
+  // 🚀 Helper to convert "Seasonal:03-01:Context" into a pure "2026-03-01" date string for the blueprints table
+  const extractDateFromReference = (refStr: string | null) => {
+    if (!refStr) return null;
+    if (refStr.startsWith("Seasonal:")) {
+      const parts = refStr.split(":");
+      if (parts.length >= 2) {
+        const mmdd = parts[1].trim(); // e.g., "03-01"
+        const currentYear = new Date().getFullYear();
+        // Construct a safe date string
+        return `${currentYear}-${mmdd}`;
+      }
+    }
+    return null;
+  };
+
   const handleAutoGenerate = async () => {
     setSaving(true);
     toast.loading("Analyzing Seasons & Generating Schedules...", {
@@ -235,7 +250,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       const hemisphere = getHemisphere(homeData?.country, homeData?.timezone);
       const newSchedules: any[] = [];
 
-      // 1. Harvest Schedule
       const harvestPeriods = normalizePeriods(plant.harvest_season);
       harvestPeriods.forEach((period) => {
         const { start, end } = getSinglePeriodRange(period, hemisphere);
@@ -248,7 +262,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           task_type: "Harvesting",
           trigger_event: "Planted",
           start_reference: `Seasonal:${start}:${niceTitle} Harvest Start`,
-          start_offset_days: 0, // 🚀 Uses new exact format
+          start_offset_days: 0,
           end_reference: `Seasonal:${end}:${niceTitle} Harvest End`,
           end_offset_days: 0,
           frequency_days: 1,
@@ -257,7 +271,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         });
       });
 
-      // 2. Pruning Schedule
       const pruningPeriods = normalizePeriods(plant.pruning_month);
       pruningPeriods.forEach((period) => {
         const { start, end } = getSinglePeriodRange(period, hemisphere);
@@ -270,7 +283,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           task_type: "Maintenance",
           trigger_event: "Planted",
           start_reference: `Seasonal:${start}:${niceTitle} Pruning Start`,
-          start_offset_days: 0, // 🚀 Uses new exact format
+          start_offset_days: 0,
           end_reference: `Seasonal:${end}:${niceTitle} Pruning End`,
           end_offset_days: 0,
           frequency_days: 1,
@@ -291,7 +304,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       const springDates = getSinglePeriodRange("spring", hemisphere);
       const fallDates = getSinglePeriodRange("fall", hemisphere);
 
-      // 3. Seasonal Watering
       newSchedules.push({
         home_id: homeId,
         plant_id: plant.id,
@@ -356,10 +368,10 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         is_auto_generated: true,
       });
 
+      // 1. Delete Old Auto-Schedules safely
       const incomingTaskTypes = [
         ...new Set(newSchedules.map((s) => s.task_type)),
       ];
-
       const { error: delSchedErr } = await supabase
         .from("plant_schedules")
         .delete()
@@ -368,12 +380,14 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         .eq("is_auto_generated", true);
       if (delSchedErr) throw delSchedErr;
 
+      // 2. Insert the fresh Master Schedules
       const { data: insertedSchedules, error: insertError } = await supabase
         .from("plant_schedules")
         .insert(newSchedules)
         .select();
       if (insertError) throw insertError;
 
+      // 3. See if there are any planted instances of this plant
       const { data: existingPlants, error: exPlantErr } = await supabase
         .from("inventory_items")
         .select("id, location_id, area_id")
@@ -382,56 +396,105 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         .eq("status", "Planted");
       if (exPlantErr) throw exPlantErr;
 
+      // 🚀 THE FIX: If there are existing plants, trigger the Confirmation Flow instead of immediately overwriting
       if (existingPlants && existingPlants.length > 0 && insertedSchedules) {
-        const existingPlantIds = existingPlants.map((p) => p.id);
-        const { error: delBpErr } = await supabase
-          .from("task_blueprints")
-          .delete()
-          .in("inventory_item_id", existingPlantIds)
-          .in("task_type", incomingTaskTypes)
-          .eq("is_auto_generated", true);
-        if (delBpErr) throw delBpErr;
-
-        const blueprintsToCreate = [];
-        for (const p of existingPlants) {
-          for (const s of insertedSchedules) {
-            blueprintsToCreate.push({
-              home_id: homeId,
-              title: s.title,
-              task_type: s.task_type,
-              location_id: p.location_id,
-              area_id: p.area_id,
-              inventory_item_id: p.id,
-              frequency_days: s.frequency_days,
-              is_recurring: true,
-              is_auto_generated: true,
-            });
-          }
-        }
-
-        if (blueprintsToCreate.length > 0) {
-          const { data: createdBps, error: crBpErr } = await supabase
-            .from("task_blueprints")
-            .insert(blueprintsToCreate)
-            .select("id");
-          if (crBpErr) throw crBpErr;
-          if (createdBps) {
-            for (const bp of createdBps) {
-              await supabase.functions.invoke("generate-tasks", {
-                body: { blueprint_id: bp.id },
-              });
-            }
-          }
-        }
+        toast.dismiss("generate"); // Dismiss the loading toast
+        setPendingGeneratedSchedules(insertedSchedules);
+      } else {
+        toast.success("Seasonal schedules safely generated!", {
+          id: "generate",
+        });
+        fetchSchedules();
       }
-
-      toast.success("Seasonal schedules safely generated!", { id: "generate" });
-      fetchSchedules();
     } catch (err: any) {
       Logger.error("Failed to auto-generate", err);
       toast.error(`Generation failed: ${err.message}`, { id: "generate" });
     } finally {
+      if (!pendingGeneratedSchedules) setSaving(false); // Only release saving lock if we aren't waiting on the modal
+    }
+  };
+
+  // 🚀 NEW FUNCTION: Executes the blueprint generation AFTER user confirmation
+  const applyGeneratedSchedulesToPlants = async () => {
+    if (!pendingGeneratedSchedules) return;
+
+    setIsAdding(false); // Close modal if open
+    toast.loading("Applying schedules to active plants...", { id: "sync" });
+
+    try {
+      const { data: existingPlants } = await supabase
+        .from("inventory_items")
+        .select("id, location_id, area_id")
+        .eq("home_id", homeId)
+        .eq("plant_id", plant.id)
+        .eq("status", "Planted");
+      if (!existingPlants) throw new Error("No active plants found.");
+
+      const existingPlantIds = existingPlants.map((p) => p.id);
+      const incomingTaskTypes = [
+        ...new Set(pendingGeneratedSchedules.map((s) => s.task_type)),
+      ];
+
+      // A. Delete OLD AUTO-GENERATED blueprints for active plants
+      const { error: delBpErr } = await supabase
+        .from("task_blueprints")
+        .delete()
+        .in("inventory_item_id", existingPlantIds)
+        .in("task_type", incomingTaskTypes)
+        .eq("is_auto_generated", true);
+      if (delBpErr) throw delBpErr;
+
+      // B. Map the new schedules to the existing plants
+      const blueprintsToCreate: any[] = [];
+      for (const p of existingPlants) {
+        for (const s of pendingGeneratedSchedules) {
+          // 🚀 THE FIX: Extract pure dates from the reference string
+          const pureStartDate = extractDateFromReference(s.start_reference);
+          const pureEndDate = extractDateFromReference(s.end_reference);
+
+          blueprintsToCreate.push({
+            home_id: homeId,
+            title: s.title,
+            task_type: s.task_type,
+            location_id: p.location_id,
+            area_id: p.area_id,
+            inventory_item_id: p.id,
+            frequency_days: s.frequency_days,
+            is_recurring: true,
+            is_auto_generated: true,
+            start_date: pureStartDate, // Safe pure date!
+            end_date: pureEndDate, // Safe pure date!
+          });
+        }
+      }
+
+      if (blueprintsToCreate.length > 0) {
+        // C. Insert the new updated blueprints
+        const { data: createdBps, error: crBpErr } = await supabase
+          .from("task_blueprints")
+          .insert(blueprintsToCreate)
+          .select("id");
+        if (crBpErr) throw crBpErr;
+
+        // D. Generate immediate tasks FAST using Promise.all
+        if (createdBps) {
+          await Promise.all(
+            createdBps.map((bp) =>
+              supabase.functions.invoke("generate-tasks", {
+                body: { blueprint_id: bp.id },
+              }),
+            ),
+          );
+        }
+      }
+
+      toast.success("Schedules updated & synced beautifully!", { id: "sync" });
+    } catch (err: any) {
+      toast.error("Sync failed: " + err.message, { id: "sync" });
+    } finally {
+      setPendingGeneratedSchedules(null);
       setSaving(false);
+      fetchSchedules();
     }
   };
 
@@ -542,6 +605,14 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             .eq("is_auto_generated", false);
           if (delBpErr) throw delBpErr;
 
+          // 🚀 THE FIX: Extract pure dates for custom blueprints too!
+          const pureStartDate = extractDateFromReference(
+            newSchedule.start_reference,
+          );
+          const pureEndDate = extractDateFromReference(
+            newSchedule.end_reference,
+          );
+
           const blueprintsToCreate = existingPlants.map((p) => ({
             home_id: homeId,
             title: newSchedule.title,
@@ -552,6 +623,8 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             frequency_days: newSchedule.frequency_days,
             is_recurring: true,
             is_auto_generated: false,
+            start_date: pureStartDate,
+            end_date: pureEndDate,
           }));
 
           const { data: createdBps, error: crBpErr } = await supabase
@@ -561,11 +634,13 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           if (crBpErr) throw crBpErr;
 
           if (createdBps) {
-            for (const bp of createdBps) {
-              await supabase.functions.invoke("generate-tasks", {
-                body: { blueprint_id: bp.id },
-              });
-            }
+            await Promise.all(
+              createdBps.map((bp) =>
+                supabase.functions.invoke("generate-tasks", {
+                  body: { blueprint_id: bp.id },
+                }),
+              ),
+            );
           }
         }
         toast.success("Schedule applied!", { id: "apply-sync" });
@@ -599,7 +674,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     }
   };
 
-  // 🚀 UPDATED: Parses the new Context string to render a beautiful label in the UI
   const parseReferenceString = (ref: string, offset: number) => {
     if (!ref) return "Trigger Date";
     if (ref.startsWith("Seasonal:")) {
@@ -608,7 +682,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         const dateStr = formatMonthDay(parts[1]);
         return `${offset > 0 ? `${offset} days after ` : "on "}${dateStr} (${parts[2]})`;
       } else {
-        // Graceful fallback for older schedules that just had Seasonal: 03-01
         const dateStr = formatMonthDay(ref.replace("Seasonal:", "").trim());
         return `${offset > 0 ? `${offset} days after ` : "on "}${dateStr}`;
       }
@@ -707,7 +780,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
               onChange={(e) =>
                 setForm({ ...form, start_reference: e.target.value })
               }
-              className="flex-1 p-3 bg-white rounded-xl font-bold outline-none text-sm shadow-sm"
+              className="flex-1 p-3 bg-white rounded-xl font-bold outline-none text-sm shadow-sm truncate"
             >
               {dynamicOptions.map((o, idx) => (
                 <option key={`${o.value}-${idx}`} value={o.value}>
@@ -743,7 +816,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
               onChange={(e) =>
                 setForm({ ...form, end_reference: e.target.value })
               }
-              className="flex-1 p-3 bg-white rounded-xl font-bold outline-none text-sm shadow-sm"
+              className="flex-1 p-3 bg-white rounded-xl font-bold outline-none text-sm shadow-sm truncate"
             >
               {endOptions.map((o, idx) => (
                 <option key={`${o.value}-${idx}`} value={o.value}>
@@ -859,38 +932,33 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
 
   return (
     <div className="space-y-6 animate-in fade-in relative">
+      {/* 🚀 THE SYNC CONFIRMATION MODAL */}
+      <ConfirmModal
+        isOpen={pendingGeneratedSchedules !== null}
+        isLoading={saving} // Uses the saving lock we held open
+        onClose={() => {
+          setPendingGeneratedSchedules(null);
+          setSaving(false);
+          fetchSchedules(); // Fetch the schedules anyway, since they were saved to the template list
+        }}
+        onConfirm={applyGeneratedSchedulesToPlants}
+        title="Sync Active Plants?"
+        description="We successfully generated the new schedules! We found some active planted instances of this plant in your garden. Would you like to overwrite their tasks with these new rules?"
+        confirmText="Sync Active Plants"
+        isDestructive={false}
+      />
+
       {confirmDeleteId && (
-        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-white p-6 rounded-[2rem] w-full max-w-sm shadow-2xl animate-in zoom-in-95">
-            <h3 className="font-black text-lg mb-2 text-rhozly-on-surface">
-              Delete Automation
-            </h3>
-            <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6">
-              Are you sure you want to permanently delete this schedule
-              template?
-            </p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setConfirmDeleteId(null)}
-                disabled={saving}
-                className="flex-1 py-4 rounded-xl font-bold text-rhozly-on-surface bg-rhozly-surface-low hover:bg-rhozly-outline/10 transition-colors"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => deleteSchedule(confirmDeleteId)}
-                disabled={saving}
-                className="flex-1 py-4 rounded-xl font-bold text-white bg-red-500 hover:bg-red-600 transition-colors flex items-center justify-center"
-              >
-                {saving ? (
-                  <Loader2 className="animate-spin" size={20} />
-                ) : (
-                  "Delete"
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ConfirmModal
+          isOpen={confirmDeleteId !== null}
+          isLoading={saving}
+          onClose={() => setConfirmDeleteId(null)}
+          onConfirm={() => deleteSchedule(confirmDeleteId)}
+          title="Delete Automation"
+          description="Are you sure you want to permanently delete this schedule template?"
+          confirmText="Delete"
+          isDestructive={true}
+        />
       )}
 
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -936,7 +1004,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                 </div>
               ) : (
                 <div className="bg-white p-4 sm:p-5 rounded-2xl border border-rhozly-outline/10 shadow-sm flex items-start sm:items-center justify-between gap-4">
-                  <div>
+                  <div className="min-w-0 pr-4">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
                       <span className="text-[9px] font-black uppercase tracking-widest bg-rhozly-primary/10 text-rhozly-primary px-2 py-1 rounded-md">
                         {schedule.task_type}
@@ -954,11 +1022,11 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                         When {schedule.trigger_event}
                       </span>
                     </div>
-                    <h4 className="font-black text-lg text-rhozly-on-surface mb-1">
+                    <h4 className="font-black text-lg text-rhozly-on-surface mb-1 truncate">
                       {schedule.title}
                     </h4>
                     <div className="text-xs font-bold text-rhozly-on-surface/60 space-y-0.5">
-                      <p>
+                      <p className="truncate">
                         🟢 Starts{" "}
                         {parseReferenceString(
                           schedule.start_reference,
@@ -966,7 +1034,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                         )}
                       </p>
                       {schedule.end_reference && (
-                        <p>
+                        <p className="truncate">
                           🔴 Ends{" "}
                           {parseReferenceString(
                             schedule.end_reference,
