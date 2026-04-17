@@ -19,10 +19,15 @@ import {
   CloudRain,
   AlertCircle,
   CalendarClock,
+  Archive,
+  Square,
+  CheckSquare2,
+  ListChecks,
 } from "lucide-react";
 import type { Task } from "./TaskCalendar";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
+import { ConfirmModal } from "./ConfirmModal"; // 🚀 IMPORTED YOUR NICE MODAL
 
 interface TaskListProps {
   homeId: string;
@@ -63,7 +68,7 @@ export default function TaskList({
   onTaskUpdated,
   locationId,
   selectedTypes,
-  showOverdue, // 🚀 NEW PROP DESTRUCTURED
+  showOverdue,
 }: TaskListProps) {
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -72,6 +77,29 @@ export default function TaskList({
 
   const [isPostponing, setIsPostponing] = useState(false);
   const [postponeDate, setPostponeDate] = useState("");
+
+  // 🚀 CUSTOM MODAL STATES
+  const [taskToDelete, setTaskToDelete] = useState<any | null>(null);
+  const [isConfirmingBulkDelete, setIsConfirmingBulkDelete] = useState(false);
+
+  // BULK EDIT STATES
+  const [isBulkEditing, setIsBulkEditing] = useState(false);
+  const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(
+    new Set(),
+  );
+  const [isBulkPostponing, setIsBulkPostponing] = useState(false);
+  const [bulkPostponeDate, setBulkPostponeDate] = useState("");
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
+
+  // ARCHIVE STATES
+  const [archivePrompts, setArchivePrompts] = useState<
+    | {
+        itemId: string;
+        plantName: string;
+      }[]
+    | null
+  >(null);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   const dateStr = getLocalDateString(targetDate || new Date());
   const todayStr = getLocalDateString(new Date());
@@ -86,10 +114,19 @@ export default function TaskList({
     }
   }, [selectedTask]);
 
+  // Reset bulk state if date or filters change
+  useEffect(() => {
+    setIsBulkEditing(false);
+    setSelectedTaskIds(new Set());
+    setIsBulkPostponing(false);
+  }, [dateStr, typesFilterStr, locationId]);
+
   const fetchTasksAndGhosts = useCallback(
     async (silent = false) => {
       if (!silent) setLoading(true);
       const targetDateMs = new Date(dateStr).getTime();
+      const todayMs = new Date(todayStr).getTime();
+      const isViewingTodayOrPast = targetDateMs <= todayMs;
 
       try {
         let isRainingTargetDate = false;
@@ -114,8 +151,7 @@ export default function TaskList({
           .eq("home_id", homeId)
           .neq("status", "Skipped");
 
-        // 🚀 NEW LOGIC: Only fetch past tasks if we explicitly want to show overdue
-        if (showOverdue) {
+        if (isViewingTodayOrPast || showOverdue) {
           physicalQuery = physicalQuery.lte("due_date", dateStr);
         } else {
           physicalQuery = physicalQuery.eq("due_date", dateStr);
@@ -133,9 +169,12 @@ export default function TaskList({
         if (physicalError) throw physicalError;
 
         const filteredPhysicalData = (physicalData || []).filter((t) => {
-          if (t.due_date === dateStr) return true; // Always show tasks for the selected date
-          // 🚀 NEW LOGIC: Only include overdue tasks if showOverdue is true
-          if (showOverdue && t.due_date < dateStr && t.status === "Pending")
+          if (t.due_date === dateStr) return true;
+          if (
+            (isViewingTodayOrPast || showOverdue) &&
+            t.due_date < dateStr &&
+            t.status === "Pending"
+          )
             return true;
           return false;
         });
@@ -149,9 +188,8 @@ export default function TaskList({
             t.status === "Pending" &&
             t.due_date === dateStr;
 
-          if (isAutoCompleted) {
+          if (isAutoCompleted)
             return { ...t, status: "Completed", isAutoCompleted: true };
-          }
           return t;
         });
 
@@ -230,7 +268,6 @@ export default function TaskList({
         allTasks.sort((a, b) => {
           if (a.status === "Completed" && b.status !== "Completed") return 1;
           if (a.status !== "Completed" && b.status === "Completed") return -1;
-
           if (a.status === "Pending" && b.status === "Pending") {
             return a.due_date.localeCompare(b.due_date);
           }
@@ -252,20 +289,256 @@ export default function TaskList({
       locationId,
       typesFilterStr,
       showOverdue,
-    ], // 🚀 ADDED showOverdue TO DEPENDENCIES
+      todayStr,
+    ],
   );
 
   useEffect(() => {
     fetchTasksAndGhosts();
   }, [fetchTasksAndGhosts]);
 
+  // ---------------------------------------------------------
+  // BULK OPERATIONS LOGIC
+  // ---------------------------------------------------------
+
+  const toggleTaskSelection = (taskId: string) => {
+    const newSet = new Set(selectedTaskIds);
+    if (newSet.has(taskId)) newSet.delete(taskId);
+    else newSet.add(taskId);
+    setSelectedTaskIds(newSet);
+  };
+
+  const getSelectedTaskObjects = () => {
+    return tasks.filter((t) => selectedTaskIds.has(t.id));
+  };
+
+  const handleBulkComplete = async () => {
+    const selectedTasks = getSelectedTaskObjects();
+    if (selectedTasks.length === 0) return;
+
+    setIsBulkProcessing(true);
+    const toastId = toast.loading(
+      `Completing ${selectedTasks.length} tasks...`,
+    );
+
+    try {
+      const ghostTasks = selectedTasks.filter((t) => t.isGhost);
+      const physicalTasks = selectedTasks.filter((t) => !t.isGhost);
+      const completedTime = new Date().toISOString();
+
+      // 1. Batch Insert Ghost Tasks
+      if (ghostTasks.length > 0) {
+        const payloads = ghostTasks.map((task) => ({
+          home_id: task.home_id,
+          blueprint_id: task.blueprint_id,
+          title: task.title,
+          description: task.description,
+          type: task.type,
+          due_date: task.due_date,
+          status: "Completed",
+          completed_at: completedTime,
+          location_id: task.location_id,
+          area_id: task.area_id,
+          inventory_item_id: task.inventory_item_id,
+        }));
+        const { error } = await supabase.from("tasks").insert(payloads);
+        if (error) throw error;
+      }
+
+      // 2. 🚀 THE 400 FIX: Update Physical Tasks concurrently instead of bulk .in()
+      if (physicalTasks.length > 0) {
+        await Promise.all(
+          physicalTasks.map((t) =>
+            supabase
+              .from("tasks")
+              .update({ status: "Completed", completed_at: completedTime })
+              .eq("id", t.id),
+          ),
+        );
+      }
+
+      toast.success(`${selectedTasks.length} tasks completed!`, {
+        id: toastId,
+      });
+
+      // BULK ARCHIVE CHECK
+      const harvestedItems = selectedTasks
+        .filter((t) => t.type === "Harvesting" && t.inventory_item_id)
+        .map((t) => ({
+          itemId: t.inventory_item_id,
+          plantName: t.inventory_items?.plant_name || "Unknown Plant",
+        }));
+
+      const uniqueHarvests = Array.from(
+        new Map(harvestedItems.map((item) => [item.itemId, item])).values(),
+      );
+
+      if (uniqueHarvests.length > 0) {
+        setArchivePrompts(uniqueHarvests);
+      }
+
+      setIsBulkEditing(false);
+      setSelectedTaskIds(new Set());
+      fetchTasksAndGhosts(true);
+      onTaskUpdated?.();
+    } catch (err) {
+      toast.error("Failed to complete tasks.", { id: toastId });
+      Logger.error("Bulk Complete Error", err);
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  const handleBulkPostpone = async () => {
+    if (!bulkPostponeDate) return toast.error("Please select a date.");
+    const selectedTasks = getSelectedTaskObjects();
+    if (selectedTasks.length === 0) return;
+
+    setIsBulkProcessing(true);
+    const toastId = toast.loading(
+      `Postponing ${selectedTasks.length} tasks...`,
+    );
+
+    try {
+      const ghostTasks = selectedTasks.filter((t) => t.isGhost);
+      const physicalTasks = selectedTasks.filter((t) => !t.isGhost);
+
+      if (ghostTasks.length > 0) {
+        const payloads: any[] = [];
+        ghostTasks.forEach((task) => {
+          payloads.push({
+            home_id: task.home_id,
+            blueprint_id: task.blueprint_id,
+            title: task.title,
+            description: task.description,
+            type: task.type,
+            due_date: task.due_date,
+            status: "Skipped",
+            location_id: task.location_id,
+            area_id: task.area_id,
+            inventory_item_id: task.inventory_item_id,
+          });
+          payloads.push({
+            home_id: task.home_id,
+            blueprint_id: task.blueprint_id,
+            title: task.title,
+            description: task.description,
+            type: task.type,
+            due_date: bulkPostponeDate,
+            status: "Pending",
+            location_id: task.location_id,
+            area_id: task.area_id,
+            inventory_item_id: task.inventory_item_id,
+          });
+        });
+        const { error } = await supabase.from("tasks").insert(payloads);
+        if (error) throw error;
+      }
+
+      // 🚀 THE 400 FIX: Update concurrently
+      if (physicalTasks.length > 0) {
+        await Promise.all(
+          physicalTasks.map((t) =>
+            supabase
+              .from("tasks")
+              .update({ due_date: bulkPostponeDate })
+              .eq("id", t.id),
+          ),
+        );
+      }
+
+      toast.success(
+        `Tasks postponed to ${formatDisplayDate(bulkPostponeDate)}!`,
+        { id: toastId },
+      );
+      setIsBulkEditing(false);
+      setSelectedTaskIds(new Set());
+      setIsBulkPostponing(false);
+      fetchTasksAndGhosts(true);
+      onTaskUpdated?.();
+    } catch (err) {
+      toast.error("Failed to postpone tasks.", { id: toastId });
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  const executeBulkDelete = async () => {
+    const selectedTasks = getSelectedTaskObjects();
+    if (selectedTasks.length === 0) return;
+
+    setIsBulkProcessing(true);
+    const toastId = toast.loading(`Removing ${selectedTasks.length} tasks...`);
+
+    try {
+      const ghostTasks = selectedTasks.filter((t) => t.isGhost);
+      const physicalWithBlueprints = selectedTasks.filter(
+        (t) => !t.isGhost && t.blueprint_id,
+      );
+      const physicalPure = selectedTasks.filter(
+        (t) => !t.isGhost && !t.blueprint_id,
+      );
+
+      if (ghostTasks.length > 0) {
+        const payloads = ghostTasks.map((task) => ({
+          home_id: task.home_id,
+          blueprint_id: task.blueprint_id,
+          title: task.title,
+          description: task.description,
+          type: task.type,
+          due_date: task.due_date,
+          status: "Skipped",
+          location_id: task.location_id,
+          area_id: task.area_id,
+          inventory_item_id: task.inventory_item_id,
+        }));
+        const { error } = await supabase.from("tasks").insert(payloads);
+        if (error) throw error;
+      }
+
+      // 🚀 THE 400 FIX: Update concurrently
+      if (physicalWithBlueprints.length > 0) {
+        await Promise.all(
+          physicalWithBlueprints.map((t) =>
+            supabase.from("tasks").update({ status: "Skipped" }).eq("id", t.id),
+          ),
+        );
+      }
+
+      if (physicalPure.length > 0) {
+        const pureIds = physicalPure.map((t) => t.id);
+        const { error } = await supabase
+          .from("tasks")
+          .delete()
+          .in("id", pureIds);
+        if (error) throw error;
+      }
+
+      toast.success(`Tasks removed!`, { id: toastId });
+      setIsBulkEditing(false);
+      setSelectedTaskIds(new Set());
+      setIsConfirmingBulkDelete(false);
+      fetchTasksAndGhosts(true);
+      onTaskUpdated?.();
+    } catch (err) {
+      toast.error("Failed to remove tasks.", { id: toastId });
+    } finally {
+      setIsBulkProcessing(false);
+    }
+  };
+
+  // ---------------------------------------------------------
+  // INDIVIDUAL TASK ACTIONS
+  // ---------------------------------------------------------
+
   const toggleTaskCompletion = async (task: any, e?: React.MouseEvent) => {
     if (e) e.stopPropagation();
-
     setIsUpdatingTask(task.id);
     const newStatus = task.status === "Completed" ? "Pending" : "Completed";
 
     try {
+      let finalData = task;
+
       if (task.isGhost) {
         const { data, error } = await supabase
           .from("tasks")
@@ -291,9 +564,7 @@ export default function TaskList({
           .single();
 
         if (error) throw error;
-        const finalData = { ...data, isAutoCompleted: false };
-        setTasks(tasks.map((t) => (t.id === task.id ? finalData : t)));
-        if (selectedTask?.id === task.id) setSelectedTask(finalData);
+        finalData = { ...data, isAutoCompleted: false };
       } else {
         const { error } = await supabase
           .from("tasks")
@@ -303,19 +574,25 @@ export default function TaskList({
               newStatus === "Completed" ? new Date().toISOString() : null,
           })
           .eq("id", task.id);
-
         if (error) throw error;
-
-        const updatedTask = {
-          ...task,
-          status: newStatus,
-          isAutoCompleted: false,
-        };
-        setTasks(tasks.map((t) => (t.id === task.id ? updatedTask : t)));
-        if (selectedTask?.id === task.id) setSelectedTask(updatedTask);
+        finalData = { ...task, status: newStatus, isAutoCompleted: false };
       }
 
-      if (newStatus === "Completed") toast.success("Task completed!");
+      setTasks(tasks.map((t) => (t.id === task.id ? finalData : t)));
+      if (selectedTask?.id === task.id) setSelectedTask(finalData);
+
+      if (newStatus === "Completed") {
+        toast.success("Task completed!");
+        if (finalData.type === "Harvesting" && finalData.inventory_item_id) {
+          setArchivePrompts([
+            {
+              itemId: finalData.inventory_item_id,
+              plantName: finalData.inventory_items?.plant_name || "this plant",
+            },
+          ]);
+        }
+      }
+
       onTaskUpdated?.();
     } catch (err) {
       toast.error("Failed to update task.");
@@ -324,10 +601,7 @@ export default function TaskList({
     }
   };
 
-  const handleDeleteTask = async (task: any) => {
-    if (!window.confirm(`Are you sure you want to remove this task for today?`))
-      return;
-
+  const executeDeleteTask = async (task: any) => {
     setIsUpdatingTask(task.id);
     try {
       if (task.isGhost) {
@@ -353,10 +627,10 @@ export default function TaskList({
       } else {
         await supabase.from("tasks").delete().eq("id", task.id);
       }
-
       toast.success("Task removed for today.");
       setTasks(tasks.filter((t) => t.id !== task.id));
       setSelectedTask(null);
+      setTaskToDelete(null);
       onTaskUpdated?.();
     } catch (err) {
       toast.error("Failed to remove task.");
@@ -404,18 +678,53 @@ export default function TaskList({
           .update({ due_date: postponeDate })
           .eq("id", task.id);
       }
-
       toast.success(`Task postponed to ${formatDisplayDate(postponeDate)}`);
-
       setSelectedTask(null);
       setIsPostponing(false);
       onTaskUpdated?.();
-
       fetchTasksAndGhosts(true);
     } catch (err) {
       toast.error("Failed to reschedule task.");
     } finally {
       setIsUpdatingTask(null);
+    }
+  };
+
+  const handleArchiveItems = async () => {
+    if (!archivePrompts || archivePrompts.length === 0) return;
+    setIsArchiving(true);
+    try {
+      const itemIds = archivePrompts.map((p) => p.itemId);
+
+      const { error: updateError } = await supabase
+        .from("inventory_items")
+        .update({ status: "Archived" })
+        .in("id", itemIds);
+      if (updateError) throw updateError;
+
+      const { error: bpError } = await supabase
+        .from("task_blueprints")
+        .delete()
+        .in("inventory_item_id", itemIds);
+      if (bpError) throw bpError;
+
+      const { error: taskError } = await supabase
+        .from("tasks")
+        .delete()
+        .in("inventory_item_id", itemIds)
+        .eq("status", "Pending");
+      if (taskError) throw taskError;
+
+      toast.success(`Successfully archived ${archivePrompts.length} plant(s)!`);
+      setArchivePrompts(null);
+      setSelectedTask(null);
+      fetchTasksAndGhosts(true);
+      onTaskUpdated?.();
+    } catch (err: any) {
+      toast.error("Failed to archive plants.");
+      Logger.error("Batch Archive Error", err);
+    } finally {
+      setIsArchiving(false);
     }
   };
 
@@ -455,9 +764,22 @@ export default function TaskList({
     );
   }
 
+  const pendingCount = tasks.filter((t) => t.status === "Pending").length;
+
   return (
     <>
-      <div className="space-y-3">
+      {pendingCount > 0 && !isBulkEditing && (
+        <div className="flex justify-end mb-3">
+          <button
+            onClick={() => setIsBulkEditing(true)}
+            className="flex items-center gap-1.5 px-4 py-2 bg-rhozly-surface-low rounded-xl text-xs font-black uppercase tracking-widest text-rhozly-on-surface/60 hover:text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors"
+          >
+            <ListChecks size={14} /> Bulk Edit
+          </button>
+        </div>
+      )}
+
+      <div className={`space-y-3 relative ${isBulkEditing ? "pb-24" : ""}`}>
         {tasks.map((task) => {
           const plantName = task.inventory_items?.plant_name;
           const plantIdentifier = task.inventory_items?.identifier;
@@ -465,69 +787,80 @@ export default function TaskList({
           const locationName = task.inventory_items?.location_name;
           const areaName = task.inventory_items?.area_name;
           const isCompleted = task.status === "Completed";
-
           const isOverdue = !isCompleted && task.due_date < todayStr;
+          const isSelected = selectedTaskIds.has(task.id);
 
           let cardStyle = "bg-white border-rhozly-outline/10";
           if (isCompleted)
             cardStyle = "opacity-60 bg-gray-50 border-rhozly-outline/10";
           if (isOverdue) cardStyle = "bg-red-50/50 border-red-200";
+          if (isBulkEditing && isSelected)
+            cardStyle = "bg-rhozly-primary/5 border-rhozly-primary shadow-md";
 
           return (
             <div
               key={task.id}
-              onClick={() => setSelectedTask(task)}
-              className={`p-5 rounded-3xl border shadow-sm flex items-center justify-between group relative cursor-pointer transition-all hover:border-rhozly-primary/30 ${cardStyle}`}
+              onClick={() => {
+                if (isBulkEditing) {
+                  if (!isCompleted) toggleTaskSelection(task.id);
+                } else {
+                  setSelectedTask(task);
+                }
+              }}
+              className={`p-5 rounded-3xl border shadow-sm flex items-center justify-between group relative transition-all ${isBulkEditing && !isCompleted ? "cursor-pointer hover:border-rhozly-primary/50" : isBulkEditing && isCompleted ? "opacity-30 cursor-not-allowed" : "cursor-pointer hover:border-rhozly-primary/30"} ${cardStyle}`}
             >
-              {isOverdue ? (
+              {isBulkEditing && !isCompleted && (
+                <div
+                  className={`mr-4 shrink-0 transition-colors ${isSelected ? "text-rhozly-primary" : "text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50"}`}
+                >
+                  {isSelected ? (
+                    <CheckSquare2 size={24} />
+                  ) : (
+                    <Square size={24} />
+                  )}
+                </div>
+              )}
+
+              {isOverdue && !isBulkEditing ? (
                 <div className="absolute -top-2 -right-2 z-10 text-[8px] font-black uppercase text-white bg-red-500 px-2 py-1 rounded-full shadow-md flex items-center gap-1">
                   <AlertCircle size={8} /> Overdue
                 </div>
-              ) : task.isAutoCompleted ? (
+              ) : task.isAutoCompleted && !isBulkEditing ? (
                 <div className="absolute -top-2 -right-2 z-10 text-[8px] font-black uppercase text-white bg-blue-500 px-2 py-1 rounded-full shadow-md flex items-center gap-1">
                   <CloudRain size={8} /> Nature Watered
                 </div>
-              ) : task.isGhost && !isCompleted ? (
+              ) : task.isGhost && !isCompleted && !isBulkEditing ? (
                 <div className="absolute -top-2 -right-2 z-10 text-[8px] font-black uppercase text-white bg-rhozly-primary px-2 py-1 rounded-full shadow-md flex items-center gap-1">
                   <Sparkles size={8} /> Auto
                 </div>
               ) : null}
 
               <div className="flex items-center gap-4 w-full">
-                <button
-                  onClick={(e) => toggleTaskCompletion(task, e)}
-                  disabled={isUpdatingTask === task.id}
-                  className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center border-2 transition-all active:scale-90 
-                    ${
-                      isUpdatingTask === task.id
-                        ? "border-rhozly-primary/30"
-                        : isCompleted
-                          ? "bg-green-500 border-green-500 text-white"
-                          : isOverdue
-                            ? "border-red-300 hover:border-red-500 text-transparent hover:text-red-500/30"
-                            : "border-rhozly-outline/20 hover:border-rhozly-primary text-transparent hover:text-rhozly-primary/30"
-                    }
-                  `}
-                >
-                  {isUpdatingTask === task.id ? (
-                    <Loader2
-                      size={18}
-                      className="animate-spin text-rhozly-primary"
-                    />
-                  ) : (
-                    <CheckSquare size={18} className="currentColor" />
-                  )}
-                </button>
+                {!isBulkEditing && (
+                  <button
+                    onClick={(e) => toggleTaskCompletion(task, e)}
+                    disabled={isUpdatingTask === task.id}
+                    className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center border-2 transition-all active:scale-90 
+                      ${isUpdatingTask === task.id ? "border-rhozly-primary/30" : isCompleted ? "bg-green-500 border-green-500 text-white" : isOverdue ? "border-red-300 hover:border-red-500 text-transparent hover:text-red-500/30" : "border-rhozly-outline/20 hover:border-rhozly-primary text-transparent hover:text-rhozly-primary/30"}`}
+                  >
+                    {isUpdatingTask === task.id ? (
+                      <Loader2
+                        size={18}
+                        className="animate-spin text-rhozly-primary"
+                      />
+                    ) : (
+                      <CheckSquare size={18} className="currentColor" />
+                    )}
+                  </button>
+                )}
 
                 <div className="flex-1 min-w-0">
                   <div className="flex flex-wrap items-center gap-2 mb-1.5">
                     <span
-                      className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md flex items-center gap-1 
-                        ${isCompleted ? "bg-gray-200 text-gray-500" : isOverdue ? "text-red-700 bg-red-100" : "text-rhozly-primary bg-rhozly-primary/10"}`}
+                      className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md flex items-center gap-1 ${isCompleted ? "bg-gray-200 text-gray-500" : isOverdue ? "text-red-700 bg-red-100" : "text-rhozly-primary bg-rhozly-primary/10"}`}
                     >
                       {getTaskIcon(task.type)} {task.type}
                     </span>
-
                     {(locationName || areaName) && (
                       <span className="text-[10px] font-bold text-rhozly-on-surface/50 flex items-center gap-1 truncate max-w-full">
                         <MapPin size={10} className="shrink-0" />
@@ -543,14 +876,11 @@ export default function TaskList({
                       </span>
                     )}
                   </div>
-
                   <h4
-                    className={`font-black text-sm md:text-base leading-tight truncate 
-                    ${isCompleted ? "line-through decoration-2 decoration-green-500/50 text-gray-500" : isOverdue ? "text-red-900" : "text-rhozly-on-surface"}`}
+                    className={`font-black text-sm md:text-base leading-tight truncate ${isCompleted ? "line-through decoration-2 decoration-green-500/50 text-gray-500" : isOverdue ? "text-red-900" : "text-rhozly-on-surface"}`}
                   >
                     {task.title}
                   </h4>
-
                   {plantName && (
                     <div
                       className={`text-[11px] font-bold mt-1 flex items-center gap-1.5 truncate ${isCompleted ? "text-gray-400" : isOverdue ? "text-red-700/70" : "text-rhozly-on-surface/70"}`}
@@ -584,7 +914,135 @@ export default function TaskList({
         })}
       </div>
 
-      {selectedTask && (
+      {isBulkEditing && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-md px-4 z-[90] animate-in slide-in-from-bottom-8">
+          <div className="bg-white rounded-[2rem] shadow-2xl border border-rhozly-outline/20 p-4 flex flex-col gap-3">
+            <div className="flex items-center justify-between px-2">
+              <span className="text-sm font-black text-rhozly-on-surface">
+                {selectedTaskIds.size} selected
+              </span>
+              <button
+                onClick={() => setIsBulkEditing(false)}
+                className="text-xs font-bold text-rhozly-on-surface/50 hover:text-rhozly-on-surface uppercase tracking-widest"
+              >
+                Cancel
+              </button>
+            </div>
+
+            {isBulkPostponing ? (
+              <div className="flex gap-2">
+                <input
+                  type="date"
+                  value={bulkPostponeDate}
+                  min={todayStr}
+                  onChange={(e) => setBulkPostponeDate(e.target.value)}
+                  className="flex-1 p-3 bg-rhozly-surface-low rounded-xl font-bold border border-rhozly-outline/10 focus:border-rhozly-primary outline-none"
+                />
+                <button
+                  onClick={() => setIsBulkPostponing(false)}
+                  className="px-4 py-3 bg-gray-100 font-bold rounded-xl text-gray-500 hover:bg-gray-200"
+                >
+                  <X size={18} />
+                </button>
+                <button
+                  onClick={handleBulkPostpone}
+                  disabled={isBulkProcessing || !bulkPostponeDate}
+                  className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl transition-all disabled:opacity-50 flex items-center justify-center min-w-[80px]"
+                >
+                  {isBulkProcessing ? (
+                    <Loader2 className="animate-spin" size={18} />
+                  ) : (
+                    <CheckSquare size={18} />
+                  )}
+                </button>
+              </div>
+            ) : (
+              <div className="flex gap-2">
+                <button
+                  onClick={handleBulkComplete}
+                  disabled={selectedTaskIds.size === 0 || isBulkProcessing}
+                  className="flex-1 py-3 bg-rhozly-primary text-white rounded-xl font-black shadow-md hover:bg-rhozly-primary/90 transition-all flex items-center justify-center gap-1.5 disabled:opacity-50"
+                >
+                  {isBulkProcessing ? (
+                    <Loader2 className="animate-spin" size={16} />
+                  ) : (
+                    <CheckSquare size={16} />
+                  )}{" "}
+                  Done
+                </button>
+                <button
+                  onClick={() => setIsBulkPostponing(true)}
+                  disabled={selectedTaskIds.size === 0 || isBulkProcessing}
+                  className="flex-1 py-3 bg-blue-50 text-blue-600 rounded-xl font-black transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 hover:bg-blue-100"
+                >
+                  <CalendarClock size={16} /> Postpone
+                </button>
+                <button
+                  onClick={() => setIsConfirmingBulkDelete(true)}
+                  disabled={selectedTaskIds.size === 0 || isBulkProcessing}
+                  className="flex-1 py-3 bg-red-50 text-red-600 rounded-xl font-black transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 hover:bg-red-100"
+                >
+                  <Trash2 size={16} /> Delete
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {archivePrompts && archivePrompts.length > 0 && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-md animate-in fade-in zoom-in-95">
+          <div className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col items-center text-center relative overflow-hidden">
+            <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-amber-400 to-orange-500" />
+            <div className="w-20 h-20 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mb-6 shadow-inner">
+              <Archive size={40} />
+            </div>
+            <h3 className="text-2xl font-black leading-tight text-rhozly-on-surface mb-2">
+              Harvest Complete!
+            </h3>
+            <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6 leading-relaxed">
+              You've harvested{" "}
+              {archivePrompts.length > 1
+                ? `${archivePrompts.length} plants`
+                : "a plant"}
+              . If they are finished for the season, you can retire them to your
+              History.
+            </p>
+            <div className="w-full bg-rhozly-surface-lowest border border-rhozly-outline/10 rounded-2xl p-4 mb-8 max-h-32 overflow-y-auto custom-scrollbar text-left space-y-2">
+              {archivePrompts.map((p, idx) => (
+                <p
+                  key={idx}
+                  className="text-xs font-black text-rhozly-on-surface flex items-center gap-2"
+                >
+                  <Wheat size={12} className="text-amber-500" /> {p.plantName}
+                </p>
+              ))}
+            </div>
+            <div className="flex flex-col sm:flex-row gap-3 w-full">
+              <button
+                onClick={() => setArchivePrompts(null)}
+                disabled={isArchiving}
+                className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-black transition-colors"
+              >
+                Keep in Shed
+              </button>
+              <button
+                onClick={handleArchiveItems}
+                disabled={isArchiving}
+                className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black shadow-lg transition-colors flex items-center justify-center gap-2"
+              >
+                {isArchiving ? (
+                  <Loader2 className="animate-spin" size={20} />
+                ) : (
+                  "Archive All"
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {selectedTask && !isBulkEditing && (
         <div
           className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/90 backdrop-blur-sm animate-in fade-in"
           onClick={() => setSelectedTask(null)}
@@ -759,7 +1217,7 @@ export default function TaskList({
             ) : (
               <div className="flex gap-3 mt-auto shrink-0">
                 <button
-                  onClick={() => handleDeleteTask(selectedTask)}
+                  onClick={() => setTaskToDelete(selectedTask)}
                   className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shrink-0"
                   title="Remove task"
                 >
@@ -797,6 +1255,29 @@ export default function TaskList({
           </div>
         </div>
       )}
+
+      {/* 🚀 THE NATIVE CONFIRM MODALS FOR DELETIONS */}
+      <ConfirmModal
+        isOpen={taskToDelete !== null}
+        isLoading={isUpdatingTask === taskToDelete?.id}
+        onClose={() => setTaskToDelete(null)}
+        onConfirm={() => executeDeleteTask(taskToDelete)}
+        title="Remove Task"
+        description="Are you sure you want to remove this task for today?"
+        confirmText="Remove"
+        isDestructive={true}
+      />
+
+      <ConfirmModal
+        isOpen={isConfirmingBulkDelete}
+        isLoading={isBulkProcessing}
+        onClose={() => setIsConfirmingBulkDelete(false)}
+        onConfirm={executeBulkDelete}
+        title="Remove Multiple Tasks"
+        description={`Are you sure you want to remove ${selectedTaskIds.size} tasks for today?`}
+        confirmText="Remove All"
+        isDestructive={true}
+      />
     </>
   );
 }

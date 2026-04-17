@@ -22,7 +22,7 @@ import {
 import { App as CapApp } from "@capacitor/app";
 
 import AdminGuideGenerator from "./components/AdminGuideGenerator";
-import { Wand2 } from "lucide-react"; // Don't forget the icon for the nav link!
+import { Wand2 } from "lucide-react";
 
 // Import your components
 import LocationTile from "./components/LocationTile";
@@ -40,10 +40,12 @@ import TheShed from "./components/TheShed";
 import TaskCalendar from "./components/TaskCalendar";
 import TaskList from "./components/TaskList";
 import PlantDoctor from "./components/PlantDoctor";
-import LightSensor from "./components/LightSensor"; // 🚀 IMPORTED LIGHT SENSOR
-
+import LightSensor from "./components/LightSensor";
 import GuideList from "./components/GuideList";
-import { BookOpen } from "lucide-react"; // Import the book icon
+import { BookOpen } from "lucide-react";
+
+// 🚀 IMPORT THE PULL TO REFRESH WRAPPER
+import PullToRefresh from "./components/PullToRefresh";
 
 // --- WEATHER & CACHE HELPERS ---
 const getMidnightTonight = () => {
@@ -154,14 +156,11 @@ export default function App() {
   // Mobile Nav State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
-  // 🚀 NATIVE DEEP LINK LISTENER: Handles the "Return Flight" from Google OAuth
   useEffect(() => {
     const handleDeepLink = async () => {
       CapApp.addListener("appUrlOpen", async (event) => {
-        // Log the event so we can see it in Chrome Inspect
         Logger.log("Deep link received: " + event.url);
 
-        // Capacitor URLs often use '#' for tokens. We convert to '?' so URLSearchParams can read them.
         const url = new URL(event.url.replace("#", "?"));
         const accessToken = url.searchParams.get("access_token");
         const refreshToken = url.searchParams.get("refresh_token");
@@ -174,7 +173,6 @@ export default function App() {
 
           if (!error) {
             Logger.success("Login Successful!");
-            // The auth state change listener below will handle updating the UI session
           } else {
             Logger.error("Native session restoration failed", error);
           }
@@ -362,6 +360,18 @@ export default function App() {
     setProfile(profileData);
   };
 
+  // 🚀 THE MANUAL REFRESH HANDLER
+  const handleManualRefresh = async () => {
+    if (!profile?.home_id) return;
+
+    // 1. Purge the stale session caches
+    sessionStorage.removeItem(`weather_cache_${profile.home_id}`);
+    sessionStorage.removeItem(`locations_cache_${profile.home_id}`);
+
+    // 2. Fetch fresh data simultaneously
+    await Promise.all([fetchDashboardData(), refreshProfile()]);
+  };
+
   const handleSwitchHome = async (homeId: string) => {
     setWeather(null);
     setRawWeather(null);
@@ -448,7 +458,6 @@ export default function App() {
       />
     );
 
-  // 🚀 Build the base links everyone gets
   const navLinks = [
     { id: "dashboard", icon: <Home />, label: "Dashboard" },
     { id: "shed", icon: <Database />, label: "The Shed" },
@@ -458,15 +467,14 @@ export default function App() {
     { id: "management", icon: <Wrench />, label: "Location Management" },
   ];
 
-  // 🚀 Push the Admin tab only if they have the flag
   if (profile?.is_admin) {
-    // Make sure to import { Wand2 } from "lucide-react" at the top of App.tsx!
     navLinks.push({
       id: "admin_guides",
       icon: <Wand2 />,
       label: "Guide Studio",
     });
   }
+
   return (
     <Sentry.ErrorBoundary fallback={<p>An unexpected error occurred.</p>}>
       <Toaster />
@@ -524,7 +532,6 @@ export default function App() {
         </header>
 
         <div className="flex flex-1 overflow-hidden relative z-10 w-full">
-          {/* DESKTOP SIDEBAR */}
           <nav
             className={`hidden md:flex flex-col justify-start p-6 gap-2 transition-all duration-300 border-r border-rhozly-primary/20 bg-rhozly-primary-container ${isNavCollapsed ? "w-28 items-center" : "w-72"}`}
           >
@@ -544,7 +551,6 @@ export default function App() {
             ))}
           </nav>
 
-          {/* MOBILE NAVIGATION OVERLAY & MENU */}
           <div
             className={`md:hidden fixed inset-0 z-40 bg-rhozly-bg/80 backdrop-blur-sm transition-opacity duration-300 ${isMobileMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
             onClick={() => setIsMobileMenuOpen(false)}
@@ -570,7 +576,6 @@ export default function App() {
             ))}
           </nav>
 
-          {/* MOBILE FLOATING ACTION BUTTON */}
           <button
             onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
             className={`md:hidden fixed bottom-6 left-6 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl z-50 transition-all duration-300 ${isMobileMenuOpen ? "bg-white text-rhozly-primary" : "bg-rhozly-primary text-white"}`}
@@ -578,205 +583,210 @@ export default function App() {
             {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
           </button>
 
-          <main className="flex-1 overflow-y-auto p-4 md:p-8 pb-28 md:pb-8 w-full">
-            {activeTab === "dashboard" && (
-              <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
-                {selectedLocationId ? (
-                  <div className="w-full">
-                    {(() => {
-                      const loc = locations.find(
-                        (l) => l.id === selectedLocationId,
-                      );
-                      if (!loc)
-                        return (
-                          <div className="flex flex-col items-center py-20">
-                            <Loader2 className="animate-spin text-rhozly-primary mb-4" />
-                            <p className="text-sm font-bold opacity-40">
-                              Loading location details...
-                            </p>
-                          </div>
-                        );
-                      return (
-                        <LocationPage
-                          location={loc}
-                          onBack={() => setSelectedLocationId(null)}
-                        />
-                      );
-                    })()}
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
-                    <div
-                      className={`${dashboardView === "weather" || dashboardView === "calendar" ? "col-span-full" : "lg:col-span-7 xl:col-span-8"} space-y-6`}
-                    >
-                      <WeatherAlertBanner
-                        alerts={alerts}
-                        isForecastScreen={dashboardView === "weather"}
-                      />
-
-                      <div className="flex items-center justify-between px-1">
-                        <div className="bg-rhozly-primary/5 p-1 rounded-2xl inline-flex">
-                          {["locations", "calendar", "weather"].map((v) => (
-                            <button
-                              key={v}
-                              onClick={() => setDashboardView(v as any)}
-                              className={`px-4 py-1.5 rounded-xl font-bold text-sm transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-primary/60 hover:text-rhozly-primary"}`}
-                            >
-                              {v.charAt(0).toUpperCase() + v.slice(1)}
-                            </button>
-                          ))}
-                        </div>
+          {/* 🚀 THE WRAPPED MAIN CONTENT AREA */}
+          <main className="flex-1 relative w-full overflow-hidden">
+            <PullToRefresh onRefresh={handleManualRefresh}>
+              <div className="p-4 md:p-8 pb-28 md:pb-8 min-h-full">
+                {activeTab === "dashboard" && (
+                  <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
+                    {selectedLocationId ? (
+                      <div className="w-full">
+                        {(() => {
+                          const loc = locations.find(
+                            (l) => l.id === selectedLocationId,
+                          );
+                          if (!loc)
+                            return (
+                              <div className="flex flex-col items-center py-20">
+                                <Loader2 className="animate-spin text-rhozly-primary mb-4" />
+                                <p className="text-sm font-bold opacity-40">
+                                  Loading location details...
+                                </p>
+                              </div>
+                            );
+                          return (
+                            <LocationPage
+                              location={loc}
+                              onBack={() => setSelectedLocationId(null)}
+                            />
+                          );
+                        })()}
                       </div>
+                    ) : (
+                      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
+                        <div
+                          className={`${dashboardView === "weather" || dashboardView === "calendar" ? "col-span-full" : "lg:col-span-7 xl:col-span-8"} space-y-6`}
+                        >
+                          <WeatherAlertBanner
+                            alerts={alerts}
+                            isForecastScreen={dashboardView === "weather"}
+                          />
 
-                      {dashboardView === "locations" ? (
-                        <div className="space-y-5">
-                          <div className="bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container text-white rounded-3xl p-5 shadow-md flex justify-between items-center">
-                            <div className="flex items-center gap-4">
-                              <div className="bg-white/20 p-3 rounded-2xl">
-                                {weather?.Icon ? (
-                                  <weather.Icon className="w-8 h-8" />
+                          <div className="flex items-center justify-between px-1">
+                            <div className="bg-rhozly-primary/5 p-1 rounded-2xl inline-flex">
+                              {["locations", "calendar", "weather"].map((v) => (
+                                <button
+                                  key={v}
+                                  onClick={() => setDashboardView(v as any)}
+                                  className={`px-4 py-1.5 rounded-xl font-bold text-sm transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-primary/60 hover:text-rhozly-primary"}`}
+                                >
+                                  {v.charAt(0).toUpperCase() + v.slice(1)}
+                                </button>
+                              ))}
+                            </div>
+                          </div>
+
+                          {dashboardView === "locations" ? (
+                            <div className="space-y-5">
+                              <div className="bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container text-white rounded-3xl p-5 shadow-md flex justify-between items-center">
+                                <div className="flex items-center gap-4">
+                                  <div className="bg-white/20 p-3 rounded-2xl">
+                                    {weather?.Icon ? (
+                                      <weather.Icon className="w-8 h-8" />
+                                    ) : (
+                                      <Cloud className="w-8 h-8" />
+                                    )}
+                                  </div>
+                                  <div>
+                                    <p className="font-black text-2xl mb-1">
+                                      {weather
+                                        ? `${Math.round(weather.temp)}°C`
+                                        : "--°C"}{" "}
+                                      <span className="text-lg opacity-80">
+                                        {weather?.description || "Loading..."}
+                                      </span>
+                                    </p>
+                                    <p className="text-xs font-bold opacity-70">
+                                      Humidity: {weather?.humidity || "--"}% •
+                                      Wind: {weather?.wind || "--"} km/h
+                                    </p>
+                                  </div>
+                                </div>
+                                <button
+                                  onClick={() => setDashboardView("weather")}
+                                  className="text-xs font-bold bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl border border-white/20"
+                                >
+                                  Full Forecast
+                                </button>
+                              </div>
+                              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                {locations.length > 0 ? (
+                                  locations.map((loc: any, idx: number) => (
+                                    <LocationTile
+                                      key={loc.id}
+                                      site={loc}
+                                      index={idx}
+                                      onClick={() =>
+                                        setSelectedLocationId(loc.id)
+                                      }
+                                    />
+                                  ))
                                 ) : (
-                                  <Cloud className="w-8 h-8" />
+                                  <div className="col-span-full p-8 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/30 opacity-50">
+                                    No locations found.
+                                  </div>
                                 )}
                               </div>
-                              <div>
-                                <p className="font-black text-2xl mb-1">
-                                  {weather
-                                    ? `${Math.round(weather.temp)}°C`
-                                    : "--°C"}{" "}
-                                  <span className="text-lg opacity-80">
-                                    {weather?.description || "Loading..."}
-                                  </span>
-                                </p>
-                                <p className="text-xs font-bold opacity-70">
-                                  Humidity: {weather?.humidity || "--"}% • Wind:{" "}
-                                  {weather?.wind || "--"} km/h
-                                </p>
-                              </div>
                             </div>
-                            <button
-                              onClick={() => setDashboardView("weather")}
-                              className="text-xs font-bold bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl border border-white/20"
-                            >
-                              Full Forecast
-                            </button>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                            {locations.length > 0 ? (
-                              locations.map((loc: any, idx: number) => (
-                                <LocationTile
-                                  key={loc.id}
-                                  site={loc}
-                                  index={idx}
-                                  onClick={() => setSelectedLocationId(loc.id)}
-                                />
-                              ))
-                            ) : (
-                              <div className="col-span-full p-8 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/30 opacity-50">
-                                No locations found.
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : dashboardView === "calendar" ? (
-                        <div className="bg-rhozly-surface-lowest rounded-[3rem] border border-rhozly-outline/10 overflow-hidden shadow-sm">
-                          {profile?.home_id && (
-                            <TaskCalendar homeId={profile.home_id} />
+                          ) : dashboardView === "calendar" ? (
+                            <div className="bg-rhozly-surface-lowest rounded-[3rem] border border-rhozly-outline/10 overflow-hidden shadow-sm">
+                              {profile?.home_id && (
+                                <TaskCalendar homeId={profile.home_id} />
+                              )}
+                            </div>
+                          ) : (
+                            <div className="space-y-6">
+                              <WeatherForecast
+                                weatherData={rawWeather}
+                                alerts={alerts}
+                              />
+                            </div>
                           )}
                         </div>
-                      ) : (
-                        <div className="space-y-6">
-                          <WeatherForecast
-                            weatherData={rawWeather}
-                            alerts={alerts}
-                          />
-                        </div>
-                      )}
-                    </div>
 
-                    {dashboardView !== "weather" &&
-                      dashboardView !== "calendar" && (
-                        <div className="lg:col-span-5 xl:col-span-4 space-y-6">
-                          <div className="flex items-center justify-between px-1">
-                            <h2 className="font-black opacity-60 uppercase tracking-widest text-sm">
-                              Daily Tasks
-                            </h2>
-                            <button
-                              onClick={() => setDashboardView("calendar")}
-                              className="text-[10px] font-black text-rhozly-primary uppercase tracking-widest hover:underline transition-all"
-                            >
-                              View Calendar
-                            </button>
-                          </div>
-                          <div className="bg-rhozly-surface-lowest/80 rounded-[2.5rem] p-4 sm:p-6 border border-rhozly-outline/10 shadow-sm min-h-[400px]">
-                            {profile?.home_id && (
-                              <TaskList homeId={profile.home_id} />
-                            )}
-                          </div>
-                        </div>
-                      )}
+                        {dashboardView !== "weather" &&
+                          dashboardView !== "calendar" && (
+                            <div className="lg:col-span-5 xl:col-span-4 space-y-6">
+                              <div className="flex items-center justify-between px-1">
+                                <h2 className="font-black opacity-60 uppercase tracking-widest text-sm">
+                                  Daily Tasks
+                                </h2>
+                                <button
+                                  onClick={() => setDashboardView("calendar")}
+                                  className="text-[10px] font-black text-rhozly-primary uppercase tracking-widest hover:underline transition-all"
+                                >
+                                  View Calendar
+                                </button>
+                              </div>
+                              <div className="bg-rhozly-surface-lowest/80 rounded-[2.5rem] p-4 sm:p-6 border border-rhozly-outline/10 shadow-sm min-h-[400px]">
+                                {profile?.home_id && (
+                                  <TaskList homeId={profile.home_id} />
+                                )}
+                              </div>
+                            </div>
+                          )}
+                      </div>
+                    )}
                   </div>
                 )}
-              </div>
-            )}
 
-            {activeTab === "shed" && profile?.home_id && (
-              <TheShed homeId={profile.home_id} />
-            )}
+                {activeTab === "shed" && profile?.home_id && (
+                  <TheShed homeId={profile.home_id} />
+                )}
 
-            {activeTab === "doctor" && (
-              <div className="h-full animate-in fade-in duration-500">
-                <PlantDoctor
-                  homeId={profile.home_id}
-                  aiEnabled={profile.ai_enabled}
-                  isPremium={profile.enable_perenual}
-                  perenualEnabled={profile.enable_perenual}
-                />
-              </div>
-            )}
-
-            {/* 🚀 FIXED: Passing the homeId prop to the LightSensor */}
-            {activeTab === "lightsensor" && (
-              <div className="h-full animate-in fade-in duration-500">
-                {profile?.home_id ? (
-                  <LightSensor homeId={profile.home_id} />
-                ) : (
-                  <div className="h-full flex flex-col items-center justify-center p-10 text-center">
-                    <Loader2
-                      className="animate-spin text-rhozly-primary mb-4"
-                      size={40}
+                {activeTab === "doctor" && (
+                  <div className="h-full animate-in fade-in duration-500">
+                    <PlantDoctor
+                      homeId={profile.home_id}
+                      aiEnabled={profile.ai_enabled}
+                      isPremium={profile.enable_perenual}
+                      perenualEnabled={profile.enable_perenual}
                     />
-                    <p className="font-bold text-rhozly-on-surface/40 uppercase tracking-widest text-[10px]">
-                      Loading Home Data...
-                    </p>
+                  </div>
+                )}
+
+                {activeTab === "lightsensor" && (
+                  <div className="h-full animate-in fade-in duration-500">
+                    {profile?.home_id ? (
+                      <LightSensor homeId={profile.home_id} />
+                    ) : (
+                      <div className="h-full flex flex-col items-center justify-center p-10 text-center">
+                        <Loader2
+                          className="animate-spin text-rhozly-primary mb-4"
+                          size={40}
+                        />
+                        <p className="font-bold text-rhozly-on-surface/40 uppercase tracking-widest text-[10px]">
+                          Loading Home Data...
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {activeTab === "guides" && (
+                  <div className="h-full animate-in fade-in duration-500">
+                    <GuideList />
+                  </div>
+                )}
+
+                {activeTab === "management" && (
+                  <section className="h-full">
+                    {profile?.home_id ? (
+                      <LocationManager homeId={profile.home_id} />
+                    ) : (
+                      <div className="p-10 text-center opacity-50 font-bold border-2 border-dashed rounded-3xl">
+                        Please select a home.
+                      </div>
+                    )}
+                  </section>
+                )}
+                {activeTab === "admin_guides" && profile?.is_admin && (
+                  <div className="h-full animate-in fade-in duration-500">
+                    <AdminGuideGenerator />
                   </div>
                 )}
               </div>
-            )}
-
-            {activeTab === "guides" && (
-              <div className="h-full animate-in fade-in duration-500">
-                <GuideList />
-              </div>
-            )}
-
-            {activeTab === "management" && (
-              <section className="h-full">
-                {profile?.home_id ? (
-                  <LocationManager homeId={profile.home_id} />
-                ) : (
-                  <div className="p-10 text-center opacity-50 font-bold border-2 border-dashed rounded-3xl">
-                    Please select a home.
-                  </div>
-                )}
-              </section>
-            )}
-            {/* 🚀 NEW: THE ADMIN ROUTE */}
-            {activeTab === "admin_guides" && profile?.is_admin && (
-              <div className="h-full animate-in fade-in duration-500">
-                <AdminGuideGenerator />
-              </div>
-            )}
+            </PullToRefresh>
           </main>
         </div>
       </div>

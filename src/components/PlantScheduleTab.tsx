@@ -21,6 +21,13 @@ interface Props {
 
 const TRIGGER_EVENTS = ["Added to Area", "Planted", "Potted", "Moved Outside"];
 
+// 🚀 MODULAR CONFIG: Add new care guide extraction fields here!
+const SEASONAL_EVENTS_CONFIG = [
+  { dbKey: "harvest_season", eventName: "Harvest" },
+  { dbKey: "pruning_month", eventName: "Pruning" },
+  { dbKey: "flowering_season", eventName: "Flowering" },
+];
+
 export default function PlantScheduleTab({ homeId, plant }: Props) {
   const [schedules, setSchedules] = useState<any[]>([]);
   const [homeData, setHomeData] = useState<any>(null);
@@ -29,9 +36,12 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-
-  // 🚀 FIX 1: State for our beautiful custom delete modal
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+
+  const [frequencyMode, setFrequencyMode] = useState<"interval" | "weekly">(
+    "interval",
+  );
+  const [timesPerWeek, setTimesPerWeek] = useState<number>(1);
 
   const defaultFormState = {
     title: "",
@@ -52,6 +62,13 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     fetchHomeData();
   }, [plant.id, homeId]);
 
+  useEffect(() => {
+    if (frequencyMode === "weekly") {
+      const days = Math.max(1, Math.round(7 / timesPerWeek));
+      setForm((prev) => ({ ...prev, frequency_days: days }));
+    }
+  }, [timesPerWeek, frequencyMode]);
+
   const fetchHomeData = async () => {
     try {
       const { data, error } = await supabase
@@ -59,7 +76,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         .select("*")
         .eq("id", homeId)
         .single();
-
       if (error) throw error;
       if (data) setHomeData(data);
     } catch (err) {
@@ -74,7 +90,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         .select("*")
         .eq("plant_id", plant.id)
         .order("created_at", { ascending: false });
-
       if (error) throw error;
       if (data) setSchedules(data);
     } catch (err) {
@@ -100,49 +115,51 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     return "northern";
   };
 
-  const getSeasonDateRange = (
-    seasonInput: string | string[],
+  const normalizePeriods = (input: any): string[] => {
+    if (!input) return [];
+    if (Array.isArray(input)) return input.flatMap((i) => normalizePeriods(i));
+    if (typeof input === "string") {
+      return input
+        .split(/,|\band\b|&/i)
+        .map((s) => s.trim())
+        .filter(Boolean);
+    }
+    return [];
+  };
+
+  const getSinglePeriodRange = (
+    period: string,
     hemisphere: "northern" | "southern",
   ) => {
-    const s = (
-      Array.isArray(seasonInput)
-        ? seasonInput.join(" ")
-        : String(seasonInput || "")
-    ).toLowerCase();
-    if (s.includes("year-round") || s.includes("year round"))
-      return { start: "01-01", end: "12-31" };
-
-    const hasSpring = s.includes("spring");
-    const hasSummer = s.includes("summer");
-    const hasFall = s.includes("fall") || s.includes("autumn");
-    const hasWinter = s.includes("winter");
-
-    if (hemisphere === "northern") {
-      if (hasSpring && hasSummer && hasFall)
-        return { start: "03-01", end: "11-30" };
-      if (hasSpring && hasSummer) return { start: "03-01", end: "08-31" };
-      if (hasSummer && hasFall) return { start: "06-01", end: "11-30" };
-      if (hasFall && hasWinter) return { start: "09-01", end: "02-28" };
-      if (hasWinter && hasSpring) return { start: "12-01", end: "05-31" };
-
-      if (hasSpring) return { start: "03-01", end: "05-31" };
-      if (hasSummer) return { start: "06-01", end: "08-31" };
-      if (hasFall) return { start: "09-01", end: "11-30" };
-      if (hasWinter) return { start: "12-01", end: "02-28" };
-    } else {
-      if (hasSpring && hasSummer && hasFall)
-        return { start: "09-01", end: "05-31" };
-      if (hasSpring && hasSummer) return { start: "09-01", end: "02-28" };
-      if (hasSummer && hasFall) return { start: "12-01", end: "05-31" };
-      if (hasFall && hasWinter) return { start: "03-01", end: "08-31" };
-      if (hasWinter && hasSpring) return { start: "06-01", end: "11-30" };
-
-      if (hasSpring) return { start: "09-01", end: "11-30" };
-      if (hasSummer) return { start: "12-01", end: "02-28" };
-      if (hasFall) return { start: "03-01", end: "05-31" };
-      if (hasWinter) return { start: "06-01", end: "08-31" };
-    }
-
+    const p = period.toLowerCase();
+    if (p.includes("jan")) return { start: "01-01", end: "01-31" };
+    if (p.includes("feb")) return { start: "02-01", end: "02-28" };
+    if (p.includes("mar")) return { start: "03-01", end: "03-31" };
+    if (p.includes("apr")) return { start: "04-01", end: "04-30" };
+    if (p.includes("may")) return { start: "05-01", end: "05-31" };
+    if (p.includes("jun")) return { start: "06-01", end: "06-30" };
+    if (p.includes("jul")) return { start: "07-01", end: "07-31" };
+    if (p.includes("aug")) return { start: "08-01", end: "08-31" };
+    if (p.includes("sep")) return { start: "09-01", end: "09-30" };
+    if (p.includes("oct")) return { start: "10-01", end: "10-31" };
+    if (p.includes("nov")) return { start: "11-01", end: "11-30" };
+    if (p.includes("dec")) return { start: "12-01", end: "12-31" };
+    if (p.includes("spring"))
+      return hemisphere === "northern"
+        ? { start: "03-01", end: "05-31" }
+        : { start: "09-01", end: "11-30" };
+    if (p.includes("summer"))
+      return hemisphere === "northern"
+        ? { start: "06-01", end: "08-31" }
+        : { start: "12-01", end: "02-28" };
+    if (p.includes("fall") || p.includes("autumn"))
+      return hemisphere === "northern"
+        ? { start: "09-01", end: "11-30" }
+        : { start: "03-01", end: "05-31" };
+    if (p.includes("winter"))
+      return hemisphere === "northern"
+        ? { start: "12-01", end: "02-28" }
+        : { start: "06-01", end: "08-31" };
     return { start: "01-01", end: "12-31" };
   };
 
@@ -153,61 +170,48 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     return date.toLocaleDateString("en-US", { month: "short", day: "numeric" });
   };
 
+  // 🚀 UPDATED: Uses the modular array and creates highly unique Context Values
   const buildReferenceOptions = () => {
     const options = [{ label: "Trigger Date", value: "Trigger Date" }];
     const hemisphere = getHemisphere(homeData?.country, homeData?.timezone);
 
-    if (plant.harvest_season && plant.harvest_season.length > 0) {
-      const { start, end } = getSeasonDateRange(
-        plant.harvest_season,
-        hemisphere,
-      );
-      options.push({
-        label: `Harvest Start (${formatMonthDay(start)})`,
-        value: `Seasonal: ${start}`,
-      });
-      options.push({
-        label: `Harvest End (${formatMonthDay(end)})`,
-        value: `Seasonal: ${end}`,
-      });
-    }
+    SEASONAL_EVENTS_CONFIG.forEach(({ dbKey, eventName }) => {
+      const rawData = plant[dbKey];
+      if (!rawData) return;
 
-    if (plant.flowering_season && plant.flowering_season.length > 0) {
-      const { start, end } = getSeasonDateRange(
-        plant.flowering_season,
-        hemisphere,
-      );
-      options.push({
-        label: `Flowering Start (${formatMonthDay(start)})`,
-        value: `Seasonal: ${start}`,
-      });
-      options.push({
-        label: `Flowering End (${formatMonthDay(end)})`,
-        value: `Seasonal: ${end}`,
-      });
-    }
+      const periods = normalizePeriods(rawData);
+      periods.forEach((p) => {
+        const nicePeriod = p.charAt(0).toUpperCase() + p.slice(1);
+        const { start, end } = getSinglePeriodRange(p, hemisphere);
 
-    if (plant.pruning_month && plant.pruning_month.length > 0) {
-      const { start, end } = getSeasonDateRange(
-        plant.pruning_month,
-        hemisphere,
-      );
-      options.push({
-        label: `Pruning Start (${formatMonthDay(start)})`,
-        value: `Seasonal: ${start}`,
-      });
-      options.push({
-        label: `Pruning End (${formatMonthDay(end)})`,
-        value: `Seasonal: ${end}`,
-      });
-    }
+        // Format: Seasonal:{Date}:{Context}
+        const startContext = `${nicePeriod} ${eventName} Start`;
+        const endContext = `${nicePeriod} ${eventName} End`;
 
+        // Pushing without existence checks because the Context string makes the value 100% unique!
+        options.push({
+          label: `${startContext} (${formatMonthDay(start)})`,
+          value: `Seasonal:${start}:${startContext}`,
+        });
+        options.push({
+          label: `${endContext} (${formatMonthDay(end)})`,
+          value: `Seasonal:${end}:${endContext}`,
+        });
+      });
+    });
+
+    // Fallback handler for older legacy rows or manually created custom ones
     if (
       form.start_reference?.startsWith("Seasonal:") &&
       !options.find((o) => o.value === form.start_reference)
     ) {
+      const parts = form.start_reference.split(":");
+      const datePart =
+        parts[1]?.trim() ||
+        form.start_reference.replace("Seasonal:", "").trim();
+      const contextPart = parts[2] ? ` (${parts[2]})` : "";
       options.push({
-        label: `Custom Date (${formatMonthDay(form.start_reference.replace("Seasonal: ", ""))})`,
+        label: `Custom Date ${contextPart} (${formatMonthDay(datePart)})`,
         value: form.start_reference,
       });
     }
@@ -223,7 +227,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
 
   const handleAutoGenerate = async () => {
     setSaving(true);
-    toast.loading("Analyzing Care Guide & Updating Automations...", {
+    toast.loading("Analyzing Seasons & Generating Schedules...", {
       id: "generate",
     });
 
@@ -231,124 +235,163 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       const hemisphere = getHemisphere(homeData?.country, homeData?.timezone);
       const newSchedules: any[] = [];
 
-      // 1. Build Harvest Schedule
-      if (plant.harvest_season && plant.harvest_season.length > 0) {
-        const { start, end } = getSeasonDateRange(
-          plant.harvest_season,
-          hemisphere,
-        );
-        const seasonTitle = Array.isArray(plant.harvest_season)
-          ? plant.harvest_season.join(" & ")
-          : plant.harvest_season;
+      // 1. Harvest Schedule
+      const harvestPeriods = normalizePeriods(plant.harvest_season);
+      harvestPeriods.forEach((period) => {
+        const { start, end } = getSinglePeriodRange(period, hemisphere);
+        const niceTitle = period.charAt(0).toUpperCase() + period.slice(1);
         newSchedules.push({
           home_id: homeId,
           plant_id: plant.id,
-          title: `${seasonTitle} Harvest`,
+          title: `${niceTitle} Harvest`,
           description: `Auto-generated from Care Guide`,
           task_type: "Harvesting",
           trigger_event: "Planted",
-          start_reference: `Seasonal: ${start}`,
-          start_offset_days: 0,
-          end_reference: `Seasonal: ${end}`,
+          start_reference: `Seasonal:${start}:${niceTitle} Harvest Start`,
+          start_offset_days: 0, // 🚀 Uses new exact format
+          end_reference: `Seasonal:${end}:${niceTitle} Harvest End`,
           end_offset_days: 0,
-          frequency_days: 3,
+          frequency_days: 1,
           is_recurring: true,
-          is_auto_generated: true, // 🚀 FIX 3: Tagged as automatic
+          is_auto_generated: true,
         });
-      }
+      });
 
-      // 2. Build Pruning Schedule
-      if (plant.pruning_month && plant.pruning_month.length > 0) {
-        const { start, end } = getSeasonDateRange(
-          plant.pruning_month,
-          hemisphere,
-        );
-        const seasonTitle = Array.isArray(plant.pruning_month)
-          ? plant.pruning_month.join(" & ")
-          : plant.pruning_month;
+      // 2. Pruning Schedule
+      const pruningPeriods = normalizePeriods(plant.pruning_month);
+      pruningPeriods.forEach((period) => {
+        const { start, end } = getSinglePeriodRange(period, hemisphere);
+        const niceTitle = period.charAt(0).toUpperCase() + period.slice(1);
         newSchedules.push({
           home_id: homeId,
           plant_id: plant.id,
-          title: `${seasonTitle} Pruning`,
+          title: `${niceTitle} Pruning`,
           description: `Auto-generated from Care Guide`,
-          task_type: "Pruning",
+          task_type: "Maintenance",
           trigger_event: "Planted",
-          start_reference: `Seasonal: ${start}`,
-          start_offset_days: 0,
-          end_reference: `Seasonal: ${end}`,
+          start_reference: `Seasonal:${start}:${niceTitle} Pruning Start`,
+          start_offset_days: 0, // 🚀 Uses new exact format
+          end_reference: `Seasonal:${end}:${niceTitle} Pruning End`,
           end_offset_days: 0,
-          frequency_days: 14,
+          frequency_days: 1,
           is_recurring: true,
-          is_auto_generated: true, // 🚀 FIX 3: Tagged as automatic
+          is_auto_generated: true,
         });
-      }
+      });
 
-      // 3. Build Basic Watering Schedule
+      const minWatering = plant.watering_min_days || 3;
+      const maxWatering = plant.watering_max_days || 14;
+      const avgWatering = Math.max(
+        1,
+        Math.round((minWatering + maxWatering) / 2),
+      );
+
+      const summerDates = getSinglePeriodRange("summer", hemisphere);
+      const winterDates = getSinglePeriodRange("winter", hemisphere);
+      const springDates = getSinglePeriodRange("spring", hemisphere);
+      const fallDates = getSinglePeriodRange("fall", hemisphere);
+
+      // 3. Seasonal Watering
       newSchedules.push({
         home_id: homeId,
         plant_id: plant.id,
-        title: `Regular Watering`,
-        description: `Auto-generated baseline watering`,
+        title: `Summer Watering`,
+        description: `Auto-generated high-frequency watering`,
         task_type: "Watering",
         trigger_event: "Planted",
-        start_reference: `Trigger Date`,
-        start_offset_days: 1,
-        end_reference: null,
-        end_offset_days: null,
-        frequency_days: parseInt(
-          plant.watering_general_benchmark?.value ||
-            plant.watering_frequency_days ||
-            7,
-        ),
+        start_reference: `Seasonal:${summerDates.start}:Summer Start`,
+        start_offset_days: 0,
+        end_reference: `Seasonal:${summerDates.end}:Summer End`,
+        end_offset_days: 0,
+        frequency_days: minWatering,
         is_recurring: true,
-        is_auto_generated: true, // 🚀 FIX 3: Tagged as automatic
+        is_auto_generated: true,
+      });
+
+      newSchedules.push({
+        home_id: homeId,
+        plant_id: plant.id,
+        title: `Winter Watering`,
+        description: `Auto-generated low-frequency watering`,
+        task_type: "Watering",
+        trigger_event: "Planted",
+        start_reference: `Seasonal:${winterDates.start}:Winter Start`,
+        start_offset_days: 0,
+        end_reference: `Seasonal:${winterDates.end}:Winter End`,
+        end_offset_days: 0,
+        frequency_days: maxWatering,
+        is_recurring: true,
+        is_auto_generated: true,
+      });
+
+      newSchedules.push({
+        home_id: homeId,
+        plant_id: plant.id,
+        title: `Spring Watering`,
+        description: `Auto-generated moderate watering`,
+        task_type: "Watering",
+        trigger_event: "Planted",
+        start_reference: `Seasonal:${springDates.start}:Spring Start`,
+        start_offset_days: 0,
+        end_reference: `Seasonal:${springDates.end}:Spring End`,
+        end_offset_days: 0,
+        frequency_days: avgWatering,
+        is_recurring: true,
+        is_auto_generated: true,
+      });
+
+      newSchedules.push({
+        home_id: homeId,
+        plant_id: plant.id,
+        title: `Autumn Watering`,
+        description: `Auto-generated moderate watering`,
+        task_type: "Watering",
+        trigger_event: "Planted",
+        start_reference: `Seasonal:${fallDates.start}:Autumn Start`,
+        start_offset_days: 0,
+        end_reference: `Seasonal:${fallDates.end}:Autumn End`,
+        end_offset_days: 0,
+        frequency_days: avgWatering,
+        is_recurring: true,
+        is_auto_generated: true,
       });
 
       const incomingTaskTypes = [
         ...new Set(newSchedules.map((s) => s.task_type)),
       ];
 
-      // A. Delete existing AUTO-GENERATED schedule templates, preserving MANUAL ones!
       const { error: delSchedErr } = await supabase
         .from("plant_schedules")
         .delete()
         .eq("plant_id", plant.id)
         .in("task_type", incomingTaskTypes)
-        .eq("is_auto_generated", true); // 🚀 FIX 3: Only delete auto-generated ones
+        .eq("is_auto_generated", true);
       if (delSchedErr) throw delSchedErr;
 
-      // B. Insert the fresh schedules
       const { data: insertedSchedules, error: insertError } = await supabase
         .from("plant_schedules")
         .insert(newSchedules)
         .select();
-
       if (insertError) throw insertError;
 
-      // C. Find active plants in the shed
       const { data: existingPlants, error: exPlantErr } = await supabase
         .from("inventory_items")
         .select("id, location_id, area_id")
         .eq("home_id", homeId)
         .eq("plant_id", plant.id)
         .eq("status", "Planted");
-
       if (exPlantErr) throw exPlantErr;
 
       if (existingPlants && existingPlants.length > 0 && insertedSchedules) {
         const existingPlantIds = existingPlants.map((p) => p.id);
-
-        // D. Delete OLD AUTO-GENERATED blueprints for active plants
         const { error: delBpErr } = await supabase
           .from("task_blueprints")
           .delete()
           .in("inventory_item_id", existingPlantIds)
           .in("task_type", incomingTaskTypes)
-          .eq("is_auto_generated", true); // 🚀 FIX 3: Protects manual blueprints too
-
+          .eq("is_auto_generated", true);
         if (delBpErr) throw delBpErr;
 
-        // E. Map the new schedules to the existing plants
         const blueprintsToCreate = [];
         for (const p of existingPlants) {
           for (const s of insertedSchedules) {
@@ -361,21 +404,17 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
               inventory_item_id: p.id,
               frequency_days: s.frequency_days,
               is_recurring: true,
-              is_auto_generated: true, // 🚀 FIX 3: Tag blueprints as automatic
+              is_auto_generated: true,
             });
           }
         }
 
-        // F. Insert the new updated blueprints
         if (blueprintsToCreate.length > 0) {
           const { data: createdBps, error: crBpErr } = await supabase
             .from("task_blueprints")
             .insert(blueprintsToCreate)
             .select("id");
-
           if (crBpErr) throw crBpErr;
-
-          // G. Generate immediate tasks
           if (createdBps) {
             for (const bp of createdBps) {
               await supabase.functions.invoke("generate-tasks", {
@@ -386,7 +425,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         }
       }
 
-      toast.success("Schedules safely updated & synced!", { id: "generate" });
+      toast.success("Seasonal schedules safely generated!", { id: "generate" });
       fetchSchedules();
     } catch (err: any) {
       Logger.error("Failed to auto-generate", err);
@@ -408,6 +447,18 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       frequency_days: schedule.frequency_days || 1,
       apply_to_existing: false,
     });
+
+    if (
+      schedule.frequency_days > 0 &&
+      schedule.frequency_days <= 7 &&
+      (7 % schedule.frequency_days === 0 || schedule.frequency_days === 3)
+    ) {
+      setFrequencyMode("weekly");
+      setTimesPerWeek(Math.max(1, Math.round(7 / schedule.frequency_days)));
+    } else {
+      setFrequencyMode("interval");
+    }
+
     setEditingId(schedule.id);
     setIsAdding(true);
   };
@@ -416,6 +467,8 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     setIsAdding(false);
     setEditingId(null);
     setForm(defaultFormState);
+    setFrequencyMode("interval");
+    setTimesPerWeek(1);
   };
 
   const handleSave = async () => {
@@ -436,7 +489,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         end_offset_days:
           form.end_reference === "Ongoing" ? null : form.end_offset_days,
         frequency_days: form.frequency_days,
-        is_auto_generated: false, // 🚀 FIX 3: Manual rules are strictly manual
+        is_auto_generated: false,
       };
 
       if (editingId) {
@@ -477,20 +530,16 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           .eq("home_id", homeId)
           .eq("plant_id", plant.id)
           .eq("status", form.trigger_event);
-
         if (exPlantErr) throw exPlantErr;
 
         if (existingPlants && existingPlants.length > 0) {
           const existingPlantIds = existingPlants.map((p) => p.id);
-
-          // Note: If they apply a manual edit, we DO overwrite existing manual ones of the exact same task type
           const { error: delBpErr } = await supabase
             .from("task_blueprints")
             .delete()
             .in("inventory_item_id", existingPlantIds)
             .eq("task_type", newSchedule.task_type)
-            .eq("is_auto_generated", false); // Only overwrite other manual rules of this type
-
+            .eq("is_auto_generated", false);
           if (delBpErr) throw delBpErr;
 
           const blueprintsToCreate = existingPlants.map((p) => ({
@@ -502,14 +551,13 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             inventory_item_id: p.id,
             frequency_days: newSchedule.frequency_days,
             is_recurring: true,
-            is_auto_generated: false, // Tagged as manual
+            is_auto_generated: false,
           }));
 
           const { data: createdBps, error: crBpErr } = await supabase
             .from("task_blueprints")
             .insert(blueprintsToCreate)
             .select("id");
-
           if (crBpErr) throw crBpErr;
 
           if (createdBps) {
@@ -533,7 +581,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     }
   };
 
-  // 🚀 FIX 1: The actual delete execution function
   const deleteSchedule = async (id: string) => {
     setSaving(true);
     try {
@@ -548,15 +595,23 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       toast.error(`Failed to delete: ${err.message}`);
     } finally {
       setSaving(false);
-      setConfirmDeleteId(null); // Close modal
+      setConfirmDeleteId(null);
     }
   };
 
+  // 🚀 UPDATED: Parses the new Context string to render a beautiful label in the UI
   const parseReferenceString = (ref: string, offset: number) => {
     if (!ref) return "Trigger Date";
-    if (ref.startsWith("Seasonal: ")) {
-      const dateStr = formatMonthDay(ref.replace("Seasonal: ", ""));
-      return `${offset > 0 ? `${offset} days after ` : "on "}${dateStr}`;
+    if (ref.startsWith("Seasonal:")) {
+      const parts = ref.split(":");
+      if (parts.length >= 3) {
+        const dateStr = formatMonthDay(parts[1]);
+        return `${offset > 0 ? `${offset} days after ` : "on "}${dateStr} (${parts[2]})`;
+      } else {
+        // Graceful fallback for older schedules that just had Seasonal: 03-01
+        const dateStr = formatMonthDay(ref.replace("Seasonal:", "").trim());
+        return `${offset > 0 ? `${offset} days after ` : "on "}${dateStr}`;
+      }
     }
     return `${offset > 0 ? `${offset} days after ` : "on the "}${ref}`;
   };
@@ -568,9 +623,242 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       </div>
     );
 
+  const renderForm = () => (
+    <div className="bg-rhozly-surface-low border border-rhozly-outline/20 p-6 rounded-3xl space-y-6 animate-in slide-in-from-top-4">
+      <div className="flex justify-between items-center mb-2">
+        <h4 className="font-black text-lg text-rhozly-primary">
+          {editingId ? "Edit Automation Rule" : "New Automation Rule"}
+        </h4>
+        <button
+          onClick={closeForm}
+          className="text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+        >
+          <X size={20} />
+        </button>
+      </div>
+
+      <input
+        type="text"
+        placeholder="e.g., Weekly Deep Watering"
+        value={form.title}
+        onChange={(e) => setForm({ ...form, title: e.target.value })}
+        className="w-full p-4 bg-white rounded-2xl font-black border border-transparent focus:border-rhozly-primary outline-none"
+      />
+
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+          <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-2">
+            Task Type
+          </label>
+          <select
+            value={form.task_type}
+            onChange={(e) => setForm({ ...form, task_type: e.target.value })}
+            className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none"
+          >
+            {TASK_CATEGORIES.map((t) => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
+          </select>
+        </div>
+        <div>
+          <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-2">
+            Trigger Event
+          </label>
+          <select
+            value={form.trigger_event}
+            onChange={(e) =>
+              setForm({ ...form, trigger_event: e.target.value })
+            }
+            className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none"
+          >
+            {TRIGGER_EVENTS.map((t) => (
+              <option key={t} value={t}>
+                When {t}
+              </option>
+            ))}
+          </select>
+        </div>
+      </div>
+
+      <div className="bg-rhozly-primary/5 p-5 rounded-2xl border border-rhozly-primary/10 space-y-5">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <span className="font-black text-rhozly-primary w-16">START</span>
+          <div className="flex items-center gap-2 flex-1">
+            <input
+              type="number"
+              min="0"
+              value={form.start_offset_days}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  start_offset_days: parseInt(e.target.value) || 0,
+                })
+              }
+              className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm"
+            />
+            <span className="font-bold text-sm text-rhozly-on-surface/60 whitespace-nowrap">
+              days after
+            </span>
+
+            <select
+              value={form.start_reference}
+              onChange={(e) =>
+                setForm({ ...form, start_reference: e.target.value })
+              }
+              className="flex-1 p-3 bg-white rounded-xl font-bold outline-none text-sm shadow-sm"
+            >
+              {dynamicOptions.map((o, idx) => (
+                <option key={`${o.value}-${idx}`} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+          <span className="font-black text-red-500 w-16">END</span>
+          <div className="flex items-center gap-2 flex-1">
+            <input
+              type="number"
+              min="0"
+              disabled={form.end_reference === "Ongoing"}
+              value={form.end_offset_days}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  end_offset_days: parseInt(e.target.value) || 0,
+                })
+              }
+              className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm disabled:opacity-50"
+            />
+            <span className="font-bold text-sm text-rhozly-on-surface/60 whitespace-nowrap">
+              days after
+            </span>
+
+            <select
+              value={form.end_reference}
+              onChange={(e) =>
+                setForm({ ...form, end_reference: e.target.value })
+              }
+              className="flex-1 p-3 bg-white rounded-xl font-bold outline-none text-sm shadow-sm"
+            >
+              {endOptions.map((o, idx) => (
+                <option key={`${o.value}-${idx}`} value={o.value}>
+                  {o.label}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <hr className="border-rhozly-primary/10" />
+
+        <div className="flex flex-col sm:flex-row sm:items-start gap-3">
+          <span className="font-black text-rhozly-on-surface w-16 mt-3">
+            REPEAT
+          </span>
+          <div className="flex-1 space-y-3">
+            <div className="flex gap-2">
+              <button
+                onClick={() => setFrequencyMode("interval")}
+                className={`flex-1 py-2 text-xs font-black uppercase rounded-lg border transition-all ${frequencyMode === "interval" ? "bg-white border-rhozly-primary text-rhozly-primary shadow-sm" : "border-transparent text-rhozly-on-surface/50"}`}
+              >
+                Every X Days
+              </button>
+              <button
+                onClick={() => setFrequencyMode("weekly")}
+                className={`flex-1 py-2 text-xs font-black uppercase rounded-lg border transition-all ${frequencyMode === "weekly" ? "bg-white border-rhozly-primary text-rhozly-primary shadow-sm" : "border-transparent text-rhozly-on-surface/50"}`}
+              >
+                Times Per Week
+              </button>
+            </div>
+
+            <div className="flex items-center gap-2">
+              {frequencyMode === "interval" ? (
+                <>
+                  <span className="font-bold text-sm text-rhozly-on-surface/60">
+                    Every
+                  </span>
+                  <input
+                    type="number"
+                    min="1"
+                    value={form.frequency_days}
+                    onChange={(e) =>
+                      setForm({
+                        ...form,
+                        frequency_days: parseInt(e.target.value) || 1,
+                      })
+                    }
+                    className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm"
+                  />
+                  <span className="font-bold text-sm text-rhozly-on-surface/60">
+                    days
+                  </span>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="number"
+                    min="1"
+                    max="7"
+                    value={timesPerWeek}
+                    onChange={(e) =>
+                      setTimesPerWeek(parseInt(e.target.value) || 1)
+                    }
+                    className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm"
+                  />
+                  <span className="font-bold text-sm text-rhozly-on-surface/60">
+                    times a week
+                  </span>
+                  <span className="text-xs font-black text-rhozly-primary/50 ml-auto uppercase tracking-widest hidden sm:block">
+                    (Spaces tasks ~{form.frequency_days} days apart)
+                  </span>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <label className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-rhozly-outline/10 cursor-pointer hover:border-rhozly-primary/30 transition-colors">
+        <input
+          type="checkbox"
+          checked={form.apply_to_existing}
+          onChange={(e) =>
+            setForm({ ...form, apply_to_existing: e.target.checked })
+          }
+          className="w-5 h-5 accent-rhozly-primary"
+        />
+        <div>
+          <p className="font-black text-sm">Apply to existing plants?</p>
+          <p className="text-[10px] font-bold text-rhozly-on-surface/50 mt-0.5">
+            Will overwrite conflicting tasks for items marked as "
+            {form.trigger_event}".
+          </p>
+        </div>
+      </label>
+
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="w-full py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-50 flex justify-center items-center gap-2"
+      >
+        {saving ? (
+          <Loader2 className="animate-spin" size={18} />
+        ) : (
+          <>
+            <Save size={18} /> {editingId ? "Save Changes" : "Save Custom Rule"}
+          </>
+        )}
+      </button>
+    </div>
+  );
+
   return (
     <div className="space-y-6 animate-in fade-in relative">
-      {/* 🚀 FIX 1: Custom Delete Confirmation Modal */}
       {confirmDeleteId && (
         <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
           <div className="bg-white p-6 rounded-[2rem] w-full max-w-sm shadow-2xl animate-in zoom-in-95">
@@ -612,7 +900,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             Automate tasks when this plant changes status.
           </p>
         </div>
-
         <div className="flex gap-2 w-full md:w-auto">
           <button
             onClick={handleAutoGenerate}
@@ -621,7 +908,6 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           >
             <Wand2 size={16} /> Auto-Generate
           </button>
-
           {!isAdding && (
             <button
               onClick={() => setIsAdding(true)}
@@ -633,203 +919,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         </div>
       </div>
 
-      {isAdding && (
-        <div className="bg-rhozly-surface-low border border-rhozly-outline/20 p-6 rounded-3xl space-y-6 animate-in slide-in-from-top-4">
-          <div className="flex justify-between items-center mb-2">
-            <h4 className="font-black text-lg text-rhozly-primary">
-              {editingId ? "Edit Automation Rule" : "New Automation Rule"}
-            </h4>
-            <button
-              onClick={closeForm}
-              className="text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
-            >
-              <X size={20} />
-            </button>
-          </div>
-
-          <input
-            type="text"
-            placeholder="e.g., Weekly Deep Watering"
-            value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            className="w-full p-4 bg-white rounded-2xl font-black border border-transparent focus:border-rhozly-primary outline-none"
-          />
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-2">
-                Task Type
-              </label>
-              <select
-                value={form.task_type}
-                onChange={(e) =>
-                  setForm({ ...form, task_type: e.target.value })
-                }
-                className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none"
-              >
-                {TASK_CATEGORIES.map((t) => (
-                  <option key={t} value={t}>
-                    {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-2">
-                Trigger Event
-              </label>
-              <select
-                value={form.trigger_event}
-                onChange={(e) =>
-                  setForm({ ...form, trigger_event: e.target.value })
-                }
-                className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none"
-              >
-                {TRIGGER_EVENTS.map((t) => (
-                  <option key={t} value={t}>
-                    When {t}
-                  </option>
-                ))}
-              </select>
-            </div>
-          </div>
-
-          <div className="bg-rhozly-primary/5 p-5 rounded-2xl border border-rhozly-primary/10 space-y-5">
-            {/* Start Row */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <span className="font-black text-rhozly-primary w-16">START</span>
-              <div className="flex items-center gap-2 flex-1">
-                <input
-                  type="number"
-                  min="0"
-                  value={form.start_offset_days}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      start_offset_days: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm"
-                />
-                <span className="font-bold text-sm text-rhozly-on-surface/60 whitespace-nowrap">
-                  days after
-                </span>
-                <select
-                  value={form.start_reference}
-                  onChange={(e) =>
-                    setForm({ ...form, start_reference: e.target.value })
-                  }
-                  className="flex-1 p-3 bg-white rounded-xl font-bold outline-none text-sm shadow-sm"
-                >
-                  {dynamicOptions.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            {/* End Row */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <span className="font-black text-red-500 w-16">END</span>
-              <div className="flex items-center gap-2 flex-1">
-                <input
-                  type="number"
-                  min="0"
-                  disabled={form.end_reference === "Ongoing"}
-                  value={form.end_offset_days}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      end_offset_days: parseInt(e.target.value) || 0,
-                    })
-                  }
-                  className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm disabled:opacity-50"
-                />
-                <span className="font-bold text-sm text-rhozly-on-surface/60 whitespace-nowrap">
-                  days after
-                </span>
-                <select
-                  value={form.end_reference}
-                  onChange={(e) =>
-                    setForm({ ...form, end_reference: e.target.value })
-                  }
-                  className="flex-1 p-3 bg-white rounded-xl font-bold outline-none text-sm shadow-sm"
-                >
-                  {endOptions.map((o) => (
-                    <option key={o.value} value={o.value}>
-                      {o.label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-
-            <hr className="border-rhozly-primary/10" />
-
-            {/* Repeat Row */}
-            <div className="flex flex-col sm:flex-row sm:items-center gap-3">
-              <span className="font-black text-rhozly-on-surface w-16">
-                REPEAT
-              </span>
-              <div className="flex items-center gap-2 flex-1">
-                <span className="font-bold text-sm text-rhozly-on-surface/60">
-                  Every
-                </span>
-                <input
-                  type="number"
-                  min="1"
-                  value={form.frequency_days}
-                  onChange={(e) =>
-                    setForm({
-                      ...form,
-                      frequency_days: parseInt(e.target.value) || 1,
-                    })
-                  }
-                  className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm"
-                />
-                <span className="font-bold text-sm text-rhozly-on-surface/60">
-                  days
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <label className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-rhozly-outline/10 cursor-pointer hover:border-rhozly-primary/30 transition-colors">
-            <input
-              type="checkbox"
-              checked={form.apply_to_existing}
-              onChange={(e) =>
-                setForm({ ...form, apply_to_existing: e.target.checked })
-              }
-              className="w-5 h-5 accent-rhozly-primary"
-            />
-            <div>
-              <p className="font-black text-sm">Apply to existing plants?</p>
-              <p className="text-[10px] font-bold text-rhozly-on-surface/50 mt-0.5">
-                Will overwrite conflicting tasks for items marked as "
-                {form.trigger_event}".
-              </p>
-            </div>
-          </label>
-
-          <button
-            onClick={handleSave}
-            disabled={saving}
-            className="w-full py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-50 flex justify-center items-center gap-2"
-          >
-            {saving ? (
-              <Loader2 className="animate-spin" size={18} />
-            ) : (
-              <>
-                <Save size={18} />{" "}
-                {editingId ? "Save Changes" : "Save Custom Rule"}
-              </>
-            )}
-          </button>
-        </div>
-      )}
+      {isAdding && !editingId && renderForm()}
 
       <div className="space-y-3">
         {schedules.length === 0 && !isAdding ? (
@@ -839,73 +929,80 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           </div>
         ) : (
           schedules.map((schedule) => (
-            <div
-              key={schedule.id}
-              className="bg-white p-4 sm:p-5 rounded-2xl border border-rhozly-outline/10 shadow-sm flex items-start sm:items-center justify-between gap-4"
-            >
-              <div>
-                <div className="flex flex-wrap items-center gap-2 mb-2">
-                  <span className="text-[9px] font-black uppercase tracking-widest bg-rhozly-primary/10 text-rhozly-primary px-2 py-1 rounded-md">
-                    {schedule.task_type}
-                  </span>
-
-                  {/* 🚀 FIX 3: Visual indicator if it's Auto or Manual */}
-                  {schedule.is_auto_generated ? (
-                    <span className="text-[9px] font-black uppercase tracking-widest bg-purple-100 text-purple-700 px-2 py-1 rounded-md">
-                      Auto
-                    </span>
-                  ) : (
-                    <span className="text-[9px] font-black uppercase tracking-widest bg-blue-100 text-blue-700 px-2 py-1 rounded-md">
-                      Custom
-                    </span>
-                  )}
-
-                  <span className="text-[9px] font-black uppercase tracking-widest bg-gray-100 text-gray-500 px-2 py-1 rounded-md">
-                    When {schedule.trigger_event}
-                  </span>
+            <React.Fragment key={schedule.id}>
+              {editingId === schedule.id ? (
+                <div className="animate-in fade-in zoom-in-95 duration-200">
+                  {renderForm()}
                 </div>
-                <h4 className="font-black text-lg text-rhozly-on-surface mb-1">
-                  {schedule.title}
-                </h4>
-
-                <div className="text-xs font-bold text-rhozly-on-surface/60 space-y-0.5">
-                  <p>
-                    🟢 Starts{" "}
-                    {parseReferenceString(
-                      schedule.start_reference,
-                      schedule.start_offset_days,
-                    )}
-                  </p>
-                  {schedule.end_reference && (
-                    <p>
-                      🔴 Ends{" "}
-                      {parseReferenceString(
-                        schedule.end_reference,
-                        schedule.end_offset_days,
+              ) : (
+                <div className="bg-white p-4 sm:p-5 rounded-2xl border border-rhozly-outline/10 shadow-sm flex items-start sm:items-center justify-between gap-4">
+                  <div>
+                    <div className="flex flex-wrap items-center gap-2 mb-2">
+                      <span className="text-[9px] font-black uppercase tracking-widest bg-rhozly-primary/10 text-rhozly-primary px-2 py-1 rounded-md">
+                        {schedule.task_type}
+                      </span>
+                      {schedule.is_auto_generated ? (
+                        <span className="text-[9px] font-black uppercase tracking-widest bg-purple-100 text-purple-700 px-2 py-1 rounded-md">
+                          Auto
+                        </span>
+                      ) : (
+                        <span className="text-[9px] font-black uppercase tracking-widest bg-blue-100 text-blue-700 px-2 py-1 rounded-md">
+                          Custom
+                        </span>
                       )}
-                    </p>
-                  )}
-                  <p>🔄 Repeats every {schedule.frequency_days} day(s)</p>
+                      <span className="text-[9px] font-black uppercase tracking-widest bg-gray-100 text-gray-500 px-2 py-1 rounded-md">
+                        When {schedule.trigger_event}
+                      </span>
+                    </div>
+                    <h4 className="font-black text-lg text-rhozly-on-surface mb-1">
+                      {schedule.title}
+                    </h4>
+                    <div className="text-xs font-bold text-rhozly-on-surface/60 space-y-0.5">
+                      <p>
+                        🟢 Starts{" "}
+                        {parseReferenceString(
+                          schedule.start_reference,
+                          schedule.start_offset_days,
+                        )}
+                      </p>
+                      {schedule.end_reference && (
+                        <p>
+                          🔴 Ends{" "}
+                          {parseReferenceString(
+                            schedule.end_reference,
+                            schedule.end_offset_days,
+                          )}
+                        </p>
+                      )}
+                      <p>
+                        🔄 Repeats every {schedule.frequency_days} day(s){" "}
+                        <span className="opacity-50">
+                          (
+                          {Math.max(1, Math.round(7 / schedule.frequency_days))}
+                          x per week)
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex flex-col sm:flex-row items-center gap-2 shrink-0 border-l border-rhozly-outline/10 pl-4">
+                    <button
+                      onClick={() => openEditForm(schedule)}
+                      className="p-3 text-rhozly-primary hover:bg-rhozly-primary/10 bg-rhozly-surface-lowest rounded-xl transition-all shadow-sm"
+                      title="Edit Schedule"
+                    >
+                      <Edit3 size={18} />
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteId(schedule.id)}
+                      className="p-3 text-red-500/80 hover:text-red-600 hover:bg-red-50 bg-rhozly-surface-lowest rounded-xl transition-all shadow-sm"
+                      title="Delete Schedule"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  </div>
                 </div>
-              </div>
-
-              <div className="flex flex-col sm:flex-row items-center gap-2 shrink-0 border-l border-rhozly-outline/10 pl-4">
-                <button
-                  onClick={() => openEditForm(schedule)}
-                  className="p-3 text-rhozly-primary hover:bg-rhozly-primary/10 bg-rhozly-surface-lowest rounded-xl transition-all shadow-sm"
-                  title="Edit Schedule"
-                >
-                  <Edit3 size={18} />
-                </button>
-                <button
-                  onClick={() => setConfirmDeleteId(schedule.id)} // 🚀 FIX 1: Trigger custom modal
-                  className="p-3 text-red-500/80 hover:text-red-600 hover:bg-red-50 bg-rhozly-surface-lowest rounded-xl transition-all shadow-sm"
-                  title="Delete Schedule"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            </div>
+              )}
+            </React.Fragment>
           ))
         )}
       </div>

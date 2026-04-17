@@ -7,7 +7,11 @@ import {
   Clock,
   BarChart,
   AlertTriangle,
-} from "lucide-react";
+  BookOpen,
+  ChevronDown,
+  Tag,
+  Check,
+} from "lucide-react"; // 🚀 Added new icons
 
 export default function GuideList() {
   const [guides, setGuides] = useState<any[]>([]);
@@ -17,10 +21,13 @@ export default function GuideList() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedLabel, setSelectedLabel] = useState<string>("All");
 
+  // 🚀 NEW: Dropdown States
+  const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [labelSearchQuery, setLabelSearchQuery] = useState("");
+
   // Reading Mode
   const [activeGuide, setActiveGuide] = useState<any | null>(null);
 
-  // Fetch all guides on mount
   useEffect(() => {
     const fetchGuides = async () => {
       setIsLoading(true);
@@ -37,7 +44,6 @@ export default function GuideList() {
     fetchGuides();
   }, []);
 
-  // Dynamically extract all unique labels from the database results
   const allLabels = useMemo(() => {
     const labels = new Set<string>();
     guides.forEach((g) => {
@@ -46,7 +52,13 @@ export default function GuideList() {
     return ["All", ...Array.from(labels).sort()];
   }, [guides]);
 
-  // Apply filters and search
+  // 🚀 NEW: Dynamically filter the labels INSIDE the dropdown based on the dropdown's search bar
+  const dropdownLabels = useMemo(() => {
+    return allLabels.filter((label) =>
+      label.toLowerCase().includes(labelSearchQuery.toLowerCase()),
+    );
+  }, [allLabels, labelSearchQuery]);
+
   const filteredGuides = useMemo(() => {
     return guides.filter((g) => {
       const title = g.data.title?.toLowerCase() || "";
@@ -61,7 +73,6 @@ export default function GuideList() {
     });
   }, [guides, searchQuery, selectedLabel]);
 
-  // Helper to find the first image in a guide to use as a cover photo
   const getCoverImage = (guideData: any) => {
     const imgSection = guideData.sections?.find((s: any) => s.type === "image");
     return imgSection ? imgSection.content : null;
@@ -82,7 +93,6 @@ export default function GuideList() {
         </button>
 
         <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-sm border border-rhozly-outline/10 overflow-hidden">
-          {/* Header Info */}
           <div className="flex gap-3 mb-4">
             <span className="flex items-center gap-1 bg-amber-50 text-amber-700 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-amber-100">
               <BarChart size={12} /> {data.difficulty}
@@ -107,7 +117,6 @@ export default function GuideList() {
             />
           )}
 
-          {/* Guide Content Renderer (Exact match to Admin panel) */}
           <div className="space-y-6">
             {data.sections.map((sec: any, index: number) => {
               if (sec.type === "header")
@@ -216,8 +225,9 @@ export default function GuideList() {
         </p>
       </div>
 
-      {/* Search & Filter Bar */}
-      <div className="bg-white p-2 rounded-2xl md:rounded-full shadow-sm border border-rhozly-outline/10 flex flex-col md:flex-row gap-2 mb-8">
+      {/* 🚀 UPGRADED: Search & Dropdown Filter Bar */}
+      <div className="bg-white p-2 rounded-2xl md:rounded-full shadow-sm border border-rhozly-outline/10 flex flex-col md:flex-row gap-2 mb-8 relative z-30">
+        {/* Main Guide Search */}
         <div className="flex-1 flex items-center px-4 bg-rhozly-surface-lowest rounded-xl md:rounded-full">
           <Search size={18} className="text-rhozly-on-surface/40" />
           <input
@@ -229,17 +239,88 @@ export default function GuideList() {
           />
         </div>
 
-        {/* Scrollable Label Pills */}
-        <div className="flex items-center gap-2 overflow-x-auto custom-scrollbar px-2 py-1 md:max-w-[50%]">
-          {allLabels.map((label) => (
-            <button
-              key={label}
-              onClick={() => setSelectedLabel(label)}
-              className={`shrink-0 px-4 py-2 rounded-full text-[10px] font-black uppercase tracking-widest transition-all ${selectedLabel === label ? "bg-rhozly-primary text-white shadow-md" : "bg-rhozly-surface-low text-rhozly-on-surface/50 hover:bg-rhozly-outline/10"}`}
-            >
-              {label}
-            </button>
-          ))}
+        {/* 🚀 THE NEW SEARCHABLE DROPDOWN */}
+        <div className="relative md:min-w-[220px] shrink-0">
+          <button
+            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            className={`w-full h-full flex items-center justify-between px-5 py-3 rounded-xl md:rounded-full transition-colors border ${isDropdownOpen ? "bg-white border-rhozly-primary/30 shadow-sm" : "bg-rhozly-surface-lowest border-transparent hover:bg-rhozly-outline/5"}`}
+          >
+            <div className="flex items-center gap-2 overflow-hidden">
+              <Tag size={16} className="text-rhozly-primary shrink-0" />
+              <span className="text-sm font-bold text-rhozly-on-surface truncate">
+                {selectedLabel === "All" ? "All Tags" : selectedLabel}
+              </span>
+            </div>
+            <ChevronDown
+              size={16}
+              className={`text-rhozly-on-surface/50 shrink-0 transition-transform duration-200 ${isDropdownOpen ? "rotate-180 text-rhozly-primary" : ""}`}
+            />
+          </button>
+
+          {isDropdownOpen && (
+            <>
+              {/* Invisible overlay to catch clicks outside the dropdown */}
+              <div
+                className="fixed inset-0 z-40"
+                onClick={() => {
+                  setIsDropdownOpen(false);
+                  setLabelSearchQuery(""); // Reset search when closing
+                }}
+              />
+
+              <div className="absolute right-0 top-full mt-2 w-full md:w-72 bg-white rounded-2xl shadow-xl border border-rhozly-outline/10 z-50 overflow-hidden flex flex-col animate-in fade-in slide-in-from-top-2 duration-200">
+                {/* Internal Dropdown Search */}
+                <div className="p-3 border-b border-rhozly-outline/5 bg-gray-50/50">
+                  <div className="flex items-center px-3 bg-white border border-rhozly-outline/10 rounded-xl shadow-sm focus-within:border-rhozly-primary/50 transition-colors">
+                    <Search size={14} className="text-rhozly-on-surface/40" />
+                    <input
+                      type="text"
+                      placeholder="Search tags..."
+                      value={labelSearchQuery}
+                      onChange={(e) => setLabelSearchQuery(e.target.value)}
+                      className="w-full bg-transparent p-2 outline-none text-sm font-bold text-rhozly-on-surface placeholder:text-rhozly-on-surface/30"
+                      autoFocus // Automatically focus the keyboard here when opened
+                    />
+                    {labelSearchQuery && (
+                      <button
+                        onClick={() => setLabelSearchQuery("")}
+                        className="p-1 text-gray-400 hover:text-gray-600"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
+                </div>
+
+                {/* Scrollable Label List */}
+                <div className="max-h-64 overflow-y-auto custom-scrollbar p-2">
+                  {dropdownLabels.length === 0 ? (
+                    <div className="py-6 text-center text-xs font-bold text-rhozly-on-surface/40 flex flex-col items-center gap-2">
+                      <Tag size={20} className="opacity-20" />
+                      No matching tags
+                    </div>
+                  ) : (
+                    dropdownLabels.map((label) => (
+                      <button
+                        key={label}
+                        onClick={() => {
+                          setSelectedLabel(label);
+                          setIsDropdownOpen(false);
+                          setLabelSearchQuery(""); // Clean up for next time
+                        }}
+                        className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${selectedLabel === label ? "bg-rhozly-primary/10 text-rhozly-primary" : "text-rhozly-on-surface/60 hover:bg-rhozly-surface-lowest hover:text-rhozly-on-surface"}`}
+                      >
+                        <span className="truncate pr-2">{label}</span>
+                        {selectedLabel === label && (
+                          <Check size={16} className="shrink-0" />
+                        )}
+                      </button>
+                    ))
+                  )}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
 
@@ -255,16 +336,17 @@ export default function GuideList() {
           </p>
         </div>
       ) : filteredGuides.length === 0 ? (
-        <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-rhozly-outline/20">
-          <p className="font-black text-xl text-rhozly-on-surface/40 mb-2">
+        <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-rhozly-outline/20 shadow-sm">
+          <BookOpen className="mx-auto w-12 h-12 text-rhozly-on-surface/20 mb-4" />
+          <p className="font-black text-xl text-rhozly-on-surface/50 mb-2">
             No guides found
           </p>
-          <p className="text-sm font-bold text-rhozly-on-surface/30">
-            Try adjusting your search or filters.
+          <p className="text-sm font-bold text-rhozly-on-surface/40">
+            Try adjusting your search or tag filters.
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">
           {filteredGuides.map((guide) => {
             const cover = getCoverImage(guide.data);
             return (
@@ -304,7 +386,6 @@ export default function GuideList() {
                     {guide.data.subtitle}
                   </p>
 
-                  {/* Label preview */}
                   <div className="mt-auto pt-4 flex gap-1 flex-wrap border-t border-rhozly-outline/5">
                     {guide.labels?.slice(0, 3).map((l: string) => (
                       <span
