@@ -1,11 +1,12 @@
 import React, { useState } from "react";
-import { supabase, getRedirectUrl } from "../lib/supabase";
+import { supabase } from "../lib/supabase";
 import { Sprout, Mail, Lock, Loader2, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
 import { rhozlyTheme as theme } from "../styles/theme";
 import { Logger } from "../lib/errorHandler";
 
 import { Browser } from "@capacitor/browser";
+import { Capacitor } from "@capacitor/core"; // 🚀 Added to detect platform
 
 export const Auth: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -26,7 +27,6 @@ export const Auth: React.FC = () => {
         const { error } = await supabase.auth.signUp({ email, password });
         if (error) throw error;
 
-        // ✨ UPGRADED: Replaced the rigid alert() with a beautiful success toast
         Logger.success("Check your email for the confirmation link!");
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -35,11 +35,9 @@ export const Auth: React.FC = () => {
         });
         if (error) throw error;
 
-        // ✨ UPGRADED: Nice welcome message on successful login
         Logger.success("Welcome back!");
       }
     } catch (err: any) {
-      // ✨ UPGRADED: Send the error to Sentry silently, and show the inline UI error
       Logger.error("Authentication error", err, { attemptedEmail: email });
       setError(err.message);
     } finally {
@@ -51,21 +49,29 @@ export const Auth: React.FC = () => {
     try {
       Logger.log("Starting Google OAuth login...");
 
+      // 🚀 THE FIX: Dynamically set the redirect URL based on platform
+      const isNative = Capacitor.isNativePlatform();
+      const currentUrl = window.location.origin; // Grabs your local IP (e.g., http://192.168.1.XX:5173) or live domain
+
+      const redirectUrl = isNative
+        ? "com.rhozly.app://google-callback"
+        : `${currentUrl}/`;
+
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: "google",
         options: {
-          redirectTo: "com.rhozly.app://google-callback",
-          skipBrowserRedirect: true,
+          redirectTo: redirectUrl,
+          // Only skip browser redirect if we are on a native mobile app
+          skipBrowserRedirect: isNative,
         },
       });
 
       if (error) throw error;
 
-      // 🚀 THE MISSING LINK:
-      // Because skipBrowserRedirect is true, we must manually open the URL
-      if (data?.url) {
+      if (isNative && data?.url) {
         await Browser.open({ url: data.url });
       }
+      // If NOT native (e.g. PWA on tablet), Supabase handles the redirect automatically!
     } catch (err: any) {
       Logger.error(
         "Google Login Error",
