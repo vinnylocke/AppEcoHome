@@ -155,10 +155,11 @@ export default function LightSensor({ homeId }: LightSensorProps) {
 
   // 🧠 LIVE AI SYNC: Update the AI on the current light readings
   useEffect(() => {
+    // 🚀 FIXED: Added optional chaining (?.areas?.find) to prevent null property crashes
     const areaName =
       locations
         .find((l) => l.id === selectedLocationId)
-        ?.areas.find((a: any) => a.id === selectedAreaId)?.name ||
+        ?.areas?.find((a: any) => a.id === selectedAreaId)?.name ||
       "Unspecified Area";
 
     setPageContext({
@@ -193,7 +194,8 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d", { willReadFrequently: true });
 
-    if (ctx && video.readyState === video.HAVE_EN_DATA) {
+    // 🚀 FIXED: Changed from HAVE_EN_DATA to HAVE_ENOUGH_DATA (or >= 2)
+    if (ctx && video.readyState >= 2) {
       const cropSize = Math.min(video.videoWidth, video.videoHeight) * 0.5;
       const startX = (video.videoWidth - cropSize) / 2;
       const startY = (video.videoHeight - cropSize) / 2;
@@ -515,7 +517,8 @@ export default function LightSensor({ homeId }: LightSensorProps) {
           </div>
         </div>
 
-        {!isScanning && lux > 0 ? (
+        {/* 🚀 FIXED: Changed the condition here to ensure the save box appears even if lux is exactly 0 */}
+        {!isScanning ? (
           <div className="p-5 bg-rhozly-surface-low rounded-[2rem] border border-rhozly-outline/10 shadow-inner animate-in slide-in-from-bottom-4">
             <div className="flex flex-col gap-2 mb-4">
               <select
