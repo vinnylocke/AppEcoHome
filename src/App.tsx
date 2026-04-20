@@ -44,6 +44,8 @@ import LightSensor from "./components/LightSensor";
 import GuideList from "./components/GuideList";
 import { BookOpen } from "lucide-react";
 
+import { usePushNotifications } from "./hooks/usePushNotifications";
+
 // 🚀 IMPORT THE PULL TO REFRESH WRAPPER
 import PullToRefresh from "./components/PullToRefresh";
 
@@ -148,6 +150,8 @@ const setLocationCache = (homeId: string, data: any[]) => {
 };
 
 export default function App() {
+  usePushNotifications();
+
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
