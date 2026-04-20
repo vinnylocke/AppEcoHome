@@ -7,6 +7,7 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: "autoUpdate",
+      injectRegister: false,
       // This tells Vite to bundle your manifest automatically
       manifest: false,
       workbox: {

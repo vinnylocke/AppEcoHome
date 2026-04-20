@@ -4,6 +4,12 @@ import App from "./App.tsx";
 import "./index.css";
 import * as Sentry from "@sentry/react";
 
+// 🚀 1. IMPORT THIS AT THE TOP
+import { registerSW } from "virtual:pwa-register";
+
+// 🚀 2. CALL IT IMMEDIATELY
+registerSW({ immediate: true });
+
 // Initialize Sentry before the app renders
 Sentry.init({
   // You will get this DSN from your Sentry.io dashboard
