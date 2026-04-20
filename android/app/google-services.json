@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "362219065846",
+    "project_id": "rhozly",
+    "storage_bucket": "rhozly.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:362219065846:android:c37f2f3f84b456875b77d7",
+        "android_client_info": {
+          "package_name": "com.rhozly.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAh-wrodZfaVY75Lb4sZQzUXvQ9LBziieY"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

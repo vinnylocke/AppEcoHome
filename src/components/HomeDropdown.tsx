@@ -48,20 +48,34 @@ export const HomeDropdown: React.FC<Props> = ({
   const [isProcessing, setIsProcessing] = useState(false);
 
   const fetchUserHomes = async () => {
-    const { data, error } = await supabase.from("home_members").select(`
+    // 1. Get the current user
+    const {
+      data: { session },
+    } = await supabase.auth.getSession();
+    if (!session) return;
+
+    // 2. ONLY fetch home_members rows that belong to this specific user
+    const { data, error } = await supabase
+      .from("home_members")
+      .select(
+        `
         role,
         homes ( id, name )
-      `);
+      `,
+      )
+      .eq("user_id", session.user.id); // 🚀 THE FIX IS HERE
 
     if (!error && data) {
-      const homeList = data.map((item: any) => ({
-        ...item.homes,
-        role: item.role,
-      }));
+      // Filter out any potential null homes and map the data
+      const homeList = data
+        .filter((item) => item.homes)
+        .map((item: any) => ({
+          ...item.homes,
+          role: item.role,
+        }));
       setHomes(homeList);
     }
   };
-
   useEffect(() => {
     fetchUserHomes();
   }, [currentHomeId]);
