@@ -94,7 +94,6 @@ export default function PlantSearchModal({
     }
   }, [initialSearchTerm, isPremium]);
 
-  // 🚀 FIXED: Now accepts the entire search result, not just the ID
   const handlePreviewPlant = async (searchResultPlant: any) => {
     setIsFetchingPreview(true);
     try {
@@ -102,16 +101,27 @@ export default function PlantSearchModal({
         searchResultPlant.id,
       );
 
-      // 🚀 THE FALLBACK: Merge the image from the search results in case the details endpoint drops it!
+      // 🚀 THE FIX: A strict filter that destroys paywall images and picks the best real photo
+      const getValidImage = (...urls: any[]) => {
+        return (
+          urls.find(
+            (u) => u && typeof u === "string" && !u.includes("upgrade_access"),
+          ) || ""
+        );
+      };
+
+      const safeImage = getValidImage(
+        fullPlantData.image_url,
+        fullPlantData.thumbnail_url,
+        searchResultPlant.default_image?.original_url,
+        searchResultPlant.default_image?.regular_url,
+        searchResultPlant.default_image?.thumbnail,
+      );
+
       setPreviewPlant({
         ...fullPlantData,
-        image_url:
-          fullPlantData.image_url ||
-          searchResultPlant.default_image?.original_url ||
-          searchResultPlant.default_image?.regular_url,
-        thumbnail_url:
-          fullPlantData.thumbnail_url ||
-          searchResultPlant.default_image?.thumbnail,
+        image_url: safeImage,
+        thumbnail_url: safeImage,
       });
     } catch (err) {
       toast.error("Failed to load plant details.");
@@ -146,18 +156,13 @@ export default function PlantSearchModal({
         return;
       }
 
-      // 1. Find the best image using the fallback memory
+      // 1. Grab the image we successfully salvaged in handlePreviewPlant
       let permanentImageUrl =
         previewPlant.image_url || previewPlant.thumbnail_url || "";
 
-      // 🚀 SAFETY CHECK: Clear out paywall watermark images so we don't save them
-      if (permanentImageUrl.includes("upgrade_access")) {
-        permanentImageUrl = "";
-      }
-
       console.log(
-        "📸 Image to Proxy:",
-        permanentImageUrl || "None (or Paywall skipped)",
+        "📸 Verified Image to Proxy:",
+        permanentImageUrl || "None found",
       );
 
       // 2. Call the Image Proxy
@@ -181,7 +186,6 @@ export default function PlantSearchModal({
             );
             permanentImageUrl = proxyData.publicUrl;
 
-            // Handle Local Dev Networking (kong -> localhost)
             if (permanentImageUrl.includes("kong:8000")) {
               permanentImageUrl = permanentImageUrl.replace(
                 "http://kong:8000",
@@ -197,9 +201,7 @@ export default function PlantSearchModal({
           );
         }
       } else {
-        console.log(
-          "⚠️ Skipped proxy: Image was empty or an upgrade placeholder.",
-        );
+        console.log("⚠️ Skipped proxy: No valid image available.");
       }
 
       // 3. Save to Database
@@ -209,7 +211,7 @@ export default function PlantSearchModal({
         home_id: homeId,
         common_name: previewPlant.common_name,
         scientific_name: previewPlant.scientific_name,
-        thumbnail_url: permanentImageUrl, // This is now your permanent link!
+        thumbnail_url: permanentImageUrl, // 🚀 Fully permanent Supabase link
         source: "api",
         perenual_id: pId,
       };
@@ -403,7 +405,6 @@ export default function PlantSearchModal({
                         </p>
                       </div>
                     </div>
-                    {/* 🚀 FIXED: Passes the full plant object, not just the ID! */}
                     <button
                       onClick={() => handlePreviewPlant(plant)}
                       className="px-4 py-2 bg-rhozly-primary/10 text-rhozly-primary font-black text-xs uppercase tracking-widest rounded-xl hover:bg-rhozly-primary hover:text-white transition-all active:scale-95"
