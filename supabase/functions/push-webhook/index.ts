@@ -72,7 +72,7 @@ serve(async (req) => {
               title: title,
               body: body,
             },
-            data: data || {}, // Extra routing data
+            data: { ...data, notification_id: record.id }, // Extra routing data
           },
         }),
       });
