@@ -14,9 +14,15 @@ import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 
+// 🚀 IMPORT THE NEW COMPONENT HERE
+// (Adjust this path if your PlantActionButtons file is in a different folder)
+import { PlantActionButtons } from "./PlantActionButtons";
+
+// 🚀 UPDATED INTERFACE: Now accepts the suggested_plants array
 interface Message {
   role: "user" | "assistant";
   content: string;
+  suggested_plants?: Array<{ name: string; search_query: string }>;
 }
 
 export default function PlantDoctorChat({ homeId }: { homeId: string }) {
@@ -36,7 +42,6 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isOpen]);
 
-  // 🚀 NEW: Function to wipe the chat clean
   const handleClearChat = () => {
     setMessages([
       {
@@ -62,6 +67,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
         "plant-doctor-ai",
         {
           body: {
+            // This safely strips out 'suggested_plants' before sending history back to the AI
             messages: [...messages, userMessage].map((m) => ({
               role: m.role,
               content: m.content,
@@ -75,9 +81,14 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       if (error) throw error;
       if (!data || !data.reply) throw new Error("No reply received from AI");
 
+      // 🚀 NEW: Save both the text reply AND the suggested plants to the chat history
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", content: data.reply },
+        {
+          role: "assistant",
+          content: data.reply,
+          suggested_plants: data.suggested_plants,
+        },
       ]);
     } catch (error: any) {
       Logger.error("Plant Doctor AI Error:", error);
@@ -122,7 +133,6 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
             </div>
 
             <div className="flex items-center gap-1">
-              {/* 🚀 NEW: Clear Chat Button */}
               <button
                 onClick={handleClearChat}
                 title="Reset Conversation"
@@ -155,13 +165,30 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                     <Leaf size={14} />
                   )}
                 </div>
+
+                {/* 🚀 UPDATED: Expanded max-width slightly for better button layout */}
                 <div
-                  className={`p-3 rounded-2xl max-w-[75%] text-sm ${msg.role === "user" ? "bg-rhozly-primary text-white rounded-tr-sm" : "bg-white border border-rhozly-outline/10 text-rhozly-on-surface rounded-tl-sm shadow-sm"}`}
+                  className={`p-3 rounded-2xl max-w-[85%] text-sm flex flex-col gap-2 ${msg.role === "user" ? "bg-rhozly-primary text-white rounded-tr-sm" : "bg-white border border-rhozly-outline/10 text-rhozly-on-surface rounded-tl-sm shadow-sm"}`}
                 >
-                  {msg.content}
+                  {/* Markdown content container */}
+                  <div className="whitespace-pre-wrap">{msg.content}</div>
+
+                  {/* 🚀 NEW: Render Action Buttons if the AI suggested plants */}
+                  {msg.suggested_plants && msg.suggested_plants.length > 0 && (
+                    <div className="mt-2 pt-3 border-t border-gray-100 flex flex-col gap-3">
+                      {msg.suggested_plants.map((plant, pIdx) => (
+                        <PlantActionButtons
+                          key={pIdx}
+                          plant={plant}
+                          homeId={homeId}
+                        />
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
+
             {isLoading && (
               <div className="flex gap-3">
                 <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">

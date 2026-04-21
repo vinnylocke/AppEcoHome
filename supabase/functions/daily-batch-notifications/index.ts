@@ -3,66 +3,87 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 
 serve(async (req) => {
   try {
-    // 1. Initialize Supabase Admin Client
-    // We use the SERVICE_ROLE key to bypass RLS so the server can read all tasks globally
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    // 2. Fetch all pending tasks that need to be done today (or are overdue)
-    // Adjust 'plant_tasks' and column names to match your actual schema
+    // 1. Fetch pending tasks due today or earlier
+    // We grab the date string in YYYY-MM-DD format to match your 'date' column
+    const today = new Date().toISOString().split("T")[0];
+
     const { data: pendingTasks, error: taskError } = await supabase
-      .from("plant_tasks")
-      .select("id, user_id, task_name")
-      .eq("is_completed", false);
-    // In a real app, you might also add: .lte("due_date", new Date().toISOString())
+      .from("tasks")
+      .select("id, home_id, title")
+      .eq("status", "Pending")
+      .lte("due_date", today);
 
     if (taskError) throw taskError;
 
     if (!pendingTasks || pendingTasks.length === 0) {
+      return new Response(JSON.stringify({ message: "No tasks due today." }), {
+        status: 200,
+      });
+    }
+
+    // 2. Group the tasks by the Home they belong to
+    const tasksByHome = pendingTasks.reduce((acc: any, task) => {
+      // Your schema allows null home_id, so we safely skip those for now
+      if (task.home_id) {
+        if (!acc[task.home_id]) acc[task.home_id] = [];
+        acc[task.home_id].push(task);
+      }
+      return acc;
+    }, {});
+
+    const homeIds = Object.keys(tasksByHome);
+    if (homeIds.length === 0) {
       return new Response(
-        JSON.stringify({ message: "No tasks to notify today." }),
+        JSON.stringify({ message: "No home-linked tasks found." }),
         { status: 200 },
       );
     }
 
-    // 3. Group the tasks by user_id
-    // This turns a flat list of 10 tasks into a neat dictionary organized by user
-    const tasksByUser = pendingTasks.reduce((acc: any, task) => {
-      if (!acc[task.user_id]) acc[task.user_id] = [];
-      acc[task.user_id].push(task);
-      return acc;
-    }, {});
+    // 3. Find ALL users that live in these homes!
+    const { data: homeMembers, error: memberError } = await supabase
+      .from("home_members")
+      .select("user_id, home_id")
+      .in("home_id", homeIds);
 
-    // 4. Create the summary notifications for the `notifications` table
+    if (memberError) throw memberError;
+
+    // 4. Create a notification for EVERY person in the home
     const notificationsToInsert = [];
-    const taskIdsToMarkNotified = []; // Optional: Keep track of what we warned them about
 
-    for (const [userId, tasks] of Object.entries(tasksByUser)) {
-      const taskList = tasks as any[];
+    for (const member of homeMembers) {
+      const homeTasks = tasksByHome[member.home_id];
+      if (!homeTasks || homeTasks.length === 0) continue;
 
-      // If they only have 1 task, name it specifically. If more, group it.
       const title = "🌿 Good Morning!";
+      // We use your 'title' column here
       const body =
-        taskList.length === 1
-          ? `Don't forget to ${taskList[0].task_name} today.`
-          : `You have ${taskList.length} plant care tasks waiting for you today!`;
+        homeTasks.length === 1
+          ? `Your home has a pending task: ${homeTasks[0].title}.`
+          : `Your home has ${homeTasks.length} plant care tasks waiting for you today!`;
 
       notificationsToInsert.push({
-        user_id: userId,
+        user_id: member.user_id,
+        home_id: member.home_id,
         title: title,
         body: body,
-        // We can pass routing data so tapping the notification opens their schedule!
-        data: { route: "/schedule", type: "daily_batch" },
+        type: "daily_batch",
+        data: { route: "/schedule" },
         is_read: false,
       });
-
-      taskList.forEach((t) => taskIdsToMarkNotified.push(t.id));
     }
 
-    // 5. Insert the bundled messages into the notifications table
-    // 🔥 MAGIC TRICK: This single insert will instantly trigger the 'push-webhook'
-    // we built yesterday, delivering the messages to their phones!
+    if (notificationsToInsert.length === 0) {
+      return new Response(
+        JSON.stringify({ message: "No notifications to send." }),
+        { status: 200 },
+      );
+    }
+
+    // 5. Insert into notifications, triggering our push webhook
     const { error: insertError } = await supabase
       .from("notifications")
       .insert(notificationsToInsert);
@@ -70,7 +91,7 @@ serve(async (req) => {
     if (insertError) throw insertError;
 
     console.log(
-      `Successfully batched and sent notifications to ${Object.keys(tasksByUser).length} users.`,
+      `Successfully sent home-based batch notifications to ${notificationsToInsert.length} users.`,
     );
     return new Response(JSON.stringify({ success: true }), {
       headers: { "Content-Type": "application/json" },

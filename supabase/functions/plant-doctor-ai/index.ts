@@ -7,7 +7,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Helper function to call the Gemini REST API
+// Helper function to call the Gemini REST API with Structured Outputs
 async function callGemini(
   model: string,
   apiKey: string,
@@ -22,7 +22,44 @@ async function callGemini(
     body: JSON.stringify({
       system_instruction: { parts: [{ text: systemPrompt }] },
       contents: messages,
-      generationConfig: { temperature: 0.7, maxOutputTokens: 500 },
+      generationConfig: {
+        temperature: 0.7,
+        maxOutputTokens: 800, // Bumped up slightly to allow for JSON overhead
+        responseMimeType: "application/json",
+        // 🔥 This forces Gemini to output the exact object shape we need!
+        responseSchema: {
+          type: "OBJECT",
+          properties: {
+            text: {
+              type: "STRING",
+              description:
+                "Your standard conversational markdown reply to the user.",
+            },
+            suggested_plants: {
+              type: "ARRAY",
+              description:
+                "Only populate this if you are explicitly suggesting new plants for them to add to their garden. Otherwise leave it empty.",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  name: {
+                    type: "STRING",
+                    description:
+                      "Full common name (e.g., 'Monstera Deliciosa')",
+                  },
+                  search_query: {
+                    type: "STRING",
+                    description:
+                      "Simplified name for API searching (e.g., 'Monstera')",
+                  },
+                },
+                required: ["name", "search_query"],
+              },
+            },
+          },
+          required: ["text"],
+        },
+      },
     }),
   });
 
@@ -32,7 +69,10 @@ async function callGemini(
   }
 
   const data = await response.json();
-  return data.candidates[0].content.parts[0].text;
+  const rawString = data.candidates[0].content.parts[0].text;
+
+  // Gemini returns a JSON string, so we parse it into a real object
+  return JSON.parse(rawString);
 }
 
 serve(async (req) => {
@@ -42,7 +82,6 @@ serve(async (req) => {
   try {
     const { messages, currentContext, homeId } = await req.json();
 
-    // 1. Initialize Supabase using the USER'S auth token to enforce RLS
     const authHeader = req.headers.get("Authorization")!;
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -50,7 +89,6 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } },
     );
 
-    // 2. Fetch the user's real garden data to give the AI context
     const { data: areas } = await supabase
       .from("areas")
       .select("name, sunlight, location_id")
@@ -60,23 +98,20 @@ serve(async (req) => {
       .select("plant_name, status")
       .eq("home_id", homeId);
 
-    // 3. Build the Master System Prompt
+    // Minor update to the system prompt to remind it about the JSON
     const systemPrompt = `
       You are the Rhozly Plant Doctor, an expert, empathetic, and highly knowledgeable botanist and garden planner.
       YOUR PRIME DIRECTIVE: You MUST ONLY answer questions related to plants, gardening, landscaping, botany, and agriculture. 
-      If the user asks about anything else (coding, politics, math, etc.), politely refuse and steer the conversation back to their garden.
+      If the user asks about anything else, politely refuse.
 
-      You have access to the user's specific garden data. 
       USER'S CURRENT GARDEN AREAS: ${JSON.stringify(areas || [])}
       USER'S CURRENT PLANTS: ${JSON.stringify(inventory || [])}
-
-      The user is currently looking at this specific context on their screen:
       CURRENT SCREEN CONTEXT: ${currentContext ? JSON.stringify(currentContext) : "Dashboard/General"}
 
-      Use this data to provide highly personalized advice. If they ask "where should I put this?", look at their areas and sunlight data to make a recommendation. Keep answers concise, formatted with markdown, and highly actionable.
+      Provide highly personalized advice formatted in markdown. 
+      IMPORTANT: If you recommend a specific plant that they do NOT already own, you must include it in the 'suggested_plants' array in your JSON response so the UI can generate action buttons.
     `;
 
-    // 4. Format messages specifically for Gemini
     const geminiMessages = messages.map((msg: any) => ({
       role: msg.role === "assistant" ? "model" : msg.role,
       parts: [{ text: msg.content }],
@@ -85,22 +120,21 @@ serve(async (req) => {
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiApiKey) throw new Error("Missing GEMINI_API_KEY");
 
-    // 5. The Waterfall Fallback Logic
     const modelsToTry = [
-      "gemini-3.1-flash-lite-preview", // Primary
-      "gemini-2.5-flash-lite", // Fast fallback
-      "gemini-3-flash-preview", // Heavy-duty fallback
-      "gemini-3.1-pro-preview", // Heavy-duty fallback
+      "gemini-3.1-flash-lite-preview",
+      "gemini-2.5-flash-lite",
+      "gemini-3-flash-preview",
+      "gemini-3.1-pro-preview",
     ];
 
-    let reply = "";
+    let aiResult: any = null;
     let success = false;
     let lastError = "";
 
     for (const model of modelsToTry) {
       try {
         console.log(`Attempting generation with model: ${model}...`);
-        reply = await callGemini(
+        aiResult = await callGemini(
           model,
           geminiApiKey,
           geminiMessages,
@@ -108,11 +142,10 @@ serve(async (req) => {
         );
         success = true;
         console.log(`Success with ${model}!`);
-        break; // Exit the loop immediately if successful
+        break;
       } catch (error: any) {
         console.warn(`Failed with ${model}:`, error.message);
         lastError = error.message;
-        // The loop naturally continues to the next model in the array
       }
     }
 
@@ -122,10 +155,17 @@ serve(async (req) => {
       );
     }
 
-    return new Response(JSON.stringify({ reply }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 200,
-    });
+    // We now return the structured object directly to the frontend!
+    return new Response(
+      JSON.stringify({
+        reply: aiResult.text,
+        suggested_plants: aiResult.suggested_plants || [],
+      }),
+      {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      },
+    );
   } catch (error: any) {
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Thermometer, Wind, X, Clock, CloudRain } from "lucide-react";
 
 // 🧠 IMPORT THE AI CONTEXT
@@ -53,14 +53,20 @@ export const WeatherAlertBanner = ({
     return `${dayLabel} at ${timeLabel}`;
   };
 
-  const uniqueAlerts = alerts.filter(
-    (alert, index, self) =>
-      index === self.findIndex((t) => t.type === alert.type),
-  );
+  // 🚀 FIX: Wrap uniqueAlerts in useMemo so it doesn't recreate on every render
+  const uniqueAlerts = useMemo(() => {
+    return alerts.filter(
+      (alert, index, self) =>
+        index === self.findIndex((t) => t.type === alert.type),
+    );
+  }, [alerts]);
 
-  const visibleAlerts = isForecastScreen
-    ? uniqueAlerts
-    : uniqueAlerts.filter((a) => !dismissedIds.includes(a.id));
+  // 🚀 FIX: Wrap visibleAlerts in useMemo so it keeps its exact memory address
+  const visibleAlerts = useMemo(() => {
+    return isForecastScreen
+      ? uniqueAlerts
+      : uniqueAlerts.filter((a) => !dismissedIds.includes(a.id));
+  }, [isForecastScreen, uniqueAlerts, dismissedIds]);
 
   // 🧠 LIVE AI SYNC: Feed any active weather threats into the AI's brain
   useEffect(() => {

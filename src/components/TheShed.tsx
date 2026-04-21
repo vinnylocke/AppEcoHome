@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import {
   Plus,
@@ -21,7 +21,10 @@ import PlantEditModal from "./PlantEditModal";
 import PlantAssignmentModal from "./PlantAssignmentModal";
 import PlantSearchModal from "./PlantSearchModal";
 
-// 🧠 IMPORT THE AI CONTEXT
+// Router Hooks
+import { useLocation, useSearchParams, useNavigate } from "react-router-dom";
+
+// AI Context
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface Plant {
@@ -35,8 +38,14 @@ interface Plant {
 }
 
 export default function TheShed({ homeId }: { homeId: string }) {
-  // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
+
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
+
+  // 🚀 NEW: A ref to prevent infinite loops when routing
+  const handledDeepLink = useRef("");
 
   const [plants, setPlants] = useState<Plant[]>([]);
   const [locations, setLocations] = useState<any[]>([]);
@@ -54,6 +63,8 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const [isAddingManual, setIsAddingManual] = useState(false);
   const [isSearchingApi, setIsSearchingApi] = useState(false);
 
+  const [initialApiSearchTerm, setInitialApiSearchTerm] = useState("");
+
   const [isAiGenerating, setIsAiGenerating] = useState(false);
   const [aiSearchQuery, setAiSearchQuery] = useState("");
   const [aiSearchResults, setAiSearchResults] = useState<string[]>([]);
@@ -70,7 +81,64 @@ export default function TheShed({ homeId }: { homeId: string }) {
     plant: Plant | null;
   }>({ isOpen: false, type: "delete", plant: null });
 
-  // 🧠 LIVE AI SYNC: Provide a high-level overview of the library to the Plant Doctor
+  // 🚀 UPDATED: Extracted to a useCallback so the deep link can safely trigger it!
+  const handleAiDrafting = useCallback(async (plantName: string) => {
+    setIsAiGenerating(true);
+    setIsAiDrafting(plantName);
+    try {
+      const { data, error } = await supabase.functions.invoke("plant-doctor", {
+        body: { action: "generate_care_guide", targetPlant: plantName },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      setAiDraftedData(data.plantData);
+      setIsAiGenerating(false);
+      setAiSearchResults([]);
+      setAiSearchQuery("");
+      setIsAddingManual(true);
+    } catch (error: any) {
+      // Graceful fallback if the AI fails
+      toast.error("Failed to auto-fill plant data. Opening blank form.");
+      setAiDraftedData({ common_name: plantName });
+      setIsAiGenerating(false);
+      setIsAddingManual(true);
+    } finally {
+      setIsAiDrafting(null);
+    }
+  }, []);
+
+  // 🚀 UPDATED: Deep Link Listener now triggers the AI Drafting process!
+  useEffect(() => {
+    const currentUrl = location.pathname + location.search;
+    if (handledDeepLink.current === currentUrl) return;
+
+    if (location.pathname.includes("/shed/add/search")) {
+      handledDeepLink.current = currentUrl;
+      const query = searchParams.get("query") || "";
+      setInitialApiSearchTerm(query);
+      setIsSearchingApi(true);
+    } else if (location.pathname.includes("/shed/add/manual")) {
+      handledDeepLink.current = currentUrl;
+      const preset = searchParams.get("preset_name") || "";
+      if (preset) {
+        // Trigger the Edge Function to get the care guide!
+        handleAiDrafting(preset);
+      } else {
+        setIsAddingManual(true);
+      }
+    }
+  }, [location.pathname, location.search, searchParams, handleAiDrafting]);
+
+  const handleCloseModals = () => {
+    setIsAddingManual(false);
+    setIsSearchingApi(false);
+    setAiDraftedData(null);
+    setInitialApiSearchTerm("");
+    handledDeepLink.current = ""; // Reset the lock
+    navigate("/shed", { replace: true });
+  };
+
   useEffect(() => {
     setPageContext({
       action: isAiGenerating
@@ -84,7 +152,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
         visibleCount: plants.filter(
           (p) => p.is_archived === (viewTab === "archived"),
         ).length,
-        // Give the AI a taste of what's in the library
         sampleSpecies: plants.slice(0, 10).map((p) => p.common_name),
       },
       currentInteractions: {
@@ -94,7 +161,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
       },
     });
 
-    // Cleanup on unmount
     return () => setPageContext(null);
   }, [
     viewTab,
@@ -222,8 +288,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
       ]);
       if (error) throw error;
       toast.success(`${plantData.common_name} added to shed!`);
-      setIsAddingManual(false);
-      setAiDraftedData(null);
+      handleCloseModals();
       fetchData();
     } catch (err: any) {
       Logger.error("Failed to add manual plant", err);
@@ -371,26 +436,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
       toast.error("Failed to search. Try again.");
     } finally {
       setIsAiSearching(false);
-    }
-  };
-
-  const handleAiDrafting = async (plantName: string) => {
-    setIsAiDrafting(plantName);
-    try {
-      const { data, error } = await supabase.functions.invoke("plant-doctor", {
-        body: { action: "generate_care_guide", targetPlant: plantName },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      setAiDraftedData(data.plantData);
-      setIsAiGenerating(false);
-      setAiSearchResults([]);
-      setAiSearchQuery("");
-      setIsAddingManual(true);
-    } catch (error: any) {
-      toast.error("Failed to auto-fill plant data.");
-    } finally {
-      setIsAiDrafting(null);
     }
   };
 
@@ -700,6 +745,20 @@ export default function TheShed({ homeId }: { homeId: string }) {
                     )}
                   </button>
                 ))
+              ) : // 🚀 UPDATED: Better loading state if triggered via deep link!
+              isAiDrafting ? (
+                <div className="py-12 flex flex-col items-center justify-center opacity-80">
+                  <Loader2
+                    className="animate-spin text-amber-500 mb-4"
+                    size={32}
+                  />
+                  <p className="font-black text-lg text-rhozly-on-surface">
+                    Consulting Plant Doctor...
+                  </p>
+                  <p className="text-sm font-bold mt-1 text-rhozly-on-surface/60">
+                    Drafting care guide for {isAiDrafting}
+                  </p>
+                </div>
               ) : (
                 <div className="py-12 flex flex-col items-center justify-center text-center opacity-40">
                   <BrainCircuit
@@ -780,10 +839,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
                 </p>
               </div>
               <button
-                onClick={() => {
-                  setIsAddingManual(false);
-                  setAiDraftedData(null);
-                }}
+                onClick={handleCloseModals}
                 className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
               >
                 <X size={24} />
@@ -792,10 +848,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
             <ManualPlantCreation
               initialData={aiDraftedData}
               onSave={handleManualSave}
-              onCancel={() => {
-                setIsAddingManual(false);
-                setAiDraftedData(null);
-              }}
+              onCancel={handleCloseModals}
               isSaving={actionLoading}
             />
           </div>
@@ -806,9 +859,10 @@ export default function TheShed({ homeId }: { homeId: string }) {
         <PlantSearchModal
           homeId={homeId}
           isPremium={isPremium}
-          onClose={() => setIsSearchingApi(false)}
+          initialSearchTerm={initialApiSearchTerm}
+          onClose={handleCloseModals}
           onSuccess={() => {
-            setIsSearchingApi(false);
+            handleCloseModals();
             fetchData();
           }}
         />
