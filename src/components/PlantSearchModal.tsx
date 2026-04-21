@@ -7,9 +7,6 @@ import {
   Lock,
   Plus,
   ChevronLeft,
-  Droplets,
-  Sun,
-  Info,
 } from "lucide-react";
 import { PerenualService } from "../lib/perenualService";
 import { supabase } from "../lib/supabase";
@@ -120,6 +117,7 @@ export default function PlantSearchModal({
     try {
       const pId = String(previewPlant.perenual_id || previewPlant.id);
 
+      // 1. Check if they already own it
       const { data: existingPlant, error: checkError } = await supabase
         .from("plants")
         .select("id")
@@ -143,13 +141,53 @@ export default function PlantSearchModal({
         return;
       }
 
+      // 🚀 2. THE IMAGE PROXY: Secure the image permanently
+      let permanentImageUrl =
+        previewPlant.default_image?.original_url ||
+        previewPlant.default_image?.thumbnail ||
+        "";
+
+      // If there is an image, and it's not a paywall placeholder, proxy it!
+      if (permanentImageUrl && !permanentImageUrl.includes("upgrade_access")) {
+        try {
+          const { data: proxyData, error: proxyError } =
+            await supabase.functions.invoke("image-proxy", {
+              body: {
+                imageUrl: permanentImageUrl,
+                plantName: previewPlant.common_name,
+              },
+            });
+
+          if (proxyError) throw proxyError;
+
+          if (proxyData?.publicUrl) {
+            permanentImageUrl = proxyData.publicUrl;
+
+            // Handle local dev environment URL mapping if needed
+            if (permanentImageUrl.includes("kong:8000")) {
+              permanentImageUrl = permanentImageUrl.replace(
+                "http://kong:8000",
+                "http://127.0.0.1:54321",
+              );
+            }
+          }
+        } catch (proxyErr) {
+          console.warn(
+            "Failed to proxy image, falling back to original URL",
+            proxyErr,
+          );
+          // It will just fallback to the temporary URL if the proxy fails, so the app doesn't crash
+        }
+      }
+
+      // 3. Create the Database Record using our new permanent URL
       const manualId = Math.floor(Date.now() / 1000);
       const skeletonPlant = {
         id: manualId,
         home_id: homeId,
         common_name: previewPlant.common_name,
         scientific_name: previewPlant.scientific_name,
-        thumbnail_url: previewPlant.thumbnail_url || previewPlant.image_url,
+        thumbnail_url: permanentImageUrl, // 🚀 Saved permanently!
         source: "api",
         perenual_id: pId,
       };
@@ -162,6 +200,7 @@ export default function PlantSearchModal({
 
       if (error) throw error;
 
+      // Auto-schedule harvests if applicable
       if (previewPlant.harvest_season) {
         await supabase.from("plant_schedules").insert([
           {
@@ -319,7 +358,10 @@ export default function PlantSearchModal({
                   >
                     <div className="flex items-center gap-4">
                       <div className="w-16 h-16 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0">
-                        {plant.default_image?.thumbnail ? (
+                        {plant.default_image?.thumbnail &&
+                        !plant.default_image?.thumbnail.includes(
+                          "upgrade_access",
+                        ) ? (
                           <img
                             src={plant.default_image.thumbnail}
                             alt={plant.common_name}
