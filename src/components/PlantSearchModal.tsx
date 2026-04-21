@@ -94,11 +94,25 @@ export default function PlantSearchModal({
     }
   }, [initialSearchTerm, isPremium]);
 
-  const handlePreviewPlant = async (perenualId: number) => {
+  // 🚀 FIXED: Now accepts the entire search result, not just the ID
+  const handlePreviewPlant = async (searchResultPlant: any) => {
     setIsFetchingPreview(true);
     try {
-      const fullPlantData = await PerenualService.getPlantDetails(perenualId);
-      setPreviewPlant(fullPlantData);
+      const fullPlantData = await PerenualService.getPlantDetails(
+        searchResultPlant.id,
+      );
+
+      // 🚀 THE FALLBACK: Merge the image from the search results in case the details endpoint drops it!
+      setPreviewPlant({
+        ...fullPlantData,
+        image_url:
+          fullPlantData.image_url ||
+          searchResultPlant.default_image?.original_url ||
+          searchResultPlant.default_image?.regular_url,
+        thumbnail_url:
+          fullPlantData.thumbnail_url ||
+          searchResultPlant.default_image?.thumbnail,
+      });
     } catch (err) {
       toast.error("Failed to load plant details.");
     } finally {
@@ -106,7 +120,6 @@ export default function PlantSearchModal({
     }
   };
 
-  // 🚀 THE UPDATED ADD FUNCTION (With Logging!)
   const handleAddToShed = async () => {
     if (!previewPlant) return;
     setIsAdding(true);
@@ -133,14 +146,22 @@ export default function PlantSearchModal({
         return;
       }
 
-      // 1. Find the best image from your Service's flattened format
+      // 1. Find the best image using the fallback memory
       let permanentImageUrl =
         previewPlant.image_url || previewPlant.thumbnail_url || "";
 
-      console.log("📸 Original Flattened Image:", permanentImageUrl);
+      // 🚀 SAFETY CHECK: Clear out paywall watermark images so we don't save them
+      if (permanentImageUrl.includes("upgrade_access")) {
+        permanentImageUrl = "";
+      }
+
+      console.log(
+        "📸 Image to Proxy:",
+        permanentImageUrl || "None (or Paywall skipped)",
+      );
 
       // 2. Call the Image Proxy
-      if (permanentImageUrl && !permanentImageUrl.includes("upgrade_access")) {
+      if (permanentImageUrl) {
         console.log("🚀 Invoking image-proxy Edge Function...");
         try {
           const { data: proxyData, error: proxyError } =
@@ -382,8 +403,9 @@ export default function PlantSearchModal({
                         </p>
                       </div>
                     </div>
+                    {/* 🚀 FIXED: Passes the full plant object, not just the ID! */}
                     <button
-                      onClick={() => handlePreviewPlant(plant.id)}
+                      onClick={() => handlePreviewPlant(plant)}
                       className="px-4 py-2 bg-rhozly-primary/10 text-rhozly-primary font-black text-xs uppercase tracking-widest rounded-xl hover:bg-rhozly-primary hover:text-white transition-all active:scale-95"
                     >
                       View
