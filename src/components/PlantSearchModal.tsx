@@ -13,7 +13,6 @@ import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import ManualPlantCreation from "./ManualPlantCreation";
 
-// 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface Props {
@@ -31,7 +30,6 @@ export default function PlantSearchModal({
   onSuccess,
   initialSearchTerm,
 }: Props) {
-  // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
 
   const [query, setQuery] = useState(initialSearchTerm || "");
@@ -42,7 +40,6 @@ export default function PlantSearchModal({
   const [isFetchingPreview, setIsFetchingPreview] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
 
-  // 🧠 LIVE AI SYNC: Let the AI know the user is hunting for new species
   useEffect(() => {
     setPageContext({
       action: previewPlant
@@ -65,7 +62,6 @@ export default function PlantSearchModal({
         : null,
     });
 
-    // Cleanup when modal closes
     return () => setPageContext(null);
   }, [query, results, previewPlant, setPageContext]);
 
@@ -110,6 +106,7 @@ export default function PlantSearchModal({
     }
   };
 
+  // 🚀 THE UPDATED ADD FUNCTION (With Logging!)
   const handleAddToShed = async () => {
     if (!previewPlant) return;
     setIsAdding(true);
@@ -117,7 +114,6 @@ export default function PlantSearchModal({
     try {
       const pId = String(previewPlant.perenual_id || previewPlant.id);
 
-      // 1. Check if they already own it
       const { data: existingPlant, error: checkError } = await supabase
         .from("plants")
         .select("id")
@@ -126,29 +122,28 @@ export default function PlantSearchModal({
         .maybeSingle();
 
       if (checkError) {
-        console.error("Duplicate check failed:", checkError);
-        throw new Error(
-          "Could not verify if plant exists in Shed. Please try again.",
-        );
+        throw new Error("Could not verify if plant exists. Try again.");
       }
 
       if (existingPlant) {
         toast.error(`${previewPlant.common_name} is already in your Shed!`, {
-          duration: 4000,
           icon: "🚫",
         });
         setIsAdding(false);
         return;
       }
 
-      // 🚀 2. THE IMAGE PROXY: Secure the image permanently
+      // 1. Find the best image Perenual gave us
       let permanentImageUrl =
         previewPlant.default_image?.original_url ||
         previewPlant.default_image?.thumbnail ||
         "";
 
-      // If there is an image, and it's not a paywall placeholder, proxy it!
+      console.log("📸 Original Perenual Image:", permanentImageUrl);
+
+      // 2. Call the Image Proxy
       if (permanentImageUrl && !permanentImageUrl.includes("upgrade_access")) {
+        console.log("🚀 Invoking image-proxy Edge Function...");
         try {
           const { data: proxyData, error: proxyError } =
             await supabase.functions.invoke("image-proxy", {
@@ -161,33 +156,41 @@ export default function PlantSearchModal({
           if (proxyError) throw proxyError;
 
           if (proxyData?.publicUrl) {
+            console.log(
+              "✅ Proxy Success! New Permanent URL:",
+              proxyData.publicUrl,
+            );
             permanentImageUrl = proxyData.publicUrl;
 
-            // Handle local dev environment URL mapping if needed
+            // Handle Local Dev Networking (kong -> localhost)
             if (permanentImageUrl.includes("kong:8000")) {
               permanentImageUrl = permanentImageUrl.replace(
                 "http://kong:8000",
                 "http://127.0.0.1:54321",
               );
+              console.log("🔧 Adjusted Local URL:", permanentImageUrl);
             }
           }
         } catch (proxyErr) {
-          console.warn(
-            "Failed to proxy image, falling back to original URL",
+          console.error(
+            "❌ Proxy Failed (Falling back to original URL):",
             proxyErr,
           );
-          // It will just fallback to the temporary URL if the proxy fails, so the app doesn't crash
         }
+      } else {
+        console.log(
+          "⚠️ Skipped proxy: Image was empty or an upgrade placeholder.",
+        );
       }
 
-      // 3. Create the Database Record using our new permanent URL
+      // 3. Save to Database
       const manualId = Math.floor(Date.now() / 1000);
       const skeletonPlant = {
         id: manualId,
         home_id: homeId,
         common_name: previewPlant.common_name,
         scientific_name: previewPlant.scientific_name,
-        thumbnail_url: permanentImageUrl, // 🚀 Saved permanently!
+        thumbnail_url: permanentImageUrl, // This is now your permanent link!
         source: "api",
         perenual_id: pId,
       };
@@ -200,7 +203,6 @@ export default function PlantSearchModal({
 
       if (error) throw error;
 
-      // Auto-schedule harvests if applicable
       if (previewPlant.harvest_season) {
         await supabase.from("plant_schedules").insert([
           {
