@@ -133,13 +133,11 @@ export default function PlantSearchModal({
         return;
       }
 
-      // 1. Find the best image Perenual gave us
+      // 1. Find the best image from your Service's flattened format
       let permanentImageUrl =
-        previewPlant.default_image?.original_url ||
-        previewPlant.default_image?.thumbnail ||
-        "";
+        previewPlant.image_url || previewPlant.thumbnail_url || "";
 
-      console.log("📸 Original Perenual Image:", permanentImageUrl);
+      console.log("📸 Original Flattened Image:", permanentImageUrl);
 
       // 2. Call the Image Proxy
       if (permanentImageUrl && !permanentImageUrl.includes("upgrade_access")) {
