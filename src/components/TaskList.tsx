@@ -73,13 +73,15 @@ export default function TaskList({
   selectedTypes,
   showOverdue,
 }: TaskListProps) {
-  // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
 
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isUpdatingTask, setIsUpdatingTask] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
+
+  // 🚀 NEW: Tab State
+  const [viewTab, setViewTab] = useState<"pending" | "completed">("pending");
 
   const [isPostponing, setIsPostponing] = useState(false);
   const [postponeDate, setPostponeDate] = useState("");
@@ -113,7 +115,12 @@ export default function TaskList({
   const todayStr = getLocalDateString(new Date());
   const typesFilterStr = selectedTypes?.join(",") || "";
 
-  // 🧠 LIVE AI SYNC: Let the AI see the task list and current user focus
+  // 🚀 Reset bulk editing if the user changes tabs
+  useEffect(() => {
+    setIsBulkEditing(false);
+    setSelectedTaskIds(new Set());
+  }, [viewTab]);
+
   useEffect(() => {
     setPageContext({
       action: selectedTask
@@ -126,8 +133,8 @@ export default function TaskList({
         completedTasks: tasks.filter((t) => t.status === "Completed").length,
         isBulkEditingActive: isBulkEditing,
         selectedCount: selectedTaskIds.size,
+        currentTab: viewTab,
       },
-      // If a task modal is open, give the AI the specifics
       focusedTask: selectedTask
         ? {
             title: selectedTask.title,
@@ -139,12 +146,8 @@ export default function TaskList({
             isAutoCompleted: !!selectedTask.isAutoCompleted,
           }
         : null,
-      // Provide archive prompts so the AI can help users decide if a plant is "done"
       harvestArchivePrompt: archivePrompts,
     });
-
-    // Note: We don't nullify on unmount here because this component is often
-    // a sub-component of the Calendar or Area details.
   }, [
     tasks,
     selectedTask,
@@ -152,6 +155,7 @@ export default function TaskList({
     selectedTaskIds,
     archivePrompts,
     dateStr,
+    viewTab,
     setPageContext,
   ]);
 
@@ -838,170 +842,211 @@ export default function TaskList({
       </div>
     );
 
-  if (tasks.length === 0) {
-    return (
-      <div className="bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-[2rem] p-8 text-center opacity-50">
-        <div className="w-16 h-16 bg-rhozly-primary/5 rounded-full flex items-center justify-center mx-auto mb-4 text-rhozly-primary">
-          <CheckSquare size={24} />
-        </div>
-        <p className="font-black text-lg text-rhozly-on-surface">
-          All Caught Up!
-        </p>
-        <p className="text-xs font-bold mt-1">No tasks matching filters.</p>
-      </div>
-    );
-  }
+  // 🚀 TAB LOGIC & FILTERING
+  const pendingCount = tasks.filter((t) => t.status !== "Completed").length;
+  const completedCount = tasks.filter((t) => t.status === "Completed").length;
 
-  const pendingCount = tasks.filter((t) => t.status === "Pending").length;
+  const filteredTasks = tasks.filter((t) => {
+    if (viewTab === "pending") return t.status !== "Completed";
+    return t.status === "Completed";
+  });
+
   const selectedTaskObjects = getSelectedTaskObjects();
 
   return (
     <>
-      {pendingCount > 0 && !isBulkEditing && (
-        <div className="flex justify-end mb-3">
-          <button
-            onClick={() => setIsBulkEditing(true)}
-            className="flex items-center gap-1.5 px-4 py-2 bg-rhozly-surface-low rounded-xl text-xs font-black uppercase tracking-widest text-rhozly-on-surface/60 hover:text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors"
-          >
-            <ListChecks size={14} /> Bulk Edit
-          </button>
+      {/* 🚀 TABS AND BULK EDIT BAR */}
+      {tasks.length > 0 && (
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 animate-in fade-in">
+          <div className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/10">
+            <button
+              onClick={() => setViewTab("pending")}
+              className={`flex-1 px-6 py-2 rounded-xl text-sm font-black transition-all ${
+                viewTab === "pending"
+                  ? "bg-white text-rhozly-primary shadow-sm"
+                  : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+              }`}
+            >
+              Pending ({pendingCount})
+            </button>
+            <button
+              onClick={() => setViewTab("completed")}
+              className={`flex-1 px-6 py-2 rounded-xl text-sm font-black transition-all ${
+                viewTab === "completed"
+                  ? "bg-white text-green-500 shadow-sm"
+                  : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+              }`}
+            >
+              Completed ({completedCount})
+            </button>
+          </div>
+
+          {viewTab === "pending" && pendingCount > 0 && !isBulkEditing && (
+            <button
+              onClick={() => setIsBulkEditing(true)}
+              className="flex items-center justify-center gap-1.5 px-4 py-3 sm:py-2 bg-rhozly-surface-low rounded-xl text-xs font-black uppercase tracking-widest text-rhozly-on-surface/60 hover:text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors"
+            >
+              <ListChecks size={16} /> Bulk Edit
+            </button>
+          )}
         </div>
       )}
 
-      <div className={`space-y-3 relative ${isBulkEditing ? "pb-24" : ""}`}>
-        {tasks.map((task) => {
-          const plantName = task.inventory_items?.plant_name;
-          const plantIdentifier = task.inventory_items?.identifier;
-          const thumbnail = task.inventory_items?.plants?.thumbnail_url;
-          const locationName = task.inventory_items?.location_name;
-          const areaName = task.inventory_items?.area_name;
-          const isCompleted = task.status === "Completed";
-          const isOverdue = !isCompleted && task.due_date < todayStr;
-          const isSelected = selectedTaskIds.has(task.id);
+      {/* 🚀 CONDITIONAL EMPTY STATES */}
+      {tasks.length === 0 ? (
+        <div className="bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-[2rem] p-8 text-center opacity-50 animate-in fade-in">
+          <div className="w-16 h-16 bg-rhozly-primary/5 rounded-full flex items-center justify-center mx-auto mb-4 text-rhozly-primary">
+            <CheckSquare size={24} />
+          </div>
+          <p className="font-black text-lg text-rhozly-on-surface">
+            All Caught Up!
+          </p>
+          <p className="text-xs font-bold mt-1">No tasks matching filters.</p>
+        </div>
+      ) : filteredTasks.length === 0 ? (
+        <div className="bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-[2rem] p-8 text-center opacity-50 animate-in fade-in">
+          <p className="font-black text-lg text-rhozly-on-surface">
+            {viewTab === "pending"
+              ? "No pending tasks!"
+              : "No completed tasks yet."}
+          </p>
+        </div>
+      ) : (
+        <div className={`space-y-3 relative ${isBulkEditing ? "pb-24" : ""}`}>
+          {filteredTasks.map((task) => {
+            const plantName = task.inventory_items?.plant_name;
+            const plantIdentifier = task.inventory_items?.identifier;
+            const thumbnail = task.inventory_items?.plants?.thumbnail_url;
+            const locationName = task.inventory_items?.location_name;
+            const areaName = task.inventory_items?.area_name;
+            const isCompleted = task.status === "Completed";
+            const isOverdue = !isCompleted && task.due_date < todayStr;
+            const isSelected = selectedTaskIds.has(task.id);
 
-          let cardStyle = "bg-white border-rhozly-outline/10";
-          if (isCompleted)
-            cardStyle = "opacity-60 bg-gray-50 border-rhozly-outline/10";
-          if (isOverdue) cardStyle = "bg-red-50/50 border-red-200";
-          if (isBulkEditing && isSelected)
-            cardStyle = "bg-rhozly-primary/5 border-rhozly-primary shadow-md";
+            let cardStyle = "bg-white border-rhozly-outline/10";
+            if (isCompleted)
+              cardStyle = "opacity-60 bg-gray-50 border-rhozly-outline/10";
+            if (isOverdue) cardStyle = "bg-red-50/50 border-red-200";
+            if (isBulkEditing && isSelected)
+              cardStyle = "bg-rhozly-primary/5 border-rhozly-primary shadow-md";
 
-          return (
-            <div
-              key={task.id}
-              onClick={() => {
-                if (isBulkEditing) {
-                  if (!isCompleted) toggleTaskSelection(task.id);
-                } else {
-                  setSelectedTask(task);
-                }
-              }}
-              className={`p-5 rounded-3xl border shadow-sm flex items-center justify-between group relative transition-all ${isBulkEditing && !isCompleted ? "cursor-pointer hover:border-rhozly-primary/50" : isBulkEditing && isCompleted ? "opacity-30 cursor-not-allowed" : "cursor-pointer hover:border-rhozly-primary/30"} ${cardStyle}`}
-            >
-              {isBulkEditing && !isCompleted && (
-                <div
-                  className={`mr-4 shrink-0 transition-colors ${isSelected ? "text-rhozly-primary" : "text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50"}`}
-                >
-                  {isSelected ? (
-                    <CheckSquare2 size={24} />
-                  ) : (
-                    <Square size={24} />
-                  )}
-                </div>
-              )}
-
-              {isOverdue && !isBulkEditing ? (
-                <div className="absolute -top-2 -right-2 z-10 text-[8px] font-black uppercase text-white bg-red-500 px-2 py-1 rounded-full shadow-md flex items-center gap-1">
-                  <AlertCircle size={8} /> Overdue
-                </div>
-              ) : task.isAutoCompleted && !isBulkEditing ? (
-                <div className="absolute -top-2 -right-2 z-10 text-[8px] font-black uppercase text-white bg-blue-500 px-2 py-1 rounded-full shadow-md flex items-center gap-1">
-                  <CloudRain size={8} /> Nature Watered
-                </div>
-              ) : task.isGhost && !isCompleted && !isBulkEditing ? (
-                <div className="absolute -top-2 -right-2 z-10 text-[8px] font-black uppercase text-white bg-rhozly-primary px-2 py-1 rounded-full shadow-md flex items-center gap-1">
-                  <Sparkles size={8} /> Auto
-                </div>
-              ) : null}
-
-              <div className="flex items-center gap-4 w-full">
-                {!isBulkEditing && (
-                  <button
-                    onClick={(e) => toggleTaskCompletion(task, e)}
-                    disabled={isUpdatingTask === task.id}
-                    className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center border-2 transition-all active:scale-90 
-                      ${isUpdatingTask === task.id ? "border-rhozly-primary/30" : isCompleted ? "bg-green-500 border-green-500 text-white" : isOverdue ? "border-red-300 hover:border-red-500 text-transparent hover:text-red-500/30" : "border-rhozly-outline/20 hover:border-rhozly-primary text-transparent hover:text-rhozly-primary/30"}`}
+            return (
+              <div
+                key={task.id}
+                onClick={() => {
+                  if (isBulkEditing) {
+                    if (!isCompleted) toggleTaskSelection(task.id);
+                  } else {
+                    setSelectedTask(task);
+                  }
+                }}
+                className={`p-5 rounded-3xl border shadow-sm flex items-center justify-between group relative transition-all ${isBulkEditing && !isCompleted ? "cursor-pointer hover:border-rhozly-primary/50" : isBulkEditing && isCompleted ? "opacity-30 cursor-not-allowed" : "cursor-pointer hover:border-rhozly-primary/30"} ${cardStyle}`}
+              >
+                {isBulkEditing && !isCompleted && (
+                  <div
+                    className={`mr-4 shrink-0 transition-colors ${isSelected ? "text-rhozly-primary" : "text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50"}`}
                   >
-                    {isUpdatingTask === task.id ? (
-                      <Loader2
-                        size={18}
-                        className="animate-spin text-rhozly-primary"
-                      />
+                    {isSelected ? (
+                      <CheckSquare2 size={24} />
                     ) : (
-                      <CheckSquare size={18} className="currentColor" />
-                    )}
-                  </button>
-                )}
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex flex-wrap items-center gap-2 mb-1.5">
-                    <span
-                      className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md flex items-center gap-1 ${isCompleted ? "bg-gray-200 text-gray-500" : isOverdue ? "text-red-700 bg-red-100" : "text-rhozly-primary bg-rhozly-primary/10"}`}
-                    >
-                      {getTaskIcon(task.type)} {task.type}
-                    </span>
-                    {(locationName || areaName) && (
-                      <span className="text-[10px] font-bold text-rhozly-on-surface/50 flex items-center gap-1 truncate max-w-full">
-                        <MapPin size={10} className="shrink-0" />
-                        <span className="truncate">
-                          {locationName}{" "}
-                          {areaName && (
-                            <>
-                              <span className="opacity-50 mx-0.5">•</span>
-                              {areaName}
-                            </>
-                          )}
-                        </span>
-                      </span>
+                      <Square size={24} />
                     )}
                   </div>
-                  <h4
-                    className={`font-black text-sm md:text-base leading-tight truncate ${isCompleted ? "line-through decoration-2 decoration-green-500/50 text-gray-500" : isOverdue ? "text-red-900" : "text-rhozly-on-surface"}`}
-                  >
-                    {task.title}
-                  </h4>
-                  {plantName && (
-                    <div
-                      className={`text-[11px] font-bold mt-1 flex items-center gap-1.5 truncate ${isCompleted ? "text-gray-400" : isOverdue ? "text-red-700/70" : "text-rhozly-on-surface/70"}`}
-                    >
-                      <Leaf
-                        size={12}
-                        className={`shrink-0 ${isCompleted ? "text-gray-400" : isOverdue ? "text-red-500/70" : "text-rhozly-primary/70"}`}
-                      />
-                      <span className="truncate">
-                        {plantName}{" "}
-                        {plantIdentifier && (
-                          <span className="opacity-50">
-                            ({plantIdentifier.split("#")[1]})
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              </div>
+                )}
 
-              {thumbnail && (
-                <img
-                  src={thumbnail}
-                  className={`w-14 h-14 rounded-[1rem] object-cover border border-rhozly-outline/10 hidden sm:block shrink-0 ml-4 ${isCompleted ? "grayscale opacity-50" : ""}`}
-                  alt="plant"
-                />
-              )}
-            </div>
-          );
-        })}
-      </div>
+                {isOverdue && !isBulkEditing ? (
+                  <div className="absolute -top-2 -right-2 z-10 text-[8px] font-black uppercase text-white bg-red-500 px-2 py-1 rounded-full shadow-md flex items-center gap-1">
+                    <AlertCircle size={8} /> Overdue
+                  </div>
+                ) : task.isAutoCompleted && !isBulkEditing ? (
+                  <div className="absolute -top-2 -right-2 z-10 text-[8px] font-black uppercase text-white bg-blue-500 px-2 py-1 rounded-full shadow-md flex items-center gap-1">
+                    <CloudRain size={8} /> Nature Watered
+                  </div>
+                ) : task.isGhost && !isCompleted && !isBulkEditing ? (
+                  <div className="absolute -top-2 -right-2 z-10 text-[8px] font-black uppercase text-white bg-rhozly-primary px-2 py-1 rounded-full shadow-md flex items-center gap-1">
+                    <Sparkles size={8} /> Auto
+                  </div>
+                ) : null}
+
+                <div className="flex items-center gap-4 w-full">
+                  {!isBulkEditing && (
+                    <button
+                      onClick={(e) => toggleTaskCompletion(task, e)}
+                      disabled={isUpdatingTask === task.id}
+                      className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center border-2 transition-all active:scale-90 
+                      ${isUpdatingTask === task.id ? "border-rhozly-primary/30" : isCompleted ? "bg-green-500 border-green-500 text-white" : isOverdue ? "border-red-300 hover:border-red-500 text-transparent hover:text-red-500/30" : "border-rhozly-outline/20 hover:border-rhozly-primary text-transparent hover:text-rhozly-primary/30"}`}
+                    >
+                      {isUpdatingTask === task.id ? (
+                        <Loader2
+                          size={18}
+                          className="animate-spin text-rhozly-primary"
+                        />
+                      ) : (
+                        <CheckSquare size={18} className="currentColor" />
+                      )}
+                    </button>
+                  )}
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-1.5">
+                      <span
+                        className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md flex items-center gap-1 ${isCompleted ? "bg-gray-200 text-gray-500" : isOverdue ? "text-red-700 bg-red-100" : "text-rhozly-primary bg-rhozly-primary/10"}`}
+                      >
+                        {getTaskIcon(task.type)} {task.type}
+                      </span>
+                      {(locationName || areaName) && (
+                        <span className="text-[10px] font-bold text-rhozly-on-surface/50 flex items-center gap-1 truncate max-w-full">
+                          <MapPin size={10} className="shrink-0" />
+                          <span className="truncate">
+                            {locationName}{" "}
+                            {areaName && (
+                              <>
+                                <span className="opacity-50 mx-0.5">•</span>
+                                {areaName}
+                              </>
+                            )}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                    <h4
+                      className={`font-black text-sm md:text-base leading-tight truncate ${isCompleted ? "line-through decoration-2 decoration-green-500/50 text-gray-500" : isOverdue ? "text-red-900" : "text-rhozly-on-surface"}`}
+                    >
+                      {task.title}
+                    </h4>
+                    {plantName && (
+                      <div
+                        className={`text-[11px] font-bold mt-1 flex items-center gap-1.5 truncate ${isCompleted ? "text-gray-400" : isOverdue ? "text-red-700/70" : "text-rhozly-on-surface/70"}`}
+                      >
+                        <Leaf
+                          size={12}
+                          className={`shrink-0 ${isCompleted ? "text-gray-400" : isOverdue ? "text-red-500/70" : "text-rhozly-primary/70"}`}
+                        />
+                        <span className="truncate">
+                          {plantName}{" "}
+                          {plantIdentifier && (
+                            <span className="opacity-50">
+                              ({plantIdentifier.split("#")[1]})
+                            </span>
+                          )}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {thumbnail && (
+                  <img
+                    src={thumbnail}
+                    className={`w-14 h-14 rounded-[1rem] object-cover border border-rhozly-outline/10 hidden sm:block shrink-0 ml-4 ${isCompleted ? "grayscale opacity-50" : ""}`}
+                    alt="plant"
+                  />
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {isBulkEditing && (
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-md px-4 z-[90] animate-in slide-in-from-bottom-8">
