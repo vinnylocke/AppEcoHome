@@ -7,113 +7,107 @@ import toast from "react-hot-toast";
 
 export const usePushNotifications = () => {
   useEffect(() => {
-    // 1. Only run native Push logic on iOS and Android
-    if (!Capacitor.isNativePlatform()) {
-      return;
-    }
+    if (!Capacitor.isNativePlatform()) return;
 
-    const registerDevice = async (userId: string) => {
-      try {
-        await PushNotifications.removeAllListeners();
+    // 1. ARM THE LISTENERS INSTANTLY (Zero wait time!)
+    const initializeListeners = async () => {
+      await PushNotifications.removeAllListeners();
 
-        // 2. Listen for the successful generation of the Push Token
-        await PushNotifications.addListener("registration", async (token) => {
-          Logger.log(`Push token received: ${token.value.substring(0, 20)}...`);
-          const platform = Capacitor.getPlatform();
+      // Listener A: Save token to Supabase when it arrives
+      await PushNotifications.addListener("registration", async (token) => {
+        // We check the session right here, AFTER the token arrives
+        const {
+          data: { session },
+        } = await supabase.auth.getSession();
+        if (!session?.user) return;
 
-          const { error } = await supabase.from("user_devices").upsert(
-            {
-              user_id: userId,
-              token: token.value,
-              platform: platform,
-              last_used_at: new Date().toISOString(),
-            },
-            { onConflict: "user_id,token" },
-          );
-
-          if (error) {
-            Logger.error("Failed to save push token to database", error);
-          }
-        });
-
-        await PushNotifications.addListener("registrationError", (error) => {
-          Logger.error("Error on push registration", error);
-        });
-
-        // 3. Handle a notification arriving while the app is actively open
-        await PushNotifications.addListener(
-          "pushNotificationReceived",
-          (notification) => {
-            toast.success(`🌿 ${notification.title}: ${notification.body}`, {
-              duration: 4000,
-              position: "top-center",
-            });
+        const platform = Capacitor.getPlatform();
+        await supabase.from("user_devices").upsert(
+          {
+            user_id: session.user.id,
+            token: token.value,
+            platform: platform,
+            last_used_at: new Date().toISOString(),
           },
+          { onConflict: "user_id,token" },
         );
+      });
 
-        // ✨ 4. THE NEW UPGRADE: Handle tapping and marking as read
-        await PushNotifications.addListener(
-          "pushNotificationActionPerformed",
-          async (notification) => {
-            const data = notification.notification.data;
-            Logger.log("User tapped notification", data);
+      // Listener B: Log errors
+      await PushNotifications.addListener("registrationError", (error) => {
+        Logger.error("Error on push registration", error);
+      });
 
-            // A. Mark as read in Supabase
-            if (data && data.notification_id) {
-              const { error } = await supabase
-                .from("notifications")
-                .update({ is_read: true })
-                .eq("id", data.notification_id);
+      // Listener C: App is actively open on screen
+      await PushNotifications.addListener(
+        "pushNotificationReceived",
+        (notification) => {
+          toast.success(`🌿 ${notification.title}: ${notification.body}`, {
+            duration: 4000,
+          });
+        },
+      );
 
-              if (error) {
-                Logger.error("Failed to mark notification as read", error);
-              } else {
-                Logger.log(
-                  `Notification ${data.notification_id} marked as read!`,
-                );
-              }
+      // Listener D: THE FIX! Catch the tap event instantly
+      await PushNotifications.addListener(
+        "pushNotificationActionPerformed",
+        async (action) => {
+          const data = action.notification.data;
+
+          // Visual Debugger
+          toast(`Payload received: ${JSON.stringify(data)}`, {
+            duration: 5000,
+          });
+
+          if (data && data.notification_id) {
+            const { error } = await supabase
+              .from("notifications")
+              .update({ is_read: true })
+              .eq("id", data.notification_id);
+
+            if (error) {
+              toast.error(`DB Error: ${error.message}`);
+            } else {
+              toast.success("Successfully marked as read!");
             }
+          } else {
+            toast.error("No ID found in payload.");
+          }
+        },
+      );
+    };
 
-            // B. Deep Linking (Example for later)
-            // if (data && data.route) {
-            //   window.location.href = data.route;
-            // }
-          },
-        );
+    // Fire immediately before React does anything else
+    initializeListeners();
 
-        // 5. Ask for permissions
-        let permStatus = await PushNotifications.checkPermissions();
-
-        if (permStatus.receive === "prompt") {
-          permStatus = await PushNotifications.requestPermissions();
-        }
-
-        if (permStatus.receive === "granted") {
-          await PushNotifications.register();
-        } else {
-          Logger.warn("User denied push notification permissions");
-        }
-      } catch (error) {
-        Logger.error("Failed to initialize push notifications", error);
+    // 2. NOW WE HANDLE AUTH & ASKING GOOGLE FOR TOKENS
+    const requestPushToken = async () => {
+      let permStatus = await PushNotifications.checkPermissions();
+      if (permStatus.receive === "prompt") {
+        permStatus = await PushNotifications.requestPermissions();
+      }
+      if (permStatus.receive === "granted") {
+        await PushNotifications.register(); // This triggers Listener A!
       }
     };
 
-    // 6. Watch Supabase for login events to trigger registration
+    // Watch for login
     const { data: authListener } = supabase.auth.onAuthStateChange(
       (event, session) => {
         if (event === "SIGNED_IN" && session?.user) {
-          registerDevice(session.user.id);
+          requestPushToken();
         }
       },
     );
 
-    // 7. Safety net if the user is already logged in on boot
+    // Check if already logged in on boot
     supabase.auth.getSession().then(({ data: { session } }) => {
       if (session?.user) {
-        registerDevice(session.user.id);
+        requestPushToken();
       }
     });
 
+    // Cleanup
     return () => {
       authListener.subscription.unsubscribe();
       PushNotifications.removeAllListeners();
