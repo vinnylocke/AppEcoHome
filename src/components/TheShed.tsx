@@ -13,6 +13,8 @@ import {
   Search,
   Sparkles,
   BrainCircuit,
+  Info,
+  ChevronUp,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -20,6 +22,9 @@ import ManualPlantCreation from "./ManualPlantCreation";
 import PlantEditModal from "./PlantEditModal";
 import PlantAssignmentModal from "./PlantAssignmentModal";
 import PlantSearchModal from "./PlantSearchModal";
+
+// Import Perenual Service
+import { PerenualService } from "../lib/perenualService";
 
 // Router Hooks
 import { useLocation, useSearchParams, useNavigate } from "react-router-dom";
@@ -44,7 +49,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
 
-  // 🚀 NEW: A ref to prevent infinite loops when routing
   const handledDeepLink = useRef("");
 
   const [plants, setPlants] = useState<Plant[]>([]);
@@ -72,6 +76,11 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const [isAiDrafting, setIsAiDrafting] = useState<string | null>(null);
   const [aiDraftedData, setAiDraftedData] = useState<any>(null);
 
+  const [expandedAiResult, setExpandedAiResult] = useState<string | null>(null);
+  const [aiPreviewCache, setAiPreviewCache] = useState<
+    Record<string, { loading: boolean; images?: string[]; desc?: string }>
+  >({});
+
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
   const [editingPlant, setEditingPlant] = useState<any | null>(null);
 
@@ -81,34 +90,144 @@ export default function TheShed({ homeId }: { homeId: string }) {
     plant: Plant | null;
   }>({ isOpen: false, type: "delete", plant: null });
 
-  // 🚀 UPDATED: Extracted to a useCallback so the deep link can safely trigger it!
+  // 🚀 THE UPDATED MULTI-API FETCHER
+  const handleExpandPlant = async (fullMatchString: string) => {
+    if (expandedAiResult === fullMatchString) {
+      setExpandedAiResult(null);
+      return;
+    }
+    setExpandedAiResult(fullMatchString);
+
+    if (aiPreviewCache[fullMatchString]) return;
+
+    setAiPreviewCache((prev) => ({
+      ...prev,
+      [fullMatchString]: { loading: true },
+    }));
+
+    const scientificMatch = fullMatchString.match(/\(([^)]+)\)/);
+    const scientificName = scientificMatch ? scientificMatch[1] : null;
+    const commonName = fullMatchString.split("(")[0].trim();
+
+    const primarySearchTerm = scientificName || commonName;
+
+    let fetchedImages: string[] = [];
+    let description = "";
+    let canonicalWikiTitle = primarySearchTerm;
+
+    try {
+      const perenualResults = await PerenualService.searchPlants(commonName);
+      if (perenualResults && perenualResults.length > 0) {
+        const pImg =
+          perenualResults[0].default_image?.thumbnail ||
+          perenualResults[0].default_image?.original_url;
+        if (pImg && !pImg.includes("upgrade_access")) {
+          fetchedImages.push(pImg);
+        }
+      }
+    } catch (e) {
+      console.warn("Perenual image fetch failed");
+    }
+
+    try {
+      const wikiRes = await fetch(
+        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(primarySearchTerm)}`,
+      );
+
+      let data;
+      if (wikiRes.ok) {
+        data = await wikiRes.json();
+      } else if (scientificName) {
+        const fallbackRes = await fetch(
+          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(commonName)}`,
+        );
+        if (fallbackRes.ok) data = await fallbackRes.json();
+      }
+
+      if (data) {
+        description = data.extract;
+        canonicalWikiTitle = data.title;
+        const wImg = data.thumbnail?.source || data.originalimage?.source;
+        if (wImg && !fetchedImages.includes(wImg)) fetchedImages.push(wImg);
+      }
+    } catch (e) {
+      console.warn("Wikipedia summary fetch failed");
+    }
+
+    try {
+      const mediaRes = await fetch(
+        `https://en.wikipedia.org/api/rest_v1/page/media-list/${encodeURIComponent(canonicalWikiTitle)}`,
+      );
+      if (mediaRes.ok) {
+        const mediaData = await mediaRes.json();
+        if (mediaData.items) {
+          const extraImages = mediaData.items
+            .filter((item: any) => item.type === "image")
+            .map((item: any) => item.srcset?.[0]?.src)
+            .filter((src: string) => src)
+            .map((src: string) =>
+              src.startsWith("http") ? src : `https:${src}`,
+            );
+
+          for (const img of extraImages) {
+            if (fetchedImages.length >= 4) break;
+            if (!fetchedImages.includes(img)) fetchedImages.push(img);
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Wikimedia media fetch failed");
+    }
+
+    setAiPreviewCache((prev) => ({
+      ...prev,
+      [fullMatchString]: {
+        loading: false,
+        images: fetchedImages,
+        desc: description || "No detailed description available.",
+      },
+    }));
+  };
+
   const handleAiDrafting = useCallback(async (plantName: string) => {
     setIsAiGenerating(true);
     setIsAiDrafting(plantName);
+
+    // 🚀 CLEAN name for the API call (remove scientific name in brackets)
+    const cleanName = plantName.split("(")[0].trim();
+
     try {
       const { data, error } = await supabase.functions.invoke("plant-doctor", {
-        body: { action: "generate_care_guide", targetPlant: plantName },
+        body: { action: "generate_care_guide", targetPlant: cleanName },
       });
       if (error) throw error;
-      if (data?.error) throw new Error(data.error);
+      if (!data) throw new Error("No data received");
 
-      setAiDraftedData(data.plantData);
+      // 🚀 SMART EXTRACTOR: Correctly picks up flat or nested plantData
+      const extractedPlant = data.plantData ? data.plantData : data;
+
+      // Safety check: if common_name is missing, use our cleanName as a fallback
+      if (!extractedPlant.common_name) {
+        extractedPlant.common_name = cleanName;
+      }
+
+      setAiDraftedData(extractedPlant);
       setIsAiGenerating(false);
       setAiSearchResults([]);
       setAiSearchQuery("");
+      setExpandedAiResult(null);
       setIsAddingManual(true);
     } catch (error: any) {
-      // Graceful fallback if the AI fails
       toast.error("Failed to auto-fill plant data. Opening blank form.");
-      setAiDraftedData({ common_name: plantName });
+      setAiDraftedData({ common_name: cleanName });
       setIsAiGenerating(false);
+      setAiSearchResults([]);
       setIsAddingManual(true);
     } finally {
       setIsAiDrafting(null);
     }
   }, []);
 
-  // 🚀 UPDATED: Deep Link Listener now triggers the AI Drafting process!
   useEffect(() => {
     const currentUrl = location.pathname + location.search;
     if (handledDeepLink.current === currentUrl) return;
@@ -122,7 +241,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
       handledDeepLink.current = currentUrl;
       const preset = searchParams.get("preset_name") || "";
       if (preset) {
-        // Trigger the Edge Function to get the care guide!
         handleAiDrafting(preset);
       } else {
         setIsAddingManual(true);
@@ -135,7 +253,9 @@ export default function TheShed({ homeId }: { homeId: string }) {
     setIsSearchingApi(false);
     setAiDraftedData(null);
     setInitialApiSearchTerm("");
-    handledDeepLink.current = ""; // Reset the lock
+    handledDeepLink.current = "";
+    setAiPreviewCache({});
+    setExpandedAiResult(null);
     navigate("/shed", { replace: true });
   };
 
@@ -425,7 +545,11 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const handleAiSearch = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!aiSearchQuery.trim()) return;
+
+    setAiPreviewCache({});
+    setExpandedAiResult(null);
     setIsAiSearching(true);
+
     try {
       const { data, error } = await supabase.functions.invoke("plant-doctor", {
         body: { action: "search_plants_text", plantSearch: aiSearchQuery },
@@ -663,7 +787,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
 
       {isAiGenerating && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in zoom-in-95">
-          <div className="bg-rhozly-surface-lowest w-full max-w-lg rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 flex flex-col max-h-[85vh]">
+          <div className="bg-rhozly-surface-lowest w-full max-w-xl rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 flex flex-col max-h-[85vh]">
             <div className="flex justify-between items-start mb-8">
               <div className="flex items-center gap-3">
                 <div className="bg-amber-500/10 p-3 rounded-2xl text-amber-600">
@@ -683,6 +807,8 @@ export default function TheShed({ homeId }: { homeId: string }) {
                   setIsAiGenerating(false);
                   setAiSearchResults([]);
                   setAiSearchQuery("");
+                  setAiPreviewCache({});
+                  setExpandedAiResult(null);
                 }}
                 className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
               >
@@ -723,30 +849,94 @@ export default function TheShed({ homeId }: { homeId: string }) {
                 </div>
               ) : aiSearchResults.length > 0 ? (
                 aiSearchResults.map((match, i) => (
-                  <button
+                  <div
                     key={i}
-                    onClick={() => handleAiDrafting(match)}
-                    disabled={!!isAiDrafting}
-                    className="w-full text-left p-5 bg-white border border-rhozly-outline/10 rounded-2xl hover:border-amber-500/40 hover:bg-amber-50 transition-colors flex justify-between items-center group disabled:opacity-50 disabled:cursor-wait"
+                    className="w-full bg-white border border-rhozly-outline/10 rounded-2xl transition-all overflow-hidden flex flex-col hover:border-amber-500/40 shadow-sm"
                   >
-                    <span className="font-bold text-rhozly-on-surface">
-                      {match}
-                    </span>
-                    {isAiDrafting === match ? (
-                      <Loader2
-                        size={18}
-                        className="animate-spin text-amber-500"
-                      />
-                    ) : (
-                      <Sparkles
-                        size={18}
-                        className="text-amber-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                      />
+                    <div className="flex items-center justify-between p-3">
+                      <div className="flex items-center gap-2 flex-1">
+                        <button
+                          onClick={() => handleExpandPlant(match)}
+                          className="p-2 hover:bg-amber-100 rounded-xl text-amber-600 transition-colors"
+                        >
+                          {expandedAiResult === match ? (
+                            <ChevronUp size={18} />
+                          ) : (
+                            <Info size={18} />
+                          )}
+                        </button>
+                        <span className="font-bold text-rhozly-on-surface">
+                          {match}
+                        </span>
+                      </div>
+                      <button
+                        onClick={() => handleAiDrafting(match)}
+                        disabled={!!isAiDrafting}
+                        className="px-4 py-2 bg-amber-500 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 disabled:opacity-50"
+                      >
+                        {isAiDrafting === match ? (
+                          <Loader2 size={14} className="animate-spin" />
+                        ) : (
+                          <Sparkles size={14} />
+                        )}
+                        Auto-Draft
+                      </button>
+                    </div>
+
+                    {expandedAiResult === match && (
+                      <div className="p-4 bg-amber-50/50 border-t border-rhozly-outline/5 text-sm flex flex-col gap-4 animate-in slide-in-from-top-2">
+                        {aiPreviewCache[match]?.loading ? (
+                          <div className="flex items-center gap-2 text-amber-600/60 w-full justify-center py-4">
+                            <Loader2 size={16} className="animate-spin" />{" "}
+                            Fetching preview data...
+                          </div>
+                        ) : (
+                          <>
+                            <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2">
+                              {aiPreviewCache[match]?.images &&
+                              aiPreviewCache[match]!.images!.length > 0 ? (
+                                aiPreviewCache[match]?.images?.map(
+                                  (img, idx) => (
+                                    <div
+                                      key={idx}
+                                      className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl overflow-hidden shrink-0 bg-white border border-rhozly-outline/10 shadow-sm"
+                                    >
+                                      <img
+                                        src={img}
+                                        alt={`${match} ${idx + 1}`}
+                                        className="w-full h-full object-cover"
+                                      />
+                                    </div>
+                                  ),
+                                )
+                              ) : (
+                                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl bg-white border border-rhozly-outline/10 flex flex-col items-center justify-center shrink-0 text-rhozly-on-surface/20">
+                                  <Database size={24} className="mb-1" />
+                                  <span className="text-[9px] font-bold uppercase tracking-widest">
+                                    No Image
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+
+                            <div className="flex-1 flex flex-col">
+                              <p className="text-sm font-semibold text-rhozly-on-surface/80 leading-relaxed whitespace-pre-wrap">
+                                {aiPreviewCache[match]?.desc}
+                              </p>
+                              {aiPreviewCache[match]?.desc && (
+                                <span className="text-[9px] uppercase tracking-widest text-rhozly-on-surface/40 mt-4 border-t border-rhozly-outline/10 pt-2 inline-block">
+                                  Data securely sourced via Wikipedia & Perenual
+                                  API
+                                </span>
+                              )}
+                            </div>
+                          </>
+                        )}
+                      </div>
                     )}
-                  </button>
+                  </div>
                 ))
-              ) : // 🚀 UPDATED: Better loading state if triggered via deep link!
-              isAiDrafting ? (
+              ) : isAiDrafting ? (
                 <div className="py-12 flex flex-col items-center justify-center opacity-80">
                   <Loader2
                     className="animate-spin text-amber-500 mb-4"
@@ -831,7 +1021,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
               <div>
                 <h3 className="text-3xl font-black">
                   {aiDraftedData
-                    ? `Review ${aiDraftedData.common_name}`
+                    ? aiDraftedData.common_name // 🚀 Removed "Review"
                     : "Add to Shed"}
                 </h3>
                 <p className="text-xs font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
