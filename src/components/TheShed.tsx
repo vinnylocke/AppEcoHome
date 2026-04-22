@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabase";
 import {
   Plus,
@@ -12,16 +13,18 @@ import {
   Edit3,
   Search,
   Sparkles,
-  BrainCircuit,
-  Info,
-  ChevronUp,
+  ListPlus,
+  CheckSquare2,
+  Clock,
+  AlertCircle,
+  ChevronDown,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantEditModal from "./PlantEditModal";
 import PlantAssignmentModal from "./PlantAssignmentModal";
-import PlantSearchModal from "./PlantSearchModal";
+import BulkSearchModal from "./BulkSearchModal";
 
 // Import Perenual Service
 import { PerenualService } from "../lib/perenualService";
@@ -42,13 +45,20 @@ interface Plant {
   instance_count?: number;
 }
 
+type QueueItem = {
+  id: string;
+  name: string;
+  source: "api" | "ai";
+  status: "pending" | "processing" | "success" | "error";
+  data: any;
+  errorMsg?: string;
+};
+
 export default function TheShed({ homeId }: { homeId: string }) {
   const { setPageContext } = usePlantDoctor();
-
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-
   const handledDeepLink = useRef("");
 
   const [plants, setPlants] = useState<Plant[]>([]);
@@ -65,21 +75,12 @@ export default function TheShed({ homeId }: { homeId: string }) {
 
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isAddingManual, setIsAddingManual] = useState(false);
-  const [isSearchingApi, setIsSearchingApi] = useState(false);
 
-  const [initialApiSearchTerm, setInitialApiSearchTerm] = useState("");
-
-  const [isAiGenerating, setIsAiGenerating] = useState(false);
-  const [aiSearchQuery, setAiSearchQuery] = useState("");
-  const [aiSearchResults, setAiSearchResults] = useState<string[]>([]);
-  const [isAiSearching, setIsAiSearching] = useState(false);
-  const [isAiDrafting, setIsAiDrafting] = useState<string | null>(null);
-  const [aiDraftedData, setAiDraftedData] = useState<any>(null);
-
-  const [expandedAiResult, setExpandedAiResult] = useState<string | null>(null);
-  const [aiPreviewCache, setAiPreviewCache] = useState<
-    Record<string, { loading: boolean; images?: string[]; desc?: string }>
-  >({});
+  // 🚀 BULK SEARCH & QUEUE STATES
+  const [showBulkSearch, setShowBulkSearch] = useState(false);
+  const [initialSearchTerm, setInitialSearchTerm] = useState("");
+  const [bulkQueue, setBulkQueue] = useState<QueueItem[]>([]);
+  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
   const [editingPlant, setEditingPlant] = useState<any | null>(null);
@@ -90,144 +91,200 @@ export default function TheShed({ homeId }: { homeId: string }) {
     plant: Plant | null;
   }>({ isOpen: false, type: "delete", plant: null });
 
-  // 🚀 THE UPDATED MULTI-API FETCHER
-  const handleExpandPlant = async (fullMatchString: string) => {
-    if (expandedAiResult === fullMatchString) {
-      setExpandedAiResult(null);
-      return;
-    }
-    setExpandedAiResult(fullMatchString);
-
-    if (aiPreviewCache[fullMatchString]) return;
-
-    setAiPreviewCache((prev) => ({
-      ...prev,
-      [fullMatchString]: { loading: true },
-    }));
-
-    const scientificMatch = fullMatchString.match(/\(([^)]+)\)/);
-    const scientificName = scientificMatch ? scientificMatch[1] : null;
-    const commonName = fullMatchString.split("(")[0].trim();
-
-    const primarySearchTerm = scientificName || commonName;
-
-    let fetchedImages: string[] = [];
-    let description = "";
-    let canonicalWikiTitle = primarySearchTerm;
-
-    try {
-      const perenualResults = await PerenualService.searchPlants(commonName);
-      if (perenualResults && perenualResults.length > 0) {
-        const pImg =
-          perenualResults[0].default_image?.thumbnail ||
-          perenualResults[0].default_image?.original_url;
-        if (pImg && !pImg.includes("upgrade_access")) {
-          fetchedImages.push(pImg);
-        }
-      }
-    } catch (e) {
-      console.warn("Perenual image fetch failed");
-    }
-
-    try {
-      const wikiRes = await fetch(
-        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(primarySearchTerm)}`,
-      );
-
-      let data;
-      if (wikiRes.ok) {
-        data = await wikiRes.json();
-      } else if (scientificName) {
-        const fallbackRes = await fetch(
-          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(commonName)}`,
-        );
-        if (fallbackRes.ok) data = await fallbackRes.json();
-      }
-
-      if (data) {
-        description = data.extract;
-        canonicalWikiTitle = data.title;
-        const wImg = data.thumbnail?.source || data.originalimage?.source;
-        if (wImg && !fetchedImages.includes(wImg)) fetchedImages.push(wImg);
-      }
-    } catch (e) {
-      console.warn("Wikipedia summary fetch failed");
-    }
-
-    try {
-      const mediaRes = await fetch(
-        `https://en.wikipedia.org/api/rest_v1/page/media-list/${encodeURIComponent(canonicalWikiTitle)}`,
-      );
-      if (mediaRes.ok) {
-        const mediaData = await mediaRes.json();
-        if (mediaData.items) {
-          const extraImages = mediaData.items
-            .filter((item: any) => item.type === "image")
-            .map((item: any) => item.srcset?.[0]?.src)
-            .filter((src: string) => src)
-            .map((src: string) =>
-              src.startsWith("http") ? src : `https:${src}`,
-            );
-
-          for (const img of extraImages) {
-            if (fetchedImages.length >= 4) break;
-            if (!fetchedImages.includes(img)) fetchedImages.push(img);
-          }
-        }
-      }
-    } catch (e) {
-      console.warn("Wikimedia media fetch failed");
-    }
-
-    setAiPreviewCache((prev) => ({
-      ...prev,
-      [fullMatchString]: {
-        loading: false,
-        images: fetchedImages,
-        desc: description || "No detailed description available.",
+  // --- LIVE AI SYNC ---
+  useEffect(() => {
+    setPageContext({
+      action: isBulkProcessing
+        ? "Processing Plant Imports"
+        : "Browsing Master Plant Library",
+      shedContext: {
+        viewMode: viewTab,
+        activeSearch: searchQuery || "None",
+        totalLibraryCount: plants.length,
+        visibleCount: plants.filter(
+          (p) => p.is_archived === (viewTab === "archived"),
+        ).length,
       },
-    }));
+    });
+    return () => setPageContext(null);
+  }, [
+    viewTab,
+    filterSource,
+    searchQuery,
+    plants,
+    isBulkProcessing,
+    setPageContext,
+  ]);
+
+  // --- BULK IMPORT ENGINE ---
+  const savePlantToDB = async (skeleton: any, harvestSeason?: any) => {
+    const manualId =
+      Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
+    skeleton.id = manualId;
+    skeleton.home_id = homeId;
+
+    const { data: savedPlant, error } = await supabase
+      .from("plants")
+      .insert([skeleton])
+      .select()
+      .single();
+    if (error) throw error;
+
+    if (harvestSeason && harvestSeason.length > 0) {
+      const seasonName = Array.isArray(harvestSeason)
+        ? harvestSeason[0]
+        : harvestSeason;
+      await supabase.from("plant_schedules").insert([
+        {
+          home_id: homeId,
+          plant_id: savedPlant.id,
+          title: `${seasonName} Harvest Season`,
+          description: `Auto-generated Schedule`,
+          task_type: "Harvesting",
+          trigger_event: "Planted",
+          start_reference: `Seasonal: 09-01`,
+          end_reference: `Seasonal: 11-30`,
+          start_offset_days: 0,
+          end_offset_days: 0,
+          frequency_days: 1,
+          is_recurring: true,
+        },
+      ]);
+    }
+    return savedPlant;
   };
 
-  const handleAiDrafting = useCallback(async (plantName: string) => {
-    setIsAiGenerating(true);
-    setIsAiDrafting(plantName);
+  const handleProceedToBulkAdd = async (selectedItems: any[]) => {
+    setShowBulkSearch(false);
+    if (!selectedItems.length) return;
 
-    // 🚀 CLEAN name for the API call (remove scientific name in brackets)
-    const cleanName = plantName.split("(")[0].trim();
+    const newQueue: QueueItem[] = selectedItems.map((item, idx) => {
+      const isApi = item.type === "api";
+      const realData = item.data;
 
-    try {
-      const { data, error } = await supabase.functions.invoke("plant-doctor", {
-        body: { action: "generate_care_guide", targetPlant: cleanName },
-      });
-      if (error) throw error;
-      if (!data) throw new Error("No data received");
+      return {
+        id: isApi ? String(realData.id) : realData,
+        name: isApi ? realData.common_name : realData,
+        source: item.type,
+        status: "pending",
+        data: realData,
+      };
+    });
 
-      // 🚀 SMART EXTRACTOR: Correctly picks up flat or nested plantData
-      const extractedPlant = data.plantData ? data.plantData : data;
+    setBulkQueue(newQueue);
+    setIsBulkProcessing(true);
 
-      // Safety check: if common_name is missing, use our cleanName as a fallback
-      if (!extractedPlant.common_name) {
-        extractedPlant.common_name = cleanName;
+    for (let i = 0; i < newQueue.length; i++) {
+      const item = newQueue[i];
+
+      setBulkQueue((prev) =>
+        prev.map((q) =>
+          q.id === item.id ? { ...q, status: "processing" } : q,
+        ),
+      );
+
+      try {
+        if (item.source === "api") {
+          const pId = String(item.data.id);
+
+          const { data: existing } = await supabase
+            .from("plants")
+            .select("id")
+            .eq("home_id", homeId)
+            .eq("perenual_id", pId)
+            .maybeSingle();
+          if (existing) throw new Error("Already in Shed");
+
+          const details = await PerenualService.getPlantDetails(item.data.id);
+
+          let imageUrl =
+            details.image_url ||
+            details.thumbnail_url ||
+            item.data.default_image?.original_url ||
+            item.data.default_image?.regular_url ||
+            item.data.default_image?.thumbnail ||
+            "";
+          if (imageUrl.includes("upgrade_access")) imageUrl = "";
+
+          if (imageUrl) {
+            const { data: proxyData, error: proxyError } =
+              await supabase.functions.invoke("image-proxy", {
+                body: { imageUrl, plantName: details.common_name },
+              });
+            if (!proxyError && proxyData?.publicUrl) {
+              imageUrl = proxyData.publicUrl.includes("kong:8000")
+                ? proxyData.publicUrl.replace(
+                    "http://kong:8000",
+                    "http://127.0.0.1:54321",
+                  )
+                : proxyData.publicUrl;
+            }
+          }
+
+          await savePlantToDB(
+            {
+              common_name: details.common_name,
+              scientific_name: details.scientific_name,
+              thumbnail_url: imageUrl,
+              source: "api",
+              perenual_id: pId,
+            },
+            details.harvest_season,
+          );
+        } else {
+          const cleanName = item.data.split("(")[0].trim();
+
+          const { data: aiData, error } = await supabase.functions.invoke(
+            "plant-doctor",
+            {
+              body: { action: "generate_care_guide", targetPlant: cleanName },
+            },
+          );
+          if (error) throw error;
+          if (!aiData) throw new Error("AI failed to generate data");
+
+          const extracted = aiData.plantData ? aiData.plantData : aiData;
+          if (!extracted.common_name) extracted.common_name = cleanName;
+
+          let imageUrl = extracted.thumbnail_url || "";
+          if (imageUrl.includes("kong:8000")) {
+            imageUrl = imageUrl.replace(
+              "http://kong:8000",
+              "http://127.0.0.1:54321",
+            );
+          }
+          extracted.thumbnail_url = imageUrl;
+
+          await savePlantToDB(
+            {
+              ...extracted,
+              source: "manual",
+              perenual_id: null,
+            },
+            extracted.harvest_season,
+          );
+        }
+
+        setBulkQueue((prev) =>
+          prev.map((q) => (q.id === item.id ? { ...q, status: "success" } : q)),
+        );
+      } catch (err: any) {
+        console.error(`Failed to process ${item.name}:`, err);
+        setBulkQueue((prev) =>
+          prev.map((q) =>
+            q.id === item.id
+              ? { ...q, status: "error", errorMsg: err.message || "Failed" }
+              : q,
+          ),
+        );
       }
-
-      setAiDraftedData(extractedPlant);
-      setIsAiGenerating(false);
-      setAiSearchResults([]);
-      setAiSearchQuery("");
-      setExpandedAiResult(null);
-      setIsAddingManual(true);
-    } catch (error: any) {
-      toast.error("Failed to auto-fill plant data. Opening blank form.");
-      setAiDraftedData({ common_name: cleanName });
-      setIsAiGenerating(false);
-      setAiSearchResults([]);
-      setIsAddingManual(true);
-    } finally {
-      setIsAiDrafting(null);
     }
-  }, []);
 
+    setIsBulkProcessing(false);
+    fetchData();
+  };
+
+  // --- DEEP LINKING ---
   useEffect(() => {
     const currentUrl = location.pathname + location.search;
     if (handledDeepLink.current === currentUrl) return;
@@ -235,65 +292,23 @@ export default function TheShed({ homeId }: { homeId: string }) {
     if (location.pathname.includes("/shed/add/search")) {
       handledDeepLink.current = currentUrl;
       const query = searchParams.get("query") || "";
-      setInitialApiSearchTerm(query);
-      setIsSearchingApi(true);
+      setInitialSearchTerm(query);
+      setShowBulkSearch(true);
     } else if (location.pathname.includes("/shed/add/manual")) {
       handledDeepLink.current = currentUrl;
-      const preset = searchParams.get("preset_name") || "";
-      if (preset) {
-        handleAiDrafting(preset);
-      } else {
-        setIsAddingManual(true);
-      }
+      setIsAddingManual(true);
     }
-  }, [location.pathname, location.search, searchParams, handleAiDrafting]);
+  }, [location.pathname, location.search, searchParams]);
 
   const handleCloseModals = () => {
     setIsAddingManual(false);
-    setIsSearchingApi(false);
-    setAiDraftedData(null);
-    setInitialApiSearchTerm("");
+    setShowBulkSearch(false);
+    setInitialSearchTerm("");
     handledDeepLink.current = "";
-    setAiPreviewCache({});
-    setExpandedAiResult(null);
     navigate("/shed", { replace: true });
   };
 
-  useEffect(() => {
-    setPageContext({
-      action: isAiGenerating
-        ? "Using AI Plant Drafter"
-        : "Browsing Master Plant Library",
-      shedContext: {
-        viewMode: viewTab,
-        activeSearch: searchQuery || "None",
-        sourceFilter: filterSource,
-        totalLibraryCount: plants.length,
-        visibleCount: plants.filter(
-          (p) => p.is_archived === (viewTab === "archived"),
-        ).length,
-        sampleSpecies: plants.slice(0, 10).map((p) => p.common_name),
-      },
-      currentInteractions: {
-        isEditingPlant: !!editingPlant,
-        isAssigningPlant: !!selectedPlant,
-        aiSearchActive: isAiSearching,
-      },
-    });
-
-    return () => setPageContext(null);
-  }, [
-    viewTab,
-    filterSource,
-    searchQuery,
-    plants,
-    editingPlant,
-    selectedPlant,
-    isAiGenerating,
-    isAiSearching,
-    setPageContext,
-  ]);
-
+  // --- DATA FETCHING ---
   const fetchUserProfile = async () => {
     try {
       const {
@@ -321,9 +336,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
         .select(`*, inventory_items(id)`)
         .eq("home_id", homeId)
         .order("created_at", { ascending: false });
-
       if (shedError) throw shedError;
-
       setPlants(
         (shedData || []).map((p) => ({
           ...p,
@@ -335,11 +348,9 @@ export default function TheShed({ homeId }: { homeId: string }) {
         .from("locations")
         .select(`id, name, areas ( * )`)
         .eq("home_id", homeId);
-
       if (locError) throw locError;
       if (locData) setLocations(locData);
     } catch (err: any) {
-      Logger.error("Shed data fetch failed", err);
       toast.error("Failed to load Shed");
     } finally {
       setLoading(false);
@@ -351,6 +362,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
     fetchData();
   }, [fetchData]);
 
+  // --- CRUD OPERATIONS ---
   const executeArchiveToggle = async () => {
     const plant = confirmState.plant;
     if (!plant) return;
@@ -396,22 +408,15 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const handleManualSave = async (plantData: any) => {
     setActionLoading(true);
     try {
-      const manualId = Math.floor(Date.now() / 1000);
-      const { error } = await supabase.from("plants").insert([
-        {
-          ...plantData,
-          id: manualId,
-          home_id: homeId,
-          source: "manual",
-          perenual_id: null,
-        },
-      ]);
-      if (error) throw error;
+      await savePlantToDB({
+        ...plantData,
+        source: "manual",
+        perenual_id: null,
+      });
       toast.success(`${plantData.common_name} added to shed!`);
       handleCloseModals();
       fetchData();
     } catch (err: any) {
-      Logger.error("Failed to add manual plant", err);
       toast.error(`Failed to save: ${err.message}`);
     } finally {
       setActionLoading(false);
@@ -431,7 +436,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
       setEditingPlant(updatedData);
       fetchData();
     } catch (err: any) {
-      Logger.error("Failed to update plant", err);
       toast.error(`Update failed: ${err.message}`);
     } finally {
       setActionLoading(false);
@@ -447,11 +451,8 @@ export default function TheShed({ homeId }: { homeId: string }) {
         .select("name, location_id, locations(name)")
         .eq("id", assignmentData.areaId)
         .single();
-
       if (areaError) throw areaError;
-      if (!areaData) throw new Error("Area not found");
 
-      const locationName = areaData.locations?.name || "Unknown Location";
       const recordsToInsert = Array.from({
         length: assignmentData.quantity,
       }).map(() => ({
@@ -460,7 +461,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
         plant_name: selectedPlant.common_name,
         status: assignmentData.status,
         location_id: areaData.location_id,
-        location_name: locationName,
+        location_name: areaData.locations?.name || "Unknown Location",
         area_id: assignmentData.areaId,
         area_name: areaData.name,
         planted_at:
@@ -482,7 +483,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
         .from("inventory_items")
         .insert(recordsToInsert)
         .select();
-
       if (insertError) throw insertError;
 
       if (
@@ -491,15 +491,12 @@ export default function TheShed({ homeId }: { homeId: string }) {
         insertedItems
       ) {
         const tasksToInsert: any[] = [];
-
         insertedItems.forEach((item: any) => {
           assignmentData.smartSchedules.forEach((schedule: any) => {
             schedule.phases.forEach((phase: any) => {
               const formattedSteps = phase.steps
                 .map((s: string, i: number) => `${i + 1}. ${s}`)
                 .join("\n");
-              const taskNotes = `Method: ${schedule.method}\nPhase: ${phase.phase_name}\n\nInstructions:\n${formattedSteps}\n\nReasoning:\n${schedule.reasoning}`;
-
               tasksToInsert.push({
                 home_id: homeId,
                 location_id: areaData.location_id,
@@ -507,59 +504,22 @@ export default function TheShed({ homeId }: { homeId: string }) {
                 inventory_item_id: item.id,
                 type: "Planting",
                 title: `${phase.phase_name} (${selectedPlant.common_name})`,
-                description: taskNotes,
+                description: `Method: ${schedule.method}\nPhase: ${phase.phase_name}\n\nInstructions:\n${formattedSteps}\n\nReasoning:\n${schedule.reasoning}`,
                 due_date: phase.recommended_date,
                 status: "Pending",
               });
             });
           });
         });
-
-        const { error: taskError } = await supabase
-          .from("tasks")
-          .insert(tasksToInsert);
-
-        if (taskError) {
-          Logger.error("Failed to schedule tasks", taskError);
-          toast.error("Plants assigned, but scheduling failed.");
-        } else {
-          toast.success(
-            `Assigned and scheduled ${tasksToInsert.length} distinct planting tasks!`,
-          );
-        }
-      } else {
-        toast.success(
-          `Successfully assigned ${assignmentData.quantity} plants!`,
-        );
+        await supabase.from("tasks").insert(tasksToInsert);
       }
-
+      toast.success(`Successfully assigned ${assignmentData.quantity} plants!`);
       fetchData();
       setSelectedPlant(null);
     } catch (err: any) {
       toast.error(`Assignment failed: ${err.message}`);
     } finally {
       setActionLoading(false);
-    }
-  };
-
-  const handleAiSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!aiSearchQuery.trim()) return;
-
-    setAiPreviewCache({});
-    setExpandedAiResult(null);
-    setIsAiSearching(true);
-
-    try {
-      const { data, error } = await supabase.functions.invoke("plant-doctor", {
-        body: { action: "search_plants_text", plantSearch: aiSearchQuery },
-      });
-      if (error) throw error;
-      setAiSearchResults(data.matches || []);
-    } catch (err: any) {
-      toast.error("Failed to search. Try again.");
-    } finally {
-      setIsAiSearching(false);
     }
   };
 
@@ -586,488 +546,407 @@ export default function TheShed({ homeId }: { homeId: string }) {
     );
 
   return (
-    <div className="max-w-7xl mx-auto h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-700">
-      <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-10">
-        <div>
-          <h2 className="text-4xl font-black font-display text-rhozly-on-surface">
-            The Shed
-          </h2>
-          <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-            Your Master Plant Library
-          </p>
-        </div>
+    <>
+      {/* ================= MAIN SHED UI ================= */}
+      <div className="max-w-7xl mx-auto h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-700 relative">
+        {/* HEADER & CONTROLS */}
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-10">
+          <div>
+            <div className="flex items-center gap-4">
+              <h2 className="text-4xl font-black font-display text-rhozly-on-surface">
+                The Shed
+              </h2>
 
-        <div className="flex flex-col md:flex-row flex-wrap items-stretch md:items-center gap-4">
-          <div className="relative flex-1 md:flex-none flex items-center min-w-[200px]">
-            <Search
-              className="absolute left-4 text-rhozly-on-surface/40"
-              size={16}
-            />
-            <input
-              type="text"
-              placeholder="Search plants..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-10 py-3 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-2xl text-sm font-bold outline-none focus:border-rhozly-primary transition-all"
-            />
-            {searchQuery && (
-              <button
-                onClick={() => setSearchQuery("")}
-                className="absolute right-4 text-rhozly-on-surface/40 hover:text-rhozly-on-surface transition-colors"
-              >
-                <X size={16} />
-              </button>
-            )}
-          </div>
+              {/* 🚀 RELOCATED ADD BUTTON (Inline with Title) */}
+              <div className="relative">
+                <button
+                  onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-sm border ${
+                    isAddMenuOpen
+                      ? "bg-white text-rhozly-primary border-rhozly-primary rotate-45"
+                      : "bg-rhozly-primary text-white border-transparent hover:scale-110 active:scale-95"
+                  }`}
+                >
+                  <Plus size={20} strokeWidth={3} />
+                </button>
 
-          <div className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10">
-            {["active", "archived"].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setViewTab(tab as any)}
-                className={`flex-1 md:flex-none px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === tab ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-              >
-                {tab.charAt(0).toUpperCase() + tab.slice(1)}
-              </button>
-            ))}
-          </div>
-
-          <select
-            value={filterSource}
-            onChange={(e) => setFilterSource(e.target.value as any)}
-            className="bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl px-4 py-3 text-sm font-bold outline-none cursor-pointer"
-          >
-            <option value="all">All Sources</option>
-            <option value="manual">Manual</option>
-            <option value="api">API</option>
-          </select>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-32">
-        {filteredPlants.length === 0 ? (
-          <div className="col-span-full h-40 flex flex-col items-center justify-center text-rhozly-on-surface/40">
-            <Search size={40} className="mb-4 opacity-50" />
-            <p className="font-black">No plants found</p>
-            {searchQuery && (
-              <p className="text-sm font-bold mt-1">
-                Try a different search term.
-              </p>
-            )}
-          </div>
-        ) : (
-          filteredPlants.map((plant) => (
-            <div
-              key={plant.id}
-              onClick={() => setEditingPlant(plant)}
-              className="bg-rhozly-surface-lowest rounded-[2.5rem] overflow-hidden border border-rhozly-outline/20 shadow-sm group flex flex-col cursor-pointer hover:border-rhozly-primary/30 transition-all"
-            >
-              <div className="h-44 relative overflow-hidden bg-rhozly-primary/5">
-                <img
-                  src={
-                    plant.thumbnail_url ||
-                    "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?auto=format&fit=crop&w=400"
-                  }
-                  alt={plant.common_name}
-                  className="w-full h-full object-cover"
-                />
-                <div className="absolute top-4 left-4">
-                  <span className="bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase text-rhozly-primary flex items-center gap-1.5 shadow-sm border border-white/20">
-                    <Database size={10} /> {plant.source}
-                  </span>
-                </div>
-                <div className="absolute top-4 right-4 flex gap-2">
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setConfirmState({
-                        isOpen: true,
-                        type: plant.is_archived ? "unarchive" : "archive",
-                        plant,
-                      });
-                    }}
-                    className="w-9 h-9 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-orange-600 flex items-center justify-center shadow-md transition-all active:scale-90"
-                  >
-                    {plant.is_archived ? (
-                      <ArchiveRestore size={16} />
-                    ) : (
-                      <Archive size={16} />
-                    )}
-                  </button>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setConfirmState({ isOpen: true, type: "delete", plant });
-                    }}
-                    className="w-9 h-9 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-red-600 flex items-center justify-center shadow-md transition-all active:scale-90"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              </div>
-              <div className="p-6">
-                <h3 className="text-xl font-black text-rhozly-on-surface leading-tight mb-1">
-                  {plant.common_name}
-                </h3>
-                <p className="text-xs font-bold text-rhozly-on-surface/40 italic mb-6 truncate">
-                  {plant.scientific_name?.[0] || "Unknown Species"}
-                </p>
-                <div className="mt-auto pt-5 border-t border-rhozly-outline/10 flex items-center justify-between">
-                  <div>
-                    <p className="text-[10px] font-black text-rhozly-on-surface/30 uppercase tracking-widest">
-                      In Home
-                    </p>
-                    <p className="text-2xl font-black text-rhozly-primary">
-                      {plant.instance_count}
-                    </p>
-                  </div>
-                  <button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      setSelectedPlant(plant);
-                    }}
-                    title="Assign to Area"
-                    className="h-12 px-5 rounded-2xl bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center gap-2 hover:bg-rhozly-primary hover:text-white transition-all shadow-sm"
-                  >
-                    <MapPin size={18} />
-                    <span className="text-[10px] font-black uppercase tracking-widest">
-                      Assign
-                    </span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
-      <div className="fixed bottom-10 right-10 z-40 flex flex-col items-end gap-4">
-        {isAddMenuOpen && (
-          <div className="flex flex-col gap-3 animate-in slide-in-from-bottom-2 fade-in">
-            <button
-              onClick={() => {
-                setIsAiGenerating(true);
-                setIsAddMenuOpen(false);
-              }}
-              className="flex items-center gap-3 bg-white text-rhozly-on-surface px-6 py-4 rounded-[2rem] shadow-2xl font-black border border-rhozly-outline/10 hover:border-rhozly-primary/30 hover:text-rhozly-primary transition-all active:scale-95"
-            >
-              <Sparkles size={20} className="text-amber-500" /> AI Generate
-            </button>
-            <button
-              onClick={() => {
-                setIsAddingManual(true);
-                setIsAddMenuOpen(false);
-              }}
-              className="flex items-center gap-3 bg-white text-rhozly-on-surface px-6 py-4 rounded-[2rem] shadow-2xl font-black border border-rhozly-outline/10 hover:border-rhozly-primary/30 hover:text-rhozly-primary transition-all active:scale-95"
-            >
-              <Edit3 size={20} /> Manual Entry
-            </button>
-            <button
-              onClick={() => {
-                setIsSearchingApi(true);
-                setIsAddMenuOpen(false);
-              }}
-              className="flex items-center gap-3 bg-white text-rhozly-on-surface px-6 py-4 rounded-[2rem] shadow-2xl font-black border border-rhozly-outline/10 hover:border-rhozly-primary/30 hover:text-rhozly-primary transition-all active:scale-95"
-            >
-              <Database size={20} className="text-rhozly-primary" /> Search
-              Database
-              <span className="bg-amber-100 text-amber-700 text-[10px] uppercase px-2 py-1 rounded-lg ml-1 border border-amber-200">
-                Pro
-              </span>
-            </button>
-          </div>
-        )}
-        <button
-          onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
-          className={`w-20 h-20 bg-rhozly-primary text-white rounded-[2.5rem] shadow-2xl hover:scale-110 transition-all flex items-center justify-center ${isAddMenuOpen ? "rotate-45 bg-rhozly-surface-lowest text-rhozly-on-surface border-2 border-rhozly-outline/20 shadow-none" : ""}`}
-        >
-          <Plus size={40} strokeWidth={3} />
-        </button>
-      </div>
-
-      {isAiGenerating && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in zoom-in-95">
-          <div className="bg-rhozly-surface-lowest w-full max-w-xl rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 flex flex-col max-h-[85vh]">
-            <div className="flex justify-between items-start mb-8">
-              <div className="flex items-center gap-3">
-                <div className="bg-amber-500/10 p-3 rounded-2xl text-amber-600">
-                  <BrainCircuit size={28} />
-                </div>
-                <div>
-                  <h3 className="text-2xl font-black text-rhozly-on-surface">
-                    AI Auto-Fill
-                  </h3>
-                  <p className="text-[10px] font-black text-amber-600 uppercase tracking-widest mt-1">
-                    Draft a custom plant profile
-                  </p>
-                </div>
-              </div>
-              <button
-                onClick={() => {
-                  setIsAiGenerating(false);
-                  setAiSearchResults([]);
-                  setAiSearchQuery("");
-                  setAiPreviewCache({});
-                  setExpandedAiResult(null);
-                }}
-                className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
-              >
-                <X size={24} />
-              </button>
-            </div>
-
-            <form
-              onSubmit={handleAiSearch}
-              className="relative flex items-center mb-6"
-            >
-              <input
-                type="text"
-                value={aiSearchQuery}
-                onChange={(e) => setAiSearchQuery(e.target.value)}
-                placeholder="Search common or scientific name..."
-                className="w-full pl-6 pr-14 py-4 bg-white rounded-2xl font-bold border border-rhozly-outline/10 focus:border-amber-500 outline-none shadow-sm"
-              />
-              <button
-                type="submit"
-                disabled={isAiSearching || !aiSearchQuery.trim()}
-                className="absolute right-2 p-2 bg-amber-500 text-white rounded-xl hover:scale-105 transition-transform disabled:opacity-50 disabled:hover:scale-100"
-              >
-                <Search size={20} />
-              </button>
-            </form>
-
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-2">
-              {isAiSearching ? (
-                <div className="py-12 flex flex-col items-center justify-center opacity-50">
-                  <Loader2
-                    className="animate-spin text-amber-500 mb-4"
-                    size={32}
-                  />
-                  <p className="text-sm font-bold">
-                    Scanning Botanical Database...
-                  </p>
-                </div>
-              ) : aiSearchResults.length > 0 ? (
-                aiSearchResults.map((match, i) => (
-                  <div
-                    key={i}
-                    className="w-full bg-white border border-rhozly-outline/10 rounded-2xl transition-all overflow-hidden flex flex-col hover:border-amber-500/40 shadow-sm"
-                  >
-                    <div className="flex items-center justify-between p-3">
-                      <div className="flex items-center gap-2 flex-1">
-                        <button
-                          onClick={() => handleExpandPlant(match)}
-                          className="p-2 hover:bg-amber-100 rounded-xl text-amber-600 transition-colors"
-                        >
-                          {expandedAiResult === match ? (
-                            <ChevronUp size={18} />
-                          ) : (
-                            <Info size={18} />
-                          )}
-                        </button>
-                        <span className="font-bold text-rhozly-on-surface">
-                          {match}
-                        </span>
-                      </div>
+                {isAddMenuOpen && (
+                  <>
+                    <div
+                      className="fixed inset-0 z-40"
+                      onClick={() => setIsAddMenuOpen(false)}
+                    />
+                    <div className="absolute top-full left-0 mt-3 w-64 bg-white rounded-2xl shadow-2xl border border-rhozly-outline/10 p-2 z-50 animate-in fade-in slide-in-from-top-2 origin-top-left">
                       <button
-                        onClick={() => handleAiDrafting(match)}
-                        disabled={!!isAiDrafting}
-                        className="px-4 py-2 bg-amber-500 text-white rounded-xl font-bold text-[10px] uppercase tracking-widest hover:scale-105 transition-transform flex items-center gap-2 disabled:opacity-50"
+                        onClick={() => {
+                          setShowBulkSearch(true);
+                          setIsAddMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-rhozly-primary/5 transition-colors text-left"
                       >
-                        {isAiDrafting === match ? (
-                          <Loader2 size={14} className="animate-spin" />
-                        ) : (
-                          <Sparkles size={14} />
-                        )}
-                        Auto-Draft
+                        <ListPlus size={18} className="text-rhozly-primary" />
+                        <span className="text-sm font-black text-rhozly-on-surface">
+                          Search & Import
+                        </span>
+                      </button>
+                      <button
+                        onClick={() => {
+                          setIsAddingManual(true);
+                          setIsAddMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-rhozly-primary/5 transition-colors text-left"
+                      >
+                        <Edit3
+                          size={18}
+                          className="text-rhozly-on-surface/60"
+                        />
+                        <span className="text-sm font-black text-rhozly-on-surface">
+                          Manual Entry
+                        </span>
                       </button>
                     </div>
+                  </>
+                )}
+              </div>
+            </div>
+            <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
+              Your Master Plant Library
+            </p>
+          </div>
 
-                    {expandedAiResult === match && (
-                      <div className="p-4 bg-amber-50/50 border-t border-rhozly-outline/5 text-sm flex flex-col gap-4 animate-in slide-in-from-top-2">
-                        {aiPreviewCache[match]?.loading ? (
-                          <div className="flex items-center gap-2 text-amber-600/60 w-full justify-center py-4">
-                            <Loader2 size={16} className="animate-spin" />{" "}
-                            Fetching preview data...
-                          </div>
-                        ) : (
-                          <>
-                            <div className="flex gap-2 overflow-x-auto custom-scrollbar pb-2">
-                              {aiPreviewCache[match]?.images &&
-                              aiPreviewCache[match]!.images!.length > 0 ? (
-                                aiPreviewCache[match]?.images?.map(
-                                  (img, idx) => (
-                                    <div
-                                      key={idx}
-                                      className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl overflow-hidden shrink-0 bg-white border border-rhozly-outline/10 shadow-sm"
-                                    >
-                                      <img
-                                        src={img}
-                                        alt={`${match} ${idx + 1}`}
-                                        className="w-full h-full object-cover"
-                                      />
-                                    </div>
-                                  ),
-                                )
-                              ) : (
-                                <div className="w-24 h-24 sm:w-32 sm:h-32 rounded-xl bg-white border border-rhozly-outline/10 flex flex-col items-center justify-center shrink-0 text-rhozly-on-surface/20">
-                                  <Database size={24} className="mb-1" />
-                                  <span className="text-[9px] font-bold uppercase tracking-widest">
-                                    No Image
-                                  </span>
-                                </div>
-                              )}
-                            </div>
-
-                            <div className="flex-1 flex flex-col">
-                              <p className="text-sm font-semibold text-rhozly-on-surface/80 leading-relaxed whitespace-pre-wrap">
-                                {aiPreviewCache[match]?.desc}
-                              </p>
-                              {aiPreviewCache[match]?.desc && (
-                                <span className="text-[9px] uppercase tracking-widest text-rhozly-on-surface/40 mt-4 border-t border-rhozly-outline/10 pt-2 inline-block">
-                                  Data securely sourced via Wikipedia & Perenual
-                                  API
-                                </span>
-                              )}
-                            </div>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                ))
-              ) : isAiDrafting ? (
-                <div className="py-12 flex flex-col items-center justify-center opacity-80">
-                  <Loader2
-                    className="animate-spin text-amber-500 mb-4"
-                    size={32}
-                  />
-                  <p className="font-black text-lg text-rhozly-on-surface">
-                    Consulting Plant Doctor...
-                  </p>
-                  <p className="text-sm font-bold mt-1 text-rhozly-on-surface/60">
-                    Drafting care guide for {isAiDrafting}
-                  </p>
-                </div>
-              ) : (
-                <div className="py-12 flex flex-col items-center justify-center text-center opacity-40">
-                  <BrainCircuit
-                    size={48}
-                    className="mb-4 text-rhozly-on-surface/50"
-                  />
-                  <p className="font-black text-lg">Instant Care Guides</p>
-                  <p className="text-sm font-bold mt-1">
-                    Search for any plant to instantly generate a custom profile.
-                  </p>
-                </div>
+          <div className="flex flex-col md:flex-row flex-wrap items-stretch md:items-center gap-4">
+            <div className="relative flex-1 md:flex-none flex items-center min-w-[200px]">
+              <Search
+                className="absolute left-4 text-rhozly-on-surface/40"
+                size={16}
+              />
+              <input
+                type="text"
+                placeholder="Search plants..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-10 py-3 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-2xl text-sm font-bold outline-none focus:border-rhozly-primary transition-all"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-4 text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+                >
+                  <X size={16} />
+                </button>
               )}
             </div>
-          </div>
-        </div>
-      )}
 
-      {confirmState.isOpen && confirmState.plant && (
-        <ConfirmModal
-          isOpen={confirmState.isOpen}
-          isLoading={actionLoading}
-          onClose={() =>
-            setConfirmState({ isOpen: false, type: "delete", plant: null })
-          }
-          onConfirm={
-            confirmState.type === "delete"
-              ? executeDelete
-              : executeArchiveToggle
-          }
-          title={
-            confirmState.type === "delete"
-              ? "Delete Plant"
-              : confirmState.type === "archive"
-                ? "Archive Plant"
-                : "Restore Plant"
-          }
-          description={
-            confirmState.type === "delete"
-              ? `Are you sure you want to permanently delete ${confirmState.plant.common_name}? This cannot be undone.`
-              : confirmState.type === "archive"
-                ? `Move ${confirmState.plant.common_name} to your archive? It will be hidden from your active shed.`
-                : `Restore ${confirmState.plant.common_name} to your active shed?`
-          }
-          confirmText={
-            confirmState.type === "delete"
-              ? "Delete"
-              : confirmState.type === "archive"
-                ? "Archive"
-                : "Restore"
-          }
-          isDestructive={confirmState.type === "delete"}
-        />
-      )}
-
-      {selectedPlant && (
-        <PlantAssignmentModal
-          plant={selectedPlant}
-          locations={locations}
-          onAssign={handleAssign}
-          onClose={() => setSelectedPlant(null)}
-          isAssigning={actionLoading}
-          homeId={homeId}
-        />
-      )}
-
-      {isAddingManual && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/90 backdrop-blur-xl animate-in zoom-in-95 duration-300">
-          <div className="bg-rhozly-surface-lowest w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[3rem] p-6 shadow-2xl border border-rhozly-outline/20 custom-scrollbar">
-            <div className="flex justify-between items-center mb-8">
-              <div>
-                <h3 className="text-3xl font-black">
-                  {aiDraftedData
-                    ? aiDraftedData.common_name // 🚀 Removed "Review"
-                    : "Add to Shed"}
-                </h3>
-                <p className="text-xs font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-                  Manual Entry
-                </p>
-              </div>
-              <button
-                onClick={handleCloseModals}
-                className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
-              >
-                <X size={24} />
-              </button>
+            <div className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10">
+              {["active", "archived"].map((tab) => (
+                <button
+                  key={tab}
+                  onClick={() => setViewTab(tab as any)}
+                  className={`flex-1 md:flex-none px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === tab ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+                >
+                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                </button>
+              ))}
             </div>
-            <ManualPlantCreation
-              initialData={aiDraftedData}
-              onSave={handleManualSave}
-              onCancel={handleCloseModals}
-              isSaving={actionLoading}
-            />
+
+            <select
+              value={filterSource}
+              onChange={(e) => setFilterSource(e.target.value as any)}
+              className="bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl px-4 py-3 text-sm font-bold outline-none cursor-pointer"
+            >
+              <option value="all">All Sources</option>
+              <option value="manual">Manual</option>
+              <option value="api">API / AI</option>
+            </select>
           </div>
         </div>
-      )}
 
-      {isSearchingApi && (
-        <PlantSearchModal
-          homeId={homeId}
-          isPremium={isPremium}
-          initialSearchTerm={initialApiSearchTerm}
-          onClose={handleCloseModals}
-          onSuccess={() => {
-            handleCloseModals();
-            fetchData();
-          }}
-        />
-      )}
+        {/* PLANT GRID */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-32">
+          {filteredPlants.length === 0 ? (
+            <div className="col-span-full h-40 flex flex-col items-center justify-center text-rhozly-on-surface/40">
+              <Search size={40} className="mb-4 opacity-50" />
+              <p className="font-black">No plants found</p>
+              {searchQuery && (
+                <p className="text-sm font-bold mt-1">
+                  Try a different search term.
+                </p>
+              )}
+            </div>
+          ) : (
+            filteredPlants.map((plant) => (
+              <div
+                key={plant.id}
+                onClick={() => setEditingPlant(plant)}
+                className="bg-rhozly-surface-lowest rounded-[2.5rem] overflow-hidden border border-rhozly-outline/20 shadow-sm group flex flex-col cursor-pointer hover:border-rhozly-primary/30 transition-all"
+              >
+                <div className="h-44 relative overflow-hidden bg-rhozly-primary/5">
+                  <img
+                    src={
+                      plant.thumbnail_url ||
+                      "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?auto=format&fit=crop&w=400"
+                    }
+                    alt={plant.common_name}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute top-4 left-4">
+                    <span className="bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase text-rhozly-primary flex items-center gap-1.5 shadow-sm border border-white/20">
+                      <Database size={10} /> {plant.source}
+                    </span>
+                  </div>
+                  <div className="absolute top-4 right-4 flex gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmState({
+                          isOpen: true,
+                          type: plant.is_archived ? "unarchive" : "archive",
+                          plant,
+                        });
+                      }}
+                      className="w-9 h-9 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-orange-600 flex items-center justify-center shadow-md transition-all active:scale-90"
+                    >
+                      {plant.is_archived ? (
+                        <ArchiveRestore size={16} />
+                      ) : (
+                        <Archive size={16} />
+                      )}
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setConfirmState({
+                          isOpen: true,
+                          type: "delete",
+                          plant,
+                        });
+                      }}
+                      className="w-9 h-9 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-red-600 flex items-center justify-center shadow-md transition-all active:scale-90"
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                </div>
+                <div className="p-6">
+                  <h3 className="text-xl font-black text-rhozly-on-surface leading-tight mb-1">
+                    {plant.common_name}
+                  </h3>
+                  <p className="text-xs font-bold text-rhozly-on-surface/40 italic mb-6 truncate">
+                    {plant.scientific_name?.[0] || "Unknown Species"}
+                  </p>
+                  <div className="mt-auto pt-5 border-t border-rhozly-outline/10 flex items-center justify-between">
+                    <div>
+                      <p className="text-[10px] font-black text-rhozly-on-surface/30 uppercase tracking-widest">
+                        In Home
+                      </p>
+                      <p className="text-2xl font-black text-rhozly-primary">
+                        {plant.instance_count}
+                      </p>
+                    </div>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSelectedPlant(plant);
+                      }}
+                      className="h-12 px-5 rounded-2xl bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center gap-2 hover:bg-rhozly-primary hover:text-white transition-all shadow-sm"
+                    >
+                      <MapPin size={18} />
+                      <span className="text-[10px] font-black uppercase tracking-widest">
+                        Assign
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
 
-      {editingPlant && (
-        <PlantEditModal
-          homeId={homeId}
-          plant={editingPlant}
-          onSave={handleUpdatePlant}
-          onClose={() => setEditingPlant(null)}
-          isSaving={actionLoading}
-        />
-      )}
-    </div>
+      {/* ================= 🚀 PORTAL LAYER: ALL FIXED ELEMENTS LIVE HERE ================= */}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <>
+            {/* THE PROCESSING QUEUE MODAL */}
+            {bulkQueue.length > 0 && (
+              <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in zoom-in-95">
+                <div className="bg-rhozly-surface-lowest w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 flex flex-col max-h-[85vh]">
+                  <div className="flex justify-between items-start mb-8">
+                    <div>
+                      <h3 className="text-3xl font-black">Importing Plants</h3>
+                      <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
+                        {isBulkProcessing
+                          ? "Processing your queue..."
+                          : "Import Complete!"}
+                      </p>
+                    </div>
+                    {!isBulkProcessing && (
+                      <button
+                        onClick={() => setBulkQueue([])}
+                        className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
+                      >
+                        <X size={24} />
+                      </button>
+                    )}
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
+                    {bulkQueue.map((item) => (
+                      <div
+                        key={item.id}
+                        className={`flex items-center justify-between p-4 bg-white border rounded-2xl shadow-sm transition-all ${item.status === "processing" ? "border-rhozly-primary ring-1 ring-rhozly-primary/20" : "border-rhozly-outline/10"}`}
+                      >
+                        <div className="flex items-center gap-4">
+                          <div
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${item.status === "pending" ? "bg-gray-100 text-gray-400" : item.status === "processing" ? "bg-rhozly-primary/10 text-rhozly-primary" : item.status === "success" ? "bg-green-100 text-green-500" : "bg-red-100 text-red-500"}`}
+                          >
+                            {item.status === "pending" && <Clock size={18} />}
+                            {item.status === "processing" && (
+                              <Loader2 size={18} className="animate-spin" />
+                            )}
+                            {item.status === "success" && (
+                              <CheckSquare2 size={18} />
+                            )}
+                            {item.status === "error" && (
+                              <AlertCircle size={18} />
+                            )}
+                          </div>
+                          <div>
+                            <p className="font-bold text-base text-rhozly-on-surface leading-tight">
+                              {item.name}
+                            </p>
+                            {item.errorMsg ? (
+                              <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest mt-1">
+                                {item.errorMsg}
+                              </p>
+                            ) : (
+                              <p className="text-[10px] text-rhozly-on-surface/40 font-black uppercase tracking-widest mt-1">
+                                {item.source === "api"
+                                  ? "Perenual Database"
+                                  : "AI Generated"}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  {!isBulkProcessing && (
+                    <button
+                      onClick={() => setBulkQueue([])}
+                      className="mt-8 w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-xl hover:scale-105 transition-transform"
+                    >
+                      Return to Shed
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* CONFIRM MODAL */}
+            {confirmState.isOpen && confirmState.plant && (
+              <ConfirmModal
+                isOpen={confirmState.isOpen}
+                isLoading={actionLoading}
+                onClose={() =>
+                  setConfirmState({
+                    isOpen: false,
+                    type: "delete",
+                    plant: null,
+                  })
+                }
+                onConfirm={
+                  confirmState.type === "delete"
+                    ? executeDelete
+                    : executeArchiveToggle
+                }
+                title={
+                  confirmState.type === "delete"
+                    ? "Delete Plant"
+                    : confirmState.type === "archive"
+                      ? "Archive Plant"
+                      : "Restore Plant"
+                }
+                description={
+                  confirmState.type === "delete"
+                    ? `Permanently delete ${confirmState.plant.common_name}?`
+                    : confirmState.type === "archive"
+                      ? `Archive ${confirmState.plant.common_name}?`
+                      : `Restore ${confirmState.plant.common_name}?`
+                }
+                confirmText={
+                  confirmState.type === "delete"
+                    ? "Delete"
+                    : confirmState.type === "archive"
+                      ? "Archive"
+                      : "Restore"
+                }
+                isDestructive={confirmState.type === "delete"}
+              />
+            )}
+
+            {/* OTHER MODALS */}
+            {selectedPlant && (
+              <PlantAssignmentModal
+                plant={selectedPlant}
+                locations={locations}
+                onAssign={handleAssign}
+                onClose={() => setSelectedPlant(null)}
+                isAssigning={actionLoading}
+                homeId={homeId}
+              />
+            )}
+
+            {isAddingManual && (
+              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/90 backdrop-blur-xl animate-in zoom-in-95 duration-300">
+                <div className="bg-rhozly-surface-lowest w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[3rem] p-6 shadow-2xl border border-rhozly-outline/20 custom-scrollbar">
+                  <div className="flex justify-between items-center mb-8">
+                    <div>
+                      <h3 className="text-3xl font-black">Manual Entry</h3>
+                      <p className="text-xs font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
+                        Add to Shed
+                      </p>
+                    </div>
+                    <button
+                      onClick={handleCloseModals}
+                      className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
+                    >
+                      <X size={24} />
+                    </button>
+                  </div>
+                  <ManualPlantCreation
+                    onSave={handleManualSave}
+                    onCancel={handleCloseModals}
+                    isSaving={actionLoading}
+                  />
+                </div>
+              </div>
+            )}
+
+            {showBulkSearch && (
+              <BulkSearchModal
+                homeId={homeId}
+                isPremium={isPremium}
+                initialSearchTerm={initialSearchTerm}
+                onClose={handleCloseModals}
+                onProceedToBulkAdd={handleProceedToBulkAdd}
+              />
+            )}
+
+            {editingPlant && (
+              <PlantEditModal
+                homeId={homeId}
+                plant={editingPlant}
+                onSave={handleUpdatePlant}
+                onClose={() => setEditingPlant(null)}
+                isSaving={actionLoading}
+              />
+            )}
+          </>,
+          document.body,
+        )}
+    </>
   );
 }
 

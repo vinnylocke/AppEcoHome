@@ -1,5 +1,6 @@
 import { Toaster, toast } from "react-hot-toast";
 import React, { useEffect, useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "./lib/supabase";
 import {
   Cloud,
@@ -18,16 +19,16 @@ import {
   X,
 } from "lucide-react";
 
-// 🚀 NATIVE IMPORT: Aliased to avoid conflict with the 'App' component name
+// 🚀 NATIVE IMPORT
 import { App as CapApp } from "@capacitor/app";
 
-// 🚀 NEW: Import the React Router components!
+// 🚀 ROUTER
 import { BrowserRouter, useLocation } from "react-router-dom";
 
 import AdminGuideGenerator from "./components/AdminGuideGenerator";
 import { Wand2 } from "lucide-react";
 
-// Import your components
+// Components
 import LocationTile from "./components/LocationTile";
 import { HomeDropdown } from "./components/HomeDropdown";
 import { LocationPage } from "./components/LocationPage";
@@ -59,6 +60,7 @@ const getMidnightTonight = () => {
     now.getFullYear(),
     now.getMonth(),
     now.getDate() + 1,
+    0,
     0,
     0,
     0,
@@ -477,17 +479,18 @@ export default function App() {
     });
   }
 
-  // 🚀 MAIN RENDER: Wrapped in BrowserRouter
+  const canUsePortal = typeof document !== "undefined";
+
   return (
     <BrowserRouter>
-      {/* 🚀 THE BRIDGE: This syncs the Router URL with your activeTab state! */}
-      <RouteWatcher
-        setActiveTab={setActiveTab}
-        setSelectedLocationId={setSelectedLocationId}
-      />
+      {/* 🚀 THE FIX: Moved Provider here to wrap the Portal Layer too */}
+      <PlantDoctorProvider>
+        <RouteWatcher
+          setActiveTab={setActiveTab}
+          setSelectedLocationId={setSelectedLocationId}
+        />
 
-      <Sentry.ErrorBoundary fallback={<p>An unexpected error occurred.</p>}>
-        <PlantDoctorProvider>
+        <Sentry.ErrorBoundary fallback={<p>An unexpected error occurred.</p>}>
           <Toaster />
           <div className="min-h-screen bg-rhozly-bg text-rhozly-on-surface font-body flex flex-col relative selection:bg-rhozly-primary/20">
             <div className="fixed top-0 left-1/4 w-96 h-96 bg-rhozly-primary/5 rounded-full blur-3xl pointer-events-none" />
@@ -561,38 +564,6 @@ export default function App() {
                   />
                 ))}
               </nav>
-
-              <div
-                className={`md:hidden fixed inset-0 z-40 bg-rhozly-bg/80 backdrop-blur-sm transition-opacity duration-300 ${isMobileMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-                onClick={() => setIsMobileMenuOpen(false)}
-              />
-
-              <nav
-                className={`md:hidden fixed bottom-24 right-6 left-6 bg-rhozly-primary-container p-4 rounded-[2rem] shadow-2xl flex flex-col gap-2 z-50 transition-all duration-300 border border-rhozly-primary/20 ${isMobileMenuOpen ? "scale-100 opacity-100 translate-y-0" : "scale-90 opacity-0 translate-y-10 pointer-events-none origin-bottom-left"}`}
-              >
-                {navLinks.map((link) => (
-                  <NavItem
-                    key={link.id}
-                    icon={link.icon}
-                    label={link.label}
-                    active={activeTab === link.id}
-                    onClick={() => {
-                      setActiveTab(link.id);
-                      setSelectedLocationId(null);
-                      setIsMobileMenuOpen(false);
-                    }}
-                    isCollapsed={false}
-                    isMobile={true}
-                  />
-                ))}
-              </nav>
-
-              <button
-                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                className={`md:hidden fixed bottom-6 left-6 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl z-50 transition-all duration-300 ${isMobileMenuOpen ? "bg-white text-rhozly-primary" : "bg-rhozly-primary text-white"}`}
-              >
-                {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-              </button>
 
               <main className="flex-1 relative w-full overflow-hidden">
                 <PullToRefresh onRefresh={handleManualRefresh}>
@@ -808,21 +779,62 @@ export default function App() {
                 </PullToRefresh>
               </main>
             </div>
-
-            {profile?.home_id && <PlantDoctorChat homeId={profile.home_id} />}
           </div>
-        </PlantDoctorProvider>
-      </Sentry.ErrorBoundary>
+
+          {/* 🚀 TELEPORTED LAYER */}
+          {canUsePortal &&
+            createPortal(
+              /* 🚀 THE FIX: Theme wrapper ensures portaled UI looks correct */
+              <div className="font-body text-rhozly-on-surface antialiased">
+                <div
+                  className={`md:hidden fixed inset-0 z-40 bg-rhozly-bg/80 backdrop-blur-sm transition-opacity duration-300 ${isMobileMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+                  onClick={() => setIsMobileMenuOpen(false)}
+                />
+
+                <nav
+                  className={`md:hidden fixed bottom-24 right-6 left-6 bg-rhozly-primary-container p-4 rounded-[2rem] shadow-2xl flex flex-col gap-2 z-50 transition-all duration-300 border border-rhozly-primary/20 ${isMobileMenuOpen ? "scale-100 opacity-100 translate-y-0" : "scale-90 opacity-0 translate-y-10 pointer-events-none origin-bottom-left"}`}
+                >
+                  {navLinks.map((link) => (
+                    <NavItem
+                      key={link.id}
+                      icon={link.icon}
+                      label={link.label}
+                      active={activeTab === link.id}
+                      onClick={() => {
+                        setActiveTab(link.id);
+                        setSelectedLocationId(null);
+                        setIsMobileMenuOpen(false);
+                      }}
+                      isCollapsed={false}
+                      isMobile={true}
+                    />
+                  ))}
+                </nav>
+
+                <button
+                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
+                  className={`md:hidden fixed bottom-6 left-6 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl z-50 transition-all duration-300 ${isMobileMenuOpen ? "bg-white text-rhozly-primary" : "bg-rhozly-primary text-white"}`}
+                >
+                  {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
+                </button>
+
+                {profile?.home_id && (
+                  <PlantDoctorChat homeId={profile.home_id} />
+                )}
+              </div>,
+              document.body,
+            )}
+        </Sentry.ErrorBoundary>
+      </PlantDoctorProvider>
     </BrowserRouter>
   );
 }
 
-// 🚀 THE BRIDGE COMPONENT: Connects the URL to your activeTab state
+// THE BRIDGE COMPONENT
 function RouteWatcher({ setActiveTab, setSelectedLocationId }: any) {
   const location = useLocation();
 
   useEffect(() => {
-    // When the AI Chat deep-links to the shed, switch the active tab!
     if (location.pathname.startsWith("/shed")) {
       setActiveTab("shed");
       setSelectedLocationId(null);

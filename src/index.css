@@ -4,6 +4,8 @@
 @theme {
   --font-display: "Plus Jakarta Sans", sans-serif;
   --font-body: "Inter", sans-serif;
+  --font-sans:
+    "Inter", sans-serif; /* 🚀 Tells Tailwind to use Inter as the default sans */
 
   --color-rhozly-bg: #faf9f7;
   --color-rhozly-surface-low: #f4f3f1;
@@ -20,4 +22,41 @@ html,
 body {
   /* This prevents the native browser bounce effect so our custom pull-to-refresh handles it smoothly */
   overscroll-behavior-y: none;
+  font-family: var(--font-body);
+  color: var(--color-rhozly-on-surface);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* =========================================
+   🚀 GLOBAL PORTAL INHERITANCE FIX
+========================================= */
+/* Forces portaled elements to use our fonts without breaking their specific colors */
+body > .fixed,
+body > div > .fixed {
+  font-family: var(--font-body) !important;
+  -webkit-font-smoothing: antialiased;
+  /* 🎨 Color removed here so components can use their own Tailwind colors (e.g. white icons) */
+}
+
+/* =========================================
+   GLOBAL MODAL BEHAVIOR FIX
+========================================= */
+
+/* 🔒 1. LOCK BACKGROUND SCROLL */
+/* Only lock if the fixed overlay is also a flex-centered container (ignores Toasts) */
+body:has(.fixed.inset-0.justify-center.items-center) {
+  overflow: hidden !important;
+  touch-action: none !important; /* Prevents mobile scroll-bleed */
+}
+
+/* 🎯 2. FORCE MODALS TO THE VISIBLE SCREEN */
+/* Bypasses browser quirks to guarantee it renders exactly where you are looking */
+.fixed.inset-0.justify-center.items-center {
+  position: fixed !important;
+  top: 0 !important;
+  left: 0 !important;
+  right: 0 !important;
+  bottom: 0 !important;
+  height: 100dvh !important; /* Dynamic Viewport Height fixes iOS/Android URL bar jumping */
+  width: 100vw !important;
 }

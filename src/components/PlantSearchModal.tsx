@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
 import {
   X,
   Search,
@@ -101,7 +102,6 @@ export default function PlantSearchModal({
         searchResultPlant.id,
       );
 
-      // 🚀 THE FIX: A strict filter that destroys paywall images and picks the best real photo
       const getValidImage = (...urls: any[]) => {
         return (
           urls.find(
@@ -156,18 +156,10 @@ export default function PlantSearchModal({
         return;
       }
 
-      // 1. Grab the image we successfully salvaged in handlePreviewPlant
       let permanentImageUrl =
         previewPlant.image_url || previewPlant.thumbnail_url || "";
 
-      console.log(
-        "📸 Verified Image to Proxy:",
-        permanentImageUrl || "None found",
-      );
-
-      // 2. Call the Image Proxy
       if (permanentImageUrl) {
-        console.log("🚀 Invoking image-proxy Edge Function...");
         try {
           const { data: proxyData, error: proxyError } =
             await supabase.functions.invoke("image-proxy", {
@@ -180,10 +172,6 @@ export default function PlantSearchModal({
           if (proxyError) throw proxyError;
 
           if (proxyData?.publicUrl) {
-            console.log(
-              "✅ Proxy Success! New Permanent URL:",
-              proxyData.publicUrl,
-            );
             permanentImageUrl = proxyData.publicUrl;
 
             if (permanentImageUrl.includes("kong:8000")) {
@@ -191,27 +179,20 @@ export default function PlantSearchModal({
                 "http://kong:8000",
                 "http://127.0.0.1:54321",
               );
-              console.log("🔧 Adjusted Local URL:", permanentImageUrl);
             }
           }
         } catch (proxyErr) {
-          console.error(
-            "❌ Proxy Failed (Falling back to original URL):",
-            proxyErr,
-          );
+          console.error("❌ Proxy Failed:", proxyErr);
         }
-      } else {
-        console.log("⚠️ Skipped proxy: No valid image available.");
       }
 
-      // 3. Save to Database
       const manualId = Math.floor(Date.now() / 1000);
       const skeletonPlant = {
         id: manualId,
         home_id: homeId,
         common_name: previewPlant.common_name,
         scientific_name: previewPlant.scientific_name,
-        thumbnail_url: permanentImageUrl, // 🚀 Fully permanent Supabase link
+        thumbnail_url: permanentImageUrl,
         source: "api",
         perenual_id: pId,
       };
@@ -246,15 +227,18 @@ export default function PlantSearchModal({
       toast.success(`${previewPlant.common_name} added to your Shed!`);
       onSuccess(savedPlant);
     } catch (err: any) {
-      console.error("Failed to add plant:", err);
       toast.error(err.message || "Failed to add plant.");
     } finally {
       setIsAdding(false);
     }
   };
 
+  // 🚀 SSR Safety
+  if (typeof document === "undefined") return null;
+
+  // 🚀 LOGIC FOR PREMIUM LOCK
   if (!isPremium) {
-    return (
+    return createPortal(
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
         <div className="bg-rhozly-surface-lowest w-full max-w-md p-8 rounded-[3rem] shadow-2xl border border-rhozly-outline/20 text-center relative">
           <button
@@ -275,11 +259,13 @@ export default function PlantSearchModal({
             Upgrade Now
           </button>
         </div>
-      </div>
+      </div>,
+      document.body,
     );
   }
 
-  return (
+  // 🚀 MAIN MODAL PORTAL
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
       <div className="bg-rhozly-surface-lowest w-full max-w-2xl h-[85vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden relative">
         {isFetchingPreview && (
@@ -429,6 +415,7 @@ export default function PlantSearchModal({
           </>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

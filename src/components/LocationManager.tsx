@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
 import { supabase } from "../lib/supabase";
 import {
   Home,
@@ -240,350 +241,368 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
   }
 
   return (
-    <div className="max-w-7xl mx-auto w-full space-y-8 animate-in fade-in duration-500 relative">
-      <div className="flex justify-between items-center">
-        <div>
-          <h2 className="text-3xl font-black font-display text-rhozly-on-surface tracking-tight">
-            Location Management
-          </h2>
-          <p className="text-sm font-bold text-rhozly-on-surface/50 mt-1">
-            Organize your spaces and growing areas.
-          </p>
-        </div>
-        {!isAddingLoc && (
-          <button
-            onClick={() => setIsAddingLoc(true)}
-            className="flex items-center gap-2 px-6 py-3 bg-rhozly-primary text-white rounded-2xl text-sm font-bold hover:bg-rhozly-primary/90 transition-all shadow-md"
-          >
-            <Plus size={18} /> New Location
-          </button>
-        )}
-      </div>
-
-      {isAddingLoc && (
-        <div className="bg-rhozly-primary-container/20 p-8 rounded-3xl border border-rhozly-primary/20 animate-in zoom-in-95 duration-200">
-          <h4 className="text-sm font-black text-rhozly-primary uppercase tracking-widest mb-4">
-            Create New Location
-          </h4>
-          <div className="flex flex-col sm:flex-row gap-4 mb-6">
-            <input
-              autoFocus
-              placeholder="Location Name (e.g., Lounge, Back Garden)"
-              className="flex-1 px-6 py-4 rounded-2xl border-none outline-none font-medium shadow-sm"
-              value={newLoc.name}
-              onChange={(e) => setNewLoc({ ...newLoc, name: e.target.value })}
-            />
-            <button
-              onClick={() =>
-                setNewLoc({ ...newLoc, is_outside: !newLoc.is_outside })
-              }
-              className={`px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-colors shadow-sm ${!newLoc.is_outside ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"}`}
-            >
-              {!newLoc.is_outside ? <Home size={20} /> : <Sun size={20} />}
-              {!newLoc.is_outside ? "Inside" : "Outside"}
-            </button>
+    <>
+      <div className="max-w-7xl mx-auto w-full space-y-8 animate-in fade-in duration-500 relative">
+        <div className="flex justify-between items-center">
+          <div>
+            <h2 className="text-3xl font-black font-display text-rhozly-on-surface tracking-tight">
+              Location Management
+            </h2>
+            <p className="text-sm font-bold text-rhozly-on-surface/50 mt-1">
+              Organize your spaces and growing areas.
+            </p>
           </div>
-          <div className="flex gap-2 justify-end">
+          {!isAddingLoc && (
             <button
-              onClick={() => setIsAddingLoc(false)}
-              className="px-6 py-3 text-rhozly-on-surface/50 font-bold text-sm"
+              onClick={() => setIsAddingLoc(true)}
+              className="flex items-center gap-2 px-6 py-3 bg-rhozly-primary text-white rounded-2xl text-sm font-bold hover:bg-rhozly-primary/90 transition-all shadow-md"
             >
-              Cancel
+              <Plus size={18} /> New Location
             </button>
-            <button
-              onClick={handleSaveNewLocation}
-              className="px-8 py-3 bg-rhozly-primary text-white rounded-xl font-bold text-sm shadow-sm"
-            >
-              Save Location
-            </button>
-          </div>
+          )}
         </div>
-      )}
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {locations.map((loc) => (
-          <div
-            key={loc.id}
-            className="bg-rhozly-surface-lowest rounded-3xl p-6 shadow-sm border border-rhozly-outline/20"
-          >
-            <div className="flex items-center justify-between gap-4 mb-6">
+        {isAddingLoc && (
+          <div className="bg-rhozly-primary-container/20 p-8 rounded-3xl border border-rhozly-primary/20 animate-in zoom-in-95 duration-200">
+            <h4 className="text-sm font-black text-rhozly-primary uppercase tracking-widest mb-4">
+              Create New Location
+            </h4>
+            <div className="flex flex-col sm:flex-row gap-4 mb-6">
               <input
-                value={loc.name}
-                onChange={(e) =>
-                  setLocations(
-                    locations.map((l) =>
-                      l.id === loc.id ? { ...l, name: e.target.value } : l,
-                    ),
-                  )
-                }
-                onBlur={() => handleUpdateLocationDB(loc)}
-                className="text-2xl font-black font-display text-rhozly-on-surface bg-transparent border-b-2 border-transparent hover:border-rhozly-outline/30 focus:border-rhozly-primary focus:outline-none w-full transition-colors pb-1"
+                autoFocus
+                placeholder="Location Name (e.g., Lounge, Back Garden)"
+                className="flex-1 px-6 py-4 rounded-2xl border-none outline-none font-medium shadow-sm"
+                value={newLoc.name}
+                onChange={(e) => setNewLoc({ ...newLoc, name: e.target.value })}
               />
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => toggleEnvironment(loc)}
-                  className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 ${!loc.is_outside ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"}`}
-                >
-                  {!loc.is_outside ? <Home size={16} /> : <Sun size={16} />}
-                </button>
-                <button
-                  onClick={() =>
-                    setItemToDelete({ type: "location", id: loc.id })
-                  }
-                  className="p-2 text-rhozly-on-surface/40 hover:text-red-500 rounded-xl"
-                >
-                  <Trash2 size={18} />
-                </button>
-              </div>
-            </div>
-
-            <div className="bg-rhozly-surface-low rounded-2xl p-5">
-              <div className="flex items-center justify-between mb-4">
-                <h4 className="text-xs font-black text-rhozly-on-surface/50 uppercase tracking-widest">
-                  Areas ({loc.areas.length})
-                </h4>
-                <button
-                  onClick={() => addArea(loc.id)}
-                  className="text-xs font-bold text-rhozly-primary bg-rhozly-primary/10 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
-                >
-                  <Plus size={14} /> Add Area
-                </button>
-              </div>
-
-              <div className="space-y-2">
-                {loc.areas.map((area: any) => (
-                  <div
-                    key={area.id}
-                    className="flex items-center gap-3 bg-white p-2 pl-4 rounded-xl border border-rhozly-outline/10"
-                  >
-                    <MapPin className="w-4 h-4 text-rhozly-primary/40" />
-                    <input
-                      value={area.name}
-                      onChange={(e) =>
-                        setLocations(
-                          locations.map((l) =>
-                            l.id === loc.id
-                              ? {
-                                  ...l,
-                                  areas: l.areas.map((a: any) =>
-                                    a.id === area.id
-                                      ? { ...a, name: e.target.value }
-                                      : a,
-                                  ),
-                                }
-                              : l,
-                          ),
-                        )
-                      }
-                      onBlur={() => handleUpdateAreaDB(area)}
-                      className="flex-1 text-sm font-bold text-rhozly-on-surface bg-transparent focus:outline-none"
-                    />
-                    <div className="flex gap-1 transition-opacity">
-                      <button
-                        onClick={() => setEditingArea(area)}
-                        className="p-2 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-lg"
-                        title="Advanced Metrics"
-                      >
-                        <Settings2 size={16} />
-                      </button>
-                      <button
-                        onClick={() =>
-                          setItemToDelete({
-                            type: "area",
-                            id: area.id,
-                            locationId: loc.id,
-                          })
-                        }
-                        className="p-2 text-rhozly-on-surface/30 hover:text-red-500 rounded-lg"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {/* ADVANCED AREA SETTINGS MODAL */}
-      {editingArea && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rhozly-bg/90 backdrop-blur-xl animate-in fade-in duration-300">
-          <div className="bg-rhozly-surface-lowest w-full max-w-2xl rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 max-h-[90vh] overflow-y-auto custom-scrollbar">
-            <div className="flex justify-between items-center mb-8">
-              <div>
-                <h3 className="text-2xl font-black text-rhozly-on-surface">
-                  Area Metrics
-                </h3>
-                <p className="text-xs font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-                  Environment: {editingArea.name}
-                </p>
-              </div>
               <button
-                onClick={() => setEditingArea(null)}
-                className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
+                onClick={() =>
+                  setNewLoc({ ...newLoc, is_outside: !newLoc.is_outside })
+                }
+                className={`px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-colors shadow-sm ${!newLoc.is_outside ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"}`}
               >
-                <X size={24} />
+                {!newLoc.is_outside ? <Home size={20} /> : <Sun size={20} />}
+                {!newLoc.is_outside ? "Inside" : "Outside"}
               </button>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* 1. Growing Medium */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                  <Layers size={14} /> Growing Medium
-                </label>
-                <select
-                  value={editingArea.growing_medium || ""}
-                  onChange={(e) =>
-                    setEditingArea({
-                      ...editingArea,
-                      growing_medium: e.target.value,
-                    })
-                  }
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
-                >
-                  <option value="">Select Medium...</option>
-                  <option value="Mineral Soil">
-                    Mineral Soil (Natural earth)
-                  </option>
-                  <option value="Soilless Mix">Soilless Mix (Peat/Coco)</option>
-                  <option value="Aggregates">Aggregates (Gravel/Clay)</option>
-                  <option value="Liquid">Liquid (Hydroponics)</option>
-                  <option value="Air/Mist">Air/Mist (Aeroponics)</option>
-                </select>
-              </div>
-
-              {/* 2. Texture */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                  <Zap size={14} /> Medium Texture
-                </label>
-                <select
-                  value={editingArea.medium_texture || ""}
-                  onChange={(e) =>
-                    setEditingArea({
-                      ...editingArea,
-                      medium_texture: e.target.value,
-                    })
-                  }
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
-                >
-                  <option value="">Select Texture...</option>
-                  <option value="Fine">Fine (Silt/Clay)</option>
-                  <option value="Medium">Medium (Loam/Mix)</option>
-                  <option value="Coarse">Coarse (Gravel/Perlite)</option>
-                  <option value="Open">Open (Water/Large Stones)</option>
-                </select>
-              </div>
-
-              {/* 3. pH Level */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                  <FlaskConical size={14} /> Medium pH (0.0 - 14.0)
-                </label>
-                <input
-                  type="number"
-                  step="0.1"
-                  value={editingArea.medium_ph || ""}
-                  onChange={(e) =>
-                    setEditingArea({
-                      ...editingArea,
-                      medium_ph: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. 6.5"
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
-                />
-              </div>
-
-              {/* 4. Lux */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                  <Sun size={14} /> Peak Light (Lux)
-                </label>
-                <input
-                  type="number"
-                  value={editingArea.light_intensity_lux || ""}
-                  onChange={(e) =>
-                    setEditingArea({
-                      ...editingArea,
-                      light_intensity_lux: e.target.value,
-                    })
-                  }
-                  placeholder="e.g. 5000"
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
-                />
-              </div>
-
-              {/* 5. Water Movement */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                  <Droplets size={14} /> Water Movement
-                </label>
-                <select
-                  value={editingArea.water_movement || ""}
-                  onChange={(e) =>
-                    setEditingArea({
-                      ...editingArea,
-                      water_movement: e.target.value,
-                    })
-                  }
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
-                >
-                  <option value="">Select Flow...</option>
-                  <option value="Well-Drained">Well-Drained</option>
-                  <option value="Low-Drained">Low-Drained (Pools)</option>
-                  <option value="Recirculating">Recirculating (Pump)</option>
-                  <option value="Static">Static / Deep Water</option>
-                </select>
-              </div>
-
-              {/* 6. Nutrient Source */}
-              <div className="space-y-2">
-                <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                  <Beaker size={14} /> Nutrient Source
-                </label>
-                <select
-                  value={editingArea.nutrient_source || ""}
-                  onChange={(e) =>
-                    setEditingArea({
-                      ...editingArea,
-                      nutrient_source: e.target.value,
-                    })
-                  }
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
-                >
-                  <option value="">Select Source...</option>
-                  <option value="Organic Breakdown">Organic (Compost)</option>
-                  <option value="Synthetic">Synthetic / Salts</option>
-                  <option value="Biowaste">Biowaste (Fish/Aqua)</option>
-                </select>
-              </div>
-            </div>
-
-            <div className="mt-10 flex gap-4">
+            <div className="flex gap-2 justify-end">
               <button
-                onClick={() => setEditingArea(null)}
-                className="flex-1 py-4 rounded-2xl font-black text-rhozly-on-surface/40 hover:bg-rhozly-surface-low transition-all"
+                onClick={() => setIsAddingLoc(false)}
+                className="px-6 py-3 text-rhozly-on-surface/50 font-bold text-sm"
               >
                 Cancel
               </button>
               <button
-                onClick={() => {
-                  handleUpdateAreaDB(editingArea);
-                  setEditingArea(null);
-                }}
-                className="flex-[2] py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg flex items-center justify-center gap-2"
+                onClick={handleSaveNewLocation}
+                className="px-8 py-3 bg-rhozly-primary text-white rounded-xl font-bold text-sm shadow-sm"
               >
-                <Check size={20} /> Save Area Metrics
+                Save Location
               </button>
             </div>
           </div>
-        </div>
-      )}
+        )}
 
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {locations.map((loc) => (
+            <div
+              key={loc.id}
+              className="bg-rhozly-surface-lowest rounded-3xl p-6 shadow-sm border border-rhozly-outline/20"
+            >
+              <div className="flex items-center justify-between gap-4 mb-6">
+                <input
+                  value={loc.name}
+                  onChange={(e) =>
+                    setLocations(
+                      locations.map((l) =>
+                        l.id === loc.id ? { ...l, name: e.target.value } : l,
+                      ),
+                    )
+                  }
+                  onBlur={() => handleUpdateLocationDB(loc)}
+                  className="text-2xl font-black font-display text-rhozly-on-surface bg-transparent border-b-2 border-transparent hover:border-rhozly-outline/30 focus:border-rhozly-primary focus:outline-none w-full transition-colors pb-1"
+                />
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => toggleEnvironment(loc)}
+                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 ${!loc.is_outside ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"}`}
+                  >
+                    {!loc.is_outside ? <Home size={16} /> : <Sun size={16} />}
+                  </button>
+                  <button
+                    onClick={() =>
+                      setItemToDelete({ type: "location", id: loc.id })
+                    }
+                    className="p-2 text-rhozly-on-surface/40 hover:text-red-500 rounded-xl"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              </div>
+
+              <div className="bg-rhozly-surface-low rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-xs font-black text-rhozly-on-surface/50 uppercase tracking-widest">
+                    Areas ({loc.areas.length})
+                  </h4>
+                  <button
+                    onClick={() => addArea(loc.id)}
+                    className="text-xs font-bold text-rhozly-primary bg-rhozly-primary/10 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                  >
+                    <Plus size={14} /> Add Area
+                  </button>
+                </div>
+
+                <div className="space-y-2">
+                  {loc.areas.map((area: any) => (
+                    <div
+                      key={area.id}
+                      className="flex items-center gap-3 bg-white p-2 pl-4 rounded-xl border border-rhozly-outline/10"
+                    >
+                      <MapPin className="w-4 h-4 text-rhozly-primary/40" />
+                      <input
+                        value={area.name}
+                        onChange={(e) =>
+                          setLocations(
+                            locations.map((l) =>
+                              l.id === loc.id
+                                ? {
+                                    ...l,
+                                    areas: l.areas.map((a: any) =>
+                                      a.id === area.id
+                                        ? { ...a, name: e.target.value }
+                                        : a,
+                                    ),
+                                  }
+                                : l,
+                            ),
+                          )
+                        }
+                        onBlur={() => handleUpdateAreaDB(area)}
+                        className="flex-1 text-sm font-bold text-rhozly-on-surface bg-transparent focus:outline-none"
+                      />
+                      <div className="flex gap-1 transition-opacity">
+                        <button
+                          onClick={() => setEditingArea(area)}
+                          className="p-2 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-lg"
+                          title="Advanced Metrics"
+                        >
+                          <Settings2 size={16} />
+                        </button>
+                        <button
+                          onClick={() =>
+                            setItemToDelete({
+                              type: "area",
+                              id: area.id,
+                              locationId: loc.id,
+                            })
+                          }
+                          className="p-2 text-rhozly-on-surface/30 hover:text-red-500 rounded-lg"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* 🚀 THE PORTAL LAYER */}
+      {typeof document !== "undefined" &&
+        createPortal(
+          <>
+            {/* ADVANCED AREA SETTINGS MODAL */}
+            {editingArea && (
+              <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rhozly-bg/90 backdrop-blur-xl animate-in fade-in duration-300">
+                <div className="bg-rhozly-surface-lowest w-full max-w-2xl rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                  <div className="flex justify-between items-center mb-8">
+                    <div>
+                      <h3 className="text-2xl font-black text-rhozly-on-surface">
+                        Area Metrics
+                      </h3>
+                      <p className="text-xs font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
+                        Environment: {editingArea.name}
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setEditingArea(null)}
+                      className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
+                    >
+                      <X size={24} />
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    {/* 1. Growing Medium */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
+                        <Layers size={14} /> Growing Medium
+                      </label>
+                      <select
+                        value={editingArea.growing_medium || ""}
+                        onChange={(e) =>
+                          setEditingArea({
+                            ...editingArea,
+                            growing_medium: e.target.value,
+                          })
+                        }
+                        className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+                      >
+                        <option value="">Select Medium...</option>
+                        <option value="Mineral Soil">
+                          Mineral Soil (Natural earth)
+                        </option>
+                        <option value="Soilless Mix">
+                          Soilless Mix (Peat/Coco)
+                        </option>
+                        <option value="Aggregates">
+                          Aggregates (Gravel/Clay)
+                        </option>
+                        <option value="Liquid">Liquid (Hydroponics)</option>
+                        <option value="Air/Mist">Air/Mist (Aeroponics)</option>
+                      </select>
+                    </div>
+
+                    {/* 2. Texture */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
+                        <Zap size={14} /> Medium Texture
+                      </label>
+                      <select
+                        value={editingArea.medium_texture || ""}
+                        onChange={(e) =>
+                          setEditingArea({
+                            ...editingArea,
+                            medium_texture: e.target.value,
+                          })
+                        }
+                        className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+                      >
+                        <option value="">Select Texture...</option>
+                        <option value="Fine">Fine (Silt/Clay)</option>
+                        <option value="Medium">Medium (Loam/Mix)</option>
+                        <option value="Coarse">Coarse (Gravel/Perlite)</option>
+                        <option value="Open">Open (Water/Large Stones)</option>
+                      </select>
+                    </div>
+
+                    {/* 3. pH Level */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
+                        <FlaskConical size={14} /> Medium pH (0.0 - 14.0)
+                      </label>
+                      <input
+                        type="number"
+                        step="0.1"
+                        value={editingArea.medium_ph || ""}
+                        onChange={(e) =>
+                          setEditingArea({
+                            ...editingArea,
+                            medium_ph: e.target.value,
+                          })
+                        }
+                        placeholder="e.g. 6.5"
+                        className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+                      />
+                    </div>
+
+                    {/* 4. Lux */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
+                        <Sun size={14} /> Peak Light (Lux)
+                      </label>
+                      <input
+                        type="number"
+                        value={editingArea.light_intensity_lux || ""}
+                        onChange={(e) =>
+                          setEditingArea({
+                            ...editingArea,
+                            light_intensity_lux: e.target.value,
+                          })
+                        }
+                        placeholder="e.g. 5000"
+                        className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+                      />
+                    </div>
+
+                    {/* 5. Water Movement */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
+                        <Droplets size={14} /> Water Movement
+                      </label>
+                      <select
+                        value={editingArea.water_movement || ""}
+                        onChange={(e) =>
+                          setEditingArea({
+                            ...editingArea,
+                            water_movement: e.target.value,
+                          })
+                        }
+                        className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+                      >
+                        <option value="">Select Flow...</option>
+                        <option value="Well-Drained">Well-Drained</option>
+                        <option value="Low-Drained">Low-Drained (Pools)</option>
+                        <option value="Recirculating">
+                          Recirculating (Pump)
+                        </option>
+                        <option value="Static">Static / Deep Water</option>
+                      </select>
+                    </div>
+
+                    {/* 6. Nutrient Source */}
+                    <div className="space-y-2">
+                      <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
+                        <Beaker size={14} /> Nutrient Source
+                      </label>
+                      <select
+                        value={editingArea.nutrient_source || ""}
+                        onChange={(e) =>
+                          setEditingArea({
+                            ...editingArea,
+                            nutrient_source: e.target.value,
+                          })
+                        }
+                        className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+                      >
+                        <option value="">Select Source...</option>
+                        <option value="Organic Breakdown">
+                          Organic (Compost)
+                        </option>
+                        <option value="Synthetic">Synthetic / Salts</option>
+                        <option value="Biowaste">Biowaste (Fish/Aqua)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div className="mt-10 flex gap-4">
+                    <button
+                      onClick={() => setEditingArea(null)}
+                      className="flex-1 py-4 rounded-2xl font-black text-rhozly-on-surface/40 hover:bg-rhozly-surface-low transition-all"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => {
+                        handleUpdateAreaDB(editingArea);
+                        setEditingArea(null);
+                      }}
+                      className="flex-[2] py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg flex items-center justify-center gap-2"
+                    >
+                      <Check size={20} /> Save Area Metrics
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>,
+          document.body,
+        )}
+
+      {/* ConfirmModal internally portals itself, so it's perfectly safe here */}
       <ConfirmModal
         isOpen={itemToDelete !== null}
         isLoading={isDeleting}
@@ -598,6 +617,6 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
         confirmText="Delete"
         isDestructive={true}
       />
-    </div>
+    </>
   );
 };

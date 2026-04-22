@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
 import { X, Droplets, Calendar, Database, Loader2 } from "lucide-react";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantScheduleTab from "./PlantScheduleTab";
@@ -77,7 +78,11 @@ export default function PlantEditModal({
     fetchApiDetails();
   }, [plant]);
 
-  return (
+  // 🚀 SSR Safety Check
+  if (typeof document === "undefined") return null;
+
+  // 🚀 PORTAL WRAPPER
+  return createPortal(
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
       <div className="bg-rhozly-surface-lowest w-full max-w-3xl h-[90vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden">
         {/* Header */}
@@ -143,6 +148,7 @@ export default function PlantEditModal({
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

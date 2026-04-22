@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
 import {
   X,
   MapPin,
@@ -236,7 +237,11 @@ export default function PlantAssignmentModal({
     });
   };
 
-  return (
+  // 🚀 SSR Safety Check
+  if (typeof document === "undefined") return null;
+
+  // 🚀 PORTAL WRAPPER
+  return createPortal(
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
       <div className="bg-rhozly-surface-lowest w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 relative">
         <div className="flex justify-between items-start mb-8 relative z-10">
@@ -578,6 +583,7 @@ export default function PlantAssignmentModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

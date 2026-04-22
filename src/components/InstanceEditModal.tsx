@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
 import {
   X,
   Settings2,
@@ -187,7 +188,11 @@ export default function InstanceEditModal({
     ? locations.find((l) => l.id === editForm.location_id)?.areas || []
     : [];
 
-  return (
+  // 🚀 SSR Safety Check
+  if (typeof document === "undefined") return null;
+
+  // 🚀 PORTAL WRAPPER
+  return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
       <div className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 relative">
         <div className="flex justify-between items-start mb-6 relative z-10">
@@ -442,6 +447,7 @@ export default function InstanceEditModal({
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

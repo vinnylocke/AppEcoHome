@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
 import { X, Calendar, Repeat, Loader2, Check } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
@@ -186,7 +187,11 @@ export default function AddTaskModal({
     }
   };
 
-  return (
+  // 🚀 SAFETY CHECK: Ensure document exists (for Next.js/SSR environments)
+  if (typeof document === "undefined") return null;
+
+  // 🚀 PORTAL WRAPPER: Teleports the modal straight to the body
+  return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
       <div className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20">
         <div className="flex justify-between items-center mb-8">
@@ -357,6 +362,7 @@ export default function AddTaskModal({
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
