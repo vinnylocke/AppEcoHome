@@ -1,78 +1,45 @@
 {
-  "name": "EcoHome Plant Care",
-  "short_name": "EcoHome",
-  "description": "A smart plant care assistant with AI-powered yield prediction and care guides.",
+  "short_name": "Rhozly",
+  "name": "Rhozly Gardener",
+  "description": "Your AI-powered master plant library and garden scheduler.",
   "start_url": "/",
   "display": "standalone",
-  "background_color": "#ffffff",
-  "theme_color": "#10b981",
-  "orientation": "portrait",
-  "scope": "/",
-  "id": "/",
+  "background_color": "#faf9f7",
+  "theme_color": "#075737",
   "icons": [
     {
-      "src": "../icons/icon-48.webp",
-      "type": "image/png",
-      "sizes": "48x48",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "../icons/icon-72.webp",
-      "type": "image/png",
-      "sizes": "72x72",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "../icons/icon-96.webp",
-      "type": "image/png",
-      "sizes": "96x96",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "../icons/icon-128.webp",
-      "type": "image/png",
-      "sizes": "128x128",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "../icons/icon-192.webp",
+      "src": "icon-192.png",
       "type": "image/png",
       "sizes": "192x192",
-      "purpose": "any maskable"
+      "purpose": "any"
     },
     {
-      "src": "../icons/icon-256.webp",
-      "type": "image/png",
-      "sizes": "256x256",
-      "purpose": "any maskable"
-    },
-    {
-      "src": "../icons/icon-512.webp",
+      "src": "icon-512.png",
       "type": "image/png",
       "sizes": "512x512",
-      "purpose": "any maskable"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "My Garden",
-      "url": "/?tab=dashboard",
-      "icons": [
-        {
-          "src": "https://picsum.photos/seed/garden/192/192",
-          "sizes": "192x192"
-        }
-      ]
+      "purpose": "any"
     },
     {
-      "name": "Calendar",
-      "url": "/?tab=calendar",
-      "icons": [
-        {
-          "src": "https://picsum.photos/seed/calendar/192/192",
-          "sizes": "192x192"
-        }
-      ]
+      "src": "icon-maskable-512.png",
+      "type": "image/png",
+      "sizes": "512x512",
+      "purpose": "maskable"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "screenshot-mobile.png",
+      "type": "image/png",
+      "sizes": "1080x1920",
+      "form_factor": "narrow",
+      "label": "Rhozly for Mobile"
+    },
+    {
+      "src": "screenshot-desktop.png",
+      "type": "image/png",
+      "sizes": "1920x1080",
+      "form_factor": "wide",
+      "label": "Rhozly for Desktop"
     }
   ]
 }
