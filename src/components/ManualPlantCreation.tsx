@@ -84,7 +84,6 @@ export default function ManualPlantCreation({
   submitLabel = "Save to Shed",
   isReadOnly = false,
 }: ManualPlantCreationProps) {
-  // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
 
   const [activeSection, setActiveSection] = useState<string | null>("basics");
@@ -95,7 +94,9 @@ export default function ManualPlantCreation({
 
   const [formData, setFormData] = useState({
     common_name: "",
+    scientific_name: [] as string[],
     thumbnail_url: "",
+    image_url: "",
     description: "",
     plant_type: "",
     cycle: "Perennial",
@@ -129,7 +130,6 @@ export default function ManualPlantCreation({
     cuisine: false,
   });
 
-  // 🧠 LIVE AI SYNC: Update the AI context whenever the form data changes!
   useEffect(() => {
     setPageContext({
       action: isReadOnly
@@ -146,14 +146,11 @@ export default function ManualPlantCreation({
         isEdible: formData.is_edible,
       },
     });
-
-    // Cleanup when the component unmounts
     return () => setPageContext(null);
   }, [formData, isReadOnly, setPageContext]);
 
   useEffect(() => {
     if (initialData) {
-      // 🚀 AI SANITIZERS
       const safeSunlight = Array.isArray(initialData.sunlight)
         ? initialData.sunlight.map((s: string) => s.toLowerCase())
         : [];
@@ -162,7 +159,6 @@ export default function ManualPlantCreation({
         ? initialData.cycle.charAt(0).toUpperCase() + initialData.cycle.slice(1)
         : formData.cycle;
 
-      // Ensure seasons are arrays even if AI sends a single string by mistake
       const safeFlowering = Array.isArray(initialData.flowering_season)
         ? initialData.flowering_season
         : initialData.flowering_season
@@ -268,12 +264,20 @@ export default function ManualPlantCreation({
     const min = parseInt(formData.watering_min_days);
     const max = parseInt(formData.watering_max_days);
 
-    // 🚀 THE FIX: Enforce strict array formatting right before saving
     const ensureArray = (val: any) =>
       Array.isArray(val) ? val : val ? [val] : [];
 
-    onSave({
-      ...formData,
+    // 🚀 THE FIX: We must strip out extraneous form states (like hardiness_min, leaf, etc)
+    // and send ONLY the exact columns the Supabase 'plants' table expects.
+    const cleanPayload = {
+      common_name: formData.common_name,
+      scientific_name: ensureArray(formData.scientific_name),
+      description: formData.description || null,
+      plant_type: formData.plant_type || null,
+      cycle: formData.cycle || "Perennial",
+      care_level: formData.care_level || "Beginner",
+      growth_rate: formData.growth_rate || "Medium",
+      maintenance: formData.maintenance || "Low",
       watering_min_days: isNaN(min) ? null : min,
       watering_max_days: isNaN(max) ? null : max,
       sunlight: ensureArray(formData.sunlight),
@@ -282,7 +286,18 @@ export default function ManualPlantCreation({
       pruning_month: ensureArray(formData.pruning_month),
       propagation: ensureArray(formData.propagation),
       attracts: ensureArray(formData.attracts),
-    });
+      is_toxic_humans: formData.is_toxic_humans || false,
+      is_toxic_pets: formData.is_toxic_pets || false,
+      indoor: formData.indoor || false,
+      is_edible: formData.is_edible || false,
+      drought_tolerant: formData.drought_tolerant || false,
+      tropical: formData.tropical || false,
+      medicinal: formData.medicinal || false,
+      cuisine: formData.cuisine || false,
+      thumbnail_url: formData.thumbnail_url || formData.image_url || "",
+    };
+
+    onSave(cleanPayload);
   };
 
   const MultiSelect = ({ label, field, options, icon: Icon }: any) => (
@@ -625,9 +640,9 @@ export default function ManualPlantCreation({
           {activeSection === "traits" && (
             <div className="p-2 grid grid-cols-2 gap-4 animate-in slide-in-from-top-2">
               <Toggle
-                name="flowers"
-                label="Flowers"
-                checked={formData.flowers}
+                name="indoor"
+                label="Indoor"
+                checked={formData.indoor}
                 onChange={handleInputChange}
                 isReadOnly={isReadOnly}
               />
@@ -639,9 +654,16 @@ export default function ManualPlantCreation({
                 isReadOnly={isReadOnly}
               />
               <Toggle
-                name="indoor"
-                label="Indoor"
-                checked={formData.indoor}
+                name="drought_tolerant"
+                label="Drought Tolerant"
+                checked={formData.drought_tolerant}
+                onChange={handleInputChange}
+                isReadOnly={isReadOnly}
+              />
+              <Toggle
+                name="tropical"
+                label="Tropical"
+                checked={formData.tropical}
                 onChange={handleInputChange}
                 isReadOnly={isReadOnly}
               />
@@ -649,6 +671,13 @@ export default function ManualPlantCreation({
                 name="is_toxic_pets"
                 label="Toxic (Pets)"
                 checked={formData.is_toxic_pets}
+                onChange={handleInputChange}
+                isReadOnly={isReadOnly}
+              />
+              <Toggle
+                name="is_toxic_humans"
+                label="Toxic (Humans)"
+                checked={formData.is_toxic_humans}
                 onChange={handleInputChange}
                 isReadOnly={isReadOnly}
               />

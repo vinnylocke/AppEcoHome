@@ -25,14 +25,8 @@ import ManualPlantCreation from "./ManualPlantCreation";
 import PlantEditModal from "./PlantEditModal";
 import PlantAssignmentModal from "./PlantAssignmentModal";
 import BulkSearchModal from "./BulkSearchModal";
-
-// Import Perenual Service
 import { PerenualService } from "../lib/perenualService";
-
-// Router Hooks
 import { useLocation, useSearchParams, useNavigate } from "react-router-dom";
-
-// AI Context
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface Plant {
@@ -52,6 +46,78 @@ type QueueItem = {
   status: "pending" | "processing" | "success" | "error";
   data: any;
   errorMsg?: string;
+};
+
+const getFrequencyDays = (wateringTerm: string): number => {
+  const term = wateringTerm?.toLowerCase() || "";
+  if (term.includes("frequent")) return 3;
+  if (term.includes("average")) return 7;
+  if (term.includes("minimum")) return 21;
+  return 7;
+};
+
+const getHemisphere = (country?: string, timezone?: string) => {
+  const southernCountries = [
+    "australia",
+    "new zealand",
+    "brazil",
+    "south africa",
+    "argentina",
+    "chile",
+    "peru",
+  ];
+  const searchString = `${country || ""} ${timezone || ""}`.toLowerCase();
+  if (southernCountries.some((c) => searchString.includes(c)))
+    return "southern";
+  return "northern";
+};
+
+const normalizePeriods = (input: any): string[] => {
+  if (!input) return [];
+  if (Array.isArray(input)) return input.flatMap((i) => normalizePeriods(i));
+  if (typeof input === "string") {
+    return input
+      .split(/,|\band\b|&/i)
+      .map((s) => s.trim())
+      .filter(Boolean);
+  }
+  return [];
+};
+
+const getSinglePeriodRange = (
+  period: string,
+  hemisphere: "northern" | "southern",
+) => {
+  const p = period.toLowerCase();
+  if (p.includes("jan")) return { start: "01-01", end: "01-31" };
+  if (p.includes("feb")) return { start: "02-01", end: "02-28" };
+  if (p.includes("mar")) return { start: "03-01", end: "03-31" };
+  if (p.includes("apr")) return { start: "04-01", end: "04-30" };
+  if (p.includes("may")) return { start: "05-01", end: "05-31" };
+  if (p.includes("jun")) return { start: "06-01", end: "06-30" };
+  if (p.includes("jul")) return { start: "07-01", end: "07-31" };
+  if (p.includes("aug")) return { start: "08-01", end: "08-31" };
+  if (p.includes("sep")) return { start: "09-01", end: "09-30" };
+  if (p.includes("oct")) return { start: "10-01", end: "10-31" };
+  if (p.includes("nov")) return { start: "11-01", end: "11-30" };
+  if (p.includes("dec")) return { start: "12-01", end: "12-31" };
+  if (p.includes("spring"))
+    return hemisphere === "northern"
+      ? { start: "03-01", end: "05-31" }
+      : { start: "09-01", end: "11-30" };
+  if (p.includes("summer"))
+    return hemisphere === "northern"
+      ? { start: "06-01", end: "08-31" }
+      : { start: "12-01", end: "02-28" };
+  if (p.includes("fall") || p.includes("autumn"))
+    return hemisphere === "northern"
+      ? { start: "09-01", end: "11-30" }
+      : { start: "03-01", end: "05-31" };
+  if (p.includes("winter"))
+    return hemisphere === "northern"
+      ? { start: "12-01", end: "02-28" }
+      : { start: "06-01", end: "08-31" };
+  return { start: "01-01", end: "12-31" };
 };
 
 export default function TheShed({ homeId }: { homeId: string }) {
@@ -76,9 +142,10 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
   const [isAddingManual, setIsAddingManual] = useState(false);
 
-  // 🚀 BULK SEARCH & QUEUE STATES
   const [showBulkSearch, setShowBulkSearch] = useState(false);
   const [initialSearchTerm, setInitialSearchTerm] = useState("");
+  const [initialCartItems, setInitialCartItems] = useState<any[]>([]);
+
   const [bulkQueue, setBulkQueue] = useState<QueueItem[]>([]);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
@@ -91,7 +158,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
     plant: Plant | null;
   }>({ isOpen: false, type: "delete", plant: null });
 
-  // --- LIVE AI SYNC ---
   useEffect(() => {
     setPageContext({
       action: isBulkProcessing
@@ -116,8 +182,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
     setPageContext,
   ]);
 
-  // --- BULK IMPORT ENGINE ---
-  const savePlantToDB = async (skeleton: any, harvestSeason?: any) => {
+  const savePlantToDB = async (skeleton: any, fullCareData?: any) => {
     const manualId =
       Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
     skeleton.id = manualId;
@@ -130,27 +195,139 @@ export default function TheShed({ homeId }: { homeId: string }) {
       .single();
     if (error) throw error;
 
-    if (harvestSeason && harvestSeason.length > 0) {
-      const seasonName = Array.isArray(harvestSeason)
-        ? harvestSeason[0]
-        : harvestSeason;
-      await supabase.from("plant_schedules").insert([
-        {
-          home_id: homeId,
-          plant_id: savedPlant.id,
-          title: `${seasonName} Harvest Season`,
-          description: `Auto-generated Schedule`,
-          task_type: "Harvesting",
-          trigger_event: "Planted",
-          start_reference: `Seasonal: 09-01`,
-          end_reference: `Seasonal: 11-30`,
-          start_offset_days: 0,
-          end_offset_days: 0,
-          frequency_days: 1,
-          is_recurring: true,
-        },
-      ]);
-    }
+    const { data: homeData } = await supabase
+      .from("homes")
+      .select("country, timezone")
+      .eq("id", homeId)
+      .single();
+    const hemisphere = getHemisphere(homeData?.country, homeData?.timezone);
+    const newSchedules: any[] = [];
+
+    const harvestPeriods = normalizePeriods(
+      fullCareData?.harvest_season || skeleton.harvest_season,
+    );
+    harvestPeriods.forEach((period) => {
+      const { start, end } = getSinglePeriodRange(period, hemisphere);
+      const niceTitle = period.charAt(0).toUpperCase() + period.slice(1);
+      newSchedules.push({
+        home_id: homeId,
+        plant_id: savedPlant.id,
+        title: `${niceTitle} Harvest`,
+        description: `Auto-generated from Care Guide`,
+        task_type: "Harvesting",
+        trigger_event: "Planted",
+        start_reference: `Seasonal:${start}:${niceTitle} Harvest Start`,
+        start_offset_days: 0,
+        end_reference: `Seasonal:${end}:${niceTitle} Harvest End`,
+        end_offset_days: 0,
+        frequency_days: 1,
+        is_recurring: true,
+        is_auto_generated: true,
+      });
+    });
+
+    const pruningPeriods = normalizePeriods(
+      fullCareData?.pruning_month || skeleton.pruning_month,
+    );
+    pruningPeriods.forEach((period) => {
+      const { start, end } = getSinglePeriodRange(period, hemisphere);
+      const niceTitle = period.charAt(0).toUpperCase() + period.slice(1);
+      newSchedules.push({
+        home_id: homeId,
+        plant_id: savedPlant.id,
+        title: `${niceTitle} Pruning`,
+        description: `Auto-generated from Care Guide`,
+        task_type: "Maintenance",
+        trigger_event: "Planted",
+        start_reference: `Seasonal:${start}:${niceTitle} Pruning Start`,
+        start_offset_days: 0,
+        end_reference: `Seasonal:${end}:${niceTitle} Pruning End`,
+        end_offset_days: 0,
+        frequency_days: 1,
+        is_recurring: true,
+        is_auto_generated: true,
+      });
+    });
+
+    const minWatering =
+      fullCareData?.watering_min_days || skeleton?.watering_min_days || 3;
+    const maxWatering =
+      fullCareData?.watering_max_days || skeleton?.watering_max_days || 14;
+    const avgWatering = Math.max(
+      1,
+      Math.round((minWatering + maxWatering) / 2),
+    );
+
+    const summerDates = getSinglePeriodRange("summer", hemisphere);
+    const winterDates = getSinglePeriodRange("winter", hemisphere);
+    const springDates = getSinglePeriodRange("spring", hemisphere);
+    const fallDates = getSinglePeriodRange("fall", hemisphere);
+
+    newSchedules.push(
+      {
+        home_id: homeId,
+        plant_id: savedPlant.id,
+        title: `Summer Watering`,
+        description: `Auto-generated high-frequency watering`,
+        task_type: "Watering",
+        trigger_event: "Planted",
+        start_reference: `Seasonal:${summerDates.start}:Summer Start`,
+        start_offset_days: 0,
+        end_reference: `Seasonal:${summerDates.end}:Summer End`,
+        end_offset_days: 0,
+        frequency_days: minWatering,
+        is_recurring: true,
+        is_auto_generated: true,
+      },
+      {
+        home_id: homeId,
+        plant_id: savedPlant.id,
+        title: `Winter Watering`,
+        description: `Auto-generated low-frequency watering`,
+        task_type: "Watering",
+        trigger_event: "Planted",
+        start_reference: `Seasonal:${winterDates.start}:Winter Start`,
+        start_offset_days: 0,
+        end_reference: `Seasonal:${winterDates.end}:Winter End`,
+        end_offset_days: 0,
+        frequency_days: maxWatering,
+        is_recurring: true,
+        is_auto_generated: true,
+      },
+      {
+        home_id: homeId,
+        plant_id: savedPlant.id,
+        title: `Spring Watering`,
+        description: `Auto-generated moderate watering`,
+        task_type: "Watering",
+        trigger_event: "Planted",
+        start_reference: `Seasonal:${springDates.start}:Spring Start`,
+        start_offset_days: 0,
+        end_reference: `Seasonal:${springDates.end}:Spring End`,
+        end_offset_days: 0,
+        frequency_days: avgWatering,
+        is_recurring: true,
+        is_auto_generated: true,
+      },
+      {
+        home_id: homeId,
+        plant_id: savedPlant.id,
+        title: `Autumn Watering`,
+        description: `Auto-generated moderate watering`,
+        task_type: "Watering",
+        trigger_event: "Planted",
+        start_reference: `Seasonal:${fallDates.start}:Autumn Start`,
+        start_offset_days: 0,
+        end_reference: `Seasonal:${fallDates.end}:Autumn End`,
+        end_offset_days: 0,
+        frequency_days: avgWatering,
+        is_recurring: true,
+        is_auto_generated: true,
+      },
+    );
+
+    if (newSchedules.length > 0)
+      await supabase.from("plant_schedules").insert(newSchedules);
     return savedPlant;
   };
 
@@ -158,13 +335,20 @@ export default function TheShed({ homeId }: { homeId: string }) {
     setShowBulkSearch(false);
     if (!selectedItems.length) return;
 
-    const newQueue: QueueItem[] = selectedItems.map((item, idx) => {
+    const newQueue: QueueItem[] = selectedItems.map((item) => {
       const isApi = item.type === "api";
       const realData = item.data;
-
       return {
-        id: isApi ? String(realData.id) : realData,
-        name: isApi ? realData.common_name : realData,
+        id: isApi
+          ? typeof realData === "string"
+            ? realData
+            : String(realData.id)
+          : realData,
+        name: isApi
+          ? typeof realData === "string"
+            ? realData
+            : realData.common_name
+          : realData,
         source: item.type,
         status: "pending",
         data: realData,
@@ -176,7 +360,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
 
     for (let i = 0; i < newQueue.length; i++) {
       const item = newQueue[i];
-
       setBulkQueue((prev) =>
         prev.map((q) =>
           q.id === item.id ? { ...q, status: "processing" } : q,
@@ -185,7 +368,21 @@ export default function TheShed({ homeId }: { homeId: string }) {
 
       try {
         if (item.source === "api") {
-          const pId = String(item.data.id);
+          let pId, details, defaultImage;
+
+          if (typeof item.data === "string") {
+            const searchRes = await PerenualService.searchPlants(item.data);
+            if (!searchRes || searchRes.length === 0)
+              throw new Error("No exact match found in API");
+            const topMatch = searchRes[0];
+            pId = String(topMatch.id);
+            defaultImage = topMatch.default_image;
+            details = await PerenualService.getPlantDetails(topMatch.id);
+          } else {
+            pId = String(item.data.id);
+            defaultImage = item.data.default_image;
+            details = await PerenualService.getPlantDetails(item.data.id);
+          }
 
           const { data: existing } = await supabase
             .from("plants")
@@ -195,14 +392,12 @@ export default function TheShed({ homeId }: { homeId: string }) {
             .maybeSingle();
           if (existing) throw new Error("Already in Shed");
 
-          const details = await PerenualService.getPlantDetails(item.data.id);
-
           let imageUrl =
             details.image_url ||
             details.thumbnail_url ||
-            item.data.default_image?.original_url ||
-            item.data.default_image?.regular_url ||
-            item.data.default_image?.thumbnail ||
+            defaultImage?.original_url ||
+            defaultImage?.regular_url ||
+            defaultImage?.thumbnail ||
             "";
           if (imageUrl.includes("upgrade_access")) imageUrl = "";
 
@@ -229,16 +424,16 @@ export default function TheShed({ homeId }: { homeId: string }) {
               source: "api",
               perenual_id: pId,
             },
-            details.harvest_season,
+            details,
           );
         } else {
-          const cleanName = item.data.split("(")[0].trim();
-
+          const cleanName =
+            typeof item.data === "string"
+              ? item.data.split("(")[0].trim()
+              : item.data.common_name;
           const { data: aiData, error } = await supabase.functions.invoke(
             "plant-doctor",
-            {
-              body: { action: "generate_care_guide", targetPlant: cleanName },
-            },
+            { body: { action: "generate_care_guide", targetPlant: cleanName } },
           );
           if (error) throw error;
           if (!aiData) throw new Error("AI failed to generate data");
@@ -247,21 +442,16 @@ export default function TheShed({ homeId }: { homeId: string }) {
           if (!extracted.common_name) extracted.common_name = cleanName;
 
           let imageUrl = extracted.thumbnail_url || "";
-          if (imageUrl.includes("kong:8000")) {
+          if (imageUrl.includes("kong:8000"))
             imageUrl = imageUrl.replace(
               "http://kong:8000",
               "http://127.0.0.1:54321",
             );
-          }
           extracted.thumbnail_url = imageUrl;
 
           await savePlantToDB(
-            {
-              ...extracted,
-              source: "manual",
-              perenual_id: null,
-            },
-            extracted.harvest_season,
+            { ...extracted, source: "manual", perenual_id: null },
+            extracted,
           );
         }
 
@@ -269,22 +459,45 @@ export default function TheShed({ homeId }: { homeId: string }) {
           prev.map((q) => (q.id === item.id ? { ...q, status: "success" } : q)),
         );
       } catch (err: any) {
-        console.error(`Failed to process ${item.name}:`, err);
+        let errorMsg = err.message || "Failed";
+        if (
+          errorMsg.includes("Unexpected token") ||
+          errorMsg.includes("Please Upg")
+        ) {
+          errorMsg = "Perenual API limit reached (Premium required).";
+          toast.error(`Could not import ${item.name}: API limit reached.`);
+        }
         setBulkQueue((prev) =>
           prev.map((q) =>
             q.id === item.id
-              ? { ...q, status: "error", errorMsg: err.message || "Failed" }
+              ? { ...q, status: "error", errorMsg: errorMsg }
               : q,
           ),
         );
       }
     }
-
     setIsBulkProcessing(false);
     fetchData();
   };
 
-  // --- DEEP LINKING ---
+  // 🚀 FIX: Hard flush the browser history state to break the cart trap
+  useEffect(() => {
+    if (location.state && location.state.autoImport) {
+      const { autoImport, source } = location.state;
+
+      // Nuke the state from browser history entirely so back-button or closing modal doesn't re-trigger it
+      window.history.replaceState({}, document.title, location.pathname);
+
+      const queueItems = autoImport.map((name: string) => ({
+        type: source,
+        data: name,
+      }));
+
+      setInitialCartItems(queueItems);
+      setShowBulkSearch(true);
+    }
+  }, [location.state, location.pathname]);
+
   useEffect(() => {
     const currentUrl = location.pathname + location.search;
     if (handledDeepLink.current === currentUrl) return;
@@ -304,11 +517,11 @@ export default function TheShed({ homeId }: { homeId: string }) {
     setIsAddingManual(false);
     setShowBulkSearch(false);
     setInitialSearchTerm("");
+    setInitialCartItems([]); // Reset the array explicitly
     handledDeepLink.current = "";
     navigate("/shed", { replace: true });
   };
 
-  // --- DATA FETCHING ---
   const fetchUserProfile = async () => {
     try {
       const {
@@ -343,7 +556,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
           instance_count: p.inventory_items?.length || 0,
         })),
       );
-
       const { data: locData, error: locError } = await supabase
         .from("locations")
         .select(`id, name, areas ( * )`)
@@ -362,7 +574,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
     fetchData();
   }, [fetchData]);
 
-  // --- CRUD OPERATIONS ---
   const executeArchiveToggle = async () => {
     const plant = confirmState.plant;
     if (!plant) return;
@@ -408,11 +619,10 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const handleManualSave = async (plantData: any) => {
     setActionLoading(true);
     try {
-      await savePlantToDB({
-        ...plantData,
-        source: "manual",
-        perenual_id: null,
-      });
+      await savePlantToDB(
+        { ...plantData, source: "manual", perenual_id: null },
+        plantData,
+      );
       toast.success(`${plantData.common_name} added to shed!`);
       handleCloseModals();
       fetchData();
@@ -547,29 +757,20 @@ export default function TheShed({ homeId }: { homeId: string }) {
 
   return (
     <>
-      {/* ================= MAIN SHED UI ================= */}
       <div className="max-w-7xl mx-auto h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-700 relative">
-        {/* HEADER & CONTROLS */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-10">
           <div>
             <div className="flex items-center gap-4">
               <h2 className="text-4xl font-black font-display text-rhozly-on-surface">
                 The Shed
               </h2>
-
-              {/* 🚀 RELOCATED ADD BUTTON (Inline with Title) */}
               <div className="relative">
                 <button
                   onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-sm border ${
-                    isAddMenuOpen
-                      ? "bg-white text-rhozly-primary border-rhozly-primary rotate-45"
-                      : "bg-rhozly-primary text-white border-transparent hover:scale-110 active:scale-95"
-                  }`}
+                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-sm border ${isAddMenuOpen ? "bg-white text-rhozly-primary border-rhozly-primary rotate-45" : "bg-rhozly-primary text-white border-transparent hover:scale-110 active:scale-95"}`}
                 >
                   <Plus size={20} strokeWidth={3} />
                 </button>
-
                 {isAddMenuOpen && (
                   <>
                     <div
@@ -613,7 +814,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
               Your Master Plant Library
             </p>
           </div>
-
           <div className="flex flex-col md:flex-row flex-wrap items-stretch md:items-center gap-4">
             <div className="relative flex-1 md:flex-none flex items-center min-w-[200px]">
               <Search
@@ -636,7 +836,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
                 </button>
               )}
             </div>
-
             <div className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10">
               {["active", "archived"].map((tab) => (
                 <button
@@ -648,7 +847,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
                 </button>
               ))}
             </div>
-
             <select
               value={filterSource}
               onChange={(e) => setFilterSource(e.target.value as any)}
@@ -661,7 +859,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
           </div>
         </div>
 
-        {/* PLANT GRID */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-32">
           {filteredPlants.length === 0 ? (
             <div className="col-span-full h-40 flex flex-col items-center justify-center text-rhozly-on-surface/40">
@@ -763,11 +960,9 @@ export default function TheShed({ homeId }: { homeId: string }) {
         </div>
       </div>
 
-      {/* ================= 🚀 PORTAL LAYER: ALL FIXED ELEMENTS LIVE HERE ================= */}
       {typeof document !== "undefined" &&
         createPortal(
           <>
-            {/* THE PROCESSING QUEUE MODAL */}
             {bulkQueue.length > 0 && (
               <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in zoom-in-95">
                 <div className="bg-rhozly-surface-lowest w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 flex flex-col max-h-[85vh]">
@@ -789,7 +984,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
                       </button>
                     )}
                   </div>
-
                   <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
                     {bulkQueue.map((item) => (
                       <div
@@ -831,7 +1025,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
                       </div>
                     ))}
                   </div>
-
                   {!isBulkProcessing && (
                     <button
                       onClick={() => setBulkQueue([])}
@@ -844,7 +1037,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
               </div>
             )}
 
-            {/* CONFIRM MODAL */}
             {confirmState.isOpen && confirmState.plant && (
               <ConfirmModal
                 isOpen={confirmState.isOpen}
@@ -885,8 +1077,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
                 isDestructive={confirmState.type === "delete"}
               />
             )}
-
-            {/* OTHER MODALS */}
             {selectedPlant && (
               <PlantAssignmentModal
                 plant={selectedPlant}
@@ -897,7 +1087,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
                 homeId={homeId}
               />
             )}
-
             {isAddingManual && (
               <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/90 backdrop-blur-xl animate-in zoom-in-95 duration-300">
                 <div className="bg-rhozly-surface-lowest w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[3rem] p-6 shadow-2xl border border-rhozly-outline/20 custom-scrollbar">
@@ -923,17 +1112,16 @@ export default function TheShed({ homeId }: { homeId: string }) {
                 </div>
               </div>
             )}
-
             {showBulkSearch && (
               <BulkSearchModal
                 homeId={homeId}
                 isPremium={isPremium}
                 initialSearchTerm={initialSearchTerm}
+                initialCartItems={initialCartItems}
                 onClose={handleCloseModals}
                 onProceedToBulkAdd={handleProceedToBulkAdd}
               />
             )}
-
             {editingPlant && (
               <PlantEditModal
                 homeId={homeId}

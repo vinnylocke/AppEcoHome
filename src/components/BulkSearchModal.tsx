@@ -26,6 +26,7 @@ interface Props {
   onClose: () => void;
   onProceedToBulkAdd: (selectedPlants: any[]) => void;
   initialSearchTerm?: string;
+  initialCartItems?: { type: "api" | "ai"; data: any }[];
 }
 
 export default function BulkSearchModal({
@@ -34,31 +35,42 @@ export default function BulkSearchModal({
   onClose,
   onProceedToBulkAdd,
   initialSearchTerm,
+  initialCartItems,
 }: Props) {
   const { setPageContext } = usePlantDoctor();
 
-  // --- STATE ---
   const [step, setStep] = useState<"search" | "review">("search");
   const [activeTab, setActiveTab] = useState<"api" | "ai">("api");
   const [query, setQuery] = useState(initialSearchTerm || "");
   const [isSearching, setIsSearching] = useState(false);
 
-  // Results
   const [apiResults, setApiResults] = useState<any[]>([]);
   const [aiResults, setAiResults] = useState<string[]>([]);
 
-  // Accordion & Preview UI State
   const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
   const [previewCache, setPreviewCache] = useState<
     Record<string, { loading: boolean; images?: string[]; desc?: string }>
   >({});
 
-  // 🚀 THE CART
   const [selectedPlantsMap, setSelectedPlantsMap] = useState<Map<string, any>>(
     new Map(),
   );
 
-  // --- LIVE AI SYNC ---
+  useEffect(() => {
+    if (initialCartItems && initialCartItems.length > 0) {
+      const newMap = new Map<string, any>();
+      initialCartItems.forEach((item) => {
+        const key =
+          typeof item.data === "string"
+            ? item.data
+            : String(item.data.id || item.data.common_name);
+        newMap.set(key, item);
+      });
+      setSelectedPlantsMap(newMap);
+      setStep("review");
+    }
+  }, [initialCartItems]);
+
   useEffect(() => {
     setPageContext({
       action:
@@ -74,13 +86,12 @@ export default function BulkSearchModal({
     return () => setPageContext(null);
   }, [activeTab, query, selectedPlantsMap.size, step, setPageContext]);
 
-  // --- PREVIEW FETCHER (Decoupled so it can run automatically) ---
+  // 🚀 SMARTER WIKIPEDIA FETCHER
   const fetchPreviewData = async (
     identifier: string,
     isAi: boolean,
     commonNameFallback?: string,
   ) => {
-    // Prevent duplicate fetches
     setPreviewCache((prev) => {
       if (prev[identifier]) return prev;
       return { ...prev, [identifier]: { loading: true } };
@@ -99,27 +110,46 @@ export default function BulkSearchModal({
     let fetchedImages: string[] = [];
     let description = "";
 
-    try {
-      const wikiRes = await fetch(
-        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(primarySearchTerm)}`,
-      );
-      let data;
-      if (wikiRes.ok) {
-        data = await wikiRes.json();
-      } else if (scientificName) {
-        const fallbackRes = await fetch(
-          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(commonName)}`,
+    const fetchWiki = async (term: string) => {
+      try {
+        const res = await fetch(
+          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(term)}`,
         );
-        if (fallbackRes.ok) data = await fallbackRes.json();
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data.type === "disambiguation" || !data.extract) return null;
+        return data;
+      } catch (e) {
+        return null;
       }
+    };
 
-      if (data) {
-        description = data.extract;
-        const wImg = data.thumbnail?.source || data.originalimage?.source;
-        if (wImg) fetchedImages.push(wImg);
+    // 1. Try Primary Term
+    let data = await fetchWiki(primarySearchTerm);
+
+    // 2. Fallback to Common Name
+    if (!data && scientificName) {
+      data = await fetchWiki(commonName);
+    }
+
+    // 3. Fallback: Append " plant" (Fixes issues like "Marigold" or "Basil")
+    if (!data) {
+      data = await fetchWiki(`${commonName} plant`);
+    }
+
+    // 🚀 4. DEEP FALLBACK: Base Plant Type (Fixes "Curly Parsley" -> "Parsley")
+    if (!data && commonName.includes(" ")) {
+      const basePlant = commonName.split(" ").pop(); // Grabs the last word
+      if (basePlant) {
+        data = await fetchWiki(basePlant);
+        if (!data) data = await fetchWiki(`${basePlant} plant`);
       }
-    } catch (e) {
-      console.warn("Wiki fetch failed");
+    }
+
+    if (data) {
+      description = data.extract;
+      const wImg = data.thumbnail?.source || data.originalimage?.source;
+      if (wImg) fetchedImages.push(wImg);
     }
 
     setPreviewCache((prev) => ({
@@ -132,18 +162,22 @@ export default function BulkSearchModal({
     }));
   };
 
-  // --- AUTO-FETCH AI IMAGES ---
   useEffect(() => {
     if (activeTab === "ai" && aiResults.length > 0) {
-      aiResults.forEach((match) => {
-        // Safe to call, the function checks if it already exists
-        fetchPreviewData(match, true);
-      });
+      aiResults.forEach((match) => fetchPreviewData(match, true));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aiResults, activeTab]);
 
-  // --- SEARCH LOGIC ---
+  useEffect(() => {
+    if (step === "review") {
+      selectedPlantsMap.forEach((item, id) => {
+        if (item.type === "ai" && !previewCache[id]) {
+          fetchPreviewData(id, true);
+        }
+      });
+    }
+  }, [step, selectedPlantsMap]);
+
   const performSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!query.trim()) return;
@@ -165,14 +199,23 @@ export default function BulkSearchModal({
         if (error) throw error;
         setAiResults(data.matches || []);
       }
-    } catch (err) {
-      toast.error("Search failed. Please try again.");
+    } catch (err: any) {
+      const errorMsg = err.message || "";
+      if (
+        errorMsg.includes("Unexpected token") ||
+        errorMsg.includes("Please Upg")
+      ) {
+        toast.error(
+          "Perenual API limit reached. Try using the AI Generator instead.",
+        );
+      } else {
+        toast.error("Search failed. Please try again.");
+      }
     } finally {
       setIsSearching(false);
     }
   };
 
-  // --- ACCORDION PREVIEW LOGIC ---
   const handleExpandResult = (
     identifier: string,
     isAi: boolean,
@@ -183,13 +226,11 @@ export default function BulkSearchModal({
       return;
     }
     setExpandedResultId(identifier);
-    // If it hasn't started loading for some reason, trigger it manually
     if (!previewCache[identifier]) {
       fetchPreviewData(identifier, isAi, commonNameFallback);
     }
   };
 
-  // --- CART SELECTION LOGIC ---
   const toggleSelection = (id: string, plantData: any) => {
     setSelectedPlantsMap((prev) => {
       const newMap = new Map(prev);
@@ -202,7 +243,6 @@ export default function BulkSearchModal({
     });
   };
 
-  // --- RENDER HELPERS ---
   const renderAccordionContent = (id: string) => {
     const cache = previewCache[id];
     if (!cache) return null;
@@ -259,7 +299,7 @@ export default function BulkSearchModal({
     );
   }
 
-  // 🚀 REVIEW CART UI
+  // REVIEW CART UI
   if (step === "review") {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
@@ -291,12 +331,21 @@ export default function BulkSearchModal({
           <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-3">
             {Array.from(selectedPlantsMap.entries()).map(([id, item]) => {
               const isApi = item.type === "api";
-              const name = isApi
-                ? item.data.common_name
-                : item.data.split("(")[0].trim();
-              const subName = isApi
-                ? item.data.scientific_name?.[0]
-                : item.data.match(/\(([^)]+)\)/)?.[1];
+
+              // 🚀 FIX: Safely parse names regardless of whether it's an object or auto-imported string
+              const name =
+                typeof item.data === "string"
+                  ? isApi
+                    ? item.data
+                    : item.data.split("(")[0].trim()
+                  : item.data.common_name;
+
+              const subName =
+                typeof item.data === "string"
+                  ? isApi
+                    ? ""
+                    : item.data.match(/\(([^)]+)\)/)?.[1]
+                  : item.data.scientific_name?.[0];
 
               const thumbnail =
                 isApi &&
@@ -383,11 +432,10 @@ export default function BulkSearchModal({
     );
   }
 
-  // 🚀 SEARCH UI
+  // SEARCH UI
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
       <div className="bg-rhozly-surface-lowest w-full max-w-3xl h-[85vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden relative">
-        {/* HEADER */}
         <div className="p-8 pb-4 shrink-0 flex justify-between items-start">
           <div>
             <h3 className="text-3xl font-black flex items-center gap-3">
@@ -405,7 +453,6 @@ export default function BulkSearchModal({
           </button>
         </div>
 
-        {/* TABS */}
         <div className="px-8 shrink-0">
           <div className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/10">
             <button
@@ -429,7 +476,6 @@ export default function BulkSearchModal({
           </div>
         </div>
 
-        {/* SEARCH BAR */}
         <div className="p-8 pb-4 shrink-0">
           <form onSubmit={performSearch} className="relative flex items-center">
             <input
@@ -453,7 +499,6 @@ export default function BulkSearchModal({
           </form>
         </div>
 
-        {/* RESULTS LIST */}
         <div className="flex-1 overflow-y-auto p-8 pt-0 custom-scrollbar space-y-3 pb-32">
           {isSearching ? (
             <div className="flex flex-col items-center justify-center h-40 opacity-50">
@@ -464,7 +509,6 @@ export default function BulkSearchModal({
               <p className="font-bold text-sm">Searching...</p>
             </div>
           ) : activeTab === "api" ? (
-            // --- API RESULTS ---
             apiResults.map((plant: any) => {
               const isSelected = selectedPlantsMap.has(String(plant.id));
               return (
@@ -535,10 +579,8 @@ export default function BulkSearchModal({
               );
             })
           ) : (
-            // --- AI RESULTS ---
             aiResults.map((match: string, i) => {
               const isSelected = selectedPlantsMap.has(match);
-              // 🚀 FIXED: Dynamic Thumbnail fetching from our Auto-Cache
               const cachedThumb = previewCache[match]?.images?.[0];
 
               return (
@@ -560,7 +602,6 @@ export default function BulkSearchModal({
                       )}
                     </button>
 
-                    {/* 🚀 FIXED: Added Wikipedia Thumbnail box to the AI list */}
                     <div className="w-12 h-12 rounded-xl bg-amber-500/5 overflow-hidden shrink-0 flex items-center justify-center text-amber-500/40">
                       {cachedThumb ? (
                         <img
@@ -598,7 +639,6 @@ export default function BulkSearchModal({
           )}
         </div>
 
-        {/* FLOATING CART BAR */}
         {selectedPlantsMap.size > 0 && (
           <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white to-transparent animate-in slide-in-from-bottom-8">
             <div className="bg-rhozly-surface-lowest shadow-2xl border border-rhozly-outline/20 rounded-[2rem] p-4 flex items-center justify-between">

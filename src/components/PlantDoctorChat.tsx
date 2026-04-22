@@ -166,23 +166,19 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                   )}
                 </div>
 
-                {/* 🚀 UPDATED: Expanded max-width slightly for better button layout */}
                 <div
                   className={`p-3 rounded-2xl max-w-[85%] text-sm flex flex-col gap-2 ${msg.role === "user" ? "bg-rhozly-primary text-white rounded-tr-sm" : "bg-white border border-rhozly-outline/10 text-rhozly-on-surface rounded-tl-sm shadow-sm"}`}
                 >
                   {/* Markdown content container */}
                   <div className="whitespace-pre-wrap">{msg.content}</div>
 
-                  {/* 🚀 NEW: Render Action Buttons if the AI suggested plants */}
+                  {/* 🚀 FIX: Pass the entire array to a SINGLE PlantActionButtons component */}
                   {msg.suggested_plants && msg.suggested_plants.length > 0 && (
-                    <div className="mt-2 pt-3 border-t border-gray-100 flex flex-col gap-3">
-                      {msg.suggested_plants.map((plant, pIdx) => (
-                        <PlantActionButtons
-                          key={pIdx}
-                          plant={plant}
-                          homeId={homeId}
-                        />
-                      ))}
+                    <div className="mt-2 pt-3 border-t border-rhozly-outline/10">
+                      <PlantActionButtons
+                        plants={msg.suggested_plants}
+                        homeId={homeId}
+                      />
                     </div>
                   )}
                 </div>

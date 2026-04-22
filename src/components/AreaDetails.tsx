@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
-import { createPortal } from "react-dom"; // 🚀 Teleportation active
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import {
   X,
   Trash2,
@@ -9,19 +10,12 @@ import {
   Sprout,
   Settings2,
   Plus,
-  Globe,
-  PenTool,
   Sparkles,
-  BrainCircuit,
-  Search,
-  Archive,
   History,
   Check,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
-import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
-import { ConfirmModal } from "./ConfirmModal";
 import AreaAdvancedFields from "./AreaAdvancedFields";
 import InstanceEditModal from "./InstanceEditModal";
 
@@ -59,6 +53,7 @@ export default function AreaDetails({
   onAreaUpdated,
 }: AreaDetailsProps) {
   const { setPageContext } = usePlantDoctor();
+  const navigate = useNavigate();
 
   const [plants, setPlants] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -71,7 +66,7 @@ export default function AreaDetails({
   // --- RECOMMENDATION STATES ---
   const [isGettingRecs, setIsGettingRecs] = useState(false);
   const [recommendations, setRecommendations] = useState<any[] | null>(null);
-  const [areaTasks, setAreaTasks] = useState<any[]>([]);
+  const [selectedRecs, setSelectedRecs] = useState<string[]>([]);
 
   // --- MODAL STATES ---
   const [editingInstance, setEditingInstance] = useState<InventoryItem | null>(
@@ -82,9 +77,6 @@ export default function AreaDetails({
     null,
   );
   const [isManagingItem, setIsManagingItem] = useState(false);
-
-  // --- ADD FLOW ---
-  const [addFlow, setAddFlow] = useState<"hidden" | "choose_source">("hidden");
 
   const fetchPlants = async () => {
     setLoading(true);
@@ -107,7 +99,6 @@ export default function AreaDetails({
     fetchPlants();
   }, [area.id]);
 
-  // 🧠 LIVE AI SYNC
   useEffect(() => {
     if (!area) return;
     setPageContext({
@@ -127,20 +118,41 @@ export default function AreaDetails({
 
   const getPlantRecommendations = async () => {
     setIsGettingRecs(true);
+    setSelectedRecs([]);
     try {
+      const activePlants = plants.filter((p) => p.status !== "Archived");
+
       const { data, error } = await supabase.functions.invoke("plant-doctor", {
-        body: { action: "recommend_plants", isOutside, areaData: area },
+        body: {
+          action: "recommend_plants",
+          isOutside,
+          areaData: area,
+          currentPlants: activePlants.map((p) => p.plant_name),
+        },
       });
       if (error) throw error;
       if (data.recommendations) {
         setRecommendations(data.recommendations);
-        toast.success("AI found some perfect matches!");
+        toast.success("AI found some perfect companion matches!");
       }
     } catch (err: any) {
       toast.error("Could not generate recommendations.");
     } finally {
       setIsGettingRecs(false);
     }
+  };
+
+  const toggleSelection = (plantName: string) => {
+    setSelectedRecs((prev) =>
+      prev.includes(plantName)
+        ? prev.filter((n) => n !== plantName)
+        : [...prev, plantName],
+    );
+  };
+
+  // 🚀 The new direct transport to The Shed's auto-queue
+  const handleBulkImport = (source: "ai" | "api") => {
+    navigate("/shed", { state: { autoImport: selectedRecs, source } });
   };
 
   const handleUpdateArea = async () => {
@@ -200,7 +212,6 @@ export default function AreaDetails({
   return (
     <>
       <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 pb-32">
-        {/* HEADER BAR */}
         <div className="flex items-center justify-between bg-rhozly-surface-lowest rounded-3xl p-6 border border-rhozly-outline/30 shadow-sm">
           <div className="flex items-center gap-4">
             <div className="bg-rhozly-primary/10 p-3 rounded-2xl">
@@ -241,6 +252,85 @@ export default function AreaDetails({
             </button>
           </div>
         </div>
+
+        {recommendations && recommendations.length > 0 && (
+          <div className="bg-rhozly-primary/5 rounded-3xl p-6 border border-rhozly-primary/20 space-y-4 animate-in slide-in-from-top-4">
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h4 className="font-black text-lg text-rhozly-primary flex items-center gap-2">
+                  <Sparkles size={20} /> Companion Recommendations
+                </h4>
+                <p className="text-xs font-bold text-rhozly-primary/60 mt-1">
+                  Select multiple plants to import directly to your Shed.
+                </p>
+              </div>
+              <button
+                onClick={() => setRecommendations(null)}
+                className="text-rhozly-primary/50 hover:text-rhozly-primary bg-white p-1.5 rounded-xl shadow-sm border border-rhozly-primary/10"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {recommendations.map((rec, idx) => {
+                const isSelected = selectedRecs.includes(rec.name);
+
+                return (
+                  <div
+                    key={idx}
+                    onClick={() => toggleSelection(rec.name)}
+                    className={`bg-white p-5 rounded-2xl border shadow-sm flex flex-col cursor-pointer transition-colors ${isSelected ? "border-rhozly-primary ring-1 ring-rhozly-primary/20 bg-rhozly-primary/5" : "border-rhozly-outline/10 hover:border-rhozly-primary/30"}`}
+                  >
+                    <div className="flex justify-between items-start mb-2">
+                      <div className="flex items-center gap-3">
+                        <div
+                          className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${isSelected ? "bg-rhozly-primary border-rhozly-primary text-white" : "border-rhozly-outline/30 bg-white"}`}
+                        >
+                          {isSelected && <Check size={14} strokeWidth={4} />}
+                        </div>
+                        <div>
+                          <h5 className="font-black text-rhozly-on-surface text-lg leading-tight">
+                            {rec.name}
+                          </h5>
+                          <p className="text-xs font-bold text-rhozly-on-surface/40 italic mt-0.5">
+                            {rec.scientific_name}
+                          </p>
+                        </div>
+                      </div>
+                      <span className="text-[9px] font-black uppercase tracking-widest bg-rhozly-surface-low px-2 py-1 rounded-md text-rhozly-on-surface/60 shrink-0">
+                        {rec.difficulty}
+                      </span>
+                    </div>
+                    <p className="text-xs font-bold text-rhozly-on-surface/60 leading-relaxed mb-2 flex-1 ml-8">
+                      {rec.reason}
+                    </p>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* 🚀 UPDATED DUAL IMPORT BUTTONS */}
+            {selectedRecs.length > 0 && (
+              <div className="flex flex-col sm:flex-row gap-3 pt-4 border-t border-rhozly-primary/10">
+                <button
+                  onClick={() => handleBulkImport("ai")}
+                  className="flex-1 py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
+                >
+                  <Sparkles size={18} /> Generate with AI ({selectedRecs.length}
+                  )
+                </button>
+                <button
+                  onClick={() => handleBulkImport("api")}
+                  className="flex-1 py-4 bg-white border-2 border-rhozly-primary text-rhozly-primary rounded-xl font-black shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
+                >
+                  <Database size={18} /> Match via Perenual (
+                  {selectedRecs.length})
+                </button>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* PLANT LIST */}
         <div className="space-y-4">
@@ -308,11 +398,9 @@ export default function AreaDetails({
         </div>
       </div>
 
-      {/* 🚀 THE PORTAL LAYER: Escaping the trap */}
       {typeof document !== "undefined" &&
         createPortal(
           <>
-            {/* 1. AREA CONFIGURATION MODAL (THE FIX!) */}
             {isEditingArea && (
               <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-md animate-in fade-in zoom-in-95">
                 <div className="bg-white w-full max-w-2xl rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 max-h-[90vh] overflow-y-auto custom-scrollbar">
@@ -350,7 +438,6 @@ export default function AreaDetails({
                         className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-black border border-transparent focus:border-rhozly-primary outline-none"
                       />
                     </div>
-                    {/* Reusing your Advanced Fields Component */}
                     <AreaAdvancedFields
                       data={areaEditData}
                       onChange={(fields) =>
@@ -376,7 +463,6 @@ export default function AreaDetails({
               </div>
             )}
 
-            {/* 2. MANAGE PLANT MODAL */}
             {plantToManage && (
               <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-md animate-in fade-in zoom-in-95">
                 <div className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col items-center text-center relative overflow-hidden">
@@ -421,7 +507,6 @@ export default function AreaDetails({
               </div>
             )}
 
-            {/* 3. INSTANCE EDIT MODAL */}
             {editingInstance && (
               <InstanceEditModal
                 homeId={homeId}
