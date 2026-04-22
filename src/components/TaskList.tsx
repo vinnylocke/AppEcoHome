@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
+import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabase";
 import {
   CheckSquare,
@@ -24,13 +24,15 @@ import {
   Square,
   CheckSquare2,
   ListChecks,
+  Link as LinkIcon,
+  Unlink,
+  Lock,
+  Plus,
+  Search,
 } from "lucide-react";
-import type { Task } from "./TaskCalendar";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { ConfirmModal } from "./ConfirmModal";
-
-// 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface TaskListProps {
@@ -81,15 +83,11 @@ export default function TaskList({
   const [isUpdatingTask, setIsUpdatingTask] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
 
-  // 🚀 Tab State
   const [viewTab, setViewTab] = useState<"pending" | "completed">("pending");
-
   const [isPostponing, setIsPostponing] = useState(false);
   const [postponeDate, setPostponeDate] = useState("");
-
   const [taskToDelete, setTaskToDelete] = useState<any | null>(null);
 
-  // BULK EDIT STATES
   const [isBulkEditing, setIsBulkEditing] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(
     new Set(),
@@ -97,26 +95,34 @@ export default function TaskList({
   const [isBulkPostponing, setIsBulkPostponing] = useState(false);
   const [bulkPostponeDate, setBulkPostponeDate] = useState("");
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
-
-  // Advanced Bulk Delete States
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [deleteBlueprints, setDeleteBlueprints] = useState(false);
 
-  // ARCHIVE STATES
   const [archivePrompts, setArchivePrompts] = useState<
-    | {
-        itemId: string;
-        plantName: string;
-      }[]
-    | null
+    { itemId: string; plantName: string }[] | null
   >(null);
   const [isArchiving, setIsArchiving] = useState(false);
+
+  const [blockers, setBlockers] = useState<any[]>([]);
+  const [blocking, setBlocking] = useState<any[]>([]);
+  const [isDependenciesLoading, setIsDependenciesLoading] = useState(false);
+  const [isLinking, setIsLinking] = useState(false);
+  const [linkType, setLinkType] = useState<"waiting_on" | "blocking">(
+    "waiting_on",
+  );
+  const [linkTaskId, setLinkTaskId] = useState("");
+
+  const [depSearchQuery, setDepSearchQuery] = useState("");
+  const [depSearchResults, setDepSearchResults] = useState<any[]>([]);
+  const [isSearchingDeps, setIsSearchingDeps] = useState(false);
+  const [selectedDepTask, setSelectedDepTask] = useState<any | null>(null);
+  // 🚀 NEW: Controls the visibility of the search dropdown
+  const [showDepDropdown, setShowDepDropdown] = useState(false);
 
   const dateStr = getLocalDateString(targetDate || new Date());
   const todayStr = getLocalDateString(new Date());
   const typesFilterStr = selectedTypes?.join(",") || "";
 
-  // 🚀 Reset bulk editing if the user changes tabs
   useEffect(() => {
     setIsBulkEditing(false);
     setSelectedTaskIds(new Set());
@@ -166,6 +172,9 @@ export default function TaskList({
       tomorrow.setDate(tomorrow.getDate() + 1);
       setPostponeDate(getLocalDateString(tomorrow));
       setIsPostponing(false);
+      setIsLinking(false);
+      resetLinkBuilder();
+      loadDependencies(selectedTask);
     }
   }, [selectedTask]);
 
@@ -175,6 +184,208 @@ export default function TaskList({
     setIsBulkPostponing(false);
     setShowBulkDeleteModal(false);
   }, [dateStr, typesFilterStr, locationId]);
+
+  useEffect(() => {
+    if (!isLinking || !selectedTask) return;
+
+    const searchTasks = async () => {
+      setIsSearchingDeps(true);
+      try {
+        let q = supabase
+          .from("tasks")
+          .select("id, title, status, due_date, type")
+          .eq("home_id", homeId)
+          .neq("status", "Skipped");
+
+        // 🚀 FIX: Only exclude by ID if it's a real physical task (valid UUID)
+        if (!selectedTask.isGhost) {
+          q = q.neq("id", selectedTask.id);
+        }
+
+        if (linkType === "waiting_on") {
+          q = q
+            .lte("due_date", selectedTask.due_date)
+            .order("due_date", { ascending: false });
+        } else {
+          q = q
+            .gte("due_date", selectedTask.due_date)
+            .order("due_date", { ascending: true });
+        }
+
+        if (depSearchQuery.trim()) {
+          q = q.ilike("title", `%${depSearchQuery.trim()}%`);
+        }
+
+        const { data, error } = await q.limit(15);
+        if (error) throw error;
+        setDepSearchResults(data || []);
+      } catch (e) {
+        console.error("Dependency Search Error:", e);
+      } finally {
+        setIsSearchingDeps(false);
+      }
+    };
+
+    const debounce = setTimeout(searchTasks, 300);
+    return () => clearTimeout(debounce);
+  }, [depSearchQuery, linkType, isLinking, homeId, selectedTask]);
+
+  const resetLinkBuilder = () => {
+    setLinkTaskId("");
+    setLinkType("waiting_on");
+    setDepSearchQuery("");
+    setSelectedDepTask(null);
+    setShowDepDropdown(false);
+  };
+
+  const loadDependencies = async (task: any) => {
+    if (task.isGhost) {
+      setBlockers([]);
+      setBlocking([]);
+      return;
+    }
+
+    setIsDependenciesLoading(true);
+    try {
+      const { data: blockerLinks } = await supabase
+        .from("task_dependencies")
+        .select("depends_on_task_id")
+        .eq("task_id", task.id);
+      if (blockerLinks && blockerLinks.length > 0) {
+        const blockerIds = blockerLinks.map((b) => b.depends_on_task_id);
+        const { data: blockerTasks } = await supabase
+          .from("tasks")
+          .select("id, title, status")
+          .in("id", blockerIds);
+        setBlockers(blockerTasks || []);
+      } else {
+        setBlockers([]);
+      }
+
+      const { data: blockingLinks } = await supabase
+        .from("task_dependencies")
+        .select("task_id")
+        .eq("depends_on_task_id", task.id);
+      if (blockingLinks && blockingLinks.length > 0) {
+        const blockingIds = blockingLinks.map((b) => b.task_id);
+        const { data: blockingTasks } = await supabase
+          .from("tasks")
+          .select("id, title, status")
+          .in("id", blockingIds);
+        setBlocking(blockingTasks || []);
+      } else {
+        setBlocking([]);
+      }
+    } catch (e) {
+      console.error("Failed to load dependencies", e);
+    } finally {
+      setIsDependenciesLoading(false);
+    }
+  };
+
+  const ensurePhysicalTask = async (taskObj: any) => {
+    if (!taskObj.isGhost) return taskObj;
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        home_id: taskObj.home_id,
+        blueprint_id: taskObj.blueprint_id,
+        title: taskObj.title,
+        description: taskObj.description,
+        type: taskObj.type,
+        due_date: taskObj.due_date,
+        status: "Pending",
+        location_id: taskObj.location_id,
+        area_id: taskObj.area_id,
+        inventory_item_id: taskObj.inventory_item_id,
+      })
+      .select()
+      .single();
+
+    if (error) throw error;
+
+    const materializedTask = {
+      ...data,
+      isGhost: false,
+      inventory_items: taskObj.inventory_items,
+    };
+    setTasks((prev) =>
+      prev.map((t) => (t.id === taskObj.id ? materializedTask : t)),
+    );
+    return materializedTask;
+  };
+
+  const handleExecuteLink = async () => {
+    if (!linkTaskId) return;
+    setIsDependenciesLoading(true);
+
+    try {
+      let currentTarget = selectedTask;
+      if (currentTarget.isGhost) {
+        currentTarget = await ensurePhysicalTask(currentTarget);
+        setSelectedTask(currentTarget);
+      }
+
+      let depTask = tasks.find((t) => t.id === linkTaskId);
+      if (!depTask) {
+        // If it's not loaded in current view, fetch it bare
+        const { data } = await supabase
+          .from("tasks")
+          .select("*")
+          .eq("id", linkTaskId)
+          .single();
+        if (!data) throw new Error("Task not found");
+        depTask = data;
+      }
+      if (depTask.isGhost) {
+        depTask = await ensurePhysicalTask(depTask);
+      }
+
+      const payload =
+        linkType === "waiting_on"
+          ? { task_id: currentTarget.id, depends_on_task_id: depTask.id }
+          : { task_id: depTask.id, depends_on_task_id: currentTarget.id };
+
+      const { error } = await supabase
+        .from("task_dependencies")
+        .insert(payload);
+
+      if (error) throw error;
+
+      toast.success("Dependency linked!");
+      loadDependencies(currentTarget);
+      setIsLinking(false);
+      resetLinkBuilder();
+    } catch (e) {
+      toast.error(
+        "Failed to link task. It might already be linked or create a loop.",
+      );
+    } finally {
+      setIsDependenciesLoading(false);
+    }
+  };
+
+  const handleRemoveDependency = async (
+    taskId: string,
+    dependsOnId: string,
+  ) => {
+    setIsDependenciesLoading(true);
+    try {
+      const { error } = await supabase
+        .from("task_dependencies")
+        .delete()
+        .eq("task_id", taskId)
+        .eq("depends_on_task_id", dependsOnId);
+      if (error) throw error;
+      toast.success("Dependency removed.");
+      loadDependencies(selectedTask);
+    } catch (e) {
+      toast.error("Failed to remove dependency.");
+    } finally {
+      setIsDependenciesLoading(false);
+    }
+  };
 
   const fetchTasksAndGhosts = useCallback(
     async (silent = false) => {
@@ -430,10 +641,7 @@ export default function TaskList({
       const uniqueHarvests = Array.from(
         new Map(harvestedItems.map((item) => [item.itemId, item])).values(),
       );
-
-      if (uniqueHarvests.length > 0) {
-        setArchivePrompts(uniqueHarvests);
-      }
+      if (uniqueHarvests.length > 0) setArchivePrompts(uniqueHarvests);
 
       setIsBulkEditing(false);
       setSelectedTaskIds(new Set());
@@ -441,7 +649,6 @@ export default function TaskList({
       onTaskUpdated?.();
     } catch (err) {
       toast.error("Failed to complete tasks.", { id: toastId });
-      Logger.error("Bulk Complete Error", err);
     } finally {
       setIsBulkProcessing(false);
     }
@@ -545,13 +752,6 @@ export default function TaskList({
             .delete()
             .in("id", blueprintIds);
           if (bpError) throw bpError;
-
-          const { error: taskError } = await supabase
-            .from("tasks")
-            .delete()
-            .in("blueprint_id", blueprintIds)
-            .eq("status", "Pending");
-          if (taskError) throw taskError;
         }
 
         const pureIds = selectedTasks
@@ -629,6 +829,30 @@ export default function TaskList({
     setIsUpdatingTask(task.id);
     const newStatus = task.status === "Completed" ? "Pending" : "Completed";
 
+    if (newStatus === "Completed" && !task.isGhost) {
+      try {
+        const { data: deps } = await supabase
+          .from("task_dependencies")
+          .select("depends_on_task_id")
+          .eq("task_id", task.id);
+        if (deps && deps.length > 0) {
+          const depIds = deps.map((d) => d.depends_on_task_id);
+          const { data: pendingDeps } = await supabase
+            .from("tasks")
+            .select("id")
+            .in("id", depIds)
+            .eq("status", "Pending");
+          if (pendingDeps && pendingDeps.length > 0) {
+            toast.error("Cannot complete: Waiting on dependencies!");
+            setIsUpdatingTask(null);
+            return;
+          }
+        }
+      } catch (err) {
+        console.error("Dependency check failed", err);
+      }
+    }
+
     try {
       let finalData = task;
 
@@ -672,7 +896,10 @@ export default function TaskList({
       }
 
       setTasks(tasks.map((t) => (t.id === task.id ? finalData : t)));
-      if (selectedTask?.id === task.id) setSelectedTask(finalData);
+      if (selectedTask?.id === task.id) {
+        setSelectedTask(finalData);
+        loadDependencies(finalData);
+      }
 
       if (newStatus === "Completed") {
         toast.success("Task completed!");
@@ -843,40 +1070,28 @@ export default function TaskList({
       </div>
     );
 
-  // 🚀 TAB LOGIC & FILTERING
   const pendingCount = tasks.filter((t) => t.status !== "Completed").length;
   const completedCount = tasks.filter((t) => t.status === "Completed").length;
-
-  const filteredTasks = tasks.filter((t) => {
-    if (viewTab === "pending") return t.status !== "Completed";
-    return t.status === "Completed";
-  });
-
+  const filteredTasks = tasks.filter((t) =>
+    viewTab === "pending" ? t.status !== "Completed" : t.status === "Completed",
+  );
   const selectedTaskObjects = getSelectedTaskObjects();
+  const isCurrentlyBlocked = blockers.some((b) => b.status === "Pending");
 
   return (
     <>
-      {/* 🚀 TABS AND BULK EDIT BAR */}
       {tasks.length > 0 && (
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 animate-in fade-in">
           <div className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/10">
             <button
               onClick={() => setViewTab("pending")}
-              className={`flex-1 px-6 py-2 rounded-xl text-sm font-black transition-all ${
-                viewTab === "pending"
-                  ? "bg-white text-rhozly-primary shadow-sm"
-                  : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
-              }`}
+              className={`flex-1 px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === "pending" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
             >
               Pending ({pendingCount})
             </button>
             <button
               onClick={() => setViewTab("completed")}
-              className={`flex-1 px-6 py-2 rounded-xl text-sm font-black transition-all ${
-                viewTab === "completed"
-                  ? "bg-white text-green-50 shadow-sm"
-                  : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
-              }`}
+              className={`flex-1 px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === "completed" ? "bg-white text-green-50 shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
             >
               Completed ({completedCount})
             </button>
@@ -893,7 +1108,6 @@ export default function TaskList({
         </div>
       )}
 
-      {/* 🚀 CONDITIONAL EMPTY STATES */}
       {tasks.length === 0 ? (
         <div className="bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-[2rem] p-8 text-center opacity-50 animate-in fade-in">
           <div className="w-16 h-16 bg-rhozly-primary/5 rounded-full flex items-center justify-center mx-auto mb-4 text-rhozly-primary">
@@ -1049,11 +1263,9 @@ export default function TaskList({
         </div>
       )}
 
-      {/* 🚀 THE PORTAL: Teleporting floating bars and modals to the body */}
       {typeof document !== "undefined" &&
         createPortal(
           <>
-            {/* 1. BULK EDIT BAR */}
             {isBulkEditing && (
               <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-md px-4 z-[90] animate-in slide-in-from-bottom-8">
                 <div className="bg-white rounded-[2rem] shadow-2xl border border-rhozly-outline/20 p-4 flex flex-col gap-3">
@@ -1139,7 +1351,6 @@ export default function TaskList({
               </div>
             )}
 
-            {/* 2. BULK DELETE MODAL */}
             {showBulkDeleteModal && (
               <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-md animate-in fade-in zoom-in-95">
                 <div className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col items-center text-center relative overflow-hidden">
@@ -1207,7 +1418,6 @@ export default function TaskList({
               </div>
             )}
 
-            {/* 3. HARVEST ARCHIVE PROMPT */}
             {archivePrompts && archivePrompts.length > 0 && (
               <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-md animate-in fade-in zoom-in-95">
                 <div className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col items-center text-center relative overflow-hidden">
@@ -1274,14 +1484,7 @@ export default function TaskList({
                   <div className="flex justify-between items-start mb-6">
                     <div className="flex gap-3 items-center">
                       <div
-                        className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 
-                          ${
-                            selectedTask.status === "Completed"
-                              ? "bg-green-100 text-green-600"
-                              : selectedTask.due_date < todayStr
-                                ? "bg-red-100 text-red-600"
-                                : "bg-rhozly-primary/10 text-rhozly-primary"
-                          }`}
+                        className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 ${selectedTask.status === "Completed" ? "bg-green-100 text-green-600" : selectedTask.due_date < todayStr ? "bg-red-100 text-red-600" : "bg-rhozly-primary/10 text-rhozly-primary"}`}
                       >
                         {getTaskIcon(selectedTask.type)}
                       </div>
@@ -1309,21 +1512,6 @@ export default function TaskList({
                       <X size={18} />
                     </button>
                   </div>
-
-                  {selectedTask.isAutoCompleted && (
-                    <div className="mb-6 bg-blue-50 border border-blue-100 p-4 rounded-2xl flex items-start gap-3 text-blue-800">
-                      <CloudRain className="shrink-0 mt-0.5" size={18} />
-                      <div>
-                        <p className="text-sm font-black">
-                          Nature handled this!
-                        </p>
-                        <p className="text-xs font-bold opacity-80 mt-0.5">
-                          We forecasted rain on this day for this outside area,
-                          so we automatically checked this off for you.
-                        </p>
-                      </div>
-                    </div>
-                  )}
 
                   {selectedTask.description && (
                     <div className="mb-6 bg-rhozly-surface-lowest p-4 rounded-2xl border border-rhozly-outline/5">
@@ -1391,26 +1579,273 @@ export default function TaskList({
                       </div>
                     )}
 
-                    <div className="flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl">
-                      <div
-                        className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${selectedTask.blueprint_id ? "bg-purple-50 text-purple-500" : "bg-orange-50 text-orange-500"}`}
-                      >
-                        {selectedTask.blueprint_id ? (
-                          <Repeat size={16} />
-                        ) : (
-                          <Info size={16} />
-                        )}
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
-                          Origin
-                        </p>
-                        <p className="text-sm font-bold">
-                          {selectedTask.blueprint_id
-                            ? "Automated Schedule"
-                            : "Manual Entry"}
-                        </p>
-                      </div>
+                    <div className="bg-rhozly-surface-lowest p-4 rounded-2xl border border-rhozly-outline/5 mt-4">
+                      <h4 className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-1">
+                          <LinkIcon size={12} /> Task Dependencies
+                        </div>
+                      </h4>
+
+                      {isDependenciesLoading ? (
+                        <div className="flex items-center justify-center p-4">
+                          <Loader2
+                            className="animate-spin text-rhozly-primary"
+                            size={20}
+                          />
+                        </div>
+                      ) : (
+                        <div className="space-y-4">
+                          <div>
+                            <p className="text-xs font-bold text-gray-500 mb-2">
+                              Waiting On (Blockers):
+                            </p>
+                            {blockers.length === 0 ? (
+                              <p className="text-xs text-gray-400 italic">
+                                None.
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {blockers.map((b) => (
+                                  <div
+                                    key={b.id}
+                                    className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-gray-100 shadow-sm"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      {b.status === "Pending" ? (
+                                        <Lock
+                                          size={14}
+                                          className="text-red-500 shrink-0"
+                                        />
+                                      ) : (
+                                        <CheckSquare2
+                                          size={14}
+                                          className="text-green-500 shrink-0"
+                                        />
+                                      )}
+                                      <span
+                                        className={`text-sm font-bold truncate ${b.status === "Pending" ? "text-gray-800" : "text-gray-400 line-through"}`}
+                                      >
+                                        {b.title}
+                                      </span>
+                                    </div>
+                                    <button
+                                      onClick={() =>
+                                        handleRemoveDependency(
+                                          selectedTask.id,
+                                          b.id,
+                                        )
+                                      }
+                                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0 transition-colors"
+                                    >
+                                      <Unlink size={14} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div>
+                            <p className="text-xs font-bold text-gray-500 mb-2">
+                              Blocking (Depends on this):
+                            </p>
+                            {blocking.length === 0 ? (
+                              <p className="text-xs text-gray-400 italic">
+                                None.
+                              </p>
+                            ) : (
+                              <div className="space-y-2">
+                                {blocking.map((b) => (
+                                  <div
+                                    key={b.id}
+                                    className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-gray-100 shadow-sm"
+                                  >
+                                    <div className="flex items-center gap-2 min-w-0">
+                                      <LinkIcon
+                                        size={14}
+                                        className="text-blue-400 shrink-0"
+                                      />
+                                      <span className="text-sm font-bold truncate text-gray-800">
+                                        {b.title}
+                                      </span>
+                                    </div>
+                                    <button
+                                      onClick={() =>
+                                        handleRemoveDependency(
+                                          b.id,
+                                          selectedTask.id,
+                                        )
+                                      }
+                                      className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0 transition-colors"
+                                    >
+                                      <Unlink size={14} />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="pt-2 border-t border-gray-100">
+                            {isLinking ? (
+                              <div className="flex flex-col gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100">
+                                <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">
+                                  Add New Link
+                                </p>
+
+                                <select
+                                  value={linkType}
+                                  onChange={(e) => {
+                                    setLinkType(
+                                      e.target.value as
+                                        | "waiting_on"
+                                        | "blocking",
+                                    );
+                                    setLinkTaskId("");
+                                    setSelectedDepTask(null);
+                                    setShowDepDropdown(false);
+                                  }}
+                                  className="w-full p-3 bg-white rounded-xl border border-rhozly-outline/10 text-sm font-bold outline-none focus:border-rhozly-primary transition-colors"
+                                >
+                                  <option value="waiting_on">
+                                    This task is WAITING ON...
+                                  </option>
+                                  <option value="blocking">
+                                    This task is BLOCKING...
+                                  </option>
+                                </select>
+
+                                {/* Search Autocomplete */}
+                                <div className="relative">
+                                  <div className="flex items-center bg-white border border-rhozly-outline/10 rounded-xl overflow-hidden focus-within:border-rhozly-primary transition-colors">
+                                    <Search
+                                      size={16}
+                                      className="ml-3 text-gray-400 shrink-0"
+                                    />
+                                    <input
+                                      type="text"
+                                      placeholder="Search your tasks by name..."
+                                      value={
+                                        selectedDepTask
+                                          ? selectedDepTask.title
+                                          : depSearchQuery
+                                      }
+                                      onChange={(e) => {
+                                        setSelectedDepTask(null);
+                                        setLinkTaskId("");
+                                        setDepSearchQuery(e.target.value);
+                                        setShowDepDropdown(true);
+                                      }}
+                                      onFocus={() => setShowDepDropdown(true)}
+                                      className="w-full p-3 text-sm font-bold outline-none"
+                                    />
+                                    {selectedDepTask && (
+                                      <button
+                                        onClick={() => {
+                                          setSelectedDepTask(null);
+                                          setLinkTaskId("");
+                                          setDepSearchQuery("");
+                                          setShowDepDropdown(true);
+                                        }}
+                                        className="p-2 text-gray-400 hover:text-red-500 mr-1"
+                                      >
+                                        <X size={16} />
+                                      </button>
+                                    )}
+                                  </div>
+
+                                  {!selectedDepTask && showDepDropdown && (
+                                    <div className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+                                      {isSearchingDeps ? (
+                                        <div className="p-4 text-center text-gray-400 text-xs flex items-center justify-center gap-2">
+                                          <Loader2
+                                            className="animate-spin"
+                                            size={14}
+                                          />{" "}
+                                          Searching...
+                                        </div>
+                                      ) : depSearchResults.length === 0 &&
+                                        depSearchQuery.trim() !== "" ? (
+                                        <div className="p-4 text-center text-gray-400 text-xs">
+                                          No matching tasks found.
+                                        </div>
+                                      ) : (
+                                        depSearchResults.map((t) => (
+                                          <div
+                                            key={t.id}
+                                            onClick={() => {
+                                              setSelectedDepTask(t);
+                                              setLinkTaskId(t.id);
+                                              setShowDepDropdown(false);
+                                            }}
+                                            className="p-3 hover:bg-rhozly-primary/5 cursor-pointer border-b border-gray-50 last:border-0 flex items-center justify-between transition-colors"
+                                          >
+                                            <div className="min-w-0 pr-2">
+                                              <p className="text-sm font-bold text-gray-800 truncate">
+                                                {t.title}
+                                              </p>
+                                              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-0.5 flex gap-1.5 items-center">
+                                                <span>{t.type}</span>
+                                                <span className="opacity-50">
+                                                  •
+                                                </span>
+                                                <span
+                                                  className={
+                                                    t.status === "Completed"
+                                                      ? "text-green-500"
+                                                      : t.status === "Pending"
+                                                        ? "text-blue-500"
+                                                        : "text-gray-400"
+                                                  }
+                                                >
+                                                  {t.status}
+                                                </span>
+                                              </p>
+                                            </div>
+                                            <div className="text-right shrink-0">
+                                              <p className="text-xs font-black text-gray-500 uppercase">
+                                                {formatDisplayDate(t.due_date)}
+                                              </p>
+                                            </div>
+                                          </div>
+                                        ))
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+
+                                <div className="flex gap-2 mt-1">
+                                  <button
+                                    onClick={() => {
+                                      setIsLinking(false);
+                                      resetLinkBuilder();
+                                    }}
+                                    className="flex-1 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-lg text-xs transition-colors"
+                                  >
+                                    Cancel
+                                  </button>
+                                  <button
+                                    onClick={handleExecuteLink}
+                                    disabled={
+                                      !linkTaskId || isDependenciesLoading
+                                    }
+                                    className="flex-1 py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg text-xs transition-colors disabled:opacity-50"
+                                  >
+                                    Save Link
+                                  </button>
+                                </div>
+                              </div>
+                            ) : (
+                              <button
+                                onClick={() => setIsLinking(true)}
+                                className="text-xs font-bold text-blue-500 hover:text-blue-700 flex items-center gap-1 bg-blue-50 px-3 py-2 rounded-lg transition-colors"
+                              >
+                                <Plus size={14} /> Add Dependency
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -1466,12 +1901,20 @@ export default function TaskList({
 
                       <button
                         onClick={() => toggleTaskCompletion(selectedTask)}
-                        className={`flex-1 h-14 rounded-2xl font-black text-white flex items-center justify-center gap-2 transition-all ${selectedTask.status === "Completed" ? "bg-gray-800 hover:bg-gray-900" : "bg-rhozly-primary hover:scale-[1.02]"}`}
+                        disabled={
+                          isCurrentlyBlocked &&
+                          selectedTask.status !== "Completed"
+                        }
+                        className={`flex-1 h-14 rounded-2xl font-black text-white flex items-center justify-center gap-2 transition-all ${isCurrentlyBlocked && selectedTask.status !== "Completed" ? "bg-gray-300 cursor-not-allowed" : selectedTask.status === "Completed" ? "bg-gray-800 hover:bg-gray-900" : "bg-rhozly-primary hover:scale-[1.02]"}`}
                       >
                         {isUpdatingTask === selectedTask.id ? (
                           <Loader2 className="animate-spin" size={20} />
                         ) : selectedTask.status === "Completed" ? (
                           <>Mark as Pending</>
+                        ) : isCurrentlyBlocked ? (
+                          <>
+                            <Lock size={20} /> Blocked
+                          </>
                         ) : (
                           <>
                             <CheckSquare size={20} /> Mark as Complete
@@ -1486,18 +1929,6 @@ export default function TaskList({
           </>,
           document.body,
         )}
-
-      {/* ConfirmModal is smart and portals itself inside its own file! */}
-      <ConfirmModal
-        isOpen={taskToDelete !== null}
-        isLoading={isUpdatingTask === taskToDelete?.id}
-        onClose={() => setTaskToDelete(null)}
-        onConfirm={() => executeDeleteTask(taskToDelete)}
-        title="Remove Task"
-        description="Are you sure you want to remove this task for today?"
-        confirmText="Remove"
-        isDestructive={true}
-      />
     </>
   );
 }
