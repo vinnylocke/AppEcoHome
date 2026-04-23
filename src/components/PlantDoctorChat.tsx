@@ -14,15 +14,16 @@ import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 
-// 🚀 IMPORT THE NEW COMPONENT HERE
-// (Adjust this path if your PlantActionButtons file is in a different folder)
+// 🚀 IMPORTS
 import { PlantActionButtons } from "./PlantActionButtons";
+import { TaskActionButtons } from "./TaskActionButtons"; // 🚀 Added Task Component
 
-// 🚀 UPDATED INTERFACE: Now accepts the suggested_plants array
+// 🚀 UPDATED INTERFACE: Now accepts both suggested_plants AND suggested_tasks
 interface Message {
   role: "user" | "assistant";
   content: string;
   suggested_plants?: Array<{ name: string; search_query: string }>;
+  suggested_tasks?: Array<any>; // 🚀 Added Task Array
 }
 
 export default function PlantDoctorChat({ homeId }: { homeId: string }) {
@@ -67,7 +68,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
         "plant-doctor-ai",
         {
           body: {
-            // This safely strips out 'suggested_plants' before sending history back to the AI
+            // Safely strip out the complex arrays before sending history back to the AI
             messages: [...messages, userMessage].map((m) => ({
               role: m.role,
               content: m.content,
@@ -81,13 +82,14 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       if (error) throw error;
       if (!data || !data.reply) throw new Error("No reply received from AI");
 
-      // 🚀 NEW: Save both the text reply AND the suggested plants to the chat history
+      // 🚀 NEW: Save text, plants, AND tasks to the chat history
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
           content: data.reply,
           suggested_plants: data.suggested_plants,
+          suggested_tasks: data.suggested_tasks, // 🚀 Added here
         },
       ]);
     } catch (error: any) {
@@ -172,11 +174,21 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                   {/* Markdown content container */}
                   <div className="whitespace-pre-wrap">{msg.content}</div>
 
-                  {/* 🚀 FIX: Pass the entire array to a SINGLE PlantActionButtons component */}
+                  {/* Render Plant Action Buttons */}
                   {msg.suggested_plants && msg.suggested_plants.length > 0 && (
                     <div className="mt-2 pt-3 border-t border-rhozly-outline/10">
                       <PlantActionButtons
                         plants={msg.suggested_plants}
+                        homeId={homeId}
+                      />
+                    </div>
+                  )}
+
+                  {/* 🚀 NEW: Render Task Action Buttons */}
+                  {msg.suggested_tasks && msg.suggested_tasks.length > 0 && (
+                    <div className="mt-2 pt-3 border-t border-rhozly-outline/10">
+                      <TaskActionButtons
+                        tasks={msg.suggested_tasks}
                         homeId={homeId}
                       />
                     </div>

@@ -24,9 +24,9 @@ async function callGemini(
       contents: messages,
       generationConfig: {
         temperature: 0.7,
-        maxOutputTokens: 800, // Bumped up slightly to allow for JSON overhead
+        maxOutputTokens: 1000, // Bumped up to allow for both tasks and plants JSON overhead
         responseMimeType: "application/json",
-        // 🔥 This forces Gemini to output the exact object shape we need!
+        // 🔥 Forces Gemini to output the exact object shape we need!
         responseSchema: {
           type: "OBJECT",
           properties: {
@@ -54,6 +54,56 @@ async function callGemini(
                   },
                 },
                 required: ["name", "search_query"],
+              },
+            },
+            // 🚀 NEW: Suggested Tasks Array
+            suggested_tasks: {
+              type: "ARRAY",
+              description:
+                "Populate this if generating a care plan, to-do list, or sequence of actions.",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  title: { type: "STRING" },
+                  description: { type: "STRING" },
+                  task_type: {
+                    type: "STRING",
+                    description:
+                      "MUST be exactly one of: 'Planting', 'Watering', 'Harvesting', 'Maintenance'",
+                  },
+                  due_in_days: {
+                    type: "INTEGER",
+                    description: "0 for today, 1 for tomorrow, 7 for next week",
+                  },
+                  is_recurring: {
+                    type: "BOOLEAN",
+                    description:
+                      "true for continuous habits, false for one-offs",
+                  },
+                  frequency_days: {
+                    type: "INTEGER",
+                    nullable: true,
+                    description: "interval if is_recurring is true, else null",
+                  },
+                  end_offset_days: {
+                    type: "INTEGER",
+                    nullable: true,
+                    description:
+                      "how many days until the recurring task stops, else null",
+                  },
+                  depends_on_index: {
+                    type: "INTEGER",
+                    nullable: true,
+                    description: "Array index of the blocking task, else null",
+                  },
+                },
+                required: [
+                  "title",
+                  "description",
+                  "task_type",
+                  "due_in_days",
+                  "is_recurring",
+                ],
               },
             },
           },
@@ -98,7 +148,7 @@ serve(async (req) => {
       .select("plant_name, status")
       .eq("home_id", homeId);
 
-    // Minor update to the system prompt to remind it about the JSON
+    // 🚀 NEW: Injected the CRITICAL TASK GENERATION RULES
     const systemPrompt = `
       You are the Rhozly Plant Doctor, an expert, empathetic, and highly knowledgeable botanist and garden planner.
       YOUR PRIME DIRECTIVE: You MUST ONLY answer questions related to plants, gardening, landscaping, botany, and agriculture. 
@@ -110,6 +160,16 @@ serve(async (req) => {
 
       Provide highly personalized advice formatted in markdown. 
       IMPORTANT: If you recommend a specific plant that they do NOT already own, you must include it in the 'suggested_plants' array in your JSON response so the UI can generate action buttons.
+
+      CRITICAL TASK GENERATION RULES:
+      If the user asks for a schedule, a care plan, to-do list, or advice on what to do next, you MUST generate an array of tasks in the "suggested_tasks" JSON field.
+
+      You must obey the database schema exactly:
+      - "task_type": MUST be exactly one of: 'Planting', 'Watering', 'Harvesting', 'Maintenance'. Do not use any other words.
+      - "due_in_days": Number. Use 0 for today, 1 for tomorrow, 7 for next week, etc.
+      - "is_recurring": Boolean. Use true only for continuous habits (like weekly watering). Use false for one-off actions (like planting a seed or pruning a dead leaf).
+      - "frequency_days": Number or null. If is_recurring is true, you must provide the interval (e.g., 7).
+      - "depends_on_index": Number or null. If a task cannot be completed until another task in this array is done, put the array index of the blocking task here (e.g., if Planting (index 1) requires Prep Soil (index 0), put 0).
     `;
 
     const geminiMessages = messages.map((msg: any) => ({
@@ -155,11 +215,12 @@ serve(async (req) => {
       );
     }
 
-    // We now return the structured object directly to the frontend!
+    // 🚀 NEW: Return the structured object including suggested_tasks
     return new Response(
       JSON.stringify({
         reply: aiResult.text,
         suggested_plants: aiResult.suggested_plants || [],
+        suggested_tasks: aiResult.suggested_tasks || [],
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
