@@ -17,6 +17,7 @@ import {
   Database,
   Stethoscope,
   X,
+  Map, // 🚀 NEW: Imported Map for the Planner icon
 } from "lucide-react";
 
 // 🚀 NATIVE IMPORT
@@ -47,6 +48,9 @@ import PlantDoctor from "./components/PlantDoctor";
 import LightSensor from "./components/LightSensor";
 import GuideList from "./components/GuideList";
 import { BookOpen } from "lucide-react";
+
+// 🚀 NEW: Import the Planner Dashboard
+import PlannerDashboard from "./components/PlannerDashboard";
 
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import PullToRefresh from "./components/PullToRefresh";
@@ -462,9 +466,11 @@ export default function App() {
       />
     );
 
+  // 🚀 NEW: Added the Planner to the Navigation Array
   const navLinks = [
     { id: "dashboard", icon: <Home />, label: "Dashboard" },
     { id: "shed", icon: <Database />, label: "The Shed" },
+    { id: "planner", icon: <Map />, label: "Planner" },
     { id: "doctor", icon: <Stethoscope />, label: "Plant Doctor" },
     { id: "lightsensor", icon: <Sun />, label: "Light Sensor" },
     { id: "guides", icon: <BookOpen />, label: "Guides" },
@@ -568,6 +574,13 @@ export default function App() {
               <main className="flex-1 relative w-full overflow-hidden">
                 <PullToRefresh onRefresh={handleManualRefresh}>
                   <div className="p-4 md:p-8 pb-28 md:pb-8 min-h-full">
+                    {/* 🚀 NEW: The Planner Dashboard Render Block */}
+                    {activeTab === "planner" && profile?.home_id && (
+                      <div className="h-full animate-in fade-in duration-500">
+                        <PlannerDashboard homeId={profile.home_id} />
+                      </div>
+                    )}
+
                     {activeTab === "dashboard" && (
                       <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
                         {selectedLocationId ? (
