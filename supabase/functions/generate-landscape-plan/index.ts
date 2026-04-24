@@ -7,6 +7,29 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// 🧠 1. FEW-SHOT EXAMPLES
+const FEW_SHOT_EXAMPLES = `
+EXAMPLE INPUT:
+Dimensions: Height: 50cm, Width: 100cm, Depth: 30cm. Description: I want a colorful, vibrant window box. Inventory: [Tomato, Basil]. Sunlight: Full Sun.
+
+EXAMPLE IDEAL OUTPUT (Notice how it ignores the tomatoes because they don't fit the colorful aesthetic):
+{
+  "project_overview": { "title": "Vibrant Sun-Drenched Window Box", "summary": "A highly colorful, trailing floral arrangement perfect for a shallow, sunny container.", "estimated_difficulty": "Beginner" },
+  "infrastructure_requirements": { "needs_new_area": true, "suggested_area_name": "Front Window Box", "suggested_environment": "Outdoor", "suggested_sunlight": "Full Sun", "suggested_medium": "Potting Soil with Perlite" },
+  "plant_manifest": [
+    { "common_name": "Petunia", "scientific_name": "Petunia × atkinsiana", "quantity": 3, "role": "Spiller (Trailing)", "aesthetic_reason": "Provides bright, continuous trumpet-shaped blooms that spill over the edge.", "horticultural_reason": "Thrives in full sun and shallow 30cm depth.", "procurement_advice": "Buy established plugs from a nursery." },
+    { "common_name": "Marigold", "scientific_name": "Tagetes", "quantity": 2, "role": "Filler", "aesthetic_reason": "Adds vibrant orange and yellow contrast.", "horticultural_reason": "Highly heat tolerant and roots easily in a 50cm tall space.", "procurement_advice": "Can be grown from seed easily." }
+  ],
+  "preparation_tasks": [
+    { "task_index": 1, "title": "Drill Drainage Holes", "description": "Ensure the 100cm x 30cm container has adequate drainage.", "depends_on_index": null },
+    { "task_index": 2, "title": "Fill with Medium", "description": "Add the potting soil mix, leaving 2 inches at the top.", "depends_on_index": 1 }
+  ],
+  "custom_maintenance_tasks": [
+    { "title": "Deadheading", "description": "Pinch off spent Petunia and Marigold blooms to encourage new growth.", "frequency_days": 4, "seasonality": "Active Growing Season" }
+  ]
+}
+`;
+
 async function callGemini(
   model: string,
   apiKey: string,
@@ -22,7 +45,7 @@ async function callGemini(
       system_instruction: { parts: [{ text: systemPrompt }] },
       contents: [{ role: "user", parts: [{ text: promptText }] }],
       generationConfig: {
-        temperature: 0.7,
+        temperature: 0.2, // 🚀 LOWERED TEMP: Makes the AI highly logical and obedient
         maxOutputTokens: 2500,
         responseMimeType: "application/json",
         responseSchema: {
@@ -57,7 +80,8 @@ async function callGemini(
                   scientific_name: { type: "STRING" },
                   quantity: { type: "INTEGER" },
                   role: { type: "STRING" },
-                  reason: { type: "STRING" },
+                  aesthetic_reason: { type: "STRING" }, // 🚀 Split reasoning
+                  horticultural_reason: { type: "STRING" }, // 🚀 Split reasoning
                   procurement_advice: { type: "STRING" },
                 },
                 required: [
@@ -65,7 +89,8 @@ async function callGemini(
                   "scientific_name",
                   "quantity",
                   "role",
-                  "reason",
+                  "aesthetic_reason",
+                  "horticultural_reason",
                   "procurement_advice",
                 ],
               },
@@ -129,7 +154,7 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { formData, homeId } = await req.json();
+    const { formData, homeId, isRegeneration } = await req.json(); // 🚀 Capture regeneration flag
 
     const authHeader = req.headers.get("Authorization")!;
     const supabase = createClient(
@@ -148,27 +173,47 @@ serve(async (req) => {
       .select("plant_name, status, area_id")
       .eq("home_id", homeId);
 
+    // 🧠 2. STRICTER SYSTEM PROMPT
     const systemPrompt = `
-      You are the Rhozly Master Landscape Architect. Your job is to take a user's rough idea and output a strict, professional, and highly detailed project execution plan.
+      You are the Rhozly Master Landscape Architect. Output a strict, professional, and highly detailed project execution plan.
       
       USER'S CURRENT GARDEN AREAS: ${JSON.stringify(areas || [])}
       USER'S CURRENT INVENTORY: ${JSON.stringify(inventory || [])}
       
-      RULES:
-      1. If the user specifies an existing area, use it. If not, design the infrastructure for a new one.
-      2. If the user wants to use plants they already own, incorporate them into the plan without suggesting they buy them.
-      3. The 'preparation_tasks' MUST be sequential. Use 'depends_on_index' to link them logically. Do NOT include 'planting' tasks here; the app handles planting natively.
-      4. 'custom_maintenance_tasks' are ONLY for non-plant chores.
+      CRITICAL RULES:
+      1. ABSOLUTE EXCLUSIONS: You MUST NOT include any plant, feature, or concept listed in the "Excluded Features" or the "User Feedback" under any circumstances. If an item in the user's inventory violates an exclusion, IGNORE THE INVENTORY.
+      2. INVENTORY VETO: Do NOT force inventory items into the design unless they perfectly match the user's aesthetic, dimensional, and environmental goals. (e.g., Do not put inventory vegetables in an ornamental floral planter).
+      3. DIMENSIONS MATTER: Ensure the suggested plant quantities and sizes physically fit within the provided Height, Width, and Depth.
+      4. The 'preparation_tasks' MUST be sequential. Use 'depends_on_index' to link them logically. Do NOT include 'planting' tasks here.
+      5. 'custom_maintenance_tasks' are ONLY for non-plant chores (e.g., cleaning the planter, checking drainage).
+      
+      ${FEW_SHOT_EXAMPLES}
     `;
 
-    const promptText = `
-      Please generate a project blueprint based on these user requirements:
+    // 🧠 3. DYNAMIC PROMPT TEXT (Putting Feedback at the Absolute Top)
+    let promptText = "";
+
+    if (isRegeneration) {
+      promptText += `
+      URGENT REGENERATION REQUEST:
+      The user REJECTED your previous blueprint. You MUST apply the following feedback strictly and override any conflicting original requirements. 
+      
+      USER FEEDBACK: "${formData.feedback}"
+      
+      PREVIOUS REJECTED BLUEPRINT (For context on what NOT to do):
+      ${JSON.stringify(formData.previousBlueprint)}
+      
+      --------------------------------------------------
+      ORIGINAL PROJECT PARAMETERS (Apply feedback overrides to these):
+      `;
+    }
+
+    promptText += `
       Project Name: ${formData.planName}
       Description: ${formData.description}
-      Target Area: ${formData.targetArea || "Create New"}
-      Size: ${formData.locationSize || "Unknown"}
-      Included Plants/Features: ${formData.inclusivePlants || "None"}
-      Excluded Plants/Features: ${formData.exclusivePlants || "None"}
+      Dimensions: Height: ${formData.height || "N/A"}, Width: ${formData.width || "N/A"}, Depth: ${formData.depth || "N/A"}
+      Included Features: ${formData.inclusivePlants || "None"}
+      Excluded Features: ${formData.exclusivePlants || "None"}
       Wildlife Goals: ${formData.wildlife || "None"}
       Desired Difficulty: ${formData.difficulty || "Average"}
       Desired Maintenance: ${formData.maintenance || "Average"}
@@ -198,44 +243,38 @@ serve(async (req) => {
           systemPrompt,
         );
         success = true;
-        console.log(`Success with ${model}!`);
         break;
       } catch (error: any) {
-        console.warn(`Failed with ${model}:`, error.message);
         lastError = error.message;
       }
     }
 
-    if (!success) {
+    if (!success)
       throw new Error(`All AI models failed. Last error: ${lastError}`);
-    }
 
-    // 🚀 NEW: Generate the Project Cover Image using Pollinations.ai
+    // 🚀 4. GENERATING A SMALLER BASE IMAGE
     let coverImageUrl =
-      "https://images.unsplash.com/photo-1584479898061-15742e14f50d?auto=format&fit=crop&q=80&w=800"; // Default fallback
+      "https://images.unsplash.com/photo-1584479898061-15742e14f50d?auto=format&fit=crop&q=80&w=800";
 
     try {
       const styleSuffix =
-        "photorealistic, 8k resolution, architectural digest, professional landscape photography, beautiful garden design, sunny day";
+        "photorealistic, architectural digest, professional landscape photography, beautiful garden design, sunny day";
       const imagePrompt = `A high quality landscaping photo of a ${aiResult.project_overview.title}. Style: ${formData.aesthetic}. ${styleSuffix}`;
 
       const encodedPrompt = encodeURIComponent(imagePrompt);
-      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=500&nologo=true`;
+      const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=600&height=400&nologo=true`;
 
-      console.log("Fetching image from Pollinations...");
       const imageResponse = await fetch(pollinationsUrl);
 
       if (imageResponse.ok) {
         const imageBlob = await imageResponse.blob();
         const fileName = `plan_${crypto.randomUUID()}.jpg`;
 
-        // 🚀 THE FIX: Create an Admin client to bypass Storage RLS policies
         const supabaseAdmin = createClient(
           Deno.env.get("SUPABASE_URL") ?? "",
           Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
         );
 
-        console.log("Uploading to Supabase Storage...");
         const { error: uploadError } = await supabaseAdmin.storage
           .from("guide-images")
           .upload(fileName, imageBlob, {
@@ -244,10 +283,7 @@ serve(async (req) => {
             upsert: false,
           });
 
-        if (uploadError) {
-          console.error("Storage upload failed:", uploadError);
-        } else {
-          // Get the public URL using the admin client
+        if (!uploadError) {
           const { data: publicUrlData } = supabaseAdmin.storage
             .from("guide-images")
             .getPublicUrl(fileName);
@@ -260,23 +296,14 @@ serve(async (req) => {
             );
           }
           coverImageUrl = finalUrl;
-          console.log("Image generation and upload successful!");
         }
-      } else {
-        console.error(
-          "Pollinations API returned non-OK status:",
-          imageResponse.status,
-        );
       }
     } catch (imgError) {
       console.error("Error generating cover image:", imgError);
     }
 
     return new Response(
-      JSON.stringify({
-        blueprint: aiResult,
-        cover_image_url: coverImageUrl,
-      }),
+      JSON.stringify({ blueprint: aiResult, cover_image_url: coverImageUrl }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,

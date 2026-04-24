@@ -59,6 +59,13 @@ import PullToRefresh from "./components/PullToRefresh";
 import { PlantDoctorProvider } from "./context/PlantDoctorContext";
 import PlantDoctorChat from "./components/PlantDoctorChat";
 
+// Force the browser to check for Service Worker updates
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.ready.then((registration) => {
+    registration.update();
+  });
+}
+
 // --- WEATHER & CACHE HELPERS ---
 const getMidnightTonight = () => {
   const now = new Date();

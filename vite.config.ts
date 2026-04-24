@@ -11,6 +11,9 @@ export default defineConfig({
       // This tells Vite to bundle your manifest automatically
       manifest: false,
       workbox: {
+        clientsClaim: true, // 🚀 Takes control of the window immediately
+        skipWaiting: true, // 🚀 Kills the old service worker immediately
+        cleanupOutdatedCaches: true, // Removes old cached files
         globPatterns: ["**/*.{js,css,html,ico,png,svg}"],
       },
     }),

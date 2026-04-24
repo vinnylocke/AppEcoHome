@@ -40,12 +40,10 @@ export default function NewPlanForm({
     description: "",
     aesthetic: "Natural",
     timeline: "Start Immediately",
-    // 🚀 NEW: Dimension States
     unit: "m",
     width: "",
     length: "",
     depth: "",
-    // 🚀 UPDATED: Sunlight default
     sunlight: "full sun",
     medium: "Standard Soil",
     inclusivePlants: "",
@@ -56,7 +54,6 @@ export default function NewPlanForm({
     considerations: "",
   });
 
-  // Lock background scrolling when modal is open
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
@@ -73,7 +70,7 @@ export default function NewPlanForm({
     if (!formData.planName || !formData.description) {
       return toast.error("Please provide a name and description.");
     }
-    // 🚀 NEW: Dimension Validation
+
     if (!formData.width || !formData.length) {
       return toast.error("Please provide both width and length dimensions.");
     }
@@ -82,15 +79,11 @@ export default function NewPlanForm({
     const toastId = toast.loading("The AI Architect is designing your plan...");
 
     try {
-      // 🚀 Format the dimensions clearly for the AI before sending
-      let sizeString = `${formData.width}${formData.unit} wide x ${formData.length}${formData.unit} long`;
-      if (formData.depth)
-        sizeString += ` x ${formData.depth}${formData.unit} deep`;
-
-      // Package it so the edge function sees the locationSize string it expects
       const payloadData = {
         ...formData,
-        locationSize: sizeString,
+        height: `${formData.length}${formData.unit}`,
+        width: `${formData.width}${formData.unit}`,
+        depth: formData.depth ? `${formData.depth}${formData.unit}` : "N/A",
       };
 
       const { data, error } = await supabase.functions.invoke(
@@ -127,9 +120,11 @@ export default function NewPlanForm({
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6 bg-rhozly-bg/95 backdrop-blur-sm animate-in fade-in zoom-in-95">
+    // 🚀 FIX: Removed the zoom-in-95 from the wrapper to prevent viewport clipping
+    <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6 bg-rhozly-bg/95 backdrop-blur-sm animate-in fade-in">
       <div
-        className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl border border-rhozly-outline/10 flex flex-col max-h-[100dvh] sm:max-h-[90vh] overflow-hidden relative"
+        // 🚀 FIX: Added the zoom animation directly to the modal box
+        className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl border border-rhozly-outline/10 flex flex-col max-h-[100dvh] sm:max-h-[90vh] overflow-hidden relative animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -165,12 +160,13 @@ export default function NewPlanForm({
                 <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                   Project Name *
                 </label>
+                {/* 🚀 FIX: Enforced text-base on all mobile inputs */}
                 <input
                   name="planName"
                   value={formData.planName}
                   onChange={handleInputChange}
                   placeholder="e.g., Wildlife Balcony Pond"
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold focus:ring-2 focus:ring-rhozly-primary/20 border border-transparent transition-all"
+                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold text-base focus:ring-2 focus:ring-rhozly-primary/20 border border-transparent transition-all"
                 />
               </div>
 
@@ -184,7 +180,7 @@ export default function NewPlanForm({
                   onChange={handleInputChange}
                   rows={3}
                   placeholder="What are we building? Who is it for?"
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold resize-none focus:ring-2 focus:ring-rhozly-primary/20 border border-transparent transition-all"
+                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold text-base resize-none focus:ring-2 focus:ring-rhozly-primary/20 border border-transparent transition-all"
                 />
               </div>
 
@@ -197,7 +193,7 @@ export default function NewPlanForm({
                     name="aesthetic"
                     value={formData.aesthetic}
                     onChange={handleInputChange}
-                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:ring-2 focus:ring-rhozly-primary/20 transition-all"
+                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold text-base outline-none border border-transparent focus:ring-2 focus:ring-rhozly-primary/20 transition-all"
                   >
                     <option>Natural / Wild</option>
                     <option>Modern Minimalist</option>
@@ -213,7 +209,7 @@ export default function NewPlanForm({
                     name="timeline"
                     value={formData.timeline}
                     onChange={handleInputChange}
-                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:ring-2 focus:ring-rhozly-primary/20 transition-all"
+                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold text-base outline-none border border-transparent focus:ring-2 focus:ring-rhozly-primary/20 transition-all"
                   >
                     <option>Start Immediately</option>
                     <option>Plan for Spring</option>
@@ -231,7 +227,6 @@ export default function NewPlanForm({
                 <h3 className="font-black text-lg">The Environment</h3>
               </div>
 
-              {/* 🚀 NEW: Dimensions Component */}
               <div className="bg-blue-50/50 p-5 rounded-3xl border border-blue-100/50 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
                   <label className="text-[10px] font-black uppercase text-blue-800/60 tracking-widest">
@@ -241,7 +236,7 @@ export default function NewPlanForm({
                     name="unit"
                     value={formData.unit}
                     onChange={handleInputChange}
-                    className="ml-auto bg-white border border-blue-200 text-blue-800 text-xs font-black p-1.5 rounded-lg outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/20"
+                    className="ml-auto bg-white border border-blue-200 text-blue-800 text-base sm:text-xs font-black p-2 sm:p-1.5 rounded-lg outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/20"
                   >
                     <option value="m">Meters (m)</option>
                     <option value="cm">Centimeters (cm)</option>
@@ -250,7 +245,8 @@ export default function NewPlanForm({
                   </select>
                 </div>
 
-                <div className="grid grid-cols-3 gap-3">
+                {/* 🚀 FIX: Stacks dimensions on mobile so they don't blow out the screen width */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
                     <span className="text-[10px] font-bold text-blue-800/60 block mb-1">
                       Width *
@@ -261,7 +257,7 @@ export default function NewPlanForm({
                         name="width"
                         value={formData.width}
                         onChange={handleInputChange}
-                        className="w-full p-3 pr-8 bg-white rounded-xl border border-blue-200 font-bold text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        className="w-full p-3 pr-8 bg-white rounded-xl border border-blue-200 font-bold text-base sm:text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
                         placeholder="0"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">
@@ -279,7 +275,7 @@ export default function NewPlanForm({
                         name="length"
                         value={formData.length}
                         onChange={handleInputChange}
-                        className="w-full p-3 pr-8 bg-white rounded-xl border border-blue-200 font-bold text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        className="w-full p-3 pr-8 bg-white rounded-xl border border-blue-200 font-bold text-base sm:text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
                         placeholder="0"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">
@@ -297,7 +293,7 @@ export default function NewPlanForm({
                         name="depth"
                         value={formData.depth}
                         onChange={handleInputChange}
-                        className="w-full p-3 pr-8 bg-white rounded-xl border border-blue-200 font-bold text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        className="w-full p-3 pr-8 bg-white rounded-xl border border-blue-200 font-bold text-base sm:text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
                         placeholder="0"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">
@@ -317,9 +313,8 @@ export default function NewPlanForm({
                     name="sunlight"
                     value={formData.sunlight}
                     onChange={handleInputChange}
-                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
+                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold text-base outline-none border border-transparent focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
                   >
-                    {/* 🚀 NEW: Dynamically render sunlight options */}
                     {SUNLIGHT_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
                         {opt.label}
@@ -335,7 +330,7 @@ export default function NewPlanForm({
                     name="medium"
                     value={formData.medium}
                     onChange={handleInputChange}
-                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold text-base outline-none border border-transparent focus:ring-2 focus:ring-blue-500/20 transition-all"
                   >
                     <option>Standard Soil</option>
                     <option>Raised Bed Mix</option>
@@ -364,7 +359,7 @@ export default function NewPlanForm({
                     value={formData.inclusivePlants}
                     onChange={handleInputChange}
                     placeholder="e.g., Lavender, Ferns"
-                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-green-500/20 border border-transparent transition-all"
+                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold text-base sm:text-sm focus:ring-2 focus:ring-green-500/20 border border-transparent transition-all"
                   />
                 </div>
                 <div className="space-y-2">
@@ -376,7 +371,7 @@ export default function NewPlanForm({
                     value={formData.exclusivePlants}
                     onChange={handleInputChange}
                     placeholder="e.g., Mint, Ivy"
-                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold text-sm focus:ring-2 focus:ring-red-500/20 border border-transparent transition-all"
+                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold text-base sm:text-sm focus:ring-2 focus:ring-red-500/20 border border-transparent transition-all"
                   />
                 </div>
               </div>
@@ -390,7 +385,7 @@ export default function NewPlanForm({
                   value={formData.wildlife}
                   onChange={handleInputChange}
                   placeholder="e.g., Attract Bees, Frogs"
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold focus:ring-2 focus:ring-green-500/20 border border-transparent transition-all"
+                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold text-base focus:ring-2 focus:ring-green-500/20 border border-transparent transition-all"
                 />
               </div>
 
@@ -403,7 +398,7 @@ export default function NewPlanForm({
                     name="difficulty"
                     value={formData.difficulty}
                     onChange={handleInputChange}
-                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:ring-2 focus:ring-green-500/20 transition-all"
+                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold text-base outline-none border border-transparent focus:ring-2 focus:ring-green-500/20 transition-all"
                   >
                     <option>Beginner</option>
                     <option>Intermediate</option>
@@ -418,7 +413,7 @@ export default function NewPlanForm({
                     name="maintenance"
                     value={formData.maintenance}
                     onChange={handleInputChange}
-                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:ring-2 focus:ring-green-500/20 transition-all"
+                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold text-base outline-none border border-transparent focus:ring-2 focus:ring-green-500/20 transition-all"
                   >
                     <option>Low (Set & Forget)</option>
                     <option>Average (Weekly)</option>
@@ -436,7 +431,7 @@ export default function NewPlanForm({
                   value={formData.considerations}
                   onChange={handleInputChange}
                   placeholder="e.g., Must be Dog Safe, Drought Tolerant"
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold focus:ring-2 focus:ring-amber-500/20 border border-transparent transition-all"
+                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold text-base focus:ring-2 focus:ring-amber-500/20 border border-transparent transition-all"
                 />
               </div>
             </div>

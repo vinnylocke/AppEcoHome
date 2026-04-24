@@ -45,8 +45,27 @@ export const TaskEngine = {
 
     if (bpError) throw bpError;
 
-    // 3. Extract all unique inventory item IDs from both lists
-    const rawTasks = physicalTasks || [];
+    // 3. Filter and Extract Unique IDs
+    // 🚀 NEW LOGIC: Filter out historically completed tasks
+    const rawTasks = (physicalTasks || []).filter((task) => {
+      // Rule 1: Keep all non-completed tasks (they are pending or overdue)
+      if (task.status !== "Completed") return true;
+
+      // Rule 2: If Completed, was it due in the date range we are currently looking at?
+      const isDueInWindow =
+        task.due_date >= startDateStr && task.due_date <= endDateStr;
+
+      // Rule 3: Was it actually *marked* as completed in this date range?
+      // (We split at "T" to just grab the YYYY-MM-DD from the Supabase timestamp)
+      const timestamp = task.updated_at || task.created_at || task.due_date;
+      const completedDateStr = timestamp.split("T")[0];
+      const isCompletedInWindow =
+        completedDateStr >= startDateStr && completedDateStr <= endDateStr;
+
+      // Only keep the completed task if it passes Rule 2 or Rule 3
+      return isDueInWindow || isCompletedInWindow;
+    });
+
     const bps = blueprints || [];
 
     const allItemIds = new Set<string>();
