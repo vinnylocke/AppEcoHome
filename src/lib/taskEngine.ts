@@ -1,11 +1,5 @@
 import { supabase } from "./supabase";
 
-export const getAbsoluteDays = (dateStr: string) => {
-  const [y, m, d] = dateStr.split("-").map(Number);
-  const date = new Date(y, m - 1, d, 12, 0, 0);
-  return Math.floor(date.getTime() / (1000 * 60 * 60 * 24));
-};
-
 export const getLocalDateString = (date: Date) => {
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -14,7 +8,7 @@ export const getLocalDateString = (date: Date) => {
 };
 
 export const TaskEngine = {
-  async fetchTasksWithGhosts({
+  fetchTasksWithGhosts: async ({
     homeId,
     startDateStr,
     endDateStr,
@@ -26,197 +20,158 @@ export const TaskEngine = {
     endDateStr: string;
     includeOverdue?: boolean;
     todayStr: string;
-  }) {
-    // 1. Fetch Inventory Context
-    const { data: invData } = await supabase
-      .from("inventory_items")
-      .select(
-        "id, plant_name, identifier, location_name, area_name, status, plants(thumbnail_url)",
-      )
-      .eq("home_id", homeId);
-    const invMap = (invData || []).reduce(
-      (acc, item) => {
-        acc[item.id] = item;
-        return acc;
-      },
-      {} as Record<string, any>,
-    );
-
-    // 2. Fetch Physical Tasks (We fetch ALL tasks up to the endDate so we can track pending carryovers)
-    let pQuery = supabase
+  }) => {
+    // 1. Fetch Physical Tasks (NO array joins)
+    let tasksQuery = supabase
       .from("tasks")
-      .select(
-        `*, locations(name, is_outside), areas(name), plans(ai_blueprint, name)`,
-      )
+      .select("*, locations(is_outside)")
       .eq("home_id", homeId)
-      .neq("status", "Skipped")
-      .lte("due_date", endDateStr);
+      .neq("status", "Skipped");
 
-    const { data: physicalData } = await pQuery;
-    let allPhysicalTasks = physicalData || [];
+    if (!includeOverdue) {
+      tasksQuery = tasksQuery.gte("due_date", startDateStr);
+    }
+    tasksQuery = tasksQuery.lte("due_date", endDateStr);
 
-    // 3. Automated Weather Checks
-    const { data: rainAlerts } = await supabase
-      .from("weather_alerts")
-      .select("starts_at, locations!inner(home_id)")
-      .eq("locations.home_id", homeId)
-      .eq("type", "rain");
-    const rainDates = new Set(
-      (rainAlerts || []).map((a) => a.starts_at.split("T")[0]),
-    );
+    const { data: physicalTasks, error: tError } = await tasksQuery;
+    if (tError) throw tError;
 
-    allPhysicalTasks = allPhysicalTasks.map((t) => {
-      const isOutside = t.locations?.is_outside;
-      const isAutoCompleted =
-        rainDates.has(t.due_date) &&
-        isOutside &&
-        t.type === "Watering" &&
-        t.status === "Pending";
-      if (isAutoCompleted)
-        return { ...t, status: "Completed", isAutoCompleted: true };
-      return t;
-    });
-
-    // 4. Filter physical tasks for the UI
-    let physicalTasksToReturn = allPhysicalTasks.filter((t) => {
-      if (includeOverdue) {
-        return (
-          t.due_date <= endDateStr &&
-          (t.due_date >= startDateStr || t.status === "Pending")
-        );
-      } else {
-        return t.due_date >= startDateStr && t.due_date <= endDateStr;
-      }
-    });
-
-    // 5. Fetch Blueprints
-    const { data: bpData } = await supabase
+    // 2. Fetch Blueprints (NO array joins)
+    const { data: blueprints, error: bpError } = await supabase
       .from("task_blueprints")
-      .select(
-        `*, locations(name, is_outside), areas(name), plans(ai_blueprint, name)`,
-      )
+      .select("*, locations(is_outside)")
       .eq("home_id", homeId)
       .eq("is_recurring", true);
-    const blueprints = bpData || [];
 
-    // 6. Generate Ghosts (Only for Today or Future)
-    const ghostTasks: any[] = [];
-    const startDays = getAbsoluteDays(startDateStr);
-    const endDays = getAbsoluteDays(endDateStr);
-    const todayDays = getAbsoluteDays(todayStr);
+    if (bpError) throw bpError;
 
-    for (let d = startDays; d <= endDays; d++) {
-      if (d < todayDays) continue; // Ghosts never generate in the past
+    // 3. Extract all unique inventory item IDs from both lists
+    const rawTasks = physicalTasks || [];
+    const bps = blueprints || [];
 
-      // Calculate exact date string for this loop iteration
-      const curDateObj = new Date(startDateStr + "T12:00:00");
-      curDateObj.setDate(curDateObj.getDate() + (d - startDays));
-      const curDateStr = getLocalDateString(curDateObj);
+    const allItemIds = new Set<string>();
 
-      blueprints.forEach((bp) => {
-        const anchorDateStr = (bp.start_date || bp.created_at || "").split(
-          "T",
-        )[0];
-        if (!anchorDateStr || curDateStr < anchorDateStr) return;
-        if (bp.end_date && curDateStr > bp.end_date) return;
+    rawTasks.forEach((t) => {
+      if (t.inventory_item_ids)
+        t.inventory_item_ids.forEach((id: string) => allItemIds.add(id));
+    });
+    bps.forEach((bp) => {
+      if (bp.inventory_item_ids)
+        bp.inventory_item_ids.forEach((id: string) => allItemIds.add(id));
+    });
 
-        const anchorDays = getAbsoluteDays(anchorDateStr);
-        const diffDays = d - anchorDays;
+    const uniqueItemIds = Array.from(allItemIds);
+    const inventoryDict: Record<string, any> = {};
 
-        if (diffDays >= 0 && diffDays % bp.frequency_days === 0) {
-          // 🚀 UPGRADED GHOST SUPPRESSION LOGIC:
-          // 1. Is there an EXACT physical task for this blueprint on this specific date?
-          const hasExactPhysical = allPhysicalTasks.some(
-            (t) => t.blueprint_id === bp.id && t.due_date === curDateStr,
-          );
+    // 4. Fetch the Inventory Items separately and build a dictionary
+    if (uniqueItemIds.length > 0) {
+      const { data: invItems, error: invError } = await supabase
+        .from("inventory_items")
+        .select(
+          "id, plant_name, identifier, location_name, area_name, plants(thumbnail_url, cycle)",
+        )
+        .in("id", uniqueItemIds);
 
-          // 2. If we are evaluating TODAY, does an older pending task exist? (Prevents double tasks today)
-          const isToday = curDateStr === todayStr;
-          const hasPendingCarryover =
-            isToday &&
-            allPhysicalTasks.some(
-              (t) =>
-                t.blueprint_id === bp.id &&
-                t.status === "Pending" &&
-                t.due_date <= todayStr,
-            );
+      if (invError) throw invError;
 
-          // Only spawn the ghost if there is no physical equivalent taking its place
-          if (!hasExactPhysical && !hasPendingCarryover) {
-            ghostTasks.push({
-              id: `ghost-${bp.id}-${curDateStr}`,
-              home_id: bp.home_id,
-              blueprint_id: bp.id,
-              title: bp.title,
-              description: bp.description,
-              type: bp.task_type,
-              status:
-                rainDates.has(curDateStr) &&
-                bp.locations?.is_outside &&
-                bp.task_type === "Watering"
-                  ? "Completed"
-                  : "Pending",
-              due_date: curDateStr,
-              location_id: bp.location_id,
-              area_id: bp.area_id,
-              plan_id: bp.plan_id,
-              inventory_item_ids: bp.inventory_item_ids,
-              isGhost: true,
-              isAutoCompleted:
-                rainDates.has(curDateStr) &&
-                bp.locations?.is_outside &&
-                bp.task_type === "Watering",
-              locations: bp.locations,
-              areas: bp.areas,
-              plans: bp.plans,
-            });
-          }
-        }
+      invItems?.forEach((item) => {
+        inventoryDict[item.id] = item;
       });
     }
 
-    let allTasks = [...physicalTasksToReturn, ...ghostTasks];
+    // 5. Generate Ghost Tasks from Blueprints
+    const ghosts: any[] = [];
+    bps.forEach((bp) => {
+      if (!bp.frequency_days || !bp.start_date) return;
 
-    // 7. Scrub items that only contain archived plants
-    allTasks = allTasks.filter((task) => {
-      if (!task.inventory_item_ids || task.inventory_item_ids.length === 0)
-        return true;
-      return task.inventory_item_ids.some(
-        (id: string) => invMap[id]?.status !== "Archived",
-      );
+      const freq = bp.frequency_days;
+      let currentGhostDate = new Date(bp.start_date);
+      const targetEndDate = new Date(endDateStr);
+
+      // Fast forward to our current window
+      const windowStart = new Date(startDateStr);
+      if (currentGhostDate < windowStart) {
+        const diffTime = Math.abs(
+          windowStart.getTime() - currentGhostDate.getTime(),
+        );
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        const cyclesToSkip = Math.ceil(diffDays / freq);
+        currentGhostDate.setDate(
+          currentGhostDate.getDate() + cyclesToSkip * freq,
+        );
+      }
+
+      while (currentGhostDate <= targetEndDate) {
+        const ghostDateStr = getLocalDateString(currentGhostDate);
+
+        // Stop if blueprint has an end date and we passed it
+        if (bp.end_date && ghostDateStr > bp.end_date) break;
+
+        // Ensure we don't duplicate a task that was already materialized
+        const alreadyExists = rawTasks.some(
+          (t) => t.blueprint_id === bp.id && t.due_date === ghostDateStr,
+        );
+
+        if (
+          !alreadyExists &&
+          ghostDateStr >= startDateStr &&
+          ghostDateStr <= endDateStr
+        ) {
+          ghosts.push({
+            id: `ghost-${bp.id}-${ghostDateStr}`,
+            blueprint_id: bp.id,
+            home_id: bp.home_id,
+            title: bp.title,
+            description: bp.description,
+            type: bp.task_type,
+            due_date: ghostDateStr,
+            status: "Pending",
+            location_id: bp.location_id,
+            area_id: bp.area_id,
+            plan_id: bp.plan_id,
+            inventory_item_ids: bp.inventory_item_ids || [],
+            locations: bp.locations,
+            isGhost: true,
+          });
+        }
+        currentGhostDate.setDate(currentGhostDate.getDate() + freq);
+      }
     });
 
-    // 8. Establish Dependencies
-    const taskIds = allTasks
-      .map((t) => t.id)
-      .filter((id) => !id.startsWith("ghost"));
-    const newBlockedSet = new Set<string>();
-    if (taskIds.length > 0) {
-      const { data: depData } = await supabase
+    // 6. Fetch Blocked Dependencies
+    const allFinalTasks = [...rawTasks, ...ghosts];
+    const physicalIds = rawTasks.map((t) => t.id);
+    const blockedTaskIds = new Set<string>();
+
+    if (physicalIds.length > 0) {
+      const { data: deps } = await supabase
         .from("task_dependencies")
         .select("task_id, depends_on_task_id")
-        .in("task_id", taskIds);
-      if (depData && depData.length > 0) {
-        const blockerIds = [
-          ...new Set(depData.map((d) => d.depends_on_task_id)),
-        ];
-        const { data: blockerStatuses } = await supabase
+        .in("task_id", physicalIds);
+
+      if (deps && deps.length > 0) {
+        const parentIds = deps.map((d) => d.depends_on_task_id);
+        const { data: pendingParents } = await supabase
           .from("tasks")
-          .select("id, status")
-          .in("id", blockerIds);
-        depData.forEach((dep) => {
-          const statusObj = blockerStatuses?.find(
-            (s) => s.id === dep.depends_on_task_id,
-          );
-          if (statusObj?.status === "Pending") newBlockedSet.add(dep.task_id);
-        });
+          .select("id")
+          .in("id", parentIds)
+          .eq("status", "Pending");
+
+        if (pendingParents && pendingParents.length > 0) {
+          const pendingParentSet = new Set(pendingParents.map((p) => p.id));
+          deps.forEach((d) => {
+            if (pendingParentSet.has(d.depends_on_task_id)) {
+              blockedTaskIds.add(d.task_id);
+            }
+          });
+        }
       }
     }
 
     return {
-      tasks: allTasks,
-      blockedTaskIds: newBlockedSet,
-      inventoryDict: invMap,
+      tasks: allFinalTasks,
+      inventoryDict,
+      blockedTaskIds,
     };
   },
 };
