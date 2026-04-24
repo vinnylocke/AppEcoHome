@@ -92,7 +92,9 @@ grant truncate on table "public"."plans" to "service_role";
 grant update on table "public"."plans" to "service_role";
 
 
-  create policy "Anyone can view master guides"
+DROP POLICY IF EXISTS "Anyone can view master guides" ON "public"."guides";
+
+create policy "Anyone can view master guides"
   on "public"."guides"
   as permissive
   for select

@@ -427,7 +427,6 @@ export default function PlantDoctor({
     }
   };
 
-  // 🚀 FIXED: Injects seasonal automation generation directly into the save handler
   const handleSaveManualPlant = async (plantData: any) => {
     setIsProcessing(true);
     try {
@@ -440,7 +439,6 @@ export default function PlantDoctor({
         source: "manual",
       };
 
-      // 1. Save the plant
       const { data: savedPlant, error: saveError } = await supabase
         .from("plants")
         .insert([skeleton])
@@ -448,7 +446,6 @@ export default function PlantDoctor({
         .single();
       if (saveError) throw saveError;
 
-      // 2. Fetch Home Hemisphere info
       const { data: homeData } = await supabase
         .from("homes")
         .select("country, timezone")
@@ -458,7 +455,6 @@ export default function PlantDoctor({
       const hemisphere = getHemisphere(homeData?.country, homeData?.timezone);
       const newSchedules: any[] = [];
 
-      // 3. Create Automations
       const harvestPeriods = normalizePeriods(plantData.harvest_season);
       harvestPeriods.forEach((period) => {
         const { start, end } = getSinglePeriodRange(period, hemisphere);
@@ -617,7 +613,7 @@ export default function PlantDoctor({
           endDate.setDate(endDate.getDate() + (schedule.end_offset_days || 28));
           return {
             home_id: homeId,
-            inventory_item_id: sickInventoryId,
+            inventory_item_ids: [sickInventoryId], // 🚀 FIXED: Array Wrapping
             location_id: selectedItem.location_id,
             area_id: selectedItem.area_id,
             title: schedule.title,
@@ -630,16 +626,36 @@ export default function PlantDoctor({
             priority: "High",
           };
         });
-        const { error: blueprintError } = await supabase
+
+        // 🚀 FIXED: .select() the data to create the first tasks instantly
+        const { data: createdBps, error: blueprintError } = await supabase
           .from("task_blueprints")
-          .insert(blueprintsToInsert);
+          .insert(blueprintsToInsert)
+          .select();
+
         if (blueprintError) throw blueprintError;
+
+        if (createdBps) {
+          const initialTasks = createdBps.map((bp) => ({
+            home_id: homeId,
+            blueprint_id: bp.id,
+            title: bp.title,
+            description: bp.description,
+            type: bp.task_type,
+            location_id: bp.location_id,
+            area_id: bp.area_id,
+            inventory_item_ids: bp.inventory_item_ids,
+            due_date: bp.start_date,
+            status: "Pending",
+          }));
+          await supabase.from("tasks").insert(initialTasks);
+        }
       }
 
       if (oneOffTasks.length > 0) {
         const tasksToInsert = oneOffTasks.map((task) => ({
           home_id: homeId,
-          inventory_item_id: sickInventoryId,
+          inventory_item_ids: [sickInventoryId], // 🚀 FIXED: Array Wrapping
           location_id: selectedItem.location_id,
           area_id: selectedItem.area_id,
           title: `URGENT: ${task.title}`,
@@ -653,10 +669,6 @@ export default function PlantDoctor({
           .insert(tasksToInsert);
         if (taskError) throw taskError;
       }
-
-      await supabase.functions.invoke("generate-tasks", {
-        body: { homeId: homeId },
-      });
 
       if (saveToJournal && selectedFile) {
         let uploadedImageUrl = null;

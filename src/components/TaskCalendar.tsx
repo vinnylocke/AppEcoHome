@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -10,9 +10,8 @@ import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import AddTaskModal, { TASK_CATEGORIES } from "./AddTaskModal";
 import TaskList from "./TaskList";
-
-// 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { TaskEngine, getLocalDateString } from "../lib/taskEngine"; // 🚀 USING THE ENGINE
 
 export interface Task {
   id: string;
@@ -25,128 +24,54 @@ export interface Task {
   type: string;
   location_id?: string;
   area_id?: string;
-  inventory_item_id?: string;
+  plan_id?: string;
+  inventory_item_ids?: string[];
   isGhost?: boolean;
 }
 
 export default function TaskCalendar({ homeId }: { homeId: string }) {
-  // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
 
+  // 🚀 Tasks array now holds the fully calculated physical AND ghost tasks for the entire month!
   const [tasks, setTasks] = useState<Task[]>([]);
-  const [blueprints, setBlueprints] = useState<any[]>([]);
+
   const [locations, setLocations] = useState<any[]>([]);
+  const [plans, setPlans] = useState<any[]>([]);
 
   const [refreshKey, setRefreshKey] = useState(0);
-
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedLoc, setSelectedLoc] = useState<string>("all");
   const [selectedArea, setSelectedArea] = useState<string>("all");
+  const [selectedPlan, setSelectedPlan] = useState<string>("all");
 
-  const getLocalDateString = (date: Date) => {
-    const year = date.getFullYear();
-    const month = String(date.getMonth() + 1).padStart(2, "0");
-    const day = String(date.getDate()).padStart(2, "0");
-    return `${year}-${month}-${day}`;
-  };
+  const getTasksForDate = useCallback(
+    (date: Date) => {
+      const dateStr = getLocalDateString(date);
 
-  const getTasksForDate = (date: Date) => {
-    const dateStr = getLocalDateString(date);
-    const targetDateMs = new Date(dateStr).getTime();
+      // 🚀 The Engine already did the hard work. Just filter the array for this date.
+      const dayTasks = tasks.filter((t) => t.due_date === dateStr);
 
-    const todayStr = getLocalDateString(new Date());
-    const todayMs = new Date(todayStr).getTime();
-
-    const physicalTasks = tasks.filter((task) => task.due_date === dateStr);
-    const ghostTasks: Task[] = [];
-    const uniqueGhostKeys = new Set();
-
-    if (targetDateMs >= todayMs) {
-      blueprints.forEach((bp) => {
-        const cycle =
-          bp.inventory_items?.plants?.cycle?.toLowerCase() || "annual";
-        const maxYears = cycle.includes("perennial")
-          ? 10
-          : cycle.includes("biennial")
-            ? 2
-            : 1;
-
-        const safeDateString =
-          bp.start_date || bp.created_at || new Date().toISOString();
-        const anchorDateStr = safeDateString.split("T")[0];
-        const originalAnchorMs = new Date(anchorDateStr).getTime();
-        const originalAnchorYear = new Date(anchorDateStr).getFullYear();
-
-        const targetYear = new Date(dateStr).getFullYear();
-        const yearShift = targetYear - originalAnchorYear;
-
-        const shiftsToTest = [yearShift, yearShift - 1];
-
-        for (const shift of shiftsToTest) {
-          if (shift < 0 || shift >= maxYears) continue;
-
-          let activeAnchorMs = originalAnchorMs;
-          let activeEndMs = bp.end_date
-            ? new Date(bp.end_date).getTime()
-            : Infinity;
-
-          if (bp.end_date && shift > 0) {
-            const shiftedStart = new Date(anchorDateStr);
-            shiftedStart.setFullYear(originalAnchorYear + shift);
-            activeAnchorMs = shiftedStart.getTime();
-
-            const shiftedEnd = new Date(bp.end_date);
-            shiftedEnd.setFullYear(shiftedEnd.getFullYear() + shift);
-            activeEndMs = shiftedEnd.getTime();
-          }
-
-          if (targetDateMs >= activeAnchorMs && targetDateMs <= activeEndMs) {
-            const diffDays = Math.round(
-              (targetDateMs - activeAnchorMs) / (1000 * 60 * 60 * 24),
-            );
-
-            if (diffDays % bp.frequency_days === 0) {
-              const ghostKey = `${bp.task_type}-${bp.inventory_item_id}-${dateStr}`;
-
-              if (!uniqueGhostKeys.has(ghostKey)) {
-                const hasPhysical = physicalTasks.some(
-                  (t) => t.blueprint_id === bp.id,
-                );
-                if (!hasPhysical) {
-                  uniqueGhostKeys.add(ghostKey);
-                  ghostTasks.push({
-                    ...bp,
-                    status: "Pending",
-                    isGhost: true,
-                    due_date: dateStr,
-                  });
-                }
-              }
-              break;
-            }
-          }
-        }
+      return dayTasks.filter((task) => {
+        if (selectedTypes.length > 0 && !selectedTypes.includes(task.type))
+          return false;
+        if (selectedLoc !== "all" && task.location_id !== selectedLoc)
+          return false;
+        if (selectedArea !== "all" && task.area_id !== selectedArea)
+          return false;
+        if (selectedPlan !== "all" && task.plan_id !== selectedPlan)
+          return false;
+        return true;
       });
-    }
+    },
+    [tasks, selectedTypes, selectedLoc, selectedArea, selectedPlan],
+  );
 
-    const allTasks = [...physicalTasks, ...ghostTasks];
-
-    return allTasks.filter((task) => {
-      if (selectedTypes.length > 0 && !selectedTypes.includes(task.type))
-        return false;
-      if (selectedLoc !== "all" && task.location_id !== selectedLoc)
-        return false;
-      if (selectedArea !== "all" && task.area_id !== selectedArea) return false;
-      return true;
-    });
-  };
-
-  // 🧠 LIVE AI SYNC: Let the AI know what's happening on the calendar
   useEffect(() => {
     const activeTasksOnSelectedDate = getTasksForDate(selectedDate);
     const locName =
@@ -154,7 +79,6 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
         ? "All Locations"
         : locations.find((l) => l.id === selectedLoc)?.name ||
           "Selected Location";
-    const areaName = selectedArea === "all" ? "All Areas" : "Selected Area";
 
     setPageContext({
       action: "Viewing Plant Care Schedule",
@@ -173,33 +97,46 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
         filters: {
           taskTypes: selectedTypes.length > 0 ? selectedTypes : "All",
           location: locName,
-          area: areaName,
+          area: selectedArea,
+          plan: selectedPlan,
         },
       },
     });
-
     return () => setPageContext(null);
   }, [
     currentDate,
     selectedDate,
-    tasks,
-    blueprints,
-    selectedTypes,
+    getTasksForDate,
+    locations,
     selectedLoc,
     selectedArea,
-    locations,
+    selectedPlan,
+    selectedTypes,
     setPageContext,
   ]);
 
   useEffect(() => {
-    const fetchLocations = async () => {
-      const { data } = await supabase
+    const fetchFilters = async () => {
+      const { data: locData } = await supabase
         .from("locations")
         .select("id, name, areas(id, name)")
         .eq("home_id", homeId);
-      if (data) setLocations(data);
+      if (locData) setLocations(locData);
+
+      const { data: planData } = await supabase
+        .from("plans")
+        .select("id, ai_blueprint")
+        .eq("home_id", homeId);
+      if (planData) {
+        setPlans(
+          planData.map((p) => ({
+            id: p.id,
+            title: p.ai_blueprint?.project_overview?.title || "Untitled Plan",
+          })),
+        );
+      }
     };
-    fetchLocations();
+    fetchFilters();
   }, [homeId]);
 
   const fetchTasksAndBlueprints = async () => {
@@ -208,37 +145,25 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
         currentDate.getFullYear(),
         currentDate.getMonth() - 1,
         1,
-      )
-        .toISOString()
-        .split("T")[0];
+      );
       const endOfMonth = new Date(
         currentDate.getFullYear(),
         currentDate.getMonth() + 2,
         0,
-      )
-        .toISOString()
-        .split("T")[0];
+      );
 
-      const { data: taskData, error: taskError } = await supabase
-        .from("tasks")
-        .select("*")
-        .eq("home_id", homeId)
-        .gte("due_date", startOfMonth)
-        .lte("due_date", endOfMonth);
+      const todayStr = getLocalDateString(new Date());
 
-      if (taskError) throw taskError;
-      if (taskData) setTasks(taskData);
+      // 🚀 DELEGATED TO ENGINE! Fetch the entire month block of physicals and ghosts
+      const result = await TaskEngine.fetchTasksWithGhosts({
+        homeId,
+        startDateStr: getLocalDateString(startOfMonth),
+        endDateStr: getLocalDateString(endOfMonth),
+        includeOverdue: false, // The Calendar doesn't care about overdue clustering, just putting dots on exact dates
+        todayStr,
+      });
 
-      const { data: bpData, error: bpError } = await supabase
-        .from("task_blueprints")
-        .select(
-          `*, inventory_items(plant_name, identifier, location_name, area_name, plants(cycle, thumbnail_url)), locations(is_outside)`,
-        )
-        .eq("home_id", homeId)
-        .eq("is_recurring", true);
-
-      if (bpError) throw bpError;
-      if (bpData) setBlueprints(bpData);
+      setTasks(result.tasks);
     } catch (err: any) {
       Logger.error("Failed to load calendar tasks", err);
     }
@@ -281,7 +206,11 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
       ? []
       : locations.find((l) => l.id === selectedLoc)?.areas || [];
 
-  const isTodaySelected = isSameDay(selectedDate, new Date());
+  const hasActiveFilters =
+    selectedTypes.length > 0 ||
+    selectedLoc !== "all" ||
+    selectedPlan !== "all" ||
+    selectedArea !== "all";
 
   return (
     <div className="w-full h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-700">
@@ -291,16 +220,16 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
             Schedule
           </h2>
           <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-            Plant Care Calendar
+            Operational Hub
           </p>
         </div>
         <div className="flex gap-2">
           <button
             onClick={() => setIsFilterOpen(!isFilterOpen)}
-            className={`px-4 py-3 rounded-2xl font-black transition-all shadow-sm flex items-center gap-2 ${isFilterOpen || selectedTypes.length > 0 || selectedLoc !== "all" ? "bg-rhozly-primary text-white" : "bg-rhozly-surface-low text-rhozly-on-surface hover:bg-rhozly-surface-mid"}`}
+            className={`px-4 py-3 rounded-2xl font-black transition-all shadow-sm flex items-center gap-2 ${isFilterOpen || hasActiveFilters ? "bg-rhozly-primary text-white" : "bg-rhozly-surface-low text-rhozly-on-surface hover:bg-rhozly-surface-mid"}`}
           >
             <Filter size={18} /> Filters
-            {(selectedTypes.length > 0 || selectedLoc !== "all") && (
+            {hasActiveFilters && (
               <span className="bg-white text-rhozly-primary rounded-full w-5 h-5 flex items-center justify-center text-[10px]">
                 !
               </span>
@@ -323,9 +252,24 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
         <div className="mb-8 p-6 bg-rhozly-surface-low/50 rounded-3xl border border-rhozly-outline/10 animate-in slide-in-from-top-4 fade-in">
           <div className="flex flex-wrap gap-6 items-start">
             <div className="flex-1 min-w-[250px]">
-              <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-3">
-                Task Types
-              </label>
+              <div className="flex justify-between items-center mb-3">
+                <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
+                  Task Types
+                </label>
+                {hasActiveFilters && (
+                  <button
+                    onClick={() => {
+                      setSelectedTypes([]);
+                      setSelectedLoc("all");
+                      setSelectedArea("all");
+                      setSelectedPlan("all");
+                    }}
+                    className="text-[10px] font-black uppercase tracking-widest text-rhozly-primary hover:text-rhozly-primary/70 transition-colors"
+                  >
+                    Clear All
+                  </button>
+                )}
+              </div>
               <div className="flex flex-wrap gap-2">
                 {TASK_CATEGORIES.map((type) => (
                   <button
@@ -344,9 +288,9 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
                 ))}
               </div>
             </div>
-            <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto">
-              <div className="flex-1 sm:w-48">
-                <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-3">
+            <div className="flex flex-wrap sm:flex-nowrap gap-4 w-full xl:w-auto mt-2 sm:mt-0">
+              <div className="flex-1 sm:w-40">
+                <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-3 ml-1">
                   Location
                 </label>
                 <select
@@ -365,20 +309,37 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
                   ))}
                 </select>
               </div>
-              <div className="flex-1 sm:w-48">
-                <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-3">
+              <div className="flex-1 sm:w-40">
+                <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-3 ml-1">
                   Area
                 </label>
                 <select
                   value={selectedArea}
                   onChange={(e) => setSelectedArea(e.target.value)}
                   disabled={selectedLoc === "all"}
-                  className="w-full p-3 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none text-sm disabled:opacity-50 cursor-pointer"
+                  className="w-full p-3 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none text-sm disabled:opacity-50"
                 >
                   <option value="all">All Areas</option>
                   {availableAreas.map((area: any) => (
                     <option key={area.id} value={area.id}>
                       {area.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1 sm:w-48">
+                <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-3 ml-1">
+                  Plan
+                </label>
+                <select
+                  value={selectedPlan}
+                  onChange={(e) => setSelectedPlan(e.target.value)}
+                  className="w-full p-3 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none text-sm"
+                >
+                  <option value="all">All Plans</option>
+                  {plans.map((plan) => (
+                    <option key={plan.id} value={plan.id}>
+                      {plan.title}
                     </option>
                   ))}
                 </select>
@@ -464,7 +425,6 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
                   >
                     {dayObj.date.getDate()}
                   </span>
-
                   {pendingTasks.length > 0 && (
                     <div className="absolute bottom-2 sm:bottom-3 flex items-center justify-center gap-0.5 sm:gap-1">
                       {pendingTasks.slice(0, 3).map((t, i) => (
@@ -513,10 +473,11 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
               key={`agenda-${selectedDate.toISOString()}-${refreshKey}`}
               homeId={homeId}
               targetDate={selectedDate}
-              showOverdue={isTodaySelected}
+              showOverdue={isSameDay(selectedDate, new Date())}
               onTaskUpdated={fetchTasksAndBlueprints}
               locationId={selectedLoc}
               areaId={selectedArea === "all" ? undefined : selectedArea}
+              planId={selectedPlan === "all" ? undefined : selectedPlan}
               selectedTypes={selectedTypes}
             />
           </div>

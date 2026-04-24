@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
+import { createPortal } from "react-dom";
 import {
   X,
   Settings2,
@@ -24,6 +24,8 @@ import { PerenualService } from "../lib/perenualService";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+// 🚀 IMPORT THE ENGINE
+import { AutomationEngine } from "../lib/automationEngine";
 
 const GROWTH_STATES = [
   "Germination",
@@ -53,7 +55,6 @@ export default function InstanceEditModal({
   onUpdate,
   onTasksUpdated,
 }: InstanceEditModalProps) {
-  // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
 
   const [activeTab, setActiveTab] = useState<
@@ -77,7 +78,6 @@ export default function InstanceEditModal({
       : new Date().toISOString().split("T")[0],
   });
 
-  // 🧠 LIVE AI SYNC: Update the AI on which plant we are managing and what tab we are in
   useEffect(() => {
     setPageContext({
       action: "Managing Plant Instance",
@@ -89,7 +89,6 @@ export default function InstanceEditModal({
         growthState: editForm.growth_state,
         isEstablished: editForm.is_established,
       },
-      // If we are in the Care Guide tab, provide the master data to the AI
       careGuideContext: activeTab === "care_guide" ? careGuideData : null,
       locationContext: {
         locationId: editForm.location_id,
@@ -97,7 +96,6 @@ export default function InstanceEditModal({
       },
     });
 
-    // Cleanup when modal closes
     return () => setPageContext(null);
   }, [activeTab, editForm, careGuideData, instance, setPageContext]);
 
@@ -175,8 +173,70 @@ export default function InstanceEditModal({
 
       if (error) throw error;
 
+      // 🚀 NEW: WIRED TO AUTOMATION ENGINE
+      const wasPlanted = instance.status === "Planted";
+      const isNowPlanted = payload.status === "Planted";
+
+      if (isNowPlanted && !wasPlanted) {
+        // Just planted! Let the Engine generate/append its blueprints.
+        const baseDateStr = payload.is_established
+          ? new Date().toISOString().split("T")[0]
+          : payload.planted_at || new Date().toISOString().split("T")[0];
+
+        const updatedItem = { ...instance, ...payload };
+        await AutomationEngine.applyPlantedAutomations(
+          [updatedItem],
+          updatedItem.area_id,
+          baseDateStr,
+        );
+      } else if (!isNowPlanted && wasPlanted) {
+        // Changed from Planted to Unplanted/Archived. Scrub the tasks!
+        await AutomationEngine.scrubItemsFromAutomations([instance.id]);
+      }
+
+      // 🚀 SMART SYNC (INVENTORY -> TASK): Check for pending Planting tasks
+      if (payload.status === "Planted") {
+        const { data: relatedTasks } = await supabase
+          .from("tasks")
+          .select("id, inventory_item_ids")
+          .eq("type", "Planting")
+          .eq("status", "Pending")
+          .contains("inventory_item_ids", [instance.id]);
+
+        if (relatedTasks && relatedTasks.length > 0) {
+          for (const task of relatedTasks) {
+            const { data: plantsInTask } = await supabase
+              .from("inventory_items")
+              .select("id, status")
+              .in("id", task.inventory_item_ids);
+
+            const allPlanted = plantsInTask?.every(
+              (p) =>
+                p.status === "Planted" ||
+                p.status === "Archived" ||
+                p.id === instance.id,
+            );
+
+            if (allPlanted) {
+              await supabase
+                .from("tasks")
+                .update({
+                  status: "Completed",
+                  completed_at: new Date().toISOString(),
+                })
+                .eq("id", task.id);
+
+              toast.success(
+                "All plants in the group are planted. Task auto-completed!",
+              );
+            }
+          }
+        }
+      }
+
       toast.success("Plant instance updated!");
       onUpdate(payload);
+      if (onTasksUpdated) onTasksUpdated(); // Refresh parent view if tasks changed!
     } catch (error: any) {
       toast.error("Could not update plant.");
     } finally {
@@ -188,10 +248,8 @@ export default function InstanceEditModal({
     ? locations.find((l) => l.id === editForm.location_id)?.areas || []
     : [];
 
-  // 🚀 SSR Safety Check
   if (typeof document === "undefined") return null;
 
-  // 🚀 PORTAL WRAPPER
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
       <div className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 relative">
@@ -320,6 +378,12 @@ export default function InstanceEditModal({
                 className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${editForm.status === "Planted" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
               >
                 Planted
+              </button>
+              <button
+                onClick={() => setEditForm({ ...editForm, status: "Archived" })}
+                className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${editForm.status === "Archived" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+              >
+                Archived
               </button>
             </div>
 

@@ -1,6 +1,5 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
-import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabase";
 import {
   ArrowLeft,
@@ -14,85 +13,10 @@ import {
   Sparkles,
   Wrench,
   Package,
-  Edit2,
-  Database,
-  X,
-  Clock,
-  AlertCircle,
-  Square,
-  ListPlus,
-  CheckSquare2,
   RotateCcw,
 } from "lucide-react";
 import toast from "react-hot-toast";
-import BulkSearchModal from "./BulkSearchModal";
-import { PerenualService } from "../lib/perenualService";
 import { ConfirmModal } from "./ConfirmModal";
-
-// --- DATE MATH HELPERS FOR SHED IMPORT ---
-const getHemisphere = (country?: string, timezone?: string) => {
-  const southernCountries = [
-    "australia",
-    "new zealand",
-    "brazil",
-    "south africa",
-    "argentina",
-    "chile",
-    "peru",
-  ];
-  const searchString = `${country || ""} ${timezone || ""}`.toLowerCase();
-  if (southernCountries.some((c) => searchString.includes(c)))
-    return "southern";
-  return "northern";
-};
-
-const normalizePeriods = (input: any): string[] => {
-  if (!input) return [];
-  if (Array.isArray(input)) return input.flatMap((i) => normalizePeriods(i));
-  if (typeof input === "string") {
-    return input
-      .split(/,|\band\b|&/i)
-      .map((s) => s.trim())
-      .filter(Boolean);
-  }
-  return [];
-};
-
-const getSinglePeriodRange = (
-  period: string,
-  hemisphere: "northern" | "southern",
-) => {
-  const p = period.toLowerCase();
-  if (p.includes("jan")) return { start: "01-01", end: "01-31" };
-  if (p.includes("feb")) return { start: "02-01", end: "02-28" };
-  if (p.includes("mar")) return { start: "03-01", end: "03-31" };
-  if (p.includes("apr")) return { start: "04-01", end: "04-30" };
-  if (p.includes("may")) return { start: "05-01", end: "05-31" };
-  if (p.includes("jun")) return { start: "06-01", end: "06-30" };
-  if (p.includes("jul")) return { start: "07-01", end: "07-31" };
-  if (p.includes("aug")) return { start: "08-01", end: "08-31" };
-  if (p.includes("sep")) return { start: "09-01", end: "09-30" };
-  if (p.includes("oct")) return { start: "10-01", end: "10-31" };
-  if (p.includes("nov")) return { start: "11-01", end: "11-30" };
-  if (p.includes("dec")) return { start: "12-01", end: "12-31" };
-  if (p.includes("spring"))
-    return hemisphere === "northern"
-      ? { start: "03-01", end: "05-31" }
-      : { start: "09-01", end: "11-30" };
-  if (p.includes("summer"))
-    return hemisphere === "northern"
-      ? { start: "06-01", end: "08-31" }
-      : { start: "12-01", end: "02-28" };
-  if (p.includes("fall") || p.includes("autumn"))
-    return hemisphere === "northern"
-      ? { start: "09-01", end: "11-30" }
-      : { start: "03-01", end: "05-31" };
-  if (p.includes("winter"))
-    return hemisphere === "northern"
-      ? { start: "12-01", end: "02-28" }
-      : { start: "06-01", end: "08-31" };
-  return { start: "01-01", end: "12-31" };
-};
 
 interface PlanStagingProps {
   plan: any;
@@ -100,15 +24,6 @@ interface PlanStagingProps {
   onBack: () => void;
   onPlanUpdated: () => void;
 }
-
-type QueueItem = {
-  id: string;
-  name: string;
-  source: "api" | "ai";
-  status: "pending" | "processing" | "success" | "error";
-  data: any;
-  errorMsg?: string;
-};
 
 export default function PlanStaging({
   plan,
@@ -124,10 +39,7 @@ export default function PlanStaging({
     plan.staging_state || {},
   );
 
-  // 🚀 FIXED: Local Plan Status to ensure instant UI updates for Phase 4 & 5
   const [localPlanStatus, setLocalPlanStatus] = useState(plan.status);
-
-  const [isPremium, setIsPremium] = useState(false);
 
   const isPhase1Done = !!localStagingState.linked_area_id;
   const isPhase2Done = !!localStagingState.plants_linked;
@@ -154,12 +66,6 @@ export default function PlanStaging({
   const [selectedForProcurement, setSelectedForProcurement] = useState<
     number[]
   >([]);
-
-  // Embedded Import Modal State
-  const [showBulkSearch, setShowBulkSearch] = useState(false);
-  const [initialCartItems, setInitialCartItems] = useState<any[]>([]);
-  const [bulkQueue, setBulkQueue] = useState<QueueItem[]>([]);
-  const [isBulkProcessing, setIsBulkProcessing] = useState(false);
 
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
@@ -195,20 +101,6 @@ export default function PlanStaging({
   }, [homeId]);
 
   useEffect(() => {
-    const fetchProfile = async () => {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        const { data } = await supabase
-          .from("user_profiles")
-          .select("enable_perenual")
-          .eq("uid", user.id)
-          .single();
-        if (data) setIsPremium(!!data.enable_perenual);
-      }
-    };
-    fetchProfile();
     fetchData();
   }, [fetchData]);
 
@@ -272,12 +164,11 @@ export default function PlanStaging({
     }
   };
 
-  // --- 🚀 FIXED: CASCADING ROLLBACK HELPERS ---
   const wipeTasksAndBlueprints = async () => {
     await supabase.from("tasks").delete().eq("plan_id", plan.id);
     await supabase.from("task_blueprints").delete().eq("plan_id", plan.id);
     await supabase.from("plans").update({ status: "Draft" }).eq("id", plan.id);
-    setLocalPlanStatus("Draft"); // Updates the UI instantly!
+    setLocalPlanStatus("Draft");
     onPlanUpdated();
   };
 
@@ -324,6 +215,15 @@ export default function PlanStaging({
 
         if (createError) throw createError;
         finalAreaId = newArea.id;
+
+        setAreas((prev) => [
+          ...prev,
+          {
+            id: newArea.id,
+            name: blueprint.infrastructure_requirements.suggested_area_name,
+            location_id: newAreaLocationId,
+          },
+        ]);
       } else {
         if (!existingAreaId)
           throw new Error("Please select an existing area to link.");
@@ -381,8 +281,11 @@ export default function PlanStaging({
       type: sourceType,
       data: blueprint.plant_manifest[idx].common_name,
     }));
-    setInitialCartItems(queueItems);
-    setShowBulkSearch(true);
+
+    // Redirects to shed with autoImport payload
+    navigate("/shed", {
+      state: { autoImport: queueItems.map((q) => q.data), source: sourceType },
+    });
   };
 
   const handleConfirmPhase2 = async () => {
@@ -446,13 +349,19 @@ export default function PlanStaging({
     setIsProcessing(true);
     const toastId = toast.loading("Staging plants in the Area...");
     try {
-      const itemsToInsert = [];
+      const itemsToInsert: any[] = [];
       blueprint.plant_manifest.forEach((plantDef: any, idx: number) => {
         const plantId = localStagingState.plant_mapping[idx];
         const actualPlant = shedPlants.find((p) => p.id.toString() === plantId);
+
+        const targetLocationId = areas.find(
+          (a) => a.id === localStagingState.linked_area_id,
+        )?.location_id;
+
         for (let i = 0; i < plantDef.quantity; i++) {
           itemsToInsert.push({
             home_id: homeId,
+            location_id: targetLocationId,
             area_id: localStagingState.linked_area_id,
             plant_id: parseInt(plantId, 10),
             plant_name: actualPlant?.common_name || plantDef.common_name,
@@ -521,6 +430,9 @@ export default function PlanStaging({
     try {
       const today = new Date();
       const idMap = new Map<number, string>();
+      const targetLocationId = areas.find(
+        (a) => a.id === localStagingState.linked_area_id,
+      )?.location_id;
 
       for (const task of blueprint.preparation_tasks) {
         const targetDate = new Date(today);
@@ -530,6 +442,8 @@ export default function PlanStaging({
           .insert({
             home_id: homeId,
             plan_id: plan.id,
+            location_id: targetLocationId,
+            area_id: localStagingState.linked_area_id,
             title: task.title,
             description: task.description,
             type: "Maintenance",
@@ -566,19 +480,38 @@ export default function PlanStaging({
       const lastPrepTaskId =
         lastPrepTaskIndex >= 0 ? idMap.get(lastPrepTaskIndex) : null;
 
-      const plantingTasks = blueprint.plant_manifest.map((plantDef: any) => {
-        const targetDate = new Date(today);
-        targetDate.setDate(targetDate.getDate() + lastPrepTaskIndex + 1);
-        return {
-          home_id: homeId,
-          plan_id: plan.id,
-          title: `Plant ${plantDef.common_name} (x${plantDef.quantity})`,
-          description: `Role: ${plantDef.role}\nAdvice: ${plantDef.procurement_advice}\n\nTask: Move the staged plants from 'Unplanted' inventory into the newly constructed area.`,
-          type: "Planting",
-          due_date: targetDate.toISOString().split("T")[0],
-          status: "Pending",
-        };
-      });
+      const { data: stagedItems } = await supabase
+        .from("inventory_items")
+        .select("id, plant_id")
+        .eq("area_id", localStagingState.linked_area_id)
+        .eq("status", "Unplanted");
+
+      const plantingTasks = blueprint.plant_manifest.map(
+        (plantDef: any, idx: number) => {
+          const targetDate = new Date(today);
+          targetDate.setDate(targetDate.getDate() + lastPrepTaskIndex + 1);
+
+          const plantIdStr = localStagingState.plant_mapping[idx];
+          const matchingInventoryIds = stagedItems
+            ? stagedItems
+                .filter((item) => item.plant_id.toString() === plantIdStr)
+                .map((item) => item.id)
+            : [];
+
+          return {
+            home_id: homeId,
+            plan_id: plan.id,
+            location_id: targetLocationId,
+            area_id: localStagingState.linked_area_id,
+            title: `Plant ${plantDef.common_name} (x${plantDef.quantity})`,
+            description: `Role: ${plantDef.role}\nAdvice: ${plantDef.procurement_advice}`,
+            type: "Planting",
+            due_date: targetDate.toISOString().split("T")[0],
+            status: "Pending",
+            inventory_item_ids: matchingInventoryIds,
+          };
+        },
+      );
 
       if (plantingTasks.length > 0) {
         const { data: pTasks, error: pError } = await supabase
@@ -599,11 +532,8 @@ export default function PlanStaging({
         .from("plans")
         .update({ status: "In Progress" })
         .eq("id", plan.id);
-
-      // 🚀 FIXED: Instantly update local status so UI moves to Phase 5 without closing modal
       setLocalPlanStatus("In Progress");
       onPlanUpdated();
-
       toast.success("Tasks scheduled and linked!", { id: toastId });
     } catch (err) {
       toast.error("Failed to inject tasks.", { id: toastId });
@@ -632,10 +562,15 @@ export default function PlanStaging({
     setIsProcessing(true);
     const toastId = toast.loading("Activating recurring blueprints...");
     try {
+      const targetLocationId = areas.find(
+        (a) => a.id === localStagingState.linked_area_id,
+      )?.location_id;
+
       const blueprintsToInsert = blueprint.custom_maintenance_tasks.map(
         (task: any) => ({
           home_id: homeId,
           plan_id: plan.id,
+          location_id: targetLocationId,
           area_id: localStagingState.linked_area_id,
           title: task.title,
           description: task.description,
@@ -643,6 +578,8 @@ export default function PlanStaging({
           frequency_days: task.frequency_days,
           is_recurring: true,
           is_auto_generated: true,
+          // 🚀 FIXED: Added Start Date so they actually render!
+          start_date: new Date().toISOString().split("T")[0],
         }),
       );
 
@@ -659,7 +596,6 @@ export default function PlanStaging({
         .update({ status: "Completed" })
         .eq("id", plan.id);
 
-      // 🚀 FIXED: Instantly update local status
       setLocalPlanStatus("Completed");
       onPlanUpdated();
 
@@ -687,310 +623,11 @@ export default function PlanStaging({
           .update({ status: "In Progress" })
           .eq("id", plan.id);
 
-        // 🚀 FIXED: Instantly update local status
         setLocalPlanStatus("In Progress");
         await saveStagingState({ maintenance_active: false });
         toast.success("Maintenance deactivated.");
       },
     });
-  };
-
-  // --- EMBEDDED SHED IMPORT WORKER ---
-  const savePlantToDB = async (skeleton: any, fullCareData?: any) => {
-    const manualId =
-      Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
-    skeleton.id = manualId;
-    skeleton.home_id = homeId;
-
-    const { data: savedPlant, error } = await supabase
-      .from("plants")
-      .insert([skeleton])
-      .select()
-      .single();
-    if (error) throw error;
-
-    const { data: homeData } = await supabase
-      .from("homes")
-      .select("country, timezone")
-      .eq("id", homeId)
-      .single();
-    const hemisphere = getHemisphere(homeData?.country, homeData?.timezone);
-    const newSchedules: any[] = [];
-
-    const harvestPeriods = normalizePeriods(
-      fullCareData?.harvest_season || skeleton.harvest_season,
-    );
-    harvestPeriods.forEach((period) => {
-      const { start, end } = getSinglePeriodRange(period, hemisphere);
-      const niceTitle = period.charAt(0).toUpperCase() + period.slice(1);
-      newSchedules.push({
-        home_id: homeId,
-        plant_id: savedPlant.id,
-        title: `${niceTitle} Harvest`,
-        description: `Auto-generated from Care Guide`,
-        task_type: "Harvesting",
-        trigger_event: "Planted",
-        start_reference: `Seasonal:${start}:${niceTitle} Harvest Start`,
-        start_offset_days: 0,
-        end_reference: `Seasonal:${end}:${niceTitle} Harvest End`,
-        end_offset_days: 0,
-        frequency_days: 1,
-        is_recurring: true,
-        is_auto_generated: true,
-      });
-    });
-
-    const pruningPeriods = normalizePeriods(
-      fullCareData?.pruning_month || skeleton.pruning_month,
-    );
-    pruningPeriods.forEach((period) => {
-      const { start, end } = getSinglePeriodRange(period, hemisphere);
-      const niceTitle = period.charAt(0).toUpperCase() + period.slice(1);
-      newSchedules.push({
-        home_id: homeId,
-        plant_id: savedPlant.id,
-        title: `${niceTitle} Pruning`,
-        description: `Auto-generated from Care Guide`,
-        task_type: "Maintenance",
-        trigger_event: "Planted",
-        start_reference: `Seasonal:${start}:${niceTitle} Pruning Start`,
-        start_offset_days: 0,
-        end_reference: `Seasonal:${end}:${niceTitle} Pruning End`,
-        end_offset_days: 0,
-        frequency_days: 1,
-        is_recurring: true,
-        is_auto_generated: true,
-      });
-    });
-
-    const minWatering =
-      fullCareData?.watering_min_days || skeleton?.watering_min_days || 3;
-    const maxWatering =
-      fullCareData?.watering_max_days || skeleton?.watering_max_days || 14;
-    const avgWatering = Math.max(
-      1,
-      Math.round((minWatering + maxWatering) / 2),
-    );
-
-    const summerDates = getSinglePeriodRange("summer", hemisphere);
-    const winterDates = getSinglePeriodRange("winter", hemisphere);
-    const springDates = getSinglePeriodRange("spring", hemisphere);
-    const fallDates = getSinglePeriodRange("fall", hemisphere);
-
-    newSchedules.push(
-      {
-        home_id: homeId,
-        plant_id: savedPlant.id,
-        title: `Summer Watering`,
-        description: `Auto-generated`,
-        task_type: "Watering",
-        trigger_event: "Planted",
-        start_reference: `Seasonal:${summerDates.start}:Summer Start`,
-        start_offset_days: 0,
-        end_reference: `Seasonal:${summerDates.end}:Summer End`,
-        end_offset_days: 0,
-        frequency_days: minWatering,
-        is_recurring: true,
-        is_auto_generated: true,
-      },
-      {
-        home_id: homeId,
-        plant_id: savedPlant.id,
-        title: `Winter Watering`,
-        description: `Auto-generated`,
-        task_type: "Watering",
-        trigger_event: "Planted",
-        start_reference: `Seasonal:${winterDates.start}:Winter Start`,
-        start_offset_days: 0,
-        end_reference: `Seasonal:${winterDates.end}:Winter End`,
-        end_offset_days: 0,
-        frequency_days: maxWatering,
-        is_recurring: true,
-        is_auto_generated: true,
-      },
-      {
-        home_id: homeId,
-        plant_id: savedPlant.id,
-        title: `Spring Watering`,
-        description: `Auto-generated`,
-        task_type: "Watering",
-        trigger_event: "Planted",
-        start_reference: `Seasonal:${springDates.start}:Spring Start`,
-        start_offset_days: 0,
-        end_reference: `Seasonal:${springDates.end}:Spring End`,
-        end_offset_days: 0,
-        frequency_days: avgWatering,
-        is_recurring: true,
-        is_auto_generated: true,
-      },
-      {
-        home_id: homeId,
-        plant_id: savedPlant.id,
-        title: `Autumn Watering`,
-        description: `Auto-generated`,
-        task_type: "Watering",
-        trigger_event: "Planted",
-        start_reference: `Seasonal:${fallDates.start}:Autumn Start`,
-        start_offset_days: 0,
-        end_reference: `Seasonal:${fallDates.end}:Autumn End`,
-        end_offset_days: 0,
-        frequency_days: avgWatering,
-        is_recurring: true,
-        is_auto_generated: true,
-      },
-    );
-
-    if (newSchedules.length > 0)
-      await supabase.from("plant_schedules").insert(newSchedules);
-    return savedPlant;
-  };
-
-  const handleProceedToBulkAdd = async (selectedItems: any[]) => {
-    setShowBulkSearch(false);
-    if (!selectedItems.length) return;
-
-    const newQueue: QueueItem[] = selectedItems.map((item) => {
-      const isApi = item.type === "api";
-      const realData = item.data;
-      return {
-        id: isApi
-          ? typeof realData === "string"
-            ? realData
-            : String(realData.id)
-          : realData,
-        name: isApi
-          ? typeof realData === "string"
-            ? realData
-            : realData.common_name
-          : realData,
-        source: item.type,
-        status: "pending",
-        data: realData,
-      };
-    });
-
-    setBulkQueue(newQueue);
-    setIsBulkProcessing(true);
-
-    for (let i = 0; i < newQueue.length; i++) {
-      const item = newQueue[i];
-      setBulkQueue((prev) =>
-        prev.map((q) =>
-          q.id === item.id ? { ...q, status: "processing" } : q,
-        ),
-      );
-
-      try {
-        if (item.source === "api") {
-          let pId, details, defaultImage;
-
-          if (typeof item.data === "string") {
-            const searchRes = await PerenualService.searchPlants(item.data);
-            if (!searchRes || searchRes.length === 0)
-              throw new Error("No exact match found in API");
-            const topMatch = searchRes[0];
-            pId = String(topMatch.id);
-            defaultImage = topMatch.default_image;
-            details = await PerenualService.getPlantDetails(topMatch.id);
-          } else {
-            pId = String(item.data.id);
-            defaultImage = item.data.default_image;
-            details = await PerenualService.getPlantDetails(item.data.id);
-          }
-
-          const { data: existing } = await supabase
-            .from("plants")
-            .select("id")
-            .eq("home_id", homeId)
-            .eq("perenual_id", pId)
-            .maybeSingle();
-          if (existing) throw new Error("Already in Shed");
-
-          let imageUrl =
-            details.image_url ||
-            details.thumbnail_url ||
-            defaultImage?.original_url ||
-            defaultImage?.regular_url ||
-            defaultImage?.thumbnail ||
-            "";
-          if (imageUrl.includes("upgrade_access")) imageUrl = "";
-
-          if (imageUrl) {
-            const { data: proxyData, error: proxyError } =
-              await supabase.functions.invoke("image-proxy", {
-                body: { imageUrl, plantName: details.common_name },
-              });
-            if (!proxyError && proxyData?.publicUrl) {
-              imageUrl = proxyData.publicUrl.includes("kong:8000")
-                ? proxyData.publicUrl.replace(
-                    "http://kong:8000",
-                    "http://127.0.0.1:54321",
-                  )
-                : proxyData.publicUrl;
-            }
-          }
-
-          await savePlantToDB(
-            {
-              common_name: details.common_name,
-              scientific_name: details.scientific_name,
-              thumbnail_url: imageUrl,
-              source: "api",
-              perenual_id: pId,
-            },
-            details,
-          );
-        } else {
-          const cleanName =
-            typeof item.data === "string"
-              ? item.data.split("(")[0].trim()
-              : item.data.common_name;
-          const { data: aiData, error } = await supabase.functions.invoke(
-            "plant-doctor",
-            { body: { action: "generate_care_guide", targetPlant: cleanName } },
-          );
-          if (error) throw error;
-          if (!aiData) throw new Error("AI failed to generate data");
-
-          const extracted = aiData.plantData ? aiData.plantData : aiData;
-          if (!extracted.common_name) extracted.common_name = cleanName;
-
-          let imageUrl = extracted.thumbnail_url || "";
-          if (imageUrl.includes("kong:8000"))
-            imageUrl = imageUrl.replace(
-              "http://kong:8000",
-              "http://127.0.0.1:54321",
-            );
-          extracted.thumbnail_url = imageUrl;
-
-          await savePlantToDB(
-            { ...extracted, source: "manual", perenual_id: null },
-            extracted,
-          );
-        }
-
-        setBulkQueue((prev) =>
-          prev.map((q) => (q.id === item.id ? { ...q, status: "success" } : q)),
-        );
-      } catch (err: any) {
-        let errorMsg = err.message || "Failed";
-        if (
-          errorMsg.includes("Unexpected token") ||
-          errorMsg.includes("Please Upg")
-        ) {
-          errorMsg = "Perenual API limit reached (Premium required).";
-        }
-        setBulkQueue((prev) =>
-          prev.map((q) =>
-            q.id === item.id
-              ? { ...q, status: "error", errorMsg: errorMsg }
-              : q,
-          ),
-        );
-      }
-    }
-    setIsBulkProcessing(false);
-    fetchData(); // Triggers the auto-match effect
   };
 
   if (!blueprint || !blueprint.project_overview) {
@@ -1577,99 +1214,6 @@ export default function PlanStaging({
           isDestructive={true}
         />
       )}
-
-      {typeof document !== "undefined" &&
-        createPortal(
-          <>
-            {showBulkSearch && (
-              <BulkSearchModal
-                homeId={homeId}
-                isPremium={isPremium}
-                initialSearchTerm=""
-                initialCartItems={initialCartItems}
-                onClose={() => setShowBulkSearch(false)}
-                onProceedToBulkAdd={handleProceedToBulkAdd}
-              />
-            )}
-
-            {bulkQueue.length > 0 && (
-              <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in zoom-in-95">
-                <div className="bg-rhozly-surface-lowest w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 flex flex-col max-h-[85vh]">
-                  <div className="flex justify-between items-start mb-8">
-                    <div>
-                      <h3 className="text-3xl font-black">Importing Plants</h3>
-                      <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-                        {isBulkProcessing
-                          ? "Processing your queue..."
-                          : "Import Complete!"}
-                      </p>
-                    </div>
-                    {!isBulkProcessing && (
-                      <button
-                        onClick={() => setBulkQueue([])}
-                        className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
-                      >
-                        <X size={24} />
-                      </button>
-                    )}
-                  </div>
-
-                  <div className="flex-1 overflow-y-auto space-y-3 custom-scrollbar pr-2">
-                    {bulkQueue.map((item) => (
-                      <div
-                        key={item.id}
-                        className={`flex items-center justify-between p-4 bg-white border rounded-2xl shadow-sm transition-all ${item.status === "processing" ? "border-rhozly-primary ring-1 ring-rhozly-primary/20" : "border-rhozly-outline/10"}`}
-                      >
-                        <div className="flex items-center gap-4">
-                          <div
-                            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${item.status === "pending" ? "bg-gray-100 text-gray-400" : item.status === "processing" ? "bg-rhozly-primary/10 text-rhozly-primary" : item.status === "success" ? "bg-green-100 text-green-500" : "bg-red-100 text-red-500"}`}
-                          >
-                            {item.status === "pending" && <Clock size={18} />}
-                            {item.status === "processing" && (
-                              <Loader2 size={18} className="animate-spin" />
-                            )}
-                            {item.status === "success" && (
-                              <CheckSquare2 size={18} />
-                            )}
-                            {item.status === "error" && (
-                              <AlertCircle size={18} />
-                            )}
-                          </div>
-                          <div>
-                            <p className="font-bold text-base text-rhozly-on-surface leading-tight">
-                              {item.name}
-                            </p>
-                            {item.errorMsg ? (
-                              <p className="text-[10px] text-red-500 font-bold uppercase tracking-widest mt-1">
-                                {item.errorMsg}
-                              </p>
-                            ) : (
-                              <p className="text-[10px] text-rhozly-on-surface/40 font-black uppercase tracking-widest mt-1">
-                                {item.source === "api"
-                                  ? "Perenual Database"
-                                  : "AI Generated"}
-                              </p>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-
-                  {!isBulkProcessing && (
-                    <button
-                      onClick={() => setBulkQueue([])}
-                      className="mt-8 w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-xl hover:scale-105 transition-transform"
-                    >
-                      Return to Plan
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
-          </>,
-          document.body,
-        )}
     </div>
   );
 }

@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabase";
 import {
   Loader2,
@@ -8,11 +9,11 @@ import {
   Archive,
   Trash2,
   ArchiveRestore,
+  X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import NewPlanForm from "./NewPlanForm";
-import { ConfirmModal } from "./ConfirmModal";
-import PlanStaging from "./PlanStaging"; // 🚀 NEW: Imported the Staging Engine
+import PlanStaging from "./PlanStaging";
 
 interface PlannerDashboardProps {
   homeId: string;
@@ -25,13 +26,18 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
     "Pending" | "Completed" | "Archived"
   >("Pending");
   const [showNewPlanModal, setShowNewPlanModal] = useState(false);
-
-  // 🚀 NEW: State to hold the currently selected plan for the Staging Engine
   const [selectedPlan, setSelectedPlan] = useState<any | null>(null);
 
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
-  const [planToDelete, setPlanToDelete] = useState<any | null>(null);
-  const [isDeleting, setIsDeleting] = useState(false);
+
+  const [confirmState, setConfirmState] = useState<{
+    isOpen: boolean;
+    type: "delete" | "archive" | "unarchive";
+    plan: any | null;
+  }>({ isOpen: false, type: "delete", plan: null });
+
+  const [isProcessingAction, setIsProcessingAction] = useState(false);
+  const [deleteAssociatedTasks, setDeleteAssociatedTasks] = useState(true);
 
   const fetchPlans = async () => {
     setLoading(true);
@@ -60,38 +66,67 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
-  const updatePlanStatus = async (planId: string, newStatus: string) => {
-    const { error } = await supabase
-      .from("plans")
-      .update({ status: newStatus })
-      .eq("id", planId);
-    if (error) {
-      toast.error("Failed to update plan.");
+  // 🚀 FIXED: Removed selectedPlan from the scroll lock so the staging engine scrolls naturally
+  useEffect(() => {
+    if (confirmState.isOpen || showNewPlanModal) {
+      document.body.style.overflow = "hidden";
     } else {
-      toast.success(`Plan moved to ${newStatus}`);
-      fetchPlans();
+      document.body.style.overflow = "unset";
     }
-  };
+    return () => {
+      document.body.style.overflow = "unset";
+    };
+  }, [confirmState.isOpen, showNewPlanModal]);
 
-  const executeDeletePlan = async () => {
-    if (!planToDelete) return;
-    setIsDeleting(true);
+  const executeConfirmedAction = async () => {
+    const { type, plan } = confirmState;
+    if (!plan) return;
+    setIsProcessingAction(true);
 
     try {
-      const { error } = await supabase
-        .from("plans")
-        .delete()
-        .eq("id", planToDelete.id);
-      if (error) throw error;
+      if (type === "delete") {
+        if (deleteAssociatedTasks) {
+          await supabase.from("tasks").delete().eq("plan_id", plan.id);
+          await supabase
+            .from("task_blueprints")
+            .delete()
+            .eq("plan_id", plan.id);
+        } else {
+          await supabase
+            .from("tasks")
+            .update({ plan_id: null })
+            .eq("plan_id", plan.id);
+          await supabase
+            .from("task_blueprints")
+            .update({ plan_id: null })
+            .eq("plan_id", plan.id);
+        }
+        const { error } = await supabase
+          .from("plans")
+          .delete()
+          .eq("id", plan.id);
+        if (error) throw error;
+        toast.success("Project deleted successfully.");
+      } else {
+        const newStatus = type === "archive" ? "Archived" : "Draft";
+        const { error } = await supabase
+          .from("plans")
+          .update({ status: newStatus })
+          .eq("id", plan.id);
+        if (error) throw error;
+        toast.success(
+          `Project ${type === "archive" ? "archived" : "restored"}.`,
+        );
+      }
 
-      toast.success("Project deleted successfully.");
-      setPlanToDelete(null);
       fetchPlans();
+      setConfirmState({ isOpen: false, type: "delete", plan: null });
+      setDeleteAssociatedTasks(true);
     } catch (err: any) {
-      toast.error("Failed to delete plan.");
+      toast.error("Action failed.");
       console.error(err);
     } finally {
-      setIsDeleting(false);
+      setIsProcessingAction(false);
     }
   };
 
@@ -106,6 +141,21 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
   ).length;
   const completedCount = plans.filter((p) => p.status === "Completed").length;
   const archivedCount = plans.filter((p) => p.status === "Archived").length;
+
+  // 🚀 FIXED: Render the Staging engine IN PLACE so you don't lose the app layout/nav
+  if (selectedPlan) {
+    return (
+      <PlanStaging
+        plan={selectedPlan}
+        homeId={homeId}
+        onBack={() => {
+          setSelectedPlan(null);
+          fetchPlans();
+        }}
+        onPlanUpdated={fetchPlans}
+      />
+    );
+  }
 
   return (
     <div className="max-w-6xl mx-auto h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-500">
@@ -127,7 +177,7 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
         </button>
       </div>
 
-      {/* Tabs with Counts */}
+      {/* Tabs */}
       <div className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/10 mb-6 max-w-md overflow-x-auto custom-scrollbar shrink-0">
         {[
           { id: "Pending", label: `Pending (${pendingCount})` },
@@ -170,10 +220,9 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
           {filteredPlans.map((plan) => (
             <div
               key={plan.id}
-              onClick={() => setSelectedPlan(plan)} // 🚀 FIXED: Now opens the Staging Engine!
+              onClick={() => setSelectedPlan(plan)}
               className="bg-white rounded-[2rem] border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group flex flex-col"
             >
-              {/* Cover Image */}
               <div className="h-40 bg-rhozly-surface-low relative overflow-hidden">
                 {plan.cover_image_url ? (
                   <img
@@ -187,7 +236,6 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
                   </div>
                 )}
 
-                {/* Status Badge */}
                 <div className="absolute top-4 left-4">
                   <span
                     className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm backdrop-blur-md ${
@@ -204,7 +252,6 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
                   </span>
                 </div>
 
-                {/* Context Menu */}
                 <div className="absolute top-4 right-4">
                   <div className="relative">
                     <button
@@ -217,7 +264,6 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
                       <MoreVertical size={16} />
                     </button>
 
-                    {/* Dropdown Menu */}
                     {openMenuId === plan.id && (
                       <div
                         className="absolute right-0 mt-2 w-48 bg-white rounded-2xl shadow-xl border border-rhozly-outline/10 z-20 overflow-hidden animate-in fade-in zoom-in-95"
@@ -225,8 +271,13 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
                       >
                         {plan.status !== "Archived" ? (
                           <button
-                            onClick={() => {
-                              updatePlanStatus(plan.id, "Archived");
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmState({
+                                isOpen: true,
+                                type: "archive",
+                                plan,
+                              });
                               setOpenMenuId(null);
                             }}
                             className="w-full px-4 py-3 text-left text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2"
@@ -235,8 +286,13 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
                           </button>
                         ) : (
                           <button
-                            onClick={() => {
-                              updatePlanStatus(plan.id, "Draft");
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setConfirmState({
+                                isOpen: true,
+                                type: "unarchive",
+                                plan,
+                              });
                               setOpenMenuId(null);
                             }}
                             className="w-full px-4 py-3 text-left text-sm font-bold text-blue-600 hover:bg-blue-50 flex items-center gap-2"
@@ -245,8 +301,13 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
                           </button>
                         )}
                         <button
-                          onClick={() => {
-                            setPlanToDelete(plan);
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setConfirmState({
+                              isOpen: true,
+                              type: "delete",
+                              plan,
+                            });
                             setOpenMenuId(null);
                           }}
                           className="w-full px-4 py-3 text-left text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-2"
@@ -259,7 +320,6 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
                 </div>
               </div>
 
-              {/* Card Body */}
               <div className="p-6 flex-1 flex flex-col">
                 <h3 className="text-xl font-black text-rhozly-on-surface mb-2 line-clamp-1">
                   {plan.name}
@@ -267,7 +327,6 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
                 <p className="text-sm font-bold text-rhozly-on-surface/60 line-clamp-2 mb-4 flex-1">
                   {plan.description}
                 </p>
-
                 <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 pt-4 border-t border-rhozly-outline/5">
                   <span>
                     Created {new Date(plan.created_at).toLocaleDateString()}
@@ -286,7 +345,6 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
         </div>
       )}
 
-      {/* The Intake Wizard Modal */}
       {showNewPlanModal && (
         <NewPlanForm
           homeId={homeId}
@@ -298,32 +356,101 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
         />
       )}
 
-      {/* The Custom Confirm Modal for Deletion */}
-      <ConfirmModal
-        isOpen={planToDelete !== null}
-        isLoading={isDeleting}
-        onClose={() => setPlanToDelete(null)}
-        onConfirm={executeDeletePlan}
-        title="Delete Project"
-        description={`Are you sure you want to permanently delete "${planToDelete?.name}"? All associated tasks and blueprints tied to this plan will also be wiped. This action cannot be undone.`}
-        confirmText="Delete Project"
-        isDestructive={true}
-      />
+      {typeof document !== "undefined" &&
+        createPortal(
+          <>
+            {confirmState.isOpen && confirmState.plan && (
+              <div
+                className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in"
+                onClick={() =>
+                  setConfirmState({ ...confirmState, isOpen: false })
+                }
+              >
+                <div
+                  className="bg-white p-6 sm:p-8 rounded-[2.5rem] w-full max-w-md shadow-2xl border border-rhozly-outline/10 flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div
+                    className={`w-16 h-16 rounded-full flex items-center justify-center mb-6 shrink-0 ${confirmState.type === "delete" ? "bg-red-50 text-red-500" : "bg-blue-50 text-blue-500"}`}
+                  >
+                    {confirmState.type === "delete" ? (
+                      <Trash2 size={32} />
+                    ) : confirmState.type === "archive" ? (
+                      <Archive size={32} />
+                    ) : (
+                      <ArchiveRestore size={32} />
+                    )}
+                  </div>
 
-      {/* 🚀 NEW: The Staging Engine Overlay */}
-      {selectedPlan && (
-        <div className="fixed inset-0 z-[100] bg-white animate-in fade-in">
-          <PlanStaging
-            plan={selectedPlan}
-            homeId={homeId}
-            onBack={() => {
-              setSelectedPlan(null);
-              fetchPlans(); // Refresh in case they updated status
-            }}
-            onPlanUpdated={fetchPlans}
-          />
-        </div>
-      )}
+                  <h3 className="font-black text-2xl text-rhozly-on-surface mb-2 shrink-0">
+                    {confirmState.type === "delete"
+                      ? "Delete Project"
+                      : confirmState.type === "archive"
+                        ? "Archive Project"
+                        : "Restore Project"}
+                  </h3>
+
+                  <p className="text-sm font-bold text-gray-500 mb-6 leading-relaxed shrink-0">
+                    {confirmState.type === "delete"
+                      ? `Are you sure you want to delete "${confirmState.plan.name}"? This action cannot be undone.`
+                      : confirmState.type === "archive"
+                        ? `Are you sure you want to move "${confirmState.plan.name}" to your archives? You can restore it later.`
+                        : `Are you sure you want to restore "${confirmState.plan.name}" to your active projects?`}
+                  </p>
+
+                  {confirmState.type === "delete" && (
+                    <label className="flex items-start gap-3 p-4 bg-red-50/50 rounded-2xl border border-red-100 cursor-pointer mb-6 text-left w-full hover:bg-red-50 transition-colors shrink-0">
+                      <input
+                        type="checkbox"
+                        checked={deleteAssociatedTasks}
+                        onChange={(e) =>
+                          setDeleteAssociatedTasks(e.target.checked)
+                        }
+                        className="accent-red-500 w-5 h-5 shrink-0 mt-0.5"
+                      />
+                      <div>
+                        <p className="text-sm font-black text-red-900">
+                          Delete associated tasks?
+                        </p>
+                        <p className="text-[10px] font-bold text-red-700/70 mt-1 leading-tight">
+                          Check this to wipe all active tasks and maintenance
+                          blueprints generated by this plan from your calendar.
+                          Uncheck to keep the tasks running but delete the plan.
+                        </p>
+                      </div>
+                    </label>
+                  )}
+
+                  <div className="flex gap-3 shrink-0 mt-auto pt-2">
+                    <button
+                      onClick={() =>
+                        setConfirmState({ ...confirmState, isOpen: false })
+                      }
+                      disabled={isProcessingAction}
+                      className="flex-1 py-4 rounded-2xl font-black bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={executeConfirmedAction}
+                      disabled={isProcessingAction}
+                      className={`flex-1 py-4 rounded-2xl font-black text-white shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${confirmState.type === "delete" ? "bg-red-500 hover:bg-red-600" : "bg-blue-500 hover:bg-blue-600"}`}
+                    >
+                      {isProcessingAction ? (
+                        <Loader2 className="animate-spin mx-auto" size={20} />
+                      ) : confirmState.type === "delete" ? (
+                        "Delete"
+                      ) : (
+                        "Confirm"
+                      )}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </>,
+          document.body,
+        )}
     </div>
   );
 }

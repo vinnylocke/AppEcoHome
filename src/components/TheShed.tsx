@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabase";
 import {
@@ -17,7 +17,6 @@ import {
   CheckSquare2,
   Clock,
   AlertCircle,
-  ChevronDown,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -28,6 +27,10 @@ import BulkSearchModal from "./BulkSearchModal";
 import { PerenualService } from "../lib/perenualService";
 import { useLocation, useSearchParams, useNavigate } from "react-router-dom";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import SmartImage from "./SmartImage"; // 🚀 Import the smart cache
+
+// 🚀 IMPORT THE NEW CACHE HOOK
+import { useCachedShed } from "../hooks/useCachedShed";
 
 interface Plant {
   id: number;
@@ -48,6 +51,7 @@ type QueueItem = {
   errorMsg?: string;
 };
 
+// --- Helpers for Master Plant Creation ---
 const getFrequencyDays = (wateringTerm: string): number => {
   const term = wateringTerm?.toLowerCase() || "";
   if (term.includes("frequent")) return 3;
@@ -75,12 +79,11 @@ const getHemisphere = (country?: string, timezone?: string) => {
 const normalizePeriods = (input: any): string[] => {
   if (!input) return [];
   if (Array.isArray(input)) return input.flatMap((i) => normalizePeriods(i));
-  if (typeof input === "string") {
+  if (typeof input === "string")
     return input
       .split(/,|\band\b|&/i)
       .map((s) => s.trim())
       .filter(Boolean);
-  }
   return [];
 };
 
@@ -127,9 +130,15 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const navigate = useNavigate();
   const handledDeepLink = useRef("");
 
-  const [plants, setPlants] = useState<Plant[]>([]);
-  const [locations, setLocations] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  // 🚀 SWR CACHE HOOK IMPLEMENTATION
+  const {
+    plants,
+    locations,
+    isInitialLoading: loading,
+    isBackgroundSyncing,
+    mutate: refreshShed, // Renamed to refreshShed for clarity in action handlers
+  } = useCachedShed(homeId);
+
   const [actionLoading, setActionLoading] = useState(false);
 
   const [viewTab, setViewTab] = useState<"active" | "archived">("active");
@@ -181,6 +190,27 @@ export default function TheShed({ homeId }: { homeId: string }) {
     isBulkProcessing,
     setPageContext,
   ]);
+
+  useEffect(() => {
+    const fetchUserProfile = async () => {
+      try {
+        const {
+          data: { user },
+        } = await supabase.auth.getUser();
+        if (user) {
+          const { data, error } = await supabase
+            .from("user_profiles")
+            .select("enable_perenual")
+            .eq("uid", user.id)
+            .single();
+          if (!error && data) setIsPremium(!!data.enable_perenual);
+        }
+      } catch (err) {
+        Logger.error("Failed to fetch user premium status", err);
+      }
+    };
+    fetchUserProfile();
+  }, []);
 
   const savePlantToDB = async (skeleton: any, fullCareData?: any) => {
     const manualId =
@@ -369,7 +399,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
       try {
         if (item.source === "api") {
           let pId, details, defaultImage;
-
           if (typeof item.data === "string") {
             const searchRes = await PerenualService.searchPlants(item.data);
             if (!searchRes || searchRes.length === 0)
@@ -400,20 +429,18 @@ export default function TheShed({ homeId }: { homeId: string }) {
             defaultImage?.thumbnail ||
             "";
           if (imageUrl.includes("upgrade_access")) imageUrl = "";
-
           if (imageUrl) {
             const { data: proxyData, error: proxyError } =
               await supabase.functions.invoke("image-proxy", {
                 body: { imageUrl, plantName: details.common_name },
               });
-            if (!proxyError && proxyData?.publicUrl) {
+            if (!proxyError && proxyData?.publicUrl)
               imageUrl = proxyData.publicUrl.includes("kong:8000")
                 ? proxyData.publicUrl.replace(
                     "http://kong:8000",
                     "http://127.0.0.1:54321",
                   )
                 : proxyData.publicUrl;
-            }
           }
 
           await savePlantToDB(
@@ -454,7 +481,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
             extracted,
           );
         }
-
         setBulkQueue((prev) =>
           prev.map((q) => (q.id === item.id ? { ...q, status: "success" } : q)),
         );
@@ -477,22 +503,17 @@ export default function TheShed({ homeId }: { homeId: string }) {
       }
     }
     setIsBulkProcessing(false);
-    fetchData();
+    refreshShed(); // 🚀 BACKGROUND SYNC
   };
 
-  // 🚀 FIX: Hard flush the browser history state to break the cart trap
   useEffect(() => {
     if (location.state && location.state.autoImport) {
       const { autoImport, source } = location.state;
-
-      // Nuke the state from browser history entirely so back-button or closing modal doesn't re-trigger it
       window.history.replaceState({}, document.title, location.pathname);
-
       const queueItems = autoImport.map((name: string) => ({
         type: source,
         data: name,
       }));
-
       setInitialCartItems(queueItems);
       setShowBulkSearch(true);
     }
@@ -517,62 +538,10 @@ export default function TheShed({ homeId }: { homeId: string }) {
     setIsAddingManual(false);
     setShowBulkSearch(false);
     setInitialSearchTerm("");
-    setInitialCartItems([]); // Reset the array explicitly
+    setInitialCartItems([]);
     handledDeepLink.current = "";
     navigate("/shed", { replace: true });
   };
-
-  const fetchUserProfile = async () => {
-    try {
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-      if (user) {
-        const { data, error } = await supabase
-          .from("user_profiles")
-          .select("enable_perenual")
-          .eq("uid", user.id)
-          .single();
-        if (!error && data) setIsPremium(!!data.enable_perenual);
-      }
-    } catch (err) {
-      Logger.error("Failed to fetch user premium status", err);
-    }
-  };
-
-  const fetchData = useCallback(async () => {
-    if (!homeId) return;
-    setLoading(true);
-    try {
-      const { data: shedData, error: shedError } = await supabase
-        .from("plants")
-        .select(`*, inventory_items(id)`)
-        .eq("home_id", homeId)
-        .order("created_at", { ascending: false });
-      if (shedError) throw shedError;
-      setPlants(
-        (shedData || []).map((p) => ({
-          ...p,
-          instance_count: p.inventory_items?.length || 0,
-        })),
-      );
-      const { data: locData, error: locError } = await supabase
-        .from("locations")
-        .select(`id, name, areas ( * )`)
-        .eq("home_id", homeId);
-      if (locError) throw locError;
-      if (locData) setLocations(locData);
-    } catch (err: any) {
-      toast.error("Failed to load Shed");
-    } finally {
-      setLoading(false);
-    }
-  }, [homeId]);
-
-  useEffect(() => {
-    fetchUserProfile();
-    fetchData();
-  }, [fetchData]);
 
   const executeArchiveToggle = async () => {
     const plant = confirmState.plant;
@@ -587,7 +556,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
       toast.success(
         plant.is_archived ? "Restored to active" : "Moved to archive",
       );
-      fetchData();
+      refreshShed(); // 🚀 BACKGROUND SYNC
     } catch (err: any) {
       toast.error(`Failed to update status: ${err.message}`);
     } finally {
@@ -608,7 +577,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
       if (error) throw error;
       toast.success(`${plant.common_name} deleted.`);
       setConfirmState({ isOpen: false, type: "delete", plant: null });
-      fetchData();
+      refreshShed(); // 🚀 BACKGROUND SYNC
     } catch (err: any) {
       toast.error(`Failed to delete: ${err.message}`);
     } finally {
@@ -625,7 +594,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
       );
       toast.success(`${plantData.common_name} added to shed!`);
       handleCloseModals();
-      fetchData();
+      refreshShed(); // 🚀 BACKGROUND SYNC
     } catch (err: any) {
       toast.error(`Failed to save: ${err.message}`);
     } finally {
@@ -644,7 +613,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
       if (error) throw error;
       toast.success(`${cleanPayload.common_name} updated!`);
       setEditingPlant(updatedData);
-      fetchData();
+      refreshShed(); // 🚀 BACKGROUND SYNC
     } catch (err: any) {
       toast.error(`Update failed: ${err.message}`);
     } finally {
@@ -695,39 +664,43 @@ export default function TheShed({ homeId }: { homeId: string }) {
         .select();
       if (insertError) throw insertError;
 
+      const newInventoryIds = insertedItems.map((item: any) => item.id);
+
       if (
         assignmentData.smartSchedules &&
         assignmentData.smartSchedules.length > 0 &&
         insertedItems
       ) {
         const tasksToInsert: any[] = [];
-        insertedItems.forEach((item: any) => {
-          assignmentData.smartSchedules.forEach((schedule: any) => {
-            schedule.phases.forEach((phase: any) => {
-              const formattedSteps = phase.steps
-                .map((s: string, i: number) => `${i + 1}. ${s}`)
-                .join("\n");
-              tasksToInsert.push({
-                home_id: homeId,
-                location_id: areaData.location_id,
-                area_id: assignmentData.areaId,
-                inventory_item_id: item.id,
-                type: "Planting",
-                title: `${phase.phase_name} (${selectedPlant.common_name})`,
-                description: `Method: ${schedule.method}\nPhase: ${phase.phase_name}\n\nInstructions:\n${formattedSteps}\n\nReasoning:\n${schedule.reasoning}`,
-                due_date: phase.recommended_date,
-                status: "Pending",
-              });
+        assignmentData.smartSchedules.forEach((schedule: any) => {
+          schedule.phases.forEach((phase: any) => {
+            const formattedSteps = phase.steps
+              .map((s: string, i: number) => `${i + 1}. ${s}`)
+              .join("\n");
+            tasksToInsert.push({
+              home_id: homeId,
+              location_id: areaData.location_id,
+              area_id: assignmentData.areaId,
+              inventory_item_ids: newInventoryIds,
+              type: "Planting",
+              title: `${phase.phase_name} (${selectedPlant.common_name} x${assignmentData.quantity})`,
+              description: `Method: ${schedule.method}\nPhase: ${phase.phase_name}\n\nInstructions:\n${formattedSteps}\n\nReasoning:\n${schedule.reasoning}`,
+              due_date: phase.recommended_date,
+              status: "Pending",
             });
           });
         });
         await supabase.from("tasks").insert(tasksToInsert);
       }
+
       toast.success(`Successfully assigned ${assignmentData.quantity} plants!`);
-      fetchData();
+      refreshShed(); // 🚀 BACKGROUND SYNC
       setSelectedPlant(null);
+
+      return insertedItems;
     } catch (err: any) {
       toast.error(`Assignment failed: ${err.message}`);
+      return null;
     } finally {
       setActionLoading(false);
     }
@@ -764,7 +737,14 @@ export default function TheShed({ homeId }: { homeId: string }) {
               <h2 className="text-4xl font-black font-display text-rhozly-on-surface">
                 The Shed
               </h2>
-              <div className="relative">
+              {/* 🚀 SILENT SYNC INDICATOR */}
+              {isBackgroundSyncing && (
+                <Loader2
+                  className="animate-spin text-rhozly-on-surface/20"
+                  size={20}
+                />
+              )}
+              <div className="relative ml-auto xl:ml-0">
                 <button
                   onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
                   className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-sm border ${isAddMenuOpen ? "bg-white text-rhozly-primary border-rhozly-primary rotate-45" : "bg-rhozly-primary text-white border-transparent hover:scale-110 active:scale-95"}`}
@@ -864,11 +844,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
             <div className="col-span-full h-40 flex flex-col items-center justify-center text-rhozly-on-surface/40">
               <Search size={40} className="mb-4 opacity-50" />
               <p className="font-black">No plants found</p>
-              {searchQuery && (
-                <p className="text-sm font-bold mt-1">
-                  Try a different search term.
-                </p>
-              )}
             </div>
           ) : (
             filteredPlants.map((plant) => (
@@ -878,12 +853,14 @@ export default function TheShed({ homeId }: { homeId: string }) {
                 className="bg-rhozly-surface-lowest rounded-[2.5rem] overflow-hidden border border-rhozly-outline/20 shadow-sm group flex flex-col cursor-pointer hover:border-rhozly-primary/30 transition-all"
               >
                 <div className="h-44 relative overflow-hidden bg-rhozly-primary/5">
-                  <img
+                  <SmartImage
                     src={
                       plant.thumbnail_url ||
                       "https://images.unsplash.com/photo-1466692476868-aef1dfb1e735?auto=format&fit=crop&w=400"
                     }
                     alt={plant.common_name}
+                    loading="lazy" // 🚀 STOPS IMAGE BOTTLENECKING
+                    decoding="async" // 🚀 STOPS MAIN THREAD FREEZING
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute top-4 left-4">

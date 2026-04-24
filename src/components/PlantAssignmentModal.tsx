@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
+import { createPortal } from "react-dom";
 import {
   X,
   MapPin,
@@ -16,14 +16,13 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
-
-// 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { AutomationEngine } from "../lib/automationEngine"; // 🚀 IMPORT THE ENGINE
 
 interface PlantAssignmentModalProps {
   plant: any;
   locations: any[];
-  onAssign: (data: any) => void;
+  onAssign: (data: any) => Promise<void>; // 🚀 Made this async so we can await it
   onClose: () => void;
   isAssigning: boolean;
   homeId: string;
@@ -56,7 +55,6 @@ export default function PlantAssignmentModal({
   isAssigning,
   homeId,
 }: PlantAssignmentModalProps) {
-  // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
 
   const [step, setStep] = useState<1 | 2>(1);
@@ -74,12 +72,12 @@ export default function PlantAssignmentModal({
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [aiResult, setAiResult] = useState<any>(null);
   const [selectedSchedules, setSelectedSchedules] = useState<string[]>([]);
+  const [isProcessingLocal, setIsProcessingLocal] = useState(false); // Local loading state for the engine
 
   const availableAreas = selectedLoc
     ? locations.find((l) => l.id === selectedLoc)?.areas || []
     : [];
 
-  // 🧠 LIVE AI SYNC: Update the AI on the current assignment workflow
   useEffect(() => {
     const locObj = locations.find((l) => l.id === selectedLoc);
     const areaObj = availableAreas.find((a: any) => a.id === formData.areaId);
@@ -96,7 +94,6 @@ export default function PlantAssignmentModal({
         growthState: formData.growthState,
         isEstablished: formData.isEstablished,
       },
-      // Provide AI Smart Schedule results if they've been generated
       smartScheduleContext: aiResult
         ? {
             assessment: aiResult.personalized_assessment,
@@ -106,7 +103,6 @@ export default function PlantAssignmentModal({
         : null,
     });
 
-    // Cleanup on close
     return () => setPageContext(null);
   }, [
     step,
@@ -224,23 +220,44 @@ export default function PlantAssignmentModal({
     );
   };
 
-  const handleSubmit = () => {
-    const finalSchedules =
-      aiResult?.schedules?.filter((s: any) =>
-        selectedSchedules.includes(s.method),
-      ) || [];
+  const handleSubmit = async () => {
+    setIsProcessingLocal(true);
+    try {
+      const finalSchedules =
+        aiResult?.schedules?.filter((s: any) =>
+          selectedSchedules.includes(s.method),
+        ) || [];
 
-    onAssign({
-      ...formData,
-      status: formData.isPlanted ? "Planted" : "Unplanted",
-      smartSchedules: finalSchedules,
-    });
+      // 1. Execute the parent assignment (which saves the items to the DB and returns the created items)
+      // 🚀 Make sure your parent component returns the generated inventory items from onAssign!
+      const createdItems = await onAssign({
+        ...formData,
+        status: formData.isPlanted ? "Planted" : "Unplanted",
+        smartSchedules: finalSchedules,
+      });
+
+      // 2. If it was instantly planted, run the Automation Engine!
+      if (formData.isPlanted && createdItems && createdItems.length > 0) {
+        const baseDateStr = formData.isEstablished
+          ? new Date().toISOString().split("T")[0]
+          : formData.plantedDate;
+        await AutomationEngine.applyPlantedAutomations(
+          createdItems,
+          formData.areaId,
+          baseDateStr,
+        );
+      }
+    } catch (e) {
+      console.error(e);
+      // Toast is likely handled by parent, but just in case:
+      toast.error("Assignment failed.");
+    } finally {
+      setIsProcessingLocal(false);
+    }
   };
 
-  // 🚀 SSR Safety Check
   if (typeof document === "undefined") return null;
 
-  // 🚀 PORTAL WRAPPER
   return createPortal(
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
       <div className="bg-rhozly-surface-lowest w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 relative">
@@ -565,13 +582,14 @@ export default function PlantAssignmentModal({
                 onClick={handleSubmit}
                 disabled={
                   isAssigning ||
+                  isProcessingLocal ||
                   (!formData.isPlanted &&
                     aiResult &&
                     selectedSchedules.length === 0)
                 }
                 className="flex-1 py-5 bg-rhozly-primary text-white rounded-2xl font-black text-lg shadow-xl shadow-rhozly-primary/20 flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
               >
-                {isAssigning ? (
+                {isAssigning || isProcessingLocal ? (
                   <Loader2 className="animate-spin" size={24} />
                 ) : (
                   <>

@@ -19,6 +19,14 @@ interface NewPlanFormProps {
   onSuccess: () => void;
 }
 
+const SUNLIGHT_OPTIONS = [
+  { value: "full sun", label: "Full Sun" },
+  { value: "part sun", label: "Part Sun" },
+  { value: "part shade", label: "Part Shade" },
+  { value: "filtered shade", label: "Filtered Shade" },
+  { value: "full shade", label: "Full Shade" },
+];
+
 export default function NewPlanForm({
   homeId,
   onClose,
@@ -26,16 +34,19 @@ export default function NewPlanForm({
 }: NewPlanFormProps) {
   const [step, setStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
-  const [existingAreas, setExistingAreas] = useState<any[]>([]);
 
   const [formData, setFormData] = useState({
     planName: "",
     description: "",
     aesthetic: "Natural",
     timeline: "Start Immediately",
-    targetArea: "new",
-    locationSize: "",
-    sunlight: "Full Sun",
+    // 🚀 NEW: Dimension States
+    unit: "m",
+    width: "",
+    length: "",
+    depth: "",
+    // 🚀 UPDATED: Sunlight default
+    sunlight: "full sun",
     medium: "Standard Soil",
     inclusivePlants: "",
     exclusivePlants: "",
@@ -45,25 +56,13 @@ export default function NewPlanForm({
     considerations: "",
   });
 
-  // 🚀 FIXED: Lock background scrolling when modal is open
+  // Lock background scrolling when modal is open
   useEffect(() => {
     document.body.style.overflow = "hidden";
     return () => {
       document.body.style.overflow = "unset";
     };
   }, []);
-
-  useEffect(() => {
-    const fetchAreas = async () => {
-      // 🚀 FIXED: Correctly querying areas through locations for the dropdown
-      const { data } = await supabase
-        .from("areas")
-        .select("id, name, locations!inner(home_id)")
-        .eq("locations.home_id", homeId);
-      if (data) setExistingAreas(data);
-    };
-    fetchAreas();
-  }, [homeId]);
 
   const handleInputChange = (e: any) => {
     const { name, value } = e.target;
@@ -74,15 +73,30 @@ export default function NewPlanForm({
     if (!formData.planName || !formData.description) {
       return toast.error("Please provide a name and description.");
     }
+    // 🚀 NEW: Dimension Validation
+    if (!formData.width || !formData.length) {
+      return toast.error("Please provide both width and length dimensions.");
+    }
 
     setIsGenerating(true);
     const toastId = toast.loading("The AI Architect is designing your plan...");
 
     try {
+      // 🚀 Format the dimensions clearly for the AI before sending
+      let sizeString = `${formData.width}${formData.unit} wide x ${formData.length}${formData.unit} long`;
+      if (formData.depth)
+        sizeString += ` x ${formData.depth}${formData.unit} deep`;
+
+      // Package it so the edge function sees the locationSize string it expects
+      const payloadData = {
+        ...formData,
+        locationSize: sizeString,
+      };
+
       const { data, error } = await supabase.functions.invoke(
         "generate-landscape-plan",
         {
-          body: { formData, homeId },
+          body: { formData: payloadData, homeId },
         },
       );
 
@@ -110,10 +124,8 @@ export default function NewPlanForm({
     }
   };
 
-  // 🚀 FIXED: Added safety check for server-side rendering
   if (typeof document === "undefined") return null;
 
-  // 🚀 FIXED: Portaled to document.body, improved mobile padding and max-width constraints
   return createPortal(
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6 bg-rhozly-bg/95 backdrop-blur-sm animate-in fade-in zoom-in-95">
       <div
@@ -219,74 +231,119 @@ export default function NewPlanForm({
                 <h3 className="font-black text-lg">The Environment</h3>
               </div>
 
-              <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
-                  Target Area
-                </label>
-                <select
-                  name="targetArea"
-                  value={formData.targetArea}
-                  onChange={handleInputChange}
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:ring-2 focus:ring-blue-500/20 transition-all"
-                >
-                  <option value="new">✨ Create New Area</option>
-                  {existingAreas.map((a) => (
-                    <option key={a.id} value={a.name}>
-                      {a.name}
-                    </option>
-                  ))}
-                </select>
+              {/* 🚀 NEW: Dimensions Component */}
+              <div className="bg-blue-50/50 p-5 rounded-3xl border border-blue-100/50 space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <label className="text-[10px] font-black uppercase text-blue-800/60 tracking-widest">
+                    Dimensions
+                  </label>
+                  <select
+                    name="unit"
+                    value={formData.unit}
+                    onChange={handleInputChange}
+                    className="ml-auto bg-white border border-blue-200 text-blue-800 text-xs font-black p-1.5 rounded-lg outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/20"
+                  >
+                    <option value="m">Meters (m)</option>
+                    <option value="cm">Centimeters (cm)</option>
+                    <option value="ft">Feet (ft)</option>
+                    <option value="in">Inches (in)</option>
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  <div>
+                    <span className="text-[10px] font-bold text-blue-800/60 block mb-1">
+                      Width *
+                    </span>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        name="width"
+                        value={formData.width}
+                        onChange={handleInputChange}
+                        className="w-full p-3 pr-8 bg-white rounded-xl border border-blue-200 font-bold text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        placeholder="0"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">
+                        {formData.unit}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-blue-800/60 block mb-1">
+                      Length *
+                    </span>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        name="length"
+                        value={formData.length}
+                        onChange={handleInputChange}
+                        className="w-full p-3 pr-8 bg-white rounded-xl border border-blue-200 font-bold text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        placeholder="0"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">
+                        {formData.unit}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-blue-800/60 block mb-1">
+                      Depth (Opt.)
+                    </span>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        name="depth"
+                        value={formData.depth}
+                        onChange={handleInputChange}
+                        className="w-full p-3 pr-8 bg-white rounded-xl border border-blue-200 font-bold text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        placeholder="0"
+                      />
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">
+                        {formData.unit}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {formData.targetArea === "new" && (
-                <>
-                  <div className="space-y-2">
-                    <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
-                      Estimated Size *
-                    </label>
-                    <input
-                      name="locationSize"
-                      value={formData.locationSize}
-                      onChange={handleInputChange}
-                      placeholder="e.g., 10ft x 10ft, or 'A small windowsill'"
-                      className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold focus:ring-2 focus:ring-blue-500/20 border border-transparent transition-all"
-                    />
-                  </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
-                        Sunlight
-                      </label>
-                      <select
-                        name="sunlight"
-                        value={formData.sunlight}
-                        onChange={handleInputChange}
-                        className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:ring-2 focus:ring-blue-500/20 transition-all"
-                      >
-                        <option>Full Sun</option>
-                        <option>Part Shade</option>
-                        <option>Full Shade</option>
-                      </select>
-                    </div>
-                    <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
-                        Medium
-                      </label>
-                      <select
-                        name="medium"
-                        value={formData.medium}
-                        onChange={handleInputChange}
-                        className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:ring-2 focus:ring-blue-500/20 transition-all"
-                      >
-                        <option>Standard Soil</option>
-                        <option>Raised Bed Mix</option>
-                        <option>Aquatic / Water</option>
-                        <option>Pots / Containers</option>
-                      </select>
-                    </div>
-                  </div>
-                </>
-              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
+                    Sunlight
+                  </label>
+                  <select
+                    name="sunlight"
+                    value={formData.sunlight}
+                    onChange={handleInputChange}
+                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
+                  >
+                    {/* 🚀 NEW: Dynamically render sunlight options */}
+                    {SUNLIGHT_OPTIONS.map((opt) => (
+                      <option key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
+                    Medium
+                  </label>
+                  <select
+                    name="medium"
+                    value={formData.medium}
+                    onChange={handleInputChange}
+                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:ring-2 focus:ring-blue-500/20 transition-all"
+                  >
+                    <option>Standard Soil</option>
+                    <option>Raised Bed Mix</option>
+                    <option>Aquatic / Water</option>
+                    <option>Pots / Containers</option>
+                  </select>
+                </div>
+              </div>
             </div>
           )}
 
