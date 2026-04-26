@@ -27,6 +27,65 @@ const SUNLIGHT_OPTIONS = [
   { value: "full shade", label: "Full Shade" },
 ];
 
+async function saveInitialPromptMemory(
+  homeId: string,
+  planId: string,
+  formData: any,
+) {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    const userId = user?.id;
+
+    await supabase.from("planner_ai_memory").insert({
+      home_id: homeId,
+      user_id: userId,
+      plan_id: planId,
+      event_type: "initial_prompt",
+      raw_data: formData,
+    });
+
+    const prefs: any[] = [];
+    const base = { home_id: homeId, user_id: userId };
+
+    if (formData.aesthetic)
+      prefs.push({ ...base, entity_type: "aesthetic", entity_name: formData.aesthetic, sentiment: "positive", reason: null });
+    if (formData.difficulty)
+      prefs.push({ ...base, entity_type: "difficulty", entity_name: formData.difficulty, sentiment: "positive", reason: null });
+    if (formData.maintenance)
+      prefs.push({ ...base, entity_type: "maintenance", entity_name: formData.maintenance, sentiment: "positive", reason: null });
+
+    formData.wildlife
+      ?.split(",")
+      .map((s: string) => s.trim())
+      .filter(Boolean)
+      .forEach((w: string) =>
+        prefs.push({ ...base, entity_type: "wildlife", entity_name: w, sentiment: "positive", reason: "User specified wildlife goal" }),
+      );
+
+    formData.inclusivePlants
+      ?.split(",")
+      .map((s: string) => s.trim())
+      .filter(Boolean)
+      .forEach((p: string) =>
+        prefs.push({ ...base, entity_type: "plant", entity_name: p, sentiment: "positive", reason: "Explicitly requested by user" }),
+      );
+
+    formData.exclusivePlants
+      ?.split(",")
+      .map((s: string) => s.trim())
+      .filter(Boolean)
+      .forEach((p: string) =>
+        prefs.push({ ...base, entity_type: "plant", entity_name: p, sentiment: "negative", reason: "Explicitly excluded by user" }),
+      );
+
+    if (prefs.length > 0) {
+      await supabase.from("planner_preferences").insert(prefs);
+    }
+  } catch (err) {
+    console.warn("Memory save failed (non-critical):", err);
+  }
+}
+
 export default function NewPlanForm({
   homeId,
   onClose,
@@ -96,16 +155,24 @@ export default function NewPlanForm({
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
 
-      const { error: insertError } = await supabase.from("plans").insert({
-        home_id: homeId,
-        name: formData.planName,
-        description: formData.description,
-        status: "Draft",
-        ai_blueprint: data.blueprint,
-        cover_image_url: data.cover_image_url,
-      });
+      const { data: newPlan, error: insertError } = await supabase
+        .from("plans")
+        .insert({
+          home_id: homeId,
+          name: formData.planName,
+          description: formData.description,
+          status: "Draft",
+          ai_blueprint: data.blueprint,
+          cover_image_url: data.cover_image_url,
+        })
+        .select("id")
+        .single();
 
       if (insertError) throw insertError;
+
+      // Fire-and-forget: log the event and save structured preferences extracted
+      // directly from the form fields (no AI needed — form is already structured).
+      saveInitialPromptMemory(homeId, newPlan.id, payloadData);
 
       toast.success("Blueprint Generated Successfully!", { id: toastId });
       onSuccess();

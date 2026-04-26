@@ -377,6 +377,24 @@ export default function PlanStaging({
     }
   }, [isPhase1Done, isPhase2Done, shedPlants, localBlueprint, plantMapping]);
 
+  const saveMemoryEvent = async (
+    eventType: string,
+    extra: Record<string, any> = {},
+  ) => {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      await supabase.from("planner_ai_memory").insert({
+        home_id: homeId,
+        user_id: user?.id,
+        plan_id: plan.id,
+        event_type: eventType,
+        raw_data: extra,
+      });
+    } catch (err) {
+      console.warn("Memory event save failed (non-critical):", err);
+    }
+  };
+
   const saveStagingState = async (newState: any) => {
     const mergedState = { ...localStagingState, ...newState };
     setLocalStagingState(mergedState);
@@ -431,6 +449,7 @@ export default function PlanStaging({
   const handleStartProject = async () => {
     await saveStagingState({ has_started: true });
     setIsStarted(true);
+    saveMemoryEvent("accepted_blueprint", { blueprint_title: localBlueprint?.project_overview?.title });
     toast.success("Project Started! Begin Phase 1.");
   };
 
@@ -439,6 +458,7 @@ export default function PlanStaging({
       return toast.error("Please provide feedback for the AI.");
     setIsRegenerating(true);
     setShowRegenModal(false);
+    saveMemoryEvent("regen_feedback", { feedback_text: regenFeedback });
     const toastId = toast.loading("Consulting the AI Architect...");
 
     try {
@@ -961,6 +981,7 @@ export default function PlanStaging({
 
       setLocalPlanStatus("Completed");
       onPlanUpdated();
+      saveMemoryEvent("completed_plan", { blueprint_title: localBlueprint?.project_overview?.title });
 
       toast.success("Project Complete! Maintenance automated.", {
         id: toastId,
