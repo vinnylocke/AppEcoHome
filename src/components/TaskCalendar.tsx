@@ -8,10 +8,12 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
-import AddTaskModal, { TASK_CATEGORIES } from "./AddTaskModal";
+import AddTaskModal from "./AddTaskModal";
+import { TASK_CATEGORIES } from "../constants/taskCategories";
 import TaskList from "./TaskList";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
-import { TaskEngine, getLocalDateString } from "../lib/taskEngine"; // 🚀 USING THE ENGINE
+import { TaskEngine } from "../lib/taskEngine";
+import { getLocalDateString } from "../lib/dateUtils";
 
 export interface Task {
   id: string;

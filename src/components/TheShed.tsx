@@ -2,6 +2,12 @@ import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabase";
 import {
+  getFrequencyDays,
+  getHemisphere,
+  normalizePeriods,
+} from "../lib/seasonal";
+import { buildAutoSeasonalSchedules } from "../lib/plantScheduleFactory";
+import {
   Plus,
   Database,
   MapPin,
@@ -52,76 +58,6 @@ type QueueItem = {
 };
 
 // --- Helpers for Master Plant Creation ---
-const getFrequencyDays = (wateringTerm: string): number => {
-  const term = wateringTerm?.toLowerCase() || "";
-  if (term.includes("frequent")) return 3;
-  if (term.includes("average")) return 7;
-  if (term.includes("minimum")) return 21;
-  return 7;
-};
-
-const getHemisphere = (country?: string, timezone?: string) => {
-  const southernCountries = [
-    "australia",
-    "new zealand",
-    "brazil",
-    "south africa",
-    "argentina",
-    "chile",
-    "peru",
-  ];
-  const searchString = `${country || ""} ${timezone || ""}`.toLowerCase();
-  if (southernCountries.some((c) => searchString.includes(c)))
-    return "southern";
-  return "northern";
-};
-
-const normalizePeriods = (input: any): string[] => {
-  if (!input) return [];
-  if (Array.isArray(input)) return input.flatMap((i) => normalizePeriods(i));
-  if (typeof input === "string")
-    return input
-      .split(/,|\band\b|&/i)
-      .map((s) => s.trim())
-      .filter(Boolean);
-  return [];
-};
-
-const getSinglePeriodRange = (
-  period: string,
-  hemisphere: "northern" | "southern",
-) => {
-  const p = period.toLowerCase();
-  if (p.includes("jan")) return { start: "01-01", end: "01-31" };
-  if (p.includes("feb")) return { start: "02-01", end: "02-28" };
-  if (p.includes("mar")) return { start: "03-01", end: "03-31" };
-  if (p.includes("apr")) return { start: "04-01", end: "04-30" };
-  if (p.includes("may")) return { start: "05-01", end: "05-31" };
-  if (p.includes("jun")) return { start: "06-01", end: "06-30" };
-  if (p.includes("jul")) return { start: "07-01", end: "07-31" };
-  if (p.includes("aug")) return { start: "08-01", end: "08-31" };
-  if (p.includes("sep")) return { start: "09-01", end: "09-30" };
-  if (p.includes("oct")) return { start: "10-01", end: "10-31" };
-  if (p.includes("nov")) return { start: "11-01", end: "11-30" };
-  if (p.includes("dec")) return { start: "12-01", end: "12-31" };
-  if (p.includes("spring"))
-    return hemisphere === "northern"
-      ? { start: "03-01", end: "05-31" }
-      : { start: "09-01", end: "11-30" };
-  if (p.includes("summer"))
-    return hemisphere === "northern"
-      ? { start: "06-01", end: "08-31" }
-      : { start: "12-01", end: "02-28" };
-  if (p.includes("fall") || p.includes("autumn"))
-    return hemisphere === "northern"
-      ? { start: "09-01", end: "11-30" }
-      : { start: "03-01", end: "05-31" };
-  if (p.includes("winter"))
-    return hemisphere === "northern"
-      ? { start: "12-01", end: "02-28" }
-      : { start: "06-01", end: "08-31" };
-  return { start: "01-01", end: "12-31" };
-};
 
 export default function TheShed({ homeId }: { homeId: string }) {
   const { setPageContext } = usePlantDoctor();
@@ -231,130 +167,22 @@ export default function TheShed({ homeId }: { homeId: string }) {
       .eq("id", homeId)
       .single();
     const hemisphere = getHemisphere(homeData?.country, homeData?.timezone);
-    const newSchedules: any[] = [];
 
-    const harvestPeriods = normalizePeriods(
-      fullCareData?.harvest_season || skeleton.harvest_season,
-    );
-    harvestPeriods.forEach((period) => {
-      const { start, end } = getSinglePeriodRange(period, hemisphere);
-      const niceTitle = period.charAt(0).toUpperCase() + period.slice(1);
-      newSchedules.push({
-        home_id: homeId,
-        plant_id: savedPlant.id,
-        title: `${niceTitle} Harvest`,
-        description: `Auto-generated from Care Guide`,
-        task_type: "Harvesting",
-        trigger_event: "Planted",
-        start_reference: `Seasonal:${start}:${niceTitle} Harvest Start`,
-        start_offset_days: 0,
-        end_reference: `Seasonal:${end}:${niceTitle} Harvest End`,
-        end_offset_days: 0,
-        frequency_days: 1,
-        is_recurring: true,
-        is_auto_generated: true,
-      });
+    const newSchedules = buildAutoSeasonalSchedules({
+      plantId: savedPlant.id,
+      homeId,
+      hemisphere,
+      harvestPeriods: normalizePeriods(
+        fullCareData?.harvest_season || skeleton.harvest_season,
+      ),
+      pruningPeriods: normalizePeriods(
+        fullCareData?.pruning_month || skeleton.pruning_month,
+      ),
+      wateringMinDays:
+        fullCareData?.watering_min_days || skeleton?.watering_min_days || 3,
+      wateringMaxDays:
+        fullCareData?.watering_max_days || skeleton?.watering_max_days || 14,
     });
-
-    const pruningPeriods = normalizePeriods(
-      fullCareData?.pruning_month || skeleton.pruning_month,
-    );
-    pruningPeriods.forEach((period) => {
-      const { start, end } = getSinglePeriodRange(period, hemisphere);
-      const niceTitle = period.charAt(0).toUpperCase() + period.slice(1);
-      newSchedules.push({
-        home_id: homeId,
-        plant_id: savedPlant.id,
-        title: `${niceTitle} Pruning`,
-        description: `Auto-generated from Care Guide`,
-        task_type: "Maintenance",
-        trigger_event: "Planted",
-        start_reference: `Seasonal:${start}:${niceTitle} Pruning Start`,
-        start_offset_days: 0,
-        end_reference: `Seasonal:${end}:${niceTitle} Pruning End`,
-        end_offset_days: 0,
-        frequency_days: 1,
-        is_recurring: true,
-        is_auto_generated: true,
-      });
-    });
-
-    const minWatering =
-      fullCareData?.watering_min_days || skeleton?.watering_min_days || 3;
-    const maxWatering =
-      fullCareData?.watering_max_days || skeleton?.watering_max_days || 14;
-    const avgWatering = Math.max(
-      1,
-      Math.round((minWatering + maxWatering) / 2),
-    );
-
-    const summerDates = getSinglePeriodRange("summer", hemisphere);
-    const winterDates = getSinglePeriodRange("winter", hemisphere);
-    const springDates = getSinglePeriodRange("spring", hemisphere);
-    const fallDates = getSinglePeriodRange("fall", hemisphere);
-
-    newSchedules.push(
-      {
-        home_id: homeId,
-        plant_id: savedPlant.id,
-        title: `Summer Watering`,
-        description: `Auto-generated high-frequency watering`,
-        task_type: "Watering",
-        trigger_event: "Planted",
-        start_reference: `Seasonal:${summerDates.start}:Summer Start`,
-        start_offset_days: 0,
-        end_reference: `Seasonal:${summerDates.end}:Summer End`,
-        end_offset_days: 0,
-        frequency_days: minWatering,
-        is_recurring: true,
-        is_auto_generated: true,
-      },
-      {
-        home_id: homeId,
-        plant_id: savedPlant.id,
-        title: `Winter Watering`,
-        description: `Auto-generated low-frequency watering`,
-        task_type: "Watering",
-        trigger_event: "Planted",
-        start_reference: `Seasonal:${winterDates.start}:Winter Start`,
-        start_offset_days: 0,
-        end_reference: `Seasonal:${winterDates.end}:Winter End`,
-        end_offset_days: 0,
-        frequency_days: maxWatering,
-        is_recurring: true,
-        is_auto_generated: true,
-      },
-      {
-        home_id: homeId,
-        plant_id: savedPlant.id,
-        title: `Spring Watering`,
-        description: `Auto-generated moderate watering`,
-        task_type: "Watering",
-        trigger_event: "Planted",
-        start_reference: `Seasonal:${springDates.start}:Spring Start`,
-        start_offset_days: 0,
-        end_reference: `Seasonal:${springDates.end}:Spring End`,
-        end_offset_days: 0,
-        frequency_days: avgWatering,
-        is_recurring: true,
-        is_auto_generated: true,
-      },
-      {
-        home_id: homeId,
-        plant_id: savedPlant.id,
-        title: `Autumn Watering`,
-        description: `Auto-generated moderate watering`,
-        task_type: "Watering",
-        trigger_event: "Planted",
-        start_reference: `Seasonal:${fallDates.start}:Autumn Start`,
-        start_offset_days: 0,
-        end_reference: `Seasonal:${fallDates.end}:Autumn End`,
-        end_offset_days: 0,
-        frequency_days: avgWatering,
-        is_recurring: true,
-        is_auto_generated: true,
-      },
-    );
 
     if (newSchedules.length > 0)
       await supabase.from("plant_schedules").insert(newSchedules);

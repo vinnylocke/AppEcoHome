@@ -19,6 +19,7 @@ import { PerenualService } from "../lib/perenualService";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { PlantDoctorService } from "../services/plantDoctorService";
 
 interface Props {
   homeId: string;
@@ -190,13 +191,7 @@ export default function BulkSearchModal({
         const data = await PerenualService.searchPlants(query);
         setApiResults(data || []);
       } else {
-        const { data, error } = await supabase.functions.invoke(
-          "plant-doctor",
-          {
-            body: { action: "search_plants_text", plantSearch: query },
-          },
-        );
-        if (error) throw error;
+        const data = await PlantDoctorService.searchPlantsText(query);
         setAiResults(data.matches || []);
       }
     } catch (err: any) {

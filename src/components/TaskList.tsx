@@ -26,8 +26,10 @@ import {
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import TaskModal from "./TaskModal";
-import { TaskEngine, getLocalDateString } from "../lib/taskEngine";
-import { AutomationEngine } from "../lib/automationEngine"; // 🚀 IMPORT THE ENGINE
+import { TaskEngine } from "../lib/taskEngine";
+import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
+import { AutomationEngine } from "../lib/automationEngine";
+import { buildGhostPayload, hasBlockingDependencies } from "../lib/taskMutations";
 
 interface TaskListProps {
   homeId: string;
@@ -41,14 +43,6 @@ interface TaskListProps {
   showOverdue?: boolean;
 }
 
-const formatDisplayDate = (dateString: string) => {
-  if (!dateString) return "";
-  const [y, m, d] = dateString.split("-");
-  return new Date(parseInt(y), parseInt(m) - 1, parseInt(d)).toLocaleDateString(
-    "en-US",
-    { month: "short", day: "numeric", year: "numeric" },
-  );
-};
 
 export default function TaskList({
   homeId,
@@ -197,20 +191,9 @@ export default function TaskList({
       const todayString = completedTime.split("T")[0];
 
       if (ghostTasks.length > 0) {
-        const payloads = ghostTasks.map((task) => ({
-          home_id: task.home_id,
-          blueprint_id: task.blueprint_id,
-          title: task.title,
-          description: task.description,
-          type: task.type,
-          due_date: task.due_date,
-          status: "Completed",
-          completed_at: completedTime,
-          location_id: task.location_id,
-          area_id: task.area_id,
-          plan_id: task.plan_id,
-          inventory_item_ids: task.inventory_item_ids,
-        }));
+        const payloads = ghostTasks.map((task) =>
+          buildGhostPayload(task, "Completed", { completed_at: completedTime }),
+        );
         const { error } = await supabase.from("tasks").insert(payloads);
         if (error) throw error;
       }
@@ -320,32 +303,8 @@ export default function TaskList({
       if (ghostTasks.length > 0) {
         const payloads: any[] = [];
         ghostTasks.forEach((task) => {
-          payloads.push({
-            home_id: task.home_id,
-            blueprint_id: task.blueprint_id,
-            title: task.title,
-            description: task.description,
-            type: task.type,
-            due_date: task.due_date,
-            status: "Skipped",
-            location_id: task.location_id,
-            area_id: task.area_id,
-            plan_id: task.plan_id,
-            inventory_item_ids: task.inventory_item_ids,
-          });
-          payloads.push({
-            home_id: task.home_id,
-            blueprint_id: task.blueprint_id,
-            title: task.title,
-            description: task.description,
-            type: task.type,
-            due_date: bulkPostponeDate,
-            status: "Pending",
-            location_id: task.location_id,
-            area_id: task.area_id,
-            plan_id: task.plan_id,
-            inventory_item_ids: task.inventory_item_ids,
-          });
+          payloads.push(buildGhostPayload(task, "Skipped"));
+          payloads.push(buildGhostPayload(task, "Pending", { due_date: bulkPostponeDate }));
         });
         const { error } = await supabase.from("tasks").insert(payloads);
         if (error) throw error;
@@ -418,19 +377,9 @@ export default function TaskList({
         );
 
         if (ghostTasks.length > 0) {
-          const payloads = ghostTasks.map((task) => ({
-            home_id: task.home_id,
-            blueprint_id: task.blueprint_id,
-            title: task.title,
-            description: task.description,
-            type: task.type,
-            due_date: task.due_date,
-            status: "Skipped",
-            location_id: task.location_id,
-            area_id: task.area_id,
-            plan_id: task.plan_id,
-            inventory_item_ids: task.inventory_item_ids,
-          }));
+          const payloads = ghostTasks.map((task) =>
+            buildGhostPayload(task, "Skipped"),
+          );
           const { error } = await supabase.from("tasks").insert(payloads);
           if (error) throw error;
         }
@@ -513,21 +462,7 @@ export default function TaskList({
         if (taskToDelete.isGhost) {
           await supabase
             .from("tasks")
-            .insert([
-              {
-                home_id: taskToDelete.home_id,
-                blueprint_id: taskToDelete.blueprint_id,
-                title: taskToDelete.title,
-                description: taskToDelete.description,
-                type: taskToDelete.type,
-                due_date: taskToDelete.due_date,
-                status: "Skipped",
-                location_id: taskToDelete.location_id,
-                area_id: taskToDelete.area_id,
-                plan_id: taskToDelete.plan_id,
-                inventory_item_ids: taskToDelete.inventory_item_ids,
-              },
-            ]);
+            .insert([buildGhostPayload(taskToDelete, "Skipped")]);
         } else if (taskToDelete.blueprint_id) {
           await supabase
             .from("tasks")
@@ -558,32 +493,8 @@ export default function TaskList({
     try {
       if (task.isGhost) {
         await supabase.from("tasks").insert([
-          {
-            home_id: task.home_id,
-            blueprint_id: task.blueprint_id,
-            title: task.title,
-            description: task.description,
-            type: task.type,
-            due_date: task.due_date,
-            status: "Skipped",
-            location_id: task.location_id,
-            area_id: task.area_id,
-            plan_id: task.plan_id,
-            inventory_item_ids: task.inventory_item_ids,
-          },
-          {
-            home_id: task.home_id,
-            blueprint_id: task.blueprint_id,
-            title: task.title,
-            description: task.description,
-            type: task.type,
-            due_date: postponeDate,
-            status: "Pending",
-            location_id: task.location_id,
-            area_id: task.area_id,
-            plan_id: task.plan_id,
-            inventory_item_ids: task.inventory_item_ids,
-          },
+          buildGhostPayload(task, "Skipped"),
+          buildGhostPayload(task, "Pending", { due_date: postponeDate }),
         ]);
       } else {
         await supabase
@@ -610,22 +521,10 @@ export default function TaskList({
 
     if (newStatus === "Completed" && !task.isGhost) {
       try {
-        const { data: deps } = await supabase
-          .from("task_dependencies")
-          .select("depends_on_task_id")
-          .eq("task_id", task.id);
-        if (deps && deps.length > 0) {
-          const depIds = deps.map((d) => d.depends_on_task_id);
-          const { data: pendingDeps } = await supabase
-            .from("tasks")
-            .select("id")
-            .in("id", depIds)
-            .eq("status", "Pending");
-          if (pendingDeps && pendingDeps.length > 0) {
-            toast.error("Cannot complete: Waiting on dependencies!");
-            setIsUpdatingTask(null);
-            return;
-          }
+        if (await hasBlockingDependencies(task.id)) {
+          toast.error("Cannot complete: Waiting on dependencies!");
+          setIsUpdatingTask(null);
+          return;
         }
       } catch (err) {
         console.error("Dependency check failed", err);
@@ -638,21 +537,9 @@ export default function TaskList({
         const { data, error } = await supabase
           .from("tasks")
           .insert([
-            {
-              home_id: task.home_id,
-              blueprint_id: task.blueprint_id,
-              title: task.title,
-              description: task.description,
-              type: task.type,
-              due_date: task.due_date,
-              status: newStatus,
-              completed_at:
-                newStatus === "Completed" ? new Date().toISOString() : null,
-              location_id: task.location_id,
-              area_id: task.area_id,
-              plan_id: task.plan_id,
-              inventory_item_ids: task.inventory_item_ids,
-            },
+            buildGhostPayload(task, newStatus, {
+              completed_at: newStatus === "Completed" ? new Date().toISOString() : null,
+            }),
           ])
           .select(
             `*, locations(name, is_outside), areas(name), plans(ai_blueprint, name)`,

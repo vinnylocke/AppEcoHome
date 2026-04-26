@@ -22,7 +22,7 @@ import toast from "react-hot-toast";
 
 import AddTaskModal from "./AddTaskModal";
 import { ConfirmModal } from "./ConfirmModal";
-import { TASK_CATEGORIES } from "./AddTaskModal"; // Import the categories directly
+import { TASK_CATEGORIES } from "../constants/taskCategories";
 
 interface BlueprintManagerProps {
   homeId: string;

@@ -13,6 +13,10 @@ import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
+import { BlueprintService } from "../services/blueprintService";
+import { TASK_CATEGORIES } from "../constants/taskCategories";
+export { TASK_CATEGORIES } from "../constants/taskCategories";
 
 interface Props {
   homeId: string;
@@ -23,29 +27,6 @@ interface Props {
   onSuccess: () => void;
 }
 
-export const TASK_CATEGORIES = [
-  "Planting",
-  "Watering",
-  "Harvesting",
-  "Maintenance",
-];
-
-const getLocalDateString = (date: Date) => {
-  const year = date.getFullYear();
-  const month = String(date.getMonth() + 1).padStart(2, "0");
-  const day = String(date.getDate()).padStart(2, "0");
-  return `${year}-${month}-${day}`;
-};
-
-const formatDisplayDate = (dateString: string) => {
-  if (!dateString) return "";
-  const [y, m, d] = dateString.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-};
 
 export default function AddTaskModal({
   homeId,
@@ -368,9 +349,7 @@ export default function AddTaskModal({
         if (tError) throw tError;
         createdTaskId = newTsk.id;
 
-        supabase.functions.invoke("generate-tasks", {
-          body: { blueprint_id: blueprint.id, start_date: form.start_date },
-        });
+        BlueprintService.generateBlueprintTasks(blueprint.id, form.start_date);
       } else {
         const { data: newTsk, error } = await supabase
           .from("tasks")

@@ -22,6 +22,7 @@ import {
   Save,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { formatDisplayDate } from "../lib/dateUtils";
 
 interface TaskModalProps {
   task: any;
@@ -37,15 +38,6 @@ interface TaskModalProps {
   onTasksUpdated: () => void;
 }
 
-const formatDisplayDate = (dateString: string) => {
-  if (!dateString) return "";
-  const [y, m, d] = dateString.split("-").map(Number);
-  return new Date(y, m - 1, d).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-};
 
 export default function TaskModal({
   task,

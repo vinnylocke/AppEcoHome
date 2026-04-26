@@ -27,7 +27,8 @@ import toast from "react-hot-toast";
 import AreaAdvancedFields from "./AreaAdvancedFields";
 import InstanceEditModal from "./InstanceEditModal";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
-import { AutomationEngine } from "../lib/automationEngine"; // 🚀 IMPORT THE NEW ENGINE
+import { AutomationEngine } from "../lib/automationEngine";
+import { PlantDoctorService } from "../services/plantDoctorService";
 
 interface InventoryItem {
   id: string;
@@ -269,15 +270,11 @@ export default function AreaDetails({
     setIsGettingRecs(true);
     setSelectedRecs([]);
     try {
-      const { data, error } = await supabase.functions.invoke("plant-doctor", {
-        body: {
-          action: "recommend_plants",
-          isOutside,
-          areaData: area,
-          currentPlants: activePlants.map((p) => p.plant_name),
-        },
+      const data = await PlantDoctorService.recommendPlants({
+        isOutside,
+        areaData: area,
+        currentPlants: activePlants.map((p) => p.plant_name),
       });
-      if (error) throw error;
       if (data.recommendations) {
         setRecommendations(data.recommendations);
         toast.success("AI found some perfect companion matches!");

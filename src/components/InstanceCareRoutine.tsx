@@ -18,6 +18,7 @@ import { ConfirmModal } from "./ConfirmModal";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { BlueprintService } from "../services/blueprintService";
 
 interface InstanceCareRoutineProps {
   inventoryItemId: string;
@@ -172,7 +173,7 @@ export default function InstanceCareRoutine({
       setEditingId(null);
       fetchBlueprints();
 
-      await supabase.functions.invoke("generate-tasks", { body: { homeId } });
+      await BlueprintService.generateHomeTasks(homeId);
 
       setTimeout(() => {
         if (onRoutineUpdated) onRoutineUpdated();
@@ -266,7 +267,7 @@ export default function InstanceCareRoutine({
       setIsAdding(false);
       fetchBlueprints();
 
-      await supabase.functions.invoke("generate-tasks", { body: { homeId } });
+      await BlueprintService.generateHomeTasks(homeId);
 
       setTimeout(() => {
         if (onRoutineUpdated) onRoutineUpdated();
