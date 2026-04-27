@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { GoogleGenerativeAI } from "npm:@google/generative-ai";
 import { createClient } from "npm:@supabase/supabase-js@2";
+import { log, error as logError } from "../_shared/logger.ts";
+import { callGeminiCascade } from "../_shared/gemini.ts";
+
+const FN = "generate-guide";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -13,7 +16,8 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { topic } = await req.json();
+    const { topic, difficulty = "Intermediate", target_audience = "Home Gardeners" } = await req.json();
+    log(FN, "request_received", { topic, difficulty, target_audience });
 
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
@@ -24,13 +28,13 @@ serve(async (req) => {
       throw new Error("Missing Supabase Variables");
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
-    const genAI = new GoogleGenerativeAI(geminiApiKey);
 
-    // 🚀 UPDATED PROMPT: Added 'list' type and forced step-by-step breakdown
+    // UPDATED PROMPT: Added 'list' type and forced step-by-step breakdown
     const systemPrompt = `
       You are an expert horticulturist and content creator for the 'Rhozly' plant care app.
       The user will give you a topic. You must generate a highly structured, engaging, and accurate plant care guide.
-      
+      Target audience: ${target_audience}. Difficulty level: ${difficulty}. Tailor the language complexity, assumed knowledge, and depth of detail accordingly.
+
       You MUST return a JSON object with EXACTLY two root properties: 'guide_data' and 'labels'.
       
       RULES FOR 'guide_data':
@@ -48,44 +52,28 @@ serve(async (req) => {
       - MUST include the plant name and task category.
     `;
 
-    const modelsToTry = [
-      "gemini-3.1-flash-lite-preview",
-      "gemini-2.5-flash-lite",
-      "gemini-3-flash-preview",
-      "gemini-3.1-pro-preview",
-    ];
+    const rawText = await callGeminiCascade(
+      geminiApiKey,
+      FN,
+      [{ role: "user", parts: [{ text: `Topic: ${topic}` }] }],
+      { systemPrompt, responseMimeType: "application/json" },
+    );
 
-    let rawJson = null;
-    let lastError = null;
-
-    for (const modelName of modelsToTry) {
-      try {
-        console.log(`Attempting with: ${modelName}`);
-        const model = genAI.getGenerativeModel({
-          model: modelName,
-          generationConfig: { responseMimeType: "application/json" },
-        });
-
-        const result = await model.generateContent([
-          { text: systemPrompt },
-          { text: `Topic: ${topic}` },
-        ]);
-
-        let responseText = result.response.text();
-        responseText = responseText
-          .replace(/```json\n?/g, "")
-          .replace(/```\n?/g, "");
-        rawJson = JSON.parse(responseText);
-        break;
-      } catch (e: any) {
-        lastError = e;
-      }
-    }
-
-    if (!rawJson)
-      throw new Error(`All models failed. Last error: ${lastError?.message}`);
+    const rawJson = JSON.parse(
+      rawText.replace(/```json\n?/g, "").replace(/```\n?/g, ""),
+    );
 
     const guideData = rawJson.guide_data;
+    log(FN, "result", {
+      topic,
+      targetAudience: target_audience,
+      requestedDifficulty: difficulty,
+      title: guideData.title,
+      difficulty: guideData.difficulty,
+      estimatedMinutes: guideData.estimated_minutes,
+      sectionsCount: guideData.sections?.length ?? 0,
+      labels: rawJson.labels,
+    });
 
     const imagePromises = guideData.sections.map(
       async (section: any, i: number) => {
@@ -145,6 +133,7 @@ serve(async (req) => {
       },
     );
   } catch (error: any) {
+    logError(FN, "error", { error: error.message });
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,

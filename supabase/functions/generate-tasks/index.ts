@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { log, warn, error as logError } from "../_shared/logger.ts";
+
+const FN = "generate-tasks";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,6 +26,7 @@ serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const targetBlueprintId = body.blueprint_id;
+    log(FN, "request_received", { blueprintId: targetBlueprintId ?? "all" });
 
     // 1. Get Blueprints
     let query = supabase
@@ -34,6 +38,8 @@ serve(async (req) => {
 
     const { data: blueprints, error: bpError } = await query;
     if (bpError) throw bpError;
+
+    log(FN, "blueprints_loaded", { count: blueprints?.length ?? 0, targetBlueprintId: targetBlueprintId ?? "all" });
 
     const tasksToInsert = [];
 
@@ -91,10 +97,12 @@ serve(async (req) => {
         // Postgres Error 23505 means "Duplicate Key" (our unique date rule).
         // We safely ignore it. If it's a different error, we log it.
         if (error && error.code !== "23505") {
-          console.error("Failed to insert generated task:", error);
+          warn(FN, "insert_failed", { code: error.code, message: error.message, task: task.title, dueDate: task.due_date });
         }
       }
     }
+
+    log(FN, "complete", { inserted: tasksToInsert.length });
 
     return new Response(
       JSON.stringify({ message: `Generated ${tasksToInsert.length} tasks.` }),
@@ -104,6 +112,7 @@ serve(async (req) => {
       },
     );
   } catch (error: any) {
+    logError(FN, "error", { error: error.message });
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,

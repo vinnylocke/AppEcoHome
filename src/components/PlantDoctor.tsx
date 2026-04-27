@@ -13,6 +13,7 @@ import {
   Stethoscope,
   Loader2,
   ChevronDown,
+  ChevronLeft,
   Sparkles,
   Lock,
   Database,
@@ -32,6 +33,7 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantSearchModal from "./PlantSearchModal";
+import DiagnosisImageGallery from "./DiagnosisImageGallery";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -256,11 +258,16 @@ export default function PlantDoctor({
 
     try {
       const base64Data = await compressImage(selectedFile);
+      const sickPlantName = sickInventoryId
+        ? myInventory.find((i) => i.id === sickInventoryId)?.plants?.common_name
+        : undefined;
       const data = await PlantDoctorService.analyzeImage({
+        homeId,
         imageBase64: base64Data,
         mimeType: "image/jpeg",
         action: action === "identify" ? "identify_vision" : "diagnose",
         plantSearch,
+        targetPlant: action === "diagnose" ? (sickPlantName ?? undefined) : undefined,
       });
 
       setAiResult(data);
@@ -304,7 +311,7 @@ export default function PlantDoctor({
     if (!selectedPlantName) return;
     setIsGeneratingGuide(true);
     try {
-      const data = await PlantDoctorService.generateCareGuide(selectedPlantName);
+      const data = await PlantDoctorService.generateCareGuide(selectedPlantName, homeId);
 
       setAiResult((prev) => ({ ...prev, plantData: data.plantData }));
       setShowManualAdd(true);
@@ -330,6 +337,7 @@ export default function PlantDoctor({
     setIsGeneratingTreatment(true);
     try {
       const data = await PlantDoctorService.generateRemedialPlan({
+        homeId,
         diagnosisContext: contextToUse,
         targetPlant: plantName,
       });
@@ -604,9 +612,21 @@ export default function PlantDoctor({
 
                   {selectedPlantName && activeAction === "identify" && (
                     <div className="bg-rhozly-primary/5 border border-rhozly-primary/20 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
-                      <h3 className="font-black text-rhozly-on-surface mb-2">
-                        Save {selectedPlantName}
-                      </h3>
+                      <div className="flex items-center justify-between mb-4">
+                        <h3 className="font-black text-rhozly-on-surface">
+                          Save {selectedPlantName}
+                        </h3>
+                        <button
+                          onClick={() => setSelectedPlantName(null)}
+                          className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors"
+                        >
+                          <ChevronLeft size={14} /> Change
+                        </button>
+                      </div>
+                      <DiagnosisImageGallery
+                        query={`${selectedPlantName} plant`}
+                        label={selectedPlantName}
+                      />
                       <div className="flex flex-col sm:flex-row gap-3 mt-4">
                         <button
                           onClick={() =>
@@ -669,16 +689,36 @@ export default function PlantDoctor({
                       </div>
                     )}
 
+                  {activeAction === "diagnose" && selectedDisease && (
+                    <DiagnosisImageGallery
+                      query={`${selectedDisease} plant disease`}
+                      label={selectedDisease}
+                    />
+                  )}
+
                   {activeAction === "diagnose" &&
                     selectedDisease &&
                     !aiResult.diseaseInfo &&
                     !aiResult.remedial_schedules && (
                       <div className="bg-amber-500/10 border border-amber-500/30 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Activity className="text-amber-600" size={20} />
-                          <h3 className="font-black text-lg text-amber-900">
-                            Detected: {selectedDisease}
-                          </h3>
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            <Activity className="text-amber-600" size={20} />
+                            <h3 className="font-black text-lg text-amber-900">
+                              Detected: {selectedDisease}
+                            </h3>
+                          </div>
+                          <button
+                            onClick={() => {
+                              setSelectedDisease(null);
+                              setAiResult((prev) =>
+                                prev ? { ...prev, diseaseInfo: undefined, remedial_schedules: undefined } : null,
+                              );
+                            }}
+                            className="flex items-center gap-1 text-xs font-black text-amber-700/50 hover:text-amber-900 transition-colors"
+                          >
+                            <ChevronLeft size={14} /> Change
+                          </button>
                         </div>
                         <p className="text-sm font-bold text-amber-800/70 mb-4">
                           How would you like to build your treatment plan?
@@ -729,6 +769,24 @@ export default function PlantDoctor({
                         aiResult.notes)) &&
                     !aiResult.remedial_schedules && (
                       <div className="bg-white border border-rhozly-outline/10 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
+                        {aiResult.diseaseInfo && selectedDisease && (
+                          <div className="flex items-center justify-between mb-4">
+                            <p className="text-xs font-black text-amber-700 uppercase tracking-widest flex items-center gap-1">
+                              <Activity size={12} /> {selectedDisease}
+                            </p>
+                            <button
+                              onClick={() => {
+                                setSelectedDisease(null);
+                                setAiResult((prev) =>
+                                  prev ? { ...prev, diseaseInfo: undefined, remedial_schedules: undefined } : null,
+                                );
+                              }}
+                              className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors"
+                            >
+                              <ChevronLeft size={14} /> Change condition
+                            </button>
+                          </div>
+                        )}
                         {aiResult.diseaseInfo && (
                           <div className="mb-6 space-y-4">
                             <div>

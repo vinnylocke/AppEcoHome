@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { log, warn, error as logError } from "../_shared/logger.ts";
+
+const FN = "update-plant-states";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -113,6 +116,9 @@ serve(async (req) => {
       .eq("status", "Planted");
 
     if (error) throw error;
+
+    log(FN, "items_loaded", { count: items?.length ?? 0 });
+
     if (!items || items.length === 0)
       return new Response(JSON.stringify({ message: "No plants to update." }), {
         headers: corsHeaders,
@@ -137,7 +143,8 @@ serve(async (req) => {
         hemisphere,
       );
 
-      const currentState = item.growth_state || "Vegetative";
+      const currentState = item.growth_state;
+      if (!currentState) continue; // skip until a growth state is manually set
       const currentWeight = STATE_WEIGHTS[currentState] || 0;
       let targetState = currentState;
 
@@ -183,6 +190,12 @@ serve(async (req) => {
       }
     }
 
+    log(FN, "transitions_planned", {
+      total: items.length,
+      changing: updates.length,
+      transitions: updates.map((u: any) => ({ id: u.id, state: u.growth_state })),
+    });
+
     // Batch update the database
     if (updates.length > 0) {
       for (const u of updates) {
@@ -193,11 +206,14 @@ serve(async (req) => {
       }
     }
 
+    log(FN, "complete", { updated: updates.length });
+
     return new Response(
       JSON.stringify({ message: `Updated ${updates.length} plant states.` }),
       { headers: corsHeaders, status: 200 },
     );
   } catch (err: any) {
+    logError(FN, "error", { error: err.message });
     return new Response(JSON.stringify({ error: err.message }), {
       headers: corsHeaders,
       status: 400,

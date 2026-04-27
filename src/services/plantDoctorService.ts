@@ -26,10 +26,12 @@ async function invoke<T>(body: Record<string, unknown>): Promise<T> {
 
 export const PlantDoctorService = {
   analyzeImage(params: {
+    homeId?: string;
     imageBase64: string;
     mimeType: string;
     action: "identify_vision" | "diagnose";
     plantSearch?: string;
+    targetPlant?: string;
   }): Promise<VisionResult> {
     return invoke(params);
   },
@@ -47,11 +49,12 @@ export const PlantDoctorService = {
     });
   },
 
-  generateCareGuide(targetPlant: string): Promise<{ plantData: any }> {
-    return invoke({ action: "generate_care_guide", targetPlant });
+  generateCareGuide(targetPlant: string, homeId?: string): Promise<{ plantData: any }> {
+    return invoke({ action: "generate_care_guide", targetPlant, homeId });
   },
 
   generateRemedialPlan(params: {
+    homeId?: string;
     diagnosisContext: string;
     targetPlant: string;
   }): Promise<{ remedial_schedules: any[] }> {
@@ -59,6 +62,7 @@ export const PlantDoctorService = {
   },
 
   recommendPlants(params: {
+    homeId?: string;
     isOutside: boolean;
     areaData: any;
     currentPlants: string[];

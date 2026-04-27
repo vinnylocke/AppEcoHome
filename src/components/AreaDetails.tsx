@@ -273,6 +273,7 @@ export default function AreaDetails({
     setSelectedRecs([]);
     try {
       const data = await PlantDoctorService.recommendPlants({
+        homeId,
         isOutside,
         areaData: area,
         currentPlants: activePlants.map((p) => p.plant_name),

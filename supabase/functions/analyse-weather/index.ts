@@ -1,4 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { log, warn, error as logError } from "../_shared/logger.ts";
+
+const FN = "analyse-weather";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -18,6 +21,8 @@ Deno.serve(async (req) => {
     const body = await req.json();
     const homeId = body?.record?.home_id;
 
+    log(FN, "request_received", { homeId: homeId ?? null });
+
     if (!homeId) throw new Error("Missing home_id in request body.");
 
     // Fetch snapshot & locations
@@ -33,12 +38,37 @@ Deno.serve(async (req) => {
 
     if (!snapshot || !locations) throw new Error("Missing data.");
 
+    log(FN, "context_loaded", { homeId, locationsCount: locations.length });
+
     const outsideLocations = locations.filter((loc) => loc.is_outside);
     if (outsideLocations.length === 0) {
+      log(FN, "no_outside_locations", { homeId });
       return new Response(
         JSON.stringify({ success: true, message: "No outside locations." }),
         { headers: corsHeaders },
       );
+    }
+
+    // Check if any tropical plants are in outside areas — if so, lower frost threshold to 5°C
+    const outsideLocationIds = outsideLocations.map((l) => l.id);
+    const { data: outsideAreas } = await supabase
+      .from("areas")
+      .select("id")
+      .in("location_id", outsideLocationIds);
+    const outsideAreaIds = (outsideAreas || []).map((a) => a.id);
+
+    let frostThreshold = 2;
+    if (outsideAreaIds.length > 0) {
+      const { data: outdoorInventory } = await supabase
+        .from("inventory_items")
+        .select("plants(tropical)")
+        .eq("home_id", homeId)
+        .in("area_id", outsideAreaIds);
+      const hasTropicalOutdoor = (outdoorInventory || []).some((item: any) => item.plants?.tropical === true);
+      if (hasTropicalOutdoor) {
+        frostThreshold = 5;
+        log(FN, "tropical_plants_detected", { homeId, frostThreshold });
+      }
     }
 
     const hourly = snapshot.data.hourly;
@@ -56,13 +86,13 @@ Deno.serve(async (req) => {
       const code = hourly.weather_code[i];
       const time = hourly.time[i];
 
-      if (!foundFrost && temp <= 2) {
+      if (!foundFrost && temp <= frostThreshold) {
         outsideLocations.forEach((loc) =>
           alerts.push({
             location_id: loc.id,
             type: "frost",
             severity: "critical",
-            message: `Frost warning: ${Math.round(temp)}°C expected.`,
+            message: `Frost warning: ${Math.round(temp)}°C expected.${frostThreshold > 2 ? " Tropical plants are at risk." : ""}`,
             starts_at: time,
           }),
         );
@@ -95,6 +125,8 @@ Deno.serve(async (req) => {
 
       if (foundFrost && foundWind && foundRain) break;
     }
+
+    log(FN, "alerts_detected", { homeId, alertsCount: alerts.length, frost: foundFrost, wind: foundWind, rain: foundRain });
 
     // Save Weather Alerts
     if (alerts.length > 0) {
@@ -131,10 +163,13 @@ Deno.serve(async (req) => {
       }
     }
 
+    log(FN, "complete", { homeId, alertsCount: alerts.length });
+
     return new Response(JSON.stringify({ success: true }), {
       headers: corsHeaders,
     });
   } catch (error: any) {
+    logError(FN, "error", { error: error.message });
     return new Response(JSON.stringify({ error: error.message }), {
       headers: corsHeaders,
       status: 500,

@@ -64,6 +64,8 @@ export default function AddTaskModal({
     end_date: existingBlueprint?.end_date || "",
   });
 
+  const [smartPresets, setSmartPresets] = useState<{ type: string; frequency_days: number }[]>([]);
+
   // Dependency Link Builder State
   const [isLinking, setIsLinking] = useState(false);
   const [linkType, setLinkType] = useState<"waiting_on" | "blocking">(
@@ -83,7 +85,7 @@ export default function AddTaskModal({
       const { data: locData } = await supabase
         .from("locations")
         .select(
-          `id, name, areas(id, name, inventory_items(id, identifier, plant_name))`,
+          `id, name, areas(id, name, inventory_items(id, identifier, plant_name, plant_id))`,
         )
         .eq("home_id", homeId);
       if (locData) setLocations(locData);
@@ -184,7 +186,6 @@ export default function AddTaskModal({
   }, [
     form,
     locations,
-    availableAreas,
     plans,
     existingBlueprint,
     isBlueprintMode,
@@ -231,6 +232,49 @@ export default function AddTaskModal({
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  // Fetch plant_schedules for the selected species to power the Quick Fill presets.
+  // Falls back to an empty array so the hardcoded defaults show instead.
+  // Depends only on primitive values — avoids the infinite-loop caused by derived
+  // array references (availablePlantsInArea) changing on every render.
+  useEffect(() => {
+    if (!form.selected_species || !form.area_id) {
+      setSmartPresets([]);
+      return;
+    }
+
+    const area = locations
+      .flatMap((l: any) => l.areas || [])
+      .find((a: any) => a.id === form.area_id);
+    const plantId = (area?.inventory_items || []).find(
+      (p: any) => p.plant_name === form.selected_species,
+    )?.plant_id;
+
+    if (!plantId) {
+      setSmartPresets([]);
+      return;
+    }
+
+    supabase
+      .from("plant_schedules")
+      .select("task_type, frequency_days")
+      .eq("plant_id", plantId)
+      .eq("home_id", homeId)
+      .then(({ data }) => {
+        if (!data || data.length === 0) { setSmartPresets([]); return; }
+        // One entry per task_type — pick the least aggressive interval so the
+        // suggestion isn't overwhelming (e.g. prefer every 14d over every 3d).
+        const byType: Record<string, number> = {};
+        data.forEach((s: any) => {
+          if (!(s.task_type in byType) || s.frequency_days > byType[s.task_type]) {
+            byType[s.task_type] = s.frequency_days;
+          }
+        });
+        setSmartPresets(
+          Object.entries(byType).map(([type, frequency_days]) => ({ type, frequency_days })),
+        );
+      });
+  }, [form.selected_species, form.area_id, homeId, locations]);
 
   const handleToggleInstance = (id: string) => {
     setForm((prev) => {
@@ -590,30 +634,48 @@ export default function AddTaskModal({
                     <Sparkles size={12} /> You like {form.selected_species} — consider a recurring care schedule.
                   </div>
                 )}
-                <p className="text-[10px] font-black uppercase text-rhozly-on-surface/40 mb-2 ml-1">Quick Fill</p>
+                <p className="text-[10px] font-black uppercase text-rhozly-on-surface/40 mb-2 ml-1">
+                  Quick Fill {smartPresets.length > 0 ? "· from care guide" : "· suggested defaults"}
+                </p>
                 <div className="flex flex-wrap gap-2">
-                  {[
-                    { label: "Water", icon: <Droplets size={12} />, type: "Watering", freq: 7, color: "bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100" },
-                    { label: "Maintain", icon: <Scissors size={12} />, type: "Maintenance", freq: 14, color: "bg-purple-50 text-purple-700 border-purple-100 hover:bg-purple-100" },
-                    { label: "Harvest", icon: <Wheat size={12} />, type: "Harvesting", freq: 30, color: "bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100" },
-                  ].map((preset) => (
-                    <button
-                      key={preset.type}
-                      type="button"
-                      onClick={() =>
-                        setForm((prev) => ({
-                          ...prev,
-                          type: preset.type,
-                          isRecurring: true,
-                          frequency_days: preset.freq,
-                          title: prev.title || `${preset.label} ${form.selected_species}`,
-                        }))
-                      }
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black border transition-colors ${preset.color}`}
-                    >
-                      {preset.icon} {preset.label} · every {preset.freq}d
-                    </button>
-                  ))}
+                  {(() => {
+                    const TYPE_META: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
+                      Watering:    { label: "Water",    icon: <Droplets size={12} />, color: "bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100" },
+                      Maintenance: { label: "Maintain", icon: <Scissors size={12} />, color: "bg-purple-50 text-purple-700 border-purple-100 hover:bg-purple-100" },
+                      Harvesting:  { label: "Harvest",  icon: <Wheat size={12} />,    color: "bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100" },
+                      Planting:    { label: "Plant",    icon: <Sparkles size={12} />, color: "bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100" },
+                    };
+
+                    const presets = smartPresets.length > 0
+                      ? smartPresets
+                      : [
+                          { type: "Watering",    frequency_days: 7  },
+                          { type: "Maintenance", frequency_days: 14 },
+                          { type: "Harvesting",  frequency_days: 30 },
+                        ];
+
+                    return presets.map(({ type, frequency_days }) => {
+                      const meta = TYPE_META[type] ?? { label: type, icon: null, color: "bg-gray-50 text-gray-700 border-gray-100 hover:bg-gray-100" };
+                      return (
+                        <button
+                          key={type}
+                          type="button"
+                          onClick={() =>
+                            setForm((prev) => ({
+                              ...prev,
+                              type,
+                              isRecurring: true,
+                              frequency_days,
+                              title: prev.title || `${meta.label} ${form.selected_species}`,
+                            }))
+                          }
+                          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black border transition-colors ${meta.color}`}
+                        >
+                          {meta.icon} {meta.label} · every {frequency_days}d
+                        </button>
+                      );
+                    });
+                  })()}
                 </div>
               </div>
             )}

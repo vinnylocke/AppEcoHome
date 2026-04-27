@@ -11,6 +11,8 @@ import toast from "react-hot-toast";
 
 export default function AdminGuideGenerator() {
   const [topic, setTopic] = useState("");
+  const [difficulty, setDifficulty] = useState("Intermediate");
+  const [targetAudience, setTargetAudience] = useState("Home Gardeners");
   const [isGenerating, setIsGenerating] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
@@ -26,7 +28,7 @@ export default function AdminGuideGenerator() {
       const { data, error } = await supabase.functions.invoke(
         "generate-guide",
         {
-          body: { topic },
+          body: { topic, difficulty, target_audience: targetAudience },
         },
       );
 
@@ -88,6 +90,35 @@ export default function AdminGuideGenerator() {
             placeholder="e.g., A beginner's guide to pruning overgrown tomato plants..."
             className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none focus:ring-2 focus:ring-rhozly-primary resize-none h-32"
           />
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40">Difficulty</label>
+              <select
+                value={difficulty}
+                onChange={(e) => setDifficulty(e.target.value)}
+                className="w-full p-3 bg-rhozly-surface-low rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-rhozly-primary cursor-pointer"
+              >
+                <option>Beginner</option>
+                <option>Intermediate</option>
+                <option>Advanced</option>
+              </select>
+            </div>
+            <div className="space-y-1">
+              <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40">Audience</label>
+              <select
+                value={targetAudience}
+                onChange={(e) => setTargetAudience(e.target.value)}
+                className="w-full p-3 bg-rhozly-surface-low rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-rhozly-primary cursor-pointer"
+              >
+                <option>Home Gardeners</option>
+                <option>Allotment Growers</option>
+                <option>Indoor Plant Enthusiasts</option>
+                <option>Professional Horticulturists</option>
+                <option>Children / Young Learners</option>
+              </select>
+            </div>
+          </div>
 
           <button
             onClick={handleGenerate}

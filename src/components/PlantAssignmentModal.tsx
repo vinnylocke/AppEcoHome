@@ -132,6 +132,7 @@ export default function PlantAssignmentModal({
         .eq("area_id", formData.areaId)
         .maybeSingle();
 
+      let priorSchedule: any = null;
       if (cacheRecord) {
         const cacheAgeMs =
           new Date().getTime() - new Date(cacheRecord.updated_at).getTime();
@@ -148,6 +149,8 @@ export default function PlantAssignmentModal({
           setIsAiLoading(false);
           return;
         }
+        // Stale cache — pass to edge function so AI can refine rather than start cold
+        priorSchedule = cacheRecord.schedule_data;
       }
 
       const { data: homeData, error: homeError } = await supabase
@@ -173,7 +176,9 @@ export default function PlantAssignmentModal({
             plantName: plant.common_name,
             areaDetails: selectedAreaObj,
             address: homeData.address,
-            availableMethods: PROPAGATION_OPTIONS,
+            availableMethods: plant.propagation?.length > 0 ? plant.propagation : PROPAGATION_OPTIONS,
+            homeId,
+            priorSchedule,
           },
         },
       );

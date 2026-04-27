@@ -1,6 +1,10 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { GoogleGenerativeAI } from "npm:@google/generative-ai";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { log, error as logError } from "../_shared/logger.ts";
+import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
+import { loadPreferences, formatPreferencesBlock } from "../_shared/preferences.ts";
+
+const FN = "plant-doctor";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -88,49 +92,6 @@ async function getWikiImage(plantName: string) {
   return null;
 }
 
-const delay = (ms: number) => new Promise((res) => setTimeout(res, ms));
-
-async function callGeminiWithCascade(contents: any[], apiKey: string) {
-  const modelsToTry = [
-    "gemini-3.1-flash-lite-preview",
-    "gemini-2.5-flash-lite",
-    "gemini-3-flash-preview",
-    "gemini-3.1-pro-preview",
-  ];
-  const maxRetriesPerModel = 2;
-  let lastError;
-  const genAI = new GoogleGenerativeAI(apiKey);
-
-  for (const modelName of modelsToTry) {
-    const model = genAI.getGenerativeModel({ model: modelName });
-    for (let attempt = 1; attempt <= maxRetriesPerModel; attempt++) {
-      try {
-        const result = (await Promise.race([
-          model.generateContent(contents),
-          new Promise((_, reject) =>
-            setTimeout(() => reject(new Error("Timeout")), 45000),
-          ),
-        ])) as any;
-        const response = await result.response;
-        return response.text();
-      } catch (error: any) {
-        lastError = error;
-        if (
-          error.message.includes("503") ||
-          error.message.includes("429") ||
-          error.message.includes("Timeout")
-        ) {
-          if (attempt < maxRetriesPerModel) {
-            await delay(attempt * 2000);
-            continue;
-          }
-        }
-        break;
-      }
-    }
-  }
-  throw new Error(`Overloaded: ${lastError?.message}`);
-}
 
 serve(async (req) => {
   if (req.method === "OPTIONS")
@@ -149,6 +110,7 @@ serve(async (req) => {
     const body = await req.json();
     const {
       action,
+      homeId,
       targetPlant,
       plantSearch,
       areaData,
@@ -161,6 +123,17 @@ serve(async (req) => {
       notes,
     } = body;
 
+    log(FN, "request_received", {
+      action,
+      homeId: homeId ?? null,
+      targetPlant: targetPlant ?? null,
+      diseaseName: diseaseName ?? null,
+      hasImage: !!imageBase64,
+      hasDiagnosisContext: !!diagnosisContext,
+      hasAreaData: !!areaData,
+      currentPlantsCount: currentPlants?.length ?? 0,
+    });
+
     // -------------------------------------------------------------
     // 1. NON-LLM ACTIONS (API FETCHES)
     // -------------------------------------------------------------
@@ -171,6 +144,7 @@ serve(async (req) => {
         );
       if (!diseaseName) throw new Error("Disease name is required.");
 
+      log(FN, "perenual_lookup", { diseaseName });
       const res = await fetch(
         `https://perenual.com/api/pest-disease-list?key=${perenualKey}&q=${encodeURIComponent(diseaseName)}`,
       );
@@ -198,6 +172,7 @@ serve(async (req) => {
           descStr = item.description || "No description provided by API.";
         }
 
+        log(FN, "result", { action, found: true, diseaseName });
         return new Response(
           JSON.stringify({
             diseaseInfo: {
@@ -209,6 +184,7 @@ serve(async (req) => {
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
       } else {
+        log(FN, "result", { action, found: false, diseaseName });
         return new Response(JSON.stringify({ notFound: true }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
@@ -218,13 +194,27 @@ serve(async (req) => {
     // -------------------------------------------------------------
     // 2. LLM ACTIONS (GEMINI)
     // -------------------------------------------------------------
+
+    // Load user preferences once for all personalised actions.
+    // If no homeId provided the prefs array is empty and no block is injected.
+    const userPrefs = homeId
+      ? await loadPreferences(supabase, { homeId })
+      : [];
+    const prefsBlock = userPrefs.length > 0
+      ? `\nUSER PREFERENCES (always honour these — never recommend anything the user dislikes):\n${formatPreferencesBlock(userPrefs, "simple")}\n`
+      : "";
+
+    log(FN, "prefs_loaded", { homeId: homeId ?? null, count: userPrefs.length });
+
     if (action === "search_plants_text") {
       const prompt = `User searching: "${plantSearch}". Return top 5 matches as JSON: {"matches": ["Common Name (Scientific Name)"]}`;
-      const text = await callGeminiWithCascade([prompt], apiKey);
+      const text = await callGeminiCascade(apiKey, FN, toMessages([prompt]), { logContext: { action } });
       const cleanJson = text
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
+      const parsed = JSON.parse(cleanJson);
+      log(FN, "result", { action, matchesCount: parsed.matches?.length ?? 0, query: plantSearch });
       return new Response(cleanJson, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -266,7 +256,7 @@ serve(async (req) => {
         }
       }`;
 
-      let aiText = await callGeminiWithCascade([prompt], apiKey);
+      let aiText = await callGeminiCascade(apiKey, FN, toMessages([prompt]), { logContext: { action } });
       aiText = aiText
         .replace(/```json/gi, "")
         .replace(/```/g, "")
@@ -285,6 +275,14 @@ serve(async (req) => {
         if (permanentUrl) parsedData.plantData.thumbnail_url = permanentUrl;
       }
 
+      log(FN, "result", {
+        action,
+        plant: cleanName,
+        plantType: parsedData.plantData?.plant_type,
+        cycle: parsedData.plantData?.cycle,
+        hasWikiImage: !!parsedData.plantData?.thumbnail_url,
+      });
+
       return new Response(JSON.stringify(parsedData), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -293,7 +291,7 @@ serve(async (req) => {
     if (action === "recommend_plants") {
       const prompt = `
         You are an expert master gardener. I need plant recommendations for a specific growing area.
-        
+        ${prefsBlock}
         ENVIRONMENTAL METRICS:
         - Location: ${isOutside ? "Outside" : "Inside"}
         - Area Name: ${areaData?.name || "Unnamed Area"}
@@ -303,10 +301,11 @@ serve(async (req) => {
         - Peak Light (Lux): ${areaData?.light_intensity_lux || "Unknown"}
         - Water Movement: ${areaData?.water_movement || "Unknown"}
         - Nutrient Source: ${areaData?.nutrient_source || "Unknown"}
-        
+
         CURRENTLY PLANTED HERE: ${currentPlants && currentPlants.length > 0 ? currentPlants.join(", ") : "Nothing yet"}
 
-        Based strictly on these metrics, recommend 5 plants that would thrive here. 
+        Based strictly on these metrics and the user's preferences above, recommend 5 plants that would thrive here.
+        NEVER recommend anything the user dislikes or that conflicts with their preferences.
         If there are existing plants, you MUST prioritize companion plants.
 
         Respond ONLY with a valid JSON object in the exact format below:
@@ -322,12 +321,22 @@ serve(async (req) => {
         }
       `;
 
-      let aiText = await callGeminiWithCascade([prompt], apiKey);
+      let aiText = await callGeminiCascade(apiKey, FN, toMessages([prompt]), { logContext: { action } });
       aiText = aiText
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
       const parsedData = JSON.parse(aiText);
+      log(FN, "result", {
+        action,
+        homeId: homeId ?? null,
+        area: areaData?.name,
+        environment: isOutside ? "outside" : "inside",
+        currentPlantsCount: currentPlants?.length ?? 0,
+        userPrefsCount: userPrefs.length,
+        recommendationsCount: parsedData.recommendations?.length ?? 0,
+        recommendations: (parsedData.recommendations ?? []).map((r: any) => r.name),
+      });
       return new Response(JSON.stringify(parsedData), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -357,11 +366,13 @@ serve(async (req) => {
         },
       ];
 
-      let aiText = await callGeminiWithCascade(contents, apiKey);
+      let aiText = await callGeminiCascade(apiKey, FN, toMessages(contents), { logContext: { action } });
       aiText = aiText
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
+      const parsed = JSON.parse(aiText);
+      log(FN, "result", { action, possibleNames: parsed.possible_names ?? [] });
       return new Response(aiText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -374,9 +385,14 @@ serve(async (req) => {
         "",
       );
 
+      const plantContext = targetPlant
+        ? `This plant is a "${targetPlant}". Use this to improve your diagnosis accuracy.`
+        : "The plant species is unknown — identify any visual clues from the image.";
+
       const promptText = `
-        Look at this plant. Are there visible signs of pests, disease, or under/over-watering? 
-        Provide a brief diagnosis and actionable advice. 
+        ${plantContext}
+        Examine the image carefully for visible signs of pests, disease, nutrient deficiencies, or environmental stress (under/over-watering, sunburn, root rot, etc.).
+        Provide a precise diagnosis and actionable advice.
         You MUST respond ONLY in valid JSON using this exact schema:
         {
           "notes": "Your diagnosis and advice here.",
@@ -391,11 +407,17 @@ serve(async (req) => {
         },
       ];
 
-      let aiText = await callGeminiWithCascade(contents, apiKey);
+      let aiText = await callGeminiCascade(apiKey, FN, toMessages(contents), { logContext: { action } });
       aiText = aiText
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
+      const parsed = JSON.parse(aiText);
+      log(FN, "result", {
+        action,
+        possibleDiseases: parsed.possible_diseases ?? null,
+        healthy: parsed.possible_diseases === null,
+      });
       return new Response(aiText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -415,11 +437,12 @@ serve(async (req) => {
           }
         }
       `;
-      let aiText = await callGeminiWithCascade([promptText], apiKey);
+      let aiText = await callGeminiCascade(apiKey, FN, toMessages([promptText]), { logContext: { action } });
       aiText = aiText
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
+      log(FN, "result", { action, diseaseName, hasNotes: !!notes });
       return new Response(aiText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -431,7 +454,7 @@ serve(async (req) => {
       const promptText = `
         Based on the following diagnosis for the plant "${targetPlant || "the plant"}": "${diagnosisContext}"
         Create a complete remedial care plan containing 1 to 4 specific tasks to help the plant recover.
-        
+        ${prefsBlock}
         CRITICAL INSTRUCTIONS - YOU MUST OBEY THESE RULES:
         1. ONE-OFF TASKS: Immediate triage (pruning, isolating), environmental changes (improving air circulation, moving the plant), and habit changes (adjusting watering routines) MUST be one-off tasks with "is_recurring": false and "frequency_days": null.
         2. NO DUPLICATE WATERING: Do NOT create recurring 'Watering' tasks. If the plant needs a different watering routine, create a SINGLE one-off 'Maintenance' task instructing the user to update their baseline watering schedule.
@@ -453,20 +476,31 @@ serve(async (req) => {
           ]
         }
       `;
-      let aiText = await callGeminiWithCascade([promptText], apiKey);
+      let aiText = await callGeminiCascade(apiKey, FN, toMessages([promptText]), { logContext: { action } });
       aiText = aiText
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
+      const parsed = JSON.parse(aiText);
+      log(FN, "result", {
+        action,
+        targetPlant,
+        tasksCount: parsed.remedial_schedules?.length ?? 0,
+        tasks: (parsed.remedial_schedules ?? []).map((t: any) => ({
+          title: t.title,
+          recurring: t.is_recurring,
+          frequencyDays: t.frequency_days ?? null,
+        })),
+      });
       return new Response(aiText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
     throw new Error(`Unknown action: ${action}`);
-  } catch (error: any) {
-    console.error("🚨 Edge Function Error:", error.message);
-    return new Response(JSON.stringify({ error: error.message }), {
+  } catch (err: any) {
+    logError(FN, "error", { error: err.message });
+    return new Response(JSON.stringify({ error: err.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,
     });

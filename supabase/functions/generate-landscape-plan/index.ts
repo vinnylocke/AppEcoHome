@@ -1,5 +1,16 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { log, warn, error as logError } from "../_shared/logger.ts";
+import {
+  loadPreferences,
+  formatPreferencesBlock,
+  savePreferences,
+  ENTITY_TYPES,
+  type PreferenceRow,
+} from "../_shared/preferences.ts";
+import { callGeminiCascade } from "../_shared/gemini.ts";
+
+const FN = "generate-landscape-plan";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,192 +40,122 @@ EXAMPLE IDEAL OUTPUT (Notice how it ignores the tomatoes because they don't fit 
 }
 `;
 
-// Extract structured preferences from free-text feedback using Gemini.
+const PREF_EXTRACTION_SCHEMA = {
+  type: "ARRAY",
+  items: {
+    type: "OBJECT",
+    properties: {
+      entity_type: { type: "STRING" },
+      entity_name: { type: "STRING" },
+      sentiment: { type: "STRING" },
+      reason: { type: "STRING", nullable: true },
+    },
+    required: ["entity_type", "entity_name", "sentiment"],
+  },
+};
+
+// Extract structured preferences from free-text feedback.
 // Returns an empty array on any failure so the main flow is never interrupted.
 async function extractPreferencesFromFeedback(
-  model: string,
   apiKey: string,
   feedbackText: string,
-): Promise<
-  Array<{
-    entity_type: string;
-    entity_name: string;
-    sentiment: string;
-    reason: string | null;
-  }>
-> {
+): Promise<Array<{ entity_type: string; entity_name: string; sentiment: string; reason: string | null }>> {
   try {
-    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        contents: [
-          {
-            role: "user",
-            parts: [
-              {
-                text: `You are a preference extraction engine for a gardening app. Extract structured preferences from this user feedback about their garden plan.
+    const rawText = await callGeminiCascade(
+      apiKey,
+      FN,
+      [{
+        role: "user",
+        parts: [{
+          text: `You are a preference extraction engine for a gardening app. Extract structured preferences from this user feedback about their garden plan.
 
 Feedback: "${feedbackText}"
 
 Rules:
-- entity_type must be one of: "plant", "aesthetic", "feature", "maintenance", "wildlife", "difficulty"
+- entity_type must be one of: ${ENTITY_TYPES.map((t) => `"${t}"`).join(", ")}
 - entity_name: normalise to title case (e.g. "Rose", "Tropical", "Water Feature", "Low Maintenance")
 - sentiment: "positive" if the user likes or wants it, "negative" if they dislike or don't want it
 - reason: the user's stated reason in their own words, concise, or null if not given
-- For vague feedback like "make it cheaper" use entity_type "feature", entity_name "Budget Friendly"
+- Mapping hints: style/look → aesthetic; water feature/budget/raised bed → feature; preferred colours → colour; organic/chemical-free → pest_management; drought/frost → climate; sandy/clay → soil; watering habits → water_usage; "make it cheaper" → feature "Budget Friendly"
 - Return an empty array [] if no extractable preferences exist`,
-              },
-            ],
-          },
-        ],
-        generationConfig: {
-          temperature: 0,
-          maxOutputTokens: 400,
-          responseMimeType: "application/json",
-          responseSchema: {
-            type: "ARRAY",
-            items: {
-              type: "OBJECT",
-              properties: {
-                entity_type: { type: "STRING" },
-                entity_name: { type: "STRING" },
-                sentiment: { type: "STRING" },
-                reason: { type: "STRING", nullable: true },
-              },
-              required: ["entity_type", "entity_name", "sentiment"],
-            },
-          },
-        },
-      }),
-    });
-    if (!response.ok) return [];
-    const data = await response.json();
-    return JSON.parse(data.candidates[0].content.parts[0].text) || [];
+        }],
+      }],
+      { temperature: 0, maxOutputTokens: 400, responseSchema: PREF_EXTRACTION_SCHEMA, logContext: { step: "pref_extraction" } },
+    );
+    return JSON.parse(rawText) || [];
   } catch {
     return [];
   }
 }
 
-async function callGemini(
-  model: string,
-  apiKey: string,
-  promptText: string,
-  systemPrompt: string,
-) {
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
-
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      system_instruction: { parts: [{ text: systemPrompt }] },
-      contents: [{ role: "user", parts: [{ text: promptText }] }],
-      generationConfig: {
-        temperature: 0.2,
-        maxOutputTokens: 2500,
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: "OBJECT",
-          properties: {
-            project_overview: {
-              type: "OBJECT",
-              properties: {
-                title: { type: "STRING" },
-                summary: { type: "STRING" },
-                estimated_difficulty: { type: "STRING" },
-              },
-              required: ["title", "summary", "estimated_difficulty"],
-            },
-            infrastructure_requirements: {
-              type: "OBJECT",
-              properties: {
-                needs_new_area: { type: "BOOLEAN" },
-                suggested_area_name: { type: "STRING", nullable: true },
-                suggested_environment: { type: "STRING", nullable: true },
-                suggested_sunlight: { type: "STRING", nullable: true },
-                suggested_medium: { type: "STRING", nullable: true },
-              },
-              required: ["needs_new_area"],
-            },
-            plant_manifest: {
-              type: "ARRAY",
-              items: {
-                type: "OBJECT",
-                properties: {
-                  common_name: { type: "STRING" },
-                  scientific_name: { type: "STRING" },
-                  quantity: { type: "INTEGER" },
-                  role: { type: "STRING" },
-                  aesthetic_reason: { type: "STRING" },
-                  horticultural_reason: { type: "STRING" },
-                  procurement_advice: { type: "STRING" },
-                },
-                required: [
-                  "common_name",
-                  "scientific_name",
-                  "quantity",
-                  "role",
-                  "aesthetic_reason",
-                  "horticultural_reason",
-                  "procurement_advice",
-                ],
-              },
-            },
-            preparation_tasks: {
-              type: "ARRAY",
-              items: {
-                type: "OBJECT",
-                properties: {
-                  task_index: { type: "INTEGER" },
-                  title: { type: "STRING" },
-                  description: { type: "STRING" },
-                  depends_on_index: { type: "INTEGER", nullable: true },
-                },
-                required: ["task_index", "title", "description"],
-              },
-            },
-            custom_maintenance_tasks: {
-              type: "ARRAY",
-              items: {
-                type: "OBJECT",
-                properties: {
-                  title: { type: "STRING" },
-                  description: { type: "STRING" },
-                  frequency_days: { type: "INTEGER" },
-                  seasonality: { type: "STRING" },
-                },
-                required: [
-                  "title",
-                  "description",
-                  "frequency_days",
-                  "seasonality",
-                ],
-              },
-            },
-          },
-          required: [
-            "project_overview",
-            "infrastructure_requirements",
-            "plant_manifest",
-            "preparation_tasks",
-            "custom_maintenance_tasks",
-          ],
-        },
+const LP_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    project_overview: {
+      type: "OBJECT",
+      properties: {
+        title: { type: "STRING" },
+        summary: { type: "STRING" },
+        estimated_difficulty: { type: "STRING" },
       },
-    }),
-  });
-
-  if (!response.ok) {
-    const err = await response.json();
-    throw new Error(err.error?.message || `Gemini API Error from ${model}`);
-  }
-
-  const data = await response.json();
-  const rawString = data.candidates[0].content.parts[0].text;
-  return JSON.parse(rawString);
-}
+      required: ["title", "summary", "estimated_difficulty"],
+    },
+    infrastructure_requirements: {
+      type: "OBJECT",
+      properties: {
+        needs_new_area: { type: "BOOLEAN" },
+        suggested_area_name: { type: "STRING", nullable: true },
+        suggested_environment: { type: "STRING", nullable: true },
+        suggested_sunlight: { type: "STRING", nullable: true },
+        suggested_medium: { type: "STRING", nullable: true },
+      },
+      required: ["needs_new_area"],
+    },
+    plant_manifest: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          common_name: { type: "STRING" },
+          scientific_name: { type: "STRING" },
+          quantity: { type: "INTEGER" },
+          role: { type: "STRING" },
+          aesthetic_reason: { type: "STRING" },
+          horticultural_reason: { type: "STRING" },
+          procurement_advice: { type: "STRING" },
+        },
+        required: ["common_name", "scientific_name", "quantity", "role", "aesthetic_reason", "horticultural_reason", "procurement_advice"],
+      },
+    },
+    preparation_tasks: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          task_index: { type: "INTEGER" },
+          title: { type: "STRING" },
+          description: { type: "STRING" },
+          depends_on_index: { type: "INTEGER", nullable: true },
+        },
+        required: ["task_index", "title", "description"],
+      },
+    },
+    custom_maintenance_tasks: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          title: { type: "STRING" },
+          description: { type: "STRING" },
+          frequency_days: { type: "INTEGER" },
+          seasonality: { type: "STRING" },
+        },
+        required: ["title", "description", "frequency_days", "seasonality"],
+      },
+    },
+  },
+  required: ["project_overview", "infrastructure_requirements", "plant_manifest", "preparation_tasks", "custom_maintenance_tasks"],
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS")
@@ -223,101 +164,42 @@ serve(async (req) => {
   try {
     const { formData, homeId, isRegeneration } = await req.json();
 
-    const authHeader = req.headers.get("Authorization")!;
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const authToken = authHeader.replace("Bearer ", "");
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } },
     );
 
-    // Resolve the calling user's ID from their JWT
-    const { data: { user } } = await supabase.auth.getUser();
+    // Resolve the calling user's ID — pass the token explicitly so it works
+    // in edge function environments where global header override is unreliable.
+    const { data: { user } } = await supabase.auth.getUser(authToken);
     const userId = user?.id;
 
-    console.log("=".repeat(60));
-    console.log("[REQUEST]");
-    console.log(`  User ID     : ${userId ?? "unknown"}`);
-    console.log(`  Home ID     : ${homeId}`);
-    console.log(`  Plan Name   : ${formData.planName}`);
-    console.log(`  Regeneration: ${isRegeneration ? "YES" : "NO"}`);
-    if (isRegeneration) {
-      console.log(`  Feedback    : "${formData.feedback}"`);
-    }
-    console.log("=".repeat(60));
-
-    // --- PERSONAL MEMORY: load most-recent preference per entity for this user ---
-    const { data: rawPreferences } = await supabase
-      .from("planner_preferences")
-      .select("entity_type, entity_name, sentiment, reason, recorded_at")
-      .eq("user_id", userId)
-      .order("recorded_at", { ascending: false });
-
-    // Deduplicate: first occurrence per key = most recent (ordered DESC above)
-    const seen = new Set<string>();
-    const overriddenBy: Record<string, string> = {};
-    const latestPreferences = (rawPreferences || []).filter((p) => {
-      const key = `${p.entity_type}:${p.entity_name.toLowerCase()}`;
-      if (seen.has(key)) {
-        overriddenBy[key] = (overriddenBy[key] || "older entry") + " (shadowed)";
-        return false;
-      }
-      seen.add(key);
-      return true;
+    log(FN, "request_received", {
+      userId: userId ?? null,
+      homeId,
+      planName: formData.planName,
+      isRegeneration,
+      feedback: isRegeneration ? formData.feedback : undefined,
     });
 
-    console.log("[MEMORY] Raw preferences from DB:");
-    if (!rawPreferences || rawPreferences.length === 0) {
-      console.log("  (none — first-time user or no preferences saved yet)");
-    } else {
-      rawPreferences.forEach((p) => {
-        const key = `${p.entity_type}:${p.entity_name.toLowerCase()}`;
-        const shadowed = overriddenBy[key] ? " ← SHADOWED by newer entry" : "";
-        console.log(
-          `  [${p.sentiment.toUpperCase()}] [${p.entity_type}] ${p.entity_name}` +
-          `${p.reason ? ` — "${p.reason}"` : ""}` +
-          ` (${new Date(p.recorded_at).toLocaleDateString("en-GB")})${shadowed}`,
-        );
-      });
-    }
-
+    // --- PERSONAL MEMORY: load most-recent preference per entity for this user ---
+    const latestPreferences = await loadPreferences(supabase, { userId: userId ?? undefined });
     const positives = latestPreferences.filter((p) => p.sentiment === "positive");
     const negatives = latestPreferences.filter((p) => p.sentiment === "negative");
 
-    console.log(`\n[MEMORY] Deduplicated — injecting ${latestPreferences.length} active preferences into prompt:`);
-    console.log(`  LIKES  (${positives.length}): ${positives.map((p) => p.entity_name).join(", ") || "none"}`);
-    console.log(`  AVOIDS (${negatives.length}): ${negatives.map((p) => p.entity_name).join(", ") || "none"}`);
+    log(FN, "preferences_loaded", {
+      userId,
+      activeCount: latestPreferences.length,
+      likes: positives.map((p) => `${p.entity_type}:${p.entity_name}`),
+      avoids: negatives.map((p) => `${p.entity_type}:${p.entity_name}`),
+    });
 
-    const personalMemoryBlock =
-      latestPreferences.length > 0
-        ? `
-USER PERSONAL MEMORY (Date-stamped — newer entries override older ones):
-LIKES / WANTS:
-${
-  positives.length > 0
-    ? positives
-        .map(
-          (p) =>
-            `• [${p.entity_type}] ${p.entity_name}${p.reason ? ` — "${p.reason}"` : ""} (recorded ${new Date(p.recorded_at).toLocaleDateString("en-GB")})`,
-        )
-        .join("\n")
-    : "  None recorded."
-}
-
-DISLIKES / AVOID:
-${
-  negatives.length > 0
-    ? negatives
-        .map(
-          (p) =>
-            `• [${p.entity_type}] ${p.entity_name}${p.reason ? ` — "${p.reason}"` : ""} (recorded ${new Date(p.recorded_at).toLocaleDateString("en-GB")})`,
-        )
-        .join("\n")
-    : "  None recorded."
-}
-
-Apply this as soft guidance to fill gaps and make the design feel personal. If the CURRENT REQUEST explicitly includes or excludes anything, that always takes priority over memory.
-`.trim()
-        : "";
+    const personalMemoryBlock = latestPreferences.length > 0
+      ? formatPreferencesBlock(latestPreferences, "rich")
+      : "";
 
     // --- GARDEN CONTEXT ---
     const { data: areas } = await supabase
@@ -330,9 +212,13 @@ Apply this as soft guidance to fill gaps and make the design feel personal. If t
       .select("plant_name, status, area_id")
       .eq("home_id", homeId);
 
-    console.log("\n[CONTEXT] Garden data loaded:");
-    console.log(`  Areas     (${(areas || []).length}): ${(areas || []).map((a: any) => a.name).join(", ") || "none"}`);
-    console.log(`  Inventory (${(inventory || []).length}): ${(inventory || []).map((i: any) => i.plant_name).join(", ") || "none"}`);
+    log(FN, "context_loaded", {
+      homeId,
+      areasCount: (areas || []).length,
+      areas: (areas || []).map((a: any) => a.name),
+      inventoryCount: (inventory || []).length,
+      inventory: (inventory || []).map((i: any) => i.plant_name),
+    });
 
     // --- SYSTEM PROMPT ---
     const systemPrompt = `
@@ -349,6 +235,8 @@ Apply this as soft guidance to fill gaps and make the design feel personal. If t
       3. DIMENSIONS MATTER: Ensure the suggested plant quantities and sizes physically fit within the provided Height, Width, and Depth.
       4. The 'preparation_tasks' MUST be sequential. Use 'depends_on_index' to link them logically. Do NOT include 'planting' tasks here.
       5. 'custom_maintenance_tasks' are ONLY for non-plant chores (e.g., cleaning the planter, checking drainage).
+      6. AESTHETIC STYLE: Every plant in 'plant_manifest' MUST visually match the stated Aesthetic Style. The 'aesthetic_reason' field MUST explicitly confirm how the plant fits that style.
+      7. SUNLIGHT & MEDIUM: Every plant MUST be compatible with the stated Sunlight Conditions and Growing Medium. Set 'suggested_sunlight' and 'suggested_medium' in 'infrastructure_requirements' to exactly match the user's stated values unless there is a critical horticultural reason to override them.
 
       ${FEW_SHOT_EXAMPLES}
     `;
@@ -374,7 +262,10 @@ Apply this as soft guidance to fill gaps and make the design feel personal. If t
     promptText += `
       Project Name: ${formData.planName}
       Description: ${formData.description}
+      Aesthetic Style: ${formData.aesthetic || "Natural"}
       Dimensions: Height: ${formData.height || "N/A"}, Width: ${formData.width || "N/A"}, Depth: ${formData.depth || "N/A"}
+      Sunlight Conditions: ${formData.sunlight || "Not specified"}
+      Preferred Growing Medium: ${formData.medium || "Not specified"}
       Included Features: ${formData.inclusivePlants || "None"}
       Excluded Features: ${formData.exclusivePlants || "None"}
       Wildlife Goals: ${formData.wildlife || "None"}
@@ -383,69 +274,39 @@ Apply this as soft guidance to fill gaps and make the design feel personal. If t
       Special Considerations: ${formData.considerations || "None"}
     `;
 
-    console.log("\n[PROMPT] User request sent to AI:");
-    console.log(`  Plan Name       : ${formData.planName}`);
-    console.log(`  Description     : ${formData.description}`);
-    console.log(`  Dimensions      : H=${formData.height || "N/A"} W=${formData.width || "N/A"} D=${formData.depth || "N/A"}`);
-    console.log(`  Aesthetic       : ${formData.aesthetic || "N/A"}`);
-    console.log(`  Sunlight        : ${formData.sunlight || "N/A"}`);
-    console.log(`  Medium          : ${formData.medium || "N/A"}`);
-    console.log(`  Must Include    : ${formData.inclusivePlants || "none"}`);
-    console.log(`  Must Exclude    : ${formData.exclusivePlants || "none"}`);
-    console.log(`  Wildlife Goals  : ${formData.wildlife || "none"}`);
-    console.log(`  Difficulty      : ${formData.difficulty || "N/A"}`);
-    console.log(`  Maintenance     : ${formData.maintenance || "N/A"}`);
-    console.log(`  Considerations  : ${formData.considerations || "none"}`);
-    if (personalMemoryBlock) {
-      console.log("\n[PROMPT] Personal memory block injected into system prompt:");
-      console.log(personalMemoryBlock);
-    } else {
-      console.log("\n[PROMPT] No personal memory block — generating from scratch.");
-    }
+    log(FN, "prompt_built", {
+      planName: formData.planName,
+      dimensions: `H=${formData.height || "N/A"} W=${formData.width || "N/A"} D=${formData.depth || "N/A"}`,
+      aesthetic: formData.aesthetic || null,
+      sunlight: formData.sunlight || null,
+      medium: formData.medium || null,
+      mustInclude: formData.inclusivePlants || null,
+      mustExclude: formData.exclusivePlants || null,
+      wildlife: formData.wildlife || null,
+      difficulty: formData.difficulty || null,
+      memoryInjected: !!personalMemoryBlock,
+    });
 
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiApiKey) throw new Error("Missing GEMINI_API_KEY");
 
-    const modelsToTry = [
-      "gemini-3.1-flash-lite-preview",
-      "gemini-3-flash-preview",
-      "gemini-3.1-pro-preview",
-    ];
+    const rawText = await callGeminiCascade(
+      geminiApiKey,
+      FN,
+      [{ role: "user", parts: [{ text: promptText }] }],
+      { systemPrompt, temperature: 0.2, maxOutputTokens: 2500, responseSchema: LP_SCHEMA },
+    );
 
-    let aiResult: any = null;
-    let success = false;
-    let lastError = "";
-    let modelUsed = "";
+    const aiResult = JSON.parse(rawText);
 
-    for (const model of modelsToTry) {
-      try {
-        console.log(`\n[AI] Attempting generation with model: ${model} ...`);
-        aiResult = await callGemini(model, geminiApiKey, promptText, systemPrompt);
-        modelUsed = model;
-        success = true;
-        break;
-      } catch (error: any) {
-        console.warn(`[AI] Model ${model} failed: ${error.message}`);
-        lastError = error.message;
-      }
-    }
-
-    if (!success)
-      throw new Error(`All AI models failed. Last error: ${lastError}`);
-
-    console.log(`\n[AI] Generation succeeded with model: ${modelUsed}`);
-    console.log(`[AI] Result summary:`);
-    console.log(`  Title      : ${aiResult.project_overview?.title}`);
-    console.log(`  Summary    : ${aiResult.project_overview?.summary}`);
-    console.log(`  Difficulty : ${aiResult.project_overview?.estimated_difficulty}`);
-    console.log(`  Plants (${(aiResult.plant_manifest || []).length}):`);
-    (aiResult.plant_manifest || []).forEach((p: any) => {
-      console.log(`    • ${p.common_name} x${p.quantity} [${p.role}]`);
-      console.log(`      Aesthetic : ${p.aesthetic_reason}`);
-      console.log(`      Horticult.: ${p.horticultural_reason}`);
+    log(FN, "result", {
+      title: aiResult.project_overview?.title,
+      difficulty: aiResult.project_overview?.estimated_difficulty,
+      plantsCount: (aiResult.plant_manifest || []).length,
+      plants: (aiResult.plant_manifest || []).map((p: any) => `${p.common_name} x${p.quantity}`),
+      prepTasksCount: (aiResult.preparation_tasks || []).length,
+      maintenanceTasksCount: (aiResult.custom_maintenance_tasks || []).length,
     });
-    console.log(`  Prep tasks (${(aiResult.preparation_tasks || []).length}): ${(aiResult.preparation_tasks || []).map((t: any) => t.title).join(" → ")}`);
-    console.log(`  Maintenance tasks (${(aiResult.custom_maintenance_tasks || []).length}): ${(aiResult.custom_maintenance_tasks || []).map((t: any) => `${t.title} (every ${t.frequency_days}d)`).join(", ")}`);
 
     // --- COVER IMAGE ---
     let coverImageUrl =
@@ -501,39 +362,26 @@ Apply this as soft guidance to fill gaps and make the design feel personal. If t
     // Extract structured preferences from the user's free-text feedback and persist
     // them so future plans automatically reflect their evolving tastes.
     if (isRegeneration && formData.feedback) {
-      console.log("\n[PREFERENCES] Extracting structured preferences from regen feedback...");
       try {
-        const supabaseAdmin = createClient(
-          Deno.env.get("SUPABASE_URL") ?? "",
-          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
-        );
+        const extracted = await extractPreferencesFromFeedback(geminiApiKey, formData.feedback);
 
-        const extracted = await extractPreferencesFromFeedback(
-          modelsToTry[0],
-          geminiApiKey,
-          formData.feedback,
-        );
+        log(FN, "preferences_extracted", {
+          count: extracted.length,
+          items: extracted.map((p) => `${p.sentiment}:${p.entity_type}:${p.entity_name}`),
+        });
 
-        console.log(`[PREFERENCES] Raw extraction result (${extracted.length} items):`);
-        extracted.forEach((p) =>
-          console.log(`  [${p.sentiment.toUpperCase()}] [${p.entity_type}] ${p.entity_name}${p.reason ? ` — "${p.reason}"` : ""}`),
-        );
+        const validEntityTypes = new Set(ENTITY_TYPES);
 
-        const validEntityTypes = new Set([
-          "plant", "aesthetic", "feature", "maintenance", "wildlife", "difficulty",
-        ]);
-        const validSentiments = new Set(["positive", "negative"]);
-
-        const rows = extracted
+        const rows: PreferenceRow[] = extracted
           .filter(
             (p) =>
               validEntityTypes.has(p.entity_type) &&
-              validSentiments.has(p.sentiment) &&
+              (p.sentiment === "positive" || p.sentiment === "negative") &&
               p.entity_name?.trim(),
           )
           .map((p) => ({
             home_id: homeId,
-            user_id: userId,
+            user_id: userId ?? null,
             entity_type: p.entity_type,
             entity_name: p.entity_name.trim(),
             sentiment: p.sentiment,
@@ -542,22 +390,23 @@ Apply this as soft guidance to fill gaps and make the design feel personal. If t
 
         const skipped = extracted.length - rows.length;
         if (skipped > 0) {
-          console.log(`[PREFERENCES] Skipped ${skipped} item(s) with invalid entity_type or sentiment.`);
+          warn(FN, "preferences_skipped", { skipped, reason: "invalid entity_type or sentiment" });
         }
 
-        if (rows.length > 0) {
-          await supabaseAdmin.from("planner_preferences").insert(rows);
-          console.log(`[PREFERENCES] Saved ${rows.length} preference(s) to DB — will influence future plans for this user.`);
-        } else {
-          console.log("[PREFERENCES] No valid preferences to save.");
+        const supabaseAdmin = createClient(
+          Deno.env.get("SUPABASE_URL") ?? "",
+          Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+        );
+        const saved = await savePreferences(supabaseAdmin, rows);
+        if (saved > 0) {
+          log(FN, "preferences_saved", { count: saved, userId, homeId });
         }
-      } catch (prefError) {
-        console.error("[PREFERENCES] Extraction failed (non-critical):", prefError);
+      } catch (prefError: any) {
+        warn(FN, "preferences_extraction_failed", { error: prefError.message });
       }
     }
 
-    console.log("\n[DONE] Returning blueprint to client.");
-    console.log("=".repeat(60));
+    log(FN, "done", { homeId, planName: formData.planName });
 
     return new Response(
       JSON.stringify({ blueprint: aiResult, cover_image_url: coverImageUrl }),
@@ -567,8 +416,7 @@ Apply this as soft guidance to fill gaps and make the design feel personal. If t
       },
     );
   } catch (error: any) {
-    console.error("[ERROR]", error.message);
-    console.log("=".repeat(60));
+    logError(FN, "error", { error: error.message });
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,

@@ -661,18 +661,12 @@ export default function TaskList({
     }
   };
 
-  if (loading)
-    return (
-      <div className="p-10 flex justify-center">
-        <Loader2 className="animate-spin text-rhozly-primary" />
-      </div>
-    );
-
   const pendingCount = tasks.filter((t) => t.status !== "Completed").length;
   const completedCount = tasks.filter((t) => t.status === "Completed").length;
 
   // Re-sort the active tab's tasks by preference score, preserving due_date order for ties.
   // JS sort is stable so equal-score tasks keep their existing relative order.
+  // Must stay above the early loading return to satisfy Rules of Hooks.
   const filteredTasks = useMemo(() => {
     const tabTasks = tasks.filter((t) =>
       viewTab === "pending" ? t.status !== "Completed" : t.status === "Completed",
@@ -684,6 +678,13 @@ export default function TaskList({
       return scoreB - scoreA;
     });
   }, [tasks, viewTab, inventoryDict, preferences]);
+
+  if (loading)
+    return (
+      <div className="p-10 flex justify-center">
+        <Loader2 className="animate-spin text-rhozly-primary" />
+      </div>
+    );
 
   return (
     <>
