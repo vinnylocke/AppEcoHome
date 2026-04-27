@@ -79,7 +79,7 @@ export default function InstanceCareRoutine({
       const { data, error } = await supabase
         .from("task_blueprints")
         .select("*")
-        .eq("inventory_item_id", inventoryItemId)
+        .contains("inventory_item_ids", [inventoryItemId])
         .order("created_at", { ascending: true });
 
       if (error) throw error;
@@ -230,7 +230,7 @@ export default function InstanceCareRoutine({
     try {
       const payload = {
         home_id: homeId,
-        inventory_item_id: inventoryItemId,
+        inventory_item_ids: [inventoryItemId],
         location_id: locationId,
         area_id: areaId,
         title: newRoutine.title,

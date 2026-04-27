@@ -367,7 +367,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       const { error: delBpErr } = await supabase
         .from("task_blueprints")
         .delete()
-        .in("inventory_item_id", existingPlantIds)
+        .overlaps("inventory_item_ids", existingPlantIds)
         .in("task_type", incomingTaskTypes)
         .eq("is_auto_generated", true);
       if (delBpErr) throw delBpErr;
@@ -412,7 +412,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             task_type: s.task_type,
             location_id: p.location_id,
             area_id: p.area_id,
-            inventory_item_id: p.id,
+            inventory_item_ids: [p.id],
             frequency_days: s.frequency_days,
             is_recurring: true,
             is_auto_generated: true,
@@ -555,7 +555,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           const { error: delBpErr } = await supabase
             .from("task_blueprints")
             .delete()
-            .in("inventory_item_id", existingPlantIds)
+            .overlaps("inventory_item_ids", existingPlantIds)
             .eq("task_type", newSchedule.task_type)
             .eq("is_auto_generated", false);
           if (delBpErr) throw delBpErr;
@@ -588,7 +588,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
               task_type: newSchedule.task_type,
               location_id: p.location_id,
               area_id: p.area_id,
-              inventory_item_id: p.id,
+              inventory_item_ids: [p.id],
               frequency_days: newSchedule.frequency_days,
               is_recurring: true,
               is_auto_generated: false,

@@ -102,7 +102,7 @@ export default function PlantJournalTab({
       const { data, error } = await supabase
         .from("tasks")
         .select("id, title, due_date, status")
-        .eq("inventory_item_id", inventoryItemId)
+        .contains("inventory_item_ids", [inventoryItemId])
         .order("due_date", { ascending: false })
         .limit(20);
 
