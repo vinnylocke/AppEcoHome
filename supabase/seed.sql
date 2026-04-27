@@ -197,35 +197,14 @@ INSERT INTO "public"."locations" ("id", "home_id", "name", "created_at", "placem
 -- Data for Name: areas; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-INSERT INTO "public"."areas" ("id", "location_id", "name", "is_outside", "created_at") VALUES
-	('eeef0c26-7f0e-4759-9ae0-a46d4364b2d6', '9742d6a1-0883-4110-8499-8b487e78cd4b', 'Zone 1', true, '2026-03-27 16:32:45.209073+00');
+INSERT INTO "public"."areas" ("id", "location_id", "name", "created_at") VALUES
+	('eeef0c26-7f0e-4759-9ae0-a46d4364b2d6', '9742d6a1-0883-4110-8499-8b487e78cd4b', 'Zone 1', '2026-03-27 16:32:45.209073+00');
 
 
 --
 -- Data for Name: species_cache; Type: TABLE DATA; Schema: public; Owner: postgres
 --
 
-INSERT INTO "public"."species_cache" ("id", "common_name", "scientific_name", "image_url", "description", "watering_freq", "created_at", "sunlight", "cycle", "care_level", "pruning_month", "flowering_season", "fruiting_season", "growth_rate") VALUES
-	('1098', 'ground plum', '{"Astragalus crassicarpus"}', NULL, '
-          <div class="mb-4 last:mb-0">
-            <h6 class="text-[10px] font-black uppercase text-emerald-700 tracking-widest mb-1">watering</h6>
-            <p class="text-stone-600 leading-relaxed text-sm">The ground plum (Astragalus crassicarpus) is a drought-tolerant plant species, meaning that it doesn''t require a lot of water. However, the plant still needs a regular watering in order to stay healthy and flower. It should be watered deeply, twice a month during the growing season, and once every other month when dormant. To enhance growth and flowering, provide water every 10-12 days during warm months or late spring. When watering, make sure to water to a depth of at least 6 inches, as this helps to encourage the plant''s deep roots.</p>
-          </div>
-        
-          <div class="mb-4 last:mb-0">
-            <h6 class="text-[10px] font-black uppercase text-emerald-700 tracking-widest mb-1">sunlight</h6>
-            <p class="text-stone-600 leading-relaxed text-sm">Ground plums need plenty of exposure to sunlight to remain healthy. They should receive 6-8 hours of direct sunlight a day, ideally in the morning. It is important to note that during the hottest times of the day, 8-10 hours of direct sunlight can be too much and will scorch the plant. If the plants receive too little sun they will become stunted and bloom fewer flowers. When possible try and place the ground plums in a spot that received filtered sunlight in the afternoon.</p>
-          </div>
-        
-          <div class="mb-4 last:mb-0">
-            <h6 class="text-[10px] font-black uppercase text-emerald-700 tracking-widest mb-1">pruning</h6>
-            <p class="text-stone-600 leading-relaxed text-sm">Groundplum (Astragalus crassicarpus) are perennial plants that require occasional pruning to maintain their health. A light trim should take place in late winter or early spring before any new growth appears. This will ensure the plant does not have any dead, diseased, or woody growth that can impede healthy growth.
-
-For maximum bushy growth, some minor pruning can also be done during early summer, but care should be taken to avoid cutting away too much of the developing fruit. When pruning during this time, be sure to remove any stems that have crossed over each other and are competing for sunlight and air.
-
-Overall, groundplum require only light pruning once or twice a year in late winter/early spring and then again in early summer, only if necessary. Moderate pruning can help keep the plant healthy and encourage bushy growth.</p>
-          </div>
-        ', 'Average', '2026-03-27 11:56:32.719+00', '{"full sun","filtered shade"}', 'Herbaceous Perennial', 'Moderate', '{February,March,April,June,July,February,March,April,June,July}', NULL, NULL, 'Low');
 
 
 --
