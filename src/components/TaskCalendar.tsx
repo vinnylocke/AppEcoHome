@@ -5,7 +5,9 @@ import {
   Calendar as CalendarIcon,
   Filter,
   Plus,
+  Sparkles,
 } from "lucide-react";
+import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import AddTaskModal from "./AddTaskModal";
@@ -44,7 +46,7 @@ function taskDotColor(type: string, isSelected: boolean): string {
 }
 
 export default function TaskCalendar({ homeId }: { homeId: string }) {
-  const { setPageContext } = usePlantDoctor();
+  const { setPageContext, preferences } = usePlantDoctor();
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -424,6 +426,12 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
                 (t) => t.status === "Pending",
               );
 
+              const hasPreferredTasks =
+                preferences.length > 0 &&
+                pendingTasks.some(
+                  (t) => scorePlantByPreferences(t.title, "", preferences) > 0,
+                );
+
               return (
                 <button
                   key={index}
@@ -434,6 +442,11 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
                     ${isToday && !isSelected ? "bg-rhozly-primary/5 border-rhozly-primary/20 text-rhozly-primary" : ""}
                   `}
                 >
+                  {hasPreferredTasks && !isSelected && dayObj.isCurrentMonth && (
+                    <span className="absolute top-1.5 right-1.5">
+                      <Sparkles size={7} className="text-amber-400" />
+                    </span>
+                  )}
                   <span
                     className={`text-sm sm:text-lg font-black ${isSelected ? "text-white" : ""}`}
                   >
@@ -469,6 +482,12 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
                 {type}
               </span>
             ))}
+            {preferences.length > 0 && (
+              <span className="flex items-center gap-1.5 text-[10px] font-bold text-amber-500/80">
+                <Sparkles size={9} className="text-amber-400" />
+                Preferred plant
+              </span>
+            )}
           </div>
         </div>
 

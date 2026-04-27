@@ -29,6 +29,7 @@ import InstanceEditModal from "./InstanceEditModal";
 import BulkConfigModal from "./BulkConfigModal";
 import { ConfirmModal } from "./ConfirmModal";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { AutomationEngine } from "../lib/automationEngine";
 import { PlantDoctorService } from "../services/plantDoctorService";
 
@@ -63,7 +64,7 @@ export default function AreaDetails({
   onTasksUpdated,
   onAreaUpdated,
 }: AreaDetailsProps) {
-  const { setPageContext } = usePlantDoctor();
+  const { setPageContext, preferences } = usePlantDoctor();
   const navigate = useNavigate();
 
   const [plants, setPlants] = useState<InventoryItem[]>([]);
@@ -279,7 +280,12 @@ export default function AreaDetails({
         currentPlants: activePlants.map((p) => p.plant_name),
       });
       if (data.recommendations) {
-        setRecommendations(data.recommendations);
+        const sorted = [...data.recommendations].sort((a: any, b: any) => {
+          const scoreA = scorePlantByPreferences(a.name, a.scientific_name || "", preferences);
+          const scoreB = scorePlantByPreferences(b.name, b.scientific_name || "", preferences);
+          return scoreB - scoreA;
+        });
+        setRecommendations(sorted);
         toast.success("AI found some perfect companion matches!");
       }
     } catch (err: any) {
@@ -377,6 +383,7 @@ export default function AreaDetails({
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {recommendations.map((rec, idx) => {
                 const isSelected = selectedRecs.includes(rec.name);
+                const prefScore = scorePlantByPreferences(rec.name, rec.scientific_name || "", preferences);
                 return (
                   <div
                     key={idx}
@@ -403,6 +410,11 @@ export default function AreaDetails({
                           <p className="text-xs font-bold text-rhozly-on-surface/40 italic mt-0.5">
                             {rec.scientific_name}
                           </p>
+                          {prefScore > 0 && (
+                            <span className="inline-flex items-center gap-1 mt-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                              <Sparkles size={8} /> Matches your taste
+                            </span>
+                          )}
                         </div>
                       </div>
                       <span className="text-[9px] font-black uppercase tracking-widest bg-rhozly-surface-low px-2 py-1 rounded-md text-rhozly-on-surface/60 shrink-0">
