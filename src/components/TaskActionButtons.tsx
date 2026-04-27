@@ -138,7 +138,7 @@ export const TaskActionButtons = ({
         const task = tasks[i];
         // If this task depends on another task, AND we actually opted to save the parent task
         if (
-          task.depends_on_index !== null &&
+          task.depends_on_index != null &&
           idMap.has(task.depends_on_index)
         ) {
           const thisTaskId = idMap.get(i);
@@ -191,7 +191,7 @@ export const TaskActionButtons = ({
       <div className="space-y-2 mb-4">
         {tasks.map((task, idx) => {
           const isSelected = selectedIndices.includes(idx);
-          const hasDependency = task.depends_on_index !== null;
+          const hasDependency = task.depends_on_index != null;
 
           return (
             <div

@@ -41,7 +41,7 @@ const CHAT_SCHEMA = {
     },
     suggested_tasks: {
       type: "ARRAY",
-      description: "Populate this if generating a care plan, to-do list, or sequence of actions.",
+      description: "Only populate this for PHYSICAL garden actions the user needs to perform (watering, planting, pruning, fertilising, harvesting, etc.). Leave empty for informational answers, plant suggestions, research recommendations, or any non-physical advice.",
       items: {
         type: "OBJECT",
         properties: {
@@ -171,13 +171,14 @@ serve(async (req) => {
       Always honour the user's known preferences — if they dislike something, never recommend it.
       If you recommend a specific plant they do NOT already own, include it in 'suggested_plants'.
 
-      CRITICAL TASK GENERATION RULES:
-      If the user asks for a schedule, a care plan, to-do list, or advice on what to do next, you MUST generate an array of tasks in the "suggested_tasks" JSON field.
+      TASK GENERATION RULES:
+      Only generate tasks when the user explicitly asks for a schedule, care plan, or to-do list AND the tasks represent real physical garden work (watering, planting, pruning, fertilising, harvesting, treating pests, etc.).
+      DO NOT generate tasks for: informational queries, plant recommendations, research suggestions, "look into this", or any action that isn't hands-in-the-soil garden work.
       - "task_type": MUST be exactly one of: 'Planting', 'Watering', 'Harvesting', 'Maintenance'.
       - "due_in_days": Number. Use 0 for today, 1 for tomorrow, 7 for next week, etc.
       - "is_recurring": Boolean. true only for continuous habits. false for one-off actions.
-      - "frequency_days": Number or null. Required when is_recurring is true.
-      - "depends_on_index": Number or null. The array index of the task that must be completed first.
+      - "frequency_days": Number or null. Required when is_recurring is true, else null.
+      - "depends_on_index": Number or null. The array index of the blocking task. MUST be null if this task has no dependency.
 
       PREFERENCE DETECTION RULES:
       Scan only the latest user message for explicit preferences. Valid entity_type values: ${ENTITY_TYPES.join(", ")}.
