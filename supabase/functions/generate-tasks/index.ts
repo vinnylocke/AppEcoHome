@@ -79,10 +79,10 @@ serve(async (req) => {
           title: bp.title,
           description: bp.description,
           type: bp.task_type,
-          due_date: nextDate.toISOString().split("T")[0], // Safe YYYY-MM-DD extraction
+          due_date: nextDate.toISOString().split("T")[0],
           location_id: bp.location_id,
           area_id: bp.area_id,
-          inventory_item_id: bp.inventory_item_id,
+          inventory_item_ids: bp.inventory_item_id ? [bp.inventory_item_id] : null,
         });
 
         nextDate.setDate(nextDate.getDate() + bp.frequency_days);
