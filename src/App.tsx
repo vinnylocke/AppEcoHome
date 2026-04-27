@@ -14,7 +14,9 @@ import {
   Stethoscope,
   X,
   Map,
-  Repeat, // 🚀 NEW: Imported Repeat for the Task Management icon
+  Repeat,
+  Sprout,
+  Sparkles,
 } from "lucide-react";
 
 // 🚀 NATIVE IMPORT
@@ -54,6 +56,7 @@ import { usePushNotifications } from "./hooks/usePushNotifications";
 import PullToRefresh from "./components/PullToRefresh";
 import { PlantDoctorProvider } from "./context/PlantDoctorContext";
 import PlantDoctorChat from "./components/PlantDoctorChat";
+import GardenProfile from "./components/GardenProfile";
 import RouteWatcher from "./components/RouteWatcher";
 import NavItem from "./components/NavItem";
 import {
@@ -177,10 +180,23 @@ export default function App() {
   const [isNavCollapsed, setIsNavCollapsed] = useState(
     () => localStorage.getItem("rhozly_nav") === "true",
   );
+  const [quizCompleted, setQuizCompleted] = useState<boolean | null>(null);
+  const [quizPromptDismissed, setQuizPromptDismissed] = useState(false);
 
   useEffect(() => {
     localStorage.setItem("rhozly_tab", activeTab);
   }, [activeTab]);
+
+  useEffect(() => {
+    if (!profile?.home_id || !session?.user?.id) return;
+    supabase
+      .from("home_quiz_completions")
+      .select("id")
+      .eq("home_id", profile.home_id)
+      .eq("user_id", session.user.id)
+      .maybeSingle()
+      .then(({ data }) => setQuizCompleted(!!data));
+  }, [profile?.home_id, session?.user?.id]);
   useEffect(() => {
     localStorage.setItem("rhozly_view", dashboardView);
   }, [dashboardView]);
@@ -391,6 +407,7 @@ export default function App() {
     { id: "shed", icon: <Database />, label: "The Shed" },
     { id: "planner", icon: <Map />, label: "Planner" },
     { id: "doctor", icon: <Stethoscope />, label: "Plant Doctor" },
+    { id: "garden_profile", icon: <Sprout />, label: "Garden Profile" },
     { id: "lightsensor", icon: <Sun />, label: "Light Sensor" },
     { id: "guides", icon: <BookOpen />, label: "Guides" },
     { id: "management", icon: <Wrench />, label: "Location Management" },
@@ -632,7 +649,38 @@ export default function App() {
                             {dashboardView !== "weather" &&
                               dashboardView !== "calendar" && (
                                 <div className="lg:col-span-5 xl:col-span-4 space-y-6">
-                                  <div className="flex items-center justify-between px-1">
+                                  {quizCompleted === false && !quizPromptDismissed && (
+                                  <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-3xl p-5 shadow-md relative overflow-hidden">
+                                    <button
+                                      onClick={() => setQuizPromptDismissed(true)}
+                                      className="absolute top-3 right-3 text-white/60 hover:text-white transition"
+                                      aria-label="Dismiss"
+                                    >
+                                      <X size={14} />
+                                    </button>
+                                    <div className="flex items-start gap-4">
+                                      <div className="bg-white/20 p-3 rounded-2xl flex-shrink-0">
+                                        <Sparkles size={22} className="text-white" />
+                                      </div>
+                                      <div className="flex-1 min-w-0">
+                                        <p className="font-black text-sm leading-tight mb-1">
+                                          Set up your Garden Profile
+                                        </p>
+                                        <p className="text-xs text-white/80 leading-snug mb-3">
+                                          Answer a few quick questions so the AI can personalise your recommendations.
+                                        </p>
+                                        <button
+                                          onClick={() => setActiveTab("garden_profile")}
+                                          className="bg-white text-emerald-700 text-xs font-black px-4 py-2 rounded-full hover:bg-white/90 transition"
+                                        >
+                                          Get started →
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+
+                                <div className="flex items-center justify-between px-1">
                                     <h2 className="font-black opacity-60 uppercase tracking-widest text-sm">
                                       Daily Tasks
                                     </h2>
@@ -668,6 +716,17 @@ export default function App() {
                           aiEnabled={profile.ai_enabled}
                           isPremium={profile.enable_perenual}
                           perenualEnabled={profile.enable_perenual}
+                        />
+                      </div>
+                    )}
+
+                    {activeTab === "garden_profile" && profile?.home_id && session?.user?.id && (
+                      <div className="animate-in fade-in duration-500 py-6 px-4">
+                        <GardenProfile
+                          homeId={profile.home_id}
+                          userId={session.user.id}
+                          aiEnabled={profile.ai_enabled}
+                          perenualEnabled={!!profile.enable_perenual}
                         />
                       </div>
                     )}
