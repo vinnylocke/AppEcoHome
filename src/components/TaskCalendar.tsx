@@ -31,6 +31,18 @@ export interface Task {
   isGhost?: boolean;
 }
 
+const TASK_TYPE_DOT: Record<string, string> = {
+  Watering:    "bg-blue-400",
+  Planting:    "bg-emerald-400",
+  Harvesting:  "bg-amber-400",
+  Maintenance: "bg-purple-400",
+};
+
+function taskDotColor(type: string, isSelected: boolean): string {
+  if (isSelected) return "bg-white";
+  return TASK_TYPE_DOT[type] ?? "bg-rhozly-primary";
+}
+
 export default function TaskCalendar({ homeId }: { homeId: string }) {
   const { setPageContext } = usePlantDoctor();
 
@@ -432,7 +444,7 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
                       {pendingTasks.slice(0, 3).map((t, i) => (
                         <span
                           key={i}
-                          className={`w-1.5 h-1.5 rounded-full ${isSelected ? "bg-white" : t.isGhost ? "bg-rhozly-primary/40 border border-rhozly-primary" : "bg-rhozly-primary"}`}
+                          className={`w-1.5 h-1.5 rounded-full ${taskDotColor(t.type, isSelected)} ${!isSelected && t.isGhost ? "opacity-50" : ""}`}
                         />
                       ))}
                       {pendingTasks.length > 3 && (
@@ -447,6 +459,16 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
                 </button>
               );
             })}
+          </div>
+
+          {/* Dot colour legend */}
+          <div className="flex items-center justify-center flex-wrap gap-x-5 gap-y-1 pt-3 pb-1">
+            {Object.entries(TASK_TYPE_DOT).map(([type, color]) => (
+              <span key={type} className="flex items-center gap-1.5 text-[10px] font-bold text-rhozly-on-surface/40">
+                <span className={`w-2 h-2 rounded-full ${color}`} />
+                {type}
+              </span>
+            ))}
           </div>
         </div>
 

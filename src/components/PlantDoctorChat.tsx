@@ -14,16 +14,15 @@ import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 
-// 🚀 IMPORTS
 import { PlantActionButtons } from "./PlantActionButtons";
-import { TaskActionButtons } from "./TaskActionButtons"; // 🚀 Added Task Component
+import { TaskActionButtons } from "./TaskActionButtons";
 
-// 🚀 UPDATED INTERFACE: Now accepts both suggested_plants AND suggested_tasks
 interface Message {
   role: "user" | "assistant";
   content: string;
   suggested_plants?: Array<{ name: string; search_query: string }>;
-  suggested_tasks?: Array<any>; // 🚀 Added Task Array
+  suggested_tasks?: Array<any>;
+  preferences_captured?: number;
 }
 
 export default function PlantDoctorChat({ homeId }: { homeId: string }) {
@@ -82,14 +81,14 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       if (error) throw error;
       if (!data || !data.reply) throw new Error("No reply received from AI");
 
-      // 🚀 NEW: Save text, plants, AND tasks to the chat history
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
           content: data.reply,
           suggested_plants: data.suggested_plants,
-          suggested_tasks: data.suggested_tasks, // 🚀 Added here
+          suggested_tasks: data.suggested_tasks,
+          preferences_captured: data.preferences_captured ?? 0,
         },
       ]);
     } catch (error: any) {
@@ -174,6 +173,16 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                   {/* Markdown content container */}
                   <div className="whitespace-pre-wrap">{msg.content}</div>
 
+                  {/* Preference capture indicator */}
+                  {msg.role === "assistant" && !!msg.preferences_captured && msg.preferences_captured > 0 && (
+                    <div className="flex items-center gap-1 text-[10px] text-green-600 font-semibold opacity-70">
+                      <Leaf size={10} />
+                      {msg.preferences_captured === 1
+                        ? "Preference noted"
+                        : `${msg.preferences_captured} preferences noted`}
+                    </div>
+                  )}
+
                   {/* Render Plant Action Buttons */}
                   {msg.suggested_plants && msg.suggested_plants.length > 0 && (
                     <div className="mt-2 pt-3 border-t border-rhozly-outline/10">
@@ -184,7 +193,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                     </div>
                   )}
 
-                  {/* 🚀 NEW: Render Task Action Buttons */}
+                  {/* Render Task Action Buttons */}
                   {msg.suggested_tasks && msg.suggested_tasks.length > 0 && (
                     <div className="mt-2 pt-3 border-t border-rhozly-outline/10">
                       <TaskActionButtons

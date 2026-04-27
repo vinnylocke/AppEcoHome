@@ -7,7 +7,6 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Helper function to call the Gemini REST API with Structured Outputs
 async function callGemini(
   model: string,
   apiKey: string,
@@ -24,16 +23,14 @@ async function callGemini(
       contents: messages,
       generationConfig: {
         temperature: 0.7,
-        maxOutputTokens: 1000, // Bumped up to allow for both tasks and plants JSON overhead
+        maxOutputTokens: 1500,
         responseMimeType: "application/json",
-        // 🔥 Forces Gemini to output the exact object shape we need!
         responseSchema: {
           type: "OBJECT",
           properties: {
             text: {
               type: "STRING",
-              description:
-                "Your standard conversational markdown reply to the user.",
+              description: "Your standard conversational markdown reply to the user.",
             },
             suggested_plants: {
               type: "ARRAY",
@@ -44,19 +41,16 @@ async function callGemini(
                 properties: {
                   name: {
                     type: "STRING",
-                    description:
-                      "Full common name (e.g., 'Monstera Deliciosa')",
+                    description: "Full common name (e.g., 'Monstera Deliciosa')",
                   },
                   search_query: {
                     type: "STRING",
-                    description:
-                      "Simplified name for API searching (e.g., 'Monstera')",
+                    description: "Simplified name for API searching (e.g., 'Monstera')",
                   },
                 },
                 required: ["name", "search_query"],
               },
             },
-            // 🚀 NEW: Suggested Tasks Array
             suggested_tasks: {
               type: "ARRAY",
               description:
@@ -77,8 +71,7 @@ async function callGemini(
                   },
                   is_recurring: {
                     type: "BOOLEAN",
-                    description:
-                      "true for continuous habits, false for one-offs",
+                    description: "true for continuous habits, false for one-offs",
                   },
                   frequency_days: {
                     type: "INTEGER",
@@ -88,8 +81,7 @@ async function callGemini(
                   end_offset_days: {
                     type: "INTEGER",
                     nullable: true,
-                    description:
-                      "how many days until the recurring task stops, else null",
+                    description: "how many days until the recurring task stops, else null",
                   },
                   depends_on_index: {
                     type: "INTEGER",
@@ -97,13 +89,36 @@ async function callGemini(
                     description: "Array index of the blocking task, else null",
                   },
                 },
-                required: [
-                  "title",
-                  "description",
-                  "task_type",
-                  "due_in_days",
-                  "is_recurring",
-                ],
+                required: ["title", "description", "task_type", "due_in_days", "is_recurring"],
+              },
+            },
+            detected_preferences: {
+              type: "ARRAY",
+              description:
+                "Extract explicit preferences from the LATEST user message only. Only capture genuine, stated preferences — never assumptions. Leave empty if the user expresses no clear preference.",
+              items: {
+                type: "OBJECT",
+                properties: {
+                  entity_type: {
+                    type: "STRING",
+                    description:
+                      "Category of preference. Must be one of: 'plant', 'aesthetic', 'maintenance', 'difficulty', 'wildlife', 'colour', 'pest_management', 'soil', 'climate', 'water_usage'",
+                  },
+                  entity_name: {
+                    type: "STRING",
+                    description:
+                      "The specific value being preferred or avoided (e.g., 'Roses', 'low-maintenance', 'organic', 'Mediterranean', 'drought-tolerant')",
+                  },
+                  sentiment: {
+                    type: "STRING",
+                    description: "Either 'positive' (user likes/wants this) or 'negative' (user dislikes/avoids this)",
+                  },
+                  reason: {
+                    type: "STRING",
+                    description: "Brief quote or paraphrase of what the user said that triggered this detection",
+                  },
+                },
+                required: ["entity_type", "entity_name", "sentiment", "reason"],
               },
             },
           },
@@ -119,10 +134,7 @@ async function callGemini(
   }
 
   const data = await response.json();
-  const rawString = data.candidates[0].content.parts[0].text;
-
-  // Gemini returns a JSON string, so we parse it into a real object
-  return JSON.parse(rawString);
+  return JSON.parse(data.candidates[0].content.parts[0].text);
 }
 
 serve(async (req) => {
@@ -139,37 +151,56 @@ serve(async (req) => {
       { global: { headers: { Authorization: authHeader } } },
     );
 
-    const { data: areas } = await supabase
-      .from("areas")
-      .select("name, sunlight, location_id")
-      .eq("home_id", homeId);
-    const { data: inventory } = await supabase
-      .from("inventory_items")
-      .select("plant_name, status")
-      .eq("home_id", homeId);
+    // Fetch garden context and existing preferences in parallel
+    const [areasRes, inventoryRes, prefsRes] = await Promise.all([
+      supabase.from("areas").select("name, sunlight, location_id").eq("home_id", homeId),
+      supabase.from("inventory_items").select("plant_name, status").eq("home_id", homeId),
+      supabase.from("planner_preferences").select("entity_type, entity_name, sentiment, reason").eq("home_id", homeId),
+    ]);
 
-    // 🚀 NEW: Injected the CRITICAL TASK GENERATION RULES
+    const areas = areasRes.data || [];
+    const inventory = inventoryRes.data || [];
+    const existingPrefs = prefsRes.data || [];
+
+    const prefsText = existingPrefs.length > 0
+      ? existingPrefs
+          .map((p: any) =>
+            `- ${p.sentiment === "positive" ? "LIKES" : "DISLIKES"} [${p.entity_type}]: "${p.entity_name}"${p.reason ? ` — ${p.reason}` : ""}`,
+          )
+          .join("\n")
+      : "None recorded yet.";
+
     const systemPrompt = `
       You are the Rhozly Plant Doctor, an expert, empathetic, and highly knowledgeable botanist and garden planner.
-      YOUR PRIME DIRECTIVE: You MUST ONLY answer questions related to plants, gardening, landscaping, botany, and agriculture. 
+      YOUR PRIME DIRECTIVE: You MUST ONLY answer questions related to plants, gardening, landscaping, botany, and agriculture.
       If the user asks about anything else, politely refuse.
 
-      USER'S CURRENT GARDEN AREAS: ${JSON.stringify(areas || [])}
-      USER'S CURRENT PLANTS: ${JSON.stringify(inventory || [])}
+      USER'S CURRENT GARDEN AREAS: ${JSON.stringify(areas)}
+      USER'S CURRENT PLANTS: ${JSON.stringify(inventory)}
       CURRENT SCREEN CONTEXT: ${currentContext ? JSON.stringify(currentContext) : "Dashboard/General"}
 
-      Provide highly personalized advice formatted in markdown. 
-      IMPORTANT: If you recommend a specific plant that they do NOT already own, you must include it in the 'suggested_plants' array in your JSON response so the UI can generate action buttons.
+      USER'S KNOWN PREFERENCES (use these to personalise every response):
+      ${prefsText}
+
+      Provide highly personalised advice formatted in markdown.
+      Always honour the user's known preferences — if they dislike something, never recommend it.
+      If you recommend a specific plant they do NOT already own, include it in 'suggested_plants'.
 
       CRITICAL TASK GENERATION RULES:
       If the user asks for a schedule, a care plan, to-do list, or advice on what to do next, you MUST generate an array of tasks in the "suggested_tasks" JSON field.
-
-      You must obey the database schema exactly:
-      - "task_type": MUST be exactly one of: 'Planting', 'Watering', 'Harvesting', 'Maintenance'. Do not use any other words.
+      - "task_type": MUST be exactly one of: 'Planting', 'Watering', 'Harvesting', 'Maintenance'.
       - "due_in_days": Number. Use 0 for today, 1 for tomorrow, 7 for next week, etc.
-      - "is_recurring": Boolean. Use true only for continuous habits (like weekly watering). Use false for one-off actions (like planting a seed or pruning a dead leaf).
-      - "frequency_days": Number or null. If is_recurring is true, you must provide the interval (e.g., 7).
-      - "depends_on_index": Number or null. If a task cannot be completed until another task in this array is done, put the array index of the blocking task here (e.g., if Planting (index 1) requires Prep Soil (index 0), put 0).
+      - "is_recurring": Boolean. true only for continuous habits. false for one-off actions.
+      - "frequency_days": Number or null. Required when is_recurring is true.
+      - "depends_on_index": Number or null. The array index of the task that must be completed first.
+
+      PREFERENCE DETECTION RULES:
+      Scan only the latest user message for explicit preferences. Examples:
+      - "I hate pests" → entity_type: pest_management, entity_name: pests, sentiment: negative
+      - "I love drought-tolerant plants" → entity_type: water_usage, entity_name: drought-tolerant, sentiment: positive
+      - "I don't want anything thorny" → entity_type: plant, entity_name: thorny plants, sentiment: negative
+      - "I prefer organic solutions" → entity_type: pest_management, entity_name: organic, sentiment: positive
+      Do NOT infer preferences — only capture what is explicitly stated.
     `;
 
     const geminiMessages = messages.map((msg: any) => ({
@@ -194,12 +225,7 @@ serve(async (req) => {
     for (const model of modelsToTry) {
       try {
         console.log(`Attempting generation with model: ${model}...`);
-        aiResult = await callGemini(
-          model,
-          geminiApiKey,
-          geminiMessages,
-          systemPrompt,
-        );
+        aiResult = await callGemini(model, geminiApiKey, geminiMessages, systemPrompt);
         success = true;
         console.log(`Success with ${model}!`);
         break;
@@ -210,17 +236,47 @@ serve(async (req) => {
     }
 
     if (!success) {
-      throw new Error(
-        `All AI models are currently overwhelmed. Last error: ${lastError}`,
-      );
+      throw new Error(`All AI models are currently overwhelmed. Last error: ${lastError}`);
     }
 
-    // 🚀 NEW: Return the structured object including suggested_tasks
+    // Save any newly detected preferences (deduplicated against existing ones)
+    const detectedPrefs: any[] = aiResult.detected_preferences || [];
+    let savedCount = 0;
+
+    if (detectedPrefs.length > 0) {
+      const { data: { user } } = await supabase.auth.getUser();
+
+      const newPrefs = detectedPrefs.filter((p: any) =>
+        !existingPrefs.some(
+          (e: any) =>
+            e.entity_type === p.entity_type &&
+            e.entity_name.toLowerCase() === p.entity_name.toLowerCase() &&
+            e.sentiment === p.sentiment,
+        ),
+      );
+
+      if (newPrefs.length > 0) {
+        await supabase.from("planner_preferences").insert(
+          newPrefs.map((p: any) => ({
+            home_id: homeId,
+            user_id: user?.id,
+            entity_type: p.entity_type,
+            entity_name: p.entity_name,
+            sentiment: p.sentiment,
+            reason: p.reason,
+          })),
+        );
+        savedCount = newPrefs.length;
+        console.log(`Saved ${savedCount} new preference(s) for home ${homeId}`);
+      }
+    }
+
     return new Response(
       JSON.stringify({
         reply: aiResult.text,
         suggested_plants: aiResult.suggested_plants || [],
         suggested_tasks: aiResult.suggested_tasks || [],
+        preferences_captured: savedCount,
       }),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

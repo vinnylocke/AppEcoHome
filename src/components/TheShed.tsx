@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabase";
 import {
@@ -33,10 +33,10 @@ import BulkSearchModal from "./BulkSearchModal";
 import { PerenualService } from "../lib/perenualService";
 import { useLocation, useSearchParams, useNavigate } from "react-router-dom";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
-import SmartImage from "./SmartImage"; // 🚀 Import the smart cache
-
-// 🚀 IMPORT THE NEW CACHE HOOK
+import SmartImage from "./SmartImage";
 import { useCachedShed } from "../hooks/useCachedShed";
+import { scorePlantByPreferences } from "../hooks/useUserPreferences";
+import { PlantDoctorService } from "../services/plantDoctorService";
 
 interface Plant {
   id: number;
@@ -60,7 +60,7 @@ type QueueItem = {
 // --- Helpers for Master Plant Creation ---
 
 export default function TheShed({ homeId }: { homeId: string }) {
-  const { setPageContext } = usePlantDoctor();
+  const { setPageContext, preferences } = usePlantDoctor();
   const location = useLocation();
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -81,6 +81,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const [filterSource, setFilterSource] = useState<"all" | "manual" | "api">(
     "all",
   );
+  const [sortMode, setSortMode] = useState<"alphabetical" | "preference">("alphabetical");
   const [searchQuery, setSearchQuery] = useState("");
   const [isPremium, setIsPremium] = useState(false);
 
@@ -286,11 +287,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
             typeof item.data === "string"
               ? item.data.split("(")[0].trim()
               : item.data.common_name;
-          const { data: aiData, error } = await supabase.functions.invoke(
-            "plant-doctor",
-            { body: { action: "generate_care_guide", targetPlant: cleanName } },
-          );
-          if (error) throw error;
+          const aiData = await PlantDoctorService.generateCareGuide(cleanName);
           if (!aiData) throw new Error("AI failed to generate data");
 
           const extracted = aiData.plantData ? aiData.plantData : aiData;
@@ -534,20 +531,31 @@ export default function TheShed({ homeId }: { homeId: string }) {
     }
   };
 
-  const filteredPlants = plants.filter((p) => {
-    if (viewTab === "active" && p.is_archived) return false;
-    if (viewTab === "archived" && !p.is_archived) return false;
-    if (filterSource !== "all" && p.source !== filterSource) return false;
-    if (searchQuery.trim()) {
-      const query = searchQuery.toLowerCase();
-      const matchesCommon = p.common_name.toLowerCase().includes(query);
-      const matchesScientific = p.scientific_name?.some((name) =>
-        name.toLowerCase().includes(query),
-      );
-      if (!matchesCommon && !matchesScientific) return false;
+  const filteredPlants = useMemo(() => {
+    const base = plants.filter((p) => {
+      if (viewTab === "active" && p.is_archived) return false;
+      if (viewTab === "archived" && !p.is_archived) return false;
+      if (filterSource !== "all" && p.source !== filterSource) return false;
+      if (searchQuery.trim()) {
+        const query = searchQuery.toLowerCase();
+        const matchesCommon = p.common_name.toLowerCase().includes(query);
+        const matchesScientific = p.scientific_name?.some((name) =>
+          name.toLowerCase().includes(query),
+        );
+        if (!matchesCommon && !matchesScientific) return false;
+      }
+      return true;
+    });
+
+    if (sortMode === "preference" && preferences.length > 0) {
+      return [...base].sort((a, b) => {
+        const scoreA = scorePlantByPreferences(a.common_name || "", a.scientific_name?.[0] || "", preferences);
+        const scoreB = scorePlantByPreferences(b.common_name || "", b.scientific_name?.[0] || "", preferences);
+        return scoreB - scoreA;
+      });
     }
-    return true;
-  });
+    return base;
+  }, [plants, viewTab, filterSource, searchQuery, sortMode, preferences]);
 
   if (loading)
     return (
@@ -664,6 +672,14 @@ export default function TheShed({ homeId }: { homeId: string }) {
               <option value="manual">Manual</option>
               <option value="api">API / AI</option>
             </select>
+            <select
+              value={sortMode}
+              onChange={(e) => setSortMode(e.target.value as any)}
+              className="bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl px-4 py-3 text-sm font-bold outline-none cursor-pointer"
+            >
+              <option value="alphabetical">A – Z</option>
+              <option value="preference">Best Match</option>
+            </select>
           </div>
         </div>
 
@@ -733,9 +749,14 @@ export default function TheShed({ homeId }: { homeId: string }) {
                   <h3 className="text-xl font-black text-rhozly-on-surface leading-tight mb-1">
                     {plant.common_name}
                   </h3>
-                  <p className="text-xs font-bold text-rhozly-on-surface/40 italic mb-6 truncate">
+                  <p className="text-xs font-bold text-rhozly-on-surface/40 italic truncate">
                     {plant.scientific_name?.[0] || "Unknown Species"}
                   </p>
+                  {scorePlantByPreferences(plant.common_name || "", plant.scientific_name?.[0] || "", preferences) > 0 && (
+                    <span className="inline-flex items-center gap-1 mt-2 mb-2 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                      <Sparkles size={9} /> Matches your taste
+                    </span>
+                  )}
                   <div className="mt-auto pt-5 border-t border-rhozly-outline/10 flex items-center justify-between">
                     <div>
                       <p className="text-[10px] font-black text-rhozly-on-surface/30 uppercase tracking-widest">

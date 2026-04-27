@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "../lib/supabase";
 import {
   Repeat,
@@ -17,18 +17,22 @@ import {
   Search,
   Filter,
   X,
+  Sparkles,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
 import AddTaskModal from "./AddTaskModal";
 import { ConfirmModal } from "./ConfirmModal";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
+import { scorePlantByPreferences } from "../hooks/useUserPreferences";
+import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface BlueprintManagerProps {
   homeId: string;
 }
 
 export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
+  const { preferences } = usePlantDoctor();
   const [blueprints, setBlueprints] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -215,57 +219,34 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
   };
 
   // 🚀 NEW: Filter Execution Logic
-  const filteredBlueprints = blueprints.filter((bp) => {
-    // 1. Search Query
-    if (searchQuery) {
-      const query = searchQuery.toLowerCase();
-      const matchesTitle = bp.title.toLowerCase().includes(query);
-      const matchesDesc =
-        bp.description && bp.description.toLowerCase().includes(query);
-      if (!matchesTitle && !matchesDesc) return false;
-    }
+  const filteredBlueprints = useMemo(() => {
+    const filtered = blueprints.filter((bp) => {
+      if (searchQuery) {
+        const query = searchQuery.toLowerCase();
+        const matchesTitle = bp.title.toLowerCase().includes(query);
+        const matchesDesc =
+          bp.description && bp.description.toLowerCase().includes(query);
+        if (!matchesTitle && !matchesDesc) return false;
+      }
+      if (filterType !== "all" && bp.task_type !== filterType) return false;
+      if (filterLocation === "none" && bp.location_id) return false;
+      if (filterLocation !== "all" && filterLocation !== "none" && bp.location_id !== filterLocation) return false;
+      if (filterArea === "none" && bp.area_id) return false;
+      if (filterArea !== "all" && filterArea !== "none" && bp.area_id !== filterArea) return false;
+      if (filterPlan === "none" && bp.plan_id) return false;
+      if (filterPlan !== "all" && filterPlan !== "none" && bp.plan_id !== filterPlan) return false;
+      if (filterPlant === "none" && bp.basePlantName) return false;
+      if (filterPlant !== "all" && filterPlant !== "none" && bp.basePlantName !== filterPlant) return false;
+      return true;
+    });
 
-    // 2. Type Filter
-    if (filterType !== "all" && bp.task_type !== filterType) return false;
-
-    // 3. Location Filter
-    if (filterLocation === "none" && bp.location_id) return false;
-    if (
-      filterLocation !== "all" &&
-      filterLocation !== "none" &&
-      bp.location_id !== filterLocation
-    )
-      return false;
-
-    // 4. Area Filter
-    if (filterArea === "none" && bp.area_id) return false;
-    if (
-      filterArea !== "all" &&
-      filterArea !== "none" &&
-      bp.area_id !== filterArea
-    )
-      return false;
-
-    // 5. Plan Filter
-    if (filterPlan === "none" && bp.plan_id) return false;
-    if (
-      filterPlan !== "all" &&
-      filterPlan !== "none" &&
-      bp.plan_id !== filterPlan
-    )
-      return false;
-
-    // 6. Plant Filter
-    if (filterPlant === "none" && bp.basePlantName) return false;
-    if (
-      filterPlant !== "all" &&
-      filterPlant !== "none" &&
-      bp.basePlantName !== filterPlant
-    )
-      return false;
-
-    return true;
-  });
+    if (!preferences.length) return filtered;
+    return [...filtered].sort((a, b) => {
+      const scoreA = scorePlantByPreferences(a.basePlantName || "", "", preferences);
+      const scoreB = scorePlantByPreferences(b.basePlantName || "", "", preferences);
+      return scoreB - scoreA;
+    });
+  }, [blueprints, searchQuery, filterType, filterLocation, filterArea, filterPlan, filterPlant, preferences]);
 
   const hasActiveFilters =
     filterType !== "all" ||
@@ -545,6 +526,11 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                   )}
                   {bp.plantContext}
                 </div>
+                {scorePlantByPreferences(bp.basePlantName || "", "", preferences) > 0 && (
+                  <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 text-emerald-600">
+                    <Sparkles size={10} /> Preference match
+                  </div>
+                )}
                 {(bp.locations?.name || bp.areas?.name) && (
                   <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-blue-50 text-blue-700">
                     <MapPin size={12} /> {bp.locations?.name || "No Location"}{" "}

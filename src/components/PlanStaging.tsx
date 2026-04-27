@@ -24,6 +24,10 @@ import toast from "react-hot-toast";
 import { ConfirmModal } from "./ConfirmModal";
 import { saveMemoryEvent } from "../lib/plannerMemory";
 import WikiPlantCard from "./WikiPlantCard";
+import {
+  injectBlueprintTasks,
+  activateMaintenanceBlueprints,
+} from "../services/planStagingService";
 
 interface PlanStagingProps {
   plan: any;
@@ -53,13 +57,6 @@ export default function PlanStaging({
   const [localPlanStatus, setLocalPlanStatus] = useState(plan.status);
 
   const [isStarted, setIsStarted] = useState(!!localStagingState.has_started);
-
-  // 🚀 NEW: Task Editing States
-  const [isReviewingTasks, setIsReviewingTasks] = useState(false);
-  const [editablePrepTasks, setEditablePrepTasks] = useState<any[]>([]);
-  const [editableMaintenanceTasks, setEditableMaintenanceTasks] = useState<
-    any[]
-  >([]);
 
   const [showRegenModal, setShowRegenModal] = useState(false);
   const [regenFeedback, setRegenFeedback] = useState("");
@@ -605,114 +602,22 @@ export default function PlanStaging({
 
   const handleInjectTasks = async () => {
     setIsProcessing(true);
-    const toastId = toast.loading(
-      "Injecting preparation and planting tasks...",
-    );
+    const toastId = toast.loading("Injecting preparation and planting tasks...");
     try {
-      const today = new Date();
-      const idMap = new Map<number, string>();
       const targetLocationId = areas.find(
         (a) => a.id === localStagingState.linked_area_id,
       )?.location_id;
 
-      for (const task of localBlueprint.preparation_tasks) {
-        const targetDate = new Date(today);
-        targetDate.setDate(targetDate.getDate() + task.task_index);
-        const { data, error } = await supabase
-          .from("tasks")
-          .insert({
-            home_id: homeId,
-            plan_id: plan.id,
-            location_id: targetLocationId,
-            area_id: localStagingState.linked_area_id,
-            title: task.title,
-            description: task.description,
-            type: "Maintenance",
-            due_date: targetDate.toISOString().split("T")[0],
-            status: "Pending",
-          })
-          .select("id")
-          .single();
-        if (error) throw error;
-        idMap.set(task.task_index, data.id);
-      }
+      await injectBlueprintTasks({
+        homeId,
+        planId: plan.id,
+        areaId: localStagingState.linked_area_id,
+        locationId: targetLocationId,
+        preparationTasks: localBlueprint.preparation_tasks,
+        plantManifest: localBlueprint.plant_manifest,
+        plantMapping: localStagingState.plant_mapping,
+      });
 
-      const dependenciesToInsert = [];
-      for (const task of localBlueprint.preparation_tasks) {
-        if (
-          task.depends_on_index !== null &&
-          idMap.has(task.depends_on_index)
-        ) {
-          dependenciesToInsert.push({
-            task_id: idMap.get(task.task_index),
-            depends_on_task_id: idMap.get(task.depends_on_index),
-          });
-        }
-      }
-      if (dependenciesToInsert.length > 0)
-        await supabase.from("task_dependencies").insert(dependenciesToInsert);
-
-      const lastPrepTaskIndex =
-        localBlueprint.preparation_tasks.length > 0
-          ? Math.max(
-              ...localBlueprint.preparation_tasks.map((t: any) => t.task_index),
-            )
-          : -1;
-      const lastPrepTaskId =
-        lastPrepTaskIndex >= 0 ? idMap.get(lastPrepTaskIndex) : null;
-
-      const { data: stagedItems } = await supabase
-        .from("inventory_items")
-        .select("id, plant_id")
-        .eq("area_id", localStagingState.linked_area_id)
-        .eq("status", "Unplanted");
-
-      const plantingTasks = localBlueprint.plant_manifest.map(
-        (plantDef: any, idx: number) => {
-          const targetDate = new Date(today);
-          targetDate.setDate(targetDate.getDate() + lastPrepTaskIndex + 1);
-
-          const plantIdStr = localStagingState.plant_mapping[idx];
-          const matchingInventoryIds = stagedItems
-            ? stagedItems
-                .filter((item) => item.plant_id.toString() === plantIdStr)
-                .map((item) => item.id)
-            : [];
-
-          return {
-            home_id: homeId,
-            plan_id: plan.id,
-            location_id: targetLocationId,
-            area_id: localStagingState.linked_area_id,
-            title: `Plant ${plantDef.common_name} (x${plantDef.quantity})`,
-            description: `Role: ${plantDef.role}\nAdvice: ${plantDef.procurement_advice}`,
-            type: "Planting",
-            due_date: targetDate.toISOString().split("T")[0],
-            status: "Pending",
-            inventory_item_ids: matchingInventoryIds,
-          };
-        },
-      );
-
-      if (plantingTasks.length > 0) {
-        const { data: pTasks, error: pError } = await supabase
-          .from("tasks")
-          .insert(plantingTasks)
-          .select("id");
-        if (pError) throw pError;
-        if (lastPrepTaskId && pTasks) {
-          const pDeps = pTasks.map((pt: any) => ({
-            task_id: pt.id,
-            depends_on_task_id: lastPrepTaskId,
-          }));
-          await supabase.from("task_dependencies").insert(pDeps);
-        }
-      }
-
-      await supabase
-        .from("plans")
-        .update({ status: "In Progress" })
-        .eq("id", plan.id);
       setLocalPlanStatus("In Progress");
       onPlanUpdated();
       toast.success("Tasks scheduled and linked!", { id: toastId });
@@ -746,42 +651,21 @@ export default function PlanStaging({
         (a) => a.id === localStagingState.linked_area_id,
       )?.location_id;
 
-      const blueprintsToInsert = localBlueprint.custom_maintenance_tasks.map(
-        (task: any) => ({
-          home_id: homeId,
-          plan_id: plan.id,
-          location_id: targetLocationId,
-          area_id: localStagingState.linked_area_id,
-          title: task.title,
-          description: task.description,
-          task_type: "Maintenance",
-          frequency_days: task.frequency_days,
-          is_recurring: true,
-          is_auto_generated: true,
-          start_date: new Date().toISOString().split("T")[0],
-        }),
-      );
-
-      if (blueprintsToInsert.length > 0) {
-        const { error } = await supabase
-          .from("task_blueprints")
-          .insert(blueprintsToInsert);
-        if (error) throw error;
-      }
+      await activateMaintenanceBlueprints({
+        homeId,
+        planId: plan.id,
+        areaId: localStagingState.linked_area_id,
+        locationId: targetLocationId,
+        maintenanceTasks: localBlueprint.custom_maintenance_tasks,
+      });
 
       await saveStagingState({ maintenance_active: true });
-      await supabase
-        .from("plans")
-        .update({ status: "Completed" })
-        .eq("id", plan.id);
-
       setLocalPlanStatus("Completed");
       onPlanUpdated();
-      saveMemoryEvent(homeId, plan.id, "completed_plan", { blueprint_title: localBlueprint?.project_overview?.title });
-
-      toast.success("Project Complete! Maintenance automated.", {
-        id: toastId,
+      saveMemoryEvent(homeId, plan.id, "completed_plan", {
+        blueprint_title: localBlueprint?.project_overview?.title,
       });
+      toast.success("Project Complete! Maintenance automated.", { id: toastId });
     } catch (err) {
       toast.error("Failed to activate blueprints.", { id: toastId });
     } finally {

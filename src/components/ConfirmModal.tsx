@@ -30,7 +30,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
 
   // 🚀 PORTAL WRAPPER: Automatically teleports this component to the body whenever it's used!
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rhozly-bg/80 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-rhozly-bg/80 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="bg-rhozly-surface-lowest rounded-3xl w-full max-w-md border border-rhozly-outline/20 shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
         {/* Header */}
         <div className="flex items-start justify-between p-6 pb-4">

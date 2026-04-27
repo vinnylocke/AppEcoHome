@@ -8,11 +8,16 @@ import {
   Check,
   Link as LinkIcon,
   Search,
+  Sparkles,
+  Droplets,
+  Scissors,
+  Wheat,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
 import { BlueprintService } from "../services/blueprintService";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
@@ -36,7 +41,7 @@ export default function AddTaskModal({
   onClose,
   onSuccess,
 }: Props) {
-  const { setPageContext } = usePlantDoctor();
+  const { setPageContext, preferences } = usePlantDoctor();
 
   const [loading, setLoading] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
@@ -574,6 +579,41 @@ export default function AddTaskModal({
                       </button>
                     );
                   })}
+                </div>
+              </div>
+            )}
+
+            {form.selected_species && (
+              <div className="sm:col-span-2 animate-in fade-in slide-in-from-top-2">
+                {scorePlantByPreferences(form.selected_species, "", preferences) > 0 && (
+                  <div className="flex items-center gap-2 mb-3 text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-xl">
+                    <Sparkles size={12} /> You like {form.selected_species} — consider a recurring care schedule.
+                  </div>
+                )}
+                <p className="text-[10px] font-black uppercase text-rhozly-on-surface/40 mb-2 ml-1">Quick Fill</p>
+                <div className="flex flex-wrap gap-2">
+                  {[
+                    { label: "Water", icon: <Droplets size={12} />, type: "Watering", freq: 7, color: "bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100" },
+                    { label: "Maintain", icon: <Scissors size={12} />, type: "Maintenance", freq: 14, color: "bg-purple-50 text-purple-700 border-purple-100 hover:bg-purple-100" },
+                    { label: "Harvest", icon: <Wheat size={12} />, type: "Harvesting", freq: 30, color: "bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100" },
+                  ].map((preset) => (
+                    <button
+                      key={preset.type}
+                      type="button"
+                      onClick={() =>
+                        setForm((prev) => ({
+                          ...prev,
+                          type: preset.type,
+                          isRecurring: true,
+                          frequency_days: preset.freq,
+                          title: prev.title || `${preset.label} ${form.selected_species}`,
+                        }))
+                      }
+                      className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black border transition-colors ${preset.color}`}
+                    >
+                      {preset.icon} {preset.label} · every {preset.freq}d
+                    </button>
+                  ))}
                 </div>
               </div>
             )}

@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from "react";
-import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
+import React, { useState, useEffect, useRef, useMemo } from "react";
+import { createPortal } from "react-dom";
 import {
   X,
   Search,
@@ -8,6 +8,7 @@ import {
   Lock,
   Plus,
   ChevronLeft,
+  Sparkles,
 } from "lucide-react";
 import { PerenualService } from "../lib/perenualService";
 import { supabase } from "../lib/supabase";
@@ -15,6 +16,7 @@ import toast from "react-hot-toast";
 import ManualPlantCreation from "./ManualPlantCreation";
 
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 
 interface Props {
   homeId: string;
@@ -31,10 +33,19 @@ export default function PlantSearchModal({
   onSuccess,
   initialSearchTerm,
 }: Props) {
-  const { setPageContext } = usePlantDoctor();
+  const { setPageContext, preferences } = usePlantDoctor();
 
   const [query, setQuery] = useState(initialSearchTerm || "");
   const [results, setResults] = useState<any[]>([]);
+
+  const rankedResults = useMemo(() => {
+    if (!preferences.length) return results;
+    return [...results].sort((a, b) => {
+      const scoreA = scorePlantByPreferences(a.common_name || "", a.scientific_name?.[0] || "", preferences);
+      const scoreB = scorePlantByPreferences(b.common_name || "", b.scientific_name?.[0] || "", preferences);
+      return scoreB - scoreA;
+    });
+  }, [results, preferences]);
   const [isSearching, setIsSearching] = useState(false);
 
   const [previewPlant, setPreviewPlant] = useState<any | null>(null);
@@ -359,46 +370,58 @@ export default function PlantSearchModal({
                   />
                   <p className="font-bold text-sm">Searching Database...</p>
                 </div>
-              ) : results.length > 0 ? (
-                results.map((plant: any) => (
-                  <div
-                    key={plant.id}
-                    className="bg-white p-4 rounded-2xl border border-rhozly-outline/10 shadow-sm flex items-center justify-between group hover:border-rhozly-primary/30 transition-colors"
-                  >
-                    <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0">
-                        {plant.default_image?.thumbnail &&
-                        !plant.default_image?.thumbnail.includes(
-                          "upgrade_access",
-                        ) ? (
-                          <img
-                            src={plant.default_image.thumbnail}
-                            alt={plant.common_name}
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <div className="w-full h-full flex items-center justify-center text-rhozly-on-surface/20">
-                            <Database size={24} />
-                          </div>
-                        )}
-                      </div>
-                      <div>
-                        <h4 className="font-black text-lg text-rhozly-on-surface leading-tight">
-                          {plant.common_name}
-                        </h4>
-                        <p className="text-xs font-bold text-rhozly-on-surface/50 italic">
-                          {plant.scientific_name?.[0]}
-                        </p>
-                      </div>
-                    </div>
-                    <button
-                      onClick={() => handlePreviewPlant(plant)}
-                      className="px-4 py-2 bg-rhozly-primary/10 text-rhozly-primary font-black text-xs uppercase tracking-widest rounded-xl hover:bg-rhozly-primary hover:text-white transition-all active:scale-95"
+              ) : rankedResults.length > 0 ? (
+                rankedResults.map((plant: any) => {
+                  const prefScore = scorePlantByPreferences(
+                    plant.common_name || "",
+                    plant.scientific_name?.[0] || "",
+                    preferences,
+                  );
+                  return (
+                    <div
+                      key={plant.id}
+                      className="bg-white p-4 rounded-2xl border border-rhozly-outline/10 shadow-sm flex items-center justify-between group hover:border-rhozly-primary/30 transition-colors"
                     >
-                      View
-                    </button>
-                  </div>
-                ))
+                      <div className="flex items-center gap-4">
+                        <div className="w-16 h-16 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0">
+                          {plant.default_image?.thumbnail &&
+                          !plant.default_image?.thumbnail.includes(
+                            "upgrade_access",
+                          ) ? (
+                            <img
+                              src={plant.default_image.thumbnail}
+                              alt={plant.common_name}
+                              className="w-full h-full object-cover"
+                            />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-rhozly-on-surface/20">
+                              <Database size={24} />
+                            </div>
+                          )}
+                        </div>
+                        <div>
+                          <h4 className="font-black text-lg text-rhozly-on-surface leading-tight">
+                            {plant.common_name}
+                          </h4>
+                          <p className="text-xs font-bold text-rhozly-on-surface/50 italic">
+                            {plant.scientific_name?.[0]}
+                          </p>
+                          {prefScore > 0 && (
+                            <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                              <Sparkles size={9} /> Matches your preference
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handlePreviewPlant(plant)}
+                        className="px-4 py-2 bg-rhozly-primary/10 text-rhozly-primary font-black text-xs uppercase tracking-widest rounded-xl hover:bg-rhozly-primary hover:text-white transition-all active:scale-95"
+                      >
+                        View
+                      </button>
+                    </div>
+                  );
+                })
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
                   <Search

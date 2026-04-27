@@ -10,10 +10,6 @@ import {
   Wrench,
   Loader2,
   Sun,
-  CloudRain,
-  CloudLightning,
-  CloudFog,
-  CloudDrizzle,
   Database,
   Stethoscope,
   X,
@@ -25,7 +21,7 @@ import {
 import { App as CapApp } from "@capacitor/app";
 
 // 🚀 ROUTER
-import { BrowserRouter, useLocation } from "react-router-dom";
+import { BrowserRouter } from "react-router-dom";
 
 import AdminGuideGenerator from "./components/AdminGuideGenerator";
 import { Wand2 } from "lucide-react";
@@ -58,6 +54,15 @@ import { usePushNotifications } from "./hooks/usePushNotifications";
 import PullToRefresh from "./components/PullToRefresh";
 import { PlantDoctorProvider } from "./context/PlantDoctorContext";
 import PlantDoctorChat from "./components/PlantDoctorChat";
+import RouteWatcher from "./components/RouteWatcher";
+import NavItem from "./components/NavItem";
+import {
+  getMidnightTonight,
+  getCachedWeatherData,
+  extractCurrentWeather,
+  getCachedLocations,
+  setLocationCache,
+} from "./lib/clientCache";
 
 // Force the browser to check for Service Worker updates
 if ("serviceWorker" in navigator) {
@@ -66,102 +71,6 @@ if ("serviceWorker" in navigator) {
   });
 }
 
-// --- WEATHER & CACHE HELPERS ---
-const getMidnightTonight = () => {
-  const now = new Date();
-  const midnight = new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 1,
-    0,
-    0,
-    0,
-    0,
-    0,
-  );
-  return midnight.getTime();
-};
-
-const getCachedWeatherData = (homeId: string) => {
-  const cacheKey = `weather_cache_${homeId}`;
-  const cached = sessionStorage.getItem(cacheKey);
-  if (!cached) return null;
-  const { data, expiresAt } = JSON.parse(cached);
-  if (Date.now() > expiresAt) {
-    sessionStorage.removeItem(cacheKey);
-    return null;
-  }
-  return data;
-};
-
-const extractCurrentWeather = (meteoData: any) => {
-  const data = meteoData?.data || meteoData;
-  const hourly = data?.hourly;
-  const targetTimezone = data?.timezone || "Europe/London";
-  if (!hourly) return null;
-
-  const now = new Date();
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: targetTimezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    hour12: false,
-  });
-
-  const p: Record<string, string> = {};
-  formatter.formatToParts(now).forEach((part) => (p[part.type] = part.value));
-  const hr = p.hour === "24" ? "00" : p.hour;
-  const currentHourTarget = `${p.year}-${p.month}-${p.day}T${hr}:00`;
-
-  const index = hourly.time.findIndex((t: string) =>
-    t.startsWith(currentHourTarget),
-  );
-  const i = index !== -1 ? index : 0;
-
-  const weatherMap: Record<number, { label: string; icon: any }> = {
-    0: { label: "Clear Sky", icon: Sun },
-    1: { label: "Mainly Clear", icon: Sun },
-    2: { label: "Partly Cloudy", icon: Cloud },
-    3: { label: "Overcast", icon: Cloud },
-    45: { label: "Foggy", icon: CloudFog },
-    51: { label: "Light Drizzle", icon: CloudDrizzle },
-    61: { label: "Light Rain", icon: CloudRain },
-    63: { label: "Rain", icon: CloudRain },
-    80: { label: "Rain Showers", icon: CloudRain },
-    95: { label: "Thunderstorm", icon: CloudLightning },
-  };
-
-  const code = hourly.weather_code[i];
-  const info = weatherMap[code] || { label: "Partly Cloudy", icon: Cloud };
-
-  return {
-    temp: hourly.temperature_2m[i],
-    humidity: hourly.relative_humidity_2m[i],
-    wind: hourly.wind_speed_10m[i],
-    description: info.label,
-    Icon: info.icon,
-  };
-};
-
-const getCachedLocations = (homeId: string) => {
-  const cacheKey = `locations_cache_${homeId}`;
-  const cached = sessionStorage.getItem(cacheKey);
-  if (!cached) return null;
-  const { data, expiresAt } = JSON.parse(cached);
-  if (Date.now() > expiresAt) {
-    sessionStorage.removeItem(cacheKey);
-    return null;
-  }
-  return data;
-};
-
-const setLocationCache = (homeId: string, data: any[]) => {
-  const cacheKey = `locations_cache_${homeId}`;
-  const payload = { data: data, expiresAt: Date.now() + 60 * 60 * 1000 };
-  sessionStorage.setItem(cacheKey, JSON.stringify(payload));
-};
 
 export default function App() {
   usePushNotifications();
@@ -499,7 +408,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <PlantDoctorProvider>
+      <PlantDoctorProvider homeId={profile?.home_id || ""}>
         <RouteWatcher
           setActiveTab={setActiveTab}
           setSelectedLocationId={setSelectedLocationId}
@@ -856,36 +765,3 @@ export default function App() {
   );
 }
 
-function RouteWatcher({ setActiveTab, setSelectedLocationId }: any) {
-  const location = useLocation();
-
-  useEffect(() => {
-    if (location.pathname.startsWith("/shed")) {
-      setActiveTab("shed");
-      setSelectedLocationId(null);
-    }
-  }, [location, setActiveTab, setSelectedLocationId]);
-
-  return null;
-}
-
-function NavItem({ icon, label, active, onClick, isCollapsed, isMobile }: any) {
-  return (
-    <button
-      onClick={onClick}
-      className={`relative flex items-center gap-4 p-4 rounded-2xl w-full transition-all duration-300 group shrink-0 ${isCollapsed && !isMobile ? "md:w-14 md:h-14 md:justify-center md:p-0" : ""} ${active ? "text-rhozly-primary shadow-md" : "text-white/60 hover:text-white hover:bg-white/10"}`}
-    >
-      {active && <div className="absolute inset-0 bg-white rounded-2xl" />}
-      <div
-        className={`relative z-10 flex items-center justify-center transition-transform ${active ? "scale-110" : "group-hover:scale-110"}`}
-      >
-        {React.cloneElement(icon, { className: "w-6 h-6" })}
-      </div>
-      <span
-        className={`relative z-10 text-sm ${active ? "font-black" : "font-bold"} ${isCollapsed && !isMobile ? "hidden" : "block"}`}
-      >
-        {label}
-      </span>
-    </button>
-  );
-}

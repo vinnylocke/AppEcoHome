@@ -403,133 +403,22 @@ export default function PlantDoctor({
     setIsApplyingTreatment(true);
 
     try {
-      const selectedItem = myInventory.find(
-        (item) => item.id === sickInventoryId,
-      );
+      const selectedItem = myInventory.find((item) => item.id === sickInventoryId);
       if (!selectedItem) throw new Error("Plant instance not found.");
 
-      const recurringSchedules = aiResult.remedial_schedules.filter(
-        (s) => s.is_recurring,
-      );
-      const oneOffTasks = aiResult.remedial_schedules.filter(
-        (s) => !s.is_recurring,
-      );
+      await PlantDoctorService.applyTreatmentPlan({
+        homeId,
+        sickInventoryId,
+        selectedItem,
+        remedialSchedules: aiResult.remedial_schedules,
+        selectedDisease,
+        notes: aiResult.notes,
+        imageFile: saveToJournal ? selectedFile : null,
+      });
 
-      const today = new Date();
-      const todayStr = today.toISOString().split("T")[0];
-
-      if (recurringSchedules.length > 0) {
-        const blueprintsToInsert = recurringSchedules.map((schedule) => {
-          const endDate = new Date(today);
-          endDate.setDate(endDate.getDate() + (schedule.end_offset_days || 28));
-          return {
-            home_id: homeId,
-            inventory_item_ids: [sickInventoryId], // 🚀 FIXED: Array Wrapping
-            location_id: selectedItem.location_id,
-            area_id: selectedItem.area_id,
-            title: schedule.title,
-            description: schedule.description,
-            task_type: schedule.task_type,
-            frequency_days: schedule.frequency_days,
-            is_recurring: true,
-            start_date: todayStr,
-            end_date: endDate.toISOString().split("T")[0],
-            priority: "High",
-          };
-        });
-
-        // 🚀 FIXED: .select() the data to create the first tasks instantly
-        const { data: createdBps, error: blueprintError } = await supabase
-          .from("task_blueprints")
-          .insert(blueprintsToInsert)
-          .select();
-
-        if (blueprintError) throw blueprintError;
-
-        if (createdBps) {
-          const initialTasks = createdBps.map((bp) => ({
-            home_id: homeId,
-            blueprint_id: bp.id,
-            title: bp.title,
-            description: bp.description,
-            type: bp.task_type,
-            location_id: bp.location_id,
-            area_id: bp.area_id,
-            inventory_item_ids: bp.inventory_item_ids,
-            due_date: bp.start_date,
-            status: "Pending",
-          }));
-          await supabase.from("tasks").insert(initialTasks);
-        }
-      }
-
-      if (oneOffTasks.length > 0) {
-        const tasksToInsert = oneOffTasks.map((task) => ({
-          home_id: homeId,
-          inventory_item_ids: [sickInventoryId], // 🚀 FIXED: Array Wrapping
-          location_id: selectedItem.location_id,
-          area_id: selectedItem.area_id,
-          title: `URGENT: ${task.title}`,
-          description: task.description,
-          type: task.task_type,
-          due_date: todayStr,
-          status: "Pending",
-        }));
-        const { error: taskError } = await supabase
-          .from("tasks")
-          .insert(tasksToInsert);
-        if (taskError) throw taskError;
-      }
-
-      if (saveToJournal && selectedFile) {
-        let uploadedImageUrl = null;
-        const fileExt = selectedFile.name.split(".").pop() || "jpg";
-        const fileName = `diagnosis-${sickInventoryId}-${Date.now()}.${fileExt}`;
-        const filePath = `plant-photos/${fileName}`;
-
-        const { error: uploadError } = await supabase.storage
-          .from("plant-images")
-          .upload(filePath, selectedFile);
-
-        if (!uploadError) {
-          const {
-            data: { publicUrl },
-          } = supabase.storage.from("plant-images").getPublicUrl(filePath);
-          uploadedImageUrl = publicUrl;
-        }
-
-        let journalBody = `🩺 Initial Diagnosis:\n${aiResult.notes}\n\n`;
-        if (selectedDisease)
-          journalBody += `🦠 Suspected Condition: ${selectedDisease}\n\n`;
-        journalBody += `💊 Applied Treatment Plan:\n`;
-        aiResult.remedial_schedules.forEach((task) => {
-          journalBody += `- ${task.title}\n`;
-        });
-
-        const { error: journalError } = await supabase
-          .from("plant_journals")
-          .insert([
-            {
-              home_id: homeId,
-              inventory_item_id: sickInventoryId,
-              subject: `Diagnostic Report: ${selectedDisease || "General Checkup"}`,
-              description: journalBody,
-              image_url: uploadedImageUrl,
-            },
-          ]);
-
-        if (journalError)
-          console.error("Failed to save journal:", journalError);
-        else toast.success("Saved to Plant Journal!");
-      }
-
-      toast.success(
-        "Treatment scheduled! Tasks have been added to your to-do list.",
-      );
+      toast.success("Treatment scheduled! Tasks have been added to your to-do list.");
       clearImage();
-      setTimeout(() => {
-        if (onTasksAdded) onTasksAdded();
-      }, 600);
+      setTimeout(() => { if (onTasksAdded) onTasksAdded(); }, 600);
     } catch (error: any) {
       Logger.error("Failed to apply treatment plan", error);
       toast.error("Failed to schedule treatment.");

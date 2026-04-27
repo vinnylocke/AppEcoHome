@@ -1,6 +1,8 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { Loader2, Leaf, Trash2, Sparkles } from "lucide-react";
 import { getPlantWikiInfo } from "../lib/wikipedia";
+import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 
 interface WikiPlantCardProps {
   plant: any;
@@ -27,12 +29,40 @@ export default function WikiPlantCard({
   handleDeletePlant,
   shedPlants,
 }: WikiPlantCardProps) {
+  const { preferences } = usePlantDoctor();
+
   const [wikiData, setWikiData] = useState<{
     thumbnail: string | null;
     extract: string | null;
   }>({ thumbnail: null, extract: null });
   const [isLoading, setIsLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(false);
+
+  // Sort shed plants so the closest name-match to this plan plant comes first.
+  const rankedShedPlants = useMemo(() => {
+    if (!shedPlants.length) return shedPlants;
+    return [...shedPlants].sort((a, b) => {
+      const scoreA = scorePlantByPreferences(plant.common_name, "", [
+        { home_id: "", entity_type: "plant", entity_name: a.common_name, sentiment: "positive" },
+      ]);
+      const scoreB = scorePlantByPreferences(plant.common_name, "", [
+        { home_id: "", entity_type: "plant", entity_name: b.common_name, sentiment: "positive" },
+      ]);
+      return scoreB - scoreA;
+    });
+  }, [shedPlants, plant.common_name]);
+
+  const plantPrefScore = useMemo(
+    () => scorePlantByPreferences(plant.common_name, plant.scientific_name || "", preferences),
+    [plant.common_name, plant.scientific_name, preferences],
+  );
+
+  const topShedMatch = rankedShedPlants[0];
+  const topMatchScore = topShedMatch
+    ? scorePlantByPreferences(plant.common_name, "", [
+        { home_id: "", entity_type: "plant", entity_name: topShedMatch.common_name, sentiment: "positive" },
+      ])
+    : 0;
 
   useEffect(() => {
     let isMounted = true;
@@ -87,6 +117,11 @@ export default function WikiPlantCard({
             <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">
               {plant.scientific_name}
             </p>
+            {plantPrefScore > 0 && (
+              <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                <Sparkles size={9} /> Preferred plant
+              </span>
+            )}
           </div>
         </div>
 
@@ -183,11 +218,12 @@ export default function WikiPlantCard({
           className="w-full sm:w-auto p-2.5 bg-white rounded-xl border border-emerald-200 text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
         >
           <option value="create">⚠️ Needs Procurement</option>
-          {shedPlants.length > 0 && (
+          {rankedShedPlants.length > 0 && (
             <optgroup label="Link to Shed">
-              {shedPlants.map((sp: any) => (
+              {rankedShedPlants.map((sp: any) => (
                 <option key={sp.id} value={sp.id}>
-                  Link: {sp.common_name}
+                  {sp === topShedMatch && topMatchScore > 0 ? "⭐ Best match: " : "Link: "}
+                  {sp.common_name}
                 </option>
               ))}
             </optgroup>

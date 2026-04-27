@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
@@ -30,6 +30,8 @@ import { TaskEngine } from "../lib/taskEngine";
 import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
 import { AutomationEngine } from "../lib/automationEngine";
 import { buildGhostPayload, hasBlockingDependencies } from "../lib/taskMutations";
+import { scoreTaskByPlantPreferences } from "../hooks/useUserPreferences";
+import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface TaskListProps {
   homeId: string;
@@ -56,6 +58,7 @@ export default function TaskList({
   showOverdue,
 }: TaskListProps) {
   const navigate = useNavigate();
+  const { preferences } = usePlantDoctor();
 
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -81,6 +84,7 @@ export default function TaskList({
   const [archivePrompts, setArchivePrompts] = useState<
     { itemId: string; plantName: string }[] | null
   >(null);
+  const [isArchiving, setIsArchiving] = useState(false);
 
   const dateStr = getLocalDateString(targetDate || new Date());
   const todayStr = getLocalDateString(new Date());
@@ -666,9 +670,20 @@ export default function TaskList({
 
   const pendingCount = tasks.filter((t) => t.status !== "Completed").length;
   const completedCount = tasks.filter((t) => t.status === "Completed").length;
-  const filteredTasks = tasks.filter((t) =>
-    viewTab === "pending" ? t.status !== "Completed" : t.status === "Completed",
-  );
+
+  // Re-sort the active tab's tasks by preference score, preserving due_date order for ties.
+  // JS sort is stable so equal-score tasks keep their existing relative order.
+  const filteredTasks = useMemo(() => {
+    const tabTasks = tasks.filter((t) =>
+      viewTab === "pending" ? t.status !== "Completed" : t.status === "Completed",
+    );
+    if (!preferences.length) return tabTasks;
+    return [...tabTasks].sort((a, b) => {
+      const scoreA = scoreTaskByPlantPreferences(a, inventoryDict, preferences);
+      const scoreB = scoreTaskByPlantPreferences(b, inventoryDict, preferences);
+      return scoreB - scoreA;
+    });
+  }, [tasks, viewTab, inventoryDict, preferences]);
 
   return (
     <>
