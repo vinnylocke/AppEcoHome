@@ -123,6 +123,7 @@ export default function AdminGuideGenerator() {
           <button
             onClick={handleGenerate}
             disabled={isGenerating || !topic}
+            aria-label={isGenerating ? "Generating guide content" : "Generate guide from topic"}
             className="w-full py-4 bg-rhozly-primary text-white rounded-xl font-black flex items-center justify-center gap-2 transition-all hover:scale-[1.02] disabled:opacity-50"
           >
             {isGenerating ? <Loader2 className="animate-spin" /> : <Wand2 />}
@@ -150,8 +151,34 @@ export default function AdminGuideGenerator() {
       </div>
 
       {/* RIGHT COLUMN: Live Preview */}
-      <div className="flex-[1.5] bg-rhozly-surface-lowest rounded-[3rem] border border-rhozly-outline/10 shadow-2xl p-8 min-h-[600px] flex flex-col relative overflow-hidden">
-        {previewData ? (
+      <div className="flex-[1.5] bg-rhozly-surface-lowest rounded-[3rem] border border-rhozly-outline/10 shadow-2xl p-8 min-h-[600px] flex flex-col relative overflow-hidden" aria-busy={isGenerating}>
+        {isGenerating ? (
+          <div className="flex-1 pb-20 animate-pulse">
+            {/* Skeleton Loader */}
+            <div className="mb-8">
+              <div className="flex gap-2 mb-3">
+                <div className="bg-gray-200 h-5 w-20 rounded-md"></div>
+                <div className="bg-gray-200 h-5 w-16 rounded-md"></div>
+              </div>
+              <div className="bg-gray-300 h-9 w-3/4 rounded mb-2"></div>
+              <div className="bg-gray-200 h-6 w-full rounded"></div>
+            </div>
+            <div className="space-y-6">
+              <div className="bg-gray-300 h-7 w-1/2 rounded"></div>
+              <div className="bg-gray-200 h-4 w-full rounded"></div>
+              <div className="bg-gray-200 h-4 w-full rounded"></div>
+              <div className="bg-gray-200 h-4 w-5/6 rounded"></div>
+              <div className="space-y-2 pl-6">
+                <div className="bg-gray-200 h-4 w-full rounded"></div>
+                <div className="bg-gray-200 h-4 w-11/12 rounded"></div>
+                <div className="bg-gray-200 h-4 w-full rounded"></div>
+              </div>
+              <div className="bg-gray-200 h-32 w-full rounded-2xl"></div>
+              <div className="bg-gray-200 h-4 w-full rounded"></div>
+              <div className="bg-gray-200 h-4 w-4/5 rounded"></div>
+            </div>
+          </div>
+        ) : previewData ? (
           <div className="overflow-y-auto custom-scrollbar flex-1 pb-20">
             {/* THE RENDERER: This is exactly how you will render it in the public app too! */}
             <div className="mb-8">
@@ -175,9 +202,9 @@ export default function AdminGuideGenerator() {
               {previewData.sections.map((sec: any, index: number) => {
                 if (sec.type === "header")
                   return (
-                    <h3 key={index} className="text-xl font-black mt-8">
+                    <h2 key={index} className="text-xl font-black mt-8">
                       {sec.content}
-                    </h3>
+                    </h2>
                   );
                 if (sec.type === "paragraph")
                   return (
@@ -287,6 +314,7 @@ export default function AdminGuideGenerator() {
               <button
                 onClick={handleSaveToDatabase}
                 disabled={isSaving}
+                aria-label={isSaving ? "Saving guide to database" : "Save generated guide to database"}
                 className="px-6 py-2 font-black text-sm bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 flex items-center gap-2"
               >
                 {isSaving ? (

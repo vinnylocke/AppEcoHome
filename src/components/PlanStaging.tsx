@@ -65,6 +65,8 @@ export default function PlanStaging({
   const [newPlantName, setNewPlantName] = useState("");
   const [newPlantQuantity, setNewPlantQuantity] = useState(1);
 
+  const [showSuccessFeedback, setShowSuccessFeedback] = useState(false);
+
   const isPhase1Done = !!localStagingState.linked_area_id;
   const isPhase2Done = !!localStagingState.plants_linked;
   const isPhase3Done = !!localStagingState.plants_assigned;
@@ -555,6 +557,8 @@ export default function PlanStaging({
         if (error) throw error;
       }
       await saveStagingState({ plants_assigned: true });
+      setShowSuccessFeedback(true);
+      setTimeout(() => setShowSuccessFeedback(false), 2000);
       toast.success("Inventory staged successfully!", { id: toastId });
     } catch (err: any) {
       toast.error(err.message || "Failed to stage inventory.", { id: toastId });
@@ -620,6 +624,8 @@ export default function PlanStaging({
 
       setLocalPlanStatus("In Progress");
       onPlanUpdated();
+      setShowSuccessFeedback(true);
+      setTimeout(() => setShowSuccessFeedback(false), 2000);
       toast.success("Tasks scheduled and linked!", { id: toastId });
     } catch (err) {
       toast.error("Failed to inject tasks.", { id: toastId });
@@ -665,6 +671,8 @@ export default function PlanStaging({
       saveMemoryEvent(homeId, plan.id, "completed_plan", {
         blueprint_title: localBlueprint?.project_overview?.title,
       });
+      setShowSuccessFeedback(true);
+      setTimeout(() => setShowSuccessFeedback(false), 2000);
       toast.success("Project Complete! Maintenance automated.", { id: toastId });
     } catch (err) {
       toast.error("Failed to activate blueprints.", { id: toastId });
@@ -735,6 +743,7 @@ export default function PlanStaging({
         <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
         <button
           onClick={onBack}
+          aria-label="Go back to plans list"
           className="absolute top-6 left-6 w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white hover:bg-white/40 transition-colors z-10"
         >
           <ArrowLeft size={20} />
@@ -749,7 +758,7 @@ export default function PlanStaging({
       <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6 custom-scrollbar pb-24">
         {/* Pre-Start Review Panel */}
         {!isStarted && (
-          <section className="bg-white rounded-[2rem] p-6 sm:p-8 shadow-md border border-rhozly-primary/30 relative overflow-hidden animate-in fade-in">
+          <section className="bg-white rounded-3xl p-6 sm:p-8 shadow-md border border-rhozly-primary/30 relative overflow-hidden animate-in fade-in">
             <div className="absolute inset-0 bg-rhozly-primary/5 pointer-events-none" />
             <div className="relative z-10">
               <h2 className="text-2xl font-black text-rhozly-on-surface mb-2 flex items-center gap-2">
@@ -784,10 +793,12 @@ export default function PlanStaging({
         <div className={`space-y-6 transition-all duration-500`}>
           {/* PHASE 1: INFRASTRUCTURE */}
           <section
-            className={`bg-white rounded-[2rem] p-6 shadow-sm border transition-colors ${isPhase1Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10"}${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
+            aria-label={`Phase 1: Infrastructure - ${isPhase1Done ? "Completed" : "In Progress"}`}
+            className={`bg-white rounded-3xl p-6 shadow-sm border transition-colors ${isPhase1Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10"}${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
           >
             <div className="flex items-center gap-3 mb-6">
               <div
+                aria-current={!isPhase1Done && isStarted ? "step" : undefined}
                 className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase1Done ? "bg-green-100 text-green-600" : "bg-blue-50 text-blue-500"}`}
               >
                 {isPhase1Done ? (
@@ -933,10 +944,12 @@ export default function PlanStaging({
 
           {/* PHASE 2: SOURCING */}
           <section
-            className={`bg-white rounded-[2rem] p-6 shadow-sm border transition-all ${isPhase1Done ? (isPhase2Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"}`}
+            aria-label={`Phase 2: The Shed - ${isPhase2Done ? "Completed" : isPhase1Done ? "In Progress" : "Locked"}`}
+            className={`bg-white rounded-3xl p-6 shadow-sm border transition-all ${isPhase1Done ? (isPhase2Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"}`}
           >
             <div className="flex items-center gap-3 mb-6">
               <div
+                aria-current={isPhase1Done && !isPhase2Done ? "step" : undefined}
                 className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase2Done ? "bg-green-100 text-green-600" : "bg-emerald-50 text-emerald-600"}`}
               >
                 {isPhase2Done ? <CheckCircle2 size={20} /> : <Leaf size={20} />}
@@ -1071,10 +1084,12 @@ export default function PlanStaging({
 
           {/* PHASE 3: STAGING & ASSIGNMENT */}
           <section
-            className={`bg-white rounded-[2rem] p-6 shadow-sm border transition-all ${isPhase2Done ? (isPhase3Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"}${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
+            aria-label={`Phase 3: Staging - ${isPhase3Done ? "Completed" : isPhase2Done ? "In Progress" : "Locked"}`}
+            className={`bg-white rounded-3xl p-6 shadow-sm border transition-all ${isPhase2Done ? (isPhase3Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"}${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
           >
             <div className="flex items-center gap-3 mb-6">
               <div
+                aria-current={isPhase2Done && !isPhase3Done ? "step" : undefined}
                 className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase3Done ? "bg-green-100 text-green-600" : "bg-purple-50 text-purple-600"}`}
               >
                 {isPhase3Done ? (
@@ -1131,10 +1146,12 @@ export default function PlanStaging({
 
           {/* PHASE 4: EXECUTION */}
           <section
-            className={`bg-white rounded-[2rem] p-6 shadow-sm border transition-all ${isPhase3Done ? (isPhase4Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"}${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
+            aria-label={`Phase 4: Execution - ${isPhase4Done ? "Completed" : isPhase3Done ? "In Progress" : "Locked"}`}
+            className={`bg-white rounded-3xl p-6 shadow-sm border transition-all ${isPhase3Done ? (isPhase4Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"}${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
           >
             <div className="flex items-center gap-3 mb-6">
               <div
+                aria-current={isPhase3Done && !isPhase4Done ? "step" : undefined}
                 className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase4Done ? "bg-green-100 text-green-600" : "bg-orange-50 text-orange-500"}`}
               >
                 {isPhase4Done ? (
@@ -1182,51 +1199,81 @@ export default function PlanStaging({
                 </button>
               </div>
             ) : (
-              <div className="space-y-4 relative before:absolute before:inset-y-0 before:left-[19px] before:w-0.5 before:bg-gray-100">
-                {localBlueprint.preparation_tasks.map((task: any) => (
-                  <div
-                    key={task.task_index}
-                    className="relative flex gap-4 pl-12"
-                  >
-                    <div className="absolute left-0 w-10 h-10 bg-white border-2 border-orange-200 text-orange-500 rounded-full flex items-center justify-center font-black text-sm z-10">
-                      {task.task_index + 1}
+              <>
+                {localBlueprint.preparation_tasks.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+                    <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mb-4">
+                      <CalendarPlus size={32} className="text-orange-400" />
                     </div>
-                    <div className="flex-1 bg-gray-50 p-4 rounded-2xl border border-gray-100">
-                      <h4 className="font-black text-gray-900 mb-1">
-                        {task.title}
-                      </h4>
-                      <p className="text-sm font-bold text-gray-500">
-                        {task.description}
-                      </p>
-                    </div>
-                  </div>
-                ))}
-
-                <div className="relative flex gap-4 pl-12 mt-6">
-                  <div className="absolute left-0 w-10 h-10 bg-white border-2 border-rhozly-primary/30 text-rhozly-primary rounded-full flex items-center justify-center font-black z-10">
-                    <Leaf size={16} />
-                  </div>
-                  <div className="flex-1 bg-rhozly-primary/5 p-4 rounded-2xl border border-rhozly-primary/20">
-                    <h4 className="font-black text-rhozly-primary mb-1">
-                      Final Step: Planting
+                    <h4 className="text-lg font-black text-gray-700 mb-2">
+                      No Preparation Tasks
                     </h4>
-                    <p className="text-sm font-bold text-rhozly-on-surface/60">
-                      Dynamic planting tasks for all staged inventory will be
-                      automatically scheduled to wait for your preparation
-                      steps.
+                    <p className="text-sm font-bold text-gray-500 mb-6 max-w-md">
+                      This plan doesn't require any preparation steps. You can proceed directly to planting!
                     </p>
+                    <button
+                      onClick={handleInjectTasks}
+                      disabled={isProcessing}
+                      className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-black transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                    >
+                      {isProcessing ? (
+                        <Loader2 className="animate-spin" size={18} />
+                      ) : (
+                        <Sparkles size={18} />
+                      )}
+                      Schedule Planting Tasks
+                    </button>
                   </div>
-                </div>
-              </div>
+                ) : (
+                  <div className="space-y-4 relative before:absolute before:inset-y-0 before:left-[19px] before:w-0.5 before:bg-gray-100">
+                    {localBlueprint.preparation_tasks.map((task: any) => (
+                      <div
+                        key={task.task_index}
+                        className="relative flex gap-4 pl-12"
+                      >
+                        <div className="absolute left-0 w-10 h-10 bg-white border-2 border-orange-200 text-orange-500 rounded-full flex items-center justify-center font-black text-sm z-10">
+                          {task.task_index + 1}
+                        </div>
+                        <div className="flex-1 bg-gray-50 p-4 rounded-2xl border border-gray-100">
+                          <h4 className="font-black text-gray-900 mb-1">
+                            {task.title}
+                          </h4>
+                          <p className="text-sm font-bold text-gray-500">
+                            {task.description}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+
+                    <div className="relative flex gap-4 pl-12 mt-6">
+                      <div className="absolute left-0 w-10 h-10 bg-white border-2 border-rhozly-primary/30 text-rhozly-primary rounded-full flex items-center justify-center font-black z-10">
+                        <Leaf size={16} />
+                      </div>
+                      <div className="flex-1 bg-rhozly-primary/5 p-4 rounded-2xl border border-rhozly-primary/20">
+                        <h4 className="font-black text-rhozly-primary mb-1">
+                          Final Step: Planting
+                        </h4>
+                        <p className="text-sm font-bold text-rhozly-on-surface/60">
+                          Dynamic planting tasks for all staged inventory will be
+                          automatically scheduled to wait for your preparation
+                          steps.
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </>
             )}
           </section>
 
           {/* PHASE 5: MAINTENANCE */}
           <section
-            className={`bg-white rounded-[2rem] p-6 shadow-sm border transition-all ${isPhase4Done ? (isPhase5Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"}${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
+            aria-label={`Phase 5: Maintenance - ${isPhase5Done ? "Completed" : isPhase4Done ? "In Progress" : "Locked"}`}
+            className={`bg-white rounded-3xl p-6 shadow-sm border transition-all ${isPhase4Done ? (isPhase5Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"}${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
           >
             <div className="flex items-center gap-3 mb-6">
               <div
+                aria-current={isPhase4Done && !isPhase5Done ? "step" : undefined}
                 className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase5Done ? "bg-green-100 text-green-600" : "bg-teal-50 text-teal-600"}`}
               >
                 {isPhase5Done ? (
@@ -1266,43 +1313,83 @@ export default function PlanStaging({
               </div>
             ) : (
               <div className="space-y-6">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  {localBlueprint.custom_maintenance_tasks.map(
-                    (task: any, idx: number) => (
-                      <div
-                        key={idx}
-                        className="bg-gray-50 p-4 rounded-2xl border border-gray-100"
-                      >
-                        <h4 className="font-black text-gray-900 mb-1">
-                          {task.title}
-                        </h4>
-                        <p className="text-xs font-bold text-gray-500 mb-3">
-                          {task.description}
-                        </p>
-                        <span className="px-2 py-1 bg-teal-100 text-teal-700 text-[10px] font-black uppercase rounded-md">
-                          Every {task.frequency_days} Days
-                        </span>
-                      </div>
-                    ),
-                  )}
-                </div>
-                <button
-                  onClick={handleActivateMaintenance}
-                  disabled={!isPhase4Done || isProcessing}
-                  className={`w-full px-6 py-4 font-black rounded-2xl transition-colors flex items-center justify-center gap-2 ${isPhase4Done ? "bg-teal-600 hover:bg-teal-700 text-white shadow-lg active:scale-95" : "border-2 border-dashed border-gray-200 text-gray-400"}`}
-                >
-                  {isProcessing ? (
-                    <Loader2 size={20} className="animate-spin" />
-                  ) : (
-                    <CheckCircle2 size={20} />
-                  )}{" "}
-                  Activate Blueprints & Finish Plan
-                </button>
+                {localBlueprint.custom_maintenance_tasks.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
+                    <div className="w-20 h-20 bg-teal-50 rounded-full flex items-center justify-center mb-4">
+                      <Wrench size={32} className="text-teal-400" />
+                    </div>
+                    <h4 className="text-lg font-black text-gray-700 mb-2">
+                      No Maintenance Tasks
+                    </h4>
+                    <p className="text-sm font-bold text-gray-500 mb-6 max-w-md">
+                      This plan doesn't include any custom maintenance tasks. You can still complete the project!
+                    </p>
+                    <button
+                      onClick={handleActivateMaintenance}
+                      disabled={!isPhase4Done || isProcessing}
+                      className={`px-6 py-3 font-black rounded-xl transition-all flex items-center gap-2 ${isPhase4Done ? "bg-teal-600 hover:bg-teal-700 text-white shadow-lg active:scale-95" : "border-2 border-dashed border-gray-200 text-gray-400"}`}
+                    >
+                      {isProcessing ? (
+                        <Loader2 size={20} className="animate-spin" />
+                      ) : (
+                        <CheckCircle2 size={20} />
+                      )}
+                      Complete Project
+                    </button>
+                  </div>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {localBlueprint.custom_maintenance_tasks.map(
+                        (task: any, idx: number) => (
+                          <div
+                            key={idx}
+                            className="bg-gray-50 p-4 rounded-2xl border border-gray-100"
+                          >
+                            <h4 className="font-black text-gray-900 mb-1">
+                              {task.title}
+                            </h4>
+                            <p className="text-xs font-bold text-gray-500 mb-3">
+                              {task.description}
+                            </p>
+                            <span className="px-2 py-1 bg-teal-100 text-teal-700 text-[10px] font-black uppercase rounded-md">
+                              Every {task.frequency_days} Days
+                            </span>
+                          </div>
+                        ),
+                      )}
+                    </div>
+                    <button
+                      onClick={handleActivateMaintenance}
+                      disabled={!isPhase4Done || isProcessing}
+                      className={`w-full px-6 py-4 font-black rounded-2xl transition-colors flex items-center justify-center gap-2 ${isPhase4Done ? "bg-teal-600 hover:bg-teal-700 text-white shadow-lg active:scale-95" : "border-2 border-dashed border-gray-200 text-gray-400"}`}
+                    >
+                      {isProcessing ? (
+                        <Loader2 size={20} className="animate-spin" />
+                      ) : (
+                        <CheckCircle2 size={20} />
+                      )}{" "}
+                      Activate Blueprints & Finish Plan
+                    </button>
+                  </>
+                )}
               </div>
             )}
           </section>
         </div>
       </div>
+
+      {/* SUCCESS FEEDBACK ANIMATION */}
+      {showSuccessFeedback &&
+        typeof document !== "undefined" &&
+        createPortal(
+          <div className="fixed inset-0 z-[250] flex items-center justify-center pointer-events-none animate-in fade-in zoom-in-95 duration-300">
+            <div className="bg-green-500 text-white rounded-full p-8 shadow-2xl animate-in zoom-in-50 duration-500">
+              <CheckCircle2 size={64} className="animate-in zoom-in-95 duration-700" />
+            </div>
+          </div>,
+          document.body,
+        )}
 
       {/* MODALS */}
       {confirmState && (
@@ -1330,6 +1417,7 @@ export default function PlanStaging({
                 </h3>
                 <button
                   onClick={() => setShowRegenModal(false)}
+                  aria-label="Close regeneration modal"
                   className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
                 >
                   <X size={16} />

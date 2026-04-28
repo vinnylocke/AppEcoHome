@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabase";
 import {
@@ -103,6 +103,9 @@ export default function TheShed({ homeId }: { homeId: string }) {
     type: "delete" | "archive" | "unarchive";
     plant: Plant | null;
   }>({ isOpen: false, type: "delete", plant: null });
+
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [focusedIndex, setFocusedIndex] = useState(0);
 
   useEffect(() => {
     setPageContext({
@@ -557,10 +560,79 @@ export default function TheShed({ homeId }: { homeId: string }) {
     return base;
   }, [plants, viewTab, filterSource, searchQuery, sortMode, preferences]);
 
+  const handleGridKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      if (filteredPlants.length === 0) return;
+      const cols = window.innerWidth >= 1280 ? 4 : window.innerWidth >= 1024 ? 3 : window.innerWidth >= 640 ? 2 : 1;
+      const maxIndex = filteredPlants.length - 1;
+      let newIndex = focusedIndex;
+
+      switch (e.key) {
+        case "ArrowRight":
+          e.preventDefault();
+          newIndex = Math.min(focusedIndex + 1, maxIndex);
+          break;
+        case "ArrowLeft":
+          e.preventDefault();
+          newIndex = Math.max(focusedIndex - 1, 0);
+          break;
+        case "ArrowDown":
+          e.preventDefault();
+          newIndex = Math.min(focusedIndex + cols, maxIndex);
+          break;
+        case "ArrowUp":
+          e.preventDefault();
+          newIndex = Math.max(focusedIndex - cols, 0);
+          break;
+        case "Home":
+          e.preventDefault();
+          newIndex = 0;
+          break;
+        case "End":
+          e.preventDefault();
+          newIndex = maxIndex;
+          break;
+        default:
+          return;
+      }
+
+      setFocusedIndex(newIndex);
+      const cards = gridRef.current?.querySelectorAll("[data-plant-card]");
+      if (cards && cards[newIndex]) {
+        (cards[newIndex] as HTMLElement).focus();
+      }
+    },
+    [filteredPlants.length, focusedIndex]
+  );
+
+  useEffect(() => {
+    setFocusedIndex(0);
+  }, [filteredPlants.length]);
+
   if (loading)
     return (
-      <div className="h-96 flex items-center justify-center">
-        <Loader2 className="animate-spin text-rhozly-primary" size={48} />
+      <div className="max-w-7xl mx-auto h-full flex flex-col p-4 md:p-8">
+        <div className="flex items-center gap-4 mb-10">
+          <div className="h-10 w-48 bg-rhozly-surface-low rounded-xl animate-pulse" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-32">
+          {Array.from({ length: 8 }).map((_, i) => (
+            <div
+              key={i}
+              className="bg-rhozly-surface-lowest rounded-[2.5rem] overflow-hidden border border-rhozly-outline/20 shadow-sm animate-pulse"
+            >
+              <div className="h-44 bg-rhozly-surface-low" />
+              <div className="p-6 space-y-3">
+                <div className="h-6 bg-rhozly-surface-low rounded-lg w-3/4" />
+                <div className="h-4 bg-rhozly-surface-low rounded-lg w-1/2" />
+                <div className="pt-5 border-t border-rhozly-outline/10 flex items-center justify-between">
+                  <div className="h-10 bg-rhozly-surface-low rounded-lg w-16" />
+                  <div className="h-12 bg-rhozly-surface-low rounded-2xl w-24" />
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
     );
 
@@ -583,6 +655,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
               <div className="relative ml-auto xl:ml-0">
                 <button
                   onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
+                  aria-label={isAddMenuOpen ? "Close add menu" : "Open add menu"}
                   className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-sm border ${isAddMenuOpen ? "bg-white text-rhozly-primary border-rhozly-primary rotate-45" : "bg-rhozly-primary text-white border-transparent hover:scale-110 active:scale-95"}`}
                 >
                   <Plus size={20} strokeWidth={3} />
@@ -630,8 +703,8 @@ export default function TheShed({ homeId }: { homeId: string }) {
               Your Master Plant Library
             </p>
           </div>
-          <div className="flex flex-col md:flex-row flex-wrap items-stretch md:items-center gap-4">
-            <div className="relative flex-1 md:flex-none flex items-center min-w-[200px]">
+          <div className="flex flex-col gap-4">
+            <div className="relative flex items-center">
               <Search
                 className="absolute left-4 text-rhozly-on-surface/40"
                 size={16}
@@ -639,6 +712,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
               <input
                 type="text"
                 placeholder="Search plants..."
+                aria-label="Search your plant library"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-10 py-3 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-2xl text-sm font-bold outline-none focus:border-rhozly-primary transition-all"
@@ -646,55 +720,93 @@ export default function TheShed({ homeId }: { homeId: string }) {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
+                  aria-label="Clear search"
                   className="absolute right-4 text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
                 >
                   <X size={16} />
                 </button>
               )}
             </div>
-            <div className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10">
-              {["active", "archived"].map((tab) => (
-                <button
-                  key={tab}
-                  onClick={() => setViewTab(tab as any)}
-                  className={`flex-1 md:flex-none px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === tab ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-                >
-                  {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                </button>
-              ))}
+            <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
+              <div className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10">
+                {["active", "archived"].map((tab) => (
+                  <button
+                    key={tab}
+                    onClick={() => setViewTab(tab as any)}
+                    className={`flex-1 sm:flex-none px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === tab ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+                  >
+                    {tab.charAt(0).toUpperCase() + tab.slice(1)}
+                  </button>
+                ))}
+              </div>
+              <select
+                value={filterSource}
+                onChange={(e) => setFilterSource(e.target.value as any)}
+                aria-label="Filter by source"
+                className="bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl px-4 py-3 text-sm font-bold outline-none cursor-pointer"
+              >
+                <option value="all">All Sources</option>
+                <option value="manual">Manual</option>
+                <option value="api">API / AI</option>
+              </select>
+              <select
+                value={sortMode}
+                onChange={(e) => setSortMode(e.target.value as any)}
+                aria-label="Sort plants"
+                className="bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl px-4 py-3 text-sm font-bold outline-none cursor-pointer"
+              >
+                <option value="alphabetical">A – Z</option>
+                <option value="preference">Best Match</option>
+              </select>
             </div>
-            <select
-              value={filterSource}
-              onChange={(e) => setFilterSource(e.target.value as any)}
-              className="bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl px-4 py-3 text-sm font-bold outline-none cursor-pointer"
-            >
-              <option value="all">All Sources</option>
-              <option value="manual">Manual</option>
-              <option value="api">API / AI</option>
-            </select>
-            <select
-              value={sortMode}
-              onChange={(e) => setSortMode(e.target.value as any)}
-              className="bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl px-4 py-3 text-sm font-bold outline-none cursor-pointer"
-            >
-              <option value="alphabetical">A – Z</option>
-              <option value="preference">Best Match</option>
-            </select>
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-32">
+        <div
+          ref={gridRef}
+          onKeyDown={handleGridKeyDown}
+          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-32"
+        >
           {filteredPlants.length === 0 ? (
-            <div className="col-span-full h-40 flex flex-col items-center justify-center text-rhozly-on-surface/40">
-              <Search size={40} className="mb-4 opacity-50" />
-              <p className="font-black">No plants found</p>
+            <div className="col-span-full min-h-[400px] flex flex-col items-center justify-center text-rhozly-on-surface/40 py-16">
+              <div className="relative mb-6">
+                <div className="absolute inset-0 bg-rhozly-primary/5 blur-3xl rounded-full" />
+                <Search size={64} className="relative opacity-30" strokeWidth={1.5} />
+              </div>
+              <h3 className="text-2xl font-black text-rhozly-on-surface/60 mb-2">
+                {searchQuery ? "No matches found" : "No plants here"}
+              </h3>
+              <p className="text-sm font-bold text-rhozly-on-surface/40 max-w-xs text-center">
+                {searchQuery
+                  ? `Try adjusting your search term or filters`
+                  : `Add plants to your library to get started`}
+              </p>
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="mt-6 px-6 py-3 bg-rhozly-primary text-white rounded-xl font-bold hover:scale-105 transition-transform"
+                >
+                  Clear Search
+                </button>
+              )}
             </div>
           ) : (
-            filteredPlants.map((plant) => (
+            filteredPlants.map((plant, index) => (
               <div
                 key={plant.id}
+                data-plant-card
+                tabIndex={index === focusedIndex ? 0 : -1}
                 onClick={() => setEditingPlant(plant)}
-                className="bg-rhozly-surface-lowest rounded-[2.5rem] overflow-hidden border border-rhozly-outline/20 shadow-sm group flex flex-col cursor-pointer hover:border-rhozly-primary/30 transition-all"
+                onFocus={() => setFocusedIndex(index)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    setEditingPlant(plant);
+                  }
+                }}
+                role="button"
+                aria-label={`View details for ${plant.common_name}`}
+                className="bg-rhozly-surface-lowest rounded-[2.5rem] overflow-hidden border border-rhozly-outline/20 shadow-sm group flex flex-col cursor-pointer hover:border-rhozly-primary/30 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 transition-all"
               >
                 <div className="h-44 relative overflow-hidden bg-rhozly-primary/5">
                   <SmartImage
@@ -722,6 +834,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
                           plant,
                         });
                       }}
+                      aria-label={plant.is_archived ? `Restore ${plant.common_name}` : `Archive ${plant.common_name}`}
                       className="w-9 h-9 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-orange-600 flex items-center justify-center shadow-md transition-all active:scale-90"
                     >
                       {plant.is_archived ? (
@@ -739,6 +852,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
                           plant,
                         });
                       }}
+                      aria-label={`Delete ${plant.common_name}`}
                       className="w-9 h-9 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-red-600 flex items-center justify-center shadow-md transition-all active:scale-90"
                     >
                       <Trash2 size={16} />
@@ -974,14 +1088,65 @@ function ConfirmModal({
   confirmText,
   isDestructive,
 }: any) {
+  const modalRef = useRef<HTMLDivElement>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+      if (e.key === "Tab") {
+        const modal = modalRef.current;
+        if (!modal) return;
+
+        const focusableElements = modal.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === firstElement) {
+            e.preventDefault();
+            lastElement?.focus();
+          }
+        } else {
+          if (document.activeElement === lastElement) {
+            e.preventDefault();
+            firstElement?.focus();
+          }
+        }
+      }
+    };
+
+    cancelButtonRef.current?.focus();
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      <div className="bg-white p-6 rounded-3xl w-full max-w-sm">
-        <h3 className="font-black text-lg mb-2">{title}</h3>
-        <p className="text-sm font-bold text-gray-500 mb-6">{description}</p>
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="confirm-modal-title"
+        aria-describedby="confirm-modal-description"
+        className="bg-white p-6 rounded-3xl w-full max-w-sm"
+      >
+        <h3 id="confirm-modal-title" className="font-black text-lg mb-2">
+          {title}
+        </h3>
+        <p id="confirm-modal-description" className="text-sm font-bold text-gray-500 mb-6">
+          {description}
+        </p>
         <div className="flex gap-3">
           <button
+            ref={cancelButtonRef}
             onClick={onClose}
             className="flex-1 py-3 rounded-xl font-bold bg-gray-100 hover:bg-gray-200"
           >

@@ -20,7 +20,9 @@ export default function NavItem({
   return (
     <button
       onClick={onClick}
-      className={`relative flex items-center gap-4 p-4 rounded-2xl w-full transition-all duration-300 group shrink-0 ${isCollapsed && !isMobile ? "md:w-14 md:h-14 md:justify-center md:p-0" : ""} ${active ? "text-rhozly-primary shadow-md" : "text-white/60 hover:text-white hover:bg-white/10"}`}
+      aria-current={active ? "page" : undefined}
+      aria-label={isCollapsed && !isMobile ? label : undefined}
+      className={`relative flex items-center gap-4 p-4 rounded-2xl w-full transition-all duration-300 group shrink-0 focus-visible:outline focus-visible:outline-2 focus-visible:outline-white focus-visible:outline-offset-2 ${isCollapsed && !isMobile ? "md:w-14 md:h-14 md:justify-center md:p-0" : ""} ${active ? "text-rhozly-primary shadow-md" : "text-white/60 hover:text-white hover:bg-white/10"}`}
     >
       {active && <div className="absolute inset-0 bg-white rounded-2xl" />}
       <div

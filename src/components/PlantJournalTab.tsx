@@ -35,7 +35,10 @@ export default function PlantJournalTab({
   const [isAdding, setIsAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const deleteButtonRef = useRef<HTMLButtonElement>(null);
 
   const [form, setForm] = useState({
     subject: "",
@@ -122,14 +125,26 @@ export default function PlantJournalTab({
     }
 
     setUploading(true);
+    setUploadProgress(0);
     try {
       const fileExt = file.name.split(".").pop();
       const fileName = `journal-${Math.random()}.${fileExt}`;
       const filePath = `plant-photos/${fileName}`;
 
+      // Simulate progress for better UX
+      const progressInterval = setInterval(() => {
+        setUploadProgress((prev) => {
+          if (prev >= 90) return prev;
+          return prev + 10;
+        });
+      }, 100);
+
       const { error: uploadError } = await supabase.storage
         .from("plant-images")
         .upload(filePath, file);
+
+      clearInterval(progressInterval);
+      setUploadProgress(100);
 
       if (uploadError) throw uploadError;
 
@@ -143,6 +158,7 @@ export default function PlantJournalTab({
       toast.error("Failed to attach photo.");
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -176,7 +192,6 @@ export default function PlantJournalTab({
   };
 
   const handleDelete = async (id: string) => {
-    if (!window.confirm("Delete this journal entry?")) return;
     try {
       const { error } = await supabase
         .from("plant_journals")
@@ -185,8 +200,12 @@ export default function PlantJournalTab({
       if (error) throw error;
       setEntries(entries.filter((e) => e.id !== id));
       toast.success("Entry deleted");
+      setDeleteConfirm(null);
+      // Return focus to the previously focused delete button if it exists
+      deleteButtonRef.current?.focus();
     } catch (error: any) {
       toast.error("Failed to delete entry");
+      setDeleteConfirm(null);
     }
   };
 
@@ -285,16 +304,30 @@ export default function PlantJournalTab({
           ) : (
             <button
               onClick={() => fileInputRef.current?.click()}
+              aria-label="Attach photo to entry"
               className="w-full py-6 border-2 border-dashed border-rhozly-outline/20 rounded-2xl flex flex-col items-center justify-center gap-2 text-rhozly-on-surface/50 hover:border-rhozly-primary/30 hover:text-rhozly-primary transition-colors bg-white"
             >
               {uploading ? (
-                <Loader2 className="animate-spin" />
+                <>
+                  <Loader2 className="animate-spin" />
+                  <div className="w-full max-w-[200px] h-2 bg-rhozly-outline/20 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-rhozly-primary transition-all duration-300"
+                      style={{ width: `${uploadProgress}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-black uppercase tracking-widest">
+                    Uploading... {uploadProgress}%
+                  </span>
+                </>
               ) : (
-                <Camera size={24} />
+                <>
+                  <Camera size={24} />
+                  <span className="text-[10px] font-black uppercase tracking-widest">
+                    Attach Photo
+                  </span>
+                </>
               )}
-              <span className="text-[10px] font-black uppercase tracking-widest">
-                Attach Photo
-              </span>
             </button>
           )}
 
@@ -333,7 +366,7 @@ export default function PlantJournalTab({
           entries.map((entry) => (
             <div
               key={entry.id}
-              className="bg-white p-5 rounded-[2rem] border border-rhozly-outline/10 shadow-sm flex flex-col gap-3"
+              className="bg-white p-5 rounded-[2rem] border border-rhozly-outline/10 shadow-sm flex flex-col gap-3 transition-transform hover:-translate-y-1 hover:shadow-md"
             >
               <div className="flex justify-between items-start">
                 <div>
@@ -351,7 +384,9 @@ export default function PlantJournalTab({
                   </p>
                 </div>
                 <button
-                  onClick={() => handleDelete(entry.id)}
+                  ref={deleteButtonRef}
+                  onClick={() => setDeleteConfirm(entry.id)}
+                  aria-label="Delete journal entry"
                   className="text-rhozly-on-surface/30 hover:text-red-500 transition-colors"
                 >
                   <Trash2 size={16} />
@@ -384,6 +419,49 @@ export default function PlantJournalTab({
           ))
         )}
       </div>
+
+      {deleteConfirm && (
+        <div
+          className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 animate-in fade-in"
+          onClick={() => setDeleteConfirm(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-dialog-title"
+        >
+          <div
+            className="bg-white rounded-3xl p-6 max-w-sm mx-4 shadow-2xl animate-in zoom-in-95"
+            onClick={(e) => e.stopPropagation()}
+            onKeyDown={(e) => {
+              if (e.key === "Escape") setDeleteConfirm(null);
+            }}
+          >
+            <h3
+              id="delete-dialog-title"
+              className="font-black text-lg mb-3 text-rhozly-on-surface"
+            >
+              Delete this journal entry?
+            </h3>
+            <p className="text-sm font-bold text-rhozly-on-surface/70 mb-6">
+              This action cannot be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirm(null)}
+                className="flex-1 py-3 px-4 bg-rhozly-surface-low text-rhozly-on-surface rounded-xl font-black hover:bg-rhozly-outline/10 transition-colors"
+                autoFocus
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => handleDelete(deleteConfirm)}
+                className="flex-1 py-3 px-4 bg-red-500 text-white rounded-xl font-black hover:bg-red-600 transition-colors"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

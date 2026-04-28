@@ -73,6 +73,8 @@ export default function PlantAssignmentModal({
   const [aiResult, setAiResult] = useState<any>(null);
   const [selectedSchedules, setSelectedSchedules] = useState<string[]>([]);
   const [isProcessingLocal, setIsProcessingLocal] = useState(false); // Local loading state for the engine
+  const [isStepTransitioning, setIsStepTransitioning] = useState(false); // Loading state for step transitions
+  const [focusedScheduleIndex, setFocusedScheduleIndex] = useState(0); // For roving tabindex
 
   const availableAreas = selectedLoc
     ? locations.find((l) => l.id === selectedLoc)?.areas || []
@@ -116,9 +118,17 @@ export default function PlantAssignmentModal({
     setPageContext,
   ]);
 
+  useEffect(() => {
+    setFocusedScheduleIndex(0);
+  }, [aiResult]);
+
   const handleNext = () => {
     if (!formData.areaId) return;
-    setStep(2);
+    setIsStepTransitioning(true);
+    setTimeout(() => {
+      setStep(2);
+      setIsStepTransitioning(false);
+    }, 300);
   };
 
   const handleSmartSchedule = async () => {
@@ -266,6 +276,13 @@ export default function PlantAssignmentModal({
   return createPortal(
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
       <div className="bg-rhozly-surface-lowest w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 relative">
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          className="sr-only"
+        >
+          Step {step} of 2: {step === 1 ? "Select location and area" : "Planting details"}
+        </div>
         <div className="flex justify-between items-start mb-8 relative z-10">
           <div>
             <h3 className="text-3xl font-black text-rhozly-on-surface">
@@ -277,6 +294,7 @@ export default function PlantAssignmentModal({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close assignment modal"
             className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
           >
             <X size={24} />
@@ -363,10 +381,17 @@ export default function PlantAssignmentModal({
 
             <button
               onClick={handleNext}
-              disabled={!formData.areaId}
+              disabled={!formData.areaId || isStepTransitioning}
+              aria-label="Proceed to planting details"
               className="w-full py-5 mt-4 bg-rhozly-primary text-white rounded-2xl font-black text-lg shadow-lg flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed transition-all hover:scale-[1.02] active:scale-95"
             >
-              Next: Planting Details
+              {isStepTransitioning ? (
+                <>
+                  <Loader2 className="animate-spin" size={24} /> Loading...
+                </>
+              ) : (
+                "Next: Planting Details"
+              )}
             </button>
           </div>
         )}
@@ -448,12 +473,32 @@ export default function PlantAssignmentModal({
                           No viable methods found for this environment.
                         </p>
                       )}
-                      {aiResult.schedules.map((schedule: any) => (
+                      {aiResult.schedules.map((schedule: any, index: number) => (
                         <div
                           key={schedule.method}
+                          role="option"
+                          aria-selected={selectedSchedules.includes(schedule.method)}
+                          tabIndex={focusedScheduleIndex === index ? 0 : -1}
                           onClick={() =>
                             toggleScheduleSelection(schedule.method)
                           }
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              toggleScheduleSelection(schedule.method);
+                            } else if (e.key === "ArrowDown") {
+                              e.preventDefault();
+                              const nextIndex = Math.min(index + 1, aiResult.schedules.length - 1);
+                              setFocusedScheduleIndex(nextIndex);
+                              (e.currentTarget.nextElementSibling as HTMLElement)?.focus();
+                            } else if (e.key === "ArrowUp") {
+                              e.preventDefault();
+                              const prevIndex = Math.max(index - 1, 0);
+                              setFocusedScheduleIndex(prevIndex);
+                              (e.currentTarget.previousElementSibling as HTMLElement)?.focus();
+                            }
+                          }}
+                          onFocus={() => setFocusedScheduleIndex(index)}
                           className={`p-4 rounded-2xl border transition-all cursor-pointer flex gap-4 ${
                             selectedSchedules.includes(schedule.method)
                               ? "bg-indigo-50 border-indigo-200 shadow-sm"
@@ -579,6 +624,7 @@ export default function PlantAssignmentModal({
             <div className="flex gap-4 pt-4">
               <button
                 onClick={() => setStep(1)}
+                aria-label="Go back to location selection"
                 className="px-6 py-5 rounded-2xl font-black text-rhozly-on-surface/40 hover:bg-rhozly-surface-low transition-all"
               >
                 Back
@@ -592,6 +638,7 @@ export default function PlantAssignmentModal({
                     aiResult &&
                     selectedSchedules.length === 0)
                 }
+                aria-label="Confirm plant assignment"
                 className="flex-1 py-5 bg-rhozly-primary text-white rounded-2xl font-black text-lg shadow-xl shadow-rhozly-primary/20 flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
               >
                 {isAssigning || isProcessingLocal ? (

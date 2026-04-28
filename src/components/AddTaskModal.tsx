@@ -46,6 +46,7 @@ export default function AddTaskModal({
   const [loading, setLoading] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
+  const [liveRegionMessage, setLiveRegionMessage] = useState("");
 
   const [form, setForm] = useState({
     title: existingBlueprint?.title || "",
@@ -79,6 +80,10 @@ export default function AddTaskModal({
 
   // 🚀 NEW: Ref for click-outside detection
   const depSearchRef = useRef<HTMLDivElement>(null);
+
+  // Focus trap refs
+  const modalRef = useRef<HTMLDivElement>(null);
+  const firstFocusableRef = useRef<HTMLElement | null>(null);
 
   useEffect(() => {
     const fetchData = async () => {
@@ -233,6 +238,59 @@ export default function AddTaskModal({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // Focus trap implementation
+  useEffect(() => {
+    if (!modalRef.current) return;
+
+    const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const firstElement = focusableElements[0];
+    const lastElement = focusableElements[focusableElements.length - 1];
+
+    firstFocusableRef.current = document.activeElement as HTMLElement;
+
+    if (firstElement) {
+      firstElement.focus();
+    }
+
+    const handleTab = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement?.focus();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement?.focus();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleTab);
+    return () => {
+      document.removeEventListener("keydown", handleTab);
+      if (firstFocusableRef.current) {
+        firstFocusableRef.current.focus();
+      }
+    };
+  }, []);
+
+  // Escape key handler to close modal
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+
   // Fetch plant_schedules for the selected species to power the Quick Fill presets.
   // Falls back to an empty array so the hardcoded defaults show instead.
   // Depends only on primitive values — avoids the infinite-loop caused by derived
@@ -321,8 +379,18 @@ export default function AddTaskModal({
   };
 
   const handleSubmit = async () => {
-    if (!form.title.trim()) return toast.error("Title is required.");
-    if (!form.start_date) return toast.error("Start Date is required.");
+    if (!form.title.trim()) {
+      const errorMsg = "Title is required.";
+      toast.error(errorMsg);
+      setLiveRegionMessage(errorMsg);
+      return;
+    }
+    if (!form.start_date) {
+      const errorMsg = "Start Date is required.";
+      toast.error(errorMsg);
+      setLiveRegionMessage(errorMsg);
+      return;
+    }
     setLoading(true);
 
     try {
@@ -445,7 +513,9 @@ export default function AddTaskModal({
       onSuccess();
     } catch (error: any) {
       Logger.error("Failed to create task", error);
-      toast.error("Failed to schedule task.");
+      const errorMsg = "Failed to schedule task.";
+      toast.error(errorMsg);
+      setLiveRegionMessage(errorMsg);
     } finally {
       setLoading(false);
     }
@@ -455,7 +525,17 @@ export default function AddTaskModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
-      <div className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20">
+      <div
+        ref={modalRef}
+        className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20"
+      >
+        <div
+          aria-live="polite"
+          aria-atomic="true"
+          className="sr-only"
+        >
+          {liveRegionMessage}
+        </div>
         <div className="flex justify-between items-center mb-8">
           <div>
             <h3 className="text-3xl font-black text-rhozly-on-surface">
@@ -476,6 +556,7 @@ export default function AddTaskModal({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close task modal"
             className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
           >
             <X size={24} />
@@ -503,7 +584,7 @@ export default function AddTaskModal({
                 onChange={(e) =>
                   setForm({ ...form, start_date: e.target.value })
                 }
-                className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:border-rhozly-primary cursor-pointer"
+                className="w-full p-4 min-h-[44px] bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:border-rhozly-primary cursor-pointer"
               />
             </div>
             <div>
@@ -603,7 +684,12 @@ export default function AddTaskModal({
                       : "Select All"}
                   </button>
                 </div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-40 overflow-y-auto custom-scrollbar pr-1">
+                <div
+                  role="listbox"
+                  aria-label="Select plant instances"
+                  aria-multiselectable="true"
+                  className="grid grid-cols-2 sm:grid-cols-4 gap-2 max-h-40 overflow-y-auto custom-scrollbar pr-1"
+                >
                   {availableInstances.map((inst: any) => {
                     const isSelected = form.inventory_item_ids.includes(
                       inst.id,
@@ -611,6 +697,8 @@ export default function AddTaskModal({
                     return (
                       <button
                         key={inst.id}
+                        role="option"
+                        aria-selected={isSelected}
                         onClick={() => handleToggleInstance(inst.id)}
                         className={`p-3 rounded-xl text-xs font-bold border transition-colors text-left truncate flex items-center justify-between ${
                           isSelected
@@ -897,7 +985,7 @@ export default function AddTaskModal({
                     onChange={(e) =>
                       setForm({ ...form, end_date: e.target.value })
                     }
-                    className="w-full p-4 bg-white rounded-2xl font-bold outline-none border border-rhozly-outline/10 cursor-pointer"
+                    className="w-full p-4 min-h-[44px] bg-white rounded-2xl font-bold outline-none border border-rhozly-outline/10 cursor-pointer"
                   />
                 </div>
               </div>

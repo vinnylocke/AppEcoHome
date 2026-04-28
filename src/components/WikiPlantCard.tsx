@@ -36,6 +36,7 @@ export default function WikiPlantCard({
     extract: string | null;
   }>({ thumbnail: null, extract: null });
   const [isLoading, setIsLoading] = useState(true);
+  const [imageLoaded, setImageLoaded] = useState(false);
   const [isExpanded, setIsExpanded] = useState(false);
 
   // Sort shed plants so the closest name-match to this plan plant comes first.
@@ -67,6 +68,7 @@ export default function WikiPlantCard({
   useEffect(() => {
     let isMounted = true;
     setIsLoading(true);
+    setImageLoaded(false);
 
     const fetchInfo = async () => {
       try {
@@ -130,6 +132,7 @@ export default function WikiPlantCard({
             onClick={() => handleDeletePlant(idx)}
             className="text-red-400 hover:text-red-600 hover:bg-red-50 p-2 rounded-xl transition-colors shrink-0"
             title="Remove this plant"
+            aria-label={`Remove ${plant.common_name} from plan`}
           >
             <Trash2 size={18} />
           </button>
@@ -142,11 +145,18 @@ export default function WikiPlantCard({
           {isLoading ? (
             <Loader2 className="animate-spin text-emerald-300" size={24} />
           ) : wikiData.thumbnail ? (
-            <img
-              src={wikiData.thumbnail}
-              alt={plant.common_name}
-              className="absolute inset-0 w-full h-full object-cover"
-            />
+            <>
+              {!imageLoaded && (
+                <div className="absolute inset-0 bg-emerald-100 animate-pulse" />
+              )}
+              <img
+                src={wikiData.thumbnail}
+                alt={plant.common_name}
+                loading="lazy"
+                onLoad={() => setImageLoaded(true)}
+                className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-300 ${imageLoaded ? "opacity-100" : "opacity-0"}`}
+              />
+            </>
           ) : (
             <Leaf className="text-emerald-200" size={32} />
           )}
@@ -164,6 +174,7 @@ export default function WikiPlantCard({
                 <button
                   onClick={() => setIsExpanded(!isExpanded)}
                   className="text-[11px] font-black text-emerald-600 hover:text-emerald-800 mt-1.5 ml-3 uppercase tracking-wider"
+                  aria-label={isExpanded ? `Read less about ${plant.common_name}` : `Read more about ${plant.common_name}`}
                 >
                   {isExpanded ? "Read Less" : "Read More"}
                 </button>

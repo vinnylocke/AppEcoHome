@@ -36,6 +36,12 @@ export default function NewPlanForm({
 }: NewPlanFormProps) {
   const [step, setStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
+  const [errors, setErrors] = useState({
+    planName: "",
+    description: "",
+    width: "",
+    length: "",
+  });
 
   const [formData, setFormData] = useState({
     planName: "",
@@ -66,15 +72,25 @@ export default function NewPlanForm({
   const handleInputChange = (e: any) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
+    // Clear error for this field when user types
+    if (errors[name as keyof typeof errors]) {
+      setErrors((prev) => ({ ...prev, [name]: "" }));
+    }
   };
 
   const handleGeneratePlan = async () => {
-    if (!formData.planName || !formData.description) {
-      return toast.error("Please provide a name and description.");
-    }
+    const newErrors = {
+      planName: !formData.planName ? "Project name is required" : "",
+      description: !formData.description ? "Description is required" : "",
+      width: !formData.width ? "Width is required" : "",
+      length: !formData.length ? "Length is required" : "",
+    };
 
-    if (!formData.width || !formData.length) {
-      return toast.error("Please provide both width and length dimensions.");
+    setErrors(newErrors);
+
+    if (Object.values(newErrors).some((err) => err)) {
+      toast.error("Please fill in all required fields.");
+      return;
     }
 
     setIsGenerating(true);
@@ -138,23 +154,58 @@ export default function NewPlanForm({
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="p-5 sm:p-6 border-b border-rhozly-outline/10 flex justify-between items-center bg-rhozly-surface-lowest shrink-0">
-          <div>
+        <div className="p-5 sm:p-6 border-b border-rhozly-outline/10 bg-rhozly-surface-lowest shrink-0">
+          <div className="flex justify-between items-start mb-3">
             <h2 className="text-xl sm:text-2xl font-black flex items-center gap-2 text-rhozly-on-surface">
               <Sparkles className="text-rhozly-primary shrink-0" size={24} />
               <span className="truncate">New Project</span>
             </h2>
-            <p className="text-[10px] sm:text-xs font-bold text-rhozly-on-surface/50 uppercase tracking-widest mt-1">
-              Step {step} of 3
-            </p>
+            <button
+              onClick={onClose}
+              disabled={isGenerating}
+              className="p-2.5 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors shrink-0 ml-2"
+              aria-label="Close dialog"
+            >
+              <X size={20} className="text-gray-600" />
+            </button>
           </div>
-          <button
-            onClick={onClose}
-            disabled={isGenerating}
-            className="p-2.5 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors shrink-0 ml-2"
-          >
-            <X size={20} className="text-gray-600" />
-          </button>
+
+          {/* Progress Indicator */}
+          <div className="flex items-center gap-2" role="navigation" aria-label="Form progress">
+            <div className="flex items-center gap-2 flex-1">
+              {[1, 2, 3].map((stepNum) => (
+                <div
+                  key={stepNum}
+                  className="flex items-center gap-2 flex-1"
+                >
+                  <div
+                    className={`flex items-center justify-center w-6 h-6 rounded-full text-xs font-black transition-colors ${
+                      stepNum === step
+                        ? "bg-rhozly-primary text-white"
+                        : stepNum < step
+                        ? "bg-green-500 text-white"
+                        : "bg-gray-200 text-gray-400"
+                    }`}
+                    aria-current={stepNum === step ? "step" : undefined}
+                  >
+                    {stepNum}
+                    <span className="sr-only">
+                      Step {stepNum}:{" "}
+                      {stepNum === 1 ? "The Vision" : stepNum === 2 ? "The Environment" : "Preferences & Rules"}
+                      {stepNum < step ? " (completed)" : stepNum === step ? " (current)" : ""}
+                    </span>
+                  </div>
+                  {stepNum < 3 && (
+                    <div
+                      className={`h-1 flex-1 rounded-full transition-colors ${
+                        stepNum < step ? "bg-green-500" : "bg-gray-200"
+                      }`}
+                    />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
         </div>
 
         {/* Scrollable Form Body */}
@@ -167,39 +218,60 @@ export default function NewPlanForm({
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
+                <label htmlFor="planName" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                   Project Name *
                 </label>
                 {/* 🚀 FIX: Enforced text-base on all mobile inputs */}
                 <input
+                  id="planName"
                   name="planName"
                   value={formData.planName}
                   onChange={handleInputChange}
                   placeholder="e.g., Wildlife Balcony Pond"
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold text-base focus:ring-2 focus:ring-rhozly-primary/20 border border-transparent transition-all"
+                  className={`w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold text-base focus:ring-2 focus:ring-rhozly-primary/20 border transition-all ${
+                    errors.planName ? "border-red-500" : "border-transparent"
+                  }`}
+                  aria-invalid={!!errors.planName}
+                  aria-describedby={errors.planName ? "planName-error" : undefined}
                 />
+                {errors.planName && (
+                  <p id="planName-error" className="text-xs font-bold text-red-600 ml-1 mt-1">
+                    {errors.planName}
+                  </p>
+                )}
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
+                <label htmlFor="description" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                   Brief Description *
                 </label>
                 <textarea
+                  id="description"
                   name="description"
                   value={formData.description}
                   onChange={handleInputChange}
                   rows={3}
                   placeholder="What are we building? Who is it for?"
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold text-base resize-none focus:ring-2 focus:ring-rhozly-primary/20 border border-transparent transition-all"
+                  className={`w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none font-bold text-base resize-none focus:ring-2 focus:ring-rhozly-primary/20 border transition-all ${
+                    errors.description ? "border-red-500" : "border-transparent"
+                  }`}
+                  aria-invalid={!!errors.description}
+                  aria-describedby={errors.description ? "description-error" : undefined}
                 />
+                {errors.description && (
+                  <p id="description-error" className="text-xs font-bold text-red-600 ml-1 mt-1">
+                    {errors.description}
+                  </p>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
+                  <label htmlFor="aesthetic" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Aesthetic
                   </label>
                   <select
+                    id="aesthetic"
                     name="aesthetic"
                     value={formData.aesthetic}
                     onChange={handleInputChange}
@@ -212,10 +284,11 @@ export default function NewPlanForm({
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
+                  <label htmlFor="timeline" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Timeline
                   </label>
                   <select
+                    id="timeline"
                     name="timeline"
                     value={formData.timeline}
                     onChange={handleInputChange}
@@ -239,10 +312,11 @@ export default function NewPlanForm({
 
               <div className="bg-blue-50/50 p-5 rounded-3xl border border-blue-100/50 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <label className="text-[10px] font-black uppercase text-blue-800/60 tracking-widest">
+                  <label htmlFor="unit" className="text-[10px] font-black uppercase text-blue-800/60 tracking-widest">
                     Dimensions
                   </label>
                   <select
+                    id="unit"
                     name="unit"
                     value={formData.unit}
                     onChange={handleInputChange}
@@ -258,55 +332,76 @@ export default function NewPlanForm({
                 {/* 🚀 FIX: Stacks dimensions on mobile so they don't blow out the screen width */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <span className="text-[10px] font-bold text-blue-800/60 block mb-1">
+                    <label htmlFor="width" className="text-[10px] font-bold text-blue-800/60 block mb-1">
                       Width *
-                    </span>
+                    </label>
                     <div className="relative">
                       <input
                         type="number"
+                        id="width"
                         name="width"
                         value={formData.width}
                         onChange={handleInputChange}
-                        className="w-full p-3 pr-8 bg-white rounded-xl border border-blue-200 font-bold text-base sm:text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        className={`w-full p-3 pr-8 bg-white rounded-xl border font-bold text-base sm:text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                          errors.width ? "border-red-500" : "border-blue-200"
+                        }`}
                         placeholder="0"
+                        aria-invalid={!!errors.width}
+                        aria-describedby={errors.width ? "width-error" : undefined}
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400" aria-hidden="true">
                         {formData.unit}
                       </span>
                     </div>
+                    {errors.width && (
+                      <p id="width-error" className="text-xs font-bold text-red-600 mt-1">
+                        {errors.width}
+                      </p>
+                    )}
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-blue-800/60 block mb-1">
+                    <label htmlFor="length" className="text-[10px] font-bold text-blue-800/60 block mb-1">
                       Length *
-                    </span>
+                    </label>
                     <div className="relative">
                       <input
                         type="number"
+                        id="length"
                         name="length"
                         value={formData.length}
                         onChange={handleInputChange}
-                        className="w-full p-3 pr-8 bg-white rounded-xl border border-blue-200 font-bold text-base sm:text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        className={`w-full p-3 pr-8 bg-white rounded-xl border font-bold text-base sm:text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all ${
+                          errors.length ? "border-red-500" : "border-blue-200"
+                        }`}
                         placeholder="0"
+                        aria-invalid={!!errors.length}
+                        aria-describedby={errors.length ? "length-error" : undefined}
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400" aria-hidden="true">
                         {formData.unit}
                       </span>
                     </div>
+                    {errors.length && (
+                      <p id="length-error" className="text-xs font-bold text-red-600 mt-1">
+                        {errors.length}
+                      </p>
+                    )}
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-blue-800/60 block mb-1">
+                    <label htmlFor="depth" className="text-[10px] font-bold text-blue-800/60 block mb-1">
                       Depth (Opt.)
-                    </span>
+                    </label>
                     <div className="relative">
                       <input
                         type="number"
+                        id="depth"
                         name="depth"
                         value={formData.depth}
                         onChange={handleInputChange}
                         className="w-full p-3 pr-8 bg-white rounded-xl border border-blue-200 font-bold text-base sm:text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
                         placeholder="0"
                       />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400">
+                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400" aria-hidden="true">
                         {formData.unit}
                       </span>
                     </div>
@@ -316,10 +411,11 @@ export default function NewPlanForm({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
+                  <label htmlFor="sunlight" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Sunlight
                   </label>
                   <select
+                    id="sunlight"
                     name="sunlight"
                     value={formData.sunlight}
                     onChange={handleInputChange}
@@ -333,10 +429,11 @@ export default function NewPlanForm({
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
+                  <label htmlFor="medium" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Medium
                   </label>
                   <select
+                    id="medium"
                     name="medium"
                     value={formData.medium}
                     onChange={handleInputChange}
@@ -361,10 +458,11 @@ export default function NewPlanForm({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
+                  <label htmlFor="inclusivePlants" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Must Include
                   </label>
                   <input
+                    id="inclusivePlants"
                     name="inclusivePlants"
                     value={formData.inclusivePlants}
                     onChange={handleInputChange}
@@ -373,10 +471,11 @@ export default function NewPlanForm({
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
+                  <label htmlFor="exclusivePlants" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Do NOT Include
                   </label>
                   <input
+                    id="exclusivePlants"
                     name="exclusivePlants"
                     value={formData.exclusivePlants}
                     onChange={handleInputChange}
@@ -387,10 +486,11 @@ export default function NewPlanForm({
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
+                <label htmlFor="wildlife" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                   Wildlife Goals
                 </label>
                 <input
+                  id="wildlife"
                   name="wildlife"
                   value={formData.wildlife}
                   onChange={handleInputChange}
@@ -401,10 +501,11 @@ export default function NewPlanForm({
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
+                  <label htmlFor="difficulty" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Difficulty
                   </label>
                   <select
+                    id="difficulty"
                     name="difficulty"
                     value={formData.difficulty}
                     onChange={handleInputChange}
@@ -416,10 +517,11 @@ export default function NewPlanForm({
                   </select>
                 </div>
                 <div className="space-y-2">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
+                  <label htmlFor="maintenance" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Maintenance
                   </label>
                   <select
+                    id="maintenance"
                     name="maintenance"
                     value={formData.maintenance}
                     onChange={handleInputChange}
@@ -433,10 +535,11 @@ export default function NewPlanForm({
               </div>
 
               <div className="space-y-2">
-                <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1 flex items-center gap-1">
+                <label htmlFor="considerations" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1 flex items-center gap-1">
                   <ShieldAlert size={12} /> Special Considerations
                 </label>
                 <input
+                  id="considerations"
                   name="considerations"
                   value={formData.considerations}
                   onChange={handleInputChange}
@@ -454,7 +557,7 @@ export default function NewPlanForm({
             <button
               onClick={() => setStep(step - 1)}
               disabled={isGenerating}
-              className="w-full sm:w-auto px-6 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-black transition-colors flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-6 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-black transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
             >
               <ChevronLeft size={20} /> Back
             </button>
@@ -463,7 +566,7 @@ export default function NewPlanForm({
           {step < 3 ? (
             <button
               onClick={() => setStep(step + 1)}
-              className="flex-1 py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-2xl font-black shadow-lg transition-colors flex items-center justify-center gap-2"
+              className="flex-1 py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-2xl font-black shadow-lg transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
             >
               Next Step <ChevronRight size={20} />
             </button>
@@ -471,7 +574,7 @@ export default function NewPlanForm({
             <button
               onClick={handleGeneratePlan}
               disabled={isGenerating}
-              className="flex-1 py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-2xl font-black shadow-lg transition-all active:scale-[0.98] flex items-center justify-center gap-2"
+              className="flex-1 py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 disabled:bg-rhozly-primary/70 text-white rounded-2xl font-black shadow-lg transition-all duration-200 hover:scale-105 active:scale-95 disabled:scale-100 flex items-center justify-center gap-2"
             >
               {isGenerating ? (
                 <>

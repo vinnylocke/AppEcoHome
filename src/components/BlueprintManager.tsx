@@ -447,14 +447,23 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
       )}
 
       {blueprints.length === 0 ? (
-        <div className="bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-[3rem] p-12 text-center opacity-50 flex flex-col items-center justify-center min-h-[400px]">
-          <Repeat size={48} className="text-rhozly-on-surface/20 mb-4" />
-          <p className="font-black text-xl text-rhozly-on-surface">
+        <div className="bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-[3rem] p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
+          <div className="relative mb-6">
+            <div className="absolute inset-0 bg-rhozly-primary/5 rounded-full blur-2xl"></div>
+            <Repeat size={64} className="text-rhozly-primary/30 relative" strokeWidth={2} />
+          </div>
+          <p className="font-black text-2xl text-rhozly-on-surface mb-2">
             No Automations Running
           </p>
-          <p className="text-sm font-bold mt-2">
-            Create custom schedules or use the AI Planner to generate them.
+          <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6 max-w-md">
+            Create custom schedules or use the AI Planner to generate them automatically.
           </p>
+          <button
+            onClick={() => setIsBuilding(true)}
+            className="flex items-center justify-center gap-2 bg-rhozly-primary text-white px-8 py-4 rounded-2xl font-black shadow-lg hover:scale-105 transition-transform active:scale-95"
+          >
+            <Plus size={20} strokeWidth={3} /> Create Your First Rule
+          </button>
         </div>
       ) : filteredBlueprints.length === 0 ? (
         <div className="bg-white border border-rhozly-outline/10 rounded-[3rem] p-12 text-center flex flex-col items-center justify-center py-24 shadow-sm animate-in fade-in">
@@ -475,13 +484,24 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
           </button>
         </div>
       ) : (
-        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
-          {filteredBlueprints.map((bp) => (
-            <div
-              key={bp.id}
-              onClick={() => setEditingBlueprint(bp)}
-              className="bg-white rounded-3xl p-6 border border-rhozly-outline/10 shadow-sm flex flex-col transition-all hover:border-rhozly-primary/30 cursor-pointer group"
-            >
+        <>
+          <div className="sr-only" aria-live="polite" aria-atomic="true">
+            Showing {filteredBlueprints.length} automation{filteredBlueprints.length !== 1 ? 's' : ''}
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+            {filteredBlueprints.map((bp) => (
+              <div
+                key={bp.id}
+                onClick={() => setEditingBlueprint(bp)}
+                tabIndex={0}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' || e.key === ' ') {
+                    e.preventDefault();
+                    setEditingBlueprint(bp);
+                  }
+                }}
+                className="bg-white rounded-3xl p-6 border border-rhozly-outline/10 shadow-sm flex flex-col transition-all hover:border-rhozly-primary/30 hover:shadow-md cursor-pointer group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary focus-visible:ring-offset-2"
+              >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center shrink-0">
@@ -550,7 +570,8 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
               </div>
             </div>
           ))}
-        </div>
+          </div>
+        </>
       )}
 
       {/* 🚀 MODALS */}

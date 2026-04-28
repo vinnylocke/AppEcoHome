@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import {
   Loader2,
@@ -12,6 +12,8 @@ import {
   Plus,
   Leaf,
   Trash2,
+  CheckCircle2,
+  Sprout,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { ConfirmModal } from "./ConfirmModal";
@@ -68,6 +70,13 @@ export default function InstanceCareRoutine({
     start_date: todayStr,
     end_date: "",
   });
+
+  // Success animation state
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [successRoutineId, setSuccessRoutineId] = useState<string | null>(null);
+
+  // Focus management for delete modal
+  const deleteButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     fetchBlueprints();
@@ -152,12 +161,28 @@ export default function InstanceCareRoutine({
   };
 
   const handleSaveEdit = async (blueprintId: string) => {
-    try {
-      const freq =
-        typeof editData.frequency_days === "number"
-          ? editData.frequency_days
-          : null;
+    // Optimistic update: store previous state for rollback
+    const previousBlueprints = [...blueprints];
+    const freq =
+      typeof editData.frequency_days === "number"
+        ? editData.frequency_days
+        : null;
 
+    // Optimistically update UI
+    const optimisticUpdate = blueprints.map((bp) =>
+      bp.id === blueprintId
+        ? {
+            ...bp,
+            frequency_days: freq,
+            start_date: editData.start_date || null,
+            end_date: editData.end_date || null,
+          }
+        : bp
+    );
+    setBlueprints(optimisticUpdate);
+    setEditingId(null);
+
+    try {
       const { error } = await supabase
         .from("task_blueprints")
         .update({
@@ -170,8 +195,14 @@ export default function InstanceCareRoutine({
       if (error) throw error;
 
       toast.success("Routine updated!");
-      setEditingId(null);
-      fetchBlueprints();
+
+      // Show success animation
+      setSuccessRoutineId(blueprintId);
+      setShowSuccessAnimation(true);
+      setTimeout(() => {
+        setShowSuccessAnimation(false);
+        setSuccessRoutineId(null);
+      }, 2000);
 
       await BlueprintService.generateHomeTasks(homeId);
 
@@ -179,6 +210,8 @@ export default function InstanceCareRoutine({
         if (onRoutineUpdated) onRoutineUpdated();
       }, 600);
     } catch (error) {
+      // Rollback on error
+      setBlueprints(previousBlueprints);
       toast.error("Failed to update routine.");
     }
   };
@@ -212,6 +245,10 @@ export default function InstanceCareRoutine({
     } finally {
       setIsDeleting(false);
       setRoutineToDelete(null);
+      // Return focus to delete button after modal closes
+      setTimeout(() => {
+        deleteButtonRef.current?.focus();
+      }, 100);
     }
   };
 
@@ -227,45 +264,84 @@ export default function InstanceCareRoutine({
     }
 
     setIsSavingNew(true);
+
+    // Store previous state for rollback
+    const previousBlueprints = [...blueprints];
+
+    // Create optimistic entry
+    const optimisticId = `temp-${Date.now()}`;
+    const optimisticRoutine = {
+      id: optimisticId,
+      home_id: homeId,
+      inventory_item_ids: [inventoryItemId],
+      location_id: locationId,
+      area_id: areaId,
+      title: newRoutine.title,
+      description: newRoutine.description,
+      task_type: newRoutine.task_type,
+      is_recurring: newRoutine.is_recurring,
+      frequency_days: newRoutine.is_recurring
+        ? newRoutine.frequency_days
+        : null,
+      start_date: newRoutine.start_date || todayStr,
+      end_date:
+        newRoutine.is_recurring && newRoutine.end_date
+          ? newRoutine.end_date
+          : null,
+      priority: "Medium",
+      created_at: new Date().toISOString(),
+    };
+
+    // Optimistically update UI
+    setBlueprints([...blueprints, optimisticRoutine]);
+    setNewRoutine({
+      title: "",
+      description: "",
+      task_type: "Watering",
+      is_recurring: true,
+      frequency_days: 7,
+      start_date: todayStr,
+      end_date: "",
+    });
+    setIsAdding(false);
+
     try {
       const payload = {
         home_id: homeId,
         inventory_item_ids: [inventoryItemId],
         location_id: locationId,
         area_id: areaId,
-        title: newRoutine.title,
-        description: newRoutine.description,
-        task_type: newRoutine.task_type,
-        is_recurring: newRoutine.is_recurring,
-        frequency_days: newRoutine.is_recurring
-          ? newRoutine.frequency_days
-          : null,
-        start_date: newRoutine.start_date || todayStr,
-        end_date:
-          newRoutine.is_recurring && newRoutine.end_date
-            ? newRoutine.end_date
-            : null,
+        title: optimisticRoutine.title,
+        description: optimisticRoutine.description,
+        task_type: optimisticRoutine.task_type,
+        is_recurring: optimisticRoutine.is_recurring,
+        frequency_days: optimisticRoutine.frequency_days,
+        start_date: optimisticRoutine.start_date,
+        end_date: optimisticRoutine.end_date,
         priority: "Medium",
       };
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from("task_blueprints")
-        .insert([payload]);
+        .insert([payload])
+        .select();
       if (error) throw error;
 
       toast.success("New routine created!");
 
-      setNewRoutine({
-        title: "",
-        description: "",
-        task_type: "Watering",
-        is_recurring: true,
-        frequency_days: 7,
-        start_date: todayStr,
-        end_date: "",
-      });
-      setIsAdding(false);
-      fetchBlueprints();
+      // Replace optimistic entry with real data
+      if (data && data[0]) {
+        setBlueprints((current) =>
+          current.map((bp) => (bp.id === optimisticId ? data[0] : bp))
+        );
+        // Show success animation
+        setSuccessRoutineId(data[0].id);
+        setShowSuccessAnimation(true);
+        setTimeout(() => {
+          setShowSuccessAnimation(false);
+          setSuccessRoutineId(null);
+        }, 2000);
+      }
 
       await BlueprintService.generateHomeTasks(homeId);
 
@@ -273,6 +349,18 @@ export default function InstanceCareRoutine({
         if (onRoutineUpdated) onRoutineUpdated();
       }, 600);
     } catch (error) {
+      // Rollback on error
+      setBlueprints(previousBlueprints);
+      setIsAdding(true);
+      setNewRoutine({
+        title: optimisticRoutine.title,
+        description: optimisticRoutine.description,
+        task_type: optimisticRoutine.task_type,
+        is_recurring: optimisticRoutine.is_recurring,
+        frequency_days: optimisticRoutine.frequency_days || 7,
+        start_date: optimisticRoutine.start_date,
+        end_date: optimisticRoutine.end_date || "",
+      });
       toast.error("Failed to create routine.");
     } finally {
       setIsSavingNew(false);
@@ -440,14 +528,29 @@ export default function InstanceCareRoutine({
       )}
 
       {blueprints.length === 0 && !isAdding ? (
-        <div className="text-center p-8 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/10">
-          <Calendar
-            size={32}
-            className="mx-auto mb-3 text-rhozly-on-surface/30"
-          />
-          <p className="font-bold text-sm text-rhozly-on-surface/60">
-            No active routines for this plant.
+        <div className="text-center p-12 bg-gradient-to-br from-rhozly-surface-low to-rhozly-primary/5 rounded-2xl border border-rhozly-outline/10">
+          <div className="relative inline-block mb-4">
+            <div className="absolute inset-0 bg-rhozly-primary/10 rounded-full blur-xl"></div>
+            <div className="relative bg-white p-4 rounded-full shadow-sm">
+              <Sprout
+                size={40}
+                className="text-rhozly-primary"
+                strokeWidth={2}
+              />
+            </div>
+          </div>
+          <h3 className="font-black text-base text-rhozly-on-surface mb-2">
+            No Care Routines Yet
+          </h3>
+          <p className="font-bold text-xs text-rhozly-on-surface/60 max-w-xs mx-auto mb-4">
+            Create your first routine to keep this plant thriving with automated care reminders
           </p>
+          <button
+            onClick={() => setIsAdding(true)}
+            className="inline-flex items-center gap-2 text-xs font-black uppercase tracking-widest text-white bg-rhozly-primary px-5 py-2.5 rounded-xl hover:bg-rhozly-primary-container transition-all shadow-md hover:shadow-lg"
+          >
+            <Plus size={16} /> Create Routine
+          </button>
         </div>
       ) : (
         <div className="space-y-3">
@@ -488,6 +591,14 @@ export default function InstanceCareRoutine({
 
                 {editingId !== bp.id && (
                   <div className="flex items-center gap-1">
+                    {showSuccessAnimation && successRoutineId === bp.id && (
+                      <div className="animate-in fade-in zoom-in duration-300 mr-2">
+                        <CheckCircle2
+                          size={20}
+                          className="text-green-500 animate-pulse"
+                        />
+                      </div>
+                    )}
                     {bp.frequency_days && (
                       <div className="text-right mr-2">
                         <p className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
@@ -500,12 +611,15 @@ export default function InstanceCareRoutine({
                     )}
                     <button
                       onClick={() => handleEditClick(bp)}
+                      aria-label={`Edit routine: ${bp.title}`}
                       className="p-2 text-rhozly-on-surface/30 hover:text-rhozly-primary hover:bg-rhozly-primary/10 rounded-xl transition-all"
                     >
                       <Edit3 size={16} />
                     </button>
                     <button
+                      ref={routineToDelete?.id === bp.id ? deleteButtonRef : null}
                       onClick={() => setRoutineToDelete(bp)}
+                      aria-label={`Delete routine: ${bp.title}`}
                       className="p-2 text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                     >
                       <Trash2 size={16} />
@@ -587,7 +701,13 @@ export default function InstanceCareRoutine({
       <ConfirmModal
         isOpen={routineToDelete !== null}
         isLoading={isDeleting}
-        onClose={() => setRoutineToDelete(null)}
+        onClose={() => {
+          setRoutineToDelete(null);
+          // Return focus to delete button when modal is dismissed without confirming
+          setTimeout(() => {
+            deleteButtonRef.current?.focus();
+          }, 100);
+        }}
         onConfirm={handleConfirmDelete}
         title="Delete Routine"
         description={`Are you sure you want to delete "${routineToDelete?.title}"? All pending tasks for this routine will also be removed from your calendar. (Past completed tasks will be kept for your records).`}

@@ -681,8 +681,26 @@ export default function TaskList({
 
   if (loading)
     return (
-      <div className="p-10 flex justify-center">
-        <Loader2 className="animate-spin text-rhozly-primary" />
+      <div className="space-y-3 animate-in fade-in">
+        {[1, 2, 3, 4].map((i) => (
+          <div
+            key={i}
+            className="p-5 rounded-3xl border border-rhozly-outline/10 bg-white shadow-sm flex items-center justify-between animate-pulse"
+          >
+            <div className="flex items-center gap-4 w-full">
+              <div className="w-10 h-10 shrink-0 rounded-2xl bg-gray-200" />
+              <div className="flex-1 min-w-0">
+                <div className="w-16 h-4 bg-gray-200 rounded-md mb-2" />
+                <div className="w-48 h-5 bg-gray-300 rounded-md mb-2" />
+                <div className="flex gap-2">
+                  <div className="w-20 h-5 bg-gray-200 rounded-md" />
+                  <div className="w-24 h-5 bg-gray-200 rounded-md" />
+                </div>
+              </div>
+            </div>
+            <div className="w-14 h-14 rounded-[1rem] bg-gray-200 hidden sm:block shrink-0" />
+          </div>
+        ))}
       </div>
     );
 
@@ -721,6 +739,34 @@ export default function TaskList({
         </div>
       ) : (
         <div className={`space-y-3 relative ${isBulkEditing ? "pb-24" : ""}`}>
+          {isBulkEditing && viewTab === "pending" && (
+            <div className="flex items-center gap-3 p-4 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/10 mb-2">
+              <button
+                onClick={() => {
+                  const allPendingIds = filteredTasks
+                    .filter((t) => t.status !== "Completed")
+                    .map((t) => t.id);
+                  if (selectedTaskIds.size === allPendingIds.length) {
+                    setSelectedTaskIds(new Set());
+                  } else {
+                    setSelectedTaskIds(new Set(allPendingIds));
+                  }
+                }}
+                className="w-6 h-6 shrink-0 rounded-lg flex items-center justify-center border-2 transition-all active:scale-90 hover:border-rhozly-primary"
+                aria-label="Select all tasks"
+              >
+                {selectedTaskIds.size === filteredTasks.filter((t) => t.status !== "Completed").length &&
+                selectedTaskIds.size > 0 ? (
+                  <CheckSquare2 size={16} className="text-rhozly-primary" />
+                ) : (
+                  <Square size={16} className="text-rhozly-on-surface/40" />
+                )}
+              </button>
+              <span className="text-xs font-bold text-rhozly-on-surface/60">
+                Select All
+              </span>
+            </div>
+          )}
           {filteredTasks.map((task) => {
             const invIds = task.inventory_item_ids || [];
             const activeInvIds = invIds.filter(
@@ -764,7 +810,21 @@ export default function TaskList({
                     setSelectedTask(task);
                   }
                 }}
-                className={`p-5 rounded-3xl border shadow-sm flex items-center justify-between group relative transition-all cursor-pointer ${cardStyle}`}
+                tabIndex={0}
+                role={isBulkEditing ? "checkbox" : "button"}
+                aria-checked={isBulkEditing ? isSelected : undefined}
+                aria-label={isBulkEditing ? `Select task: ${task.title}` : `View task: ${task.title}`}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    if (isBulkEditing) {
+                      if (!isCompleted) toggleTaskSelection(task.id);
+                    } else {
+                      setSelectedTask(task);
+                    }
+                  }
+                }}
+                className={`p-5 rounded-3xl border shadow-sm flex items-center justify-between group relative transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 ${cardStyle}`}
               >
                 {isBlocked && !isCompleted && !isBulkEditing && (
                   <div className="absolute -top-2 -right-2 z-10 text-[9px] font-black uppercase text-gray-500 bg-gray-200 px-3 py-1 rounded-full shadow-sm flex items-center gap-1 border border-gray-300">
@@ -780,6 +840,7 @@ export default function TaskList({
                         isUpdatingTask === task.id ||
                         (isBlocked && !isCompleted)
                       }
+                      aria-label={`Mark task "${task.title}" as ${isCompleted ? "incomplete" : "complete"}`}
                       className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center border-2 transition-all active:scale-90 ${isUpdatingTask === task.id ? "border-rhozly-primary/30" : isCompleted ? "bg-green-500 border-green-500 text-white" : isBlocked ? "border-gray-300 text-gray-400 bg-gray-200" : "border-rhozly-outline/20 hover:border-rhozly-primary text-transparent hover:text-rhozly-primary/30"}`}
                     >
                       {isUpdatingTask === task.id ? (
@@ -834,7 +895,8 @@ export default function TaskList({
                           e.stopPropagation();
                           setTaskToDelete(task);
                         }}
-                        className="p-2 text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"
+                        className="p-3 min-w-[44px] min-h-[44px] sm:p-2 sm:min-w-0 sm:min-h-0 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"
+                        aria-label={`Delete task: ${task.title}`}
                         title="Delete Task"
                       >
                         <Trash2 size={16} />
@@ -845,7 +907,8 @@ export default function TaskList({
                           setSelectedTask(task);
                           setIsPostponing(true);
                         }}
-                        className="p-2 text-gray-400 hover:text-blue-500 hover:bg-white rounded-lg transition-colors"
+                        className="p-3 min-w-[44px] min-h-[44px] sm:p-2 sm:min-w-0 sm:min-h-0 flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-white rounded-lg transition-colors"
+                        aria-label={`Postpone task: ${task.title}`}
                         title="Postpone Task"
                       >
                         <CalendarClock size={16} />

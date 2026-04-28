@@ -24,9 +24,9 @@ interface QuizQuestion {
 const QUESTIONS: QuizQuestion[] = [
   {
     id: "goal",
-    title: "What's your main garden goal?",
-    subtitle: "This helps us personalise what we recommend for you.",
-    multi: false,
+    title: "What are your garden goals?",
+    subtitle: "Pick as many as apply — this helps us personalise your recommendations.",
+    multi: true,
     options: [
       {
         label: "Grow my own food",
@@ -260,10 +260,18 @@ export default function HabitQuiz({ homeId, userId, onComplete }: Props) {
           ) === i,
       );
 
+      // Delete previous quiz answers for this user/home so retaking replaces them cleanly
+      await supabase
+        .from("planner_preferences")
+        .delete()
+        .eq("home_id", homeId)
+        .eq("user_id", userId)
+        .eq("source", "quiz");
+
       if (uniquePrefs.length > 0) {
         const { error: prefErr } = await supabase
           .from("planner_preferences")
-          .upsert(uniquePrefs, { onConflict: "home_id,entity_type,entity_name" });
+          .insert(uniquePrefs);
         if (prefErr) throw prefErr;
       }
 

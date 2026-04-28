@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   X,
   Search,
@@ -44,6 +44,7 @@ export default function BulkSearchModal({
   const [activeTab, setActiveTab] = useState<"api" | "ai">("api");
   const [query, setQuery] = useState(initialSearchTerm || "");
   const [isSearching, setIsSearching] = useState(false);
+  const [searchError, setSearchError] = useState<string>("");
 
   const [apiResults, setApiResults] = useState<any[]>([]);
   const [aiResults, setAiResults] = useState<string[]>([]);
@@ -56,6 +57,9 @@ export default function BulkSearchModal({
   const [selectedPlantsMap, setSelectedPlantsMap] = useState<Map<string, any>>(
     new Map(),
   );
+
+  const triggerRef = useRef<HTMLElement | null>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (initialCartItems && initialCartItems.length > 0) {
@@ -86,6 +90,45 @@ export default function BulkSearchModal({
     });
     return () => setPageContext(null);
   }, [activeTab, query, selectedPlantsMap.size, step, setPageContext]);
+
+  // Focus trap and return focus on close
+  useEffect(() => {
+    // Store the previously focused element
+    triggerRef.current = document.activeElement as HTMLElement;
+
+    // Focus the modal
+    if (modalRef.current) {
+      modalRef.current.focus();
+    }
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Tab" && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+        );
+        const firstElement = focusableElements[0];
+        const lastElement = focusableElements[focusableElements.length - 1];
+
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement?.focus();
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement?.focus();
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+      // Return focus to trigger element
+      if (triggerRef.current) {
+        triggerRef.current.focus();
+      }
+    };
+  }, []);
 
   // 🚀 SMARTER WIKIPEDIA FETCHER
   const fetchPreviewData = async (
@@ -181,9 +224,13 @@ export default function BulkSearchModal({
 
   const performSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!query.trim()) return;
+    if (!query.trim()) {
+      setSearchError("Please enter a search term");
+      return;
+    }
 
     setIsSearching(true);
+    setSearchError("");
     setExpandedResultId(null);
 
     try {
@@ -196,16 +243,18 @@ export default function BulkSearchModal({
       }
     } catch (err: any) {
       const errorMsg = err.message || "";
+      let displayError = "";
       if (
         errorMsg.includes("Unexpected token") ||
         errorMsg.includes("Please Upg")
       ) {
-        toast.error(
-          "Perenual API limit reached. Try using the AI Generator instead.",
-        );
+        displayError = "Perenual API limit reached. Try using the AI Generator instead.";
+        toast.error(displayError);
       } else {
-        toast.error("Search failed. Please try again.");
+        displayError = "Search failed. Please try again.";
+        toast.error(displayError);
       }
+      setSearchError(displayError);
     } finally {
       setIsSearching(false);
     }
@@ -272,9 +321,14 @@ export default function BulkSearchModal({
   if (!isPremium) {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
-        <div className="bg-rhozly-surface-lowest w-full max-w-md p-8 rounded-[3rem] shadow-2xl border border-rhozly-outline/20 text-center relative">
+        <div
+          ref={modalRef}
+          tabIndex={-1}
+          className="bg-rhozly-surface-lowest w-full max-w-md p-8 rounded-[3rem] shadow-2xl border border-rhozly-outline/20 text-center relative"
+        >
           <button
             onClick={onClose}
+            aria-label="Close modal"
             className="absolute top-6 right-6 p-2 bg-rhozly-surface-low rounded-xl"
           >
             <X size={20} />
@@ -298,7 +352,11 @@ export default function BulkSearchModal({
   if (step === "review") {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
-        <div className="bg-rhozly-surface-lowest w-full max-w-2xl h-[85vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden relative">
+        <div
+          ref={modalRef}
+          tabIndex={-1}
+          className="bg-rhozly-surface-lowest w-full max-w-2xl h-[85vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden relative"
+        >
           <div className="p-8 pb-4 shrink-0 flex justify-between items-start border-b border-rhozly-outline/10">
             <div>
               <button
@@ -317,6 +375,7 @@ export default function BulkSearchModal({
             </div>
             <button
               onClick={onClose}
+              aria-label="Close modal"
               className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
             >
               <X size={24} />
@@ -397,8 +456,8 @@ export default function BulkSearchModal({
                       </button>
                       <button
                         onClick={() => toggleSelection(id, item)}
+                        aria-label="Remove from cart"
                         className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-colors"
-                        title="Remove from cart"
                       >
                         <Trash2 size={18} />
                       </button>
@@ -430,7 +489,11 @@ export default function BulkSearchModal({
   // SEARCH UI
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
-      <div className="bg-rhozly-surface-lowest w-full max-w-3xl h-[85vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden relative">
+      <div
+        ref={modalRef}
+        tabIndex={-1}
+        className="bg-rhozly-surface-lowest w-full max-w-3xl h-[85vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden relative"
+      >
         <div className="p-8 pb-4 shrink-0 flex justify-between items-start">
           <div>
             <h3 className="text-3xl font-black flex items-center gap-3">
@@ -442,6 +505,7 @@ export default function BulkSearchModal({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close modal"
             className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
           >
             <X size={24} />
@@ -449,8 +513,13 @@ export default function BulkSearchModal({
         </div>
 
         <div className="px-8 shrink-0">
-          <div className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/10">
+          <div
+            role="tablist"
+            className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/10"
+          >
             <button
+              role="tab"
+              aria-selected={activeTab === "api"}
               onClick={() => {
                 setActiveTab("api");
                 setExpandedResultId(null);
@@ -460,6 +529,8 @@ export default function BulkSearchModal({
               <Database size={16} /> Perenual Database
             </button>
             <button
+              role="tab"
+              aria-selected={activeTab === "ai"}
               onClick={() => {
                 setActiveTab("ai");
                 setExpandedResultId(null);
@@ -472,36 +543,77 @@ export default function BulkSearchModal({
         </div>
 
         <div className="p-8 pb-4 shrink-0">
-          <form onSubmit={performSearch} className="relative flex items-center">
-            <input
-              type="text"
-              placeholder={
-                activeTab === "api"
-                  ? "Search real plants..."
-                  : "Ask AI for any plant..."
-              }
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              className={`w-full pl-6 pr-14 py-4 rounded-2xl font-bold border outline-none shadow-sm transition-colors ${activeTab === "api" ? "bg-rhozly-surface-low focus:border-rhozly-primary border-transparent" : "bg-white focus:border-amber-500 border-rhozly-outline/10"}`}
-            />
-            <button
-              type="submit"
-              disabled={isSearching || !query.trim()}
-              className={`absolute right-2 p-2 text-white rounded-xl hover:scale-105 transition-transform disabled:opacity-50 ${activeTab === "api" ? "bg-rhozly-primary" : "bg-amber-500"}`}
+          <form onSubmit={performSearch} className="relative">
+            <div className="relative flex items-center">
+              <input
+                id="bulk-search-input"
+                type="text"
+                placeholder={
+                  activeTab === "api"
+                    ? "Search real plants..."
+                    : "Ask AI for any plant..."
+                }
+                value={query}
+                onChange={(e) => {
+                  setQuery(e.target.value);
+                  if (searchError) setSearchError("");
+                }}
+                aria-describedby="search-helper-text"
+                aria-invalid={!!searchError}
+                className={`w-full pl-6 pr-14 py-4 rounded-2xl font-bold border outline-none shadow-sm transition-colors ${searchError ? "border-red-500" : activeTab === "api" ? "bg-rhozly-surface-low focus:border-rhozly-primary border-transparent" : "bg-white focus:border-amber-500 border-rhozly-outline/10"}`}
+              />
+              <button
+                type="submit"
+                disabled={isSearching || !query.trim()}
+                aria-label="Search"
+                className={`absolute right-2 p-2 text-white rounded-xl hover:scale-105 transition-transform disabled:opacity-50 ${activeTab === "api" ? "bg-rhozly-primary" : "bg-amber-500"}`}
+              >
+                <Search size={20} />
+              </button>
+            </div>
+            <p
+              id="search-helper-text"
+              className="text-xs text-rhozly-on-surface/50 font-medium mt-2 px-2"
             >
-              <Search size={20} />
-            </button>
+              {activeTab === "api"
+                ? "Search the Perenual plant database"
+                : "Use AI to generate plant suggestions"}
+            </p>
+            {searchError && (
+              <p
+                className="text-xs text-red-500 font-bold mt-2 px-2 animate-in slide-in-from-top-1"
+                role="alert"
+              >
+                {searchError}
+              </p>
+            )}
           </form>
         </div>
 
-        <div className="flex-1 overflow-y-auto p-8 pt-0 custom-scrollbar space-y-3 pb-32">
+        <div className="flex-1 overflow-y-auto p-8 pt-0 custom-scrollbar space-y-3">
           {isSearching ? (
-            <div className="flex flex-col items-center justify-center h-40 opacity-50">
-              <Loader2
-                className={`animate-spin mb-4 ${activeTab === "ai" ? "text-amber-500" : "text-rhozly-primary"}`}
-                size={32}
-              />
-              <p className="font-bold text-sm">Searching...</p>
+            <div className="space-y-3">
+              {[1, 2, 3, 4].map((i) => (
+                <div
+                  key={i}
+                  className="w-full bg-white border border-rhozly-outline/10 rounded-2xl p-3 flex items-center gap-3 animate-pulse"
+                >
+                  <div className="w-6 h-6 bg-rhozly-surface-low rounded-lg shrink-0" />
+                  <div className="w-12 h-12 bg-rhozly-surface-low rounded-xl shrink-0" />
+                  <div className="flex-1 space-y-2">
+                    <div className="h-4 bg-rhozly-surface-low rounded w-3/4" />
+                    <div className="h-3 bg-rhozly-surface-low rounded w-1/2" />
+                  </div>
+                  <div className="w-8 h-8 bg-rhozly-surface-low rounded-xl shrink-0" />
+                </div>
+              ))}
+              <div className="flex flex-col items-center justify-center py-4 opacity-50">
+                <Loader2
+                  className={`animate-spin mb-2 ${activeTab === "ai" ? "text-amber-500" : "text-rhozly-primary"}`}
+                  size={24}
+                />
+                <p className="font-bold text-xs">Searching...</p>
+              </div>
             </div>
           ) : activeTab === "api" ? (
             apiResults.map((plant: any) => {
@@ -519,6 +631,7 @@ export default function BulkSearchModal({
                           data: plant,
                         })
                       }
+                      aria-label={isSelected ? "Remove from selection" : "Add to selection"}
                       className={`shrink-0 transition-colors ${isSelected ? "text-rhozly-primary" : "text-rhozly-on-surface/20 hover:text-rhozly-primary/50"}`}
                     >
                       {isSelected ? (
@@ -588,6 +701,7 @@ export default function BulkSearchModal({
                       onClick={() =>
                         toggleSelection(match, { type: "ai", data: match })
                       }
+                      aria-label={isSelected ? "Remove from selection" : "Add to selection"}
                       className={`shrink-0 transition-colors ${isSelected ? "text-amber-500" : "text-rhozly-on-surface/20 hover:text-amber-500/50"}`}
                     >
                       {isSelected ? (
@@ -635,9 +749,9 @@ export default function BulkSearchModal({
         </div>
 
         {selectedPlantsMap.size > 0 && (
-          <div className="absolute bottom-0 left-0 right-0 p-6 bg-gradient-to-t from-white via-white to-transparent animate-in slide-in-from-bottom-8">
-            <div className="bg-rhozly-surface-lowest shadow-2xl border border-rhozly-outline/20 rounded-[2rem] p-4 flex items-center justify-between">
-              <div className="px-2">
+          <div className="shrink-0 p-6 bg-white border-t border-rhozly-outline/10 md:absolute md:bottom-0 md:left-0 md:right-0 md:bg-gradient-to-t md:from-white md:via-white md:to-transparent md:border-t-0 animate-in slide-in-from-bottom-8">
+            <div className="bg-rhozly-surface-lowest shadow-2xl border border-rhozly-outline/20 rounded-[2rem] p-4 flex flex-col md:flex-row items-center gap-4 md:justify-between">
+              <div className="px-2 text-center md:text-left">
                 <p className="text-sm font-black text-rhozly-on-surface">
                   {selectedPlantsMap.size} Plants Selected
                 </p>
@@ -647,7 +761,7 @@ export default function BulkSearchModal({
               </div>
               <button
                 onClick={() => setStep("review")}
-                className={`px-8 py-4 text-white rounded-2xl font-black shadow-lg hover:scale-105 transition-transform flex items-center gap-2 ${activeTab === "ai" ? "bg-amber-500" : "bg-rhozly-primary"}`}
+                className={`w-full md:w-auto px-8 py-4 text-white rounded-2xl font-black shadow-lg hover:scale-105 transition-transform flex items-center justify-center gap-2 ${activeTab === "ai" ? "bg-amber-500" : "bg-rhozly-primary"}`}
               >
                 <ListPlus size={20} /> Review & Add
               </button>

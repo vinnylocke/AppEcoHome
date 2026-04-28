@@ -34,6 +34,7 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantSearchModal from "./PlantSearchModal";
 import DiagnosisImageGallery from "./DiagnosisImageGallery";
+import PlantInstancePicker from "./PlantInstancePicker";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -139,12 +140,28 @@ export default function PlantDoctor({
   useEffect(() => {
     const fetchInventory = async () => {
       if (!homeId) return;
+
+      // inventory_items stores plant_name, area_name, location_name as denormalized
+      // text columns — no FK joins needed or available.
       const { data } = await supabase
         .from("inventory_items")
-        .select(`id, plant_id, location_id, area_id, plants ( common_name )`)
+        .select(`id, plant_id, plant_name, location_id, location_name, area_id, area_name`)
         .eq("home_id", homeId)
         .eq("status", "Planted");
-      if (data) setMyInventory(data);
+
+      if (!data) return;
+
+      // Map flat columns to the nested shape PlantInstancePicker and the rest of
+      // this component expect (plants.common_name, areas.name, areas.locations.name).
+      const enriched = data.map((item: any) => ({
+        ...item,
+        plants: { common_name: item.plant_name ?? null },
+        areas: item.area_name
+          ? { name: item.area_name, locations: item.location_name ? { name: item.location_name } : null }
+          : null,
+      }));
+
+      setMyInventory(enriched);
     };
     fetchInventory();
   }, [homeId]);
@@ -818,23 +835,12 @@ export default function PlantDoctor({
                           <label className="block text-xs font-black text-rhozly-primary/60 uppercase tracking-widest">
                             Select Patient to Treat
                           </label>
-                          <select
-                            value={sickInventoryId || ""}
-                            onChange={(e) => setSickInventoryId(e.target.value)}
-                            disabled={isUIBusy || myInventory.length === 0}
-                            className="w-full p-4 bg-rhozly-surface-low rounded-xl border border-transparent focus:border-rhozly-primary font-bold text-sm outline-none transition-colors disabled:opacity-50"
-                          >
-                            <option value="">
-                              Select a specific planted item from your shed...
-                            </option>
-                            {myInventory.map((item) => (
-                              <option key={item.id} value={item.id}>
-                                {item.plants?.common_name
-                                  ? `${item.plants.common_name} (ID: ${item.id.slice(0, 4)})`
-                                  : "Unknown Plant"}
-                              </option>
-                            ))}
-                          </select>
+                          <PlantInstancePicker
+                            items={myInventory}
+                            selectedId={sickInventoryId}
+                            onSelect={setSickInventoryId}
+                            placeholder="Select a specific planted item from your shed..."
+                          />
 
                           <button
                             onClick={generateTreatmentPlan}

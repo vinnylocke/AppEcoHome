@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import {
   ExternalLink,
@@ -113,10 +113,12 @@ function Lightbox({
 }) {
   const [idx, setIdx] = useState(startIndex);
   const image = images[idx];
+  const lightboxRef = useRef<HTMLDivElement>(null);
 
   const prev = () => setIdx((i) => (i > 0 ? i - 1 : images.length - 1));
   const next = () => setIdx((i) => (i < images.length - 1 ? i + 1 : 0));
 
+  // Keyboard navigation
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -127,18 +129,60 @@ function Lightbox({
     return () => window.removeEventListener("keydown", onKey);
   }, [idx]);
 
+  // Focus trap
+  useEffect(() => {
+    const lightbox = lightboxRef.current;
+    if (!lightbox) return;
+
+    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const previouslyFocused = document.activeElement as HTMLElement;
+
+    const handleTabKey = (e: KeyboardEvent) => {
+      if (e.key !== "Tab") return;
+
+      const focusableElements = lightbox.querySelectorAll<HTMLElement>(focusableSelector);
+      const firstElement = focusableElements[0];
+      const lastElement = focusableElements[focusableElements.length - 1];
+
+      if (e.shiftKey) {
+        if (document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement?.focus();
+        }
+      } else {
+        if (document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement?.focus();
+        }
+      }
+    };
+
+    const focusableElements = lightbox.querySelectorAll<HTMLElement>(focusableSelector);
+    const firstFocusable = focusableElements[0];
+
+    window.addEventListener("keydown", handleTabKey);
+    firstFocusable?.focus();
+
+    return () => {
+      window.removeEventListener("keydown", handleTabKey);
+      previouslyFocused?.focus();
+    };
+  }, []);
+
   return createPortal(
     <div
       className="fixed inset-0 z-[200] flex items-center justify-center bg-black/90 backdrop-blur-sm p-4 animate-in fade-in"
       onClick={onClose}
     >
       <div
+        ref={lightboxRef}
         className="relative max-w-2xl w-full flex flex-col items-center"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Close */}
         <button
           onClick={onClose}
+          aria-label="Close lightbox"
           className="absolute -top-3 -right-3 z-10 w-9 h-9 bg-white rounded-full flex items-center justify-center shadow-lg hover:bg-gray-100 transition-colors"
         >
           <X size={18} />
@@ -147,7 +191,7 @@ function Lightbox({
         {/* Image */}
         <img
           src={image.small_url}
-          alt={image.alt}
+          alt={image.alt || "Plant reference image"}
           className="w-full max-h-[60vh] object-contain rounded-2xl shadow-2xl"
         />
 
@@ -156,12 +200,14 @@ function Lightbox({
           <>
             <button
               onClick={prev}
+              aria-label="Previous image"
               className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/80 rounded-full flex items-center justify-center hover:bg-white transition-colors shadow"
             >
               <ChevronLeft size={20} />
             </button>
             <button
               onClick={next}
+              aria-label="Next image"
               className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/80 rounded-full flex items-center justify-center hover:bg-white transition-colors shadow"
             >
               <ChevronRight size={20} />
@@ -231,6 +277,84 @@ function Skeleton() {
 }
 
 // ---------------------------------------------------------------------------
+// Image thumbnail with loading state
+// ---------------------------------------------------------------------------
+function ThumbnailImage({
+  image,
+  label,
+  onClick,
+  onReport
+}: {
+  image: ImageResult;
+  label: string;
+  onClick: () => void;
+  onReport: () => void;
+}) {
+  const [imageLoaded, setImageLoaded] = useState(false);
+
+  return (
+    <div
+      className="group shrink-0 w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden relative border border-gray-100 shadow-sm cursor-zoom-in"
+      onClick={onClick}
+    >
+      {/* Loading placeholder */}
+      {!imageLoaded && (
+        <div className="absolute inset-0 bg-gray-100 animate-pulse" />
+      )}
+
+      {/* Thumbnail */}
+      <img
+        src={image.thumb_url}
+        alt={image.alt ? `${image.alt} - ${label}` : `Reference image for ${label}`}
+        loading="lazy"
+        onLoad={() => setImageLoaded(true)}
+        className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-105 ${
+          imageLoaded ? 'opacity-100' : 'opacity-0'
+        }`}
+      />
+
+      {/* Always-visible attribution strip — required by Unsplash License */}
+      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
+        <a
+          href={image.photographer_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-[9px] text-white/80 font-bold truncate block hover:text-white leading-tight"
+          title={`Photo by ${image.photographer_name} on Unsplash`}
+        >
+          {image.photographer_name}
+        </a>
+      </div>
+
+      {/* Hover action buttons */}
+      <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
+        <a
+          href={image.photo_page}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="w-6 h-6 bg-white/90 rounded-lg flex items-center justify-center shadow-sm hover:bg-white transition-colors"
+          title="View on Unsplash"
+        >
+          <ExternalLink size={11} className="text-gray-700" />
+        </a>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onReport();
+          }}
+          className="w-6 h-6 bg-white/90 rounded-lg flex items-center justify-center shadow-sm hover:bg-red-50 transition-colors"
+          title="Report this image"
+        >
+          <Flag size={11} className="text-gray-500" />
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main component
 // ---------------------------------------------------------------------------
 interface Props {
@@ -281,57 +405,13 @@ export default function DiagnosisImageGallery({ query, label }: Props) {
           style={{ scrollbarWidth: "none" }}
         >
           {images.map((image, i) => (
-            <div
+            <ThumbnailImage
               key={image.id}
-              className="group shrink-0 w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden relative border border-gray-100 shadow-sm cursor-zoom-in"
+              image={image}
+              label={label}
               onClick={() => setLightboxIndex(i)}
-            >
-              {/* Thumbnail */}
-              <img
-                src={image.thumb_url}
-                alt={image.alt}
-                loading="lazy"
-                className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-              />
-
-              {/* Always-visible attribution strip — required by Unsplash License */}
-              <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
-                <a
-                  href={image.photographer_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="text-[9px] text-white/80 font-bold truncate block hover:text-white leading-tight"
-                  title={`Photo by ${image.photographer_name} on Unsplash`}
-                >
-                  {image.photographer_name}
-                </a>
-              </div>
-
-              {/* Hover action buttons */}
-              <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
-                <a
-                  href={image.photo_page}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  onClick={(e) => e.stopPropagation()}
-                  className="w-6 h-6 bg-white/90 rounded-lg flex items-center justify-center shadow-sm hover:bg-white transition-colors"
-                  title="View on Unsplash"
-                >
-                  <ExternalLink size={11} className="text-gray-700" />
-                </a>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setReportImage(image);
-                  }}
-                  className="w-6 h-6 bg-white/90 rounded-lg flex items-center justify-center shadow-sm hover:bg-red-50 transition-colors"
-                  title="Report this image"
-                >
-                  <Flag size={11} className="text-gray-500" />
-                </button>
-              </div>
-            </div>
+              onReport={() => setReportImage(image)}
+            />
           ))}
         </div>
 

@@ -158,7 +158,12 @@ export const Auth: React.FC = () => {
             {isSignUp ? "Create an Account" : "Welcome Back"}
           </h2>
 
-          <form onSubmit={handleAuth} className="space-y-6">
+          <motion.form
+            onSubmit={handleAuth}
+            className="space-y-6"
+            animate={error ? { x: [0, -10, 10, -10, 10, 0] } : {}}
+            transition={{ duration: 0.4 }}
+          >
             {/* First Name Field */}
             {isSignUp && (
               <>
@@ -267,6 +272,8 @@ export const Auth: React.FC = () => {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="hello@rhozly.com"
+                  aria-invalid={error ? "true" : "false"}
+                  aria-describedby={error ? "auth-error" : undefined}
                   className="block w-full pl-11 pr-4 py-4 focus:ring-2 focus:outline-none rounded-xl transition-all duration-200"
                   style={{
                     backgroundColor: theme.colors.surfaceContainerLow,
@@ -317,6 +324,8 @@ export const Auth: React.FC = () => {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   placeholder="••••••••"
+                  aria-invalid={error ? "true" : "false"}
+                  aria-describedby={error ? "auth-error" : undefined}
                   className="block w-full pl-11 pr-4 py-4 focus:ring-2 focus:outline-none rounded-xl transition-all duration-200"
                   style={{
                     backgroundColor: theme.colors.surfaceContainerLow,
@@ -328,7 +337,11 @@ export const Auth: React.FC = () => {
 
             {/* Error Message */}
             {error && (
-              <div className="p-4 bg-red-50 text-red-600 text-xs rounded-xl font-bold border border-red-100">
+              <div
+                id="auth-error"
+                role="alert"
+                className="p-4 bg-red-50 text-red-600 text-xs rounded-xl font-bold border border-red-100"
+              >
                 {error}
               </div>
             )}
@@ -351,7 +364,7 @@ export const Auth: React.FC = () => {
                 <>{isSignUp ? "Create Account" : "Sign In"}</>
               )}
             </button>
-          </form>
+          </motion.form>
 
           {/* Divider */}
           <div className="relative my-4">

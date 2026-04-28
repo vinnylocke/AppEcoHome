@@ -46,6 +46,10 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<{
+    title?: string;
+  }>({});
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
 
   const [pendingGeneratedSchedules, setPendingGeneratedSchedules] = useState<
     any[] | null
@@ -487,11 +491,23 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     setForm(defaultFormState);
     setFrequencyMode("interval");
     setTimesPerWeek(1);
+    setValidationErrors({});
   };
 
   const handleSave = async () => {
-    if (!form.title.trim())
-      return toast.error("Please give this schedule a name.");
+    const errors: { title?: string } = {};
+
+    if (!form.title.trim()) {
+      errors.title = "Please give this schedule a name.";
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setValidationErrors(errors);
+      toast.error("Please fix the errors before saving.");
+      return;
+    }
+
+    setValidationErrors({});
     setSaving(true);
 
     try {
@@ -519,6 +535,8 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           .single();
         if (error) throw error;
         newSchedule = data;
+        setShowSuccessAnimation(true);
+        setTimeout(() => setShowSuccessAnimation(false), 2000);
         toast.success("Schedule updated successfully!");
       } else {
         const { data, error } = await supabase
@@ -535,6 +553,8 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           .single();
         if (error) throw error;
         newSchedule = data;
+        setShowSuccessAnimation(true);
+        setTimeout(() => setShowSuccessAnimation(false), 2000);
         toast.success("Custom schedule saved!");
       }
 
@@ -681,29 +701,44 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         </h4>
         <button
           onClick={closeForm}
-          className="text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+          className="text-rhozly-on-surface/40 hover:text-rhozly-on-surface focus:ring-2 focus:ring-rhozly-primary/40 focus:outline-none rounded"
+          aria-label="Close form"
         >
           <X size={20} />
         </button>
       </div>
 
-      <input
-        type="text"
-        placeholder="e.g., Weekly Deep Watering"
-        value={form.title}
-        onChange={(e) => setForm({ ...form, title: e.target.value })}
-        className="w-full p-4 bg-white rounded-2xl font-black border border-transparent focus:border-rhozly-primary outline-none"
-      />
+      <div>
+        <label htmlFor="schedule-title" className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-2">
+          Schedule Name
+        </label>
+        <input
+          id="schedule-title"
+          type="text"
+          placeholder="e.g., Weekly Deep Watering"
+          value={form.title}
+          onChange={(e) => setForm({ ...form, title: e.target.value })}
+          className="w-full p-4 bg-white rounded-2xl font-black border border-transparent focus:border-rhozly-primary focus:ring-2 focus:ring-rhozly-primary/20 outline-none"
+          aria-invalid={!!validationErrors.title}
+          aria-describedby={validationErrors.title ? "schedule-title-error" : undefined}
+        />
+        {validationErrors.title && (
+          <p id="schedule-title-error" className="text-red-500 text-xs font-bold mt-2 flex items-center gap-1">
+            <span>⚠️</span> {validationErrors.title}
+          </p>
+        )}
+      </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div>
-          <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-2">
+          <label htmlFor="task-type" className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-2">
             Task Type
           </label>
           <select
+            id="task-type"
             value={form.task_type}
             onChange={(e) => setForm({ ...form, task_type: e.target.value })}
-            className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none"
+            className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary focus:ring-2 focus:ring-rhozly-primary/20 outline-none"
           >
             {TASK_CATEGORIES.map((t) => (
               <option key={t} value={t}>
@@ -713,15 +748,16 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           </select>
         </div>
         <div>
-          <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-2">
+          <label htmlFor="trigger-event" className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-2">
             Trigger Event
           </label>
           <select
+            id="trigger-event"
             value={form.trigger_event}
             onChange={(e) =>
               setForm({ ...form, trigger_event: e.target.value })
             }
-            className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none"
+            className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary focus:ring-2 focus:ring-rhozly-primary/20 outline-none"
           >
             {TRIGGER_EVENTS.map((t) => (
               <option key={t} value={t}>
@@ -736,7 +772,9 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <span className="font-black text-rhozly-primary w-16">START</span>
           <div className="flex items-center gap-2 flex-1">
+            <label htmlFor="start-offset-days" className="sr-only">Start offset in days</label>
             <input
+              id="start-offset-days"
               type="number"
               min="0"
               value={form.start_offset_days}
@@ -746,17 +784,20 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                   start_offset_days: parseInt(e.target.value) || 0,
                 })
               }
-              className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm"
+              className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
+              aria-label="Start offset in days"
             />
             <span className="font-bold text-sm text-rhozly-on-surface/60 whitespace-nowrap">
               days after
             </span>
             <select
+              id="start-reference"
               value={form.start_reference}
               onChange={(e) =>
                 setForm({ ...form, start_reference: e.target.value })
               }
-              className="flex-1 p-3 bg-white rounded-xl font-bold outline-none text-sm shadow-sm truncate"
+              className="flex-1 p-3 bg-white rounded-xl font-bold outline-none text-sm shadow-sm truncate focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
+              aria-label="Start reference date"
             >
               {dynamicOptions.map((o, idx) => (
                 <option key={`${o.value}-${idx}`} value={o.value}>
@@ -770,7 +811,9 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         <div className="flex flex-col sm:flex-row sm:items-center gap-3">
           <span className="font-black text-red-500 w-16">END</span>
           <div className="flex items-center gap-2 flex-1">
+            <label htmlFor="end-offset-days" className="sr-only">End offset in days</label>
             <input
+              id="end-offset-days"
               type="number"
               min="0"
               disabled={form.end_reference === "Ongoing"}
@@ -781,17 +824,20 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                   end_offset_days: parseInt(e.target.value) || 0,
                 })
               }
-              className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm disabled:opacity-50"
+              className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm disabled:opacity-50 focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
+              aria-label="End offset in days"
             />
             <span className="font-bold text-sm text-rhozly-on-surface/60 whitespace-nowrap">
               days after
             </span>
             <select
+              id="end-reference"
               value={form.end_reference}
               onChange={(e) =>
                 setForm({ ...form, end_reference: e.target.value })
               }
-              className="flex-1 p-3 bg-white rounded-xl font-bold outline-none text-sm shadow-sm truncate"
+              className="flex-1 p-3 bg-white rounded-xl font-bold outline-none text-sm shadow-sm truncate focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
+              aria-label="End reference date"
             >
               {endOptions.map((o, idx) => (
                 <option key={`${o.value}-${idx}`} value={o.value}>
@@ -808,17 +854,23 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           <span className="font-black text-rhozly-on-surface w-16 mt-3">
             REPEAT
           </span>
-          <div className="flex-1 space-y-3">
-            <div className="flex gap-2">
+          <div className="flex-1 space-y-3" aria-label="Select recurrence pattern">
+            <div className="flex gap-2" role="group" aria-label="Recurrence mode selector">
               <button
+                type="button"
+                role="switch"
+                aria-checked={frequencyMode === "interval"}
                 onClick={() => setFrequencyMode("interval")}
-                className={`flex-1 py-2 text-xs font-black uppercase rounded-lg border transition-all ${frequencyMode === "interval" ? "bg-white border-rhozly-primary text-rhozly-primary shadow-sm" : "border-transparent text-rhozly-on-surface/50"}`}
+                className={`flex-1 py-2 text-xs font-black uppercase rounded-lg border transition-all focus:ring-2 focus:ring-rhozly-primary/20 focus:outline-none ${frequencyMode === "interval" ? "bg-white border-rhozly-primary text-rhozly-primary shadow-sm" : "border-transparent text-rhozly-on-surface/50"}`}
               >
                 Every X Days
               </button>
               <button
+                type="button"
+                role="switch"
+                aria-checked={frequencyMode === "weekly"}
                 onClick={() => setFrequencyMode("weekly")}
-                className={`flex-1 py-2 text-xs font-black uppercase rounded-lg border transition-all ${frequencyMode === "weekly" ? "bg-white border-rhozly-primary text-rhozly-primary shadow-sm" : "border-transparent text-rhozly-on-surface/50"}`}
+                className={`flex-1 py-2 text-xs font-black uppercase rounded-lg border transition-all focus:ring-2 focus:ring-rhozly-primary/20 focus:outline-none ${frequencyMode === "weekly" ? "bg-white border-rhozly-primary text-rhozly-primary shadow-sm" : "border-transparent text-rhozly-on-surface/50"}`}
               >
                 Times Per Week
               </button>
@@ -827,10 +879,11 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             <div className="flex items-center gap-2">
               {frequencyMode === "interval" ? (
                 <>
-                  <span className="font-bold text-sm text-rhozly-on-surface/60">
+                  <label htmlFor="frequency-days" className="font-bold text-sm text-rhozly-on-surface/60">
                     Every
-                  </span>
+                  </label>
                   <input
+                    id="frequency-days"
                     type="number"
                     min="1"
                     value={form.frequency_days}
@@ -840,7 +893,8 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                         frequency_days: parseInt(e.target.value) || 1,
                       })
                     }
-                    className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm"
+                    className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
+                    aria-label="Frequency in days"
                   />
                   <span className="font-bold text-sm text-rhozly-on-surface/60">
                     days
@@ -848,7 +902,9 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                 </>
               ) : (
                 <>
+                  <label htmlFor="times-per-week" className="sr-only">Times per week</label>
                   <input
+                    id="times-per-week"
                     type="number"
                     min="1"
                     max="7"
@@ -856,7 +912,8 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                     onChange={(e) =>
                       setTimesPerWeek(parseInt(e.target.value) || 1)
                     }
-                    className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm"
+                    className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
+                    aria-label="Times per week"
                   />
                   <span className="font-bold text-sm text-rhozly-on-surface/60">
                     times a week
@@ -871,14 +928,15 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         </div>
       </div>
 
-      <label className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-rhozly-outline/10 cursor-pointer hover:border-rhozly-primary/30 transition-colors">
+      <label htmlFor="apply-to-existing" className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-rhozly-outline/10 cursor-pointer hover:border-rhozly-primary/30 transition-colors has-[:focus]:ring-2 has-[:focus]:ring-rhozly-primary/20">
         <input
+          id="apply-to-existing"
           type="checkbox"
           checked={form.apply_to_existing}
           onChange={(e) =>
             setForm({ ...form, apply_to_existing: e.target.checked })
           }
-          className="w-5 h-5 accent-rhozly-primary"
+          className="w-5 h-5 accent-rhozly-primary focus:ring-2 focus:ring-rhozly-primary/20 focus:ring-offset-2"
         />
         <div>
           <p className="font-black text-sm">Apply to existing plants?</p>
@@ -892,15 +950,24 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       <button
         onClick={handleSave}
         disabled={saving}
-        className="w-full py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-50 flex justify-center items-center gap-2"
+        className="w-full py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50 flex justify-center items-center gap-2 focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none relative overflow-hidden"
       >
-        {saving ? (
-          <Loader2 className="animate-spin" size={18} />
-        ) : (
-          <>
-            <Save size={18} /> {editingId ? "Save Changes" : "Save Custom Rule"}
-          </>
+        {showSuccessAnimation && (
+          <span className="absolute inset-0 bg-green-500 animate-pulse"></span>
         )}
+        <span className="relative z-10 flex items-center gap-2">
+          {saving ? (
+            <Loader2 className="animate-spin" size={18} />
+          ) : showSuccessAnimation ? (
+            <>
+              <span className="text-2xl">✓</span> Saved!
+            </>
+          ) : (
+            <>
+              <Save size={18} /> {editingId ? "Save Changes" : "Save Custom Rule"}
+            </>
+          )}
+        </span>
       </button>
     </div>
   );
@@ -946,14 +1013,14 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           <button
             onClick={handleAutoGenerate}
             disabled={saving}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-rhozly-primary/10 text-rhozly-primary px-4 py-2 rounded-xl text-xs font-black hover:bg-rhozly-primary hover:text-white transition-all disabled:opacity-50"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-rhozly-primary/10 text-rhozly-primary px-4 py-2 rounded-xl text-xs font-black hover:bg-rhozly-primary hover:text-white transition-all disabled:opacity-50 focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none"
           >
             <Wand2 size={16} /> Auto-Generate
           </button>
           {!isAdding && (
             <button
               onClick={() => setIsAdding(true)}
-              className="flex-1 md:flex-none flex items-center justify-center gap-1 bg-rhozly-primary text-white px-4 py-2 rounded-xl text-xs font-black hover:scale-105 transition-transform"
+              className="flex-1 md:flex-none flex items-center justify-center gap-1 bg-rhozly-primary text-white px-4 py-2 rounded-xl text-xs font-black hover:scale-105 transition-transform focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none"
             >
               <Plus size={16} /> Add Custom
             </button>
@@ -965,9 +1032,29 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
 
       <div className="space-y-3">
         {schedules.length === 0 && !isAdding ? (
-          <div className="text-center p-8 border-2 border-dashed border-rhozly-outline/20 rounded-3xl opacity-50">
-            <Clock className="mx-auto mb-2" size={24} />
-            <p className="font-bold text-sm">No schedules created yet.</p>
+          <div className="text-center p-12 border-2 border-dashed border-rhozly-outline/20 rounded-3xl bg-rhozly-surface-low/30">
+            <Clock className="mx-auto mb-4 text-rhozly-primary/40" size={48} />
+            <h4 className="font-black text-lg text-rhozly-on-surface mb-2">
+              No Schedules Yet
+            </h4>
+            <p className="font-bold text-sm text-rhozly-on-surface/60 mb-6 max-w-md mx-auto">
+              Create automated care schedules to simplify plant maintenance. Let us remind you when to water, fertilize, and prune!
+            </p>
+            <div className="flex flex-col sm:flex-row gap-3 justify-center">
+              <button
+                onClick={handleAutoGenerate}
+                disabled={saving}
+                className="flex items-center justify-center gap-2 bg-rhozly-primary text-white px-6 py-3 rounded-xl text-sm font-black hover:scale-105 transition-transform disabled:opacity-50 shadow-lg focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none"
+              >
+                <Wand2 size={18} /> Generate Smart Schedule
+              </button>
+              <button
+                onClick={() => setIsAdding(true)}
+                className="flex items-center justify-center gap-2 bg-white text-rhozly-primary px-6 py-3 rounded-xl text-sm font-black hover:bg-rhozly-primary/5 transition-colors border border-rhozly-primary/20 focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none"
+              >
+                <Plus size={18} /> Create Custom Schedule
+              </button>
+            </div>
           </div>
         ) : (
           schedules.map((schedule) => (
@@ -1029,15 +1116,17 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                   <div className="flex flex-col sm:flex-row items-center gap-2 shrink-0 border-l border-rhozly-outline/10 pl-4">
                     <button
                       onClick={() => openEditForm(schedule)}
-                      className="p-3 text-rhozly-primary hover:bg-rhozly-primary/10 bg-rhozly-surface-lowest rounded-xl transition-all shadow-sm"
+                      className="p-3 text-rhozly-primary hover:bg-rhozly-primary/10 bg-rhozly-surface-lowest rounded-xl transition-all shadow-sm focus:ring-2 focus:ring-rhozly-primary/40 focus:outline-none"
                       title="Edit Schedule"
+                      aria-label="Edit schedule"
                     >
                       <Edit3 size={18} />
                     </button>
                     <button
                       onClick={() => setConfirmDeleteId(schedule.id)}
-                      className="p-3 text-red-500/80 hover:text-red-600 hover:bg-red-50 bg-rhozly-surface-lowest rounded-xl transition-all shadow-sm"
+                      className="p-3 text-red-500/80 hover:text-red-600 hover:bg-red-50 bg-rhozly-surface-lowest rounded-xl transition-all shadow-sm focus:ring-2 focus:ring-red-500/40 focus:outline-none"
                       title="Delete Schedule"
+                      aria-label="Delete schedule"
                     >
                       <Trash2 size={18} />
                     </button>

@@ -47,10 +47,62 @@ export default function PlantSearchModal({
     });
   }, [results, preferences]);
   const [isSearching, setIsSearching] = useState(false);
+  const [hasSearched, setHasSearched] = useState(false);
+  const [selectedResultIndex, setSelectedResultIndex] = useState(-1);
 
   const [previewPlant, setPreviewPlant] = useState<any | null>(null);
   const [isFetchingPreview, setIsFetchingPreview] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
+
+  const searchInputRef = useRef<HTMLInputElement>(null);
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  // Auto-focus search input when modal opens
+  useEffect(() => {
+    if (!previewPlant && searchInputRef.current) {
+      searchInputRef.current.focus();
+    }
+  }, [previewPlant]);
+
+  // Scroll selected result into view
+  useEffect(() => {
+    if (selectedResultIndex >= 0 && modalRef.current) {
+      const resultsContainer = modalRef.current.querySelector(".custom-scrollbar");
+      const selectedElement = resultsContainer?.children[selectedResultIndex] as HTMLElement;
+      if (selectedElement) {
+        selectedElement.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      }
+    }
+  }, [selectedResultIndex]);
+
+  // Focus trap implementation
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Tab" && modalRef.current) {
+        const focusableElements = modalRef.current.querySelectorAll(
+          'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+        );
+        const firstElement = focusableElements[0] as HTMLElement;
+        const lastElement = focusableElements[focusableElements.length - 1] as HTMLElement;
+
+        if (e.shiftKey && document.activeElement === firstElement) {
+          e.preventDefault();
+          lastElement?.focus();
+        } else if (!e.shiftKey && document.activeElement === lastElement) {
+          e.preventDefault();
+          firstElement?.focus();
+        }
+      }
+
+      // Escape key to close modal
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   useEffect(() => {
     setPageContext({
@@ -82,9 +134,11 @@ export default function PlantSearchModal({
 
     setIsSearching(true);
     setPreviewPlant(null);
+    setSelectedResultIndex(-1);
     try {
       const data = await PerenualService.searchPlants(searchQuery);
       setResults(data);
+      setHasSearched(true);
     } catch (err) {
       toast.error("Search failed. Check your connection.");
     } finally {
@@ -138,6 +192,24 @@ export default function PlantSearchModal({
       toast.error("Failed to load plant details.");
     } finally {
       setIsFetchingPreview(false);
+    }
+  };
+
+  // Keyboard navigation for search results
+  const handleResultsKeyDown = (e: React.KeyboardEvent) => {
+    if (rankedResults.length === 0 || previewPlant) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setSelectedResultIndex((prev) =>
+        prev < rankedResults.length - 1 ? prev + 1 : prev
+      );
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setSelectedResultIndex((prev) => (prev > 0 ? prev - 1 : -1));
+    } else if (e.key === "Enter" && selectedResultIndex >= 0) {
+      e.preventDefault();
+      handlePreviewPlant(rankedResults[selectedResultIndex]);
     }
   };
 
@@ -254,6 +326,7 @@ export default function PlantSearchModal({
         <div className="bg-rhozly-surface-lowest w-full max-w-md p-8 rounded-[3rem] shadow-2xl border border-rhozly-outline/20 text-center relative">
           <button
             onClick={onClose}
+            aria-label="Close modal"
             className="absolute top-6 right-6 p-2 bg-rhozly-surface-low rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
           >
             <X size={20} />
@@ -278,7 +351,10 @@ export default function PlantSearchModal({
   // 🚀 MAIN MODAL PORTAL
   return createPortal(
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
-      <div className="bg-rhozly-surface-lowest w-full max-w-2xl h-[85vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden relative">
+      <div
+        ref={modalRef}
+        className="bg-rhozly-surface-lowest w-full max-w-2xl h-[85vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden relative"
+      >
         {isFetchingPreview && (
           <div className="absolute inset-0 bg-white/50 backdrop-blur-sm z-50 flex flex-col items-center justify-center animate-in fade-in">
             <Loader2
@@ -300,6 +376,7 @@ export default function PlantSearchModal({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close modal"
             className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
           >
             <X size={24} />
@@ -346,14 +423,18 @@ export default function PlantSearchModal({
                 className="relative flex items-center"
               >
                 <input
+                  ref={searchInputRef}
                   type="text"
                   placeholder="Search by common or scientific name..."
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
+                  onKeyDown={handleResultsKeyDown}
+                  aria-label="Search for plants by common or scientific name"
                   className="w-full pl-6 pr-14 py-4 bg-rhozly-surface-low rounded-2xl font-bold border border-transparent focus:border-rhozly-primary outline-none"
                 />
                 <button
                   type="submit"
+                  aria-label="Search"
                   className="absolute right-2 p-2 bg-rhozly-primary text-white rounded-xl hover:scale-105 transition-transform"
                 >
                   <Search size={20} />
@@ -371,16 +452,21 @@ export default function PlantSearchModal({
                   <p className="font-bold text-sm">Searching Database...</p>
                 </div>
               ) : rankedResults.length > 0 ? (
-                rankedResults.map((plant: any) => {
+                rankedResults.map((plant: any, index: number) => {
                   const prefScore = scorePlantByPreferences(
                     plant.common_name || "",
                     plant.scientific_name?.[0] || "",
                     preferences,
                   );
+                  const isSelected = index === selectedResultIndex;
                   return (
                     <div
                       key={plant.id}
-                      className="bg-white p-4 rounded-2xl border border-rhozly-outline/10 shadow-sm flex items-center justify-between group hover:border-rhozly-primary/30 transition-colors"
+                      className={`bg-white p-4 rounded-2xl border shadow-sm flex items-center justify-between group transition-colors ${
+                        isSelected
+                          ? "border-rhozly-primary ring-2 ring-rhozly-primary/20"
+                          : "border-rhozly-outline/10 hover:border-rhozly-primary/30"
+                      }`}
                     >
                       <div className="flex items-center gap-4">
                         <div className="w-16 h-16 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0">
@@ -422,6 +508,28 @@ export default function PlantSearchModal({
                     </div>
                   );
                 })
+              ) : hasSearched ? (
+                <div className="h-full flex flex-col items-center justify-center text-center opacity-60 px-4">
+                  <Search
+                    size={48}
+                    className="mb-4 text-rhozly-on-surface/50"
+                  />
+                  <p className="font-black text-lg mb-2">No Results Found</p>
+                  <p className="text-sm font-bold text-rhozly-on-surface/70 mb-4">
+                    We couldn't find any plants matching "{query}"
+                  </p>
+                  <div className="text-left bg-rhozly-surface-low/50 rounded-xl p-4 max-w-md">
+                    <p className="font-black text-xs uppercase tracking-widest text-rhozly-on-surface/50 mb-2">
+                      Search Tips:
+                    </p>
+                    <ul className="text-xs font-bold space-y-1 text-rhozly-on-surface/60">
+                      <li>• Try using common names (e.g., "rose", "tomato")</li>
+                      <li>• Use scientific names (e.g., "rosa", "solanum")</li>
+                      <li>• Check your spelling</li>
+                      <li>• Try broader terms (e.g., "fern" instead of specific species)</li>
+                    </ul>
+                  </div>
+                </div>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
                   <Search

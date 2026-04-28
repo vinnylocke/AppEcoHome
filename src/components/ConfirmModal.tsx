@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
 import { AlertTriangle, Loader2, X } from "lucide-react";
 
@@ -25,13 +25,51 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   isLoading = false,
   isDestructive = true,
 }) => {
+  const confirmButtonRef = useRef<HTMLButtonElement>(null);
+  const cancelButtonRef = useRef<HTMLButtonElement>(null);
+  const triggerElementRef = useRef<HTMLElement | null>(null);
+
+  // Store the trigger element and handle focus
+  useEffect(() => {
+    if (isOpen) {
+      // Store the element that had focus before the modal opened
+      triggerElementRef.current = document.activeElement as HTMLElement;
+
+      // Auto-focus: focus cancel button for destructive actions, confirm button otherwise
+      if (isDestructive && cancelButtonRef.current) {
+        cancelButtonRef.current.focus();
+      } else if (confirmButtonRef.current) {
+        confirmButtonRef.current.focus();
+      }
+    } else {
+      // Return focus to trigger element when modal closes
+      if (triggerElementRef.current) {
+        triggerElementRef.current.focus();
+      }
+    }
+  }, [isOpen, isDestructive]);
+
+  // Handle Escape key
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    };
+
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isOpen, onClose]);
+
   if (!isOpen) return null;
   if (typeof document === "undefined") return null; // 🚀 SSR Safety
 
   // 🚀 PORTAL WRAPPER: Automatically teleports this component to the body whenever it's used!
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-rhozly-bg/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="bg-rhozly-surface-lowest rounded-3xl w-full max-w-md border border-rhozly-outline/20 shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+      <div role="alertdialog" aria-modal="true" className="bg-rhozly-surface-lowest rounded-3xl w-full max-w-md border border-rhozly-outline/20 shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
         {/* Header */}
         <div className="flex items-start justify-between p-6 pb-4">
           <div className="flex items-center gap-3">
@@ -63,6 +101,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
         {/* Footer */}
         <div className="p-4 bg-rhozly-surface-low/50 border-t border-rhozly-outline/10 flex gap-3 justify-end">
           <button
+            ref={cancelButtonRef}
             onClick={onClose}
             disabled={isLoading}
             className="px-5 py-2.5 rounded-xl font-bold text-sm text-rhozly-on-surface/70 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors disabled:opacity-50"
@@ -70,6 +109,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             {cancelText}
           </button>
           <button
+            ref={confirmButtonRef}
             onClick={onConfirm}
             disabled={isLoading}
             className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white transition-colors shadow-sm disabled:opacity-50 min-w-[100px]
