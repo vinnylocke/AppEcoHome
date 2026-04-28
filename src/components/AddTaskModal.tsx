@@ -47,6 +47,8 @@ export default function AddTaskModal({
   const [locations, setLocations] = useState<any[]>([]);
   const [plans, setPlans] = useState<any[]>([]);
   const [liveRegionMessage, setLiveRegionMessage] = useState("");
+  const [titleError, setTitleError] = useState(false);
+  const [dateError, setDateError] = useState(false);
 
   const [form, setForm] = useState({
     title: existingBlueprint?.title || "",
@@ -66,6 +68,30 @@ export default function AddTaskModal({
   });
 
   const [smartPresets, setSmartPresets] = useState<{ type: string; frequency_days: number }[]>([]);
+
+  const initialFormRef = useRef(form);
+  const isDirty = () => {
+    const init = initialFormRef.current;
+    return (
+      form.title !== init.title ||
+      form.description !== init.description ||
+      form.start_date !== init.start_date ||
+      form.type !== init.type ||
+      form.location_id !== init.location_id ||
+      form.area_id !== init.area_id ||
+      form.selected_species !== init.selected_species ||
+      form.inventory_item_ids.length !== init.inventory_item_ids.length ||
+      form.plan_id !== init.plan_id ||
+      form.isRecurring !== init.isRecurring ||
+      form.frequency_days !== init.frequency_days ||
+      form.end_date !== init.end_date
+    );
+  };
+
+  const handleClose = () => {
+    if (isDirty() && !window.confirm("You have unsaved changes. Discard and close?")) return;
+    onClose();
+  };
 
   // Dependency Link Builder State
   const [isLinking, setIsLinking] = useState(false);
@@ -215,7 +241,10 @@ export default function AddTaskModal({
         if (error) throw error;
         setDepSearchResults(data || []);
       } catch (e) {
-        console.error("Dependency Search Error:", e);
+        Logger.error("Dependency search failed", e);
+        const msg = "Could not search tasks. Please try again.";
+        toast.error(msg);
+        setLiveRegionMessage(msg);
       } finally {
         setIsSearchingDeps(false);
       }
@@ -283,13 +312,14 @@ export default function AddTaskModal({
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") {
-        onClose();
+        handleClose();
       }
     };
 
     document.addEventListener("keydown", handleEscape);
     return () => document.removeEventListener("keydown", handleEscape);
-  }, [onClose]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [form]);
 
   // Fetch plant_schedules for the selected species to power the Quick Fill presets.
   // Falls back to an empty array so the hardcoded defaults show instead.
@@ -336,9 +366,16 @@ export default function AddTaskModal({
 
   const handleToggleInstance = (id: string) => {
     setForm((prev) => {
-      const newIds = prev.inventory_item_ids.includes(id)
+      const removing = prev.inventory_item_ids.includes(id);
+      const newIds = removing
         ? prev.inventory_item_ids.filter((i) => i !== id)
         : [...prev.inventory_item_ids, id];
+      const inst = availablePlantsInArea.find((p: any) => p.id === id);
+      if (inst) {
+        setLiveRegionMessage(
+          removing ? `${inst.identifier} deselected.` : `${inst.identifier} selected.`,
+        );
+      }
       return { ...prev, inventory_item_ids: newIds };
     });
   };
@@ -379,18 +416,26 @@ export default function AddTaskModal({
   };
 
   const handleSubmit = async () => {
+    let hasError = false;
     if (!form.title.trim()) {
       const errorMsg = "Title is required.";
       toast.error(errorMsg);
       setLiveRegionMessage(errorMsg);
-      return;
+      setTitleError(true);
+      hasError = true;
+    } else {
+      setTitleError(false);
     }
     if (!form.start_date) {
       const errorMsg = "Start Date is required.";
       toast.error(errorMsg);
       setLiveRegionMessage(errorMsg);
-      return;
+      setDateError(true);
+      hasError = true;
+    } else {
+      setDateError(false);
     }
+    if (hasError) return;
     setLoading(true);
 
     try {
@@ -527,7 +572,7 @@ export default function AddTaskModal({
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
       <div
         ref={modalRef}
-        className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20"
+        className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-3xl p-8 shadow-2xl border border-rhozly-outline/20"
       >
         <div
           aria-live="polite"
@@ -548,14 +593,14 @@ export default function AddTaskModal({
             <p className="text-sm font-bold text-rhozly-primary mt-1 flex items-center gap-2">
               {isBlueprintMode ? <Repeat size={14} /> : <Calendar size={14} />}
               {existingBlueprint
-                ? "Update recurring rule"
+                ? "Update recurring schedule"
                 : isBlueprintMode
-                  ? "Recurring Rule Builder"
-                  : "Schedule a physical task"}
+                  ? "Set up a recurring schedule"
+                  : "Schedule a one-time task"}
             </p>
           </div>
           <button
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Close task modal"
             className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
           >
@@ -569,9 +614,23 @@ export default function AddTaskModal({
             placeholder="Task Name *"
             autoFocus
             value={form.title}
-            onChange={(e) => setForm({ ...form, title: e.target.value })}
-            className="w-full p-4 text-xl bg-rhozly-surface-low rounded-2xl font-black border border-transparent focus:border-rhozly-primary outline-none"
+            aria-invalid={titleError}
+            aria-describedby={titleError ? "title-error" : undefined}
+            onChange={(e) => {
+              setForm({ ...form, title: e.target.value });
+              if (e.target.value.trim()) setTitleError(false);
+            }}
+            className={`w-full p-4 text-xl bg-rhozly-surface-low rounded-2xl font-black border outline-none transition-colors ${
+              titleError
+                ? "border-red-500 focus:border-red-500"
+                : "border-transparent focus:border-rhozly-primary"
+            }`}
           />
+          {titleError && (
+            <p id="title-error" className="text-xs font-bold text-red-500 ml-1 -mt-4">
+              Task name is required.
+            </p>
+          )}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
@@ -581,11 +640,23 @@ export default function AddTaskModal({
               <input
                 type="date"
                 value={form.start_date}
-                onChange={(e) =>
-                  setForm({ ...form, start_date: e.target.value })
-                }
-                className="w-full p-4 min-h-[44px] bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:border-rhozly-primary cursor-pointer"
+                aria-invalid={dateError}
+                aria-describedby={dateError ? "date-error" : undefined}
+                onChange={(e) => {
+                  setForm({ ...form, start_date: e.target.value });
+                  if (e.target.value) setDateError(false);
+                }}
+                className={`w-full p-4 min-h-[44px] bg-rhozly-surface-low rounded-2xl font-bold outline-none border cursor-pointer transition-colors ${
+                  dateError
+                    ? "border-red-500 focus:border-red-500"
+                    : "border-transparent focus:border-rhozly-primary"
+                }`}
               />
+              {dateError && (
+                <p id="date-error" className="text-xs font-bold text-red-500 ml-1 mt-1">
+                  Start date is required.
+                </p>
+              )}
             </div>
             <div>
               <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-2 ml-1">
@@ -728,10 +799,10 @@ export default function AddTaskModal({
                 <div className="flex flex-wrap gap-2">
                   {(() => {
                     const TYPE_META: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
-                      Watering:    { label: "Water",    icon: <Droplets size={12} />, color: "bg-blue-50 text-blue-700 border-blue-100 hover:bg-blue-100" },
-                      Maintenance: { label: "Maintain", icon: <Scissors size={12} />, color: "bg-purple-50 text-purple-700 border-purple-100 hover:bg-purple-100" },
-                      Harvesting:  { label: "Harvest",  icon: <Wheat size={12} />,    color: "bg-amber-50 text-amber-700 border-amber-100 hover:bg-amber-100" },
-                      Planting:    { label: "Plant",    icon: <Sparkles size={12} />, color: "bg-emerald-50 text-emerald-700 border-emerald-100 hover:bg-emerald-100" },
+                      Watering:    { label: "Water",    icon: <Droplets size={12} />, color: "bg-rhozly-primary/10 text-rhozly-primary border-rhozly-primary/20 hover:bg-rhozly-primary/20" },
+                      Maintenance: { label: "Maintain", icon: <Scissors size={12} />, color: "bg-rhozly-surface-low text-rhozly-on-surface/70 border-rhozly-outline/20 hover:bg-rhozly-surface-low/80" },
+                      Harvesting:  { label: "Harvest",  icon: <Wheat size={12} />,    color: "bg-rhozly-surface-low text-rhozly-on-surface/70 border-rhozly-outline/20 hover:bg-rhozly-surface-low/80" },
+                      Planting:    { label: "Plant",    icon: <Sparkles size={12} />, color: "bg-rhozly-primary/10 text-rhozly-primary border-rhozly-primary/20 hover:bg-rhozly-primary/20" },
                     };
 
                     const presets = smartPresets.length > 0
@@ -757,7 +828,7 @@ export default function AddTaskModal({
                               title: prev.title || `${meta.label} ${form.selected_species}`,
                             }))
                           }
-                          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black border transition-colors ${meta.color}`}
+                          className={`flex items-center gap-1.5 px-3 py-2 min-h-[44px] rounded-xl text-[11px] font-black border transition-colors ${meta.color}`}
                         >
                           {meta.icon} {meta.label} · every {frequency_days}d
                         </button>
@@ -793,7 +864,7 @@ export default function AddTaskModal({
                 </label>
 
                 {isLinking ? (
-                  <div className="flex flex-col gap-2 p-4 bg-gray-50 rounded-2xl border border-gray-100 animate-in fade-in">
+                  <div className="flex flex-col gap-2 p-4 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/10 animate-in fade-in">
                     <select
                       value={linkType}
                       onChange={(e) => {
@@ -803,7 +874,7 @@ export default function AddTaskModal({
                         setSelectedDepTask(null);
                         setShowDepDropdown(false);
                       }}
-                      className="w-full p-3 bg-white rounded-xl border border-rhozly-outline/10 text-sm font-bold outline-none focus:border-rhozly-primary transition-colors"
+                      className="w-full p-3 bg-rhozly-surface-lowest rounded-xl border border-rhozly-outline/10 text-sm font-bold outline-none focus:border-rhozly-primary transition-colors"
                     >
                       <option value="waiting_on">
                         This new task is WAITING ON...
@@ -814,10 +885,10 @@ export default function AddTaskModal({
                     </select>
                     {/* 🚀 FIXED: Added the ref to the relative container */}
                     <div className="relative" ref={depSearchRef}>
-                      <div className="flex items-center bg-white border border-rhozly-outline/10 rounded-xl overflow-hidden focus-within:border-rhozly-primary transition-colors">
+                      <div className="flex items-center bg-rhozly-surface-lowest border border-rhozly-outline/10 rounded-xl overflow-hidden focus-within:border-rhozly-primary transition-colors">
                         <Search
                           size={16}
-                          className="ml-3 text-gray-400 shrink-0"
+                          className="ml-3 text-rhozly-on-surface/40 shrink-0"
                         />
                         <input
                           type="text"
@@ -849,15 +920,15 @@ export default function AddTaskModal({
                         )}
                       </div>
                       {!selectedDepTask && showDepDropdown && (
-                        <div className="absolute z-50 w-full mt-2 bg-white border border-gray-200 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar">
+                        <div className="absolute z-50 w-full mt-2 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl shadow-2xl max-h-48 overflow-y-auto custom-scrollbar">
                           {isSearchingDeps ? (
-                            <div className="p-4 text-center text-gray-400 text-xs flex items-center justify-center gap-2">
+                            <div className="p-4 text-center text-rhozly-on-surface/40 text-xs flex items-center justify-center gap-2">
                               <Loader2 className="animate-spin" size={14} />{" "}
                               Searching...
                             </div>
                           ) : depSearchResults.length === 0 &&
                             depSearchQuery.trim() !== "" ? (
-                            <div className="p-4 text-center text-gray-400 text-xs">
+                            <div className="p-4 text-center text-rhozly-on-surface/40 text-xs">
                               No matching tasks found.
                             </div>
                           ) : (
@@ -867,14 +938,15 @@ export default function AddTaskModal({
                                 onClick={() => {
                                   setSelectedDepTask(t);
                                   setShowDepDropdown(false);
+                                  setLiveRegionMessage(`Linked to: ${t.title}`);
                                 }}
-                                className="p-3 hover:bg-rhozly-primary/5 cursor-pointer border-b border-gray-50 last:border-0 flex items-center justify-between transition-colors"
+                                className="p-3 hover:bg-rhozly-primary/5 cursor-pointer border-b border-rhozly-outline/5 last:border-0 flex items-center justify-between transition-colors"
                               >
                                 <div className="min-w-0 pr-2">
-                                  <p className="text-sm font-bold text-gray-800 truncate">
+                                  <p className="text-sm font-bold text-rhozly-on-surface truncate">
                                     {t.title}
                                   </p>
-                                  <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-0.5 flex gap-1.5 items-center">
+                                  <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mt-0.5 flex gap-1.5 items-center">
                                     <span>{t.type}</span>
                                     <span className="opacity-50">•</span>
                                     <span
@@ -891,7 +963,7 @@ export default function AddTaskModal({
                                   </p>
                                 </div>
                                 <div className="text-right shrink-0">
-                                  <p className="text-xs font-black text-gray-500 uppercase">
+                                  <p className="text-xs font-black text-rhozly-on-surface/50 uppercase">
                                     {formatDisplayDate(t.due_date)}
                                   </p>
                                 </div>
@@ -908,7 +980,7 @@ export default function AddTaskModal({
                         setDepSearchQuery("");
                         setSelectedDepTask(null);
                       }}
-                      className="w-full mt-2 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-xl text-xs transition-colors"
+                      className="w-full mt-2 py-2 min-h-[44px] bg-rhozly-surface-low hover:bg-rhozly-outline/20 text-rhozly-on-surface/70 font-bold rounded-xl text-xs transition-colors"
                     >
                       Remove Link
                     </button>
@@ -916,7 +988,7 @@ export default function AddTaskModal({
                 ) : (
                   <button
                     onClick={() => setIsLinking(true)}
-                    className="text-sm font-bold text-blue-500 hover:text-blue-700 flex items-center gap-1 bg-blue-50 hover:bg-blue-100 px-4 py-3 rounded-2xl transition-colors"
+                    className="text-sm font-bold text-rhozly-primary flex items-center gap-1 bg-rhozly-primary/10 hover:bg-rhozly-primary/20 px-4 py-3 min-h-[44px] rounded-2xl transition-colors"
                   >
                     <LinkIcon size={16} /> Add a Task Link
                   </button>

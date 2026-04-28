@@ -42,7 +42,7 @@ interface Plant {
   id: number;
   common_name: string;
   scientific_name: string[];
-  source: "manual" | "api";
+  source: "manual" | "api" | "ai";
   thumbnail_url?: string;
   is_archived: boolean;
   instance_count?: number;
@@ -78,15 +78,12 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const [actionLoading, setActionLoading] = useState(false);
 
   const [viewTab, setViewTab] = useState<"active" | "archived">("active");
-  const [filterSource, setFilterSource] = useState<"all" | "manual" | "api">(
+  const [filterSource, setFilterSource] = useState<"all" | "manual" | "api" | "ai">(
     "all",
   );
   const [sortMode, setSortMode] = useState<"alphabetical" | "preference">("alphabetical");
   const [searchQuery, setSearchQuery] = useState("");
   const [isPremium, setIsPremium] = useState(false);
-
-  const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
-  const [isAddingManual, setIsAddingManual] = useState(false);
 
   const [showBulkSearch, setShowBulkSearch] = useState(false);
   const [initialSearchTerm, setInitialSearchTerm] = useState("");
@@ -305,7 +302,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
           extracted.thumbnail_url = imageUrl;
 
           await savePlantToDB(
-            { ...extracted, source: "manual", perenual_id: null },
+            { ...extracted, source: "ai", perenual_id: null },
             extracted,
           );
         }
@@ -319,7 +316,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
           errorMsg.includes("Please Upg")
         ) {
           errorMsg = "Perenual API limit reached (Premium required).";
-          toast.error(`Could not import ${item.name}: API limit reached.`);
+          toast.error(`API limit reached — ${item.name} could not be imported.`);
         }
         setBulkQueue((prev) =>
           prev.map((q) =>
@@ -332,6 +329,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
     }
     setIsBulkProcessing(false);
     refreshShed(); // 🚀 BACKGROUND SYNC
+    toast.success("Import complete");
   };
 
   useEffect(() => {
@@ -358,12 +356,11 @@ export default function TheShed({ homeId }: { homeId: string }) {
       setShowBulkSearch(true);
     } else if (location.pathname.includes("/shed/add/manual")) {
       handledDeepLink.current = currentUrl;
-      setIsAddingManual(true);
+      setShowBulkSearch(true);
     }
   }, [location.pathname, location.search, searchParams]);
 
   const handleCloseModals = () => {
-    setIsAddingManual(false);
     setShowBulkSearch(false);
     setInitialSearchTerm("");
     setInitialCartItems([]);
@@ -652,55 +649,18 @@ export default function TheShed({ homeId }: { homeId: string }) {
                   size={20}
                 />
               )}
-              <div className="relative ml-auto xl:ml-0">
+              <div className="ml-auto xl:ml-0">
                 <button
-                  onClick={() => setIsAddMenuOpen(!isAddMenuOpen)}
-                  aria-label={isAddMenuOpen ? "Close add menu" : "Open add menu"}
-                  className={`w-10 h-10 rounded-full flex items-center justify-center transition-all shadow-sm border ${isAddMenuOpen ? "bg-white text-rhozly-primary border-rhozly-primary rotate-45" : "bg-rhozly-primary text-white border-transparent hover:scale-110 active:scale-95"}`}
+                  onClick={() => setShowBulkSearch(true)}
+                  aria-label="Add plant"
+                  className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
                 >
-                  <Plus size={20} strokeWidth={3} />
+                  <Plus size={18} /> Add
                 </button>
-                {isAddMenuOpen && (
-                  <>
-                    <div
-                      className="fixed inset-0 z-40"
-                      onClick={() => setIsAddMenuOpen(false)}
-                    />
-                    <div className="absolute top-full left-0 mt-3 w-64 bg-white rounded-2xl shadow-2xl border border-rhozly-outline/10 p-2 z-50 animate-in fade-in slide-in-from-top-2 origin-top-left">
-                      <button
-                        onClick={() => {
-                          setShowBulkSearch(true);
-                          setIsAddMenuOpen(false);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-rhozly-primary/5 transition-colors text-left"
-                      >
-                        <ListPlus size={18} className="text-rhozly-primary" />
-                        <span className="text-sm font-black text-rhozly-on-surface">
-                          Search & Import
-                        </span>
-                      </button>
-                      <button
-                        onClick={() => {
-                          setIsAddingManual(true);
-                          setIsAddMenuOpen(false);
-                        }}
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl hover:bg-rhozly-primary/5 transition-colors text-left"
-                      >
-                        <Edit3
-                          size={18}
-                          className="text-rhozly-on-surface/60"
-                        />
-                        <span className="text-sm font-black text-rhozly-on-surface">
-                          Manual Entry
-                        </span>
-                      </button>
-                    </div>
-                  </>
-                )}
               </div>
             </div>
             <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-              Your Master Plant Library
+              Your Shed Plant Library
             </p>
           </div>
           <div className="flex flex-col gap-4">
@@ -747,7 +707,8 @@ export default function TheShed({ homeId }: { homeId: string }) {
               >
                 <option value="all">All Sources</option>
                 <option value="manual">Manual</option>
-                <option value="api">API / AI</option>
+                <option value="api">Perenual</option>
+                <option value="ai">AI</option>
               </select>
               <select
                 value={sortMode}
@@ -820,8 +781,15 @@ export default function TheShed({ homeId }: { homeId: string }) {
                     className="w-full h-full object-cover"
                   />
                   <div className="absolute top-4 left-4">
-                    <span className="bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase text-rhozly-primary flex items-center gap-1.5 shadow-sm border border-white/20">
-                      <Database size={10} /> {plant.source}
+                    <span className={`bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 shadow-sm border border-white/20 ${
+                      plant.source === "api" ? "text-rhozly-primary" :
+                      plant.source === "ai"  ? "text-amber-500" :
+                                               "text-rhozly-on-surface/60"
+                    }`}>
+                      {plant.source === "api"  ? <Database size={10} /> :
+                       plant.source === "ai"   ? <Sparkles size={10} /> :
+                                                 <Edit3 size={10} />}
+                      {plant.source === "api" ? "Perenual" : plant.source === "ai" ? "AI" : "Manual"}
                     </span>
                   </div>
                   <div className="absolute top-4 right-4 flex gap-2">
@@ -835,7 +803,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
                         });
                       }}
                       aria-label={plant.is_archived ? `Restore ${plant.common_name}` : `Archive ${plant.common_name}`}
-                      className="w-9 h-9 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-orange-600 flex items-center justify-center shadow-md transition-all active:scale-90"
+                      className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-orange-600 flex items-center justify-center shadow-md transition-all active:scale-90"
                     >
                       {plant.is_archived ? (
                         <ArchiveRestore size={16} />
@@ -853,7 +821,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
                         });
                       }}
                       aria-label={`Delete ${plant.common_name}`}
-                      className="w-9 h-9 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-red-600 flex items-center justify-center shadow-md transition-all active:scale-90"
+                      className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-red-600 flex items-center justify-center shadow-md transition-all active:scale-90"
                     >
                       <Trash2 size={16} />
                     </button>
@@ -1027,31 +995,6 @@ export default function TheShed({ homeId }: { homeId: string }) {
                 homeId={homeId}
               />
             )}
-            {isAddingManual && (
-              <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/90 backdrop-blur-xl animate-in zoom-in-95 duration-300">
-                <div className="bg-rhozly-surface-lowest w-full max-w-4xl max-h-[90vh] overflow-y-auto rounded-[3rem] p-6 shadow-2xl border border-rhozly-outline/20 custom-scrollbar">
-                  <div className="flex justify-between items-center mb-8">
-                    <div>
-                      <h3 className="text-3xl font-black">Manual Entry</h3>
-                      <p className="text-xs font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-                        Add to Shed
-                      </p>
-                    </div>
-                    <button
-                      onClick={handleCloseModals}
-                      className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
-                    >
-                      <X size={24} />
-                    </button>
-                  </div>
-                  <ManualPlantCreation
-                    onSave={handleManualSave}
-                    onCancel={handleCloseModals}
-                    isSaving={actionLoading}
-                  />
-                </div>
-              </div>
-            )}
             {showBulkSearch && (
               <BulkSearchModal
                 homeId={homeId}
@@ -1060,6 +1003,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
                 initialCartItems={initialCartItems}
                 onClose={handleCloseModals}
                 onProceedToBulkAdd={handleProceedToBulkAdd}
+                onManualSave={handleManualSave}
               />
             )}
             {editingPlant && (

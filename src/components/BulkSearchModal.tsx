@@ -14,12 +14,14 @@ import {
   ListPlus,
   ChevronLeft,
   Trash2,
+  Edit3,
 } from "lucide-react";
 import { PerenualService } from "../lib/perenualService";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { PlantDoctorService } from "../services/plantDoctorService";
+import ManualPlantCreation from "./ManualPlantCreation";
 
 interface Props {
   homeId: string;
@@ -28,6 +30,7 @@ interface Props {
   onProceedToBulkAdd: (selectedPlants: any[]) => void;
   initialSearchTerm?: string;
   initialCartItems?: { type: "api" | "ai"; data: any }[];
+  onManualSave?: (plantData: any) => void;
 }
 
 export default function BulkSearchModal({
@@ -37,11 +40,12 @@ export default function BulkSearchModal({
   onProceedToBulkAdd,
   initialSearchTerm,
   initialCartItems,
+  onManualSave,
 }: Props) {
   const { setPageContext } = usePlantDoctor();
 
   const [step, setStep] = useState<"search" | "review">("search");
-  const [activeTab, setActiveTab] = useState<"api" | "ai">("api");
+  const [activeTab, setActiveTab] = useState<"api" | "ai" | "manual">("api");
   const [query, setQuery] = useState(initialSearchTerm || "");
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string>("");
@@ -57,6 +61,8 @@ export default function BulkSearchModal({
   const [selectedPlantsMap, setSelectedPlantsMap] = useState<Map<string, any>>(
     new Map(),
   );
+
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
 
   const triggerRef = useRef<HTMLElement | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
@@ -80,7 +86,7 @@ export default function BulkSearchModal({
     setPageContext({
       action:
         step === "review"
-          ? "Reviewing Bulk Import Cart"
+          ? "Reviewing Bulk Import Selection"
           : "Bulk Searching Plants",
       searchContext: {
         activeTab,
@@ -318,36 +324,6 @@ export default function BulkSearchModal({
     );
   };
 
-  if (!isPremium) {
-    return (
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
-        <div
-          ref={modalRef}
-          tabIndex={-1}
-          className="bg-rhozly-surface-lowest w-full max-w-md p-8 rounded-[3rem] shadow-2xl border border-rhozly-outline/20 text-center relative"
-        >
-          <button
-            onClick={onClose}
-            aria-label="Close modal"
-            className="absolute top-6 right-6 p-2 bg-rhozly-surface-low rounded-xl"
-          >
-            <X size={20} />
-          </button>
-          <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-6 text-amber-600">
-            <Lock size={32} />
-          </div>
-          <h3 className="text-2xl font-black mb-2">Global Database Access</h3>
-          <p className="text-sm font-bold text-rhozly-on-surface/60 mb-8">
-            Upgrade to Premium to import detailed care guides.
-          </p>
-          <button className="w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-xl">
-            Upgrade Now
-          </button>
-        </div>
-      </div>
-    );
-  }
-
   // REVIEW CART UI
   if (step === "review") {
     return (
@@ -355,7 +331,7 @@ export default function BulkSearchModal({
         <div
           ref={modalRef}
           tabIndex={-1}
-          className="bg-rhozly-surface-lowest w-full max-w-2xl h-[85vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden relative"
+          className="bg-rhozly-surface-lowest w-full max-w-2xl h-[85vh] flex flex-col rounded-3xl shadow-2xl border border-rhozly-outline/20 overflow-hidden relative"
         >
           <div className="p-8 pb-4 shrink-0 flex justify-between items-start border-b border-rhozly-outline/10">
             <div>
@@ -363,6 +339,7 @@ export default function BulkSearchModal({
                 onClick={() => {
                   setStep("search");
                   setExpandedResultId(null);
+                  setPendingRemoveId(null);
                 }}
                 className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-rhozly-on-surface/50 hover:text-rhozly-primary mb-4 transition-colors"
               >
@@ -446,7 +423,7 @@ export default function BulkSearchModal({
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleExpandResult(id, !isApi, name)}
-                        className="p-2 hover:bg-rhozly-surface-low rounded-xl text-rhozly-on-surface/60 hover:text-rhozly-primary transition-colors"
+                        className="p-3 hover:bg-rhozly-surface-low rounded-xl text-rhozly-on-surface/60 hover:text-rhozly-primary transition-colors"
                       >
                         {expandedResultId === id ? (
                           <ChevronUp size={18} />
@@ -454,13 +431,35 @@ export default function BulkSearchModal({
                           <Info size={18} />
                         )}
                       </button>
-                      <button
-                        onClick={() => toggleSelection(id, item)}
-                        aria-label="Remove from cart"
-                        className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-colors"
-                      >
-                        <Trash2 size={18} />
-                      </button>
+                      {pendingRemoveId === id ? (
+                        <div className="flex items-center gap-1">
+                          <button
+                            onClick={() => {
+                              toggleSelection(id, item);
+                              setPendingRemoveId(null);
+                            }}
+                            aria-label="Confirm remove from selection"
+                            className="px-3 py-2 bg-red-500 text-white rounded-xl text-xs font-black hover:bg-red-600 transition-colors"
+                          >
+                            Remove
+                          </button>
+                          <button
+                            onClick={() => setPendingRemoveId(null)}
+                            aria-label="Cancel remove"
+                            className="px-3 py-2 bg-rhozly-surface-low text-rhozly-on-surface/60 rounded-xl text-xs font-black hover:bg-rhozly-surface transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => setPendingRemoveId(id)}
+                          aria-label="Remove from selection"
+                          className="p-3 bg-red-50 text-red-500 rounded-xl hover:bg-red-500 hover:text-white transition-colors"
+                        >
+                          <Trash2 size={18} />
+                        </button>
+                      )}
                     </div>
                   </div>
 
@@ -478,7 +477,7 @@ export default function BulkSearchModal({
               disabled={selectedPlantsMap.size === 0}
               className="w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-xl hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100"
             >
-              Start Automated Import
+              Start Bulk Import
             </button>
           </div>
         </div>
@@ -492,7 +491,7 @@ export default function BulkSearchModal({
       <div
         ref={modalRef}
         tabIndex={-1}
-        className="bg-rhozly-surface-lowest w-full max-w-3xl h-[85vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden relative"
+        className="bg-rhozly-surface-lowest w-full max-w-3xl h-[85vh] flex flex-col rounded-3xl shadow-2xl border border-rhozly-outline/20 overflow-hidden relative"
       >
         <div className="p-8 pb-4 shrink-0 flex justify-between items-start">
           <div>
@@ -515,33 +514,60 @@ export default function BulkSearchModal({
         <div className="px-8 shrink-0">
           <div
             role="tablist"
-            className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/10"
+            className="flex bg-rhozly-surface-low p-1 rounded-2xl gap-1"
           >
             <button
               role="tab"
-              aria-selected={activeTab === "api"}
-              onClick={() => {
-                setActiveTab("api");
-                setExpandedResultId(null);
-              }}
-              className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-black transition-all ${activeTab === "api" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+              aria-selected={activeTab === "manual"}
+              onClick={() => { setActiveTab("manual"); setExpandedResultId(null); }}
+              className={`flex-1 min-w-[80px] flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${activeTab === "manual" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
             >
-              <Database size={16} /> Perenual Database
+              <Edit3 size={14} /> Manual
+            </button>
+            <button
+              role="tab"
+              aria-selected={activeTab === "api"}
+              onClick={() => { setActiveTab("api"); setExpandedResultId(null); }}
+              className={`flex-1 min-w-[80px] flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${activeTab === "api" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+            >
+              <Database size={14} /> Perenual
             </button>
             <button
               role="tab"
               aria-selected={activeTab === "ai"}
-              onClick={() => {
-                setActiveTab("ai");
-                setExpandedResultId(null);
-              }}
-              className={`flex-1 flex items-center justify-center gap-2 px-6 py-3 rounded-xl text-sm font-black transition-all ${activeTab === "ai" ? "bg-white text-amber-500 shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+              onClick={() => { setActiveTab("ai"); setExpandedResultId(null); }}
+              className={`flex-1 min-w-[80px] flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${activeTab === "ai" ? "bg-white text-amber-500 shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
             >
-              <Sparkles size={16} /> AI Generator
+              <Sparkles size={14} /> AI
             </button>
           </div>
         </div>
 
+        {activeTab === "manual" ? (
+          <div className="flex-1 overflow-y-auto p-8 pt-4 custom-scrollbar">
+            <ManualPlantCreation
+              onSave={(data) => { onManualSave?.(data); onClose(); }}
+              onCancel={onClose}
+            />
+          </div>
+        ) : !isPremium ? (
+          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+            <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mb-6 text-amber-600">
+              <Lock size={32} />
+            </div>
+            <h3 className="text-2xl font-black mb-2">Premium Required</h3>
+            <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6 max-w-xs">
+              Upgrade to import from the Perenual database or use AI plant suggestions.
+            </p>
+            <button
+              onClick={() => setActiveTab("manual")}
+              className="px-6 py-3 border-2 border-rhozly-outline/30 rounded-2xl font-black text-sm text-rhozly-on-surface/60 hover:text-rhozly-on-surface transition-colors"
+            >
+              Use Manual Entry instead
+            </button>
+          </div>
+        ) : (
+          <>
         <div className="p-8 pb-4 shrink-0">
           <form onSubmit={performSearch} className="relative">
             <div className="relative flex items-center">
@@ -672,7 +698,7 @@ export default function BulkSearchModal({
                           plant.common_name,
                         )
                       }
-                      className="p-2 hover:bg-rhozly-primary/10 rounded-xl text-rhozly-primary transition-colors"
+                      className="p-3 hover:bg-rhozly-primary/10 rounded-xl text-rhozly-primary transition-colors"
                     >
                       {expandedResultId === String(plant.id) ? (
                         <ChevronUp size={18} />
@@ -732,7 +758,7 @@ export default function BulkSearchModal({
                     </div>
                     <button
                       onClick={() => handleExpandResult(match, true)}
-                      className="p-2 hover:bg-amber-100 rounded-xl text-amber-600 transition-colors"
+                      className="p-3 hover:bg-amber-100 rounded-xl text-amber-600 transition-colors"
                     >
                       {expandedResultId === match ? (
                         <ChevronUp size={18} />
@@ -750,7 +776,7 @@ export default function BulkSearchModal({
 
         {selectedPlantsMap.size > 0 && (
           <div className="shrink-0 p-6 bg-white border-t border-rhozly-outline/10 md:absolute md:bottom-0 md:left-0 md:right-0 md:bg-gradient-to-t md:from-white md:via-white md:to-transparent md:border-t-0 animate-in slide-in-from-bottom-8">
-            <div className="bg-rhozly-surface-lowest shadow-2xl border border-rhozly-outline/20 rounded-[2rem] p-4 flex flex-col md:flex-row items-center gap-4 md:justify-between">
+            <div className="bg-rhozly-surface-lowest shadow-2xl border border-rhozly-outline/20 rounded-2xl p-4 flex flex-col md:flex-row items-center gap-4 md:justify-between">
               <div className="px-2 text-center md:text-left">
                 <p className="text-sm font-black text-rhozly-on-surface">
                   {selectedPlantsMap.size} Plants Selected
@@ -767,6 +793,8 @@ export default function BulkSearchModal({
               </button>
             </div>
           </div>
+        )}
+          </>
         )}
       </div>
     </div>

@@ -6,10 +6,13 @@ import {
   Filter,
   Plus,
   Sparkles,
+  Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
+import toast from "react-hot-toast";
 import AddTaskModal from "./AddTaskModal";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
 import TaskList from "./TaskList";
@@ -60,6 +63,8 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
 
   const [selectedTypes, setSelectedTypes] = useState<string[]>([]);
   const [selectedLoc, setSelectedLoc] = useState<string>("all");
@@ -156,6 +161,8 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
   }, [homeId]);
 
   const fetchTasksAndBlueprints = async () => {
+    setIsLoading(true);
+    setFetchError(false);
     try {
       const startOfMonth = new Date(
         currentDate.getFullYear(),
@@ -170,18 +177,21 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
 
       const todayStr = getLocalDateString(new Date());
 
-      // 🚀 DELEGATED TO ENGINE! Fetch the entire month block of physicals and ghosts
       const result = await TaskEngine.fetchTasksWithGhosts({
         homeId,
         startDateStr: getLocalDateString(startOfMonth),
         endDateStr: getLocalDateString(endOfMonth),
-        includeOverdue: false, // The Calendar doesn't care about overdue clustering, just putting dots on exact dates
+        includeOverdue: false,
         todayStr,
       });
 
       setTasks(result.tasks);
     } catch (err: any) {
       Logger.error("Failed to load calendar tasks", err);
+      setFetchError(true);
+      toast.error("Could not load your schedule. Please try again.");
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -265,7 +275,7 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
       </div>
 
       {isFilterOpen && (
-        <div className="mb-8 p-6 bg-rhozly-surface-low/50 rounded-3xl border border-rhozly-outline/10 animate-in slide-in-from-top-4 fade-in">
+        <div className="mb-8 p-6 bg-rhozly-surface-low/50 rounded-3xl border border-rhozly-outline/10 animate-in slide-in-from-top-4 fade-in duration-300">
           <div className="flex flex-wrap gap-6 items-start">
             <div className="flex-1 min-w-[250px]">
               <div className="flex justify-between items-center mb-3">
@@ -345,14 +355,14 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
               </div>
               <div className="flex-1 sm:w-48">
                 <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-3 ml-1">
-                  Plan
+                  Garden Plan
                 </label>
                 <select
                   value={selectedPlan}
                   onChange={(e) => setSelectedPlan(e.target.value)}
                   className="w-full p-3 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none text-sm"
                 >
-                  <option value="all">All Plans</option>
+                  <option value="all">All Garden Plans</option>
                   {plans.map((plan) => (
                     <option key={plan.id} value={plan.id}>
                       {plan.title}
@@ -417,6 +427,24 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
             ))}
           </div>
 
+          {fetchError && (
+            <div className="mb-4 flex items-center justify-between gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-2xl text-sm font-bold text-red-600">
+              <span>Failed to load schedule.</span>
+              <button
+                onClick={fetchTasksAndBlueprints}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-red-100 hover:bg-red-200 rounded-xl transition-colors text-xs font-black"
+              >
+                <RefreshCw size={13} /> Retry
+              </button>
+            </div>
+          )}
+
+          <div className="relative">
+            {isLoading && (
+              <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-white/60 backdrop-blur-sm">
+                <Loader2 size={32} className="animate-spin text-rhozly-primary" />
+              </div>
+            )}
           <div className="grid grid-cols-7 gap-2 sm:gap-3">
             {days.map((dayObj, index) => {
               const isSelected = isSameDay(dayObj.date, selectedDate);
@@ -489,6 +517,7 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
               </span>
             )}
           </div>
+          </div>
         </div>
 
         <div className="flex-1 bg-rhozly-surface-lowest rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col min-h-[500px]">
@@ -505,7 +534,7 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
             </div>
             <button
               onClick={() => setIsAddingTask(true)}
-              className="flex items-center gap-1 text-xs font-black bg-rhozly-primary text-white px-4 py-2.5 rounded-xl shadow-md hover:scale-105 transition-transform active:scale-95"
+              className="flex items-center gap-1 text-xs font-black bg-rhozly-primary text-white px-4 py-3 rounded-xl shadow-md hover:scale-105 transition-transform active:scale-95"
             >
               <Plus size={16} strokeWidth={3} /> Add Task
             </button>
@@ -534,6 +563,7 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
           onClose={() => setIsAddingTask(false)}
           onSuccess={() => {
             setIsAddingTask(false);
+            toast.success("Task added to your schedule.");
             fetchTasksAndBlueprints();
             setRefreshKey((prev) => prev + 1);
           }}

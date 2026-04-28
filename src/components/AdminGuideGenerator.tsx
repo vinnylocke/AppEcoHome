@@ -6,6 +6,8 @@ import {
   Save,
   Image as ImageIcon,
   AlertTriangle,
+  Pencil,
+  Check,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -19,6 +21,10 @@ export default function AdminGuideGenerator() {
   // Holds the generated JSON payload
   const [previewData, setPreviewData] = useState<any>(null);
   const [previewLabels, setPreviewLabels] = useState<string[]>([]);
+
+  // Inline title editing
+  const [isEditingTitle, setIsEditingTitle] = useState(false);
+  const [editedTitle, setEditedTitle] = useState("");
 
   const handleGenerate = async () => {
     if (!topic) return toast.error("Please enter a topic.");
@@ -37,6 +43,8 @@ export default function AdminGuideGenerator() {
       // We expect the Edge Function to return { guide_data: {...}, labels: [...] }
       setPreviewData(data.guide_data);
       setPreviewLabels(data.labels);
+      setEditedTitle(data.guide_data?.title ?? "");
+      setIsEditingTitle(false);
       toast.success("Guide generated successfully!");
     } catch (err: any) {
       toast.error(`Generation failed: ${err.message}`);
@@ -50,8 +58,12 @@ export default function AdminGuideGenerator() {
     setIsSaving(true);
 
     try {
+      const dataToSave = editedTitle
+        ? { ...previewData, title: editedTitle }
+        : previewData;
+
       const { error } = await supabase.from("guides").insert({
-        data: previewData,
+        data: dataToSave,
         labels: previewLabels,
       });
 
@@ -60,6 +72,7 @@ export default function AdminGuideGenerator() {
       toast.success("Guide published to database!");
       setPreviewData(null);
       setTopic("");
+      setEditedTitle("");
     } catch (err: any) {
       toast.error(`Save failed: ${err.message}`);
     } finally {
@@ -67,8 +80,15 @@ export default function AdminGuideGenerator() {
     }
   };
 
+  const handleCommitTitle = () => {
+    if (!editedTitle.trim()) {
+      setEditedTitle(previewData?.title ?? "");
+    }
+    setIsEditingTitle(false);
+  };
+
   return (
-    <div className="max-w-4xl mx-auto p-8 flex flex-col lg:flex-row gap-8">
+    <div className="max-w-4xl mx-auto p-4 sm:p-8 flex flex-col lg:flex-row gap-8">
       {/* LEFT COLUMN: Controls */}
       <div className="flex-1 space-y-6">
         <div>
@@ -140,7 +160,7 @@ export default function AdminGuideGenerator() {
               {previewLabels.map((label) => (
                 <span
                   key={label}
-                  className="bg-blue-50 text-blue-600 px-3 py-1 rounded-lg text-xs font-bold border border-blue-100"
+                  className="bg-rhozly-primary/10 text-rhozly-primary px-3 py-1 rounded-lg text-xs font-bold border border-rhozly-primary/20"
                 >
                   #{label}
                 </span>
@@ -151,31 +171,31 @@ export default function AdminGuideGenerator() {
       </div>
 
       {/* RIGHT COLUMN: Live Preview */}
-      <div className="flex-[1.5] bg-rhozly-surface-lowest rounded-[3rem] border border-rhozly-outline/10 shadow-2xl p-8 min-h-[600px] flex flex-col relative overflow-hidden" aria-busy={isGenerating}>
+      <div className="flex-[1.5] bg-rhozly-surface-lowest rounded-[3rem] border border-rhozly-outline/10 shadow-2xl p-8 flex flex-col relative overflow-hidden" aria-busy={isGenerating}>
         {isGenerating ? (
           <div className="flex-1 pb-20 animate-pulse">
             {/* Skeleton Loader */}
             <div className="mb-8">
               <div className="flex gap-2 mb-3">
-                <div className="bg-gray-200 h-5 w-20 rounded-md"></div>
-                <div className="bg-gray-200 h-5 w-16 rounded-md"></div>
+                <div className="bg-rhozly-outline/20 h-5 w-20 rounded-md"></div>
+                <div className="bg-rhozly-outline/20 h-5 w-16 rounded-md"></div>
               </div>
-              <div className="bg-gray-300 h-9 w-3/4 rounded mb-2"></div>
-              <div className="bg-gray-200 h-6 w-full rounded"></div>
+              <div className="bg-rhozly-outline/30 h-9 w-3/4 rounded mb-2"></div>
+              <div className="bg-rhozly-outline/20 h-6 w-full rounded"></div>
             </div>
             <div className="space-y-6">
-              <div className="bg-gray-300 h-7 w-1/2 rounded"></div>
-              <div className="bg-gray-200 h-4 w-full rounded"></div>
-              <div className="bg-gray-200 h-4 w-full rounded"></div>
-              <div className="bg-gray-200 h-4 w-5/6 rounded"></div>
+              <div className="bg-rhozly-outline/30 h-7 w-1/2 rounded"></div>
+              <div className="bg-rhozly-outline/20 h-4 w-full rounded"></div>
+              <div className="bg-rhozly-outline/20 h-4 w-full rounded"></div>
+              <div className="bg-rhozly-outline/20 h-4 w-5/6 rounded"></div>
               <div className="space-y-2 pl-6">
-                <div className="bg-gray-200 h-4 w-full rounded"></div>
-                <div className="bg-gray-200 h-4 w-11/12 rounded"></div>
-                <div className="bg-gray-200 h-4 w-full rounded"></div>
+                <div className="bg-rhozly-outline/20 h-4 w-full rounded"></div>
+                <div className="bg-rhozly-outline/20 h-4 w-11/12 rounded"></div>
+                <div className="bg-rhozly-outline/20 h-4 w-full rounded"></div>
               </div>
-              <div className="bg-gray-200 h-32 w-full rounded-2xl"></div>
-              <div className="bg-gray-200 h-4 w-full rounded"></div>
-              <div className="bg-gray-200 h-4 w-4/5 rounded"></div>
+              <div className="bg-rhozly-outline/20 h-32 w-full rounded-2xl"></div>
+              <div className="bg-rhozly-outline/20 h-4 w-full rounded"></div>
+              <div className="bg-rhozly-outline/20 h-4 w-4/5 rounded"></div>
             </div>
           </div>
         ) : previewData ? (
@@ -183,16 +203,57 @@ export default function AdminGuideGenerator() {
             {/* THE RENDERER: This is exactly how you will render it in the public app too! */}
             <div className="mb-8">
               <div className="flex gap-2 mb-3">
-                <span className="bg-amber-100 text-amber-800 text-[10px] font-black uppercase px-2 py-1 rounded-md">
+                <span className="bg-rhozly-secondary/20 text-rhozly-on-surface/70 text-[10px] font-black uppercase px-2 py-1 rounded-md">
                   {previewData.difficulty}
                 </span>
-                <span className="bg-gray-100 text-gray-600 text-[10px] font-black uppercase px-2 py-1 rounded-md">
+                <span className="bg-rhozly-surface-low text-rhozly-on-surface/50 text-[10px] font-black uppercase px-2 py-1 rounded-md">
                   {previewData.estimated_minutes} Min
                 </span>
               </div>
-              <h1 className="text-3xl font-black mb-2 leading-tight">
-                {previewData.title}
-              </h1>
+
+              {isEditingTitle ? (
+                <div className="flex items-center gap-2 mb-2">
+                  <input
+                    type="text"
+                    value={editedTitle}
+                    onChange={(e) => setEditedTitle(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleCommitTitle();
+                      if (e.key === "Escape") {
+                        setEditedTitle(previewData?.title ?? "");
+                        setIsEditingTitle(false);
+                      }
+                    }}
+                    autoFocus
+                    className="flex-1 text-3xl font-black leading-tight bg-rhozly-surface-low rounded-xl px-3 py-1 outline-none focus:ring-2 focus:ring-rhozly-primary"
+                    aria-label="Edit guide title"
+                  />
+                  <button
+                    onClick={handleCommitTitle}
+                    aria-label="Confirm title"
+                    className="p-2 rounded-xl bg-rhozly-primary text-white hover:opacity-90 transition-opacity shrink-0"
+                  >
+                    <Check size={18} />
+                  </button>
+                </div>
+              ) : (
+                <div className="flex items-start gap-2 mb-2 group">
+                  <h1 className="text-3xl font-black leading-tight flex-1">
+                    {editedTitle || previewData.title}
+                  </h1>
+                  <button
+                    onClick={() => {
+                      setEditedTitle(editedTitle || previewData.title);
+                      setIsEditingTitle(true);
+                    }}
+                    aria-label="Edit guide title"
+                    className="mt-1 p-1.5 rounded-lg text-rhozly-on-surface/30 hover:text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0"
+                  >
+                    <Pencil size={16} />
+                  </button>
+                </div>
+              )}
+
               <p className="text-rhozly-on-surface/60 font-bold">
                 {previewData.subtitle}
               </p>
@@ -253,13 +314,13 @@ export default function AdminGuideGenerator() {
                   return (
                     <div
                       key={index}
-                      className="bg-red-50 border-l-4 border-red-500 p-4 rounded-r-2xl flex gap-3"
+                      className="bg-rhozly-error/10 border-l-4 border-rhozly-error p-4 rounded-r-2xl flex gap-3"
                     >
                       <AlertTriangle
-                        className="text-red-500 shrink-0"
+                        className="text-rhozly-error shrink-0"
                         size={20}
                       />
-                      <p className="text-sm font-bold text-red-900">
+                      <p className="text-sm font-bold text-rhozly-on-surface/80">
                         {sec.content}
                       </p>
                     </div>
@@ -268,7 +329,7 @@ export default function AdminGuideGenerator() {
                   return (
                     <div
                       key={index}
-                      className="my-6 rounded-3xl overflow-hidden shadow-md border border-rhozly-outline/10 bg-gray-100"
+                      className="my-6 rounded-3xl overflow-hidden shadow-md border border-rhozly-outline/10 bg-rhozly-surface-low"
                     >
                       {/* Pollinations URL will generate an image based on the prompt on the fly! */}
                       <img
@@ -278,7 +339,7 @@ export default function AdminGuideGenerator() {
                         loading="lazy"
                       />
                       {sec.caption && (
-                        <p className="p-3 text-center text-xs font-bold text-gray-500 bg-white">
+                        <p className="p-3 text-center text-xs font-bold text-rhozly-on-surface/50 bg-white">
                           {sec.caption}
                         </p>
                       )}
@@ -307,7 +368,7 @@ export default function AdminGuideGenerator() {
             <div className="flex gap-3">
               <button
                 onClick={() => setPreviewData(null)}
-                className="px-4 py-2 font-bold text-sm bg-gray-100 rounded-xl hover:bg-gray-200"
+                className="px-4 font-bold text-sm bg-rhozly-surface-low rounded-xl hover:bg-rhozly-outline/20 min-h-[44px] transition-colors"
               >
                 Discard
               </button>
@@ -315,7 +376,7 @@ export default function AdminGuideGenerator() {
                 onClick={handleSaveToDatabase}
                 disabled={isSaving}
                 aria-label={isSaving ? "Saving guide to database" : "Save generated guide to database"}
-                className="px-6 py-2 font-black text-sm bg-green-500 text-white rounded-xl shadow-md hover:bg-green-600 flex items-center gap-2"
+                className="px-6 font-black text-sm bg-rhozly-primary text-white rounded-xl shadow-md hover:opacity-90 flex items-center gap-2 min-h-[44px] transition-opacity disabled:opacity-50"
               >
                 {isSaving ? (
                   <Loader2 className="animate-spin" size={16} />

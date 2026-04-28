@@ -11,11 +11,14 @@ import {
   ChevronDown,
   Tag,
   Check,
-} from "lucide-react"; // 🚀 Added new icons
+  X,
+  RefreshCw,
+} from "lucide-react";
 
 export default function GuideList() {
   const [guides, setGuides] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Filtering & Search
   const [searchQuery, setSearchQuery] = useState("");
@@ -32,19 +35,23 @@ export default function GuideList() {
   // Refs for accessibility
   const dropdownTriggerRef = useRef<HTMLButtonElement>(null);
 
-  useEffect(() => {
-    const fetchGuides = async () => {
-      setIsLoading(true);
-      const { data, error } = await supabase
-        .from("guides")
-        .select("*")
-        .order("created_at", { ascending: false });
+  const fetchGuides = async () => {
+    setIsLoading(true);
+    setFetchError(null);
+    const { data, error } = await supabase
+      .from("guides")
+      .select("*")
+      .order("created_at", { ascending: false });
 
-      if (!error && data) {
-        setGuides(data);
-      }
-      setIsLoading(false);
-    };
+    if (error) {
+      setFetchError("Could not load guides. Please check your connection and try again.");
+    } else if (data) {
+      setGuides(data);
+    }
+    setIsLoading(false);
+  };
+
+  useEffect(() => {
     fetchGuides();
   }, []);
 
@@ -119,7 +126,7 @@ export default function GuideList() {
           <ArrowLeft size={16} /> Back to Library
         </button>
 
-        <div className="bg-white rounded-[3rem] p-6 md:p-10 shadow-sm border border-rhozly-outline/10 overflow-hidden">
+        <div className="bg-white rounded-3xl p-6 md:p-10 shadow-sm border border-rhozly-outline/10 overflow-hidden">
           <div className="flex gap-3 mb-4">
             <span className="flex items-center gap-1 bg-amber-50 text-amber-700 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-amber-100">
               <BarChart size={12} /> {data.difficulty}
@@ -398,9 +405,25 @@ export default function GuideList() {
             className="animate-spin text-rhozly-primary mb-4"
             size={40}
           />
-          <p className="font-bold text-rhozly-on-surface/40 uppercase tracking-widest text-[10px]">
+          <p className="font-bold text-rhozly-on-surface/40 uppercase tracking-widest text-xs">
             Loading Library...
           </p>
+        </div>
+      ) : fetchError ? (
+        <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border border-dashed border-red-200 shadow-sm">
+          <AlertTriangle className="mx-auto w-12 h-12 text-red-400 mb-4" />
+          <p className="font-black text-xl text-rhozly-on-surface/70 mb-2">
+            Failed to load guides
+          </p>
+          <p className="text-sm font-bold text-rhozly-on-surface/40 mb-6 text-center max-w-xs">
+            {fetchError}
+          </p>
+          <button
+            onClick={fetchGuides}
+            className="flex items-center gap-2 px-5 py-2.5 bg-rhozly-primary text-white rounded-xl text-sm font-black hover:opacity-90 transition-opacity"
+          >
+            <RefreshCw size={16} /> Try Again
+          </button>
         </div>
       ) : filteredGuides.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-rhozly-outline/20 shadow-sm">
@@ -420,7 +443,7 @@ export default function GuideList() {
               <button
                 key={guide.id}
                 onClick={() => setActiveGuide(guide)}
-                className="group text-left bg-white rounded-[2rem] border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full hover:-translate-y-1"
+                className="group text-left bg-white rounded-2xl border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full hover:-translate-y-1"
               >
                 {cover ? (
                   <div className="h-48 overflow-hidden bg-gray-100">
@@ -439,10 +462,10 @@ export default function GuideList() {
 
                 <div className="p-6 flex flex-col flex-1">
                   <div className="flex gap-2 mb-3 flex-wrap">
-                    <span className="bg-rhozly-surface-low text-rhozly-on-surface text-[9px] font-black uppercase px-2 py-1 rounded-md">
+                    <span className="bg-rhozly-surface-low text-rhozly-on-surface text-xs font-black uppercase px-2 py-1 rounded-md">
                       {guide.data.difficulty}
                     </span>
-                    <span className="bg-rhozly-surface-low text-rhozly-on-surface text-[9px] font-black uppercase px-2 py-1 rounded-md">
+                    <span className="bg-rhozly-surface-low text-rhozly-on-surface text-xs font-black uppercase px-2 py-1 rounded-md">
                       {guide.data.estimated_minutes}m
                     </span>
                   </div>
@@ -457,13 +480,13 @@ export default function GuideList() {
                     {guide.labels?.slice(0, 3).map((l: string) => (
                       <span
                         key={l}
-                        className="text-[9px] font-black text-rhozly-primary/60 uppercase"
+                        className="text-xs font-black text-rhozly-primary/60 uppercase"
                       >
                         #{l}
                       </span>
                     ))}
                     {guide.labels?.length > 3 && (
-                      <span className="text-[9px] font-black text-rhozly-on-surface/30 uppercase">
+                      <span className="text-xs font-black text-rhozly-on-surface/30 uppercase">
                         +{guide.labels.length - 3}
                       </span>
                     )}

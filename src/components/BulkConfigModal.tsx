@@ -29,14 +29,24 @@ export default function BulkConfigModal({
   });
 
   const [locs, setLocs] = useState<any[]>([]);
+  const [locsLoading, setLocsLoading] = useState(false);
+  const [locsError, setLocsError] = useState(false);
   const modalRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     const fetchLocs = async () => {
-      const { data } = await supabase
+      setLocsLoading(true);
+      setLocsError(false);
+      const { data, error } = await supabase
         .from("locations")
         .select("id, name, areas(id, name)")
         .eq("home_id", homeId);
+      setLocsLoading(false);
+      if (error) {
+        setLocsError(true);
+        toast.error("Could not load locations. Please try again.");
+        return;
+      }
       if (data) setLocs(data);
     };
     fetchLocs();
@@ -106,14 +116,14 @@ export default function BulkConfigModal({
         ref={modalRef}
         aria-labelledby="bulk-config-title"
         aria-describedby="bulk-config-description"
-        className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl flex flex-col border border-rhozly-outline/10"
+        className="bg-rhozly-surface-lowest w-full max-w-md rounded-2xl p-8 shadow-2xl flex flex-col border border-rhozly-outline/10"
       >
         <div className="flex justify-between items-start mb-6">
           <div>
-            <h3 id="bulk-config-title" className="text-2xl font-black text-gray-900 leading-tight">
+            <h3 id="bulk-config-title" className="text-2xl font-black text-rhozly-on-surface leading-tight">
               Configure Plants
             </h3>
-            <p id="bulk-config-description" className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">
+            <p id="bulk-config-description" className="text-xs font-bold text-rhozly-on-surface/50 uppercase tracking-widest mt-1">
               Updating {selectedCount} items
             </p>
           </div>
@@ -121,18 +131,18 @@ export default function BulkConfigModal({
             onClick={onClose}
             disabled={isProcessing}
             aria-label="Close modal"
-            className="p-2 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center p-2 bg-rhozly-surface rounded-full hover:bg-rhozly-surface-low transition-colors"
           >
             <X size={18} />
           </button>
         </div>
 
         <div className="space-y-4 mb-8">
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label
                 htmlFor="bulk-status"
-                className="text-[10px] font-black uppercase text-gray-400 ml-1 block mb-1"
+                className="text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1 block mb-1"
               >
                 Status
               </label>
@@ -140,7 +150,7 @@ export default function BulkConfigModal({
                 id="bulk-status"
                 value={form.status}
                 onChange={(e) => setForm({ ...form, status: e.target.value })}
-                className="w-full p-3 bg-gray-50 rounded-xl text-sm font-bold border border-gray-200 outline-none focus:border-emerald-500"
+                className="w-full p-3 bg-rhozly-surface-low rounded-xl text-sm font-bold border border-rhozly-outline/30 outline-none focus:border-rhozly-primary"
               >
                 <option value="">-- No Change --</option>
                 <option value="Unplanted">Unplanted / Staged</option>
@@ -151,7 +161,7 @@ export default function BulkConfigModal({
             <div>
               <label
                 htmlFor="bulk-growth-state"
-                className="text-[10px] font-black uppercase text-gray-400 ml-1 block mb-1"
+                className="text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1 block mb-1"
               >
                 Growth Stage
               </label>
@@ -161,7 +171,7 @@ export default function BulkConfigModal({
                 onChange={(e) =>
                   setForm({ ...form, growth_state: e.target.value })
                 }
-                className="w-full p-3 bg-gray-50 rounded-xl text-sm font-bold border border-gray-200 outline-none focus:border-emerald-500"
+                className="w-full p-3 bg-rhozly-surface-low rounded-xl text-sm font-bold border border-rhozly-outline/30 outline-none focus:border-rhozly-primary"
               >
                 <option value="">-- No Change --</option>
                 <option value="Seedling">Seedling / Sprout</option>
@@ -176,7 +186,7 @@ export default function BulkConfigModal({
           <div>
             <label
               htmlFor="bulk-planted-at"
-              className="text-[10px] font-black uppercase text-gray-400 ml-1 block mb-1"
+              className="text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1 block mb-1"
             >
               Planted Date
             </label>
@@ -185,30 +195,44 @@ export default function BulkConfigModal({
               type="date"
               value={form.planted_at}
               onChange={(e) => setForm({ ...form, planted_at: e.target.value })}
-              className="w-full p-3 bg-gray-50 rounded-xl text-sm font-bold border border-gray-200 outline-none focus:border-emerald-500"
+              className="w-full p-3 bg-rhozly-surface-low rounded-xl text-sm font-bold border border-rhozly-outline/30 outline-none focus:border-rhozly-primary"
             />
           </div>
 
-          <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 space-y-3 mt-2">
-            <p className="text-[10px] font-black uppercase text-blue-800 tracking-widest">
+          <div className="p-4 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/20 space-y-3 mt-2">
+            <p className="text-[10px] font-black uppercase text-rhozly-primary tracking-widest">
               Move Location (Optional)
             </p>
             <div>
               <select
                 id="bulk-location"
                 value={form.location_id}
+                disabled={locsLoading}
                 onChange={(e) =>
                   setForm({ ...form, location_id: e.target.value, area_id: "" })
                 }
-                className="w-full p-3 bg-white rounded-xl text-sm font-bold border border-blue-200 outline-none focus:border-blue-500"
+                className="w-full p-3 bg-rhozly-surface-lowest rounded-xl text-sm font-bold border border-rhozly-outline/30 outline-none focus:border-rhozly-primary disabled:opacity-50"
               >
-                <option value="">-- Keep Current Location --</option>
+                <option value="">
+                  {locsLoading ? "Loading locations…" : "-- Keep Current Location --"}
+                </option>
                 {locs.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.name}
                   </option>
                 ))}
               </select>
+              {locsLoading && (
+                <p className="flex items-center gap-1.5 text-xs text-rhozly-on-surface/50 mt-1.5 ml-1">
+                  <Loader2 size={12} className="animate-spin" />
+                  Fetching locations…
+                </p>
+              )}
+              {locsError && (
+                <p className="text-xs text-red-600 mt-1.5 ml-1">
+                  Failed to load locations. Please close and reopen.
+                </p>
+              )}
             </div>
             <div>
               <select
@@ -216,7 +240,7 @@ export default function BulkConfigModal({
                 value={form.area_id}
                 onChange={(e) => setForm({ ...form, area_id: e.target.value })}
                 disabled={!form.location_id}
-                className="w-full p-3 bg-white rounded-xl text-sm font-bold border border-blue-200 outline-none focus:border-blue-500 disabled:opacity-50"
+                className="w-full p-3 bg-rhozly-surface-lowest rounded-xl text-sm font-bold border border-rhozly-outline/30 outline-none focus:border-rhozly-primary disabled:opacity-50"
               >
                 <option value="">-- Select Area --</option>
                 {activeAreas.map((a: any) => (
@@ -232,7 +256,7 @@ export default function BulkConfigModal({
         <button
           onClick={handleSubmit}
           disabled={isProcessing}
-          className="w-full py-4 bg-emerald-600 text-white rounded-2xl font-black shadow-lg hover:bg-emerald-700 transition-all flex items-center justify-center gap-2"
+          className="w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:bg-rhozly-primary-container transition-all flex items-center justify-center gap-2"
         >
           {isProcessing ? (
             <Loader2 className="animate-spin" size={20} />

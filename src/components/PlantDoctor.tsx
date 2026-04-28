@@ -91,6 +91,7 @@ export default function PlantDoctor({
   const [selectedDisease, setSelectedDisease] = useState<string | null>(null);
   const [sickInventoryId, setSickInventoryId] = useState<string | null>(null);
   const [isApplyingTreatment, setIsApplyingTreatment] = useState(false);
+  const [treatmentApplied, setTreatmentApplied] = useState(false);
 
   const [saveToJournal, setSaveToJournal] = useState(true);
 
@@ -143,12 +144,16 @@ export default function PlantDoctor({
 
       // inventory_items stores plant_name, area_name, location_name as denormalized
       // text columns — no FK joins needed or available.
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("inventory_items")
         .select(`id, plant_id, plant_name, location_id, location_name, area_id, area_name`)
         .eq("home_id", homeId)
         .eq("status", "Planted");
 
+      if (error) {
+        toast.error("Could not load your shed — please refresh and try again.");
+        return;
+      }
       if (!data) return;
 
       // Map flat columns to the nested shape PlantInstancePicker and the rest of
@@ -174,8 +179,15 @@ export default function PlantDoctor({
       )
         setIsDropdownOpen(false);
     };
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setIsDropdownOpen(false);
+    };
     document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
   }, []);
 
   const handleNativeCamera = async () => {
@@ -240,6 +252,7 @@ export default function PlantDoctor({
     setSelectedPlantName(null);
     setSelectedDisease(null);
     setSickInventoryId(null);
+    setTreatmentApplied(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -412,7 +425,7 @@ export default function PlantDoctor({
         await supabase.from("plant_schedules").insert(newSchedules);
       }
 
-      toast.success("Plant added to The Shed with Automations!");
+      toast.success("Plant added to your shed with automations!");
       setShowManualAdd(false);
       clearImage();
     } catch (error: any) {
@@ -442,8 +455,12 @@ export default function PlantDoctor({
       });
 
       toast.success("Treatment scheduled! Tasks have been added to your to-do list.");
-      clearImage();
-      setTimeout(() => { if (onTasksAdded) onTasksAdded(); }, 600);
+      setTreatmentApplied(true);
+      setTimeout(() => {
+        setTreatmentApplied(false);
+        clearImage();
+        if (onTasksAdded) onTasksAdded();
+      }, 2200);
     } catch (error: any) {
       Logger.error("Failed to apply treatment plan", error);
       toast.error("Failed to schedule treatment.");
@@ -466,7 +483,7 @@ export default function PlantDoctor({
             </h2>
             <button
               onClick={() => setShowManualAdd(false)}
-              className="p-2 hover:bg-rhozly-surface-low rounded-xl"
+              className="w-11 h-11 flex items-center justify-center hover:bg-rhozly-surface-low rounded-xl"
             >
               <X size={24} />
             </button>
@@ -554,7 +571,7 @@ export default function PlantDoctor({
                 <button
                   onClick={clearImage}
                   disabled={isUIBusy}
-                  className="absolute top-4 right-4 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-xl text-rhozly-on-surface/60 hover:text-red-500 hover:bg-white flex items-center justify-center shadow-sm transition-colors disabled:opacity-50"
+                  className="absolute top-4 right-4 w-11 h-11 bg-white/90 backdrop-blur-sm rounded-xl text-rhozly-on-surface/60 hover:text-red-500 hover:bg-white flex items-center justify-center shadow-sm transition-colors disabled:opacity-50"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -688,8 +705,8 @@ export default function PlantDoctor({
                     aiResult.possible_diseases &&
                     aiResult.possible_diseases.length > 0 &&
                     !selectedDisease && (
-                      <div className="bg-amber-500/10 border border-amber-500/30 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
-                        <h3 className="font-black text-amber-900 mb-4 flex items-center gap-2">
+                      <div className="bg-rhozly-primary-container/10 border border-rhozly-primary-container/30 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
+                        <h3 className="font-black text-rhozly-on-surface mb-4 flex items-center gap-2">
                           <Activity size={20} /> Which condition fits best?
                         </h3>
                         <div className="space-y-2">
@@ -697,7 +714,7 @@ export default function PlantDoctor({
                             <button
                               key={i}
                               onClick={() => setSelectedDisease(name)}
-                              className="w-full text-left p-4 bg-white rounded-2xl border border-amber-500/20 font-bold hover:border-amber-500/50 hover:bg-amber-50 transition-all text-amber-900"
+                              className="w-full text-left p-4 bg-white rounded-2xl border border-rhozly-primary-container/20 font-bold hover:border-rhozly-primary-container/50 hover:bg-rhozly-primary-container/10 transition-all text-rhozly-on-surface"
                             >
                               {name}
                             </button>
@@ -717,11 +734,11 @@ export default function PlantDoctor({
                     selectedDisease &&
                     !aiResult.diseaseInfo &&
                     !aiResult.remedial_schedules && (
-                      <div className="bg-amber-500/10 border border-amber-500/30 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
+                      <div className="bg-rhozly-primary-container/10 border border-rhozly-primary-container/30 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
                         <div className="flex items-center justify-between mb-2">
                           <div className="flex items-center gap-2">
-                            <Activity className="text-amber-600" size={20} />
-                            <h3 className="font-black text-lg text-amber-900">
+                            <Activity className="text-rhozly-primary" size={20} />
+                            <h3 className="font-black text-lg text-rhozly-on-surface">
                               Detected: {selectedDisease}
                             </h3>
                           </div>
@@ -732,12 +749,12 @@ export default function PlantDoctor({
                                 prev ? { ...prev, diseaseInfo: undefined, remedial_schedules: undefined } : null,
                               );
                             }}
-                            className="flex items-center gap-1 text-xs font-black text-amber-700/50 hover:text-amber-900 transition-colors"
+                            className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-on-surface transition-colors"
                           >
                             <ChevronLeft size={14} /> Change
                           </button>
                         </div>
-                        <p className="text-sm font-bold text-amber-800/70 mb-4">
+                        <p className="text-sm font-bold text-rhozly-on-surface/70 mb-4">
                           How would you like to build your treatment plan?
                         </p>
 
@@ -751,7 +768,7 @@ export default function PlantDoctor({
                                   )
                             }
                             disabled={isUIBusy}
-                            className={`flex-1 flex items-center justify-center gap-2 py-4 border rounded-xl font-black shadow-sm transition-colors disabled:opacity-50 ${perenualEnabled ? "bg-white border-amber-500/20 text-amber-700 hover:bg-amber-50" : "bg-gray-50 border-gray-200 text-gray-400"}`}
+                            className={`flex-1 flex items-center justify-center gap-2 py-4 border rounded-xl font-black shadow-sm transition-colors disabled:opacity-50 ${perenualEnabled ? "bg-white border-rhozly-primary-container/20 text-rhozly-primary hover:bg-rhozly-primary-container/10" : "bg-gray-50 border-gray-200 text-gray-400"}`}
                           >
                             {isFetchingDetails && perenualEnabled ? (
                               <Loader2 size={18} className="animate-spin" />
@@ -766,7 +783,7 @@ export default function PlantDoctor({
                           <button
                             onClick={() => fetchDetailedInfo("ai")}
                             disabled={isUIBusy}
-                            className="flex-1 flex items-center justify-center gap-2 py-4 bg-amber-500 text-white rounded-xl font-black shadow-sm hover:bg-amber-600 transition-colors disabled:opacity-50"
+                            className="flex-1 flex items-center justify-center gap-2 py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-sm hover:bg-rhozly-primary-container transition-colors disabled:opacity-50"
                           >
                             {isFetchingDetails && !perenualEnabled ? (
                               <Loader2 size={18} className="animate-spin" />
@@ -788,7 +805,7 @@ export default function PlantDoctor({
                       <div className="bg-white border border-rhozly-outline/10 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
                         {aiResult.diseaseInfo && selectedDisease && (
                           <div className="flex items-center justify-between mb-4">
-                            <p className="text-xs font-black text-amber-700 uppercase tracking-widest flex items-center gap-1">
+                            <p className="text-xs font-black text-rhozly-primary uppercase tracking-widest flex items-center gap-1">
                               <Activity size={12} /> {selectedDisease}
                             </p>
                             <button
@@ -845,7 +862,7 @@ export default function PlantDoctor({
                           <button
                             onClick={generateTreatmentPlan}
                             disabled={!sickInventoryId || isGeneratingTreatment}
-                            className="w-full py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-md hover:bg-rhozly-primary-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="w-full py-5 bg-rhozly-primary text-white rounded-xl font-black text-lg shadow-lg hover:bg-rhozly-primary-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                           >
                             {isGeneratingTreatment ? (
                               <>
@@ -866,8 +883,8 @@ export default function PlantDoctor({
                   {aiResult.remedial_schedules &&
                     aiResult.remedial_schedules.length > 0 &&
                     activeAction === "diagnose" && (
-                      <div className="bg-amber-500/5 border border-amber-500/20 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
-                        <div className="flex items-center gap-2 mb-2 text-amber-600">
+                      <div className="bg-rhozly-primary-container/5 border border-rhozly-primary-container/20 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
+                        <div className="flex items-center gap-2 mb-2 text-rhozly-primary">
                           <Syringe size={20} />
                           <h3 className="font-black text-lg">
                             Proposed Treatment Plan
@@ -878,10 +895,10 @@ export default function PlantDoctor({
                           {aiResult.remedial_schedules.map((schedule, idx) => (
                             <div
                               key={idx}
-                              className="bg-white p-3 rounded-xl border border-amber-500/10 flex items-start gap-3"
+                              className="bg-white p-3 rounded-xl border border-rhozly-primary-container/10 flex items-start gap-3"
                             >
                               <ClipboardList
-                                className="text-amber-500 shrink-0 mt-0.5"
+                                className="text-rhozly-tertiary shrink-0 mt-0.5"
                                 size={16}
                               />
                               <div>
@@ -892,7 +909,7 @@ export default function PlantDoctor({
                                   {schedule.description}
                                 </p>
                                 {schedule.is_recurring && (
-                                  <span className="inline-block mt-1 text-[9px] font-black uppercase tracking-widest text-amber-600 bg-amber-50 px-2 py-0.5 rounded-md">
+                                  <span className="inline-block mt-1 text-[9px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary-container/10 px-2 py-0.5 rounded-md">
                                     Every {schedule.frequency_days} Days
                                   </span>
                                 )}
@@ -901,16 +918,16 @@ export default function PlantDoctor({
                           ))}
                         </div>
 
-                        <label className="flex items-center gap-3 p-4 mb-6 bg-white rounded-2xl border border-rhozly-outline/10 cursor-pointer hover:border-amber-500/30 transition-colors shadow-sm">
+                        <label className="flex items-center gap-3 p-4 mb-6 bg-white rounded-2xl border border-rhozly-outline/10 cursor-pointer hover:border-rhozly-primary-container/30 transition-colors shadow-sm">
                           <input
                             type="checkbox"
                             checked={saveToJournal}
                             onChange={(e) => setSaveToJournal(e.target.checked)}
-                            className="w-5 h-5 accent-amber-500"
+                            className="w-5 h-5 accent-rhozly-primary"
                           />
                           <div>
                             <p className="font-black text-sm flex items-center gap-1">
-                              <BookOpen size={14} className="text-amber-500" />{" "}
+                              <BookOpen size={14} className="text-rhozly-tertiary" />{" "}
                               Add to Plant Journal?
                             </p>
                             <p className="text-[10px] font-bold text-rhozly-on-surface/50 mt-0.5">
@@ -920,20 +937,27 @@ export default function PlantDoctor({
                           </div>
                         </label>
 
-                        <button
-                          onClick={handleApplyTreatment}
-                          disabled={isApplyingTreatment}
-                          className="w-full py-4 bg-amber-500 text-white rounded-xl font-black shadow-md hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
-                        >
-                          {isApplyingTreatment ? (
-                            <>
-                              <Loader2 size={18} className="animate-spin" />{" "}
-                              Scheduling...
-                            </>
-                          ) : (
-                            "Approve & Add to Tasks"
-                          )}
-                        </button>
+                        {treatmentApplied ? (
+                          <div className="w-full py-4 bg-rhozly-primary/10 border border-rhozly-primary/30 text-rhozly-primary rounded-xl font-black shadow-sm flex items-center justify-center gap-2 animate-in zoom-in-95">
+                            <CheckCircle2 size={20} />
+                            Treatment scheduled — tasks added to your list!
+                          </div>
+                        ) : (
+                          <button
+                            onClick={handleApplyTreatment}
+                            disabled={isApplyingTreatment}
+                            className="w-full py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-md hover:bg-rhozly-primary-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          >
+                            {isApplyingTreatment ? (
+                              <>
+                                <Loader2 size={18} className="animate-spin" />{" "}
+                                Scheduling...
+                              </>
+                            ) : (
+                              "Approve & Add to Tasks"
+                            )}
+                          </button>
+                        )}
                       </div>
                     )}
                 </div>

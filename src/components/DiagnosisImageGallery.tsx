@@ -81,7 +81,7 @@ function ReportModal({
           <ExternalLink size={14} /> Report on Unsplash
         </a>
 
-        <p className="text-[10px] text-gray-400 text-center mt-3 leading-relaxed">
+        <p className="text-xs text-gray-400 text-center mt-3 leading-relaxed">
           All images are provided under the{" "}
           <a
             href="https://unsplash.com/license"
@@ -201,14 +201,14 @@ function Lightbox({
             <button
               onClick={prev}
               aria-label="Previous image"
-              className="absolute left-2 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/80 rounded-full flex items-center justify-center hover:bg-white transition-colors shadow"
+              className="absolute left-2 top-1/2 -translate-y-1/2 w-11 h-11 bg-white/80 rounded-full flex items-center justify-center hover:bg-white transition-colors shadow"
             >
               <ChevronLeft size={20} />
             </button>
             <button
               onClick={next}
               aria-label="Next image"
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-9 h-9 bg-white/80 rounded-full flex items-center justify-center hover:bg-white transition-colors shadow"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-11 h-11 bg-white/80 rounded-full flex items-center justify-center hover:bg-white transition-colors shadow"
             >
               <ChevronRight size={20} />
             </button>
@@ -249,7 +249,7 @@ function Lightbox({
           href={image.photo_page}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-2 text-[11px] text-white/50 hover:text-white/80 flex items-center gap-1 transition-colors"
+          className="mt-2 text-xs text-white/50 hover:text-white/80 flex items-center gap-1 transition-colors"
           onClick={(e) => e.stopPropagation()}
         >
           <ExternalLink size={11} /> View original on Unsplash
@@ -320,7 +320,7 @@ function ThumbnailImage({
           target="_blank"
           rel="noopener noreferrer"
           onClick={(e) => e.stopPropagation()}
-          className="text-[9px] text-white/80 font-bold truncate block hover:text-white leading-tight"
+          className="text-xs text-white/80 font-bold truncate block hover:text-white leading-tight"
           title={`Photo by ${image.photographer_name} on Unsplash`}
         >
           {image.photographer_name}
@@ -328,7 +328,7 @@ function ThumbnailImage({
       </div>
 
       {/* Hover action buttons */}
-      <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col gap-1">
+      <div className="absolute top-1.5 right-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex flex-col gap-1">
         <a
           href={image.photo_page}
           target="_blank"
@@ -367,35 +367,65 @@ interface Props {
 export default function DiagnosisImageGallery({ query, label }: Props) {
   const [images, setImages] = useState<ImageResult[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [reportImage, setReportImage] = useState<ImageResult | null>(null);
 
-  useEffect(() => {
+  const loadImages = () => {
     if (!query) return;
     let cancelled = false;
     setLoading(true);
+    setFetchError(false);
     setImages([]);
 
     supabase.functions
       .invoke("plant-image-search", { body: { query, count: 6 } })
       .then(({ data, error }) => {
         if (cancelled) return;
-        if (!error && Array.isArray(data?.images)) setImages(data.images);
+        if (!error && Array.isArray(data?.images)) {
+          setImages(data.images);
+        } else {
+          setFetchError(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setFetchError(true);
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
       });
 
     return () => { cancelled = true; };
+  };
+
+  useEffect(() => {
+    const cancel = loadImages();
+    return cancel;
   }, [query]);
 
   if (loading) return <Skeleton />;
+
+  if (fetchError) {
+    return (
+      <div className="flex flex-col items-center gap-3 py-6 px-4 rounded-2xl bg-gray-50 border border-gray-200 text-center">
+        <p className="text-sm font-semibold text-gray-700">Couldn't load reference photos</p>
+        <p className="text-xs text-gray-500">There was a problem fetching images. Please try again.</p>
+        <button
+          onClick={loadImages}
+          className="mt-1 px-4 py-2 bg-rhozly-primary text-white text-sm font-black rounded-xl hover:opacity-90 active:scale-95 transition-all"
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
   if (images.length === 0) return null;
 
   return (
     <>
       <div>
-        <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5">
+        <p className="text-xs font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-2 ml-1 flex items-center gap-1.5">
           <Images size={11} /> Reference photos — {label}
         </p>
 
@@ -416,7 +446,7 @@ export default function DiagnosisImageGallery({ query, label }: Props) {
         </div>
 
         {/* Platform attribution footer — required by Unsplash License */}
-        <p className="text-[9px] text-gray-400 mt-2 ml-1">
+        <p className="text-xs text-gray-400 mt-2 ml-1">
           Thumbnails via{" "}
           <a
             href="https://unsplash.com?utm_source=rhozly&utm_medium=referral"

@@ -274,7 +274,7 @@ export default function PlantJournalTab({
         {!isAdding && (
           <button
             onClick={() => setIsAdding(true)}
-            className="flex items-center gap-1 bg-rhozly-primary text-white px-4 py-2 rounded-xl text-xs font-black hover:scale-105 transition-transform shadow-sm"
+            className="flex items-center gap-1 bg-rhozly-primary text-white px-4 py-2 rounded-2xl text-xs font-black hover:scale-105 transition-transform shadow-sm"
           >
             <Plus size={16} /> New Entry
           </button>
@@ -282,7 +282,7 @@ export default function PlantJournalTab({
       </div>
 
       {isAdding && (
-        <div className="bg-rhozly-surface-low border border-rhozly-outline/20 p-5 rounded-[2rem] space-y-4 animate-in slide-in-from-top-4">
+        <div className="bg-rhozly-surface-low border border-rhozly-outline/20 p-5 rounded-2xl space-y-4 animate-in slide-in-from-top-4">
           <div className="flex justify-between items-center">
             <h4 className="font-black text-sm uppercase tracking-widest text-rhozly-primary">
               New Entry
@@ -408,7 +408,7 @@ export default function PlantJournalTab({
           <button
             onClick={handleSave}
             disabled={saving}
-            className="w-full py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-50 flex justify-center items-center gap-2"
+            className="w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-50 flex justify-center items-center gap-2"
           >
             {saving ? (
               <Loader2 className="animate-spin" size={18} />
@@ -421,7 +421,7 @@ export default function PlantJournalTab({
         </div>
       )}
 
-      <div className="space-y-4">
+      <div className={entries.length > 1 ? "grid grid-cols-1 sm:grid-cols-2 gap-4" : "space-y-4"}>
         {entries.length === 0 && !isAdding ? (
           <div className="text-center p-8 border-2 border-dashed border-rhozly-outline/20 rounded-3xl opacity-50">
             <BookOpen className="mx-auto mb-2" size={24} />
@@ -431,7 +431,7 @@ export default function PlantJournalTab({
           entries.map((entry) => (
             <div
               key={entry.id}
-              className="bg-white p-5 rounded-[2rem] border border-rhozly-outline/10 shadow-sm flex flex-col gap-3 transition-transform hover:-translate-y-1 hover:shadow-md"
+              className="bg-white p-5 rounded-2xl border border-rhozly-outline/10 shadow-sm flex flex-col gap-3 transition-transform hover:-translate-y-1 hover:shadow-md"
             >
               <div className="flex justify-between items-start">
                 <div>
@@ -452,7 +452,7 @@ export default function PlantJournalTab({
                   ref={deleteButtonRef}
                   onClick={() => setDeleteConfirm(entry.id)}
                   aria-label="Delete journal entry"
-                  className="text-rhozly-on-surface/30 hover:text-red-500 transition-colors"
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/30 hover:text-red-500 transition-colors"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -466,7 +466,7 @@ export default function PlantJournalTab({
               )}
 
               {entry.description && (
-                <p className="text-sm font-bold text-rhozly-on-surface/70 whitespace-pre-wrap leading-relaxed mt-1">
+                <p className="text-sm font-normal text-rhozly-on-surface/55 whitespace-pre-wrap leading-relaxed mt-1">
                   {entry.description}
                 </p>
               )}
@@ -510,13 +510,13 @@ export default function PlantJournalTab({
             <div className="flex gap-3">
               <button
                 onClick={() => setDeleteConfirm(null)}
-                className="flex-1 py-3 px-4 bg-rhozly-surface-low text-rhozly-on-surface rounded-xl font-black hover:bg-rhozly-outline/10 transition-colors"
+                className="flex-1 py-3 px-4 bg-rhozly-surface-low text-rhozly-on-surface rounded-2xl font-black hover:bg-rhozly-outline/10 transition-colors"
               >
                 Cancel
               </button>
               <button
                 onClick={() => handleDelete(deleteConfirm)}
-                className="flex-1 py-3 px-4 bg-red-500 text-white rounded-xl font-black hover:bg-red-600 transition-colors"
+                className="flex-1 py-3 px-4 bg-red-500 text-white rounded-2xl font-black hover:bg-red-600 transition-colors"
               >
                 Delete
               </button>

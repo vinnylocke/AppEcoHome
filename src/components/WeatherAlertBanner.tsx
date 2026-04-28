@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { Thermometer, Wind, X, Clock, CloudRain } from "lucide-react";
+import toast from "react-hot-toast";
 
-// 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface WeatherAlert {
@@ -17,28 +17,100 @@ interface Props {
   isForecastScreen?: boolean;
 }
 
+// Safe wrapper so the banner renders even outside a PlantDoctorProvider
+const usePlantDoctorSafe = () => {
+  try {
+    return usePlantDoctor();
+  } catch {
+    return null;
+  }
+};
+
 export const WeatherAlertBanner = ({
   alerts,
   isForecastScreen = false,
 }: Props) => {
-  // 🧠 GRAB THE SETTER FROM CONTEXT
-  const { setPageContext } = usePlantDoctor();
+  const plantDoctor = usePlantDoctorSafe();
+  const setPageContext = plantDoctor?.setPageContext ?? (() => {});
 
   const [dismissedIds, setDismissedIds] = useState<string[]>([]);
 
   useEffect(() => {
     const saved = localStorage.getItem("dismissed-weather-alerts");
-    if (saved) setDismissedIds(JSON.parse(saved));
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setDismissedIds(parsed);
+      } catch {
+        // Malformed data — start fresh
+        localStorage.removeItem("dismissed-weather-alerts");
+      }
+    }
   }, []);
 
-  const handleDismiss = (id: string) => {
-    const newDismissed = [...dismissedIds, id];
-    setDismissedIds(newDismissed);
-    localStorage.setItem(
-      "dismissed-weather-alerts",
-      JSON.stringify(newDismissed),
-    );
-  };
+  const handleDismiss = useCallback(
+    (id: string) => {
+      const newDismissed = [...dismissedIds, id];
+      setDismissedIds(newDismissed);
+      localStorage.setItem(
+        "dismissed-weather-alerts",
+        JSON.stringify(newDismissed),
+      );
+
+      toast.success("Alert dismissed", {
+        duration: 4000,
+        ariaProps: { role: "status", "aria-live": "polite" },
+      });
+    },
+    [dismissedIds],
+  );
+
+  const handleUndo = useCallback(
+    (id: string) => {
+      setDismissedIds((prev) => {
+        const next = prev.filter((d) => d !== id);
+        localStorage.setItem(
+          "dismissed-weather-alerts",
+          JSON.stringify(next),
+        );
+        return next;
+      });
+    },
+    [],
+  );
+
+  const handleDismissWithUndo = useCallback(
+    (id: string) => {
+      const newDismissed = [...dismissedIds, id];
+      setDismissedIds(newDismissed);
+      localStorage.setItem(
+        "dismissed-weather-alerts",
+        JSON.stringify(newDismissed),
+      );
+
+      toast(
+        (t) => (
+          <span className="flex items-center gap-3 text-sm font-medium">
+            Alert dismissed
+            <button
+              onClick={() => {
+                handleUndo(id);
+                toast.dismiss(t.id);
+              }}
+              className="font-bold text-rhozly-primary underline underline-offset-2"
+            >
+              Undo
+            </button>
+          </span>
+        ),
+        {
+          duration: 4000,
+          ariaProps: { role: "status", "aria-live": "polite" },
+        },
+      );
+    },
+    [dismissedIds, handleUndo],
+  );
 
   const formatAlertTime = (isoString: string) => {
     const date = new Date(isoString);
@@ -53,7 +125,6 @@ export const WeatherAlertBanner = ({
     return `${dayLabel} at ${timeLabel}`;
   };
 
-  // 🚀 FIX: Wrap uniqueAlerts in useMemo so it doesn't recreate on every render
   const uniqueAlerts = useMemo(() => {
     return alerts.filter(
       (alert, index, self) =>
@@ -61,14 +132,12 @@ export const WeatherAlertBanner = ({
     );
   }, [alerts]);
 
-  // 🚀 FIX: Wrap visibleAlerts in useMemo so it keeps its exact memory address
   const visibleAlerts = useMemo(() => {
     return isForecastScreen
       ? uniqueAlerts
       : uniqueAlerts.filter((a) => !dismissedIds.includes(a.id));
   }, [isForecastScreen, uniqueAlerts, dismissedIds]);
 
-  // 🧠 LIVE AI SYNC: Feed any active weather threats into the AI's brain
   useEffect(() => {
     if (visibleAlerts.length > 0) {
       setPageContext({
@@ -83,8 +152,6 @@ export const WeatherAlertBanner = ({
       });
     }
 
-    // Since this is a banner that might appear/disappear,
-    // we only nullify if there are ZERO alerts visible.
     if (visibleAlerts.length === 0) {
       // return () => setPageContext(null);
     }
@@ -92,27 +159,42 @@ export const WeatherAlertBanner = ({
 
   if (visibleAlerts.length === 0) return null;
 
+  // Design-token style map — no raw palette colours
+  // Container: rhozly-surface-low base + severity border tint
+  // Icon bg: a slightly stronger tint using rhozly-surface
+  const styleMap: Record<
+    WeatherAlert["severity"],
+    { container: string; iconBg: string }
+  > = {
+    critical: {
+      container:
+        "bg-rhozly-surface-low border-[#f5c2c2] text-rhozly-on-surface",
+      iconBg: "bg-[#f5c2c2]",
+    },
+    warning: {
+      container:
+        "bg-rhozly-surface-low border-[#f5dfa8] text-rhozly-on-surface",
+      iconBg: "bg-[#f5dfa8]",
+    },
+    info: {
+      container:
+        "bg-rhozly-surface-low border-rhozly-outline text-rhozly-on-surface",
+      iconBg: "bg-rhozly-surface",
+    },
+  };
+
   return (
     <div className="space-y-3">
       {visibleAlerts.map((alert) => {
-        const styleMap = {
-          critical: "bg-red-50 border-red-200 text-red-900 icon-bg-red-200",
-          warning:
-            "bg-amber-50 border-amber-200 text-amber-900 icon-bg-amber-200",
-          info: "bg-blue-50 border-blue-200 text-blue-900 icon-bg-blue-200",
-        };
-
-        const currentStyle = styleMap[alert.severity] || styleMap.info;
+        const styles = styleMap[alert.severity] ?? styleMap.info;
 
         return (
           <div
             key={alert.id}
-            className={`group relative overflow-hidden rounded-3xl border p-4 transition-all animate-in slide-in-from-top-4 duration-500 ${currentStyle.split("icon-bg")[0]}`}
+            className={`group relative overflow-hidden rounded-3xl border p-4 transition-all animate-in slide-in-from-top-4 duration-500 ${styles.container}`}
           >
             <div className="flex items-start gap-4">
-              <div
-                className={`mt-1 p-2 rounded-xl ${currentStyle.split("icon-bg-")[1]}`}
-              >
+              <div className={`mt-1 p-2 rounded-xl ${styles.iconBg}`}>
                 {alert.type === "frost" ? (
                   <Thermometer className="w-5 h-5" />
                 ) : alert.type === "wind" ? (
@@ -140,8 +222,9 @@ export const WeatherAlertBanner = ({
 
               {!isForecastScreen && (
                 <button
-                  onClick={() => handleDismiss(alert.id)}
-                  className="p-1 hover:bg-black/5 rounded-lg transition-colors"
+                  onClick={() => handleDismissWithUndo(alert.id)}
+                  aria-label="Dismiss alert"
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-black/5 rounded-xl transition-colors"
                 >
                   <X className="w-5 h-5 opacity-40" />
                 </button>

@@ -7,6 +7,7 @@ import {
   Trash2,
   LogOut,
   UserPlus,
+  Loader2,
 } from "lucide-react";
 import { ConfirmModal } from "./ConfirmModal";
 import { Logger } from "../lib/errorHandler";
@@ -32,6 +33,7 @@ export const HomeDropdown: React.FC<Props> = ({
 }) => {
   const [homes, setHomes] = useState<HomeWithRole[]>([]);
   const [isOpen, setIsOpen] = useState(false);
+  const [isFetching, setIsFetching] = useState(false);
 
   // --- NEW: Unified Modal State ---
   const [modalConfig, setModalConfig] = useState<{
@@ -48,32 +50,37 @@ export const HomeDropdown: React.FC<Props> = ({
   const [isProcessing, setIsProcessing] = useState(false);
 
   const fetchUserHomes = async () => {
-    // 1. Get the current user
-    const {
-      data: { session },
-    } = await supabase.auth.getSession();
-    if (!session) return;
+    setIsFetching(true);
+    try {
+      // 1. Get the current user
+      const {
+        data: { session },
+      } = await supabase.auth.getSession();
+      if (!session) return;
 
-    // 2. ONLY fetch home_members rows that belong to this specific user
-    const { data, error } = await supabase
-      .from("home_members")
-      .select(
-        `
-        role,
-        homes ( id, name )
-      `,
-      )
-      .eq("user_id", session.user.id); // 🚀 THE FIX IS HERE
+      // 2. ONLY fetch home_members rows that belong to this specific user
+      const { data, error } = await supabase
+        .from("home_members")
+        .select(
+          `
+          role,
+          homes ( id, name )
+        `,
+        )
+        .eq("user_id", session.user.id);
 
-    if (!error && data) {
-      // Filter out any potential null homes and map the data
-      const homeList = data
-        .filter((item) => item.homes)
-        .map((item: any) => ({
-          ...item.homes,
-          role: item.role,
-        }));
-      setHomes(homeList);
+      if (!error && data) {
+        // Filter out any potential null homes and map the data
+        const homeList = data
+          .filter((item) => item.homes)
+          .map((item: any) => ({
+            ...item.homes,
+            role: item.role,
+          }));
+        setHomes(homeList);
+      }
+    } finally {
+      setIsFetching(false);
     }
   };
   useEffect(() => {
@@ -148,7 +155,11 @@ export const HomeDropdown: React.FC<Props> = ({
         className="flex items-center justify-between sm:justify-start gap-2 bg-white/10 hover:bg-white/20 px-3 py-2 md:px-4 md:py-2 rounded-xl transition-colors text-white border border-white/10 w-full"
       >
         <div className="flex items-center gap-2">
-          <HomeIcon className="w-4 h-4 hidden sm:block opacity-70" />
+          {isFetching ? (
+            <Loader2 className="w-4 h-4 animate-spin opacity-70" />
+          ) : (
+            <HomeIcon className="w-4 h-4 hidden sm:block opacity-70" />
+          )}
           <span className="font-bold text-sm">
             {activeHome?.name || "Select Home"}
           </span>
@@ -170,13 +181,30 @@ export const HomeDropdown: React.FC<Props> = ({
           />
 
           {/* Dropdown Menu */}
-          <div className="absolute top-full left-0 mt-2 w-72 sm:w-80 bg-white rounded-2xl shadow-xl border border-rhozly-outline/20 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
-            <div className="p-2">
+          <div className="absolute top-full left-0 mt-2 w-72 sm:w-80 lg:w-96 bg-white rounded-2xl shadow-xl border border-rhozly-outline/20 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+            <div className="p-2 lg:p-3">
               <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest px-3 py-2">
                 Your Homes
               </p>
 
-              {homes.map((home) => (
+              {isFetching && (
+                <div className="space-y-1 px-1 pb-1">
+                  {[1, 2].map((i) => (
+                    <div
+                      key={i}
+                      className="h-11 rounded-xl bg-rhozly-surface-low animate-pulse"
+                    />
+                  ))}
+                </div>
+              )}
+
+              {!isFetching && homes.length === 0 && (
+                <p className="text-sm text-rhozly-on-surface/40 font-bold px-3 py-4 text-center">
+                  No homes yet. Create one below.
+                </p>
+              )}
+
+              {!isFetching && homes.map((home) => (
                 <div
                   key={home.id}
                   onClick={() => {
@@ -190,12 +218,12 @@ export const HomeDropdown: React.FC<Props> = ({
                   }`}
                 >
                   {/* Select Home Label */}
-                  <div className="flex-1 text-left px-1 py-1.5 flex items-center gap-2">
+                  <div className="flex-1 min-w-0 text-left px-1 py-1.5 flex items-center gap-2">
                     <div
-                      className={`w-2 h-2 rounded-full ${home.id === currentHomeId ? "bg-rhozly-primary" : "bg-transparent"}`}
+                      className={`w-2 h-2 flex-shrink-0 rounded-full ${home.id === currentHomeId ? "bg-rhozly-primary" : "bg-transparent"}`}
                     />
                     <span
-                      className={`text-sm font-bold ${home.id === currentHomeId ? "text-rhozly-primary" : "text-rhozly-on-surface"}`}
+                      className={`text-sm font-bold truncate ${home.id === currentHomeId ? "text-rhozly-primary" : "text-rhozly-on-surface"}`}
                     >
                       {home.name}
                     </span>
@@ -208,10 +236,9 @@ export const HomeDropdown: React.FC<Props> = ({
                         onClick={(e) => {
                           e.stopPropagation();
                           navigator.clipboard.writeText(home.id);
-                          // ✨ UPGRADED: Replaced alert() with our clean success toast!
                           Logger.success("Home ID copied to clipboard!");
                         }}
-                        className="p-2 text-rhozly-on-surface/40 hover:text-rhozly-primary hover:bg-rhozly-primary/10 rounded-lg transition-colors"
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/40 hover:text-rhozly-primary hover:bg-rhozly-primary/10 rounded-lg transition-colors"
                         title="Copy Invite ID"
                       >
                         <UserPlus className="w-4 h-4" />
@@ -228,7 +255,7 @@ export const HomeDropdown: React.FC<Props> = ({
                           homeName: home.name,
                         });
                       }}
-                      className="p-2 text-rhozly-on-surface/40 hover:text-orange-500 hover:bg-orange-500/10 rounded-lg transition-colors"
+                      className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/40 hover:text-red-500 hover:bg-rhozly-tertiary/60 rounded-lg transition-colors"
                       title="Leave Home"
                     >
                       <LogOut className="w-4 h-4" />
@@ -245,7 +272,7 @@ export const HomeDropdown: React.FC<Props> = ({
                             homeName: home.name,
                           });
                         }}
-                        className="p-2 text-rhozly-on-surface/40 hover:text-red-500 hover:bg-red-500/10 rounded-lg transition-colors"
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/40 hover:text-red-500 hover:bg-rhozly-tertiary/60 rounded-lg transition-colors"
                         title="Delete Home"
                       >
                         <Trash2 className="w-4 h-4" />

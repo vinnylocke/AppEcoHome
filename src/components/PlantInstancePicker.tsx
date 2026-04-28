@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect, useMemo } from "react";
-import { Search, X, MapPin, ChevronDown, Sprout } from "lucide-react";
+import { Search, X, MapPin, ChevronDown, Sprout, Check } from "lucide-react";
 
 export interface InventoryItemWithLocation {
   id: string;
@@ -10,11 +10,12 @@ export interface InventoryItemWithLocation {
 }
 
 interface Props {
-  items: InventoryItemWithLocation[];
+  items?: InventoryItemWithLocation[];
   selectedId: string | null;
   onSelect: (id: string | null) => void;
   disabled?: boolean;
   placeholder?: string;
+  loading?: boolean;
 }
 
 export default function PlantInstancePicker({
@@ -23,12 +24,15 @@ export default function PlantInstancePicker({
   onSelect,
   disabled = false,
   placeholder = "Select a plant from your shed...",
+  loading = false,
 }: Props) {
+  const safeItems = items ?? [];
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [locationFilter, setLocationFilter] = useState<string | null>(null);
   const [areaFilter, setAreaFilter] = useState<string | null>(null);
   const [highlightedIndex, setHighlightedIndex] = useState(0);
+  const [justSelected, setJustSelected] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -53,23 +57,23 @@ export default function PlantInstancePicker({
   // Build unique location + area lists from the items
   const locations = useMemo(() => {
     const map = new Map<string, string>();
-    for (const item of items) {
+    for (const item of safeItems) {
       const locName = item.areas?.locations?.name;
       if (locName) map.set(locName, locName);
     }
     return Array.from(map.keys()).sort();
-  }, [items]);
+  }, [safeItems]);
 
   const areasForLocation = useMemo(() => {
     if (!locationFilter) return [];
     const map = new Map<string, string>();
-    for (const item of items) {
+    for (const item of safeItems) {
       const locName = item.areas?.locations?.name;
       const areaName = item.areas?.name;
       if (locName === locationFilter && areaName) map.set(areaName, areaName);
     }
     return Array.from(map.keys()).sort();
-  }, [items, locationFilter]);
+  }, [safeItems, locationFilter]);
 
   // Clear area filter when location changes
   const handleLocationFilter = (loc: string | null) => {
@@ -79,7 +83,7 @@ export default function PlantInstancePicker({
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return items.filter((item) => {
+    return safeItems.filter((item) => {
       const name = item.plants?.common_name?.toLowerCase() ?? "";
       const locName = item.areas?.locations?.name ?? "";
       const areaName = item.areas?.name ?? "";
@@ -89,7 +93,7 @@ export default function PlantInstancePicker({
       if (areaFilter && areaName !== areaFilter) return false;
       return true;
     });
-  }, [items, search, locationFilter, areaFilter]);
+  }, [safeItems, search, locationFilter, areaFilter]);
 
   // Reset highlighted index when filtered list changes
   useEffect(() => {
@@ -128,7 +132,7 @@ export default function PlantInstancePicker({
     return () => document.removeEventListener("keydown", handler);
   }, [open, filtered, highlightedIndex, onSelect]);
 
-  const selectedItem = items.find((i) => i.id === selectedId);
+  const selectedItem = safeItems.find((i) => i.id === selectedId);
   const selectedName = selectedItem?.plants?.common_name ?? "Unknown Plant";
   const selectedBreadcrumb = [
     selectedItem?.areas?.locations?.name,
@@ -141,11 +145,25 @@ export default function PlantInstancePicker({
     setSearch("");
     setLocationFilter(null);
     setAreaFilter(null);
+    setJustSelected(true);
+    setTimeout(() => setJustSelected(false), 1200);
   }
 
   function handleClear(e: React.MouseEvent) {
     e.stopPropagation();
     onSelect(null);
+  }
+
+  if (loading) {
+    return (
+      <div className="w-full flex items-center gap-3 p-4 bg-rhozly-surface-low rounded-xl border border-transparent animate-pulse">
+        <div className="w-4 h-4 rounded bg-rhozly-outline/20 flex-shrink-0" />
+        <div className="flex-1 space-y-1.5">
+          <div className="h-3 w-2/5 rounded bg-rhozly-outline/20" />
+          <div className="h-2.5 w-1/3 rounded bg-rhozly-outline/10" />
+        </div>
+      </div>
+    );
   }
 
   return (
@@ -159,12 +177,18 @@ export default function PlantInstancePicker({
         aria-expanded={open}
         aria-haspopup="listbox"
         className={`w-full flex items-center gap-3 p-4 bg-rhozly-surface-low rounded-xl border transition-all text-left ${
-          open
+          justSelected
+            ? "border-rhozly-primary/60 ring-2 ring-rhozly-primary/25 bg-rhozly-primary/5"
+            : open
             ? "border-rhozly-primary ring-2 ring-rhozly-primary/20"
             : "border-transparent hover:border-rhozly-outline/30"
         } disabled:opacity-50 disabled:cursor-not-allowed`}
       >
-        <Sprout size={16} className={selectedId ? "text-rhozly-primary" : "text-rhozly-on-surface/30"} />
+        {justSelected ? (
+          <Check size={16} className="text-rhozly-primary flex-shrink-0" />
+        ) : (
+          <Sprout size={16} className={selectedId ? "text-rhozly-primary" : "text-rhozly-on-surface/30"} />
+        )}
         <div className="flex-1 min-w-0">
           {selectedId ? (
             <>
@@ -184,7 +208,8 @@ export default function PlantInstancePicker({
           <button
             type="button"
             onClick={handleClear}
-            className="text-rhozly-on-surface/30 hover:text-red-400 transition flex-shrink-0"
+            aria-label="Clear selection"
+            className="flex items-center justify-center min-h-[44px] min-w-[44px] -mr-2 text-rhozly-on-surface/30 hover:text-red-400 transition flex-shrink-0"
           >
             <X size={14} />
           </button>
@@ -218,10 +243,10 @@ export default function PlantInstancePicker({
 
           {/* Location filter pills */}
           {locations.length > 1 && (
-            <div className="px-3 pt-2.5 pb-1 flex flex-wrap gap-1.5 border-b border-rhozly-outline/10">
+            <div className="px-3 pt-2.5 pb-1.5 flex flex-wrap gap-1.5 border-b border-rhozly-outline/10">
               <button
                 onClick={() => handleLocationFilter(null)}
-                className={`text-[11px] font-bold px-3 py-1 rounded-full transition ${
+                className={`text-[11px] font-bold px-3 min-h-[44px] rounded-full transition ${
                   !locationFilter
                     ? "bg-rhozly-primary text-white"
                     : "bg-rhozly-surface-low text-rhozly-on-surface/60 hover:bg-rhozly-outline/20"
@@ -233,7 +258,7 @@ export default function PlantInstancePicker({
                 <button
                   key={loc}
                   onClick={() => handleLocationFilter(loc)}
-                  className={`text-[11px] font-bold px-3 py-1 rounded-full transition ${
+                  className={`text-[11px] font-bold px-3 min-h-[44px] rounded-full transition ${
                     locationFilter === loc
                       ? "bg-rhozly-primary text-white"
                       : "bg-rhozly-surface-low text-rhozly-on-surface/60 hover:bg-rhozly-outline/20"
@@ -247,13 +272,13 @@ export default function PlantInstancePicker({
 
           {/* Area filter pills — only shown once a location is selected */}
           {locationFilter && areasForLocation.length > 1 && (
-            <div className="px-3 pt-2 pb-1 flex flex-wrap gap-1.5 border-b border-rhozly-outline/10">
+            <div className="px-3 pt-2 pb-1.5 flex flex-wrap gap-1.5 border-b border-rhozly-outline/10">
               <button
                 onClick={() => setAreaFilter(null)}
-                className={`text-[11px] font-semibold px-3 py-1 rounded-full transition ${
+                className={`text-[11px] font-semibold px-3 min-h-[44px] rounded-full transition ${
                   !areaFilter
                     ? "bg-rhozly-primary/80 text-white"
-                    : "bg-rhozly-outline/10 text-rhozly-on-surface/60 hover:bg-rhozly-outline/20"
+                    : "bg-rhozly-surface-low text-rhozly-on-surface/60 hover:bg-rhozly-outline/20"
                 }`}
               >
                 All areas
@@ -262,10 +287,10 @@ export default function PlantInstancePicker({
                 <button
                   key={area}
                   onClick={() => setAreaFilter(area)}
-                  className={`text-[11px] font-semibold px-3 py-1 rounded-full transition ${
+                  className={`text-[11px] font-semibold px-3 min-h-[44px] rounded-full transition ${
                     areaFilter === area
                       ? "bg-rhozly-primary/80 text-white"
-                      : "bg-rhozly-outline/10 text-rhozly-on-surface/60 hover:bg-rhozly-outline/20"
+                      : "bg-rhozly-surface-low text-rhozly-on-surface/60 hover:bg-rhozly-outline/20"
                   }`}
                 >
                   {area}
@@ -276,7 +301,11 @@ export default function PlantInstancePicker({
 
           {/* Results list */}
           <div className="max-h-56 overflow-y-auto p-2">
-            {filtered.length === 0 ? (
+            {safeItems.length === 0 ? (
+              <div className="px-4 py-6 text-center text-sm text-rhozly-on-surface/40 font-medium">
+                No plants in your shed yet
+              </div>
+            ) : filtered.length === 0 ? (
               <div className="px-4 py-6 text-center text-sm text-rhozly-on-surface/40 font-medium">
                 No plants match your search
               </div>
@@ -296,10 +325,10 @@ export default function PlantInstancePicker({
                     onClick={() => handleSelect(item.id)}
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition ${
                       isSelected
-                        ? "bg-rhozly-primary/10 text-rhozly-primary"
+                        ? "bg-rhozly-primary/15 text-rhozly-primary ring-1 ring-rhozly-primary/30"
                         : isHighlighted
-                        ? "bg-rhozly-primary/5 text-rhozly-on-surface"
-                        : "hover:bg-rhozly-primary/5 text-rhozly-on-surface"
+                        ? "bg-rhozly-surface-low text-rhozly-on-surface"
+                        : "hover:bg-rhozly-surface-low text-rhozly-on-surface"
                     }`}
                   >
                     <Sprout size={14} className={isSelected ? "text-rhozly-primary flex-shrink-0" : "text-rhozly-on-surface/30 flex-shrink-0"} />
@@ -313,7 +342,7 @@ export default function PlantInstancePicker({
                       )}
                     </div>
                     {isSelected && (
-                      <div className="w-2 h-2 rounded-full bg-rhozly-primary flex-shrink-0" />
+                      <Check size={14} className="text-rhozly-primary flex-shrink-0" />
                     )}
                   </button>
                 );

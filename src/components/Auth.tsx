@@ -16,6 +16,10 @@ export const Auth: React.FC = () => {
   const [lastName, setLastName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
+  const [successMessage, setSuccessMessage] = useState<string | null>(null);
+  const [isForgotPassword, setIsForgotPassword] = useState(false);
+  const [forgotPasswordSent, setForgotPasswordSent] = useState(false);
 
   // Refs for focus management
   const firstNameRef = useRef<HTMLInputElement>(null);
@@ -23,8 +27,63 @@ export const Auth: React.FC = () => {
   const emailRef = useRef<HTMLInputElement>(null);
   const passwordRef = useRef<HTMLInputElement>(null);
 
+  const validateFields = (): boolean => {
+    const errors: Record<string, string> = {};
+    if (isSignUp && !firstName.trim()) errors.firstName = "First name is required.";
+    if (isSignUp && !lastName.trim()) errors.lastName = "Last name is required.";
+    if (!email.trim()) {
+      errors.email = "Email is required.";
+    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      errors.email = "Please enter a valid email address.";
+    }
+    if (!password) {
+      errors.password = "Password is required.";
+    } else if (isSignUp && password.length < 8) {
+      errors.password = "Password must be at least 8 characters.";
+    }
+    setFieldErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoading(true);
+    setError(null);
+    if (!email.trim()) {
+      setFieldErrors({ email: "Please enter your email address to reset your password." });
+      setLoading(false);
+      emailRef.current?.focus();
+      return;
+    }
+    try {
+      const { error } = await supabase.auth.resetPasswordForEmail(email, {
+        redirectTo: `${window.location.origin}/reset-password`,
+      });
+      if (error) throw error;
+      setForgotPasswordSent(true);
+    } catch (err: any) {
+      Logger.error("Password reset error", err, { attemptedEmail: email });
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
+    setSuccessMessage(null);
+    if (!validateFields()) {
+      if (isSignUp && fieldErrors.firstName) {
+        firstNameRef.current?.focus();
+      } else if (isSignUp && fieldErrors.lastName) {
+        lastNameRef.current?.focus();
+      } else if (fieldErrors.email) {
+        emailRef.current?.focus();
+      } else if (fieldErrors.password) {
+        passwordRef.current?.focus();
+      }
+      return;
+    }
     setLoading(true);
     setError(null);
 
@@ -44,6 +103,7 @@ export const Auth: React.FC = () => {
         });
         if (error) throw error;
 
+        setSuccessMessage("Account created! Check your email for a confirmation link.");
         Logger.success("Check your email for the confirmation link!");
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -68,7 +128,6 @@ export const Auth: React.FC = () => {
       } else if (!password) {
         passwordRef.current?.focus();
       } else {
-        // If all fields are filled, focus email (likely invalid credentials)
         emailRef.current?.focus();
       }
     } finally {
@@ -189,6 +248,93 @@ export const Auth: React.FC = () => {
             {isSignUp ? "Create an Account" : "Welcome Back"}
           </h2>
 
+          {isForgotPassword ? (
+            forgotPasswordSent ? (
+              <div
+                role="status"
+                aria-live="polite"
+                className="p-4 rounded-xl text-sm font-semibold text-center"
+                style={{ backgroundColor: "#d1fae5", color: theme.colors.primary }}
+              >
+                Password reset email sent. Check your inbox and follow the link to reset your password.
+                <button
+                  onClick={() => { setIsForgotPassword(false); setForgotPasswordSent(false); }}
+                  className="block w-full mt-3 text-xs font-bold underline underline-offset-4 hover:opacity-80 transition-opacity"
+                  style={{ color: theme.colors.primary }}
+                >
+                  Back to Sign In
+                </button>
+              </div>
+            ) : (
+              <motion.form
+                onSubmit={handleForgotPassword}
+                className="space-y-6"
+                animate={error ? { x: [0, -10, 10, -10, 10, 0] } : {}}
+                transition={{ duration: 0.4 }}
+              >
+                <p className="text-sm opacity-70 text-center" style={{ color: theme.colors.onSurface }}>
+                  Enter your email and we'll send you a link to reset your password.
+                </p>
+                <div>
+                  <label
+                    className="block text-xs font-bold uppercase tracking-widest opacity-70 mb-1 ml-1"
+                    style={{ color: theme.colors.onSurface }}
+                  >
+                    Email
+                  </label>
+                  <div className="relative group">
+                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none opacity-40">
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect width="20" height="16" x="2" y="4" rx="2" />
+                        <path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7" />
+                      </svg>
+                    </div>
+                    <input
+                      ref={emailRef}
+                      type="email"
+                      value={email}
+                      onChange={(e) => { setEmail(e.target.value); setFieldErrors((prev) => ({ ...prev, email: "" })); }}
+                      placeholder="hello@rhozly.com"
+                      aria-invalid={!!fieldErrors.email ? "true" : "false"}
+                      aria-describedby={fieldErrors.email ? "field-error-email" : undefined}
+                      className="block w-full pl-11 pr-4 py-4 focus:ring-2 focus:outline-none rounded-xl transition-all duration-200"
+                      style={{
+                        backgroundColor: theme.colors.surfaceContainerLow,
+                        color: theme.colors.onSurface,
+                        "--tw-ring-color": theme.colors.primary,
+                      } as React.CSSProperties}
+                    />
+                  </div>
+                  {fieldErrors.email && (
+                    <p id="field-error-email" className="mt-1 ml-1 text-xs font-semibold text-red-600">
+                      {fieldErrors.email}
+                    </p>
+                  )}
+                </div>
+                {error && (
+                  <div id="auth-error" role="alert" aria-live="assertive" className="p-4 bg-red-50 text-red-600 text-xs rounded-xl font-bold border border-red-100">
+                    {error}
+                  </div>
+                )}
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className={`${theme.typography.signInButton} min-h-[44px] w-full text-white rounded-xl font-bold shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200`}
+                  style={{ background: theme.gradients.primary, fontFamily: theme.fonts.display }}
+                >
+                  {loading ? <div className="flex justify-center"><Loader2 className="animate-spin w-5 h-5" /></div> : "Send Reset Link"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => { setIsForgotPassword(false); setError(null); setFieldErrors({}); }}
+                  className="w-full text-xs font-bold underline underline-offset-4 hover:opacity-80 transition-opacity"
+                  style={{ color: theme.colors.onSurface }}
+                >
+                  Back to Sign In
+                </button>
+              </motion.form>
+            )
+          ) : (
           <motion.form
             onSubmit={handleAuth}
             className="space-y-6"
@@ -225,16 +371,22 @@ export const Auth: React.FC = () => {
                       ref={firstNameRef}
                       type="text"
                       value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      aria-invalid={error ? "true" : "false"}
-                      aria-describedby={error ? "auth-error" : undefined}
+                      onChange={(e) => { setFirstName(e.target.value); setFieldErrors((prev) => ({ ...prev, firstName: "" })); }}
+                      aria-invalid={!!fieldErrors.firstName ? "true" : "false"}
+                      aria-describedby={fieldErrors.firstName ? "field-error-firstName" : undefined}
                       className="block w-full pl-11 pr-4 py-4 focus:ring-2 focus:outline-none rounded-xl transition-all duration-200"
                       style={{
                         backgroundColor: theme.colors.surfaceContainerLow,
                         color: theme.colors.onSurface,
-                      }}
+                        "--tw-ring-color": theme.colors.primary,
+                      } as React.CSSProperties}
                     />
                   </div>
+                  {fieldErrors.firstName && (
+                    <p id="field-error-firstName" className="mt-1 ml-1 text-xs font-semibold text-red-600">
+                      {fieldErrors.firstName}
+                    </p>
+                  )}
                 </div>
               </>
             )}
@@ -269,16 +421,22 @@ export const Auth: React.FC = () => {
                       ref={lastNameRef}
                       type="text"
                       value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                      aria-invalid={error ? "true" : "false"}
-                      aria-describedby={error ? "auth-error" : undefined}
+                      onChange={(e) => { setLastName(e.target.value); setFieldErrors((prev) => ({ ...prev, lastName: "" })); }}
+                      aria-invalid={!!fieldErrors.lastName ? "true" : "false"}
+                      aria-describedby={fieldErrors.lastName ? "field-error-lastName" : undefined}
                       className="block w-full pl-11 pr-4 py-4 focus:ring-2 focus:outline-none rounded-xl transition-all duration-200"
                       style={{
                         backgroundColor: theme.colors.surfaceContainerLow,
                         color: theme.colors.onSurface,
-                      }}
+                        "--tw-ring-color": theme.colors.primary,
+                      } as React.CSSProperties}
                     />
                   </div>
+                  {fieldErrors.lastName && (
+                    <p id="field-error-lastName" className="mt-1 ml-1 text-xs font-semibold text-red-600">
+                      {fieldErrors.lastName}
+                    </p>
+                  )}
                 </div>
               </>
             )}
@@ -312,17 +470,23 @@ export const Auth: React.FC = () => {
                   type="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => { setEmail(e.target.value); setFieldErrors((prev) => ({ ...prev, email: "" })); }}
                   placeholder="hello@rhozly.com"
-                  aria-invalid={error ? "true" : "false"}
-                  aria-describedby={error ? "auth-error" : undefined}
+                  aria-invalid={!!fieldErrors.email ? "true" : "false"}
+                  aria-describedby={fieldErrors.email ? "field-error-email" : undefined}
                   className="block w-full pl-11 pr-4 py-4 focus:ring-2 focus:outline-none rounded-xl transition-all duration-200"
                   style={{
                     backgroundColor: theme.colors.surfaceContainerLow,
                     color: theme.colors.onSurface,
-                  }}
+                    "--tw-ring-color": theme.colors.primary,
+                  } as React.CSSProperties}
                 />
               </div>
+              {fieldErrors.email && (
+                <p id="field-error-email" className="mt-1 ml-1 text-xs font-semibold text-red-600">
+                  {fieldErrors.email}
+                </p>
+              )}
             </div>
 
             {/* Password Field */}
@@ -335,13 +499,14 @@ export const Auth: React.FC = () => {
                   Password
                 </label>
                 {!isSignUp && (
-                  <a
-                    href="#"
+                  <button
+                    type="button"
+                    onClick={() => { setIsForgotPassword(true); setError(null); setFieldErrors({}); }}
                     className="text-xs font-bold transition-colors hover:opacity-80"
                     style={{ color: theme.colors.primary }}
                   >
                     Forgot Password?
-                  </a>
+                  </button>
                 )}
               </div>
               <div className="relative group">
@@ -365,18 +530,36 @@ export const Auth: React.FC = () => {
                   type="password"
                   required
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(e) => { setPassword(e.target.value); setFieldErrors((prev) => ({ ...prev, password: "" })); }}
                   placeholder="••••••••"
-                  aria-invalid={error ? "true" : "false"}
-                  aria-describedby={error ? "auth-error" : undefined}
+                  aria-invalid={!!fieldErrors.password ? "true" : "false"}
+                  aria-describedby={fieldErrors.password ? "field-error-password" : undefined}
                   className="block w-full pl-11 pr-4 py-4 focus:ring-2 focus:outline-none rounded-xl transition-all duration-200"
                   style={{
                     backgroundColor: theme.colors.surfaceContainerLow,
                     color: theme.colors.onSurface,
-                  }}
+                    "--tw-ring-color": theme.colors.primary,
+                  } as React.CSSProperties}
                 />
               </div>
+              {fieldErrors.password && (
+                <p id="field-error-password" className="mt-1 ml-1 text-xs font-semibold text-red-600">
+                  {fieldErrors.password}
+                </p>
+              )}
             </div>
+
+            {/* Success Message */}
+            {successMessage && (
+              <div
+                role="status"
+                aria-live="polite"
+                className="p-4 rounded-xl text-xs font-bold border"
+                style={{ backgroundColor: "#d1fae5", color: theme.colors.primary, borderColor: "#6ee7b7" }}
+              >
+                {successMessage}
+              </div>
+            )}
 
             {/* Error Message */}
             {error && (
@@ -394,7 +577,7 @@ export const Auth: React.FC = () => {
             <button
               type="submit"
               disabled={loading}
-              className={`${theme.typography.signInButton} w-full text-white rounded-full font-bold shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200`}
+              className={`${theme.typography.signInButton} min-h-[44px] w-full text-white rounded-xl font-bold shadow-lg hover:shadow-xl active:scale-95 transition-all duration-200`}
               style={{
                 background: theme.gradients.primary,
                 fontFamily: theme.fonts.display,
@@ -409,6 +592,7 @@ export const Auth: React.FC = () => {
               )}
             </button>
           </motion.form>
+          )}
 
           {/* Divider */}
           <div className="relative my-4">
@@ -436,18 +620,19 @@ export const Auth: React.FC = () => {
             <button
               onClick={handleGoogleLogin}
               type="button"
-              className={`${theme.typography.signInButton} w-full flex items-center justify-center gap-3 rounded-xl font-semibold transition-colors duration-200 active:scale-95`}
+              className={`${theme.typography.signInButton} min-h-[44px] w-full flex items-center justify-center gap-3 rounded-xl font-semibold transition-colors duration-200 active:scale-95 focus:ring-2 focus:outline-none`}
               style={{
                 backgroundColor: theme.colors.surfaceContainerLow,
                 color: theme.colors.onSurface,
-              }}
+                "--tw-ring-color": theme.colors.primary,
+              } as React.CSSProperties}
             >
               <img
                 src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
                 className="w-5 h-5"
                 alt="Google"
               />
-              <>{isSignUp ? "Sign Up using Google" : " Sign In with Google"}</>
+              <>{isSignUp ? "Sign Up with Google" : "Sign In with Google"}</>
             </button>
 
             {/* Biometrics button hidden until implementation is ready */}

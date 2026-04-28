@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
 import { AlertTriangle, Loader2, X } from "lucide-react";
 
@@ -28,6 +28,8 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const triggerElementRef = useRef<HTMLElement | null>(null);
+  const [confirmError, setConfirmError] = useState<string | null>(null);
+  const [isConfirming, setIsConfirming] = useState(false);
 
   // Store the trigger element and handle focus
   useEffect(() => {
@@ -46,6 +48,9 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
       if (triggerElementRef.current) {
         triggerElementRef.current.focus();
       }
+      // Reset error state when modal closes
+      setConfirmError(null);
+      setIsConfirming(false);
     }
   }, [isOpen, isDestructive]);
 
@@ -63,8 +68,24 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
     return () => document.removeEventListener("keydown", handleEscape);
   }, [isOpen, onClose]);
 
+  const handleConfirm = async () => {
+    setConfirmError(null);
+    setIsConfirming(true);
+    try {
+      await onConfirm();
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Something went wrong. Please try again.";
+      setConfirmError(message);
+    } finally {
+      setIsConfirming(false);
+    }
+  };
+
   if (!isOpen) return null;
   if (typeof document === "undefined") return null; // 🚀 SSR Safety
+
+  const busy = isLoading || isConfirming;
 
   // 🚀 PORTAL WRAPPER: Automatically teleports this component to the body whenever it's used!
   return createPortal(
@@ -84,7 +105,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            disabled={isLoading}
+            disabled={busy}
             className="p-2 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5" />
@@ -96,6 +117,17 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <p className="text-sm font-bold text-rhozly-on-surface/60 leading-relaxed">
             {description}
           </p>
+
+          {/* Inline error banner */}
+          {confirmError && (
+            <div
+              role="alert"
+              className="mt-4 flex items-start gap-2 rounded-xl bg-red-500/10 border border-red-500/20 px-4 py-3 text-sm font-bold text-red-500"
+            >
+              <AlertTriangle className="w-4 h-4 mt-0.5 shrink-0" />
+              <span>{confirmError}</span>
+            </div>
+          )}
         </div>
 
         {/* Footer */}
@@ -103,23 +135,23 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <button
             ref={cancelButtonRef}
             onClick={onClose}
-            disabled={isLoading}
-            className="px-5 py-2.5 rounded-xl font-bold text-sm text-rhozly-on-surface/70 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors disabled:opacity-50"
+            disabled={busy}
+            className="px-5 py-3 rounded-xl font-bold text-sm text-rhozly-on-surface/70 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors disabled:opacity-50"
           >
             {cancelText}
           </button>
           <button
             ref={confirmButtonRef}
-            onClick={onConfirm}
-            disabled={isLoading}
-            className={`flex items-center justify-center gap-2 px-5 py-2.5 rounded-xl font-bold text-sm text-white transition-colors shadow-sm disabled:opacity-50 min-w-[100px]
+            onClick={handleConfirm}
+            disabled={busy}
+            className={`flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white transition-colors shadow-sm disabled:opacity-50 min-w-[100px]
               ${
                 isDestructive
                   ? "bg-red-500 hover:bg-red-600"
                   : "bg-rhozly-primary hover:bg-rhozly-primary/90"
               }`}
           >
-            {isLoading ? (
+            {busy ? (
               <Loader2 className="w-4 h-4 animate-spin" />
             ) : (
               confirmText

@@ -140,11 +140,11 @@ export default function InstanceCareRoutine({
   const getTaskIcon = (type: string) => {
     switch (type) {
       case "Watering":
-        return <Droplets size={16} className="text-blue-500" />;
+        return <Droplets size={16} className="text-rhozly-primary" />;
       case "Maintenance":
-        return <Scissors size={16} className="text-amber-500" />;
+        return <Scissors size={16} className="text-rhozly-secondary" />;
       case "Harvesting":
-        return <Leaf size={16} className="text-green-500" />;
+        return <Leaf size={16} className="text-rhozly-tertiary" />;
       default:
         return <Activity size={16} className="text-rhozly-primary" />;
     }
@@ -612,17 +612,17 @@ export default function InstanceCareRoutine({
                     <button
                       onClick={() => handleEditClick(bp)}
                       aria-label={`Edit routine: ${bp.title}`}
-                      className="p-2 text-rhozly-on-surface/30 hover:text-rhozly-primary hover:bg-rhozly-primary/10 rounded-xl transition-all"
+                      className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/30 hover:text-rhozly-primary hover:bg-rhozly-primary/10 rounded-xl transition-all"
                     >
-                      <Edit3 size={16} />
+                      <Edit3 size={18} />
                     </button>
                     <button
                       ref={routineToDelete?.id === bp.id ? deleteButtonRef : null}
                       onClick={() => setRoutineToDelete(bp)}
                       aria-label={`Delete routine: ${bp.title}`}
-                      className="p-2 text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
+                      className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                     >
-                      <Trash2 size={16} />
+                      <Trash2 size={18} />
                     </button>
                   </div>
                 )}
@@ -680,7 +680,7 @@ export default function InstanceCareRoutine({
                   <div className="flex justify-end gap-2">
                     <button
                       onClick={() => setEditingId(null)}
-                      className="px-4 py-2 bg-gray-100 text-rhozly-on-surface/60 rounded-xl hover:bg-gray-200 transition-colors font-bold text-sm"
+                      className="px-4 py-2 bg-rhozly-surface-low text-rhozly-on-surface/60 rounded-xl hover:bg-rhozly-surface transition-colors font-bold text-sm"
                     >
                       Cancel
                     </button>

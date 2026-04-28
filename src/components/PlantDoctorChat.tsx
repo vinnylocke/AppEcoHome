@@ -53,40 +53,40 @@ function ChatPlantCard({
   }, [plant.name, plant.search_query]);
 
   return (
-    <div className="p-2.5 rounded-xl bg-green-50 border border-green-100">
+    <div className="p-2.5 rounded-xl bg-rhozly-surface-low border border-rhozly-outline/20">
       <div className="flex items-center gap-2.5">
         {info === null ? (
-          <div className="w-10 h-10 rounded-lg bg-green-100 flex items-center justify-center shrink-0">
-            <Loader2 size={14} className="animate-spin text-green-500" />
+          <div className="w-10 h-10 rounded-lg bg-rhozly-surface border border-rhozly-outline/20 flex items-center justify-center shrink-0">
+            <Loader2 size={14} className="animate-spin text-rhozly-primary" />
           </div>
         ) : info.thumbnail ? (
           <img
             src={info.thumbnail}
             alt={plant.name}
-            className="w-10 h-10 rounded-lg object-cover shrink-0 border border-green-200"
+            className="w-10 h-10 rounded-lg object-cover shrink-0 border border-rhozly-outline/20"
           />
         ) : (
-          <div className="w-10 h-10 rounded-lg bg-green-200 flex items-center justify-center shrink-0">
-            <Sprout size={16} className="text-green-600" />
+          <div className="w-10 h-10 rounded-lg bg-rhozly-surface border border-rhozly-outline/20 flex items-center justify-center shrink-0">
+            <Sprout size={16} className="text-rhozly-primary" />
           </div>
         )}
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-black text-green-800 leading-tight">
+          <p className="text-xs font-black text-rhozly-on-surface leading-tight">
             {plant.name}
           </p>
           {info?.extract && (
             <button
               onClick={() => setExpanded((v) => !v)}
-              className="flex items-center gap-1 text-[10px] text-green-600 font-bold mt-0.5 hover:text-green-800 transition-colors"
+              className="flex items-center gap-1 text-xs text-rhozly-primary font-bold mt-0.5 hover:opacity-80 transition-opacity"
             >
-              {expanded ? <ChevronUp size={9} /> : <ChevronDown size={9} />}
+              {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
               {expanded ? "Less" : "Learn more"}
             </button>
           )}
         </div>
       </div>
       {expanded && info?.extract && (
-        <p className="mt-2 text-[11px] text-green-900/80 leading-relaxed">
+        <p className="mt-2 text-[11px] text-rhozly-on-surface/80 leading-relaxed">
           {info.extract.length > 320
             ? `${info.extract.slice(0, 320)}…`
             : info.extract}
@@ -185,6 +185,8 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
           setFeedback(map);
         }
       } catch (err) {
+        Logger.error("Failed to load chat history:", err);
+        toast.error("Couldn't load your chat history. Starting fresh.");
         setMessages([
           { _key: nextKey(), role: "assistant", content: WELCOME_CONTENT },
         ]);
@@ -424,7 +426,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-[350px] max-w-[calc(100vw-3rem)] h-[500px] bg-white rounded-[2rem] shadow-2xl border border-rhozly-outline/10 flex flex-col z-50 animate-in slide-in-from-bottom-10 overflow-hidden">
+        <div className="fixed bottom-24 right-6 w-[350px] md:w-[450px] max-w-[calc(100vw-3rem)] h-[500px] bg-white rounded-2xl shadow-2xl border border-rhozly-outline/10 flex flex-col z-50 animate-in slide-in-from-bottom-10 overflow-hidden">
           {/* Header */}
           <div className="bg-rhozly-primary text-white p-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
@@ -442,7 +444,8 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
               <button
                 onClick={handleStartFresh}
                 title="Start Fresh"
-                className="hover:bg-white/20 p-2 rounded-full transition-colors"
+                disabled={isLoading || isLoadingHistory}
+                className="hover:bg-white/20 p-2 rounded-full transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <Trash2 size={16} />
               </button>
@@ -477,7 +480,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                       className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
                     >
                       <div
-                        className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === "user" ? "bg-gray-200 text-gray-600" : "bg-green-100 text-green-600"}`}
+                        className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${msg.role === "user" ? "bg-rhozly-surface text-rhozly-on-surface/60" : "bg-rhozly-surface-low text-rhozly-primary"}`}
                       >
                         {msg.role === "user" ? (
                           <User size={14} />
@@ -494,7 +497,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                         {msg.role === "assistant" &&
                           !!msg.preferences_captured &&
                           msg.preferences_captured > 0 && (
-                            <div className="flex items-center gap-1 text-[10px] text-green-600 font-semibold opacity-70">
+                            <div className="flex items-center gap-1 text-[10px] text-rhozly-primary font-semibold opacity-70">
                               <Leaf size={10} />
                               {msg.preferences_captured === 1
                                 ? "Preference noted"
@@ -538,9 +541,9 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                               }
                               disabled={!!givenFeedback}
                               title="Helpful"
-                              className={`p-1.5 rounded-lg transition-colors ${givenFeedback === "positive" ? "text-green-500 bg-green-50" : "text-gray-300 hover:text-green-500 hover:bg-green-50"} disabled:cursor-default`}
+                              className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors ${givenFeedback === "positive" ? "text-rhozly-primary bg-rhozly-surface-low" : "text-rhozly-outline hover:text-rhozly-primary hover:bg-rhozly-surface-low"} disabled:cursor-default`}
                             >
-                              <ThumbsUp size={12} />
+                              <ThumbsUp size={14} />
                             </button>
                             <button
                               onClick={() =>
@@ -548,9 +551,9 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                               }
                               disabled={!!givenFeedback}
                               title="Not helpful"
-                              className={`p-1.5 rounded-lg transition-colors ${givenFeedback === "negative" ? "text-red-500 bg-red-50" : "text-gray-300 hover:text-red-500 hover:bg-red-50"} disabled:cursor-default`}
+                              className={`p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg transition-colors ${givenFeedback === "negative" ? "text-red-500 bg-red-50" : "text-rhozly-outline hover:text-red-500 hover:bg-red-50"} disabled:cursor-default`}
                             >
-                              <ThumbsDown size={12} />
+                              <ThumbsDown size={14} />
                             </button>
                             {isLastAssistant && !isLoading && (
                               <button
@@ -558,9 +561,9 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                                   handleRegenerate(lastAssistantIdx)
                                 }
                                 title="Regenerate response"
-                                className="ml-auto p-1.5 rounded-lg text-gray-300 hover:text-blue-500 hover:bg-blue-50 transition-colors"
+                                className="ml-auto p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-lg text-rhozly-outline hover:text-rhozly-primary hover:bg-rhozly-surface-low transition-colors"
                               >
-                                <RefreshCw size={12} />
+                                <RefreshCw size={14} />
                               </button>
                             )}
                           </div>
@@ -572,15 +575,15 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
 
                 {isLoading && (
                   <div className="flex gap-3">
-                    <div className="w-8 h-8 rounded-full bg-green-100 text-green-600 flex items-center justify-center shrink-0">
+                    <div className="w-8 h-8 rounded-full bg-rhozly-surface-low text-rhozly-primary flex items-center justify-center shrink-0">
                       <Leaf size={14} />
                     </div>
-                    <div className="p-3 bg-white border border-rhozly-outline/10 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-2">
+                    <div className="p-3 bg-white border border-rhozly-primary/30 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-2">
                       <Loader2
-                        size={14}
+                        size={16}
                         className="animate-spin text-rhozly-primary"
                       />
-                      <span className="text-xs font-bold text-gray-400">
+                      <span className="text-sm font-bold text-rhozly-primary">
                         Thinking...
                       </span>
                     </div>

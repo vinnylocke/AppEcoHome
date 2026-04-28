@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Sprout } from "lucide-react";
 
 interface SmartImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   src: string;
@@ -11,8 +12,12 @@ export default function SmartImage({
   ...props
 }: SmartImageProps) {
   const [cachedSrc, setCachedSrc] = useState<string | null>(null);
+  const [errored, setErrored] = useState(false);
 
   useEffect(() => {
+    setErrored(false);
+    setCachedSrc(null);
+
     async function loadImage() {
       // 1. Check if we have this image in the 'plant-image-cache'
       const cache = await caches.open("rhozly-image-cache");
@@ -36,12 +41,24 @@ export default function SmartImage({
         setCachedSrc(URL.createObjectURL(blob));
       } catch (error) {
         console.error("Image load failed", error);
-        setCachedSrc(fallback || src);
+        if (fallback) {
+          setCachedSrc(fallback);
+        } else {
+          setErrored(true);
+        }
       }
     }
 
     if (src) loadImage();
   }, [src, fallback]);
+
+  if (errored) {
+    return (
+      <div className="w-full h-full bg-rhozly-surface-low flex items-center justify-center">
+        <Sprout className="w-8 h-8 text-rhozly-muted" aria-hidden="true" />
+      </div>
+    );
+  }
 
   if (!cachedSrc) {
     return (
@@ -49,5 +66,11 @@ export default function SmartImage({
     );
   }
 
-  return <img src={cachedSrc} {...props} />;
+  return (
+    <img
+      src={cachedSrc}
+      {...props}
+      onError={() => setErrored(true)}
+    />
+  );
 }

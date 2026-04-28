@@ -12,6 +12,7 @@ import {
   Shovel,
   Wheat,
   Link as LinkIcon,
+  Repeat,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -163,11 +164,13 @@ export const TaskActionButtons = ({
         const { error: depError } = await supabase
           .from("task_dependencies")
           .insert(dependenciesToInsert);
-        if (depError) console.error("Failed to link dependencies", depError);
+        if (depError) {
+          console.error("Failed to link task dependencies", depError);
+          toast.error("Some task links could not be saved.");
+        }
       }
 
-      toast.success("Tasks added to your schedule!", { id: toastId });
-      setSelectedIndices([]); // Clear selection to prevent double-adding
+      toast.success("Tasks added to your calendar!", { id: toastId });
       if (onSuccess) onSuccess();
     } catch (error: any) {
       console.error(error);
@@ -180,11 +183,11 @@ export const TaskActionButtons = ({
   if (!tasks || tasks.length === 0) return null;
 
   return (
-    <div className="mt-3 p-4 bg-white/80 backdrop-blur-md rounded-2xl border border-blue-100 shadow-sm">
-      <div className="flex items-center gap-2 mb-3 text-blue-800">
+    <div className="mt-3 p-4 bg-white/80 backdrop-blur-md rounded-2xl border border-rhozly-surface shadow-sm max-w-2xl">
+      <div className="flex items-center gap-2 mb-3 text-rhozly-primary">
         <CalendarPlus size={16} />
         <p className="text-xs font-bold uppercase tracking-widest">
-          Suggested Schedule
+          Suggested Tasks
         </p>
       </div>
 
@@ -194,19 +197,24 @@ export const TaskActionButtons = ({
           const hasDependency = task.depends_on_index != null;
 
           return (
-            <div
+            <label
               key={idx}
-              onClick={() => toggleSelection(idx)}
-              className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-colors ${
+              className={`p-3 rounded-xl border flex items-start gap-3 cursor-pointer transition-colors min-h-[44px] ${
                 isSelected
-                  ? "border-blue-400 bg-blue-50/50"
+                  ? "border-rhozly-primary bg-rhozly-surface/30"
                   : "border-gray-200 bg-white opacity-60 hover:opacity-100"
               }`}
             >
+              <input
+                type="checkbox"
+                checked={isSelected}
+                onChange={() => toggleSelection(idx)}
+                className="sr-only"
+              />
               <div
                 className={`w-5 h-5 mt-0.5 rounded flex items-center justify-center border transition-colors shrink-0 ${
                   isSelected
-                    ? "bg-blue-500 border-blue-500 text-white"
+                    ? "bg-rhozly-primary border-rhozly-primary text-white"
                     : "border-gray-300 bg-white"
                 }`}
               >
@@ -228,7 +236,7 @@ export const TaskActionButtons = ({
                 </p>
 
                 <div className="flex flex-wrap gap-2 mt-2">
-                  <span className="inline-block text-[9px] font-black uppercase tracking-widest text-blue-600 bg-blue-100/50 px-2 py-0.5 rounded-md">
+                  <span className="inline-block text-[9px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-surface/50 px-2 py-0.5 rounded-md">
                     {task.due_in_days === 0
                       ? "Do Today"
                       : `In ${task.due_in_days} Days`}
@@ -248,17 +256,17 @@ export const TaskActionButtons = ({
                   )}
                 </div>
               </div>
-            </div>
+            </label>
           );
         })}
       </div>
 
       {selectedIndices.length > 0 && (
-        <div className="pt-2 border-t border-blue-100">
+        <div className="pt-2 border-t border-rhozly-surface">
           <button
             onClick={handleSaveTasks}
             disabled={isProcessing}
-            className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-transform active:scale-95 disabled:opacity-50"
+            className="w-full py-3 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-transform active:scale-95 disabled:opacity-50"
           >
             {isProcessing ? (
               <Loader2 className="animate-spin" size={16} />

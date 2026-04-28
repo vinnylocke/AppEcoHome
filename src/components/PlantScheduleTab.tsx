@@ -41,6 +41,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
   const [schedules, setSchedules] = useState<any[]>([]);
   const [homeData, setHomeData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -136,6 +137,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
   };
 
   const fetchSchedules = async () => {
+    setFetchError(false);
     try {
       const { data, error } = await supabase
         .from("plant_schedules")
@@ -146,6 +148,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       if (data) setSchedules(data);
     } catch (err) {
       Logger.error("Failed to load schedules", err);
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
@@ -693,11 +696,32 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       </div>
     );
 
+  if (fetchError)
+    return (
+      <div className="text-center p-12 border-2 border-dashed border-rhozly-outline/20 rounded-3xl bg-rhozly-surface-low/30">
+        <p className="font-black text-lg text-rhozly-on-surface mb-2">
+          Could not load care schedules
+        </p>
+        <p className="font-bold text-sm text-rhozly-on-surface/50 mb-6">
+          Check your connection and try again.
+        </p>
+        <button
+          onClick={() => {
+            setLoading(true);
+            fetchSchedules();
+          }}
+          className="inline-flex items-center gap-2 bg-rhozly-primary text-white px-6 py-3 rounded-2xl text-sm font-black hover:scale-105 transition-transform shadow-lg focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none"
+        >
+          <Loader2 size={16} /> Retry
+        </button>
+      </div>
+    );
+
   const renderForm = () => (
     <div className="bg-rhozly-surface-low border border-rhozly-outline/20 p-6 rounded-3xl space-y-6 animate-in slide-in-from-top-4">
       <div className="flex justify-between items-center mb-2">
         <h4 className="font-black text-lg text-rhozly-primary">
-          {editingId ? "Edit Automation Rule" : "New Automation Rule"}
+          {editingId ? "Edit Care Schedule" : "New Care Schedule"}
         </h4>
         <button
           onClick={closeForm}
@@ -738,7 +762,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             id="task-type"
             value={form.task_type}
             onChange={(e) => setForm({ ...form, task_type: e.target.value })}
-            className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary focus:ring-2 focus:ring-rhozly-primary/20 outline-none"
+            className="w-full p-4 bg-white rounded-2xl font-bold border border-transparent focus:border-rhozly-primary focus:ring-2 focus:ring-rhozly-primary/20 outline-none"
           >
             {TASK_CATEGORIES.map((t) => (
               <option key={t} value={t}>
@@ -757,7 +781,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             onChange={(e) =>
               setForm({ ...form, trigger_event: e.target.value })
             }
-            className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary focus:ring-2 focus:ring-rhozly-primary/20 outline-none"
+            className="w-full p-4 bg-white rounded-2xl font-bold border border-transparent focus:border-rhozly-primary focus:ring-2 focus:ring-rhozly-primary/20 outline-none"
           >
             {TRIGGER_EVENTS.map((t) => (
               <option key={t} value={t}>
@@ -784,7 +808,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                   start_offset_days: parseInt(e.target.value) || 0,
                 })
               }
-              className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
+              className="w-20 p-3 bg-white rounded-2xl font-bold outline-none text-center shadow-sm focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
               aria-label="Start offset in days"
             />
             <span className="font-bold text-sm text-rhozly-on-surface/60 whitespace-nowrap">
@@ -796,7 +820,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
               onChange={(e) =>
                 setForm({ ...form, start_reference: e.target.value })
               }
-              className="flex-1 p-3 bg-white rounded-xl font-bold outline-none text-sm shadow-sm truncate focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
+              className="flex-1 p-3 bg-white rounded-2xl font-bold outline-none text-sm shadow-sm truncate focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
               aria-label="Start reference date"
             >
               {dynamicOptions.map((o, idx) => (
@@ -824,7 +848,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                   end_offset_days: parseInt(e.target.value) || 0,
                 })
               }
-              className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm disabled:opacity-50 focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
+              className="w-20 p-3 bg-white rounded-2xl font-bold outline-none text-center shadow-sm disabled:opacity-50 focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
               aria-label="End offset in days"
             />
             <span className="font-bold text-sm text-rhozly-on-surface/60 whitespace-nowrap">
@@ -836,7 +860,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
               onChange={(e) =>
                 setForm({ ...form, end_reference: e.target.value })
               }
-              className="flex-1 p-3 bg-white rounded-xl font-bold outline-none text-sm shadow-sm truncate focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
+              className="flex-1 p-3 bg-white rounded-2xl font-bold outline-none text-sm shadow-sm truncate focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
               aria-label="End reference date"
             >
               {endOptions.map((o, idx) => (
@@ -893,7 +917,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                         frequency_days: parseInt(e.target.value) || 1,
                       })
                     }
-                    className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
+                    className="w-20 p-3 bg-white rounded-2xl font-bold outline-none text-center shadow-sm focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
                     aria-label="Frequency in days"
                   />
                   <span className="font-bold text-sm text-rhozly-on-surface/60">
@@ -912,7 +936,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                     onChange={(e) =>
                       setTimesPerWeek(parseInt(e.target.value) || 1)
                     }
-                    className="w-20 p-3 bg-white rounded-xl font-bold outline-none text-center shadow-sm focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
+                    className="w-20 p-3 bg-white rounded-2xl font-bold outline-none text-center shadow-sm focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
                     aria-label="Times per week"
                   />
                   <span className="font-bold text-sm text-rhozly-on-surface/60">
@@ -950,7 +974,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       <button
         onClick={handleSave}
         disabled={saving}
-        className="w-full py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50 flex justify-center items-center gap-2 focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none relative overflow-hidden"
+        className="w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:scale-[1.02] transition-all disabled:opacity-50 flex justify-center items-center gap-2 focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none relative overflow-hidden"
       >
         {showSuccessAnimation && (
           <span className="absolute inset-0 bg-green-500 animate-pulse"></span>
@@ -964,7 +988,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             </>
           ) : (
             <>
-              <Save size={18} /> {editingId ? "Save Changes" : "Save Custom Rule"}
+              <Save size={18} /> {editingId ? "Save Changes" : "Save Custom Schedule"}
             </>
           )}
         </span>
@@ -995,7 +1019,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           isLoading={saving}
           onClose={() => setConfirmDeleteId(null)}
           onConfirm={() => deleteSchedule(confirmDeleteId)}
-          title="Delete Automation"
+          title="Delete Care Schedule"
           description="Are you sure you want to permanently delete this schedule template?"
           confirmText="Delete"
           isDestructive={true}
@@ -1006,21 +1030,21 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         <div>
           <h3 className="font-black text-xl">Care Schedules</h3>
           <p className="text-xs font-bold text-rhozly-on-surface/50 mt-1">
-            Automate tasks when this plant changes status.
+            Automate care tasks when this plant changes status.
           </p>
         </div>
         <div className="flex gap-2 w-full md:w-auto">
           <button
             onClick={handleAutoGenerate}
             disabled={saving}
-            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-rhozly-primary/10 text-rhozly-primary px-4 py-2 rounded-xl text-xs font-black hover:bg-rhozly-primary hover:text-white transition-all disabled:opacity-50 focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none"
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-rhozly-primary/10 text-rhozly-primary px-4 py-2 rounded-2xl text-xs font-black hover:bg-rhozly-primary hover:text-white transition-all disabled:opacity-50 focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none"
           >
             <Wand2 size={16} /> Auto-Generate
           </button>
           {!isAdding && (
             <button
               onClick={() => setIsAdding(true)}
-              className="flex-1 md:flex-none flex items-center justify-center gap-1 bg-rhozly-primary text-white px-4 py-2 rounded-xl text-xs font-black hover:scale-105 transition-transform focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none"
+              className="flex-1 md:flex-none flex items-center justify-center gap-1 bg-rhozly-primary text-white px-4 py-2 rounded-2xl text-xs font-black hover:scale-105 transition-transform focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none"
             >
               <Plus size={16} /> Add Custom
             </button>
@@ -1044,13 +1068,13 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
               <button
                 onClick={handleAutoGenerate}
                 disabled={saving}
-                className="flex items-center justify-center gap-2 bg-rhozly-primary text-white px-6 py-3 rounded-xl text-sm font-black hover:scale-105 transition-transform disabled:opacity-50 shadow-lg focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none"
+                className="flex items-center justify-center gap-2 bg-rhozly-primary text-white px-6 py-3 rounded-2xl text-sm font-black hover:scale-105 transition-transform disabled:opacity-50 shadow-lg focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none"
               >
                 <Wand2 size={18} /> Generate Smart Schedule
               </button>
               <button
                 onClick={() => setIsAdding(true)}
-                className="flex items-center justify-center gap-2 bg-white text-rhozly-primary px-6 py-3 rounded-xl text-sm font-black hover:bg-rhozly-primary/5 transition-colors border border-rhozly-primary/20 focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none"
+                className="flex items-center justify-center gap-2 bg-white text-rhozly-primary px-6 py-3 rounded-2xl text-sm font-black hover:bg-rhozly-primary/5 transition-colors border border-rhozly-primary/20 focus:ring-2 focus:ring-rhozly-primary/40 focus:ring-offset-2 focus:outline-none"
               >
                 <Plus size={18} /> Create Custom Schedule
               </button>
@@ -1067,19 +1091,19 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                 <div className="bg-white p-4 sm:p-5 rounded-2xl border border-rhozly-outline/10 shadow-sm flex items-start sm:items-center justify-between gap-4">
                   <div className="min-w-0 pr-4">
                     <div className="flex flex-wrap items-center gap-2 mb-2">
-                      <span className="text-[9px] font-black uppercase tracking-widest bg-rhozly-primary/10 text-rhozly-primary px-2 py-1 rounded-md">
+                      <span className="text-[10px] font-black uppercase tracking-widest bg-rhozly-primary text-white px-2.5 py-1 rounded-lg">
                         {schedule.task_type}
                       </span>
                       {schedule.is_auto_generated ? (
-                        <span className="text-[9px] font-black uppercase tracking-widest bg-purple-100 text-purple-700 px-2 py-1 rounded-md">
+                        <span className="text-[9px] font-black uppercase tracking-widest border border-purple-300 text-purple-600 px-2 py-0.5 rounded-lg">
                           Auto
                         </span>
                       ) : (
-                        <span className="text-[9px] font-black uppercase tracking-widest bg-blue-100 text-blue-700 px-2 py-1 rounded-md">
+                        <span className="text-[9px] font-black uppercase tracking-widest border border-blue-300 text-blue-600 px-2 py-0.5 rounded-lg">
                           Custom
                         </span>
                       )}
-                      <span className="text-[9px] font-black uppercase tracking-widest bg-gray-100 text-gray-500 px-2 py-1 rounded-md">
+                      <span className="text-[9px] font-bold text-rhozly-on-surface/40 tracking-wide">
                         When {schedule.trigger_event}
                       </span>
                     </div>

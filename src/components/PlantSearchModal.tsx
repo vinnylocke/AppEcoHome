@@ -48,6 +48,7 @@ export default function PlantSearchModal({
   }, [results, preferences]);
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
+  const [searchError, setSearchError] = useState(false);
   const [selectedResultIndex, setSelectedResultIndex] = useState(-1);
 
   const [previewPlant, setPreviewPlant] = useState<any | null>(null);
@@ -133,6 +134,7 @@ export default function PlantSearchModal({
     if (!searchQuery.trim()) return;
 
     setIsSearching(true);
+    setSearchError(false);
     setPreviewPlant(null);
     setSelectedResultIndex(-1);
     try {
@@ -140,6 +142,7 @@ export default function PlantSearchModal({
       setResults(data);
       setHasSearched(true);
     } catch (err) {
+      setSearchError(true);
       toast.error("Search failed. Check your connection.");
     } finally {
       setIsSearching(false);
@@ -365,10 +368,10 @@ export default function PlantSearchModal({
           </div>
         )}
 
-        <div className="p-8 pb-4 shrink-0 flex justify-between items-start border-b border-rhozly-outline/10">
+        <div className="p-4 sm:p-8 pb-4 shrink-0 flex justify-between items-start border-b border-rhozly-outline/10">
           <div>
             <h3 className="text-3xl font-black flex items-center gap-3">
-              <Database className="text-rhozly-primary" /> Plant Search
+              <Database className="text-rhozly-primary" /> Global Plant Search
             </h3>
             <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
               Powered by Perenual API
@@ -384,7 +387,7 @@ export default function PlantSearchModal({
         </div>
 
         {previewPlant ? (
-          <div className="flex-1 overflow-y-auto p-8 custom-scrollbar animate-in slide-in-from-right-4 flex flex-col">
+          <div className="flex-1 overflow-y-auto p-4 sm:p-8 custom-scrollbar animate-in slide-in-from-right-4 flex flex-col">
             <button
               onClick={() => setPreviewPlant(null)}
               className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-rhozly-on-surface/50 hover:text-rhozly-primary mb-6 transition-colors"
@@ -417,7 +420,19 @@ export default function PlantSearchModal({
           </div>
         ) : (
           <>
-            <div className="p-8 pb-4 shrink-0">
+            <div className="p-4 sm:p-8 pb-4 shrink-0">
+              {searchError && (
+                <div className="mb-3 flex items-center justify-between gap-3 bg-red-50 border border-red-200 text-red-700 rounded-2xl px-4 py-3">
+                  <p className="text-xs font-black">Search failed. Check your connection and try again.</p>
+                  <button
+                    type="button"
+                    onClick={() => performSearch(query)}
+                    className="shrink-0 px-3 py-1.5 bg-red-600 text-white text-xs font-black rounded-xl hover:bg-red-700 transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              )}
               <form
                 onSubmit={handleSearch}
                 className="relative flex items-center"
@@ -442,7 +457,7 @@ export default function PlantSearchModal({
               </form>
             </div>
 
-            <div className="flex-1 overflow-y-auto p-8 pt-0 custom-scrollbar space-y-4">
+            <div className="flex-1 overflow-y-auto p-4 sm:p-8 pt-0 custom-scrollbar space-y-4">
               {isSearching ? (
                 <div className="flex flex-col items-center justify-center h-40 opacity-50">
                   <Loader2
@@ -462,7 +477,17 @@ export default function PlantSearchModal({
                   return (
                     <div
                       key={plant.id}
-                      className={`bg-white p-4 rounded-2xl border shadow-sm flex items-center justify-between group transition-colors ${
+                      tabIndex={0}
+                      role="button"
+                      aria-label={`View ${plant.common_name}`}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          handlePreviewPlant(plant);
+                        }
+                      }}
+                      onClick={() => handlePreviewPlant(plant)}
+                      className={`bg-rhozly-surface-lowest p-4 rounded-2xl border shadow-sm flex items-center justify-between group transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-rhozly-primary/40 ${
                         isSelected
                           ? "border-rhozly-primary ring-2 ring-rhozly-primary/20"
                           : "border-rhozly-outline/10 hover:border-rhozly-primary/30"
@@ -518,15 +543,27 @@ export default function PlantSearchModal({
                   <p className="text-sm font-bold text-rhozly-on-surface/70 mb-4">
                     We couldn't find any plants matching "{query}"
                   </p>
-                  <div className="text-left bg-rhozly-surface-low/50 rounded-xl p-4 max-w-md">
-                    <p className="font-black text-xs uppercase tracking-widest text-rhozly-on-surface/50 mb-2">
-                      Search Tips:
+                  <div className="text-left bg-rhozly-surface-low/50 border border-rhozly-outline/10 rounded-2xl p-4 max-w-md w-full">
+                    <p className="font-black text-xs uppercase tracking-widest text-rhozly-on-surface/40 mb-3">
+                      Search Tips
                     </p>
-                    <ul className="text-xs font-bold space-y-1 text-rhozly-on-surface/60">
-                      <li>• Try using common names (e.g., "rose", "tomato")</li>
-                      <li>• Use scientific names (e.g., "rosa", "solanum")</li>
-                      <li>• Check your spelling</li>
-                      <li>• Try broader terms (e.g., "fern" instead of specific species)</li>
+                    <ul className="space-y-2">
+                      <li className="flex items-start gap-2 text-xs font-bold text-rhozly-on-surface/70">
+                        <span className="shrink-0 w-4 h-4 rounded-full bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center font-black text-[10px]">1</span>
+                        Try common names — e.g., "rose" or "tomato"
+                      </li>
+                      <li className="flex items-start gap-2 text-xs font-bold text-rhozly-on-surface/70">
+                        <span className="shrink-0 w-4 h-4 rounded-full bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center font-black text-[10px]">2</span>
+                        Use scientific names — e.g., "rosa" or "solanum"
+                      </li>
+                      <li className="flex items-start gap-2 text-xs font-bold text-rhozly-on-surface/70">
+                        <span className="shrink-0 w-4 h-4 rounded-full bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center font-black text-[10px]">3</span>
+                        Double-check your spelling
+                      </li>
+                      <li className="flex items-start gap-2 text-xs font-bold text-rhozly-on-surface/70">
+                        <span className="shrink-0 w-4 h-4 rounded-full bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center font-black text-[10px]">4</span>
+                        Try broader terms — e.g., "fern" instead of a specific species
+                      </li>
                     </ul>
                   </div>
                 </div>

@@ -36,9 +36,9 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 
 const SOURCE_COLOURS: Record<string, string> = {
-  chat: "bg-blue-100 text-blue-700",
-  quiz: "bg-purple-100 text-purple-700",
-  swipe: "bg-amber-100 text-amber-700",
+  chat: "bg-rhozly-primary/10 text-rhozly-primary",
+  quiz: "bg-rhozly-secondary/10 text-rhozly-secondary",
+  swipe: "bg-rhozly-outline/20 text-rhozly-on-surface/70",
 };
 
 type Tab = "quiz" | "swipe";
@@ -65,7 +65,14 @@ export default function GardenProfile({
       .eq("home_id", homeId)
       .eq("user_id", userId)
       .maybeSingle()
-      .then(({ data }) => setQuizDone(!!data));
+      .then(({ data, error }) => {
+        if (error) {
+          toast.error("Failed to load quiz status.");
+          setQuizDone(false);
+        } else {
+          setQuizDone(!!data);
+        }
+      });
   }, [homeId, userId]);
 
   useEffect(() => {
@@ -77,7 +84,10 @@ export default function GardenProfile({
       .eq("home_id", homeId)
       .eq("user_id", userId)
       .order("recorded_at", { ascending: false })
-      .then(({ data }) => {
+      .then(({ data, error }) => {
+        if (error) {
+          toast.error("Failed to load preferences.");
+        }
         setPrefs(data || []);
         setPrefsLoading(false);
       });
@@ -92,6 +102,7 @@ export default function GardenProfile({
       toast.error("Failed to remove preference.");
     } else {
       setPrefs((prev) => prev.filter((p) => p.id !== id));
+      toast.success("Preference removed.");
     }
   }
 
@@ -206,7 +217,7 @@ export default function GardenProfile({
             </div>
             <button
               onClick={() => setTab("swipe")}
-              className="bg-rhozly-primary text-white font-bold px-6 py-3 rounded-full shadow-md hover:opacity-90 transition"
+              className="bg-rhozly-primary text-white font-bold px-6 py-3 rounded-full hover:opacity-90 transition"
             >
               Discover more plants →
             </button>
@@ -224,7 +235,9 @@ export default function GardenProfile({
                 .eq("home_id", homeId)
                 .eq("user_id", userId)
                 .order("recorded_at", { ascending: false })
-                .then(({ data }) => setPrefs(data || []));
+                .then(({ data, error }) => {
+                  if (!error) setPrefs(data || []);
+                });
             }}
           />
         )
@@ -327,10 +340,10 @@ function PrefRow({
       </span>
       <button
         onClick={onDelete}
-        className="text-rhozly-on-surface/30 hover:text-red-400 transition flex-shrink-0"
+        className="p-3 -m-3 text-rhozly-on-surface/30 hover:text-red-400 transition flex-shrink-0"
         aria-label="Remove preference"
       >
-        <Trash2 size={13} />
+        <Trash2 size={16} />
       </button>
     </div>
   );

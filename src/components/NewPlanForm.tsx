@@ -133,11 +133,24 @@ export default function NewPlanForm({
       // directly from the form fields (no AI needed — form is already structured).
       saveInitialPromptMemory(homeId, newPlan.id, payloadData);
 
-      toast.success("Blueprint Generated Successfully!", { id: toastId });
+      toast.success("Project Generated Successfully!", { id: toastId });
       onSuccess();
     } catch (err: any) {
       console.error(err);
-      toast.error(err.message || "Failed to generate plan.", { id: toastId });
+      toast.error(
+        (t) => (
+          <span className="flex items-center gap-3">
+            <span>{err.message || "Failed to generate project."}</span>
+            <button
+              onClick={() => { toast.dismiss(t.id); handleGeneratePlan(); }}
+              className="shrink-0 font-black text-sm underline"
+            >
+              Retry
+            </button>
+          </span>
+        ),
+        { id: toastId, duration: 8000 },
+      );
     } finally {
       setIsGenerating(false);
     }
@@ -163,7 +176,7 @@ export default function NewPlanForm({
             <button
               onClick={onClose}
               disabled={isGenerating}
-              className="p-2.5 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors shrink-0 ml-2"
+              className="p-2.5 bg-gray-100 rounded-full hover:bg-gray-200 transition-colors shrink-0 ml-2 min-h-[44px] min-w-[44px] flex items-center justify-center"
               aria-label="Close dialog"
             >
               <X size={20} className="text-gray-600" />
@@ -305,14 +318,14 @@ export default function NewPlanForm({
 
           {step === 2 && (
             <div className="space-y-5 animate-in slide-in-from-right-4">
-              <div className="flex items-center gap-2 mb-2 text-blue-500 border-b border-rhozly-outline/5 pb-3">
+              <div className="flex items-center gap-2 mb-2 text-rhozly-primary border-b border-rhozly-outline/5 pb-3">
                 <MapPin size={20} />{" "}
                 <h3 className="font-black text-lg">The Environment</h3>
               </div>
 
-              <div className="bg-blue-50/50 p-5 rounded-3xl border border-blue-100/50 space-y-4">
+              <div className="bg-rhozly-surface-low p-5 rounded-3xl border border-rhozly-outline/10 space-y-4">
                 <div className="flex items-center gap-2 mb-2">
-                  <label htmlFor="unit" className="text-[10px] font-black uppercase text-blue-800/60 tracking-widest">
+                  <label htmlFor="unit" className="text-[10px] font-black uppercase text-rhozly-on-surface/40 tracking-widest">
                     Dimensions
                   </label>
                   <select
@@ -320,7 +333,7 @@ export default function NewPlanForm({
                     name="unit"
                     value={formData.unit}
                     onChange={handleInputChange}
-                    className="ml-auto bg-white border border-blue-200 text-blue-800 text-base sm:text-xs font-black p-2 sm:p-1.5 rounded-lg outline-none cursor-pointer focus:ring-2 focus:ring-blue-500/20"
+                    className="ml-auto bg-white border border-rhozly-outline/20 text-rhozly-on-surface text-base sm:text-xs font-black py-3 px-2 sm:py-1.5 sm:px-2 rounded-lg outline-none cursor-pointer focus:ring-2 focus:ring-rhozly-primary/20 min-h-[44px] sm:min-h-0"
                   >
                     <option value="m">Meters (m)</option>
                     <option value="cm">Centimeters (cm)</option>
@@ -329,10 +342,9 @@ export default function NewPlanForm({
                   </select>
                 </div>
 
-                {/* 🚀 FIX: Stacks dimensions on mobile so they don't blow out the screen width */}
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <div>
-                    <label htmlFor="width" className="text-[10px] font-bold text-blue-800/60 block mb-1">
+                    <label htmlFor="width" className="text-[10px] font-bold text-rhozly-on-surface/40 block mb-1">
                       Width *
                     </label>
                     <div className="relative">
@@ -342,8 +354,8 @@ export default function NewPlanForm({
                         name="width"
                         value={formData.width}
                         onChange={handleInputChange}
-                        className={`w-full p-3 pr-8 bg-white rounded-xl border font-bold text-base sm:text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                          errors.width ? "border-red-500" : "border-blue-200"
+                        className={`w-full p-3 pr-8 bg-white rounded-xl border font-bold text-base sm:text-sm outline-none focus:border-rhozly-primary focus:ring-2 focus:ring-rhozly-primary/20 transition-all ${
+                          errors.width ? "border-red-500" : "border-rhozly-outline/20"
                         }`}
                         placeholder="0"
                         aria-invalid={!!errors.width}
@@ -360,7 +372,7 @@ export default function NewPlanForm({
                     )}
                   </div>
                   <div>
-                    <label htmlFor="length" className="text-[10px] font-bold text-blue-800/60 block mb-1">
+                    <label htmlFor="length" className="text-[10px] font-bold text-rhozly-on-surface/40 block mb-1">
                       Length *
                     </label>
                     <div className="relative">
@@ -370,8 +382,8 @@ export default function NewPlanForm({
                         name="length"
                         value={formData.length}
                         onChange={handleInputChange}
-                        className={`w-full p-3 pr-8 bg-white rounded-xl border font-bold text-base sm:text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all ${
-                          errors.length ? "border-red-500" : "border-blue-200"
+                        className={`w-full p-3 pr-8 bg-white rounded-xl border font-bold text-base sm:text-sm outline-none focus:border-rhozly-primary focus:ring-2 focus:ring-rhozly-primary/20 transition-all ${
+                          errors.length ? "border-red-500" : "border-rhozly-outline/20"
                         }`}
                         placeholder="0"
                         aria-invalid={!!errors.length}
@@ -388,7 +400,7 @@ export default function NewPlanForm({
                     )}
                   </div>
                   <div>
-                    <label htmlFor="depth" className="text-[10px] font-bold text-blue-800/60 block mb-1">
+                    <label htmlFor="depth" className="text-[10px] font-bold text-rhozly-on-surface/40 block mb-1">
                       Depth (Opt.)
                     </label>
                     <div className="relative">
@@ -398,7 +410,7 @@ export default function NewPlanForm({
                         name="depth"
                         value={formData.depth}
                         onChange={handleInputChange}
-                        className="w-full p-3 pr-8 bg-white rounded-xl border border-blue-200 font-bold text-base sm:text-sm outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 transition-all"
+                        className="w-full p-3 pr-8 bg-white rounded-xl border border-rhozly-outline/20 font-bold text-base sm:text-sm outline-none focus:border-rhozly-primary focus:ring-2 focus:ring-rhozly-primary/20 transition-all"
                         placeholder="0"
                       />
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-black text-gray-400" aria-hidden="true">
@@ -419,7 +431,7 @@ export default function NewPlanForm({
                     name="sunlight"
                     value={formData.sunlight}
                     onChange={handleInputChange}
-                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold text-base outline-none border border-transparent focus:ring-2 focus:ring-blue-500/20 transition-all cursor-pointer"
+                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold text-base outline-none border border-transparent focus:ring-2 focus:ring-rhozly-primary/20 transition-all cursor-pointer"
                   >
                     {SUNLIGHT_OPTIONS.map((opt) => (
                       <option key={opt.value} value={opt.value}>
@@ -437,7 +449,7 @@ export default function NewPlanForm({
                     name="medium"
                     value={formData.medium}
                     onChange={handleInputChange}
-                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold text-base outline-none border border-transparent focus:ring-2 focus:ring-blue-500/20 transition-all"
+                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold text-base outline-none border border-transparent focus:ring-2 focus:ring-rhozly-primary/20 transition-all"
                   >
                     <option>Standard Soil</option>
                     <option>Raised Bed Mix</option>
@@ -456,7 +468,7 @@ export default function NewPlanForm({
                 <h3 className="font-black text-lg">Preferences & Rules</h3>
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
                 <div className="space-y-2">
                   <label htmlFor="inclusivePlants" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Must Include
@@ -499,7 +511,7 @@ export default function NewPlanForm({
                 />
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 sm:gap-6">
                 <div className="space-y-2">
                   <label htmlFor="difficulty" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Difficulty
@@ -557,7 +569,7 @@ export default function NewPlanForm({
             <button
               onClick={() => setStep(step - 1)}
               disabled={isGenerating}
-              className="w-full sm:w-auto px-6 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-black transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+              className="w-full sm:w-auto px-6 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-black transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center gap-2 min-h-[44px]"
             >
               <ChevronLeft size={20} /> Back
             </button>
@@ -566,7 +578,7 @@ export default function NewPlanForm({
           {step < 3 ? (
             <button
               onClick={() => setStep(step + 1)}
-              className="flex-1 py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-2xl font-black shadow-lg transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center gap-2"
+              className="flex-1 py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-2xl font-black shadow-lg transition-all duration-200 hover:scale-105 active:scale-95 flex items-center justify-center gap-2 min-h-[44px]"
             >
               Next Step <ChevronRight size={20} />
             </button>
@@ -574,16 +586,15 @@ export default function NewPlanForm({
             <button
               onClick={handleGeneratePlan}
               disabled={isGenerating}
-              className="flex-1 py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 disabled:bg-rhozly-primary/70 text-white rounded-2xl font-black shadow-lg transition-all duration-200 hover:scale-105 active:scale-95 disabled:scale-100 flex items-center justify-center gap-2"
+              className="flex-1 py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 disabled:bg-rhozly-primary/70 text-white rounded-2xl font-black shadow-lg transition-all duration-200 hover:scale-105 active:scale-95 disabled:scale-100 flex items-center justify-center gap-2 min-h-[44px]"
             >
               {isGenerating ? (
                 <>
-                  <Loader2 className="animate-spin" size={20} /> Architecting
-                  Plan...
+                  <Loader2 className="animate-spin" size={20} /> Architecting Plan...
                 </>
               ) : (
                 <>
-                  <Sparkles size={20} /> Generate Blueprint
+                  <Sparkles size={20} /> Generate Project
                 </>
               )}
             </button>

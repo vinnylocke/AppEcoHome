@@ -20,6 +20,7 @@ export const HomeSetup: React.FC<Props> = ({
 }) => {
   const [step, setStep] = useState<SetupStep>("selection");
   const [loading, setLoading] = useState(false);
+  const [formError, setFormError] = useState<string | null>(null);
 
   // Create Home State
   const [homeName, setHomeName] = useState("");
@@ -32,6 +33,7 @@ export const HomeSetup: React.FC<Props> = ({
     e.preventDefault();
     if (!homeName.trim() || !postcode.trim()) return;
 
+    setFormError(null);
     setLoading(true);
     try {
       Logger.log("Starting home creation process...");
@@ -61,12 +63,13 @@ export const HomeSetup: React.FC<Props> = ({
       // 3. Send them to the dashboard
       onHomeCreated(newHomeId);
     } catch (err: any) {
-      // ✨ NEW: Send technical data to Sentry, but show a polite toast to the user!
+      const message = "We couldn't create your home right now. Please try again.";
+      setFormError(message);
       Logger.error(
         "Failed to create new home",
         err,
         { attemptedName: homeName, attemptedPostcode: postcode },
-        "We couldn't create your home right now. Please try again.",
+        message,
       );
     } finally {
       setLoading(false);
@@ -77,6 +80,7 @@ export const HomeSetup: React.FC<Props> = ({
     e.preventDefault();
     if (!homeId.trim()) return;
 
+    setFormError(null);
     setLoading(true);
     try {
       Logger.log("Starting home join process...");
@@ -107,12 +111,13 @@ export const HomeSetup: React.FC<Props> = ({
 
       onHomeCreated(homeId.trim());
     } catch (err: any) {
-      // ✨ NEW: Send technical data to Sentry, but show the specific error in a toast!
+      const message = err.message || "Could not join this home. Please check the ID.";
+      setFormError(message);
       Logger.error(
         "Failed to join home",
         err,
         { attemptedHomeId: homeId },
-        err.message || "Could not join this home. Please check the ID.",
+        message,
       );
     } finally {
       setLoading(false);
@@ -138,7 +143,7 @@ export const HomeSetup: React.FC<Props> = ({
                 {hasExistingHome && onCancel && (
                   <button
                     onClick={onCancel}
-                    className="p-2 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors"
+                    className="p-3 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors"
                   >
                     <X className="w-6 h-6" />
                   </button>
@@ -187,7 +192,7 @@ export const HomeSetup: React.FC<Props> = ({
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => setStep("selection")}
-                  className="p-2 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors"
+                  className="p-3 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors"
                 >
                   <ArrowLeft className="w-6 h-6" />
                 </button>
@@ -202,44 +207,53 @@ export const HomeSetup: React.FC<Props> = ({
               </div>
 
               <form onSubmit={handleCreate} className="space-y-6 max-w-md">
-                <div className="space-y-2">
-                  <label
-                    htmlFor="homeName"
-                    className="block text-sm font-bold text-rhozly-on-surface"
-                  >
-                    Home Name
-                  </label>
-                  <input
-                    id="homeName"
-                    type="text"
-                    required
-                    autoFocus
-                    value={homeName}
-                    onChange={(e) => setHomeName(e.target.value)}
-                    className="w-full px-4 py-3 bg-rhozly-surface-low border border-rhozly-outline/20 rounded-xl focus:outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary transition-all font-bold text-rhozly-on-surface"
-                    placeholder="e.g. My Summer House"
-                  />
+                {formError && (
+                  <div role="alert" className="flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm font-bold text-red-700">
+                    <span className="shrink-0 mt-0.5">!</span>
+                    <span>{formError}</span>
+                  </div>
+                )}
+
+                <div className="bg-rhozly-surface-low rounded-2xl p-5 space-y-5">
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="homeName"
+                      className="block text-sm font-bold text-rhozly-on-surface"
+                    >
+                      Home Name
+                    </label>
+                    <input
+                      id="homeName"
+                      type="text"
+                      required
+                      autoFocus
+                      value={homeName}
+                      onChange={(e) => setHomeName(e.target.value)}
+                      className="w-full px-4 py-3 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl focus:outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary transition-all font-bold text-rhozly-on-surface"
+                      placeholder="e.g. My Summer House"
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="postcode"
+                      className="block text-sm font-bold text-rhozly-on-surface"
+                    >
+                      Postcode / Zip Code
+                    </label>
+                    <input
+                      id="postcode"
+                      type="text"
+                      required
+                      value={postcode}
+                      onChange={(e) => setPostcode(e.target.value)}
+                      className="w-full px-4 py-3 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl focus:outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary transition-all font-bold text-rhozly-on-surface uppercase"
+                      placeholder="e.g. CR3 5ED"
+                    />
+                  </div>
                 </div>
 
-                <div className="space-y-2">
-                  <label
-                    htmlFor="postcode"
-                    className="block text-sm font-bold text-rhozly-on-surface"
-                  >
-                    Postcode / Zip Code
-                  </label>
-                  <input
-                    id="postcode"
-                    type="text"
-                    required
-                    value={postcode}
-                    onChange={(e) => setPostcode(e.target.value)}
-                    className="w-full px-4 py-3 bg-rhozly-surface-low border border-rhozly-outline/20 rounded-xl focus:outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary transition-all font-bold text-rhozly-on-surface uppercase"
-                    placeholder="e.g. CR3 5ED"
-                  />
-                </div>
-
-                <div className="pt-4">
+                <div className="pt-2">
                   <button
                     type="submit"
                     disabled={loading}
@@ -262,7 +276,7 @@ export const HomeSetup: React.FC<Props> = ({
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => setStep("selection")}
-                  className="p-2 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors"
+                  className="p-3 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors"
                 >
                   <ArrowLeft className="w-6 h-6" />
                 </button>
@@ -277,26 +291,35 @@ export const HomeSetup: React.FC<Props> = ({
               </div>
 
               <form onSubmit={handleJoin} className="space-y-6 max-w-md">
-                <div className="space-y-2">
-                  <label
-                    htmlFor="homeId"
-                    className="block text-sm font-bold text-rhozly-on-surface"
-                  >
-                    Home ID
-                  </label>
-                  <input
-                    id="homeId"
-                    type="text"
-                    required
-                    autoFocus
-                    value={homeId}
-                    onChange={(e) => setHomeId(e.target.value)}
-                    className="w-full px-4 py-3 bg-rhozly-surface-low border border-rhozly-outline/20 rounded-xl focus:outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary transition-all font-bold text-rhozly-on-surface font-mono uppercase tracking-wider"
-                    placeholder="e.g. HOME-1234-ABCD"
-                  />
+                {formError && (
+                  <div role="alert" className="flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm font-bold text-red-700">
+                    <span className="shrink-0 mt-0.5">!</span>
+                    <span>{formError}</span>
+                  </div>
+                )}
+
+                <div className="bg-rhozly-surface-low rounded-2xl p-5">
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="homeId"
+                      className="block text-sm font-bold text-rhozly-on-surface"
+                    >
+                      Home ID
+                    </label>
+                    <input
+                      id="homeId"
+                      type="text"
+                      required
+                      autoFocus
+                      value={homeId}
+                      onChange={(e) => setHomeId(e.target.value)}
+                      className="w-full px-4 py-3 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl focus:outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary transition-all font-bold text-rhozly-on-surface font-mono uppercase tracking-wider"
+                      placeholder="e.g. HOME-1234-ABCD"
+                    />
+                  </div>
                 </div>
 
-                <div className="pt-4">
+                <div className="pt-2">
                   <button
                     type="submit"
                     disabled={loading}

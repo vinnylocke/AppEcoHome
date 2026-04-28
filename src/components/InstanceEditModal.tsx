@@ -252,7 +252,7 @@ export default function InstanceEditModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
-      <div className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 relative">
+      <div className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-3xl p-8 shadow-2xl border border-rhozly-outline/20 relative">
         <div className="flex justify-between items-start mb-6 relative z-10">
           <div>
             <h3 className="text-3xl font-black text-rhozly-on-surface">
@@ -273,28 +273,28 @@ export default function InstanceEditModal({
         <div className="flex bg-rhozly-surface-low p-1 rounded-2xl mb-8 flex-wrap gap-1">
           <button
             onClick={() => setActiveTab("details")}
-            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-[10px] sm:text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "details" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "details" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
             <Settings2 size={14} /> Details
           </button>
 
           <button
             onClick={() => setActiveTab("care_guide")}
-            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-[10px] sm:text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "care_guide" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "care_guide" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
             <Leaf size={14} /> Care Guide
           </button>
 
           <button
             onClick={() => setActiveTab("routine")}
-            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-[10px] sm:text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "routine" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "routine" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
             <ClipboardList size={14} /> Routines
           </button>
 
           <button
             onClick={() => setActiveTab("journal")}
-            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-[10px] sm:text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "journal" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "journal" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
             <BookOpen size={14} /> Journal
           </button>
@@ -348,7 +348,7 @@ export default function InstanceEditModal({
                   onChange={(e) =>
                     setEditForm({ ...editForm, area_id: e.target.value })
                   }
-                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-transparent focus:border-rhozly-primary outline-none cursor-pointer text-sm"
+                  className={`w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border focus:border-rhozly-primary outline-none cursor-pointer text-sm ${!editForm.area_id ? "border-red-400/60" : "border-transparent"}`}
                 >
                   <option value="" disabled>
                     Select Area...
@@ -359,6 +359,11 @@ export default function InstanceEditModal({
                     </option>
                   ))}
                 </select>
+                {!editForm.area_id && (
+                  <p className="text-xs font-bold text-red-400 ml-1 flex items-center gap-1">
+                    <Info size={12} /> An area is required before saving.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -418,10 +423,10 @@ export default function InstanceEditModal({
                       onChange={(e) =>
                         setEditForm({ ...editForm, planted_at: e.target.value })
                       }
-                      className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none"
+                      className="w-full p-4 bg-white rounded-2xl font-bold border border-transparent focus:border-rhozly-primary outline-none"
                     />
                   ) : (
-                    <div className="w-full p-4 bg-white/50 rounded-xl border border-dashed border-rhozly-outline/20 text-center opacity-60">
+                    <div className="w-full p-4 bg-white/50 rounded-2xl border border-dashed border-rhozly-outline/20 text-center opacity-60">
                       <p className="text-xs font-bold flex items-center justify-center gap-2">
                         <Info size={14} /> Date unknown
                       </p>
@@ -437,7 +442,7 @@ export default function InstanceEditModal({
                     onChange={(e) =>
                       setEditForm({ ...editForm, growth_state: e.target.value })
                     }
-                    className="w-full p-4 bg-white rounded-xl font-bold border border-transparent focus:border-rhozly-primary outline-none cursor-pointer text-sm"
+                    className="w-full p-4 bg-white rounded-2xl font-bold border border-transparent focus:border-rhozly-primary outline-none cursor-pointer text-sm"
                   >
                     {GROWTH_STATES.map((state) => (
                       <option key={state} value={state}>
@@ -478,7 +483,7 @@ export default function InstanceEditModal({
                 </p>
               </div>
             ) : careGuideData ? (
-              <div className="-mx-4 sm:-mx-0">
+              <div>
                 <ManualPlantCreation
                   initialData={careGuideData}
                   isReadOnly={true}

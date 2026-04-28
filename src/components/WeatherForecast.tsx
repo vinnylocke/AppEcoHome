@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import {
   Cloud,
   Sun,
@@ -132,6 +132,9 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
 
   const [showFilters, setShowFilters] = useState(true);
 
+  // aria-live announcement state
+  const [liveAnnouncement, setLiveAnnouncement] = useState<string>("");
+
   const data = useMemo(
     () => parseWeatherData(weatherData, day),
     [weatherData, day],
@@ -147,37 +150,49 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
   useEffect(() => {
     if (!selectedData) return;
 
-    setPageContext({
-      action: "Analyzing Weather Forecast",
-      forecastContext: {
-        viewingDay: day,
-        selectedTime: selectedData.time,
-        hourlySnapshot: {
-          temp: `${selectedData.temp}°C`,
-          rainProbability: `${selectedData.rain}%`,
-          windSpeed: `${selectedData.wind} km/h`,
-          humidity: `${selectedData.humidity}%`,
+    try {
+      setPageContext({
+        action: "Analyzing Weather Forecast",
+        forecastContext: {
+          viewingDay: day,
+          selectedTime: selectedData.time,
+          hourlySnapshot: {
+            temp: `${selectedData.temp}°C`,
+            rainProbability: `${selectedData.rain}%`,
+            windSpeed: `${selectedData.wind} km/h`,
+            humidity: `${selectedData.humidity}%`,
+          },
+          dailySummary: {
+            maxRainProbability: `${maxRain}%`,
+            averageWindSpeed: `${avgWind} km/h`,
+          },
+          activeAlertsCount: alerts.length,
         },
-        dailySummary: {
-          maxRainProbability: `${maxRain}%`,
-          averageWindSpeed: `${avgWind} km/h`,
-        },
-        activeAlertsCount: alerts.length,
-      },
-    });
+      });
+    } catch (error: any) {
+      Logger.error("Failed to set page context", error, {});
+    }
 
     return () => setPageContext(null);
   }, [day, selectedData, maxRain, avgWind, alerts, setPageContext]);
 
   useEffect(() => {
-    if (selectedHourIndex >= data.length) {
-      setSelectedHourIndex(Math.max(0, data.length - 1));
+    try {
+      if (selectedHourIndex >= data.length) {
+        setSelectedHourIndex(Math.max(0, data.length - 1));
+      }
+    } catch (error: any) {
+      Logger.error("Failed to clamp selectedHourIndex", error, {});
     }
   }, [data, selectedHourIndex]);
 
   useEffect(() => {
-    setDay("today");
-    setSelectedHourIndex(new Date().getHours());
+    try {
+      setDay("today");
+      setSelectedHourIndex(new Date().getHours());
+    } catch (error: any) {
+      Logger.error("Failed to reset day/hour on weatherData change", error, {});
+    }
   }, [weatherData]);
 
   const metrics = [
@@ -185,7 +200,7 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
       id: "temp",
       label: "Temperature",
       icon: Thermometer,
-      color: "#075737",
+      color: "var(--color-rhozly-primary, #075737)",
       unit: "°C",
       dataKey: "temp",
     },
@@ -216,13 +231,21 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
   ];
 
   const toggleMetric = (id: string) => {
-    setActiveMetrics((prev) =>
-      prev.includes(id)
+    const metric = metrics.find((m) => m.id === id);
+    setActiveMetrics((prev) => {
+      const next = prev.includes(id)
         ? prev.length > 1
           ? prev.filter((m) => m !== id)
           : prev
-        : [...prev, id],
-    );
+        : [...prev, id];
+      if (metric) {
+        const nowActive = next.includes(id);
+        setLiveAnnouncement(
+          `${metric.label} metric ${nowActive ? "enabled" : "disabled"}`,
+        );
+      }
+      return next;
+    });
   };
 
   if (!weatherData || data.length === 0) {
@@ -238,6 +261,16 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+      {/* aria-live region for screen reader announcements */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {liveAnnouncement}
+      </div>
+
       {/* Header & Day Toggle */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-6">
         <div>
@@ -265,7 +298,7 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
         </div>
       </div>
 
-      <div className="bg-rhozly-surface-lowest rounded-[2.5rem] p-6 md:p-10 border border-rhozly-outline/30 shadow-sm overflow-hidden relative">
+      <div className="bg-rhozly-surface-lowest rounded-3xl p-6 md:p-10 border border-rhozly-outline/30 shadow-sm overflow-hidden relative">
         <div className="absolute top-0 right-0 w-64 h-64 bg-rhozly-primary/5 rounded-full blur-3xl -mr-32 -mt-32 pointer-events-none" />
 
         <div className="relative z-10 space-y-10">
@@ -276,6 +309,8 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
               </h3>
               <button
                 onClick={() => setShowFilters(!showFilters)}
+                aria-expanded={showFilters}
+                aria-controls="metric-filters"
                 className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-rhozly-primary/5 hover:bg-rhozly-primary/10 text-rhozly-primary font-bold text-xs transition-colors"
               >
                 {showFilters ? (
@@ -290,46 +325,50 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
               </button>
             </div>
 
-            {showFilters && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 animate-in fade-in slide-in-from-top-2 duration-300">
-                {metrics.map((m) => {
-                  const isActive = activeMetrics.includes(m.id);
-                  return (
-                    <button
-                      key={m.id}
-                      onClick={() => toggleMetric(m.id)}
-                      className={`flex items-center justify-between p-4 rounded-3xl border transition-all duration-300 text-left group ${isActive ? "bg-rhozly-primary/5 border-rhozly-primary/30 shadow-sm" : "bg-transparent border-rhozly-outline/10 hover:border-rhozly-primary/20"}`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div
-                          className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${isActive ? "bg-rhozly-primary border-rhozly-primary" : "border-rhozly-outline/30 bg-white"}`}
-                        >
-                          {isActive && (
-                            <div className="w-2 h-2 bg-white rounded-sm" />
-                          )}
-                        </div>
-                        <div>
-                          <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-0.5">
-                            {m.label}
-                          </p>
-                          <p
-                            className={`text-lg font-black font-display ${isActive ? "text-rhozly-primary" : "text-rhozly-on-surface"}`}
-                          >
-                            {selectedData[m.dataKey as keyof HourlyData]}
-                            {m.unit}
-                          </p>
-                        </div>
-                      </div>
+            <div
+              id="metric-filters"
+              className={`grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-300 overflow-hidden ${showFilters ? "opacity-100 max-h-[500px]" : "opacity-0 max-h-0 pointer-events-none"}`}
+            >
+              {metrics.map((m) => {
+                const isActive = activeMetrics.includes(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    role="checkbox"
+                    aria-checked={isActive}
+                    onClick={() => toggleMetric(m.id)}
+                    className={`flex items-center justify-between p-4 rounded-3xl border transition-all duration-300 text-left group ${isActive ? "bg-rhozly-primary/5 border-rhozly-primary/30 shadow-sm" : "bg-transparent border-rhozly-outline/10 hover:border-rhozly-primary/20"}`}
+                  >
+                    <div className="flex items-center gap-4">
                       <div
-                        className={`p-2 rounded-xl transition-colors ${isActive ? "bg-rhozly-primary/10 text-rhozly-primary" : "bg-rhozly-surface-low text-rhozly-on-surface/20"}`}
+                        className={`w-6 h-6 rounded-lg border-2 flex items-center justify-center transition-all ${isActive ? "bg-rhozly-primary border-rhozly-primary" : "border-rhozly-outline/30 bg-white"}`}
+                        aria-hidden="true"
                       >
-                        <m.icon className="w-4 h-4" />
+                        {isActive && (
+                          <div className="w-2 h-2 bg-white rounded-sm" />
+                        )}
                       </div>
-                    </button>
-                  );
-                })}
-              </div>
-            )}
+                      <div>
+                        <p className="text-xs font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-0.5">
+                          {m.label}
+                        </p>
+                        <p
+                          className={`text-lg font-black font-display ${isActive ? "text-rhozly-primary" : "text-rhozly-on-surface"}`}
+                        >
+                          {selectedData[m.dataKey as keyof HourlyData]}
+                          {m.unit}
+                        </p>
+                      </div>
+                    </div>
+                    <div
+                      className={`p-2 rounded-xl transition-colors ${isActive ? "bg-rhozly-primary/10 text-rhozly-primary" : "bg-rhozly-surface-low text-rhozly-on-surface/20"}`}
+                    >
+                      <m.icon className="w-4 h-4" />
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
           </div>
 
           <div className="space-y-4">
@@ -338,8 +377,8 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
                 Viewing data for{" "}
                 <span className="text-rhozly-primary">{selectedData.time}</span>
               </p>
-              <p className="text-[10px] font-bold text-rhozly-on-surface/30 italic">
-                Click graph to select time
+              <p className="text-xs font-bold text-rhozly-primary/60 bg-rhozly-primary/5 px-3 py-1 rounded-xl border border-rhozly-primary/15">
+                Tap graph to select time
               </p>
             </div>
 
@@ -354,8 +393,20 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
                   data={data}
                   margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                   onClick={(e) => {
-                    if (e && e.activeTooltipIndex !== undefined) {
+                    if (
+                      e &&
+                      e.activeTooltipIndex !== undefined &&
+                      e.activeTooltipIndex !== null &&
+                      e.activeTooltipIndex >= 0 &&
+                      e.activeTooltipIndex < data.length
+                    ) {
                       setSelectedHourIndex(e.activeTooltipIndex);
+                      const hour = data[e.activeTooltipIndex];
+                      if (hour) {
+                        setLiveAnnouncement(
+                          `Selected ${hour.time}: ${hour.temp}°C, ${hour.rain}% rain`,
+                        );
+                      }
                     }
                   }}
                 >
@@ -385,24 +436,24 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
                   <CartesianGrid
                     strokeDasharray="3 3"
                     vertical={false}
-                    stroke="#e5e7eb"
+                    stroke="var(--color-rhozly-outline, #e5e7eb)"
                   />
                   <XAxis
                     dataKey="time"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 10, fontWeight: 700, fill: "#1a1c1b66" }}
+                    tick={{ fontSize: 12, fontWeight: 700, fill: "#1a1c1b66" }}
                     interval={3}
                   />
                   <YAxis
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fontSize: 10, fontWeight: 700, fill: "#1a1c1b66" }}
+                    tick={{ fontSize: 12, fontWeight: 700, fill: "#1a1c1b66" }}
                   />
                   <Tooltip
                     content={<CustomTooltip />}
                     cursor={{
-                      stroke: "#075737",
+                      stroke: "var(--color-rhozly-primary, #075737)",
                       strokeWidth: 2,
                       strokeDasharray: "5 5",
                     }}
@@ -411,14 +462,14 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
                   {selectedData && (
                     <ReferenceLine
                       x={selectedData.time}
-                      stroke="#075737"
+                      stroke="var(--color-rhozly-primary, #075737)"
                       strokeWidth={2}
                       strokeOpacity={0.4}
                       label={{
                         position: "top",
                         value: "Selected",
-                        fill: "#075737",
-                        fontSize: 10,
+                        fill: "var(--color-rhozly-primary, #075737)",
+                        fontSize: 12,
                         fontWeight: 900,
                       }}
                     />
@@ -451,7 +502,7 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
                 <CloudRain className="w-5 h-5 text-blue-500" />
               </div>
               <div>
-                <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">
+                <p className="text-xs font-black text-rhozly-on-surface/40 uppercase tracking-widest">
                   Max Rain Chance
                 </p>
                 <p className="text-sm font-black text-rhozly-on-surface">
@@ -464,7 +515,7 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
                 <Wind className="w-5 h-5 text-rhozly-primary" />
               </div>
               <div>
-                <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">
+                <p className="text-xs font-black text-rhozly-on-surface/40 uppercase tracking-widest">
                   Avg. Wind
                 </p>
                 <p className="text-sm font-black text-rhozly-on-surface">

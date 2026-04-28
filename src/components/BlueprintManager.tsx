@@ -150,8 +150,12 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
       });
 
       setBlueprints(enrichedBlueprints);
-    } catch (err) {
-      toast.error("Failed to load automations.");
+    } catch (err: any) {
+      toast.error(
+        err?.message
+          ? `Failed to load automations: ${err.message}`
+          : "Failed to load automations. Please check your connection and try again.",
+      );
     } finally {
       setLoading(false);
     }
@@ -283,14 +287,14 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
             Automations
           </h2>
           <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-            Manage Recurring Rules
+            Manage Recurring Automations
           </p>
         </div>
         <button
           onClick={() => setIsBuilding(true)}
           className="flex items-center justify-center gap-2 bg-rhozly-primary text-white px-6 py-3.5 rounded-2xl font-black shadow-lg hover:scale-105 transition-transform active:scale-95"
         >
-          <Plus size={18} strokeWidth={3} /> New Rule
+          <Plus size={18} strokeWidth={3} /> New Automation
         </button>
       </div>
 
@@ -313,7 +317,8 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
-                  className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  aria-label="Clear search"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl"
                 >
                   <X size={16} />
                 </button>
@@ -357,7 +362,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                   <select
                     value={filterType}
                     onChange={(e) => setFilterType(e.target.value)}
-                    className="w-full p-3 bg-gray-50 rounded-xl font-bold text-sm border border-transparent focus:border-rhozly-primary outline-none"
+                    className="w-full p-3 bg-rhozly-surface-lowest rounded-xl font-bold text-sm border border-transparent focus:border-rhozly-primary outline-none"
                   >
                     <option value="all">All Types</option>
                     {TASK_CATEGORIES.map((t) => (
@@ -374,7 +379,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                   <select
                     value={filterLocation}
                     onChange={(e) => setFilterLocation(e.target.value)}
-                    className="w-full p-3 bg-gray-50 rounded-xl font-bold text-sm border border-transparent focus:border-rhozly-primary outline-none"
+                    className="w-full p-3 bg-rhozly-surface-lowest rounded-xl font-bold text-sm border border-transparent focus:border-rhozly-primary outline-none"
                   >
                     <option value="all">All Locations</option>
                     <option value="none">Unassigned (None)</option>
@@ -393,7 +398,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                     value={filterArea}
                     onChange={(e) => setFilterArea(e.target.value)}
                     disabled={filterLocation === "none"}
-                    className="w-full p-3 bg-gray-50 rounded-xl font-bold text-sm border border-transparent focus:border-rhozly-primary outline-none disabled:opacity-50"
+                    className="w-full p-3 bg-rhozly-surface-lowest rounded-xl font-bold text-sm border border-transparent focus:border-rhozly-primary outline-none disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     <option value="all">All Areas</option>
                     <option value="none">Unassigned (None)</option>
@@ -411,7 +416,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                   <select
                     value={filterPlan}
                     onChange={(e) => setFilterPlan(e.target.value)}
-                    className="w-full p-3 bg-gray-50 rounded-xl font-bold text-sm border border-transparent focus:border-rhozly-primary outline-none"
+                    className="w-full p-3 bg-rhozly-surface-lowest rounded-xl font-bold text-sm border border-transparent focus:border-rhozly-primary outline-none"
                   >
                     <option value="all">All Plans</option>
                     <option value="none">Unassigned (None)</option>
@@ -429,7 +434,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                   <select
                     value={filterPlant}
                     onChange={(e) => setFilterPlant(e.target.value)}
-                    className="w-full p-3 bg-gray-50 rounded-xl font-bold text-sm border border-transparent focus:border-rhozly-primary outline-none"
+                    className="w-full p-3 bg-rhozly-surface-lowest rounded-xl font-bold text-sm border border-transparent focus:border-rhozly-primary outline-none"
                   >
                     <option value="all">All Plants</option>
                     <option value="none">Unassigned (None)</option>
@@ -447,7 +452,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
       )}
 
       {blueprints.length === 0 ? (
-        <div className="bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-[3rem] p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
+        <div className="bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-3xl p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
           <div className="relative mb-6">
             <div className="absolute inset-0 bg-rhozly-primary/5 rounded-full blur-2xl"></div>
             <Repeat size={64} className="text-rhozly-primary/30 relative" strokeWidth={2} />
@@ -462,11 +467,11 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
             onClick={() => setIsBuilding(true)}
             className="flex items-center justify-center gap-2 bg-rhozly-primary text-white px-8 py-4 rounded-2xl font-black shadow-lg hover:scale-105 transition-transform active:scale-95"
           >
-            <Plus size={20} strokeWidth={3} /> Create Your First Rule
+            <Plus size={20} strokeWidth={3} /> Create Your First Automation
           </button>
         </div>
       ) : filteredBlueprints.length === 0 ? (
-        <div className="bg-white border border-rhozly-outline/10 rounded-[3rem] p-12 text-center flex flex-col items-center justify-center py-24 shadow-sm animate-in fade-in">
+        <div className="bg-rhozly-surface border border-rhozly-outline/10 rounded-3xl p-12 text-center flex flex-col items-center justify-center py-24 shadow-sm animate-in fade-in">
           <Search size={40} className="text-gray-300 mb-4" />
           <p className="font-black text-xl text-gray-700">No matches found</p>
           <p className="text-sm font-bold text-gray-400 mt-2 max-w-sm">
@@ -478,7 +483,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
               setSearchQuery("");
               clearFilters();
             }}
-            className="mt-6 px-6 py-3 bg-gray-100 hover:bg-gray-200 text-gray-600 rounded-xl font-black transition-colors"
+            className="mt-6 px-6 py-3 bg-rhozly-surface-low hover:bg-rhozly-surface text-rhozly-on-surface/70 rounded-xl font-black transition-colors"
           >
             Clear All Filters
           </button>
@@ -488,6 +493,11 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
           <div className="sr-only" aria-live="polite" aria-atomic="true">
             Showing {filteredBlueprints.length} automation{filteredBlueprints.length !== 1 ? 's' : ''}
           </div>
+          {(searchQuery || hasActiveFilters) && (
+            <p className="text-xs font-black text-rhozly-on-surface/50 uppercase tracking-widest mb-4" aria-hidden="true">
+              {filteredBlueprints.length} result{filteredBlueprints.length !== 1 ? 's' : ''} found
+            </p>
+          )}
           <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredBlueprints.map((bp) => (
               <div
@@ -504,11 +514,11 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
               >
               <div className="flex items-start justify-between mb-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-gray-50 flex items-center justify-center shrink-0">
+                  <div className="w-10 h-10 rounded-2xl bg-rhozly-surface-lowest flex items-center justify-center shrink-0">
                     {getTaskIcon(bp.task_type)}
                   </div>
                   <div>
-                    <span className="text-[9px] font-black uppercase tracking-widest bg-gray-100 text-gray-500 px-2 py-0.5 rounded-md mb-1 inline-block">
+                    <span className="text-[9px] font-black uppercase tracking-widest bg-rhozly-surface-low text-rhozly-on-surface/50 px-2 py-0.5 rounded-md mb-1 inline-block">
                       Every {bp.frequency_days} Days
                     </span>
                     <h3 className="font-black text-lg leading-tight text-rhozly-on-surface">
@@ -521,7 +531,8 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                     e.stopPropagation();
                     handleDeleteClick(bp);
                   }}
-                  className="p-2 text-gray-300 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors shrink-0 md:opacity-0 group-hover:opacity-100"
+                  aria-label={`Delete ${bp.title}`}
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/20 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors shrink-0 opacity-30 group-hover:opacity-100"
                 >
                   <Trash2 size={16} />
                 </button>
@@ -537,7 +548,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
 
               <div className="pt-4 border-t border-gray-50 flex flex-wrap gap-2 mt-auto">
                 <div
-                  className={`text-[10px] font-bold flex items-center gap-1 px-2 py-1 rounded-md ${bp.inventory_item_ids?.length > 0 ? "bg-emerald-50 text-emerald-700" : "bg-gray-100 text-gray-600"}`}
+                  className={`text-[10px] font-bold flex items-center gap-1 px-2 py-1 rounded-md ${bp.inventory_item_ids?.length > 0 ? "bg-emerald-50 text-emerald-700" : "bg-rhozly-surface-low text-rhozly-on-surface/60"}`}
                 >
                   {bp.inventory_item_ids?.length > 0 ? (
                     <Sprout size={12} />

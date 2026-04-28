@@ -90,7 +90,9 @@ export default function ManualPlantCreation({
   const [openDropdown, setOpenDropdown] = useState<string | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
+  const [savedConfirm, setSavedConfirm] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dropdownContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
   const [formData, setFormData] = useState({
     common_name: "",
@@ -129,6 +131,19 @@ export default function ManualPlantCreation({
     medicinal: false,
     cuisine: false,
   });
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    if (!openDropdown) return;
+    const handleMouseDown = (e: MouseEvent) => {
+      const container = dropdownContainerRefs.current[openDropdown];
+      if (container && !container.contains(e.target as Node)) {
+        setOpenDropdown(null);
+      }
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, [openDropdown]);
 
   useEffect(() => {
     setPageContext({
@@ -197,10 +212,31 @@ export default function ManualPlantCreation({
     if (name === "common_name" && errors.common_name) {
       setErrors((prev) => ({ ...prev, common_name: "" }));
     }
-    setFormData((prev) => ({
-      ...prev,
-      [name]: type === "checkbox" ? checked : value,
-    }));
+    setFormData((prev) => {
+      const updated = {
+        ...prev,
+        [name]: type === "checkbox" ? checked : value,
+      };
+
+      // Validate watering min/max relationship inline
+      if (name === "watering_min_days" || name === "watering_max_days") {
+        const minVal = name === "watering_min_days" ? value : prev.watering_min_days;
+        const maxVal = name === "watering_max_days" ? value : prev.watering_max_days;
+        const minNum = parseInt(minVal);
+        const maxNum = parseInt(maxVal);
+        if (!isNaN(minNum) && !isNaN(maxNum) && minNum > maxNum) {
+          setErrors((e) => ({ ...e, watering_range: "Min must be less than or equal to Max" }));
+        } else {
+          setErrors((e) => {
+            const next = { ...e };
+            delete next.watering_range;
+            return next;
+          });
+        }
+      }
+
+      return updated;
+    });
   };
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -264,6 +300,13 @@ export default function ManualPlantCreation({
     const min = parseInt(formData.watering_min_days);
     const max = parseInt(formData.watering_max_days);
 
+    if (!isNaN(min) && !isNaN(max) && min > max) {
+      setErrors((prev) => ({ ...prev, watering_range: "Min must be less than or equal to Max" }));
+      setActiveSection("care");
+      toast.error("Watering minimum must not exceed maximum");
+      return;
+    }
+
     const ensureArray = (val: any) =>
       Array.isArray(val) ? val : val ? [val] : [];
 
@@ -298,10 +341,17 @@ export default function ManualPlantCreation({
     };
 
     onSave(cleanPayload);
+
+    // Show brief "Saved" confirmation on the submit button
+    setSavedConfirm(true);
+    setTimeout(() => setSavedConfirm(false), 2000);
   };
 
   const MultiSelect = ({ label, field, options, icon: Icon }: any) => (
-    <div className="space-y-2 relative">
+    <div
+      className="space-y-2 relative"
+      ref={(el) => { dropdownContainerRefs.current[field] = el; }}
+    >
       <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1 flex items-center gap-2">
         {Icon && <Icon size={12} />} {label}
       </label>
@@ -604,7 +654,7 @@ export default function ManualPlantCreation({
                       onChange={handleInputChange}
                       disabled={isReadOnly}
                       placeholder="Min"
-                      className={`w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none border border-rhozly-outline/10 font-bold ${isReadOnly ? "opacity-80" : ""}`}
+                      className={`w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none border font-bold transition-all ${errors.watering_range ? "border-red-300 bg-red-50" : "border-rhozly-outline/10"} ${isReadOnly ? "opacity-80" : ""}`}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black opacity-20 uppercase">
                       Min
@@ -618,13 +668,18 @@ export default function ManualPlantCreation({
                       onChange={handleInputChange}
                       disabled={isReadOnly}
                       placeholder="Max"
-                      className={`w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none border border-rhozly-outline/10 font-bold ${isReadOnly ? "opacity-80" : ""}`}
+                      className={`w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none border font-bold transition-all ${errors.watering_range ? "border-red-300 bg-red-50" : "border-rhozly-outline/10"} ${isReadOnly ? "opacity-80" : ""}`}
                     />
                     <span className="absolute right-4 top-1/2 -translate-y-1/2 text-[10px] font-black opacity-20 uppercase">
                       Max
                     </span>
                   </div>
                 </div>
+                {errors.watering_range && (
+                  <p className="text-[10px] font-bold text-red-500 uppercase tracking-tight flex items-center gap-1 ml-1">
+                    <AlertCircle size={11} /> {errors.watering_range}
+                  </p>
+                )}
               </div>
             </div>
           )}
@@ -638,7 +693,7 @@ export default function ManualPlantCreation({
             icon={ShieldAlert}
           />
           {activeSection === "traits" && (
-            <div className="p-2 grid grid-cols-2 gap-4 animate-in slide-in-from-top-2">
+            <div className="p-2 grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4 animate-in slide-in-from-top-2">
               <Toggle
                 name="indoor"
                 label="Indoor"
@@ -669,14 +724,14 @@ export default function ManualPlantCreation({
               />
               <Toggle
                 name="is_toxic_pets"
-                label="Toxic (Pets)"
+                label="Toxic to Pets"
                 checked={formData.is_toxic_pets}
                 onChange={handleInputChange}
                 isReadOnly={isReadOnly}
               />
               <Toggle
                 name="is_toxic_humans"
-                label="Toxic (Humans)"
+                label="Toxic to Humans"
                 checked={formData.is_toxic_humans}
                 onChange={handleInputChange}
                 isReadOnly={isReadOnly}
@@ -690,7 +745,7 @@ export default function ManualPlantCreation({
               />
               <Toggle
                 name="cuisine"
-                label="Culinary"
+                label="Culinary Use"
                 checked={formData.cuisine}
                 onChange={handleInputChange}
                 isReadOnly={isReadOnly}
@@ -712,11 +767,15 @@ export default function ManualPlantCreation({
             )}
             <button
               type="submit"
-              disabled={isSaving}
-              className="flex-[2] py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg flex items-center justify-center gap-2"
+              disabled={isSaving || savedConfirm}
+              className={`flex-[2] py-4 rounded-2xl font-black shadow-lg flex items-center justify-center gap-2 transition-all ${savedConfirm ? "bg-green-500 text-white" : "bg-rhozly-primary text-white"}`}
             >
               {isSaving ? (
                 <Loader2 className="animate-spin" size={20} />
+              ) : savedConfirm ? (
+                <>
+                  <Check size={20} /> Saved
+                </>
               ) : (
                 <>
                   <Save size={20} /> {submitLabel}
@@ -733,19 +792,23 @@ export default function ManualPlantCreation({
 function Toggle({ name, label, checked, onChange, isReadOnly }: any) {
   return (
     <label
-      className={`flex items-center justify-between p-4 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/5 ${isReadOnly ? "opacity-80 cursor-default" : "cursor-pointer"}`}
+      className={`flex items-center justify-between min-h-[44px] px-4 py-3 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/5 ${isReadOnly ? "opacity-80 cursor-default" : "cursor-pointer"}`}
     >
-      <span className="text-[10px] font-black uppercase tracking-tight text-rhozly-on-surface/60">
+      <span className="text-[10px] font-black uppercase tracking-tight text-rhozly-on-surface/60 pr-2">
         {label}
       </span>
-      <input
-        type="checkbox"
-        name={name}
-        checked={checked}
-        onChange={onChange}
-        disabled={isReadOnly}
-        className="w-5 h-5 accent-rhozly-primary disabled:opacity-80"
-      />
+      <div className="relative flex-shrink-0">
+        <input
+          type="checkbox"
+          name={name}
+          checked={checked}
+          onChange={onChange}
+          disabled={isReadOnly}
+          className="sr-only peer"
+        />
+        <div className={`w-10 h-6 rounded-full transition-colors ${checked ? "bg-rhozly-primary" : "bg-rhozly-outline/20"} ${isReadOnly ? "opacity-80" : ""}`} />
+        <div className={`absolute top-1 left-1 w-4 h-4 bg-white rounded-full shadow transition-transform ${checked ? "translate-x-4" : "translate-x-0"}`} />
+      </div>
     </label>
   );
 }

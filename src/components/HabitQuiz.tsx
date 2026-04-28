@@ -350,14 +350,14 @@ export default function HabitQuiz({ homeId, userId, onComplete }: Props) {
       </div>
 
       {/* Options */}
-      <div className={`grid gap-3 ${question.options.length > 4 ? "grid-cols-2" : "grid-cols-1"}`}>
+      <div className={`grid gap-3 ${question.options.length > 4 ? "grid-cols-1 sm:grid-cols-2" : "grid-cols-1"}`}>
         {question.options.map((opt, idx) => {
           const isSelected = selected.includes(idx);
           return (
             <button
               key={idx}
               onClick={() => toggleOption(idx)}
-              className={`flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all font-medium focus-visible:ring-2 focus-visible:ring-rhozly-primary focus-visible:ring-offset-2 ${
+              className={`flex items-center gap-3 p-4 min-h-[44px] rounded-2xl border-2 text-left transition-all font-medium focus-visible:ring-2 focus-visible:ring-rhozly-primary focus-visible:ring-offset-2 ${
                 isSelected
                   ? "border-rhozly-primary bg-rhozly-primary/8 text-rhozly-primary"
                   : "border-rhozly-outline/20 bg-white text-rhozly-on-surface hover:border-rhozly-primary/40 hover:bg-rhozly-primary/4"
@@ -373,12 +373,18 @@ export default function HabitQuiz({ homeId, userId, onComplete }: Props) {
         })}
       </div>
 
+      {!canAdvance() && (
+        <p className="text-xs text-rhozly-on-surface/50 text-center -mt-2">
+          {question.multi ? "Select at least one option to continue." : "Choose an option to continue."}
+        </p>
+      )}
+
       {/* Actions */}
       <div className="flex gap-3 pt-2">
         {step > 0 && (
           <button
             onClick={() => setStep((s) => s - 1)}
-            className="px-6 py-3 rounded-full border border-rhozly-outline/30 text-rhozly-on-surface/70 font-semibold hover:bg-rhozly-outline/10 transition"
+            className="px-6 py-3 min-h-[44px] rounded-full border border-rhozly-outline/30 text-rhozly-on-surface/70 font-semibold hover:bg-rhozly-outline/10 transition"
           >
             Back
           </button>
@@ -387,7 +393,7 @@ export default function HabitQuiz({ homeId, userId, onComplete }: Props) {
           <button
             disabled={!canAdvance() || saving}
             onClick={handleFinish}
-            className="flex-1 flex items-center justify-center gap-2 bg-rhozly-primary text-white font-bold px-6 py-3 rounded-full shadow-md hover:opacity-90 transition disabled:opacity-40"
+            className="flex-1 flex items-center justify-center gap-2 bg-rhozly-primary text-white font-bold px-6 py-3 min-h-[44px] rounded-full shadow-md hover:opacity-90 transition disabled:opacity-40"
           >
             {saving ? (
               <Leaf size={16} className="animate-spin" />
@@ -402,7 +408,7 @@ export default function HabitQuiz({ homeId, userId, onComplete }: Props) {
           <button
             disabled={!canAdvance()}
             onClick={() => setStep((s) => s + 1)}
-            className="flex-1 flex items-center justify-center gap-2 bg-rhozly-primary text-white font-bold px-6 py-3 rounded-full shadow-md hover:opacity-90 transition disabled:opacity-40"
+            className="flex-1 flex items-center justify-center gap-2 bg-rhozly-primary text-white font-bold px-6 py-3 min-h-[44px] rounded-full shadow-md hover:opacity-90 transition disabled:opacity-40"
           >
             <span>Next</span>
             <ChevronRight size={16} />

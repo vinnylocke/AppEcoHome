@@ -113,15 +113,15 @@ const TAG_COLOURS: Record<string, string> = {
   "water-hungry": "bg-blue-100 text-blue-700",
   "full-sun": "bg-yellow-100 text-yellow-700",
   "partial-shade": "bg-sky-100 text-sky-700",
-  "full-shade": "bg-slate-100 text-slate-600",
-  "low-maintenance": "bg-emerald-100 text-emerald-700",
-  "high-maintenance": "bg-red-100 text-red-700",
+  "full-shade": "bg-rhozly-surface text-rhozly-on-surface/70",
+  "low-maintenance": "bg-rhozly-surface-low text-rhozly-primary",
+  "high-maintenance": "bg-rhozly-tertiary text-rhozly-on-surface/80",
   "fragrant": "bg-purple-100 text-purple-700",
-  "edible": "bg-green-100 text-green-700",
+  "edible": "bg-rhozly-surface-low text-rhozly-primary-container",
   "pollinator-friendly": "bg-orange-100 text-orange-700",
-  "evergreen": "bg-teal-100 text-teal-700",
-  "perennial": "bg-lime-100 text-lime-700",
-  "annual": "bg-rose-100 text-rose-700",
+  "evergreen": "bg-rhozly-surface text-rhozly-primary",
+  "perennial": "bg-rhozly-surface-low text-rhozly-primary",
+  "annual": "bg-rhozly-tertiary text-rhozly-on-surface/70",
 };
 
 function tagClass(tag: string) {
@@ -139,6 +139,7 @@ export default function PlantSwipeDeck({
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [swipeCount, setSwipeCount] = useState(0);
   const [announcement, setAnnouncement] = useState("");
+  const [swipeFlash, setSwipeFlash] = useState<"positive" | "negative" | null>(null);
   const seenNames = useRef<string[]>([]);
   const cardRef = useRef<HTMLDivElement>(null);
 
@@ -199,34 +200,6 @@ export default function PlantSwipeDeck({
     loadBatch();
   }, [loadBatch]);
 
-  // Auto-focus active card for screen reader accessibility
-  useEffect(() => {
-    if (cardRef.current && deck.length > 0) {
-      cardRef.current.focus();
-    }
-  }, [deck]);
-
-  // Keyboard shortcuts for swipe actions
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (deck.length === 0) return;
-
-      // Dislike: ArrowLeft or 'a'/'A'
-      if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") {
-        e.preventDefault();
-        handleSwipe("negative");
-      }
-      // Like: ArrowRight or 'd'/'D'
-      else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") {
-        e.preventDefault();
-        handleSwipe("positive");
-      }
-    }
-
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [deck.length, handleSwipe]);
-
   async function savePref(plant: SwipePlant, sentiment: "positive" | "negative") {
     const { error } = await supabase.from("planner_preferences").insert({
       home_id: homeId,
@@ -245,10 +218,15 @@ export default function PlantSwipeDeck({
   const handleSwipe = useCallback(async (sentiment: "positive" | "negative") => {
     if (deck.length === 0) return;
     const [current, ...rest] = deck;
-    setDeck(rest);
+
+    setSwipeFlash(sentiment);
+    setTimeout(() => {
+      setSwipeFlash(null);
+      setDeck(rest);
+    }, 280);
+
     setSwipeCount((c) => c + 1);
 
-    // Announce swipe result for screen readers
     const action = sentiment === "positive" ? "Liked" : "Disliked";
     setAnnouncement(`${action} ${current.name}`);
 
@@ -258,6 +236,31 @@ export default function PlantSwipeDeck({
       loadBatch();
     }
   }, [deck, loadBatch]);
+
+  // Auto-focus active card for screen reader accessibility
+  useEffect(() => {
+    if (cardRef.current && deck.length > 0) {
+      cardRef.current.focus();
+    }
+  }, [deck]);
+
+  // Keyboard shortcuts for swipe actions
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (deck.length === 0) return;
+
+      if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") {
+        e.preventDefault();
+        handleSwipe("negative");
+      } else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") {
+        e.preventDefault();
+        handleSwipe("positive");
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [deck.length, handleSwipe]);
 
   if (loading && deck.length === 0) {
     return (
@@ -288,8 +291,8 @@ export default function PlantSwipeDeck({
   if (deck.length === 0 && !loading) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
-        <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center">
-          <Sprout size={28} className="text-emerald-600" />
+        <div className="w-16 h-16 rounded-full bg-rhozly-surface-low flex items-center justify-center">
+          <Sprout size={28} className="text-rhozly-primary" />
         </div>
         <div>
           <p className="font-bold text-rhozly-on-surface">You've seen them all!</p>
@@ -351,8 +354,19 @@ export default function PlantSwipeDeck({
           className="absolute inset-0 rounded-3xl bg-white border border-rhozly-outline/20 shadow-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
           style={{ zIndex: 1 }}
         >
+          {/* Swipe flash overlay */}
+          {swipeFlash && (
+            <div
+              className={`absolute inset-0 z-10 rounded-3xl pointer-events-none transition-opacity duration-200 ${
+                swipeFlash === "positive"
+                  ? "bg-rhozly-primary/20"
+                  : "bg-rhozly-tertiary/60"
+              }`}
+            />
+          )}
+
           {/* Image */}
-          <div className="relative h-64 bg-gradient-to-br from-emerald-50 to-green-100 flex items-center justify-center overflow-hidden">
+          <div className="relative h-64 bg-rhozly-surface-low flex items-center justify-center overflow-hidden">
             {current.thumbnail ? (
               <img
                 src={current.thumbnail}
@@ -363,30 +377,30 @@ export default function PlantSwipeDeck({
                 }}
               />
             ) : (
-              <Sprout size={64} className="text-emerald-300" />
+              <Sprout size={64} className="text-rhozly-primary/30" />
             )}
-            {/* Source badge */}
-            <span className="absolute top-3 right-3 text-[10px] font-bold uppercase tracking-widest bg-black/30 text-white px-2 py-1 rounded-full">
+            {/* Source badge — subdued so it does not compete with the plant name */}
+            <span className="absolute top-3 right-3 text-[9px] font-semibold uppercase tracking-wider bg-rhozly-on-surface/40 text-white px-2 py-0.5 rounded-full">
               {current.source === "ai" ? "AI pick" : "Perenual"}
             </span>
           </div>
 
           {/* Info */}
-          <div className="p-5 flex flex-col gap-2">
+          <div className="p-5 flex flex-col gap-1.5">
             <div>
-              <h3 className="text-lg font-black text-rhozly-on-surface leading-tight">
+              <h3 className="text-xl font-black text-rhozly-on-surface leading-tight">
                 {current.name}
               </h3>
               {current.scientific_name && (
-                <p className="text-xs text-rhozly-on-surface/40 italic">
+                <p className="text-xs text-rhozly-on-surface/40 italic mt-0.5">
                   {current.scientific_name}
                 </p>
               )}
             </div>
-            <p className="text-sm text-rhozly-on-surface/70 leading-snug line-clamp-2">
+            <p className="text-sm text-rhozly-on-surface/60 leading-snug line-clamp-2 mt-1 border-l-2 border-rhozly-primary/30 pl-2">
               {current.tagline}
             </p>
-            <div className="flex flex-wrap gap-1.5 pt-1">
+            <div className="flex flex-wrap gap-1.5 pt-1.5">
               {current.tags.slice(0, 4).map((tag) => (
                 <span
                   key={tag}
@@ -404,10 +418,10 @@ export default function PlantSwipeDeck({
       <div className="flex items-center gap-8">
         <button
           onClick={() => handleSwipe("negative")}
-          className="w-16 h-16 rounded-full border-2 border-red-200 bg-white flex items-center justify-center shadow-md hover:bg-red-50 hover:border-red-400 transition active:scale-95"
+          className="w-16 h-16 rounded-full border-2 border-rhozly-tertiary bg-white flex items-center justify-center shadow-md hover:bg-rhozly-tertiary/30 hover:border-rhozly-tertiary transition active:scale-95"
           aria-label="Dislike"
         >
-          <X size={28} className="text-red-400" />
+          <X size={28} className="text-rhozly-on-surface/60" />
         </button>
 
         {loading && deck.length <= 2 && (
@@ -416,19 +430,24 @@ export default function PlantSwipeDeck({
 
         <button
           onClick={() => handleSwipe("positive")}
-          className="w-16 h-16 rounded-full border-2 border-emerald-200 bg-white flex items-center justify-center shadow-md hover:bg-emerald-50 hover:border-emerald-400 transition active:scale-95"
+          className="w-16 h-16 rounded-full border-2 border-rhozly-primary bg-white flex items-center justify-center shadow-md hover:bg-rhozly-primary/10 transition active:scale-95"
           aria-label="Like"
         >
-          <Heart size={28} className="text-emerald-500" />
+          <Heart size={28} className="text-rhozly-primary" />
         </button>
       </div>
 
-      <p className="text-xs text-rhozly-on-surface/40 -mt-2">
-        <X size={10} className="inline mr-1" />
-        skip &nbsp;·&nbsp;
-        <Heart size={10} className="inline mr-1" />
-        save to profile
-      </p>
+      <div className="flex flex-col items-center gap-1 -mt-2">
+        <p className="text-xs text-rhozly-on-surface/40">
+          <X size={10} className="inline mr-1" />
+          skip &nbsp;·&nbsp;
+          <Heart size={10} className="inline mr-1" />
+          save to profile
+        </p>
+        <p className="text-[11px] text-rhozly-on-surface/30 font-medium">
+          Keyboard: &larr; / A &nbsp;to skip &nbsp;·&nbsp; &rarr; / D &nbsp;to save
+        </p>
+      </div>
     </div>
   );
 }

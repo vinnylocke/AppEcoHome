@@ -7,6 +7,8 @@ import {
   Sprout,
   Database,
   Loader2,
+  ChevronRight,
+  AlertCircle,
 } from "lucide-react";
 
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -32,6 +34,7 @@ export default function LocationTile({
 
   // 🚀 Local state for our smart task calculation
   const [tasksCount, setTasksCount] = useState<number | null>(null);
+  const [taskFetchError, setTaskFetchError] = useState(false);
 
   // 🚀 Calculate exact counts from the nested data
   const areasCount = site.areas?.length || 0;
@@ -128,6 +131,7 @@ export default function LocationTile({
         setTasksCount(count);
       } catch (err) {
         console.error("Failed to count tasks for location", err);
+        setTaskFetchError(true);
         setTasksCount(0);
       }
     };
@@ -138,7 +142,7 @@ export default function LocationTile({
   return (
     <div
       onClick={onClick}
-      className={`group relative rounded-3xl p-6 shadow-[0_8px_24px_-4px_rgba(26,28,27,0.04)] border hover:border-rhozly-primary/40 transition-all duration-300 cursor-pointer hover:shadow-[0_12px_32px_-4px_rgba(7,87,55,0.12)] hover:-translate-y-1 overflow-hidden ${
+      className={`group relative rounded-3xl p-6 shadow-[0_8px_24px_-4px_rgba(26,28,27,0.04)] border hover:border-rhozly-primary/40 transition-all duration-300 cursor-pointer hover:shadow-[0_12px_32px_-4px_rgba(7,87,55,0.12)] hover:-translate-y-1 active:scale-[0.98] active:shadow-none overflow-hidden ${
         isAlternate
           ? "bg-rhozly-primary/[0.04] border-rhozly-primary/10"
           : "bg-rhozly-surface-lowest border-rhozly-outline/30"
@@ -158,7 +162,7 @@ export default function LocationTile({
         <div
           className={`flex justify-between items-start ${site.hazard ? "mt-6" : ""}`}
         >
-          <div>
+          <div className="flex-1 min-w-0">
             <h3 className="font-display font-black text-2xl text-rhozly-on-surface tracking-tight">
               {site.name || "Unnamed Location"}
             </h3>
@@ -166,6 +170,7 @@ export default function LocationTile({
               {site.is_outside ? "Outdoors" : "Indoors"}
             </p>
           </div>
+          <ChevronRight className="w-5 h-5 text-rhozly-on-surface/30 group-hover:text-rhozly-primary/60 transition-colors duration-300 flex-shrink-0 mt-1" />
         </div>
 
         {/* 2x2 Dynamic Stats Grid */}
@@ -174,12 +179,12 @@ export default function LocationTile({
           <div
             className={`group-hover:bg-white transition-colors duration-300 rounded-2xl p-3 flex flex-col border border-transparent group-hover:border-rhozly-outline/20 ${isAlternate ? "bg-white/50" : "bg-rhozly-surface-low"}`}
           >
-            <span className="text-[10px] text-rhozly-on-surface/50 font-black uppercase tracking-widest mb-1.5">
+            <span className="text-xs text-rhozly-on-surface/50 font-black uppercase tracking-widest mb-1.5">
               Areas
             </span>
             <div className="flex items-center gap-2 text-rhozly-primary">
-              <div className="w-6 h-6 rounded-full bg-rhozly-primary/10 flex items-center justify-center">
-                <MapPin className="w-3 h-3" />
+              <div className="w-8 h-8 rounded-full bg-rhozly-primary/10 flex items-center justify-center">
+                <MapPin className="w-4 h-4" />
               </div>
               <span className="font-display font-black text-xl">
                 {areasCount}
@@ -191,12 +196,12 @@ export default function LocationTile({
           <div
             className={`group-hover:bg-white transition-colors duration-300 rounded-2xl p-3 flex flex-col border border-transparent group-hover:border-rhozly-outline/20 ${isAlternate ? "bg-white/50" : "bg-rhozly-surface-low"}`}
           >
-            <span className="text-[10px] text-rhozly-on-surface/50 font-black uppercase tracking-widest mb-1.5">
+            <span className="text-xs text-rhozly-on-surface/50 font-black uppercase tracking-widest mb-1.5">
               Planted
             </span>
-            <div className="flex items-center gap-2 text-green-600">
-              <div className="w-6 h-6 rounded-full bg-green-500/10 flex items-center justify-center">
-                <Sprout className="w-3 h-3" />
+            <div className="flex items-center gap-2 text-rhozly-primary">
+              <div className="w-8 h-8 rounded-full bg-rhozly-primary/10 flex items-center justify-center">
+                <Sprout className="w-4 h-4" />
               </div>
               <span className="font-display font-black text-xl">
                 {plantedCount}
@@ -208,12 +213,12 @@ export default function LocationTile({
           <div
             className={`group-hover:bg-white transition-colors duration-300 rounded-2xl p-3 flex flex-col border border-transparent group-hover:border-rhozly-outline/20 ${isAlternate ? "bg-white/50" : "bg-rhozly-surface-low"}`}
           >
-            <span className="text-[10px] text-rhozly-on-surface/50 font-black uppercase tracking-widest mb-1.5">
+            <span className="text-xs text-rhozly-on-surface/50 font-black uppercase tracking-widest mb-1.5">
               Unplanted
             </span>
-            <div className="flex items-center gap-2 text-blue-600">
-              <div className="w-6 h-6 rounded-full bg-blue-500/10 flex items-center justify-center">
-                <Database className="w-3 h-3" />
+            <div className="flex items-center gap-2 text-rhozly-secondary">
+              <div className="w-8 h-8 rounded-full bg-rhozly-secondary/10 flex items-center justify-center">
+                <Database className="w-4 h-4" />
               </div>
               <span className="font-display font-black text-xl">
                 {unplantedCount}
@@ -225,16 +230,22 @@ export default function LocationTile({
           <div
             className={`group-hover:bg-white transition-colors duration-300 rounded-2xl p-3 flex flex-col border border-transparent group-hover:border-rhozly-outline/20 ${isAlternate ? "bg-white/50" : "bg-rhozly-surface-low"}`}
           >
-            <span className="text-[10px] text-rhozly-on-surface/50 font-black uppercase tracking-widest mb-1.5">
+            <span className="text-xs text-rhozly-on-surface/50 font-black uppercase tracking-widest mb-1.5">
               Tasks
             </span>
-            <div className="flex items-center gap-2 text-orange-500">
-              <div className="w-6 h-6 rounded-full bg-orange-500/10 flex items-center justify-center">
-                <CheckSquare className="w-3 h-3" />
+            <div className="flex items-center gap-2 text-rhozly-tertiary">
+              <div className="w-8 h-8 rounded-full bg-rhozly-tertiary/10 flex items-center justify-center">
+                {taskFetchError ? (
+                  <AlertCircle className="w-4 h-4 text-rhozly-error" />
+                ) : (
+                  <CheckSquare className="w-4 h-4" />
+                )}
               </div>
               <span className="font-display font-black text-xl">
                 {tasksCount === null ? (
                   <Loader2 className="w-4 h-4 animate-spin opacity-50" />
+                ) : taskFetchError ? (
+                  <span className="text-rhozly-error text-sm font-bold">!</span>
                 ) : (
                   tasksCount
                 )}

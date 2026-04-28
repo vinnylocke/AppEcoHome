@@ -793,22 +793,19 @@ export default function PlanStaging({
                 Blueprint
               </h2>
               <p className="text-sm font-bold text-gray-600 mb-6 leading-relaxed">
-                Scroll down to review the AI's suggested plants, tasks, and
-                maintenance plan. If everything looks good, you can lock it in
-                and begin the staging process. If not, tell the AI what to
-                change and regenerate the plan!
+                Review the suggested plants, tasks, and maintenance schedule. Accept to begin staging, or give feedback and regenerate.
               </p>
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <button
                   onClick={handleStartProject}
-                  className="flex-1 py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-2xl font-black shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 text-lg focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
+                  className="flex-1 min-h-[44px] py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-2xl font-black shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 text-lg focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                 >
                   <CheckCircle2 size={22} /> Accept & Start Staging
                 </button>
                 <button
                   onClick={() => setShowRegenModal(true)}
-                  className="flex-1 py-4 bg-white border-2 border-rhozly-primary/20 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-2xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 text-lg focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
+                  className="flex-1 min-h-[44px] py-4 bg-white border-2 border-rhozly-primary/20 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-2xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 text-lg focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                 >
                   <RotateCcw size={22} /> Regenerate Plan
                 </button>
@@ -817,7 +814,7 @@ export default function PlanStaging({
           </section>
         )}
 
-        <div className={`space-y-6 transition-all duration-500`}>
+        <div className={`space-y-6 transition-all duration-500 lg:grid lg:grid-cols-2 lg:gap-6 lg:space-y-0`}>
           {/* PHASE 1: INFRASTRUCTURE */}
           <section
             id="phase-1"
@@ -827,7 +824,7 @@ export default function PlanStaging({
             <div className="flex items-center gap-3 mb-6">
               <div
                 aria-current={!isPhase1Done && isStarted ? "step" : undefined}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase1Done ? "bg-green-100 text-green-600" : "bg-blue-50 text-blue-500"}`}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase1Done ? "bg-green-100 text-green-600" : "bg-rhozly-primary/10 text-rhozly-primary"}`}
               >
                 {isPhase1Done ? (
                   <CheckCircle2 size={20} />
@@ -844,7 +841,7 @@ export default function PlanStaging({
               {isPhase1Done && (
                 <button
                   onClick={() => togglePhaseCollapse("phase-1")}
-                  className="px-3 py-1.5 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  className="min-h-[44px] min-w-[44px] px-3 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center justify-center"
                   aria-expanded={!collapsedPhases["phase-1"]}
                   aria-label={collapsedPhases["phase-1"] ? "Expand Phase 1" : "Collapse Phase 1"}
                 >
@@ -878,24 +875,24 @@ export default function PlanStaging({
               </div>
             ) : (
               <div className="space-y-4">
-                <div className="p-4 bg-blue-50/50 rounded-2xl border border-blue-100 space-y-4">
-                  <div className="flex bg-white rounded-xl p-1 shadow-sm border border-blue-100">
+                <div className="p-4 bg-rhozly-primary/5 rounded-2xl border border-rhozly-primary/10 space-y-4">
+                  <div className="flex bg-white rounded-xl p-1 shadow-sm border border-rhozly-primary/10">
                     <button
                       onClick={() => setAreaMode("new")}
-                      className={`flex-1 py-2 text-sm font-black rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${areaMode === "new" ? "bg-blue-500 text-white" : "text-blue-500/60 hover:text-blue-500"}`}
+                      className={`flex-1 min-h-[44px] text-sm font-black rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-1 ${areaMode === "new" ? "bg-rhozly-primary text-white" : "text-rhozly-primary/60 hover:text-rhozly-primary"}`}
                     >
                       Create New
                     </button>
                     <button
                       onClick={() => setAreaMode("existing")}
-                      className={`flex-1 py-2 text-sm font-black rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${areaMode === "existing" ? "bg-blue-500 text-white" : "text-blue-500/60 hover:text-blue-500"}`}
+                      className={`flex-1 min-h-[44px] text-sm font-black rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-1 ${areaMode === "existing" ? "bg-rhozly-primary text-white" : "text-rhozly-primary/60 hover:text-rhozly-primary"}`}
                     >
                       Link Existing
                     </button>
                   </div>
                   {areaMode === "new" ? (
                     <>
-                      <div className="bg-white p-3 rounded-xl border border-blue-100">
+                      <div className="bg-white p-3 rounded-xl border border-rhozly-primary/10">
                         <p className="text-[10px] text-gray-400 font-black uppercase mb-1">
                           AI Suggestion
                         </p>
@@ -907,13 +904,13 @@ export default function PlanStaging({
                         </p>
                       </div>
                       <div>
-                        <label className="text-[10px] font-black uppercase text-blue-800 tracking-widest mb-1 block">
+                        <label className="text-[10px] font-black uppercase text-rhozly-primary tracking-widest mb-1 block">
                           Put inside Location:
                         </label>
                         <select
                           value={newAreaLocationId}
                           onChange={(e) => setNewAreaLocationId(e.target.value)}
-                          className="w-full p-3 bg-white rounded-xl outline-none font-bold border border-blue-200 focus:border-blue-500"
+                          className="w-full p-3 bg-white rounded-xl outline-none font-bold border border-rhozly-primary/20 focus:border-rhozly-primary"
                         >
                           {locations.map((loc) => (
                             <option key={loc.id} value={loc.id}>
@@ -926,13 +923,13 @@ export default function PlanStaging({
                   ) : (
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                       <div>
-                        <label className="text-[10px] font-black uppercase text-blue-800 tracking-widest mb-1 block">
+                        <label className="text-[10px] font-black uppercase text-rhozly-primary tracking-widest mb-1 block">
                           1. Select Location
                         </label>
                         <select
                           value={filterLocationId}
                           onChange={(e) => setFilterLocationId(e.target.value)}
-                          className="w-full p-3 bg-white rounded-xl outline-none font-bold border border-blue-200 focus:border-blue-500"
+                          className="w-full p-3 bg-white rounded-xl outline-none font-bold border border-rhozly-primary/20 focus:border-rhozly-primary"
                         >
                           {locations.map((loc) => (
                             <option key={loc.id} value={loc.id}>
@@ -942,14 +939,14 @@ export default function PlanStaging({
                         </select>
                       </div>
                       <div>
-                        <label className="text-[10px] font-black uppercase text-blue-800 tracking-widest mb-1 block">
+                        <label className="text-[10px] font-black uppercase text-rhozly-primary tracking-widest mb-1 block">
                           2. Select Area
                         </label>
                         <select
                           value={existingAreaId}
                           onChange={(e) => setExistingAreaId(e.target.value)}
                           disabled={!existingAreaId}
-                          className="w-full p-3 bg-white rounded-xl outline-none font-bold border border-blue-200 focus:border-blue-500 disabled:opacity-50"
+                          className="w-full p-3 bg-white rounded-xl outline-none font-bold border border-rhozly-primary/20 focus:border-rhozly-primary disabled:opacity-50"
                         >
                           {areas
                             .filter((a) => a.location_id === filterLocationId)
@@ -966,7 +963,7 @@ export default function PlanStaging({
                   <button
                     onClick={handleConfirmArea}
                     disabled={isProcessing}
-                    className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
+                    className="w-full px-6 py-3 min-h-[44px] bg-rhozly-primary hover:bg-rhozly-primary/90 text-white font-black rounded-xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                   >
                     {isProcessing ? (
                       <Loader2 className="animate-spin" size={18} />
@@ -993,7 +990,7 @@ export default function PlanStaging({
             <div className="flex items-center gap-3 mb-6">
               <div
                 aria-current={isPhase1Done && !isPhase2Done ? "step" : undefined}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase2Done ? "bg-green-100 text-green-600" : "bg-emerald-50 text-emerald-600"}`}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase2Done ? "bg-green-100 text-green-600" : "bg-rhozly-primary/10 text-rhozly-primary"}`}
               >
                 {isPhase2Done ? <CheckCircle2 size={20} /> : <Leaf size={20} />}
               </div>
@@ -1006,7 +1003,7 @@ export default function PlanStaging({
               {isPhase2Done && (
                 <button
                   onClick={() => togglePhaseCollapse("phase-2")}
-                  className="px-3 py-1.5 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  className="min-h-[44px] min-w-[44px] px-3 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center justify-center"
                   aria-expanded={!collapsedPhases["phase-2"]}
                   aria-label={collapsedPhases["phase-2"] ? "Expand Phase 2" : "Collapse Phase 2"}
                 >
@@ -1036,8 +1033,7 @@ export default function PlanStaging({
             ) : (
               <div className="space-y-4">
                 <p className="text-xs font-bold text-gray-500">
-                  Check the box next to any plants you need to procure. Then,
-                  add them to your Shed via the Perenual Database or AI.
+                  Tick any plants you need to source, then add them to your Shed.
                 </p>
 
                 <div className="space-y-3">
@@ -1061,8 +1057,8 @@ export default function PlanStaging({
                 {!isPhase2Done && (
                   <div className="mt-4">
                     {isAddingPlant ? (
-                      <div className="p-4 border border-emerald-200 rounded-2xl bg-emerald-50/50 space-y-3 animate-in fade-in zoom-in-95">
-                        <h4 className="font-black text-emerald-900">
+                      <div className="p-4 border border-rhozly-primary/20 rounded-2xl bg-rhozly-primary/5 space-y-3 animate-in fade-in zoom-in-95">
+                        <h4 className="font-black text-rhozly-on-surface">
                           Add Custom Plant
                         </h4>
                         <div className="flex flex-col sm:flex-row gap-3">
@@ -1071,7 +1067,7 @@ export default function PlanStaging({
                             value={newPlantName}
                             onChange={(e) => setNewPlantName(e.target.value)}
                             placeholder="Plant Name (e.g. Rosemary)"
-                            className="flex-1 p-3 rounded-xl border border-emerald-200 outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-base sm:text-sm"
+                            className="flex-1 p-3 rounded-xl border border-rhozly-primary/20 outline-none focus:ring-2 focus:ring-rhozly-primary/20 font-bold text-base sm:text-sm"
                             autoFocus
                           />
                           <input
@@ -1081,19 +1077,19 @@ export default function PlanStaging({
                             onChange={(e) =>
                               setNewPlantQuantity(parseInt(e.target.value) || 1)
                             }
-                            className="w-full sm:w-24 p-3 rounded-xl border border-emerald-200 outline-none focus:ring-2 focus:ring-emerald-500/20 font-bold text-base sm:text-sm"
+                            className="w-full sm:w-24 p-3 rounded-xl border border-rhozly-primary/20 outline-none focus:ring-2 focus:ring-rhozly-primary/20 font-bold text-base sm:text-sm"
                           />
                         </div>
                         <div className="flex gap-2">
                           <button
                             onClick={() => setIsAddingPlant(false)}
-                            className="flex-1 py-3 bg-white border border-emerald-200 text-emerald-700 rounded-xl font-black transition-colors hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                            className="flex-1 min-h-[44px] py-3 bg-white border border-rhozly-primary/20 text-rhozly-primary rounded-xl font-black transition-colors hover:bg-rhozly-primary/5 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                           >
                             Cancel
                           </button>
                           <button
                             onClick={handleSaveNewPlant}
-                            className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-black transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                            className="flex-1 min-h-[44px] py-3 bg-rhozly-primary text-white rounded-xl font-black transition-colors hover:bg-rhozly-primary/90 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                           >
                             Save Plant
                           </button>
@@ -1102,7 +1098,7 @@ export default function PlanStaging({
                     ) : (
                       <button
                         onClick={() => setIsAddingPlant(true)}
-                        className="w-full py-4 border-2 border-dashed border-emerald-200 text-emerald-600 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-emerald-50 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                        className="w-full min-h-[44px] py-4 border-2 border-dashed border-rhozly-primary/20 text-rhozly-primary rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-rhozly-primary/5 transition-colors focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                       >
                         <Plus size={18} /> Add Custom Plant
                       </button>
@@ -1113,24 +1109,25 @@ export default function PlanStaging({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-gray-100">
                   <button
                     onClick={() => handleOpenSearchModal("api")}
-                    className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
+                    className="min-h-[44px] px-4 py-3 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white font-black text-sm rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                   >
-                    <Sparkles size={16} /> Procure Selected via Perenual
+                    <Sparkles size={16} /> Procure via Perenual
                   </button>
                   <button
                     onClick={() => handleOpenSearchModal("ai")}
-                    className="px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white font-black text-sm rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
+                    className="min-h-[44px] px-4 py-3 bg-rhozly-primary-container hover:bg-rhozly-primary text-white font-black text-sm rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                   >
-                    <Sparkles size={16} /> Procure Selected via AI
+                    <Sparkles size={16} /> Procure via AI
                   </button>
                 </div>
 
                 <div className="pt-2">
                   <button
                     onClick={handleConfirmPhase2}
-                    className="w-full px-4 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black rounded-xl transition-all flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
+                    disabled={isProcessing}
+                    className="w-full min-h-[44px] px-4 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black rounded-xl transition-all flex items-center justify-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                   >
-                    <CheckCircle2 size={18} /> Confirm All Plants Linked
+                    {isProcessing ? <Loader2 size={18} className="animate-spin" /> : <CheckCircle2 size={18} />} Confirm All Plants Linked
                   </button>
                 </div>
               </div>
@@ -1148,7 +1145,7 @@ export default function PlanStaging({
             <div className="flex items-center gap-3 mb-6">
               <div
                 aria-current={isPhase2Done && !isPhase3Done ? "step" : undefined}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase3Done ? "bg-green-100 text-green-600" : "bg-purple-50 text-purple-600"}`}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase3Done ? "bg-green-100 text-green-600" : "bg-rhozly-primary/10 text-rhozly-primary-container"}`}
               >
                 {isPhase3Done ? (
                   <CheckCircle2 size={20} />
@@ -1165,7 +1162,7 @@ export default function PlanStaging({
               {isPhase3Done && (
                 <button
                   onClick={() => togglePhaseCollapse("phase-3")}
-                  className="px-3 py-1.5 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  className="min-h-[44px] min-w-[44px] px-3 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center justify-center"
                   aria-expanded={!collapsedPhases["phase-3"]}
                   aria-label={collapsedPhases["phase-3"] ? "Expand Phase 3" : "Collapse Phase 3"}
                 >
@@ -1195,13 +1192,12 @@ export default function PlanStaging({
             ) : (
               <div className="p-6 border-2 border-dashed border-gray-200 rounded-2xl flex flex-col items-center text-center">
                 <p className="font-bold text-gray-500 mb-4">
-                  You have procured the plants. Ready to virtually move them
-                  into the Area?
+                  Plants sourced. Ready to move them into the Area?
                 </p>
                 <button
                   onClick={handleBulkAssign}
                   disabled={isProcessing}
-                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
+                  className="min-h-[44px] px-6 py-3 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                 >
                   {isProcessing ? (
                     <Loader2 className="animate-spin" size={18} />
@@ -1225,7 +1221,7 @@ export default function PlanStaging({
             <div className="flex items-center gap-3 mb-6">
               <div
                 aria-current={isPhase3Done && !isPhase4Done ? "step" : undefined}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase4Done ? "bg-green-100 text-green-600" : "bg-orange-50 text-orange-500"}`}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase4Done ? "bg-green-100 text-green-600" : "bg-rhozly-primary/10 text-rhozly-primary"}`}
               >
                 {isPhase4Done ? (
                   <CheckCircle2 size={20} />
@@ -1242,7 +1238,7 @@ export default function PlanStaging({
               {isPhase4Done && (
                 <button
                   onClick={() => togglePhaseCollapse("phase-4")}
-                  className="px-3 py-1.5 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  className="min-h-[44px] min-w-[44px] px-3 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center justify-center"
                   aria-expanded={!collapsedPhases["phase-4"]}
                   aria-label={collapsedPhases["phase-4"] ? "Expand Phase 4" : "Collapse Phase 4"}
                 >
@@ -1253,7 +1249,7 @@ export default function PlanStaging({
                 <button
                   onClick={handleInjectTasks}
                   disabled={isProcessing}
-                  className="hidden sm:flex px-6 py-3 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white font-black rounded-xl transition-all active:scale-95 items-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
+                  className="hidden sm:flex min-h-[44px] px-6 py-3 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white font-black rounded-xl transition-all active:scale-95 items-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                 >
                   {isProcessing ? (
                     <Loader2 className="animate-spin" size={18} />
@@ -1287,19 +1283,19 @@ export default function PlanStaging({
               <>
                 {localBlueprint.preparation_tasks.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-                    <div className="w-20 h-20 bg-orange-50 rounded-full flex items-center justify-center mb-4">
-                      <CalendarPlus size={32} className="text-orange-400" />
+                    <div className="w-20 h-20 bg-rhozly-primary/10 rounded-full flex items-center justify-center mb-4">
+                      <CalendarPlus size={32} className="text-rhozly-primary" />
                     </div>
                     <h4 className="text-lg font-black text-gray-700 mb-2">
                       No Preparation Tasks
                     </h4>
                     <p className="text-sm font-bold text-gray-500 mb-6 max-w-md">
-                      This plan doesn't require any preparation steps. You can proceed directly to planting!
+                      No prep steps needed — go straight to planting!
                     </p>
                     <button
                       onClick={handleInjectTasks}
                       disabled={isProcessing}
-                      className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-black transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
+                      className="min-h-[44px] px-6 py-3 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-xl font-black transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                     >
                       {isProcessing ? (
                         <Loader2 className="animate-spin" size={18} />
@@ -1316,7 +1312,7 @@ export default function PlanStaging({
                         key={task.task_index}
                         className="relative flex gap-4 pl-12"
                       >
-                        <div className="absolute left-0 w-10 h-10 bg-white border-2 border-orange-200 text-orange-500 rounded-full flex items-center justify-center font-black text-sm z-10">
+                        <div className="absolute left-0 w-10 h-10 bg-white border-2 border-rhozly-primary/20 text-rhozly-primary rounded-full flex items-center justify-center font-black text-sm z-10">
                           {task.task_index + 1}
                         </div>
                         <div className="flex-1 bg-gray-50 p-4 rounded-2xl border border-gray-100">
@@ -1339,9 +1335,7 @@ export default function PlanStaging({
                           Final Step: Planting
                         </h4>
                         <p className="text-sm font-bold text-rhozly-on-surface/60">
-                          Dynamic planting tasks for all staged inventory will be
-                          automatically scheduled to wait for your preparation
-                          steps.
+                          Planting tasks will be automatically scheduled after all prep steps.
                         </p>
                       </div>
                     </div>
@@ -1357,12 +1351,12 @@ export default function PlanStaging({
           <section
             id="phase-5"
             aria-label={`Phase 5: Maintenance - ${isPhase5Done ? "Completed" : isPhase4Done ? "In Progress" : "Locked"}`}
-            className={`bg-white rounded-3xl p-6 shadow-sm border transition-all ${isPhase4Done ? (isPhase5Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"} ${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
+            className={`lg:col-span-2 bg-white rounded-3xl p-6 shadow-sm border transition-all ${isPhase4Done ? (isPhase5Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"} ${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
           >
             <div className="flex items-center gap-3 mb-6">
               <div
                 aria-current={isPhase4Done && !isPhase5Done ? "step" : undefined}
-                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase5Done ? "bg-green-100 text-green-600" : "bg-teal-50 text-teal-600"}`}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isPhase5Done ? "bg-green-100 text-green-600" : "bg-rhozly-primary/10 text-rhozly-primary"}`}
               >
                 {isPhase5Done ? (
                   <CheckCircle2 size={20} />
@@ -1379,7 +1373,7 @@ export default function PlanStaging({
               {isPhase5Done && (
                 <button
                   onClick={() => togglePhaseCollapse("phase-5")}
-                  className="px-3 py-1.5 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  className="min-h-[44px] min-w-[44px] px-3 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2 flex items-center justify-center"
                   aria-expanded={!collapsedPhases["phase-5"]}
                   aria-label={collapsedPhases["phase-5"] ? "Expand Phase 5" : "Collapse Phase 5"}
                 >
@@ -1410,19 +1404,19 @@ export default function PlanStaging({
               <div className="space-y-6">
                 {localBlueprint.custom_maintenance_tasks.length === 0 ? (
                   <div className="flex flex-col items-center justify-center py-12 px-6 text-center">
-                    <div className="w-20 h-20 bg-teal-50 rounded-full flex items-center justify-center mb-4">
-                      <Wrench size={32} className="text-teal-400" />
+                    <div className="w-20 h-20 bg-rhozly-primary/10 rounded-full flex items-center justify-center mb-4">
+                      <Wrench size={32} className="text-rhozly-primary" />
                     </div>
                     <h4 className="text-lg font-black text-gray-700 mb-2">
                       No Maintenance Tasks
                     </h4>
                     <p className="text-sm font-bold text-gray-500 mb-6 max-w-md">
-                      This plan doesn't include any custom maintenance tasks. You can still complete the project!
+                      No custom maintenance tasks — you can complete the project now.
                     </p>
                     <button
                       onClick={handleActivateMaintenance}
                       disabled={!isPhase4Done || isProcessing}
-                      className={`px-6 py-3 font-black rounded-xl transition-all flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${isPhase4Done ? "bg-teal-600 hover:bg-teal-700 text-white shadow-lg active:scale-95" : "border-2 border-dashed border-gray-200 text-gray-400"}`}
+                      className={`min-h-[44px] px-6 py-3 font-black rounded-xl transition-all flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 ${isPhase4Done ? "bg-rhozly-primary hover:bg-rhozly-primary/90 text-white shadow-lg active:scale-95" : "border-2 border-dashed border-gray-200 text-gray-400"}`}
                     >
                       {isProcessing ? (
                         <Loader2 size={20} className="animate-spin" />
@@ -1447,7 +1441,7 @@ export default function PlanStaging({
                             <p className="text-xs font-bold text-gray-500 mb-3">
                               {task.description}
                             </p>
-                            <span className="px-2 py-1 bg-teal-100 text-teal-700 text-[10px] font-black uppercase rounded-md">
+                            <span className="px-2 py-1 bg-rhozly-primary/10 text-rhozly-primary text-[10px] font-black uppercase rounded-md">
                               Every {task.frequency_days} Days
                             </span>
                           </div>
@@ -1457,7 +1451,7 @@ export default function PlanStaging({
                     <button
                       onClick={handleActivateMaintenance}
                       disabled={!isPhase4Done || isProcessing}
-                      className={`w-full px-6 py-4 font-black rounded-2xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${isPhase4Done ? "bg-teal-600 hover:bg-teal-700 text-white shadow-lg active:scale-95" : "border-2 border-dashed border-gray-200 text-gray-400"}`}
+                      className={`w-full min-h-[44px] px-6 py-4 font-black rounded-2xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 ${isPhase4Done ? "bg-rhozly-primary hover:bg-rhozly-primary/90 text-white shadow-lg active:scale-95" : "border-2 border-dashed border-gray-200 text-gray-400"}`}
                     >
                       {isProcessing ? (
                         <Loader2 size={20} className="animate-spin" />

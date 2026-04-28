@@ -155,6 +155,110 @@ export const AutomationEngine = {
     }
   },
 
+  ailmentTaskType(stepType: string): string {
+    const map: Record<string, string> = {
+      inspect: "Inspection",
+      spray: "Pest Control",
+      prune: "Pruning",
+      remove: "Maintenance",
+      water: "Watering",
+      fertilize: "Fertilizing",
+      other: "Maintenance",
+    };
+    return map[stepType] ?? stepType;
+  },
+
+  frequencyDays(frequencyType: string, everyNDays?: number | null): number | null {
+    switch (frequencyType) {
+      case "daily":       return 1;
+      case "every_n_days": return everyNDays ?? 7;
+      case "weekly":      return 7;
+      case "monthly":     return 30;
+      default:            return null; // "once"
+    }
+  },
+
+  async applyAilmentAutomations(
+    plantInstance: { id: string; home_id: string; location_id: string; area_id: string },
+    ailment: {
+      id: string;
+      prevention_steps: any[];
+      remedy_steps: any[];
+    },
+    baseDateStr: string,
+  ) {
+    const allSteps = [
+      ...ailment.prevention_steps.map((s: any) => ({ ...s, step_group: "prevention" })),
+      ...ailment.remedy_steps.map((s: any) => ({ ...s, step_group: "remedy" })),
+    ];
+
+    if (!allSteps.length) return;
+
+    try {
+      const { data: existingBps } = await supabase
+        .from("task_blueprints")
+        .select("*")
+        .eq("ailment_id", ailment.id)
+        .eq("area_id", plantInstance.area_id);
+
+      for (const step of allSteps) {
+        const freqDays = this.frequencyDays(step.frequency_type, step.frequency_every_n_days);
+        const isRecurring = freqDays !== null;
+
+        const matchingBp = existingBps?.find((bp: any) => bp.title === step.title);
+
+        if (matchingBp) {
+          const updatedIds = Array.from(
+            new Set([...(matchingBp.inventory_item_ids || []), plantInstance.id]),
+          );
+          await supabase
+            .from("task_blueprints")
+            .update({ inventory_item_ids: updatedIds })
+            .eq("id", matchingBp.id);
+        } else {
+          const { data: createdBp } = await supabase
+            .from("task_blueprints")
+            .insert({
+              home_id: plantInstance.home_id,
+              location_id: plantInstance.location_id,
+              area_id: plantInstance.area_id,
+              ailment_id: ailment.id,
+              blueprint_type: "ailment",
+              title: step.title,
+              description: step.description,
+              task_type: step.task_type,
+              frequency_days: freqDays,
+              is_recurring: isRecurring,
+              start_date: baseDateStr,
+              end_date: null,
+              inventory_item_ids: [plantInstance.id],
+              priority: "Medium",
+            })
+            .select()
+            .single();
+
+          if (createdBp) {
+            await supabase.from("tasks").insert({
+              home_id: createdBp.home_id,
+              blueprint_id: createdBp.id,
+              title: createdBp.title,
+              description: createdBp.description,
+              type: this.ailmentTaskType(createdBp.task_type),
+              due_date: baseDateStr,
+              status: "Pending",
+              location_id: createdBp.location_id,
+              area_id: createdBp.area_id,
+              inventory_item_ids: createdBp.inventory_item_ids,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      Logger.error("Failed to apply ailment automations", e);
+      throw e;
+    }
+  },
+
   async scrubItemsFromAutomations(itemIds: string[]) {
     if (!itemIds.length) return;
     try {

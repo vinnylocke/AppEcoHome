@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
-import { X, Droplets, Calendar, Database, Loader2 } from "lucide-react";
+import { X, Droplets, Calendar, Database, Loader2, RefreshCw } from "lucide-react";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantScheduleTab from "./PlantScheduleTab";
 import { PerenualService } from "../lib/perenualService";
@@ -30,6 +30,9 @@ export default function PlantEditModal({
   const [activeTab, setActiveTab] = useState("care");
   const [fullPlantData, setFullPlantData] = useState<any>(plant);
   const [isFetchingApiData, setIsFetchingApiData] = useState(false);
+  const [fetchError, setFetchError] = useState(false);
+  const [loadSuccess, setLoadSuccess] = useState(false);
+  const liveRegionRef = useRef<HTMLSpanElement>(null);
 
   const tabs = [
     { id: "care", label: "Care Guide", icon: Droplets },
@@ -56,25 +59,30 @@ export default function PlantEditModal({
     return () => setPageContext(null);
   }, [fullPlantData, activeTab, plant.source, setPageContext]);
 
-  useEffect(() => {
-    const fetchApiDetails = async () => {
-      if (plant.source === "api" && plant.perenual_id) {
-        setIsFetchingApiData(true);
-        try {
-          const apiData = await PerenualService.getPlantDetails(
-            plant.perenual_id,
-          );
-          setFullPlantData({ ...plant, ...apiData });
-        } catch (error) {
-          toast.error("Failed to load live care guide.");
-        } finally {
-          setIsFetchingApiData(false);
-        }
-      } else {
-        setFullPlantData(plant);
+  const fetchApiDetails = async () => {
+    if (plant.source === "api" && plant.perenual_id) {
+      setIsFetchingApiData(true);
+      setFetchError(false);
+      setLoadSuccess(false);
+      try {
+        const apiData = await PerenualService.getPlantDetails(
+          plant.perenual_id,
+        );
+        setFullPlantData({ ...plant, ...apiData });
+        setLoadSuccess(true);
+        setTimeout(() => setLoadSuccess(false), 3000);
+      } catch (error) {
+        setFetchError(true);
+        toast.error("Failed to load live care guide.");
+      } finally {
+        setIsFetchingApiData(false);
       }
-    };
+    } else {
+      setFullPlantData(plant);
+    }
+  };
 
+  useEffect(() => {
     fetchApiDetails();
   }, [plant]);
 
@@ -84,7 +92,7 @@ export default function PlantEditModal({
   // 🚀 PORTAL WRAPPER
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
-      <div className="bg-rhozly-surface-lowest w-full max-w-3xl h-[90vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden">
+      <div className="bg-rhozly-surface-lowest w-full max-w-3xl h-[90vh] flex flex-col rounded-3xl shadow-2xl border border-rhozly-outline/20 overflow-hidden">
         {/* Header */}
         <div className="p-8 pb-4 flex justify-between items-start shrink-0">
           <div>
@@ -92,19 +100,25 @@ export default function PlantEditModal({
               {plant.common_name}
             </h3>
             <p className="text-[10px] font-black text-rhozly-primary uppercase tracking-widest mt-1">
-              Plant Management
+              Care &amp; Management
             </p>
           </div>
           <button
             onClick={onClose}
-            className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
+            aria-label="Close"
+            className="min-w-[44px] min-h-[44px] flex items-center justify-center p-3 bg-rhozly-surface-low rounded-2xl hover:bg-rhozly-surface hover:scale-110 transition-all"
           >
             <X size={24} />
           </button>
         </div>
 
+        {/* sr-only live region for async feedback */}
+        <span ref={liveRegionRef} role="status" aria-live="polite" className="sr-only">
+          {loadSuccess ? "Care guide loaded successfully." : ""}
+        </span>
+
         {/* Tab Navigation */}
-        <div className="px-8 flex gap-2 border-b border-rhozly-outline/10 bg-rhozly-surface-low/30 shrink-0">
+        <div className="px-8 flex gap-2 border-b-2 border-rhozly-outline/20 bg-rhozly-surface-low/50 shrink-0 shadow-sm">
           {tabs.map((tab) => (
             <button
               key={tab.id}
@@ -131,8 +145,26 @@ export default function PlantEditModal({
               />
               <p className="font-bold text-sm">Loading encyclopedia data...</p>
             </div>
+          ) : fetchError ? (
+            <div className="h-full flex flex-col items-center justify-center gap-4 animate-in fade-in">
+              <p className="font-bold text-sm text-rhozly-on-surface/60">
+                Could not load the live care guide.
+              </p>
+              <button
+                onClick={fetchApiDetails}
+                className="flex items-center gap-2 px-5 py-3 min-h-[44px] bg-rhozly-primary text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:opacity-90 transition-opacity"
+              >
+                <RefreshCw size={14} />
+                Retry
+              </button>
+            </div>
           ) : activeTab === "care" ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+              {plant.source === "api" && (
+                <p className="text-[10px] text-rhozly-on-surface/40 font-semibold uppercase tracking-widest mb-4">
+                  Read-only — data sourced from the Perenual plant encyclopedia
+                </p>
+              )}
               <ManualPlantCreation
                 initialData={fullPlantData}
                 onSave={onSave}

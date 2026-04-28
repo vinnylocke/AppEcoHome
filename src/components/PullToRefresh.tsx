@@ -1,5 +1,6 @@
 import React, { useState, useRef, ReactNode } from "react";
 import { Loader2, ArrowDown } from "lucide-react";
+import toast from "react-hot-toast";
 
 interface PullToRefreshProps {
   onRefresh: () => Promise<void>;
@@ -54,6 +55,8 @@ export default function PullToRefresh({
 
       try {
         await onRefresh();
+      } catch {
+        toast.error("Refresh failed. Please try again.");
       } finally {
         setIsRefreshing(false);
         setPullDistance(0); // Snap back up
@@ -67,15 +70,17 @@ export default function PullToRefresh({
   };
 
   // Calculate opacity and rotation for the visual indicator
+  // Use a square-root curve so the indicator reaches full opacity earlier in the pull
   const pullProgress = Math.min(pullDistance / refreshThreshold, 1);
+  const indicatorOpacity = Math.pow(pullProgress, 0.5);
   const spinnerRotation = pullProgress * 360;
 
   return (
     <div className="relative w-full h-full overflow-hidden bg-rhozly-bg">
       {/* 🚀 THE VISUAL INDICATOR (Hidden behind the content, revealed when pulled) */}
       <div
-        className="absolute top-0 left-0 right-0 flex items-center justify-center h-24 z-0"
-        style={{ opacity: isRefreshing ? 1 : pullProgress }}
+        className="absolute top-0 left-0 right-0 flex flex-col items-center justify-center h-24 z-0 gap-1.5"
+        style={{ opacity: isRefreshing ? 1 : indicatorOpacity }}
       >
         <div
           className="bg-white rounded-full p-2.5 shadow-md border border-rhozly-outline/10 text-rhozly-primary transition-transform duration-200 ease-out"
@@ -89,7 +94,23 @@ export default function PullToRefresh({
             <ArrowDown size={24} className="opacity-80" />
           )}
         </div>
+        <span className="text-xs font-medium text-rhozly-primary/70 select-none touch-action-none">
+          {isRefreshing
+            ? "Refreshing…"
+            : pullProgress >= 1
+            ? "Release to refresh"
+            : "Pull to refresh"}
+        </span>
       </div>
+
+      {/* Static hint shown only when not actively pulling, visible on all devices */}
+      {!isRefreshing && pullDistance === 0 && (
+        <div className="absolute top-1 left-0 right-0 flex justify-center z-0 pointer-events-none">
+          <span className="text-[10px] font-medium text-rhozly-primary/30 select-none">
+            Pull to refresh
+          </span>
+        </div>
+      )}
 
       {/* 🚀 THE CONTENT CONTAINER (This physically slides down) */}
       <div

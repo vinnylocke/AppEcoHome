@@ -280,7 +280,9 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         processingLoop(true);
         return;
       }
-    } catch (e) {}
+    } catch (e) {
+      toast.error("Sensor unavailable.");
+    }
     await startCameraFallback();
   };
 
@@ -334,7 +336,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     : [];
 
   return (
-    <div className="max-w-md mx-auto h-full flex flex-col p-6 animate-in fade-in duration-500 overflow-y-auto custom-scrollbar pb-32">
+    <div className="max-w-2xl mx-auto h-full flex flex-col p-6 animate-in fade-in duration-500 overflow-y-auto custom-scrollbar pb-32">
       <canvas ref={canvasRef} className="hidden" />
 
       <div className="flex justify-between items-start mb-6">
@@ -351,9 +353,10 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         {method === "Pixel Analysis" && (
           <button
             onClick={() => setShowCalibration(!showCalibration)}
-            className={`p-2 rounded-full transition-colors ${showCalibration ? "bg-rhozly-primary text-white" : "bg-rhozly-surface-low text-rhozly-on-surface"}`}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-2xl transition-colors ${showCalibration ? "bg-rhozly-primary text-white" : "bg-rhozly-surface-low text-rhozly-on-surface"}`}
           >
-            <SlidersHorizontal size={20} />
+            <SlidersHorizontal size={16} />
+            <span className="text-[10px] font-black uppercase tracking-widest">Calibrate</span>
           </button>
         )}
       </div>
@@ -406,13 +409,13 @@ export default function LightSensor({ homeId }: LightSensorProps) {
       <div className="bg-rhozly-surface-low p-1.5 rounded-2xl flex items-center mb-6">
         <button
           onClick={() => setIsManualMode(false)}
-          className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${!isManualMode ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40"}`}
+          className={`flex-1 min-h-[44px] py-2 rounded-xl text-[10px] font-black uppercase transition-all ${!isManualMode ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40"}`}
         >
           Auto Logic
         </button>
         <button
           onClick={() => setIsManualMode(true)}
-          className={`flex-1 py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isManualMode ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40"}`}
+          className={`flex-1 min-h-[44px] py-2 rounded-xl text-[10px] font-black uppercase transition-all ${isManualMode ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40"}`}
         >
           Manual Mode
         </button>
@@ -424,7 +427,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
             <button
               key={m}
               onClick={() => setManualMethod(m)}
-              className={`flex-1 py-2 rounded-xl text-[9px] font-black uppercase border transition-all ${manualMethod === m ? "bg-rhozly-primary text-white border-rhozly-primary" : "bg-white text-rhozly-on-surface/40 border-rhozly-outline/10"}`}
+              className={`flex-1 min-h-[44px] py-2 rounded-xl text-[9px] font-black uppercase border transition-all ${manualMethod === m ? "bg-rhozly-primary text-white border-rhozly-primary" : "bg-white text-rhozly-on-surface/40 border-rhozly-outline/10"}`}
             >
               {m}
             </button>
@@ -519,7 +522,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
 
         {/* 🚀 FIXED: Changed the condition here to ensure the save box appears even if lux is exactly 0 */}
         {!isScanning ? (
-          <div className="p-5 bg-rhozly-surface-low rounded-[2rem] border border-rhozly-outline/10 shadow-inner animate-in slide-in-from-bottom-4">
+          <div className="p-5 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/10 shadow-inner animate-in slide-in-from-bottom-4">
             <div className="flex flex-col gap-2 mb-4">
               <select
                 value={selectedLocationId}
@@ -558,7 +561,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
                 onClick={() => startScanning()}
                 className="flex-1 py-4 bg-white text-rhozly-on-surface rounded-2xl font-black border border-rhozly-outline/10"
               >
-                Cancel
+                Scan Again
               </button>
               <button
                 onClick={handleSaveToArea}
@@ -569,7 +572,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
                   <Loader2 className="animate-spin" size={20} />
                 ) : (
                   <>
-                    <Save size={20} /> Save {lux.toLocaleString()} lx
+                    <Save size={20} /> Save Reading
                   </>
                 )}
               </button>
@@ -580,8 +583,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
             onClick={() => stopScanning()}
             className="w-full py-5 rounded-2xl font-black text-lg shadow-xl flex items-center justify-center gap-2 bg-red-600 text-white active:scale-95 transition-all hover:bg-red-700"
           >
-            <Circle size={20} fill="white" className="animate-pulse" /> Capture
-            Reading
+            <Circle size={20} fill="white" className="animate-pulse" /> Save Reading
           </button>
         )}
       </div>

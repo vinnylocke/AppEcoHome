@@ -180,4 +180,39 @@ export const PerenualService = {
       throw error;
     }
   },
+
+  // 3. Search pest & disease list
+  searchPestDisease: async (query: string, page = 1) => {
+    try {
+      const url = `https://perenual.com/api/pest-disease-list?key=${PERENUAL_API_KEY}&q=${encodeURIComponent(query)}&page=${page}`;
+      const response = await fetch(url);
+      const text = await response.text();
+      const contentType = response.headers.get("content-type") || "";
+
+      if (!contentType.includes("application/json") || text.trimStart().startsWith("<")) {
+        Logger.error("Perenual Pest/Disease non-JSON response", { status: response.status, body: text.slice(0, 200) });
+        throw new Error("Pest & disease search is not available on your Perenual plan. Use Manual or AI entry instead.");
+      }
+
+      const data = JSON.parse(text);
+      return (data.data || []) as Array<{
+        id: number;
+        common_name: string;
+        scientific_name: string | { subtitle: string; description: string };
+        family: string | null;
+        description: Array<{ subtitle: string; description: string }> | null;
+        solution: Array<{ subtitle: string; description: string }> | null;
+        host: string[] | null;
+        images: Array<{
+          thumbnail: string;
+          small_url: string;
+          medium_url: string;
+          original_url: string;
+        }> | null;
+      }>;
+    } catch (error) {
+      Logger.error("Perenual Pest/Disease Search Failed", error);
+      throw error;
+    }
+  },
 };

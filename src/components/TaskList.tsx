@@ -149,6 +149,7 @@ export default function TaskList({
         setTasks(filteredTasks);
       } catch (err) {
         Logger.error("Failed", err);
+        toast.error("Failed to load tasks. Please try again.");
       } finally {
         setLoading(false);
       }
@@ -512,7 +513,7 @@ export default function TaskList({
       onTaskUpdated?.();
       fetchTasksAndGhosts(true);
     } catch (err) {
-      toast.error("Failed to reschedule task.");
+      toast.error("Failed to postpone task.");
     } finally {
       setIsUpdatingTask(null);
     }
@@ -792,9 +793,9 @@ export default function TaskList({
             if (isCompleted) {
               cardStyle = "opacity-60 bg-gray-50 border-rhozly-outline/10";
             } else if (isBlocked) {
-              cardStyle = "bg-gray-100 border-gray-300 opacity-80";
+              cardStyle = "bg-rhozly-surface-low border-gray-300 opacity-80";
             } else if (isOverdue) {
-              cardStyle = "bg-red-50/50 border-red-200 hover:border-red-400";
+              cardStyle = "bg-red-100 border-red-300 hover:border-red-500 shadow-red-100";
             }
             if (isBulkEditing && isSelected) {
               cardStyle = "bg-rhozly-primary/5 border-rhozly-primary shadow-md";
@@ -874,7 +875,7 @@ export default function TaskList({
                         </div>
                       )}
                       {task.areas?.name && (
-                        <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-50 text-blue-700">
+                        <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-rhozly-primary-container text-rhozly-primary">
                           <Grid size={10} /> {task.areas.name}
                         </div>
                       )}
@@ -896,8 +897,8 @@ export default function TaskList({
                           setTaskToDelete(task);
                         }}
                         className="p-3 min-w-[44px] min-h-[44px] sm:p-2 sm:min-w-0 sm:min-h-0 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"
-                        aria-label={`Delete task: ${task.title}`}
-                        title="Delete Task"
+                        aria-label={`Remove task: ${task.title}`}
+                        title="Remove Task"
                       >
                         <Trash2 size={16} />
                       </button>
@@ -965,7 +966,7 @@ export default function TaskList({
                   className="bg-white w-full max-w-sm rounded-[2.5rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col"
                   onClick={(e) => e.stopPropagation()}
                 >
-                  <h3 className="text-xl font-black mb-2">Reschedule Task</h3>
+                  <h3 className="text-xl font-black mb-2">Postpone Task</h3>
                   <p className="text-sm font-bold text-gray-500 mb-6">
                     Select a new date for this task.
                   </p>
@@ -1035,7 +1036,7 @@ export default function TaskList({
                       <button
                         onClick={handleBulkPostpone}
                         disabled={isBulkProcessing || !bulkPostponeDate}
-                        className="px-6 py-3 bg-blue-500 hover:bg-blue-600 text-white font-black rounded-xl transition-all disabled:opacity-50 flex items-center justify-center min-w-[80px]"
+                        className="px-6 py-3 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white font-black rounded-xl transition-all disabled:opacity-50 flex items-center justify-center min-w-[80px]"
                       >
                         {isBulkProcessing ? (
                           <Loader2 className="animate-spin" size={18} />
@@ -1065,7 +1066,7 @@ export default function TaskList({
                         disabled={
                           selectedTaskIds.size === 0 || isBulkProcessing
                         }
-                        className="flex-1 py-3 bg-blue-50 text-blue-600 rounded-xl font-black transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 hover:bg-blue-100"
+                        className="flex-1 py-3 bg-rhozly-primary-container text-rhozly-primary rounded-xl font-black transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 hover:bg-rhozly-primary/20"
                       >
                         <CalendarClock size={16} /> Postpone
                       </button>
@@ -1077,9 +1078,9 @@ export default function TaskList({
                         disabled={
                           selectedTaskIds.size === 0 || isBulkProcessing
                         }
-                        className="flex-1 py-3 bg-red-50 text-red-600 rounded-xl font-black transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 hover:bg-red-100"
+                        className="flex-1 py-3 bg-red-100 text-red-600 rounded-xl font-black transition-all flex items-center justify-center gap-1.5 disabled:opacity-50 hover:bg-red-200"
                       >
-                        <Trash2 size={16} /> Delete
+                        <Trash2 size={16} /> Remove
                       </button>
                     </div>
                   )}
@@ -1097,7 +1098,7 @@ export default function TaskList({
                   >
                     <X size={20} className="text-gray-600" />
                   </button>
-                  <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                  <div className="w-20 h-20 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
                     <Trash2 size={40} />
                   </div>
                   <h3 className="text-2xl font-black leading-tight text-rhozly-on-surface mb-2">
@@ -1111,7 +1112,7 @@ export default function TaskList({
                     task(s) from your schedule.
                   </p>
                   {getSelectedTaskObjects().some((t) => t.blueprint_id) && (
-                    <label className="flex items-center gap-3 p-4 bg-red-50/50 rounded-2xl border border-red-100 cursor-pointer mb-6 text-left w-full hover:bg-red-50 transition-colors">
+                    <label className="flex items-center gap-3 p-4 bg-red-100/60 rounded-2xl border border-red-200 cursor-pointer mb-6 text-left w-full hover:bg-red-100 transition-colors">
                       <input
                         type="checkbox"
                         checked={deleteBlueprints}
@@ -1166,7 +1167,7 @@ export default function TaskList({
                   >
                     <X size={20} className="text-gray-600" />
                   </button>
-                  <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
+                  <div className="w-20 h-20 bg-red-100 text-red-500 rounded-full flex items-center justify-center mb-6 shadow-inner">
                     <Trash2 size={40} />
                   </div>
                   <h3 className="text-2xl font-black leading-tight text-rhozly-on-surface mb-2">
@@ -1176,7 +1177,7 @@ export default function TaskList({
                     You are about to remove this task from your schedule.
                   </p>
                   {taskToDelete.blueprint_id && (
-                    <label className="flex items-center gap-3 p-4 bg-red-50/50 rounded-2xl border border-red-100 cursor-pointer mb-6 text-left w-full hover:bg-red-50 transition-colors">
+                    <label className="flex items-center gap-3 p-4 bg-red-100/60 rounded-2xl border border-red-200 cursor-pointer mb-6 text-left w-full hover:bg-red-100 transition-colors">
                       <input
                         type="checkbox"
                         checked={deleteBlueprints}

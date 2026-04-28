@@ -1,8 +1,8 @@
-import { useState, useEffect } from "react";
-import { supabase } from "../lib/supabase";
+import { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Check, Sparkles, Database } from "lucide-react";
+import { Check, Sparkles, Database, Loader2 } from "lucide-react";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import toast from "react-hot-toast";
 
 interface PlantActionProps {
   plant?: { name: string; search_query: string };
@@ -20,8 +20,8 @@ export const PlantActionButtons = ({
 
   const plantList = plants || (plant ? [plant] : []);
 
-  // 🚀 FIX: Start completely unchecked
   const [selectedRecs, setSelectedRecs] = useState<string[]>([]);
+  const [isImporting, setIsImporting] = useState(false);
 
   const toggleSelection = (query: string) => {
     setSelectedRecs((prev) =>
@@ -29,16 +29,29 @@ export const PlantActionButtons = ({
     );
   };
 
-  const handleBulkImport = (source: "ai" | "api") => {
-    setIsOpen(false);
-    navigate("/shed", { state: { autoImport: selectedRecs, source } });
+  const handleBulkImport = async (source: "ai" | "api") => {
+    setIsImporting(true);
+    try {
+      setIsOpen(false);
+      toast.success(
+        source === "ai"
+          ? "Generating with AI…"
+          : "Looking up in Plant Database…",
+      );
+      navigate("/shed", { state: { autoImport: selectedRecs, source } });
+    } catch (err) {
+      console.error("Import failed:", err);
+      toast.error("Something went wrong. Please try again.");
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   if (plantList.length === 0) return null;
 
   return (
-    <div className="mt-3 p-4 bg-white/80 backdrop-blur-md rounded-2xl border border-green-100 shadow-sm">
-      <p className="text-xs text-green-800 font-bold uppercase tracking-widest mb-3">
+    <div className="mt-3 p-4 bg-white/80 backdrop-blur-md rounded-2xl border border-rhozly-outline shadow-sm max-w-sm mx-auto w-full">
+      <p className="text-xs text-rhozly-primary font-bold uppercase tracking-widest mb-3">
         Add to your Shed
       </p>
 
@@ -46,43 +59,60 @@ export const PlantActionButtons = ({
         {plantList.map((p, idx) => {
           const isSelected = selectedRecs.includes(p.search_query);
           return (
-            <div
+            <label
               key={idx}
-              onClick={() => toggleSelection(p.search_query)}
-              className={`p-3 rounded-xl border text-sm flex items-center gap-3 cursor-pointer transition-colors ${
+              className={`flex items-center gap-3 min-h-[44px] px-3 rounded-2xl border text-sm cursor-pointer transition-colors ${
                 isSelected
-                  ? "border-green-500 bg-green-50 text-green-900"
-                  : "border-gray-200 bg-white text-gray-600 hover:border-green-300"
+                  ? "border-rhozly-primary bg-rhozly-surface-low text-rhozly-on-surface"
+                  : "border-rhozly-outline bg-white text-rhozly-on-surface hover:border-rhozly-primary-container"
               }`}
             >
+              <input
+                type="checkbox"
+                className="sr-only"
+                checked={isSelected}
+                onChange={() => toggleSelection(p.search_query)}
+              />
               <div
                 className={`w-5 h-5 rounded flex items-center justify-center border transition-colors shrink-0 ${
                   isSelected
-                    ? "bg-green-500 border-green-500 text-white"
-                    : "border-gray-300 bg-white"
+                    ? "bg-rhozly-primary border-rhozly-primary text-white"
+                    : "border-rhozly-outline bg-white"
                 }`}
               >
                 {isSelected && <Check size={14} strokeWidth={4} />}
               </div>
               <span className="font-bold leading-tight">{p.name}</span>
-            </div>
+            </label>
           );
         })}
       </div>
 
       {selectedRecs.length > 0 && (
-        <div className="flex flex-col gap-2 pt-2 border-t border-green-100">
+        <div className="flex flex-col gap-2 pt-2 border-t border-rhozly-outline">
           <button
             onClick={() => handleBulkImport("ai")}
-            className="w-full py-3 bg-green-600 hover:bg-green-700 text-white rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-transform active:scale-95"
+            disabled={isImporting}
+            className="w-full py-3 bg-rhozly-primary hover:bg-rhozly-primary-container disabled:opacity-60 text-white rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition-transform active:scale-95"
           >
-            <Sparkles size={16} /> Generate with AI ({selectedRecs.length})
+            {isImporting ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Sparkles size={16} />
+            )}{" "}
+            Generate with AI ({selectedRecs.length})
           </button>
           <button
             onClick={() => handleBulkImport("api")}
-            className="w-full py-3 bg-white border-2 border-green-600 text-green-600 hover:bg-green-50 rounded-xl font-black text-xs flex items-center justify-center gap-2 transition-transform active:scale-95"
+            disabled={isImporting}
+            className="w-full py-3 bg-white border-2 border-rhozly-primary text-rhozly-primary hover:bg-rhozly-surface-low disabled:opacity-60 rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition-transform active:scale-95"
           >
-            <Database size={16} /> Match via Perenual ({selectedRecs.length})
+            {isImporting ? (
+              <Loader2 size={16} className="animate-spin" />
+            ) : (
+              <Database size={16} />
+            )}{" "}
+            Match via Plant Database ({selectedRecs.length})
           </button>
         </div>
       )}

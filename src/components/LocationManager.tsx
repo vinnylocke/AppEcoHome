@@ -128,6 +128,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
       fetchHierarchy();
     } catch (err: any) {
       Logger.error("Failed to save new location", err);
+      toast.error("Failed to create location.");
     }
   };
 
@@ -141,7 +142,10 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
 
     if (error) {
       Logger.error("Failed to rename location", error);
+      toast.error("Failed to rename location.");
       fetchHierarchy();
+    } else {
+      toast.success("Location renamed.");
     }
   };
 
@@ -189,12 +193,16 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
 
     if (error) {
       Logger.error("Failed to toggle environment", error);
+      toast.error("Failed to update environment.");
       fetchHierarchy();
     } else {
       setLocations(
         locations.map((l) =>
           l.id === loc.id ? { ...l, is_outside: newIsOutside } : l,
         ),
+      );
+      toast.success(
+        newIsOutside ? "Switched to Outside." : "Switched to Inside.",
       );
     }
   };
@@ -206,6 +214,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
 
     if (error) {
       Logger.error("Failed to add area", error);
+      toast.error("Failed to add area.");
     } else {
       toast.success("New area added!");
       fetchHierarchy();
@@ -226,6 +235,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
       fetchHierarchy();
     } catch (error: any) {
       Logger.error(`Failed to delete ${itemToDelete.type}`, error);
+      toast.error(`Failed to delete ${itemToDelete.type}.`);
     } finally {
       setIsDeleting(false);
       setItemToDelete(null);
@@ -279,7 +289,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
                 onClick={() =>
                   setNewLoc({ ...newLoc, is_outside: !newLoc.is_outside })
                 }
-                className={`px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-colors shadow-sm ${!newLoc.is_outside ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"}`}
+                className={`px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-colors shadow-sm ${!newLoc.is_outside ? "bg-rhozly-primary-container/30 text-rhozly-primary" : "bg-rhozly-secondary-container/40 text-rhozly-secondary"}`}
               >
                 {!newLoc.is_outside ? <Home size={20} /> : <Sun size={20} />}
                 {!newLoc.is_outside ? "Inside" : "Outside"}
@@ -294,7 +304,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
               </button>
               <button
                 onClick={handleSaveNewLocation}
-                className="px-8 py-3 bg-rhozly-primary text-white rounded-xl font-bold text-sm shadow-sm"
+                className="px-8 py-3 bg-rhozly-primary text-white rounded-2xl font-bold text-sm shadow-sm"
               >
                 Save Location
               </button>
@@ -324,7 +334,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => toggleEnvironment(loc)}
-                    className={`px-4 py-2 rounded-xl text-xs font-bold flex items-center gap-2 ${!loc.is_outside ? "bg-blue-50 text-blue-600" : "bg-orange-50 text-orange-600"}`}
+                    className={`min-w-[44px] min-h-[44px] px-4 py-2 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 ${!loc.is_outside ? "bg-rhozly-primary-container/30 text-rhozly-primary" : "bg-rhozly-secondary-container/40 text-rhozly-secondary"}`}
                   >
                     {!loc.is_outside ? <Home size={16} /> : <Sun size={16} />}
                   </button>
@@ -332,7 +342,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
                     onClick={() =>
                       setItemToDelete({ type: "location", id: loc.id })
                     }
-                    className="p-2 text-rhozly-on-surface/40 hover:text-red-500 rounded-xl"
+                    className="min-w-[44px] min-h-[44px] p-2 text-rhozly-on-surface/40 hover:text-rhozly-error rounded-2xl flex items-center justify-center"
                   >
                     <Trash2 size={18} />
                   </button>
@@ -383,7 +393,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
                       <div className="flex gap-1 transition-opacity">
                         <button
                           onClick={() => setEditingArea(area)}
-                          className="p-2 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-lg"
+                          className="min-w-[44px] min-h-[44px] p-2 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-xl flex items-center justify-center"
                           title="Advanced Metrics"
                         >
                           <Settings2 size={16} />
@@ -396,7 +406,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
                               locationId: loc.id,
                             })
                           }
-                          className="p-2 text-rhozly-on-surface/30 hover:text-red-500 rounded-lg"
+                          className="min-w-[44px] min-h-[44px] p-2 text-rhozly-on-surface/30 hover:text-rhozly-error rounded-xl flex items-center justify-center"
                         >
                           <Trash2 size={16} />
                         </button>
@@ -417,7 +427,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
             {/* ADVANCED AREA SETTINGS MODAL */}
             {editingArea && (
               <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-rhozly-bg/90 backdrop-blur-xl animate-in fade-in duration-300">
-                <div className="bg-rhozly-surface-lowest w-full max-w-2xl rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                <div className="bg-rhozly-surface-lowest w-full max-w-2xl rounded-3xl p-8 shadow-2xl border border-rhozly-outline/20 max-h-[90vh] overflow-y-auto custom-scrollbar">
                   <div className="flex justify-between items-center mb-8">
                     <div>
                       <h3 className="text-2xl font-black text-rhozly-on-surface">

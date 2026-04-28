@@ -21,6 +21,7 @@ import {
   ListChecks,
   CheckSquare,
   Edit3,
+  Bug,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
@@ -32,6 +33,7 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { AutomationEngine } from "../lib/automationEngine";
 import { PlantDoctorService } from "../services/plantDoctorService";
+import LinkAilmentModal from "./LinkAilmentModal";
 
 interface InventoryItem {
   id: string;
@@ -92,10 +94,14 @@ export default function AreaDetails({
     item: InventoryItem | null;
   }>({ isOpen: false, type: "delete", item: null });
 
+  const [linkAilmentTarget, setLinkAilmentTarget] = useState<InventoryItem | null>(null);
+
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
+  const [fetchError, setFetchError] = useState(false);
 
   const fetchPlants = async () => {
     setLoading(true);
+    setFetchError(false);
     try {
       const { data, error } = await supabase
         .from("inventory_items")
@@ -105,6 +111,7 @@ export default function AreaDetails({
       if (error) throw error;
       setPlants(data || []);
     } catch (error: any) {
+      setFetchError(true);
       toast.error("Could not load plants.");
     } finally {
       setLoading(false);
@@ -439,8 +446,7 @@ export default function AreaDetails({
                   }
                   className="flex-1 py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
                 >
-                  <Sparkles size={18} /> Generate with AI ({selectedRecs.length}
-                  )
+                  <Sparkles size={18} /> Add with AI Care Plans ({selectedRecs.length})
                 </button>
                 <button
                   onClick={() =>
@@ -450,8 +456,7 @@ export default function AreaDetails({
                   }
                   className="flex-1 py-4 bg-white border-2 border-rhozly-primary text-rhozly-primary rounded-xl font-black shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
                 >
-                  <Database size={18} /> Match via Perenual (
-                  {selectedRecs.length})
+                  <Database size={18} /> Add from Plant Database ({selectedRecs.length})
                 </button>
               </div>
             )}
@@ -490,6 +495,16 @@ export default function AreaDetails({
             <div className="py-12 flex justify-center">
               <Loader2 className="w-6 h-6 animate-spin text-rhozly-primary" />
             </div>
+          ) : fetchError ? (
+            <div className="py-16 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/30 space-y-4">
+              <p className="text-sm font-bold text-rhozly-on-surface/50">Could not load plants.</p>
+              <button
+                onClick={fetchPlants}
+                className="px-5 py-2.5 bg-rhozly-primary text-white rounded-xl text-sm font-black shadow-sm hover:scale-[1.02] transition-transform"
+              >
+                Retry
+              </button>
+            </div>
           ) : Object.keys(groupedPlants).length > 0 ? (
             <div
               className={`space-y-3 relative ${isBulkEditing ? "pb-24" : ""}`}
@@ -514,10 +529,10 @@ export default function AreaDetails({
                             {speciesName}
                           </h4>
                           <span
-                            className={`inline-block mt-1 px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${showHistory ? "bg-gray-100 text-gray-500" : "bg-emerald-100 text-emerald-700"}`}
+                            className={`inline-block mt-1 px-2.5 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest ${showHistory ? "bg-rhozly-surface-low text-rhozly-on-surface/50" : "bg-emerald-100 text-emerald-700"}`}
                           >
                             {instances.length}{" "}
-                            {instances.length === 1 ? "Instance" : "Instances"}
+                            {instances.length === 1 ? "plant" : "plants"}
                           </span>
                         </div>
                       </div>
@@ -531,7 +546,7 @@ export default function AreaDetails({
                     </button>
 
                     {isExpanded && (
-                      <div className="border-t border-gray-50 bg-gray-50/30 p-2 space-y-2 animate-in slide-in-from-top-2">
+                      <div className="border-t border-rhozly-outline/5 bg-rhozly-surface-lowest/30 p-2 space-y-2 animate-in slide-in-from-top-2">
                         {instances.map((plant) => {
                           const isSelected = selectedIds.has(plant.id);
                           return (
@@ -540,12 +555,12 @@ export default function AreaDetails({
                               onClick={() => {
                                 if (isBulkEditing) toggleSelection(plant.id);
                               }}
-                              className={`bg-white rounded-2xl p-4 border flex items-center justify-between shadow-sm transition-colors ${isBulkEditing ? "cursor-pointer" : ""} ${isSelected ? "border-rhozly-primary ring-1 ring-rhozly-primary/20 bg-rhozly-primary/5" : "border-gray-100"}`}
+                              className={`bg-white rounded-2xl p-4 border flex items-center justify-between shadow-sm transition-colors ${isBulkEditing ? "cursor-pointer" : ""} ${isSelected ? "border-rhozly-primary ring-1 ring-rhozly-primary/20 bg-rhozly-primary/5" : "border-rhozly-outline/10"}`}
                             >
                               <div className="flex items-center gap-3">
                                 {isBulkEditing && (
                                   <div
-                                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected ? "bg-rhozly-primary border-rhozly-primary text-white" : "border-gray-300"}`}
+                                    className={`w-5 h-5 rounded border flex items-center justify-center transition-colors ${isSelected ? "bg-rhozly-primary border-rhozly-primary text-white" : "border-rhozly-outline/30"}`}
                                   >
                                     {isSelected && (
                                       <Check size={14} strokeWidth={3} />
@@ -554,11 +569,11 @@ export default function AreaDetails({
                                 )}
                                 <div>
                                   <h5
-                                    className={`font-black text-sm ${isSelected ? "text-rhozly-primary" : "text-gray-800"}`}
+                                    className={`font-black text-sm ${isSelected ? "text-rhozly-primary" : "text-rhozly-on-surface"}`}
                                   >
                                     {plant.identifier}
                                   </h5>
-                                  <p className="text-[10px] font-bold text-gray-400 uppercase">
+                                  <p className="text-[10px] font-bold text-rhozly-on-surface/40 uppercase">
                                     {plant.status}
                                   </p>
                                 </div>
@@ -568,9 +583,19 @@ export default function AreaDetails({
                                   <button
                                     onClick={(e) => {
                                       e.stopPropagation();
+                                      setLinkAilmentTarget(plant);
+                                    }}
+                                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-orange-500/70 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-colors"
+                                    title="Link Ailment"
+                                  >
+                                    <Bug className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
                                       setEditingInstance(plant);
                                     }}
-                                    className="p-2 text-rhozly-primary/60 hover:text-rhozly-primary hover:bg-rhozly-primary/10 rounded-xl transition-colors"
+                                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-primary/60 hover:text-rhozly-primary hover:bg-rhozly-primary/10 rounded-xl transition-colors"
                                   >
                                     <Settings2 className="w-4 h-4" />
                                   </button>
@@ -584,7 +609,7 @@ export default function AreaDetails({
                                           item: plant,
                                         });
                                       }}
-                                      className="p-2 text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"
+                                      className="min-w-[44px] min-h-[44px] flex items-center justify-center text-blue-500 hover:bg-blue-50 rounded-xl transition-colors"
                                       title="Restore to Active"
                                     >
                                       <ArchiveRestore className="w-4 h-4" />
@@ -599,7 +624,7 @@ export default function AreaDetails({
                                           item: plant,
                                         });
                                       }}
-                                      className="p-2 text-orange-500 hover:bg-orange-50 rounded-xl transition-colors"
+                                      className="min-w-[44px] min-h-[44px] flex items-center justify-center text-orange-500 hover:bg-orange-50 rounded-xl transition-colors"
                                       title="Move to History"
                                     >
                                       <Archive className="w-4 h-4" />
@@ -614,7 +639,7 @@ export default function AreaDetails({
                                         item: plant,
                                       });
                                     }}
-                                    className="p-2 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
+                                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors"
                                     title="Delete Forever"
                                   >
                                     <Trash2 className="w-4 h-4" />
@@ -644,7 +669,7 @@ export default function AreaDetails({
           <>
             {isBulkEditing && (
               <div className="fixed bottom-6 left-1/2 -translate-x-1/2 w-full max-w-md px-4 z-[90] animate-in slide-in-from-bottom-8">
-                <div className="bg-white rounded-[2rem] shadow-2xl border border-rhozly-outline/20 p-4 flex flex-col gap-3">
+                <div className="bg-white rounded-3xl shadow-2xl border border-rhozly-outline/20 p-4 flex flex-col gap-3">
                   <div className="flex items-center justify-between px-2">
                     <span className="text-sm font-black text-rhozly-on-surface">
                       {selectedIds.size} plants selected
@@ -730,10 +755,10 @@ export default function AreaDetails({
                 onConfirm={executeConfirmedAction}
                 title={
                   confirmState.type === "delete"
-                    ? "Delete Instance"
+                    ? "Delete Plant"
                     : confirmState.type === "archive"
                       ? "Move to History"
-                      : "Restore Instance"
+                      : "Restore Plant"
                 }
                 description={
                   confirmState.type === "delete"
@@ -755,11 +780,11 @@ export default function AreaDetails({
 
             {isEditingArea && (
               <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-md animate-in fade-in zoom-in-95">
-                <div className="bg-white w-full max-w-2xl rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 max-h-[90vh] overflow-y-auto custom-scrollbar">
+                <div className="bg-white w-full max-w-2xl rounded-3xl p-8 shadow-2xl border border-rhozly-outline/10 max-h-[90vh] overflow-y-auto custom-scrollbar">
                   <div className="flex justify-between items-center mb-8">
                     <div>
                       <h3 className="text-3xl font-black">
-                        Area Configuration
+                        Area Details
                       </h3>
                       <p className="text-xs font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
                         Refine {area.name}
@@ -828,6 +853,22 @@ export default function AreaDetails({
                   setEditingInstance(null);
                 }}
                 onTasksUpdated={onTasksUpdated}
+              />
+            )}
+
+            {linkAilmentTarget && (
+              <LinkAilmentModal
+                homeId={homeId}
+                plantInstance={{
+                  id: linkAilmentTarget.id,
+                  home_id: linkAilmentTarget.home_id,
+                  location_id: linkAilmentTarget.location_id,
+                  area_id: linkAilmentTarget.area_id,
+                  plant_name: linkAilmentTarget.plant_name,
+                  identifier: linkAilmentTarget.identifier,
+                }}
+                onClose={() => setLinkAilmentTarget(null)}
+                onLinked={() => setLinkAilmentTarget(null)}
               />
             )}
           </>,

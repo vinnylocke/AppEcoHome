@@ -10,6 +10,9 @@ import {
   Trash2,
   ArchiveRestore,
   X,
+  CheckCircle2,
+  AlertCircle,
+  ChevronLeft,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import NewPlanForm from "./NewPlanForm";
@@ -39,6 +42,11 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
   const [isProcessingAction, setIsProcessingAction] = useState(false);
   const [deleteAssociatedTasks, setDeleteAssociatedTasks] = useState(true);
 
+  // Per-card inline feedback: maps plan.id -> "success" | "error"
+  const [cardStatus, setCardStatus] = useState<
+    Record<string, "success" | "error">
+  >({});
+
   const fetchPlans = async () => {
     setLoading(true);
     const { data, error } = await supabase
@@ -66,7 +74,7 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
     return () => document.removeEventListener("click", handleClickOutside);
   }, []);
 
-  // 🚀 FIXED: Removed selectedPlan from the scroll lock so the staging engine scrolls naturally
+  // Removed selectedPlan from the scroll lock so the staging engine scrolls naturally
   useEffect(() => {
     if (confirmState.isOpen || showNewPlanModal) {
       document.body.style.overflow = "hidden";
@@ -77,6 +85,22 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
       document.body.style.overflow = "unset";
     };
   }, [confirmState.isOpen, showNewPlanModal]);
+
+  const setCardFeedback = (
+    planId: string,
+    status: "success" | "error",
+  ) => {
+    setCardStatus((prev) => ({ ...prev, [planId]: status }));
+    setTimeout(
+      () =>
+        setCardStatus((prev) => {
+          const next = { ...prev };
+          delete next[planId];
+          return next;
+        }),
+      3000,
+    );
+  };
 
   const executeConfirmedAction = async () => {
     const { type, plan } = confirmState;
@@ -106,7 +130,7 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
           .delete()
           .eq("id", plan.id);
         if (error) throw error;
-        toast.success("Project deleted successfully.");
+        toast.success("Plan deleted successfully.");
       } else {
         const newStatus = type === "archive" ? "Archived" : "Draft";
         const { error } = await supabase
@@ -114,8 +138,9 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
           .update({ status: newStatus })
           .eq("id", plan.id);
         if (error) throw error;
+        setCardFeedback(plan.id, "success");
         toast.success(
-          `Project ${type === "archive" ? "archived" : "restored"}.`,
+          `Plan ${type === "archive" ? "archived" : "restored"}.`,
         );
       }
 
@@ -123,7 +148,14 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
       setConfirmState({ isOpen: false, type: "delete", plan: null });
       setDeleteAssociatedTasks(true);
     } catch (err: any) {
-      toast.error("Action failed.");
+      const label =
+        type === "delete"
+          ? "delete this plan"
+          : type === "archive"
+            ? "archive this plan"
+            : "restore this plan";
+      setCardFeedback(plan.id, "error");
+      toast.error(`Could not ${label}. Please try again.`);
       console.error(err);
     } finally {
       setIsProcessingAction(false);
@@ -142,18 +174,37 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
   const completedCount = plans.filter((p) => p.status === "Completed").length;
   const archivedCount = plans.filter((p) => p.status === "Archived").length;
 
-  // 🚀 FIXED: Render the Staging engine IN PLACE so you don't lose the app layout/nav
+  // Render the staging engine in-place so the app layout/nav is preserved,
+  // but wrap it with a breadcrumb strip so the user retains wayfinding context.
   if (selectedPlan) {
     return (
-      <PlanStaging
-        plan={selectedPlan}
-        homeId={homeId}
-        onBack={() => {
-          setSelectedPlan(null);
-          fetchPlans();
-        }}
-        onPlanUpdated={fetchPlans}
-      />
+      <div className="max-w-6xl mx-auto h-full flex flex-col animate-in fade-in duration-300">
+        <div className="flex items-center gap-2 px-4 md:px-8 pt-4 md:pt-6 pb-2 shrink-0">
+          <button
+            onClick={() => {
+              setSelectedPlan(null);
+              fetchPlans();
+            }}
+            className="flex items-center gap-1.5 text-sm font-black text-rhozly-primary hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary rounded"
+          >
+            <ChevronLeft size={16} />
+            Plans
+          </button>
+          <span className="text-rhozly-on-surface/30 font-bold text-sm">/</span>
+          <span className="text-sm font-bold text-rhozly-on-surface/60 truncate max-w-[200px]">
+            {selectedPlan.name}
+          </span>
+        </div>
+        <PlanStaging
+          plan={selectedPlan}
+          homeId={homeId}
+          onBack={() => {
+            setSelectedPlan(null);
+            fetchPlans();
+          }}
+          onPlanUpdated={fetchPlans}
+        />
+      </div>
     );
   }
 
@@ -166,19 +217,23 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
             <Map className="text-rhozly-primary" size={32} /> Landscape Planner
           </h1>
           <p className="text-sm font-bold text-rhozly-on-surface/50 uppercase tracking-widest mt-1">
-            AI-Assisted Project Management
+            AI-Assisted Plan Management
           </p>
         </div>
         <button
           onClick={() => setShowNewPlanModal(true)}
           className="px-6 py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:bg-rhozly-primary/90 transition-transform active:scale-95 flex items-center gap-2 w-full md:w-auto justify-center"
         >
-          <Sparkles size={20} /> New Project
+          <Sparkles size={20} /> New Plan
         </button>
       </div>
 
       {/* Tabs */}
-      <div className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/10 mb-6 max-w-md overflow-x-auto custom-scrollbar shrink-0">
+      <div
+        role="tablist"
+        aria-label="Plan status"
+        className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/10 mb-6 max-w-md overflow-x-auto custom-scrollbar shrink-0"
+      >
         {[
           { id: "Pending", label: `Pending (${pendingCount})` },
           { id: "Completed", label: `Completed (${completedCount})` },
@@ -186,6 +241,8 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
         ].map((tab) => (
           <button
             key={tab.id}
+            role="tab"
+            aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id as any)}
             className={`flex-1 whitespace-nowrap px-4 py-2 rounded-xl text-sm font-black transition-all ${
               activeTab === tab.id
@@ -204,14 +261,14 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
           <Loader2 className="animate-spin text-rhozly-primary" size={40} />
         </div>
       ) : filteredPlans.length === 0 ? (
-        <div className="flex-1 bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-[3rem] p-12 text-center flex flex-col items-center justify-center opacity-70">
+        <div className="flex-1 bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-3xl p-12 text-center flex flex-col items-center justify-center opacity-70">
           <Map size={48} className="text-rhozly-on-surface/20 mb-4" />
           <p className="text-xl font-black text-rhozly-on-surface">
             No {activeTab} Plans
           </p>
           <p className="text-sm font-bold text-rhozly-on-surface/50 mt-2">
             {activeTab === "Pending"
-              ? "Click 'New Project' to let the AI design your next masterpiece."
+              ? "Click 'New Plan' to let the AI design your next masterpiece."
               : "Nothing to see here yet!"}
           </p>
         </div>
@@ -221,8 +278,29 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
             <div
               key={plan.id}
               onClick={() => setSelectedPlan(plan)}
-              className="bg-white rounded-[2rem] border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group flex flex-col"
+              className="bg-white rounded-[2rem] border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group flex flex-col relative"
             >
+              {/* Per-card inline feedback banner */}
+              {cardStatus[plan.id] && (
+                <div
+                  className={`absolute inset-x-0 top-0 z-10 flex items-center justify-center gap-2 py-2 text-xs font-black uppercase tracking-widest animate-in fade-in ${
+                    cardStatus[plan.id] === "success"
+                      ? "bg-green-500 text-white"
+                      : "bg-red-500 text-white"
+                  }`}
+                >
+                  {cardStatus[plan.id] === "success" ? (
+                    <>
+                      <CheckCircle2 size={14} /> Saved
+                    </>
+                  ) : (
+                    <>
+                      <AlertCircle size={14} /> Failed
+                    </>
+                  )}
+                </div>
+              )}
+
               <div className="h-40 bg-rhozly-surface-low relative overflow-hidden">
                 {plan.cover_image_url ? (
                   <img
@@ -252,14 +330,15 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
                   </span>
                 </div>
 
-                <div className="absolute top-4 right-4">
+                <div className="absolute top-2 right-2">
                   <div className="relative">
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
                         setOpenMenuId(openMenuId === plan.id ? null : plan.id);
                       }}
-                      className="w-8 h-8 bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-gray-600 shadow-sm hover:bg-white transition-colors"
+                      className="min-w-[44px] min-h-[44px] bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-gray-600 shadow-sm hover:bg-white transition-colors"
+                      aria-label="Plan options"
                     >
                       <MoreVertical size={16} />
                     </button>
@@ -297,7 +376,7 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
                             }}
                             className="w-full px-4 py-3 text-left text-sm font-bold text-blue-600 hover:bg-blue-50 flex items-center gap-2"
                           >
-                            <ArchiveRestore size={14} /> Unarchive Plan
+                            <ArchiveRestore size={14} /> Restore Plan
                           </button>
                         )}
                         <button
@@ -312,7 +391,7 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
                           }}
                           className="w-full px-4 py-3 text-left text-sm font-bold text-red-600 hover:bg-red-50 flex items-center gap-2"
                         >
-                          <Trash2 size={14} /> Delete Project
+                          <Trash2 size={14} /> Delete Plan
                         </button>
                       </div>
                     )}
@@ -384,18 +463,38 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
 
                   <h3 className="font-black text-2xl text-rhozly-on-surface mb-2 shrink-0">
                     {confirmState.type === "delete"
-                      ? "Delete Project"
+                      ? "Delete Plan"
                       : confirmState.type === "archive"
-                        ? "Archive Project"
-                        : "Restore Project"}
+                        ? "Archive Plan"
+                        : "Restore Plan"}
                   </h3>
 
                   <p className="text-sm font-bold text-gray-500 mb-6 leading-relaxed shrink-0">
-                    {confirmState.type === "delete"
-                      ? `Are you sure you want to delete "${confirmState.plan.name}"? This action cannot be undone.`
-                      : confirmState.type === "archive"
-                        ? `Are you sure you want to move "${confirmState.plan.name}" to your archives? You can restore it later.`
-                        : `Are you sure you want to restore "${confirmState.plan.name}" to your active projects?`}
+                    {confirmState.type === "delete" ? (
+                      <>
+                        Are you sure you want to delete{" "}
+                        <span className="font-black text-rhozly-on-surface">
+                          "{confirmState.plan.name}"
+                        </span>
+                        ? This action cannot be undone.
+                      </>
+                    ) : confirmState.type === "archive" ? (
+                      <>
+                        Are you sure you want to move{" "}
+                        <span className="font-black text-rhozly-on-surface">
+                          "{confirmState.plan.name}"
+                        </span>{" "}
+                        to your archives? You can restore it later.
+                      </>
+                    ) : (
+                      <>
+                        Are you sure you want to restore{" "}
+                        <span className="font-black text-rhozly-on-surface">
+                          "{confirmState.plan.name}"
+                        </span>{" "}
+                        to your active plans?
+                      </>
+                    )}
                   </p>
 
                   {confirmState.type === "delete" && (

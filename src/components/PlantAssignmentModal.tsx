@@ -243,15 +243,12 @@ export default function PlantAssignmentModal({
           selectedSchedules.includes(s.method),
         ) || [];
 
-      // 1. Execute the parent assignment (which saves the items to the DB and returns the created items)
-      // 🚀 Make sure your parent component returns the generated inventory items from onAssign!
       const createdItems = await onAssign({
         ...formData,
         status: formData.isPlanted ? "Planted" : "Unplanted",
         smartSchedules: finalSchedules,
       });
 
-      // 2. If it was instantly planted, run the Automation Engine!
       if (formData.isPlanted && createdItems && createdItems.length > 0) {
         const baseDateStr = formData.isEstablished
           ? new Date().toISOString().split("T")[0]
@@ -262,10 +259,32 @@ export default function PlantAssignmentModal({
           baseDateStr,
         );
       }
-    } catch (e) {
+
+      toast.success(`${plant.common_name} assigned successfully!`);
+    } catch (e: any) {
       console.error(e);
-      // Toast is likely handled by parent, but just in case:
-      toast.error("Assignment failed.");
+      const message = e?.message || "Something went wrong. Please try again.";
+      toast.error(message, {
+        duration: 6000,
+        id: "assignment-error",
+      });
+      toast(
+        (t) => (
+          <span className="text-sm font-bold">
+            {message}{" "}
+            <button
+              onClick={() => {
+                toast.dismiss(t.id);
+                handleSubmit();
+              }}
+              className="underline ml-1"
+            >
+              Retry
+            </button>
+          </span>
+        ),
+        { id: "assignment-retry", duration: 8000 },
+      );
     } finally {
       setIsProcessingLocal(false);
     }
@@ -275,7 +294,7 @@ export default function PlantAssignmentModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
-      <div className="bg-rhozly-surface-lowest w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 relative">
+      <div className="bg-rhozly-surface-lowest w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar rounded-3xl p-8 shadow-2xl border border-rhozly-outline/20 relative">
         <div
           aria-live="polite"
           aria-atomic="true"
@@ -419,15 +438,15 @@ export default function PlantAssignmentModal({
             {!formData.isPlanted && (
               <div className="space-y-4 animate-in fade-in zoom-in-95">
                 {!aiResult ? (
-                  <div className="bg-gradient-to-br from-indigo-50 to-purple-50 p-6 rounded-3xl border border-indigo-100 shadow-sm text-center">
+                  <div className="bg-rhozly-surface-low p-6 rounded-3xl border border-rhozly-outline/10 shadow-sm text-center">
                     <CloudSun
-                      className="mx-auto text-indigo-400 mb-3"
+                      className="mx-auto text-rhozly-primary mb-3"
                       size={32}
                     />
-                    <h4 className="text-sm font-black text-indigo-900 uppercase tracking-widest mb-2">
+                    <h4 className="text-sm font-black text-rhozly-on-surface uppercase tracking-widest mb-2">
                       Smart Schedule
                     </h4>
-                    <p className="text-xs font-bold text-indigo-800/70 mb-6 leading-relaxed">
+                    <p className="text-xs font-bold text-rhozly-on-surface/60 mb-6 leading-relaxed">
                       Use AI and a live 14-day weather forecast to determine the
                       best propagation methods and perfect days to plant this{" "}
                       {plant.common_name}.
@@ -435,7 +454,7 @@ export default function PlantAssignmentModal({
                     <button
                       onClick={handleSmartSchedule}
                       disabled={isAiLoading}
-                      className="w-full py-4 bg-indigo-600 text-white rounded-xl font-black shadow-lg shadow-indigo-600/20 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
+                      className="w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg shadow-rhozly-primary/20 flex items-center justify-center gap-2 transition-all active:scale-95 disabled:opacity-50"
                     >
                       {isAiLoading ? (
                         <>
@@ -444,16 +463,16 @@ export default function PlantAssignmentModal({
                         </>
                       ) : (
                         <>
-                          <Sparkles size={20} /> Generate Plan
+                          <Sparkles size={20} /> Generate Schedule
                         </>
                       )}
                     </button>
                   </div>
                 ) : (
                   <div className="space-y-4">
-                    <div className="bg-white p-5 rounded-3xl border border-rhozly-outline/10 shadow-sm relative overflow-hidden">
-                      <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500 rounded-l-3xl" />
-                      <div className="flex items-center gap-2 text-indigo-600 mb-2">
+                    <div className="bg-rhozly-surface-lowest p-5 rounded-3xl border border-rhozly-outline/10 shadow-sm relative overflow-hidden">
+                      <div className="absolute top-0 left-0 w-1 h-full bg-rhozly-primary rounded-l-3xl" />
+                      <div className="flex items-center gap-2 text-rhozly-primary mb-2">
                         <BrainCircuit size={18} />
                         <span className="text-[10px] font-black uppercase tracking-widest">
                           Site Analysis
@@ -501,15 +520,15 @@ export default function PlantAssignmentModal({
                           onFocus={() => setFocusedScheduleIndex(index)}
                           className={`p-4 rounded-2xl border transition-all cursor-pointer flex gap-4 ${
                             selectedSchedules.includes(schedule.method)
-                              ? "bg-indigo-50 border-indigo-200 shadow-sm"
-                              : "bg-white border-rhozly-outline/10 hover:border-indigo-200/50"
+                              ? "bg-rhozly-surface-low border-rhozly-primary/30 shadow-sm"
+                              : "bg-rhozly-surface-lowest border-rhozly-outline/10 hover:border-rhozly-primary/30"
                           }`}
                         >
                           <div className="pt-1">
                             <div
                               className={`w-5 h-5 rounded flex items-center justify-center border transition-colors ${
                                 selectedSchedules.includes(schedule.method)
-                                  ? "bg-indigo-600 border-indigo-600 text-white"
+                                  ? "bg-rhozly-primary border-rhozly-primary text-white"
                                   : "border-rhozly-outline/30 bg-rhozly-surface-lowest"
                               }`}
                             >
@@ -523,7 +542,7 @@ export default function PlantAssignmentModal({
                               <span className="font-black text-sm text-rhozly-on-surface">
                                 {schedule.method}
                               </span>
-                              <span className="text-[10px] font-bold text-indigo-600 bg-indigo-100 px-2 py-1 rounded-md">
+                              <span className="text-[10px] font-bold text-rhozly-primary bg-rhozly-surface-low px-2 py-1 rounded-md">
                                 {schedule.phases.length} Tasks
                               </span>
                             </div>
@@ -531,16 +550,16 @@ export default function PlantAssignmentModal({
                               {schedule.reasoning}
                             </p>
 
-                            <div className="space-y-2 mt-2 pt-2 border-t border-indigo-100/50">
+                            <div className="space-y-2 mt-2 pt-2 border-t border-rhozly-outline/10">
                               {schedule.phases.map((phase: any, i: number) => (
                                 <div
                                   key={i}
-                                  className="flex justify-between items-center bg-white/50 p-2 rounded-lg"
+                                  className="flex justify-between items-center bg-rhozly-surface-lowest/60 px-3 py-3 rounded-lg min-h-[44px]"
                                 >
-                                  <span className="text-[10px] font-black text-indigo-900">
+                                  <span className="text-[10px] font-black text-rhozly-on-surface">
                                     {phase.phase_name}
                                   </span>
-                                  <span className="text-[10px] font-bold text-indigo-600">
+                                  <span className="text-[10px] font-bold text-rhozly-primary">
                                     {phase.recommended_date}
                                   </span>
                                 </div>

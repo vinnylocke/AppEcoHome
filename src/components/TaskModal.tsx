@@ -98,7 +98,6 @@ export default function TaskModal({
   const [selectedDepTask, setSelectedDepTask] = useState<any | null>(null);
   const [showDepDropdown, setShowDepDropdown] = useState(false);
 
-  // 🚀 NEW: Ref for click-outside detection
   const depSearchRef = useRef<HTMLDivElement>(null);
 
   const resetLinkBuilder = () => {
@@ -144,6 +143,7 @@ export default function TaskModal({
       } else setBlocking([]);
     } catch (e) {
       console.error(e);
+      toast.error("Failed to load task dependencies.");
     } finally {
       setIsDependenciesLoading(false);
     }
@@ -247,7 +247,6 @@ export default function TaskModal({
     return () => clearTimeout(debounce);
   }, [depSearchQuery, linkType, isLinking, homeId, task]);
 
-  // 🚀 NEW: Click outside handler for dependency dropdown
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
       if (
@@ -340,7 +339,7 @@ export default function TaskModal({
       toast.success("Plant instances updated!");
       setIsEditingInstances(false);
       onTasksUpdated();
-      onClose();
+      setTimeout(onClose, 800);
     } catch (e) {
       toast.error("Failed to update instances.");
     } finally {
@@ -376,7 +375,7 @@ export default function TaskModal({
       toast.success("Task details updated!");
       setIsEditingDetails(false);
       onTasksUpdated();
-      onClose();
+      setTimeout(onClose, 800);
     } catch (e) {
       toast.error("Failed to save task details.");
     } finally {
@@ -402,7 +401,7 @@ export default function TaskModal({
       onClick={onClose}
     >
       <div
-        className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar"
+        className="bg-white w-full max-w-lg rounded-3xl p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -421,7 +420,7 @@ export default function TaskModal({
               <h3 className="text-xl font-black leading-tight">{task.title}</h3>
               <button
                 onClick={() => setIsEditingDetails(true)}
-                className="text-rhozly-primary/60 hover:text-rhozly-primary transition-colors shrink-0 pt-1"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-primary/60 hover:text-rhozly-primary transition-colors shrink-0"
                 title="Edit Task Details"
               >
                 <Edit3 size={16} />
@@ -430,7 +429,7 @@ export default function TaskModal({
           )}
           <button
             onClick={onClose}
-            className="p-2 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors shrink-0"
+            className="p-2 bg-rhozly-surface-low rounded-xl hover:bg-rhozly-surface transition-colors shrink-0"
           >
             <X size={18} />
           </button>
@@ -447,7 +446,7 @@ export default function TaskModal({
               onChange={(e) =>
                 setEditForm({ ...editForm, description: e.target.value })
               }
-              className="w-full p-3 bg-gray-50 rounded-xl outline-none border border-gray-200 focus:border-rhozly-primary text-sm font-bold min-h-[80px]"
+              className="w-full p-3 bg-rhozly-surface-lowest rounded-xl outline-none border border-rhozly-outline/10 focus:border-rhozly-primary text-sm font-bold min-h-[80px]"
               placeholder="Add instructions or notes..."
             />
           </div>
@@ -468,16 +467,16 @@ export default function TaskModal({
         <div className="space-y-3 mb-8">
           {/* Active Plants - Only visible if not editing core details */}
           {!isEditingDetails && task.area_id && (
-            <div className="bg-emerald-50 rounded-2xl border border-emerald-100 overflow-hidden transition-all">
+            <div className="bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/10 overflow-hidden transition-all">
               {isEditingInstances ? (
                 <div className="p-4 animate-in slide-in-from-top-2">
                   <div className="flex justify-between items-center mb-4">
-                    <h4 className="text-sm font-black text-emerald-900">
-                      Amend Plant Instances
+                    <h4 className="text-sm font-black text-rhozly-on-surface">
+                      Edit Plant Instances
                     </h4>
                     <button
                       onClick={() => setIsEditingInstances(false)}
-                      className="text-emerald-600 hover:text-emerald-800"
+                      className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-primary hover:text-rhozly-primary/80"
                     >
                       <X size={16} />
                     </button>
@@ -485,13 +484,13 @@ export default function TaskModal({
 
                   {!editingPlantName ? (
                     <div className="space-y-2">
-                      <label className="text-[10px] font-black uppercase tracking-widest text-emerald-800/60">
+                      <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
                         Select Plant Type
                       </label>
                       <select
                         value={editingPlantName}
                         onChange={(e) => setEditingPlantName(e.target.value)}
-                        className="w-full p-3 rounded-xl text-sm font-bold border border-emerald-200 outline-none focus:border-emerald-500"
+                        className="w-full p-3 rounded-xl text-sm font-bold border border-rhozly-outline/10 outline-none focus:border-rhozly-primary"
                       >
                         <option value="">-- Choose a plant --</option>
                         {Array.from(
@@ -506,13 +505,13 @@ export default function TaskModal({
                   ) : (
                     <div className="space-y-2">
                       <div className="flex justify-between items-center mb-2">
-                        <label className="text-[10px] font-black uppercase tracking-widest text-emerald-800/60">
+                        <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
                           Select Instances ({editingPlantName})
                         </label>
                         {(task.inventory_item_ids || []).length === 0 && (
                           <button
                             onClick={() => setEditingPlantName("")}
-                            className="text-[10px] text-emerald-600 underline font-bold"
+                            className="text-[10px] text-rhozly-primary underline font-bold"
                           >
                             Change Plant
                           </button>
@@ -528,7 +527,7 @@ export default function TaskModal({
                           .map((item) => (
                             <label
                               key={item.id}
-                              className="flex items-center gap-3 p-3 bg-white rounded-xl border border-emerald-100 cursor-pointer hover:bg-emerald-50/50 transition-colors"
+                              className="flex items-center gap-3 p-3 bg-white rounded-xl border border-rhozly-outline/10 cursor-pointer hover:bg-rhozly-surface-lowest transition-colors"
                             >
                               <input
                                 type="checkbox"
@@ -546,9 +545,9 @@ export default function TaskModal({
                                       ),
                                     );
                                 }}
-                                className="accent-emerald-600 w-4 h-4 shrink-0"
+                                className="accent-rhozly-primary w-4 h-4 shrink-0"
                               />
-                              <span className="text-xs font-bold text-emerald-900 leading-tight">
+                              <span className="text-xs font-bold text-rhozly-on-surface leading-tight">
                                 {item.identifier}
                               </span>
                             </label>
@@ -558,7 +557,7 @@ export default function TaskModal({
                             i.plant_name === editingPlantName &&
                             i.status !== "Archived",
                         ).length === 0 && (
-                          <p className="text-xs text-emerald-600/60 italic p-2 text-center">
+                          <p className="text-xs text-rhozly-on-surface/40 italic p-2 text-center">
                             No active instances found for this plant.
                           </p>
                         )}
@@ -569,7 +568,7 @@ export default function TaskModal({
                   <button
                     onClick={handleSaveInstances}
                     disabled={isSavingInstances}
-                    className="w-full mt-4 py-3 bg-emerald-600 text-white rounded-xl font-black shadow-md hover:bg-emerald-700 disabled:opacity-50 flex justify-center items-center gap-2"
+                    className="w-full mt-4 py-3 bg-rhozly-primary text-white rounded-xl font-black shadow-md hover:bg-rhozly-primary/90 disabled:opacity-50 flex justify-center items-center gap-2"
                   >
                     {isSavingInstances ? (
                       <Loader2 size={16} className="animate-spin" />
@@ -581,18 +580,18 @@ export default function TaskModal({
               ) : (
                 <>
                   <div
-                    className="flex items-center justify-between p-3 cursor-pointer hover:bg-emerald-100/50 transition-colors"
+                    className="flex items-center justify-between p-3 cursor-pointer hover:bg-rhozly-surface-low transition-colors"
                     onClick={() => setShowTaskInstances(!showTaskInstances)}
                   >
                     <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 bg-emerald-100 rounded-xl flex items-center justify-center text-emerald-600 shrink-0">
+                      <div className="w-10 h-10 bg-rhozly-surface rounded-xl flex items-center justify-center text-rhozly-primary shrink-0">
                         <Leaf size={16} />
                       </div>
                       <div>
-                        <p className="text-[10px] font-black uppercase tracking-widest text-emerald-800/60">
+                        <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
                           Active Plants
                         </p>
-                        <p className="text-sm font-bold text-emerald-900">
+                        <p className="text-sm font-bold text-rhozly-on-surface">
                           {primaryPlantName}{" "}
                           {hasPlants ? `(x${activeIds.length})` : ""}
                         </p>
@@ -604,12 +603,12 @@ export default function TaskModal({
                           e.stopPropagation();
                           setIsEditingInstances(true);
                         }}
-                        className="p-2 text-emerald-600 hover:bg-emerald-200 rounded-xl transition-colors"
-                        title="Amend Instances"
+                        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-primary hover:bg-rhozly-surface rounded-xl transition-colors"
+                        title="Edit Plant Instances"
                       >
                         <Edit3 size={16} />
                       </button>
-                      <div className="text-emerald-600 p-2">
+                      <div className="text-rhozly-primary p-2">
                         {showTaskInstances ? (
                           <ChevronUp size={20} />
                         ) : (
@@ -620,11 +619,11 @@ export default function TaskModal({
                   </div>
                   {showTaskInstances && hasPlants && (
                     <div className="px-4 pb-4 pt-1 space-y-1.5 animate-in slide-in-from-top-2">
-                      <div className="w-full h-px bg-emerald-200/50 mb-3" />
+                      <div className="w-full h-px bg-rhozly-outline/10 mb-3" />
                       {activeIds.map((id: string) => (
                         <div
                           key={id}
-                          className="flex justify-between items-center text-xs font-bold text-emerald-900 bg-white/50 p-2 rounded-lg"
+                          className="flex justify-between items-center text-xs font-bold text-rhozly-on-surface bg-white/50 p-2 rounded-lg"
                         >
                           <span>
                             {inventoryDict[id]?.identifier || "Unknown Plant"}
@@ -640,7 +639,7 @@ export default function TaskModal({
 
           {/* EDIT MODE: Dropdowns */}
           {isEditingDetails ? (
-            <div className="space-y-4 bg-gray-50 p-4 rounded-2xl border border-gray-100 animate-in slide-in-from-top-2">
+            <div className="space-y-4 bg-rhozly-surface-lowest p-4 rounded-2xl border border-rhozly-outline/10 animate-in slide-in-from-top-2">
               {isFetchingDropdowns ? (
                 <div className="flex justify-center p-4">
                   <Loader2 className="animate-spin text-rhozly-primary" />
@@ -648,7 +647,7 @@ export default function TaskModal({
               ) : (
                 <>
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-1 block">
                       Location
                     </label>
                     <select
@@ -660,7 +659,7 @@ export default function TaskModal({
                           area_id: "",
                         })
                       }
-                      className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-rhozly-primary text-sm font-bold"
+                      className="w-full p-3 rounded-xl border border-rhozly-outline/10 outline-none focus:border-rhozly-primary text-sm font-bold"
                     >
                       <option value="">-- No Location --</option>
                       {dropdownOptions.locations.map((loc) => (
@@ -671,7 +670,7 @@ export default function TaskModal({
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">
+                    <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-1 block">
                       Area
                     </label>
                     <select
@@ -680,7 +679,7 @@ export default function TaskModal({
                         setEditForm({ ...editForm, area_id: e.target.value })
                       }
                       disabled={!editForm.location_id}
-                      className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-rhozly-primary text-sm font-bold disabled:opacity-50"
+                      className="w-full p-3 rounded-xl border border-rhozly-outline/10 outline-none focus:border-rhozly-primary text-sm font-bold disabled:opacity-50"
                     >
                       <option value="">-- No Area --</option>
                       {availableAreas.map((area) => (
@@ -691,15 +690,15 @@ export default function TaskModal({
                     </select>
                   </div>
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-gray-500 mb-1 block">
-                      Associated Plan
+                    <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-1 block">
+                      Plan
                     </label>
                     <select
                       value={editForm.plan_id}
                       onChange={(e) =>
                         setEditForm({ ...editForm, plan_id: e.target.value })
                       }
-                      className="w-full p-3 rounded-xl border border-gray-200 outline-none focus:border-rhozly-primary text-sm font-bold"
+                      className="w-full p-3 rounded-xl border border-rhozly-outline/10 outline-none focus:border-rhozly-primary text-sm font-bold"
                     >
                       <option value="">-- No Plan --</option>
                       {dropdownOptions.plans.map((plan) => (
@@ -729,20 +728,20 @@ export default function TaskModal({
             <>
               {task.areas?.name && (
                 <div
-                  className="flex items-center gap-3 p-3 bg-blue-50 rounded-2xl border border-blue-100 cursor-pointer hover:bg-blue-100 transition-colors"
+                  className="flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/10 cursor-pointer hover:bg-rhozly-surface-low transition-colors"
                   onClick={() => {
                     onClose();
                     navigate("/areas");
                   }}
                 >
-                  <div className="w-10 h-10 bg-blue-100 rounded-xl flex items-center justify-center text-blue-600 shrink-0">
+                  <div className="w-10 h-10 bg-rhozly-surface rounded-xl flex items-center justify-center text-rhozly-primary shrink-0">
                     <Grid size={16} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-blue-800/60">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
                       Location • Area
                     </p>
-                    <p className="text-sm font-bold text-blue-900">
+                    <p className="text-sm font-bold text-rhozly-on-surface">
                       {task.locations?.name} • {task.areas?.name}
                     </p>
                   </div>
@@ -751,20 +750,20 @@ export default function TaskModal({
 
               {task.plans?.name && (
                 <div
-                  className="flex items-center gap-3 p-3 bg-purple-50 rounded-2xl border border-purple-100 cursor-pointer hover:bg-purple-100 transition-colors"
+                  className="flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/10 cursor-pointer hover:bg-rhozly-surface-low transition-colors"
                   onClick={() => {
                     onClose();
                     navigate("/planner");
                   }}
                 >
-                  <div className="w-10 h-10 bg-purple-100 rounded-xl flex items-center justify-center text-purple-600 shrink-0">
+                  <div className="w-10 h-10 bg-rhozly-surface rounded-xl flex items-center justify-center text-rhozly-primary shrink-0">
                     <FolderKanban size={16} />
                   </div>
                   <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-purple-800/60">
-                      Generated By Plan
+                    <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+                      Plan
                     </p>
-                    <p className="text-sm font-bold text-purple-900">
+                    <p className="text-sm font-bold text-rhozly-on-surface">
                       {task.plans.name}
                     </p>
                   </div>
@@ -788,16 +787,16 @@ export default function TaskModal({
             ) : (
               <div className="space-y-4">
                 <div>
-                  <p className="text-xs font-bold text-gray-500 mb-2">
+                  <p className="text-xs font-bold text-rhozly-on-surface/50 mb-2">
                     Waiting On (Blockers):
                   </p>
                   {blockers.length === 0 ? (
-                    <p className="text-xs text-gray-400 italic">None.</p>
+                    <p className="text-xs text-rhozly-on-surface/30 italic">None.</p>
                   ) : (
                     blockers.map((b) => (
                       <div
                         key={b.id}
-                        className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-gray-100 shadow-sm mb-2"
+                        className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-rhozly-outline/10 shadow-sm mb-2"
                       >
                         <div className="flex items-center gap-2 min-w-0">
                           {b.status === "Pending" ? (
@@ -805,18 +804,18 @@ export default function TaskModal({
                           ) : (
                             <CheckSquare2
                               size={14}
-                              className="text-green-500 shrink-0"
+                              className="text-rhozly-primary shrink-0"
                             />
                           )}
                           <span
-                            className={`text-sm font-bold truncate ${b.status === "Pending" ? "text-gray-800" : "text-gray-400 line-through"}`}
+                            className={`text-sm font-bold truncate ${b.status === "Pending" ? "text-rhozly-on-surface" : "text-rhozly-on-surface/40 line-through"}`}
                           >
                             {b.title}
                           </span>
                         </div>
                         <button
                           onClick={() => handleRemoveDependency(task.id, b.id)}
-                          className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0 transition-colors"
+                          className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0 transition-colors"
                         >
                           <Unlink size={14} />
                         </button>
@@ -825,24 +824,24 @@ export default function TaskModal({
                   )}
                 </div>
                 <div>
-                  <p className="text-xs font-bold text-gray-500 mb-2">
+                  <p className="text-xs font-bold text-rhozly-on-surface/50 mb-2">
                     Blocking (Depends on this):
                   </p>
                   {blocking.length === 0 ? (
-                    <p className="text-xs text-gray-400 italic">None.</p>
+                    <p className="text-xs text-rhozly-on-surface/30 italic">None.</p>
                   ) : (
                     <div className="space-y-2">
                       {blocking.map((b) => (
                         <div
                           key={b.id}
-                          className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-gray-100 shadow-sm"
+                          className="flex items-center justify-between p-2.5 bg-white rounded-xl border border-rhozly-outline/10 shadow-sm"
                         >
                           <div className="flex items-center gap-2 min-w-0">
                             <LinkIcon
                               size={14}
-                              className="text-blue-400 shrink-0"
+                              className="text-rhozly-primary/50 shrink-0"
                             />
-                            <span className="text-sm font-bold truncate text-gray-800">
+                            <span className="text-sm font-bold truncate text-rhozly-on-surface">
                               {b.title}
                             </span>
                           </div>
@@ -850,7 +849,7 @@ export default function TaskModal({
                             onClick={() =>
                               handleRemoveDependency(b.id, task.id)
                             }
-                            className="p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0 transition-colors"
+                            className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 rounded-lg shrink-0 transition-colors"
                           >
                             <Unlink size={14} />
                           </button>
@@ -862,10 +861,10 @@ export default function TaskModal({
               </div>
             )}
 
-            <div className="pt-2 border-t border-gray-100 mt-4">
+            <div className="pt-2 border-t border-rhozly-outline/10 mt-4">
               {isLinking ? (
-                <div className="flex flex-col gap-2 p-3 bg-gray-50 rounded-xl border border-gray-100">
-                  <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mb-1">
+                <div className="flex flex-col gap-2 p-3 bg-rhozly-surface-lowest rounded-xl border border-rhozly-outline/10">
+                  <p className="text-xs font-bold text-rhozly-on-surface/40 uppercase tracking-widest mb-1">
                     Add New Link
                   </p>
                   <select
@@ -883,12 +882,11 @@ export default function TaskModal({
                     </option>
                     <option value="blocking">This task is BLOCKING...</option>
                   </select>
-                  {/* 🚀 FIXED: Added the ref to the relative container */}
                   <div className="relative" ref={depSearchRef}>
                     <div className="flex items-center bg-white border border-rhozly-outline/10 rounded-xl overflow-hidden focus-within:border-rhozly-primary transition-colors">
                       <Search
                         size={16}
-                        className="ml-3 text-gray-400 shrink-0"
+                        className="ml-3 text-rhozly-on-surface/30 shrink-0"
                       />
                       <input
                         type="text"
@@ -915,22 +913,22 @@ export default function TaskModal({
                             setDepSearchQuery("");
                             setShowDepDropdown(true);
                           }}
-                          className="p-2 text-gray-400 hover:text-red-500 mr-1"
+                          className="p-2 text-rhozly-on-surface/30 hover:text-red-500 mr-1"
                         >
                           <X size={16} />
                         </button>
                       )}
                     </div>
                     {!selectedDepTask && showDepDropdown && (
-                      <div className="absolute z-50 w-full mt-2 bg-white border border-gray-100 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
+                      <div className="absolute z-50 w-full mt-2 bg-white border border-rhozly-outline/10 rounded-xl shadow-xl max-h-48 overflow-y-auto custom-scrollbar">
                         {isSearchingDeps ? (
-                          <div className="p-4 text-center text-gray-400 text-xs flex items-center justify-center gap-2">
+                          <div className="p-4 text-center text-rhozly-on-surface/40 text-xs flex items-center justify-center gap-2">
                             <Loader2 className="animate-spin" size={14} />{" "}
                             Searching...
                           </div>
                         ) : depSearchResults.length === 0 &&
                           depSearchQuery.trim() !== "" ? (
-                          <div className="p-4 text-center text-gray-400 text-xs">
+                          <div className="p-4 text-center text-rhozly-on-surface/40 text-xs">
                             No matching tasks found.
                           </div>
                         ) : (
@@ -942,22 +940,22 @@ export default function TaskModal({
                                 setLinkTaskId(t.id);
                                 setShowDepDropdown(false);
                               }}
-                              className="p-3 hover:bg-rhozly-primary/5 cursor-pointer border-b border-gray-50 last:border-0 flex items-center justify-between transition-colors"
+                              className="p-3 hover:bg-rhozly-primary/5 cursor-pointer border-b border-rhozly-outline/5 last:border-0 flex items-center justify-between transition-colors"
                             >
                               <div className="min-w-0 pr-2">
-                                <p className="text-sm font-bold text-gray-800 truncate">
+                                <p className="text-sm font-bold text-rhozly-on-surface truncate">
                                   {t.title}
                                 </p>
-                                <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mt-0.5 flex gap-1.5 items-center">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mt-0.5 flex gap-1.5 items-center">
                                   <span>{t.type}</span>
                                   <span className="opacity-50">•</span>
                                   <span
                                     className={
                                       t.status === "Completed"
-                                        ? "text-green-500"
+                                        ? "text-rhozly-primary"
                                         : t.status === "Pending"
-                                          ? "text-blue-500"
-                                          : "text-gray-400"
+                                          ? "text-rhozly-primary/60"
+                                          : "text-rhozly-on-surface/40"
                                     }
                                   >
                                     {t.status}
@@ -965,7 +963,7 @@ export default function TaskModal({
                                 </p>
                               </div>
                               <div className="text-right shrink-0">
-                                <p className="text-xs font-black text-gray-500 uppercase">
+                                <p className="text-xs font-black text-rhozly-on-surface/50 uppercase">
                                   {formatDisplayDate(t.due_date)}
                                 </p>
                               </div>
@@ -981,14 +979,14 @@ export default function TaskModal({
                         setIsLinking(false);
                         resetLinkBuilder();
                       }}
-                      className="flex-1 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-bold rounded-lg text-xs transition-colors"
+                      className="flex-1 py-2 bg-rhozly-surface hover:bg-rhozly-surface-low text-rhozly-on-surface font-bold rounded-lg text-xs transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleExecuteLink}
                       disabled={!linkTaskId || isDependenciesLoading}
-                      className="flex-1 py-2 bg-blue-500 hover:bg-blue-600 text-white font-bold rounded-lg text-xs transition-colors disabled:opacity-50"
+                      className="flex-1 py-2 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white font-bold rounded-lg text-xs transition-colors disabled:opacity-50"
                     >
                       Save Link
                     </button>
@@ -997,7 +995,7 @@ export default function TaskModal({
               ) : (
                 <button
                   onClick={() => setIsLinking(true)}
-                  className="text-xs font-bold text-blue-500 hover:text-blue-700 flex items-center gap-1 bg-blue-50 px-3 py-2 rounded-lg transition-colors"
+                  className="text-xs font-bold text-rhozly-primary hover:text-rhozly-primary/80 flex items-center gap-1 bg-rhozly-surface px-3 py-2 rounded-lg transition-colors"
                 >
                   <Plus size={14} /> Add Dependency
                 </button>
@@ -1016,7 +1014,7 @@ export default function TaskModal({
           </button>
           <button
             onClick={onPostpone}
-            className="w-14 h-14 bg-blue-50 text-blue-600 rounded-2xl flex items-center justify-center hover:bg-blue-600 hover:text-white transition-all shrink-0"
+            className="w-14 h-14 bg-rhozly-surface text-rhozly-primary rounded-2xl flex items-center justify-center hover:bg-rhozly-primary hover:text-white transition-all shrink-0"
             title="Reschedule task"
           >
             <CalendarClock size={20} />
@@ -1024,7 +1022,7 @@ export default function TaskModal({
           <button
             onClick={onToggleComplete}
             disabled={isBlocked && task.status !== "Completed"}
-            className={`flex-1 h-14 rounded-2xl font-black text-white flex items-center justify-center gap-2 transition-all ${isBlocked && task.status !== "Completed" ? "bg-gray-300 cursor-not-allowed" : task.status === "Completed" ? "bg-gray-800 hover:bg-gray-900" : "bg-rhozly-primary hover:scale-[1.02]"}`}
+            className={`flex-1 h-14 rounded-2xl font-black text-white flex items-center justify-center gap-2 transition-all ${isBlocked && task.status !== "Completed" ? "bg-rhozly-surface-low text-rhozly-on-surface/30 cursor-not-allowed" : task.status === "Completed" ? "bg-rhozly-on-surface hover:bg-rhozly-on-surface/90" : "bg-rhozly-primary hover:scale-[1.02]"}`}
           >
             {isUpdating ? (
               <Loader2 className="animate-spin" size={20} />
