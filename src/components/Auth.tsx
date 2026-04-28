@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import { Sprout, Mail, Lock, Loader2, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
@@ -12,8 +12,16 @@ export const Auth: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [isSignUp, setIsSignUp] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Refs for focus management
+  const firstNameRef = useRef<HTMLInputElement>(null);
+  const lastNameRef = useRef<HTMLInputElement>(null);
+  const emailRef = useRef<HTMLInputElement>(null);
+  const passwordRef = useRef<HTMLInputElement>(null);
 
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -24,7 +32,16 @@ export const Auth: React.FC = () => {
       Logger.log(`Attempting ${isSignUp ? "sign up" : "sign in"} for ${email}`);
 
       if (isSignUp) {
-        const { error } = await supabase.auth.signUp({ email, password });
+        const { error } = await supabase.auth.signUp({
+          email,
+          password,
+          options: {
+            data: {
+              first_name: firstName,
+              last_name: lastName,
+            },
+          },
+        });
         if (error) throw error;
 
         Logger.success("Check your email for the confirmation link!");
@@ -40,6 +57,20 @@ export const Auth: React.FC = () => {
     } catch (err: any) {
       Logger.error("Authentication error", err, { attemptedEmail: email });
       setError(err.message);
+
+      // Focus management: focus the first invalid field
+      if (isSignUp && !firstName) {
+        firstNameRef.current?.focus();
+      } else if (isSignUp && !lastName) {
+        lastNameRef.current?.focus();
+      } else if (!email) {
+        emailRef.current?.focus();
+      } else if (!password) {
+        passwordRef.current?.focus();
+      } else {
+        // If all fields are filled, focus email (likely invalid credentials)
+        emailRef.current?.focus();
+      }
     } finally {
       setLoading(false);
     }
@@ -191,7 +222,12 @@ export const Auth: React.FC = () => {
                       </svg>
                     </div>
                     <input
+                      ref={firstNameRef}
                       type="text"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      aria-invalid={error ? "true" : "false"}
+                      aria-describedby={error ? "auth-error" : undefined}
                       className="block w-full pl-11 pr-4 py-4 focus:ring-2 focus:outline-none rounded-xl transition-all duration-200"
                       style={{
                         backgroundColor: theme.colors.surfaceContainerLow,
@@ -230,7 +266,12 @@ export const Auth: React.FC = () => {
                       </svg>
                     </div>
                     <input
+                      ref={lastNameRef}
                       type="text"
+                      value={lastName}
+                      onChange={(e) => setLastName(e.target.value)}
+                      aria-invalid={error ? "true" : "false"}
+                      aria-describedby={error ? "auth-error" : undefined}
                       className="block w-full pl-11 pr-4 py-4 focus:ring-2 focus:outline-none rounded-xl transition-all duration-200"
                       style={{
                         backgroundColor: theme.colors.surfaceContainerLow,
@@ -267,6 +308,7 @@ export const Auth: React.FC = () => {
                   </svg>
                 </div>
                 <input
+                  ref={emailRef}
                   type="email"
                   required
                   value={email}
@@ -319,6 +361,7 @@ export const Auth: React.FC = () => {
                   </svg>
                 </div>
                 <input
+                  ref={passwordRef}
                   type="password"
                   required
                   value={password}
@@ -340,6 +383,7 @@ export const Auth: React.FC = () => {
               <div
                 id="auth-error"
                 role="alert"
+                aria-live="assertive"
                 className="p-4 bg-red-50 text-red-600 text-xs rounded-xl font-bold border border-red-100"
               >
                 {error}
@@ -406,19 +450,7 @@ export const Auth: React.FC = () => {
               <>{isSignUp ? "Sign Up using Google" : " Sign In with Google"}</>
             </button>
 
-            {!isSignUp && (
-              <button
-                type="button"
-                className={`${theme.typography.signInButton} w-full flex items-center justify-center gap-3 rounded-xl font-semibold transition-colors duration-200 active:scale-95`}
-                style={{
-                  backgroundColor: theme.colors.surfaceContainerLow,
-                  color: theme.colors.onSurface,
-                }}
-              >
-                <span className="text-lg">☝️</span>
-                Use Biometrics
-              </button>
-            )}
+            {/* Biometrics button hidden until implementation is ready */}
           </div>
         </div>
 

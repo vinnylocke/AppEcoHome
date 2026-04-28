@@ -173,8 +173,9 @@ export default function WikiPlantCard({
               {wikiData.extract.length > 150 && (
                 <button
                   onClick={() => setIsExpanded(!isExpanded)}
-                  className="text-[11px] font-black text-emerald-600 hover:text-emerald-800 mt-1.5 ml-3 uppercase tracking-wider"
+                  className="text-[11px] font-black text-emerald-600 hover:text-emerald-800 mt-1.5 ml-3 uppercase tracking-wider focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2 rounded-sm px-1"
                   aria-label={isExpanded ? `Read less about ${plant.common_name}` : `Read more about ${plant.common_name}`}
+                  aria-expanded={isExpanded}
                 >
                   {isExpanded ? "Read Less" : "Read More"}
                 </button>
@@ -226,7 +227,7 @@ export default function WikiPlantCard({
                 selectedForProcurement.filter((i: any) => i !== idx),
               );
           }}
-          className="w-full sm:w-auto p-2.5 bg-white rounded-xl border border-emerald-200 text-sm font-bold shadow-sm outline-none focus:ring-2 focus:ring-emerald-500/20"
+          className="w-full sm:w-auto p-2.5 bg-white rounded-xl border border-emerald-200 text-sm font-bold shadow-sm outline-none focus-visible:ring-2 focus-visible:ring-emerald-500"
         >
           <option value="create">⚠️ Needs Procurement</option>
           {rankedShedPlants.length > 0 && (

@@ -104,14 +104,16 @@ export default function BulkConfigModal({
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in zoom-in-95">
       <div
         ref={modalRef}
+        aria-labelledby="bulk-config-title"
+        aria-describedby="bulk-config-description"
         className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl flex flex-col border border-rhozly-outline/10"
       >
         <div className="flex justify-between items-start mb-6">
           <div>
-            <h3 className="text-2xl font-black text-gray-900 leading-tight">
+            <h3 id="bulk-config-title" className="text-2xl font-black text-gray-900 leading-tight">
               Configure Plants
             </h3>
-            <p className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">
+            <p id="bulk-config-description" className="text-xs font-bold text-gray-500 uppercase tracking-widest mt-1">
               Updating {selectedCount} items
             </p>
           </div>

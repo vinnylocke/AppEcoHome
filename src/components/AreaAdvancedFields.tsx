@@ -57,7 +57,7 @@ export default function AreaAdvancedFields({
             name="growing_medium"
             value={data.growing_medium || ""}
             onChange={handleChange}
-            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 focus:ring-2 focus:ring-rhozly-primary/20"
           >
             <option value="">Select Medium...</option>
             <option value="Mineral Soil">Mineral Soil (Natural earth)</option>
@@ -77,7 +77,7 @@ export default function AreaAdvancedFields({
             name="medium_texture"
             value={data.medium_texture || ""}
             onChange={handleChange}
-            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 focus:ring-2 focus:ring-rhozly-primary/20"
           >
             <option value="">Select Texture...</option>
             <option value="Fine">Fine (Silt/Clay)</option>
@@ -99,7 +99,7 @@ export default function AreaAdvancedFields({
             value={data.medium_ph || ""}
             onChange={handleChange}
             placeholder="e.g. 6.5"
-            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
           />
         </div>
 
@@ -114,7 +114,7 @@ export default function AreaAdvancedFields({
             value={data.light_intensity_lux || ""}
             onChange={handleChange}
             placeholder="e.g. 5000"
-            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 focus:ring-2 focus:ring-rhozly-primary/20 focus:border-rhozly-primary"
           />
         </div>
 
@@ -127,7 +127,7 @@ export default function AreaAdvancedFields({
             name="water_movement"
             value={data.water_movement || ""}
             onChange={handleChange}
-            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 focus:ring-2 focus:ring-rhozly-primary/20"
           >
             <option value="">Select Flow...</option>
             <option value="Well-Drained">Well-Drained</option>
@@ -146,7 +146,7 @@ export default function AreaAdvancedFields({
             name="nutrient_source"
             value={data.nutrient_source || ""}
             onChange={handleChange}
-            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 focus:ring-2 focus:ring-rhozly-primary/20"
           >
             <option value="">Select Source...</option>
             <option value="Organic Breakdown">Organic (Compost)</option>

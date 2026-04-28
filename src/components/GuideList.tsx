@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { supabase } from "../lib/supabase";
 import {
   Search,
@@ -24,9 +24,13 @@ export default function GuideList() {
   // 🚀 NEW: Dropdown States
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [labelSearchQuery, setLabelSearchQuery] = useState("");
+  const [focusedOptionIndex, setFocusedOptionIndex] = useState(-1);
 
   // Reading Mode
   const [activeGuide, setActiveGuide] = useState<any | null>(null);
+
+  // Refs for accessibility
+  const dropdownTriggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
     const fetchGuides = async () => {
@@ -43,6 +47,29 @@ export default function GuideList() {
     };
     fetchGuides();
   }, []);
+
+  // Handle Escape key to close dropdown
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isDropdownOpen) {
+        setIsDropdownOpen(false);
+        setLabelSearchQuery("");
+        setFocusedOptionIndex(-1);
+        dropdownTriggerRef.current?.focus();
+      }
+    };
+
+    if (isDropdownOpen) {
+      document.addEventListener("keydown", handleKeyDown);
+    } else {
+      // Reset focused index when dropdown closes
+      setFocusedOptionIndex(-1);
+    }
+
+    return () => {
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [isDropdownOpen]);
 
   const allLabels = useMemo(() => {
     const labels = new Set<string>();
@@ -242,7 +269,9 @@ export default function GuideList() {
         {/* 🚀 THE NEW SEARCHABLE DROPDOWN */}
         <div className="relative md:min-w-[220px] shrink-0">
           <button
+            ref={dropdownTriggerRef}
             onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+            aria-expanded={isDropdownOpen}
             className={`w-full h-full flex items-center justify-between px-5 py-3 rounded-xl md:rounded-full transition-colors border ${isDropdownOpen ? "bg-white border-rhozly-primary/30 shadow-sm" : "bg-rhozly-surface-lowest border-transparent hover:bg-rhozly-outline/5"}`}
           >
             <div className="flex items-center gap-2 overflow-hidden">
@@ -278,6 +307,12 @@ export default function GuideList() {
                       placeholder="Search tags..."
                       value={labelSearchQuery}
                       onChange={(e) => setLabelSearchQuery(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "ArrowDown") {
+                          e.preventDefault();
+                          setFocusedOptionIndex(0);
+                        }
+                      }}
                       className="w-full bg-transparent p-2 outline-none text-sm font-bold text-rhozly-on-surface placeholder:text-rhozly-on-surface/30"
                       autoFocus // Automatically focus the keyboard here when opened
                     />
@@ -293,20 +328,52 @@ export default function GuideList() {
                 </div>
 
                 {/* Scrollable Label List */}
-                <div className="max-h-64 overflow-y-auto custom-scrollbar p-2">
+                <div
+                  className="max-h-64 overflow-y-auto custom-scrollbar p-2"
+                  role="listbox"
+                  onKeyDown={(e) => {
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      setFocusedOptionIndex((prev) =>
+                        prev < dropdownLabels.length - 1 ? prev + 1 : prev
+                      );
+                    } else if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      setFocusedOptionIndex((prev) => (prev > 0 ? prev - 1 : prev));
+                    }
+                  }}
+                >
                   {dropdownLabels.length === 0 ? (
                     <div className="py-6 text-center text-xs font-bold text-rhozly-on-surface/40 flex flex-col items-center gap-2">
                       <Tag size={20} className="opacity-20" />
                       No matching tags
                     </div>
                   ) : (
-                    dropdownLabels.map((label) => (
+                    dropdownLabels.map((label, index) => (
                       <button
                         key={label}
+                        role="option"
+                        aria-selected={selectedLabel === label}
+                        ref={(el) => {
+                          if (index === focusedOptionIndex && el) {
+                            el.focus();
+                          }
+                        }}
                         onClick={() => {
                           setSelectedLabel(label);
                           setIsDropdownOpen(false);
                           setLabelSearchQuery(""); // Clean up for next time
+                          setFocusedOptionIndex(-1);
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter" || e.key === " ") {
+                            e.preventDefault();
+                            setSelectedLabel(label);
+                            setIsDropdownOpen(false);
+                            setLabelSearchQuery("");
+                            setFocusedOptionIndex(-1);
+                            dropdownTriggerRef.current?.focus();
+                          }
                         }}
                         className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${selectedLabel === label ? "bg-rhozly-primary/10 text-rhozly-primary" : "text-rhozly-on-surface/60 hover:bg-rhozly-surface-lowest hover:text-rhozly-on-surface"}`}
                       >

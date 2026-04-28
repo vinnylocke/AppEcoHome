@@ -98,6 +98,12 @@ export default function PlanStaging({
     onConfirm: () => Promise<void>;
   } | null>(null);
 
+  const [collapsedPhases, setCollapsedPhases] = useState<Record<string, boolean>>({});
+
+  const togglePhaseCollapse = (phase: string) => {
+    setCollapsedPhases((prev) => ({ ...prev, [phase]: !prev[phase] }));
+  };
+
   // 🚀 THE FIX: Dependency changed to [plan.id] so it NEVER overwrites local state with a stale cache echo
   useEffect(() => {
     setLocalStagingState(plan.staging_state || {});
@@ -727,8 +733,29 @@ export default function PlanStaging({
     ? `${localCoverImage}?width=800&quality=80&format=webp`
     : localCoverImage;
 
+  const getCurrentPhaseId = () => {
+    if (!isStarted) return null;
+    if (!isPhase1Done) return "phase-1";
+    if (!isPhase2Done) return "phase-2";
+    if (!isPhase3Done) return "phase-3";
+    if (!isPhase4Done) return "phase-4";
+    if (!isPhase5Done) return "phase-5";
+    return null;
+  };
+
+  const currentPhaseId = getCurrentPhaseId();
+
   return (
     <div className="h-full flex flex-col bg-rhozly-bg animate-in slide-in-from-right-8 duration-500 relative z-40">
+      {/* Skip Navigation */}
+      {currentPhaseId && (
+        <a
+          href={`#${currentPhaseId}`}
+          className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-1/2 focus:-translate-x-1/2 focus:z-50 focus:px-6 focus:py-3 focus:bg-rhozly-primary focus:text-white focus:rounded-xl focus:font-black focus:shadow-lg"
+        >
+          Skip to Current Phase
+        </a>
+      )}
       {/* Header */}
       <div className="relative h-64 shrink-0 overflow-hidden rounded-b-[3rem] shadow-lg">
         {localCoverImage ? (
@@ -775,13 +802,13 @@ export default function PlanStaging({
               <div className="flex flex-col sm:flex-row gap-4">
                 <button
                   onClick={handleStartProject}
-                  className="flex-1 py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-2xl font-black shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 text-lg"
+                  className="flex-1 py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-2xl font-black shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 text-lg focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                 >
                   <CheckCircle2 size={22} /> Accept & Start Staging
                 </button>
                 <button
                   onClick={() => setShowRegenModal(true)}
-                  className="flex-1 py-4 bg-white border-2 border-rhozly-primary/20 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-2xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 text-lg"
+                  className="flex-1 py-4 bg-white border-2 border-rhozly-primary/20 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-2xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 text-lg focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                 >
                   <RotateCcw size={22} /> Regenerate Plan
                 </button>
@@ -793,8 +820,9 @@ export default function PlanStaging({
         <div className={`space-y-6 transition-all duration-500`}>
           {/* PHASE 1: INFRASTRUCTURE */}
           <section
+            id="phase-1"
             aria-label={`Phase 1: Infrastructure - ${isPhase1Done ? "Completed" : "In Progress"}`}
-            className={`bg-white rounded-3xl p-6 shadow-sm border transition-colors ${isPhase1Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10"}${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
+            className={`bg-white rounded-3xl p-6 shadow-sm border transition-colors ${isPhase1Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10"} ${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
           >
             <div className="flex items-center gap-3 mb-6">
               <div
@@ -807,16 +835,28 @@ export default function PlanStaging({
                   <MapIcon size={20} />
                 )}
               </div>
-              <div>
+              <div className="flex-1">
                 <h2 className="text-xl font-black">Phase 1: Infrastructure</h2>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest">
                   Environment Setup
                 </p>
               </div>
+              {isPhase1Done && (
+                <button
+                  onClick={() => togglePhaseCollapse("phase-1")}
+                  className="px-3 py-1.5 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  aria-expanded={!collapsedPhases["phase-1"]}
+                  aria-label={collapsedPhases["phase-1"] ? "Expand Phase 1" : "Collapse Phase 1"}
+                >
+                  {collapsedPhases["phase-1"] ? "Expand" : "Collapse"}
+                </button>
+              )}
             </div>
 
-            {isPhase1Done ? (
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-green-50 rounded-2xl border border-green-100">
+            {!collapsedPhases["phase-1"] && (
+              <>
+                {isPhase1Done ? (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-green-50 rounded-2xl border border-green-100">
                 <div className="flex items-center gap-3 text-green-800">
                   <CheckCircle2 size={20} className="shrink-0" />
                   <div>
@@ -831,7 +871,7 @@ export default function PlanStaging({
                 <button
                   onClick={handleEditArea}
                   disabled={isProcessing}
-                  className="w-full sm:w-auto px-4 py-2 bg-white text-green-700 hover:bg-green-100 border border-green-200 font-black text-xs rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full sm:w-auto px-4 py-2 bg-white text-green-700 hover:bg-green-100 border border-green-200 font-black text-xs rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                 >
                   <RotateCcw size={14} /> Change Area
                 </button>
@@ -842,13 +882,13 @@ export default function PlanStaging({
                   <div className="flex bg-white rounded-xl p-1 shadow-sm border border-blue-100">
                     <button
                       onClick={() => setAreaMode("new")}
-                      className={`flex-1 py-2 text-sm font-black rounded-lg transition-colors ${areaMode === "new" ? "bg-blue-500 text-white" : "text-blue-500/60 hover:text-blue-500"}`}
+                      className={`flex-1 py-2 text-sm font-black rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${areaMode === "new" ? "bg-blue-500 text-white" : "text-blue-500/60 hover:text-blue-500"}`}
                     >
                       Create New
                     </button>
                     <button
                       onClick={() => setAreaMode("existing")}
-                      className={`flex-1 py-2 text-sm font-black rounded-lg transition-colors ${areaMode === "existing" ? "bg-blue-500 text-white" : "text-blue-500/60 hover:text-blue-500"}`}
+                      className={`flex-1 py-2 text-sm font-black rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-1 ${areaMode === "existing" ? "bg-blue-500 text-white" : "text-blue-500/60 hover:text-blue-500"}`}
                     >
                       Link Existing
                     </button>
@@ -926,7 +966,7 @@ export default function PlanStaging({
                   <button
                     onClick={handleConfirmArea}
                     disabled={isProcessing}
-                    className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl transition-colors flex items-center justify-center gap-2"
+                    className="w-full px-6 py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2"
                   >
                     {isProcessing ? (
                       <Loader2 className="animate-spin" size={18} />
@@ -940,10 +980,13 @@ export default function PlanStaging({
                 </div>
               </div>
             )}
+              </>
+            )}
           </section>
 
           {/* PHASE 2: SOURCING */}
           <section
+            id="phase-2"
             aria-label={`Phase 2: The Shed - ${isPhase2Done ? "Completed" : isPhase1Done ? "In Progress" : "Locked"}`}
             className={`bg-white rounded-3xl p-6 shadow-sm border transition-all ${isPhase1Done ? (isPhase2Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"}`}
           >
@@ -960,20 +1003,32 @@ export default function PlanStaging({
                   Procurement & Linking
                 </p>
               </div>
+              {isPhase2Done && (
+                <button
+                  onClick={() => togglePhaseCollapse("phase-2")}
+                  className="px-3 py-1.5 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  aria-expanded={!collapsedPhases["phase-2"]}
+                  aria-label={collapsedPhases["phase-2"] ? "Expand Phase 2" : "Collapse Phase 2"}
+                >
+                  {collapsedPhases["phase-2"] ? "Expand" : "Collapse"}
+                </button>
+              )}
             </div>
 
-            {isPhase2Done ? (
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-green-50 rounded-2xl border border-green-100">
-                <div className="flex items-center gap-3 text-green-800">
-                  <CheckCircle2 size={20} className="shrink-0" />
-                  <p className="font-bold text-sm">
-                    All plants successfully sourced and linked.
-                  </p>
-                </div>
+            {!collapsedPhases["phase-2"] && (
+              <>
+                {isPhase2Done ? (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-green-50 rounded-2xl border border-green-100">
+                    <div className="flex items-center gap-3 text-green-800">
+                      <CheckCircle2 size={20} className="shrink-0" />
+                      <p className="font-bold text-sm">
+                        All plants successfully sourced and linked.
+                      </p>
+                    </div>
                 <button
                   onClick={handleEditSourcing}
                   disabled={isProcessing}
-                  className="w-full sm:w-auto px-4 py-2 bg-white text-green-700 hover:bg-green-100 border border-green-200 font-black text-xs rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full sm:w-auto px-4 py-2 bg-white text-green-700 hover:bg-green-100 border border-green-200 font-black text-xs rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                 >
                   <RotateCcw size={14} /> Amend Sourcing
                 </button>
@@ -1032,13 +1087,13 @@ export default function PlanStaging({
                         <div className="flex gap-2">
                           <button
                             onClick={() => setIsAddingPlant(false)}
-                            className="flex-1 py-3 bg-white border border-emerald-200 text-emerald-700 rounded-xl font-black transition-colors hover:bg-emerald-50"
+                            className="flex-1 py-3 bg-white border border-emerald-200 text-emerald-700 rounded-xl font-black transition-colors hover:bg-emerald-50 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                           >
                             Cancel
                           </button>
                           <button
                             onClick={handleSaveNewPlant}
-                            className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-black transition-colors hover:bg-emerald-700"
+                            className="flex-1 py-3 bg-emerald-600 text-white rounded-xl font-black transition-colors hover:bg-emerald-700 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                           >
                             Save Plant
                           </button>
@@ -1047,7 +1102,7 @@ export default function PlanStaging({
                     ) : (
                       <button
                         onClick={() => setIsAddingPlant(true)}
-                        className="w-full py-4 border-2 border-dashed border-emerald-200 text-emerald-600 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-emerald-50 transition-colors"
+                        className="w-full py-4 border-2 border-dashed border-emerald-200 text-emerald-600 rounded-2xl font-black flex items-center justify-center gap-2 hover:bg-emerald-50 transition-colors focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                       >
                         <Plus size={18} /> Add Custom Plant
                       </button>
@@ -1058,13 +1113,13 @@ export default function PlanStaging({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-gray-100">
                   <button
                     onClick={() => handleOpenSearchModal("api")}
-                    className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+                    className="px-4 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black text-sm rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:ring-offset-2"
                   >
                     <Sparkles size={16} /> Procure Selected via Perenual
                   </button>
                   <button
                     onClick={() => handleOpenSearchModal("ai")}
-                    className="px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white font-black text-sm rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2"
+                    className="px-4 py-3 bg-amber-500 hover:bg-amber-600 text-white font-black text-sm rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-amber-500 focus:ring-offset-2"
                   >
                     <Sparkles size={16} /> Procure Selected via AI
                   </button>
@@ -1073,19 +1128,22 @@ export default function PlanStaging({
                 <div className="pt-2">
                   <button
                     onClick={handleConfirmPhase2}
-                    className="w-full px-4 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black rounded-xl transition-all flex items-center justify-center gap-2"
+                    className="w-full px-4 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 font-black rounded-xl transition-all flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                   >
                     <CheckCircle2 size={18} /> Confirm All Plants Linked
                   </button>
                 </div>
               </div>
             )}
+              </>
+            )}
           </section>
 
           {/* PHASE 3: STAGING & ASSIGNMENT */}
           <section
+            id="phase-3"
             aria-label={`Phase 3: Staging - ${isPhase3Done ? "Completed" : isPhase2Done ? "In Progress" : "Locked"}`}
-            className={`bg-white rounded-3xl p-6 shadow-sm border transition-all ${isPhase2Done ? (isPhase3Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"}${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
+            className={`bg-white rounded-3xl p-6 shadow-sm border transition-all ${isPhase2Done ? (isPhase3Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"} ${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
           >
             <div className="flex items-center gap-3 mb-6">
               <div
@@ -1104,20 +1162,32 @@ export default function PlanStaging({
                   Inventory Assignment
                 </p>
               </div>
+              {isPhase3Done && (
+                <button
+                  onClick={() => togglePhaseCollapse("phase-3")}
+                  className="px-3 py-1.5 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  aria-expanded={!collapsedPhases["phase-3"]}
+                  aria-label={collapsedPhases["phase-3"] ? "Expand Phase 3" : "Collapse Phase 3"}
+                >
+                  {collapsedPhases["phase-3"] ? "Expand" : "Collapse"}
+                </button>
+              )}
             </div>
 
-            {isPhase3Done ? (
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-green-50 rounded-2xl border border-green-100">
-                <div className="flex items-center gap-3 text-green-800">
-                  <CheckCircle2 size={20} className="shrink-0" />
-                  <p className="font-bold text-sm">
-                    Inventory successfully staged.
-                  </p>
-                </div>
+            {!collapsedPhases["phase-3"] && (
+              <>
+                {isPhase3Done ? (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-green-50 rounded-2xl border border-green-100">
+                    <div className="flex items-center gap-3 text-green-800">
+                      <CheckCircle2 size={20} className="shrink-0" />
+                      <p className="font-bold text-sm">
+                        Inventory successfully staged.
+                      </p>
+                    </div>
                 <button
                   onClick={handleUndoStaging}
                   disabled={isProcessing}
-                  className="w-full sm:w-auto px-4 py-2 bg-white text-green-700 hover:bg-green-100 border border-green-200 font-black text-xs rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full sm:w-auto px-4 py-2 bg-white text-green-700 hover:bg-green-100 border border-green-200 font-black text-xs rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                 >
                   <RotateCcw size={14} /> Undo Staging
                 </button>
@@ -1131,7 +1201,7 @@ export default function PlanStaging({
                 <button
                   onClick={handleBulkAssign}
                   disabled={isProcessing}
-                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="px-6 py-3 bg-purple-600 hover:bg-purple-700 text-white rounded-xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2"
                 >
                   {isProcessing ? (
                     <Loader2 className="animate-spin" size={18} />
@@ -1142,12 +1212,15 @@ export default function PlanStaging({
                 </button>
               </div>
             )}
+              </>
+            )}
           </section>
 
           {/* PHASE 4: EXECUTION */}
           <section
+            id="phase-4"
             aria-label={`Phase 4: Execution - ${isPhase4Done ? "Completed" : isPhase3Done ? "In Progress" : "Locked"}`}
-            className={`bg-white rounded-3xl p-6 shadow-sm border transition-all ${isPhase3Done ? (isPhase4Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"}${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
+            className={`bg-white rounded-3xl p-6 shadow-sm border transition-all ${isPhase3Done ? (isPhase4Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"} ${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
           >
             <div className="flex items-center gap-3 mb-6">
               <div
@@ -1166,11 +1239,21 @@ export default function PlanStaging({
                   Prep & Planting Tasks
                 </p>
               </div>
+              {isPhase4Done && (
+                <button
+                  onClick={() => togglePhaseCollapse("phase-4")}
+                  className="px-3 py-1.5 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  aria-expanded={!collapsedPhases["phase-4"]}
+                  aria-label={collapsedPhases["phase-4"] ? "Expand Phase 4" : "Collapse Phase 4"}
+                >
+                  {collapsedPhases["phase-4"] ? "Expand" : "Collapse"}
+                </button>
+              )}
               {isPhase3Done && !isPhase4Done && (
                 <button
                   onClick={handleInjectTasks}
                   disabled={isProcessing}
-                  className="hidden sm:flex px-6 py-3 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white font-black rounded-xl transition-all active:scale-95 items-center gap-2 disabled:opacity-50"
+                  className="hidden sm:flex px-6 py-3 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white font-black rounded-xl transition-all active:scale-95 items-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                 >
                   {isProcessing ? (
                     <Loader2 className="animate-spin" size={18} />
@@ -1182,18 +1265,20 @@ export default function PlanStaging({
               )}
             </div>
 
-            {isPhase4Done ? (
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-green-50 rounded-2xl border border-green-100">
-                <div className="flex items-center gap-3 text-green-800">
-                  <CheckCircle2 size={20} className="shrink-0" />
-                  <p className="font-bold text-sm">
-                    Tasks injected into calendar.
-                  </p>
-                </div>
+            {!collapsedPhases["phase-4"] && (
+              <>
+                {isPhase4Done ? (
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-green-50 rounded-2xl border border-green-100">
+                    <div className="flex items-center gap-3 text-green-800">
+                      <CheckCircle2 size={20} className="shrink-0" />
+                      <p className="font-bold text-sm">
+                        Tasks injected into calendar.
+                      </p>
+                    </div>
                 <button
                   onClick={handleUndoTasks}
                   disabled={isProcessing}
-                  className="w-full sm:w-auto px-4 py-2 bg-white text-green-700 hover:bg-green-100 border border-green-200 font-black text-xs rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full sm:w-auto px-4 py-2 bg-white text-green-700 hover:bg-green-100 border border-green-200 font-black text-xs rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                 >
                   <RotateCcw size={14} /> Remove Tasks
                 </button>
@@ -1214,7 +1299,7 @@ export default function PlanStaging({
                     <button
                       onClick={handleInjectTasks}
                       disabled={isProcessing}
-                      className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-black transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50"
+                      className="px-6 py-3 bg-orange-500 hover:bg-orange-600 text-white rounded-xl font-black transition-all active:scale-95 flex items-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-orange-500 focus:ring-offset-2"
                     >
                       {isProcessing ? (
                         <Loader2 className="animate-spin" size={18} />
@@ -1264,12 +1349,15 @@ export default function PlanStaging({
                 )}
               </>
             )}
+              </>
+            )}
           </section>
 
           {/* PHASE 5: MAINTENANCE */}
           <section
+            id="phase-5"
             aria-label={`Phase 5: Maintenance - ${isPhase5Done ? "Completed" : isPhase4Done ? "In Progress" : "Locked"}`}
-            className={`bg-white rounded-3xl p-6 shadow-sm border transition-all ${isPhase4Done ? (isPhase5Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"}${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
+            className={`bg-white rounded-3xl p-6 shadow-sm border transition-all ${isPhase4Done ? (isPhase5Done ? "border-green-200 bg-green-50/10" : "border-rhozly-outline/10") : "border-gray-100 opacity-50 pointer-events-none"} ${!isStarted ? "opacity-40 grayscale-[30%] pointer-events-none select-none" : ""}`}
           >
             <div className="flex items-center gap-3 mb-6">
               <div
@@ -1288,14 +1376,21 @@ export default function PlanStaging({
                   Long-Term Care
                 </p>
               </div>
-              {!isPhase4Done && (
-                <span className="px-3 py-1.5 bg-gray-100 text-gray-500 text-[10px] font-black uppercase tracking-widest rounded-lg">
-                  Locked
-                </span>
+              {isPhase5Done && (
+                <button
+                  onClick={() => togglePhaseCollapse("phase-5")}
+                  className="px-3 py-1.5 text-xs font-black text-green-700 hover:bg-green-50 rounded-lg transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
+                  aria-expanded={!collapsedPhases["phase-5"]}
+                  aria-label={collapsedPhases["phase-5"] ? "Expand Phase 5" : "Collapse Phase 5"}
+                >
+                  {collapsedPhases["phase-5"] ? "Expand" : "Collapse"}
+                </button>
               )}
             </div>
 
-            {isPhase5Done ? (
+            {!collapsedPhases["phase-5"] && (
+              <>
+                {isPhase5Done ? (
               <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 p-4 bg-green-50 rounded-2xl border border-green-100">
                 <div className="flex items-center gap-3 text-green-800">
                   <CheckCircle2 size={20} className="shrink-0" />
@@ -1306,7 +1401,7 @@ export default function PlanStaging({
                 <button
                   onClick={handleUndoMaintenance}
                   disabled={isProcessing}
-                  className="w-full sm:w-auto px-4 py-2 bg-white text-green-700 hover:bg-green-100 border border-green-200 font-black text-xs rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50"
+                  className="w-full sm:w-auto px-4 py-2 bg-white text-green-700 hover:bg-green-100 border border-green-200 font-black text-xs rounded-xl transition-colors flex items-center justify-center gap-2 disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                 >
                   <RotateCcw size={14} /> Deactivate
                 </button>
@@ -1327,7 +1422,7 @@ export default function PlanStaging({
                     <button
                       onClick={handleActivateMaintenance}
                       disabled={!isPhase4Done || isProcessing}
-                      className={`px-6 py-3 font-black rounded-xl transition-all flex items-center gap-2 ${isPhase4Done ? "bg-teal-600 hover:bg-teal-700 text-white shadow-lg active:scale-95" : "border-2 border-dashed border-gray-200 text-gray-400"}`}
+                      className={`px-6 py-3 font-black rounded-xl transition-all flex items-center gap-2 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${isPhase4Done ? "bg-teal-600 hover:bg-teal-700 text-white shadow-lg active:scale-95" : "border-2 border-dashed border-gray-200 text-gray-400"}`}
                     >
                       {isProcessing ? (
                         <Loader2 size={20} className="animate-spin" />
@@ -1362,7 +1457,7 @@ export default function PlanStaging({
                     <button
                       onClick={handleActivateMaintenance}
                       disabled={!isPhase4Done || isProcessing}
-                      className={`w-full px-6 py-4 font-black rounded-2xl transition-colors flex items-center justify-center gap-2 ${isPhase4Done ? "bg-teal-600 hover:bg-teal-700 text-white shadow-lg active:scale-95" : "border-2 border-dashed border-gray-200 text-gray-400"}`}
+                      className={`w-full px-6 py-4 font-black rounded-2xl transition-colors flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-teal-500 focus:ring-offset-2 ${isPhase4Done ? "bg-teal-600 hover:bg-teal-700 text-white shadow-lg active:scale-95" : "border-2 border-dashed border-gray-200 text-gray-400"}`}
                     >
                       {isProcessing ? (
                         <Loader2 size={20} className="animate-spin" />
@@ -1374,6 +1469,8 @@ export default function PlanStaging({
                   </>
                 )}
               </div>
+            )}
+              </>
             )}
           </section>
         </div>
@@ -1438,14 +1535,14 @@ export default function PlanStaging({
               <div className="flex gap-3">
                 <button
                   onClick={() => setShowRegenModal(false)}
-                  className="flex-1 py-3 bg-gray-100 text-gray-700 font-black rounded-xl hover:bg-gray-200 transition-colors"
+                  className="flex-1 py-3 bg-gray-100 text-gray-700 font-black rounded-xl hover:bg-gray-200 transition-colors focus:outline-none focus:ring-2 focus:ring-gray-500 focus:ring-offset-2"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleRegeneratePlan}
                   disabled={isRegenerating}
-                  className="flex-1 py-3 bg-rhozly-primary text-white font-black rounded-xl flex justify-center items-center gap-2 disabled:opacity-50 hover:bg-rhozly-primary/90 transition-all active:scale-95"
+                  className="flex-1 py-3 bg-rhozly-primary text-white font-black rounded-xl flex justify-center items-center gap-2 disabled:opacity-50 hover:bg-rhozly-primary/90 transition-all active:scale-95 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                 >
                   {isRegenerating ? (
                     <Loader2 size={18} className="animate-spin" />

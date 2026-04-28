@@ -316,7 +316,14 @@ export default function HabitQuiz({ homeId, userId, onComplete }: Props) {
   return (
     <div className="flex flex-col gap-6 max-w-lg mx-auto">
       {/* Progress */}
-      <div className="flex items-center gap-2">
+      <div
+        className="flex items-center gap-2"
+        role="progressbar"
+        aria-valuenow={step + 1}
+        aria-valuemin={1}
+        aria-valuemax={QUESTIONS.length}
+        aria-label={`Question ${step + 1} of ${QUESTIONS.length}`}
+      >
         {QUESTIONS.map((_, i) => (
           <div
             key={i}
@@ -332,7 +339,7 @@ export default function HabitQuiz({ homeId, userId, onComplete }: Props) {
       </div>
 
       {/* Question */}
-      <div>
+      <div aria-live="polite">
         <p className="text-xs font-semibold text-rhozly-primary/70 uppercase tracking-widest mb-1">
           Question {step + 1} of {QUESTIONS.length}
         </p>
@@ -350,7 +357,7 @@ export default function HabitQuiz({ homeId, userId, onComplete }: Props) {
             <button
               key={idx}
               onClick={() => toggleOption(idx)}
-              className={`flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all font-medium ${
+              className={`flex items-center gap-3 p-4 rounded-2xl border-2 text-left transition-all font-medium focus-visible:ring-2 focus-visible:ring-rhozly-primary focus-visible:ring-offset-2 ${
                 isSelected
                   ? "border-rhozly-primary bg-rhozly-primary/8 text-rhozly-primary"
                   : "border-rhozly-outline/20 bg-white text-rhozly-on-surface hover:border-rhozly-primary/40 hover:bg-rhozly-primary/4"

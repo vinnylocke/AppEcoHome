@@ -28,11 +28,16 @@ export default function PlantInstancePicker({
   const [search, setSearch] = useState("");
   const [locationFilter, setLocationFilter] = useState<string | null>(null);
   const [areaFilter, setAreaFilter] = useState<string | null>(null);
+  const [highlightedIndex, setHighlightedIndex] = useState(0);
   const containerRef = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (open) setTimeout(() => searchRef.current?.focus(), 50);
+    if (open) {
+      setTimeout(() => searchRef.current?.focus(), 50);
+      setHighlightedIndex(0);
+    }
   }, [open]);
 
   useEffect(() => {
@@ -86,6 +91,43 @@ export default function PlantInstancePicker({
     });
   }, [items, search, locationFilter, areaFilter]);
 
+  // Reset highlighted index when filtered list changes
+  useEffect(() => {
+    setHighlightedIndex(0);
+  }, [filtered]);
+
+  // Keyboard navigation for dropdown
+  useEffect(() => {
+    if (!open) return;
+
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        e.preventDefault();
+        setOpen(false);
+        triggerRef.current?.focus();
+      } else if (e.key === "ArrowDown") {
+        e.preventDefault();
+        setHighlightedIndex((prev) => Math.min(prev + 1, filtered.length - 1));
+      } else if (e.key === "ArrowUp") {
+        e.preventDefault();
+        setHighlightedIndex((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === "Enter" && filtered.length > 0 && document.activeElement !== searchRef.current) {
+        e.preventDefault();
+        const selectedItem = filtered[highlightedIndex];
+        if (selectedItem) {
+          onSelect(selectedItem.id);
+          setOpen(false);
+          setSearch("");
+          setLocationFilter(null);
+          setAreaFilter(null);
+        }
+      }
+    };
+
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [open, filtered, highlightedIndex, onSelect]);
+
   const selectedItem = items.find((i) => i.id === selectedId);
   const selectedName = selectedItem?.plants?.common_name ?? "Unknown Plant";
   const selectedBreadcrumb = [
@@ -110,9 +152,12 @@ export default function PlantInstancePicker({
     <div ref={containerRef} className="relative">
       {/* Trigger */}
       <button
+        ref={triggerRef}
         type="button"
         disabled={disabled}
         onClick={() => !disabled && setOpen((v) => !v)}
+        aria-expanded={open}
+        aria-haspopup="listbox"
         className={`w-full flex items-center gap-3 p-4 bg-rhozly-surface-low rounded-xl border transition-all text-left ${
           open
             ? "border-rhozly-primary ring-2 ring-rhozly-primary/20"
@@ -150,7 +195,7 @@ export default function PlantInstancePicker({
 
       {/* Panel */}
       {open && (
-        <div className="absolute z-20 w-full mt-2 bg-white border border-rhozly-outline/15 rounded-2xl shadow-xl overflow-hidden">
+        <div role="listbox" className="absolute z-20 w-full mt-2 bg-white border border-rhozly-outline/15 rounded-2xl shadow-xl overflow-hidden">
           {/* Search bar */}
           <div className="p-3 border-b border-rhozly-outline/10">
             <div className="relative">
@@ -236,13 +281,14 @@ export default function PlantInstancePicker({
                 No plants match your search
               </div>
             ) : (
-              filtered.map((item) => {
+              filtered.map((item, index) => {
                 const name = item.plants?.common_name ?? "Unknown Plant";
                 const breadcrumb = [
                   item.areas?.locations?.name,
                   item.areas?.name,
                 ].filter(Boolean).join(" › ");
                 const isSelected = item.id === selectedId;
+                const isHighlighted = index === highlightedIndex;
 
                 return (
                   <button
@@ -251,6 +297,8 @@ export default function PlantInstancePicker({
                     className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition ${
                       isSelected
                         ? "bg-rhozly-primary/10 text-rhozly-primary"
+                        : isHighlighted
+                        ? "bg-rhozly-primary/5 text-rhozly-on-surface"
                         : "hover:bg-rhozly-primary/5 text-rhozly-on-surface"
                     }`}
                   >

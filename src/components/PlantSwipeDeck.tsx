@@ -138,7 +138,9 @@ export default function PlantSwipeDeck({
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
   const [swipeCount, setSwipeCount] = useState(0);
+  const [announcement, setAnnouncement] = useState("");
   const seenNames = useRef<string[]>([]);
+  const cardRef = useRef<HTMLDivElement>(null);
 
   const loadBatch = useCallback(async () => {
     setLoading(true);
@@ -197,6 +199,34 @@ export default function PlantSwipeDeck({
     loadBatch();
   }, [loadBatch]);
 
+  // Auto-focus active card for screen reader accessibility
+  useEffect(() => {
+    if (cardRef.current && deck.length > 0) {
+      cardRef.current.focus();
+    }
+  }, [deck]);
+
+  // Keyboard shortcuts for swipe actions
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (deck.length === 0) return;
+
+      // Dislike: ArrowLeft or 'a'/'A'
+      if (e.key === "ArrowLeft" || e.key === "a" || e.key === "A") {
+        e.preventDefault();
+        handleSwipe("negative");
+      }
+      // Like: ArrowRight or 'd'/'D'
+      else if (e.key === "ArrowRight" || e.key === "d" || e.key === "D") {
+        e.preventDefault();
+        handleSwipe("positive");
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [deck.length, handleSwipe]);
+
   async function savePref(plant: SwipePlant, sentiment: "positive" | "negative") {
     const { error } = await supabase.from("planner_preferences").insert({
       home_id: homeId,
@@ -212,17 +242,22 @@ export default function PlantSwipeDeck({
     }
   }
 
-  async function handleSwipe(sentiment: "positive" | "negative") {
+  const handleSwipe = useCallback(async (sentiment: "positive" | "negative") => {
     if (deck.length === 0) return;
     const [current, ...rest] = deck;
     setDeck(rest);
     setSwipeCount((c) => c + 1);
+
+    // Announce swipe result for screen readers
+    const action = sentiment === "positive" ? "Liked" : "Disliked";
+    setAnnouncement(`${action} ${current.name}`);
+
     await savePref(current, sentiment);
 
     if (rest.length <= 2) {
       loadBatch();
     }
-  }
+  }, [deck, loadBatch]);
 
   if (loading && deck.length === 0) {
     return (
@@ -281,6 +316,16 @@ export default function PlantSwipeDeck({
 
   return (
     <div className="flex flex-col items-center gap-6 select-none">
+      {/* Live region for screen reader announcements */}
+      <div
+        role="status"
+        aria-live="polite"
+        aria-atomic="true"
+        className="sr-only"
+      >
+        {announcement}
+      </div>
+
       {/* Counter */}
       <p className="text-sm text-rhozly-on-surface/50 font-medium">
         {swipeCount} rated so far
@@ -299,7 +344,11 @@ export default function PlantSwipeDeck({
         {/* Active card */}
         <div
           key={current.id}
-          className="absolute inset-0 rounded-3xl bg-white border border-rhozly-outline/20 shadow-xl overflow-hidden"
+          ref={cardRef}
+          tabIndex={0}
+          role="article"
+          aria-label={`Plant card: ${current.name}, ${current.scientific_name}. ${current.tagline}`}
+          className="absolute inset-0 rounded-3xl bg-white border border-rhozly-outline/20 shadow-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
           style={{ zIndex: 1 }}
         >
           {/* Image */}

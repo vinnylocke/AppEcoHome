@@ -88,7 +88,7 @@ export default function AdminGuideGenerator() {
             value={topic}
             onChange={(e) => setTopic(e.target.value)}
             placeholder="e.g., A beginner's guide to pruning overgrown tomato plants..."
-            className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none focus:ring-2 focus:ring-rhozly-primary resize-none h-32"
+            className="w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none focus:ring-2 focus:ring-rhozly-primary focus-visible:ring-2 focus-visible:ring-rhozly-primary resize-none h-32"
           />
 
           <div className="grid grid-cols-2 gap-3">
@@ -97,7 +97,7 @@ export default function AdminGuideGenerator() {
               <select
                 value={difficulty}
                 onChange={(e) => setDifficulty(e.target.value)}
-                className="w-full p-3 bg-rhozly-surface-low rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-rhozly-primary cursor-pointer"
+                className="w-full p-3 bg-rhozly-surface-low rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-rhozly-primary focus-visible:ring-2 focus-visible:ring-rhozly-primary cursor-pointer"
               >
                 <option>Beginner</option>
                 <option>Intermediate</option>
@@ -109,7 +109,7 @@ export default function AdminGuideGenerator() {
               <select
                 value={targetAudience}
                 onChange={(e) => setTargetAudience(e.target.value)}
-                className="w-full p-3 bg-rhozly-surface-low rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-rhozly-primary cursor-pointer"
+                className="w-full p-3 bg-rhozly-surface-low rounded-xl font-bold text-sm outline-none focus:ring-2 focus:ring-rhozly-primary focus-visible:ring-2 focus-visible:ring-rhozly-primary cursor-pointer"
               >
                 <option>Home Gardeners</option>
                 <option>Allotment Growers</option>
@@ -327,6 +327,11 @@ export default function AdminGuideGenerator() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* Screen reader status announcement */}
+      <div role="status" className="sr-only">
+        {!isGenerating && previewData && "Guide generation complete. Preview is ready."}
       </div>
     </div>
   );

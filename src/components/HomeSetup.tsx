@@ -148,7 +148,8 @@ export const HomeSetup: React.FC<Props> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <button
                   onClick={() => setStep("create")}
-                  className="flex flex-col items-center justify-center p-8 text-center bg-rhozly-surface-low hover:bg-rhozly-primary/5 border-2 border-transparent hover:border-rhozly-primary/20 rounded-3xl transition-all group"
+                  className="flex flex-col items-center justify-center p-8 text-center bg-rhozly-surface-low hover:bg-rhozly-primary/5 border-2 border-transparent hover:border-rhozly-primary/20 rounded-3xl transition-all group focus-visible:ring-2 focus-visible:ring-rhozly-primary focus-visible:ring-offset-2"
+                  aria-describedby="create-home-desc"
                 >
                   <div className="w-16 h-16 bg-rhozly-primary/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                     <Plus className="w-8 h-8 text-rhozly-primary" />
@@ -156,14 +157,15 @@ export const HomeSetup: React.FC<Props> = ({
                   <h3 className="text-xl font-black font-display text-rhozly-on-surface mb-2">
                     Create New Home
                   </h3>
-                  <p className="text-sm font-bold text-rhozly-on-surface/50">
+                  <p id="create-home-desc" className="text-sm font-bold text-rhozly-on-surface/50">
                     Start fresh and set up a brand new home for your gardens.
                   </p>
                 </button>
 
                 <button
                   onClick={() => setStep("join")}
-                  className="flex flex-col items-center justify-center p-8 text-center bg-rhozly-surface-low hover:bg-rhozly-primary/5 border-2 border-transparent hover:border-rhozly-primary/20 rounded-3xl transition-all group"
+                  className="flex flex-col items-center justify-center p-8 text-center bg-rhozly-surface-low hover:bg-rhozly-primary/5 border-2 border-transparent hover:border-rhozly-primary/20 rounded-3xl transition-all group focus-visible:ring-2 focus-visible:ring-rhozly-primary focus-visible:ring-offset-2"
+                  aria-describedby="join-home-desc"
                 >
                   <div className="w-16 h-16 bg-rhozly-primary/10 rounded-2xl flex items-center justify-center mb-4 group-hover:scale-110 transition-transform">
                     <Key className="w-8 h-8 text-rhozly-primary" />
@@ -171,7 +173,7 @@ export const HomeSetup: React.FC<Props> = ({
                   <h3 className="text-xl font-black font-display text-rhozly-on-surface mb-2">
                     Join Existing Home
                   </h3>
-                  <p className="text-sm font-bold text-rhozly-on-surface/50">
+                  <p id="join-home-desc" className="text-sm font-bold text-rhozly-on-surface/50">
                     Enter a Home ID to join a home someone else has set up.
                   </p>
                 </button>
@@ -241,7 +243,7 @@ export const HomeSetup: React.FC<Props> = ({
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-rhozly-primary text-white font-bold rounded-xl hover:bg-rhozly-primary/90 transition-colors shadow-sm disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-rhozly-primary text-white font-bold rounded-xl hover:bg-rhozly-primary/90 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <Loader2 className="w-5 h-5 animate-spin" />
@@ -298,7 +300,7 @@ export const HomeSetup: React.FC<Props> = ({
                   <button
                     type="submit"
                     disabled={loading}
-                    className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-rhozly-primary text-white font-bold rounded-xl hover:bg-rhozly-primary/90 transition-colors shadow-sm disabled:opacity-50"
+                    className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-rhozly-primary text-white font-bold rounded-xl hover:bg-rhozly-primary/90 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {loading ? (
                       <Loader2 className="w-5 h-5 animate-spin" />

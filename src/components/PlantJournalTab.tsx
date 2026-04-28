@@ -37,8 +37,10 @@ export default function PlantJournalTab({
   const [uploading, setUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
+  const [subjectError, setSubjectError] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
+  const deleteModalRef = useRef<HTMLDivElement>(null);
 
   const [form, setForm] = useState({
     subject: "",
@@ -81,6 +83,45 @@ export default function PlantJournalTab({
     // Cleanup when moving away from the journal
     return () => setPageContext(null);
   }, [isAdding, form, entries, availableTasks, setPageContext]);
+
+  // Focus trap for delete confirmation modal
+  useEffect(() => {
+    if (!deleteConfirm || !deleteModalRef.current) return;
+
+    const modalElement = deleteModalRef.current;
+    const focusableElements = modalElement.querySelectorAll<HTMLElement>(
+      'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+    );
+    const firstFocusable = focusableElements[0];
+    const lastFocusable = focusableElements[focusableElements.length - 1];
+
+    // Set initial focus to first button
+    firstFocusable?.focus();
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        setDeleteConfirm(null);
+        return;
+      }
+
+      if (e.key === "Tab") {
+        if (e.shiftKey) {
+          if (document.activeElement === firstFocusable) {
+            e.preventDefault();
+            lastFocusable?.focus();
+          }
+        } else {
+          if (document.activeElement === lastFocusable) {
+            e.preventDefault();
+            firstFocusable?.focus();
+          }
+        }
+      }
+    };
+
+    modalElement.addEventListener("keydown", handleKeyDown);
+    return () => modalElement.removeEventListener("keydown", handleKeyDown);
+  }, [deleteConfirm]);
 
   const fetchEntries = async () => {
     try {
@@ -163,7 +204,11 @@ export default function PlantJournalTab({
   };
 
   const handleSave = async () => {
-    if (!form.subject.trim()) return toast.error("Subject is required.");
+    if (!form.subject.trim()) {
+      setSubjectError(true);
+      return toast.error("Subject is required.");
+    }
+    setSubjectError(false);
     setSaving(true);
 
     try {
@@ -250,13 +295,33 @@ export default function PlantJournalTab({
             </button>
           </div>
 
-          <input
-            type="text"
-            placeholder="Subject (e.g., First Bloom!)"
-            value={form.subject}
-            onChange={(e) => setForm({ ...form, subject: e.target.value })}
-            className="w-full p-4 bg-white rounded-2xl font-black border border-transparent focus:border-rhozly-primary outline-none text-sm"
-          />
+          <div>
+            <input
+              type="text"
+              placeholder="Subject (e.g., First Bloom!)"
+              value={form.subject}
+              onChange={(e) => {
+                setForm({ ...form, subject: e.target.value });
+                if (subjectError) setSubjectError(false);
+              }}
+              aria-invalid={subjectError}
+              aria-describedby={subjectError ? "subject-error" : undefined}
+              className={`w-full p-4 bg-white rounded-2xl font-black border ${
+                subjectError
+                  ? "border-red-500 focus:border-red-500"
+                  : "border-transparent focus:border-rhozly-primary"
+              } outline-none text-sm`}
+            />
+            {subjectError && (
+              <p
+                id="subject-error"
+                className="text-red-500 text-xs font-bold mt-2 ml-4"
+                role="alert"
+              >
+                Subject is required.
+              </p>
+            )}
+          </div>
 
           {availableTasks.length > 0 && (
             <div className="relative">
@@ -429,11 +494,9 @@ export default function PlantJournalTab({
           aria-labelledby="delete-dialog-title"
         >
           <div
+            ref={deleteModalRef}
             className="bg-white rounded-3xl p-6 max-w-sm mx-4 shadow-2xl animate-in zoom-in-95"
             onClick={(e) => e.stopPropagation()}
-            onKeyDown={(e) => {
-              if (e.key === "Escape") setDeleteConfirm(null);
-            }}
           >
             <h3
               id="delete-dialog-title"
@@ -448,7 +511,6 @@ export default function PlantJournalTab({
               <button
                 onClick={() => setDeleteConfirm(null)}
                 className="flex-1 py-3 px-4 bg-rhozly-surface-low text-rhozly-on-surface rounded-xl font-black hover:bg-rhozly-outline/10 transition-colors"
-                autoFocus
               >
                 Cancel
               </button>
