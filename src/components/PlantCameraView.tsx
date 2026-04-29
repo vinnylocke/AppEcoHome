@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { X, Camera, Trash2, AlertCircle, Loader2 } from "lucide-react";
+import { X, Camera, Trash2, AlertCircle, Loader2, Sparkles, CheckCircle2, TriangleAlert, CircleX } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 
@@ -20,6 +20,20 @@ interface Plant {
   id: number | string;
   common_name: string;
   thumbnail_url?: string | null;
+  sunlight?: string[] | null;
+  watering?: string | null;
+}
+
+interface AnalysisPlant {
+  name: string;
+  status: "good" | "warning" | "issue";
+  note: string;
+}
+
+interface AnalysisResult {
+  summary: string;
+  plants: AnalysisPlant[];
+  general: string[];
 }
 
 interface Props {
@@ -66,6 +80,8 @@ export default function PlantCameraView({ plants, sprites, homeId, onClose, onCa
   const [ghostPos,     setGhostPos]     = useState<{ x: number; y: number; plantId: string } | null>(null);
   const [cameraError,  setCameraError]  = useState<string | null>(null);
   const [isCapturing,  setIsCapturing]  = useState(false);
+  const [isAnalysing,  setIsAnalysing]  = useState(false);
+  const [analysisResult, setAnalysisResult] = useState<AnalysisResult | null>(null);
 
   // Keep instances ref in sync with React state (for controls after drag ends)
   useEffect(() => { instancesRef.current = instances; }, [instances]);
@@ -504,6 +520,86 @@ export default function PlantCameraView({ plants, sprites, homeId, onClose, onCa
     }
   };
 
+  // ── Sprite overlap check (client-side, no AI needed) ─────────────────────
+
+  const checkOverlaps = (): string[] => {
+    const canvas = canvasRef.current;
+    if (!canvas) return [];
+    const insts = instancesRef.current;
+    const issues: string[] = [];
+
+    const getBounds = (inst: PlantInstance) => {
+      const h = canvas.height * inst.scale;
+      const w = inst.spriteImg.naturalWidth > 0
+        ? h * (inst.spriteImg.naturalWidth / inst.spriteImg.naturalHeight) : h;
+      return { left: inst.x - w / 2, right: inst.x + w / 2, top: inst.y - h, bottom: inst.y };
+    };
+
+    for (let i = 0; i < insts.length; i++) {
+      for (let j = i + 1; j < insts.length; j++) {
+        const a = getBounds(insts[i]);
+        const b = getBounds(insts[j]);
+        const overlapW = Math.max(0, Math.min(a.right, b.right) - Math.max(a.left, b.left));
+        const overlapH = Math.max(0, Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top));
+        if (overlapW > 0 && overlapH > 0) {
+          const nameA = plants.find(p => String(p.id) === insts[i].plantId)?.common_name ?? "Plant";
+          const nameB = plants.find(p => String(p.id) === insts[j].plantId)?.common_name ?? "Plant";
+          issues.push(`${nameA} and ${nameB} are overlapping — they may compete for space.`);
+        }
+      }
+    }
+    return [...new Set(issues)];
+  };
+
+  // ── AI placement analysis ──────────────────────────────────────────────────
+
+  const handleAnalyse = async () => {
+    const canvas = canvasRef.current;
+    if (!canvas || isAnalysing || instancesRef.current.length === 0) return;
+    setIsAnalysing(true);
+    setAnalysisResult(null);
+
+    // Deselect so selection outline isn't in the analysed frame
+    selectedIdRef.current = null;
+    setSelectedId(null);
+    setControlsPos(null);
+    await new Promise<void>(resolve => requestAnimationFrame(() => resolve()));
+
+    const overlaps = checkOverlaps();
+
+    try {
+      const dataUrl  = canvas.toDataURL("image/jpeg", 0.6);
+      const base64   = dataUrl.split(",")[1];
+
+      // Unique plants currently placed
+      const placedIds = [...new Set(instancesRef.current.map(i => i.plantId))];
+      const placedPlants = placedIds
+        .map(id => plants.find(p => String(p.id) === id))
+        .filter(Boolean)
+        .map(p => ({ name: p!.common_name, sunlight: p!.sunlight, watering: p!.watering }));
+
+      const { data, error } = await supabase.functions.invoke("visualiser-analyse", {
+        body: { imageBase64: base64, mimeType: "image/jpeg", plants: placedPlants },
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+
+      // Merge client-side overlap issues into the general notes
+      const result: AnalysisResult = {
+        summary: data.summary ?? "",
+        plants:  data.plants  ?? [],
+        general: [...(data.general ?? []), ...overlaps],
+      };
+      setAnalysisResult(result);
+    } catch (err: any) {
+      console.error("[PlantCameraView] Analysis error:", err);
+      toast.error("Analysis failed. Please try again.");
+    } finally {
+      setIsAnalysing(false);
+    }
+  };
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   const selectedInst = instances.find(i => i.instanceId === selectedId) ?? null;
@@ -559,17 +655,32 @@ export default function PlantCameraView({ plants, sprites, homeId, onClose, onCa
           </div>
         )}
 
-        <button
-          onClick={handleCapture}
-          disabled={isCapturing}
-          className="pointer-events-auto w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/30 transition-colors border border-white/10 disabled:opacity-50"
-          aria-label="Capture photo"
-        >
-          {isCapturing
-            ? <Loader2 size={18} className="animate-spin" />
-            : <Camera size={20} />
-          }
-        </button>
+        <div className="flex items-center gap-2 pointer-events-auto">
+          {instances.length > 0 && (
+            <button
+              onClick={handleAnalyse}
+              disabled={isAnalysing}
+              className="w-11 h-11 rounded-2xl bg-amber-400/20 backdrop-blur-md flex items-center justify-center text-amber-300 hover:bg-amber-400/30 transition-colors border border-amber-400/20 disabled:opacity-50"
+              aria-label="Analyse plant placement"
+            >
+              {isAnalysing
+                ? <Loader2 size={18} className="animate-spin" />
+                : <Sparkles size={18} />
+              }
+            </button>
+          )}
+          <button
+            onClick={handleCapture}
+            disabled={isCapturing}
+            className="w-11 h-11 rounded-2xl bg-white/20 backdrop-blur-md flex items-center justify-center text-white hover:bg-white/30 transition-colors border border-white/10 disabled:opacity-50"
+            aria-label="Capture photo"
+          >
+            {isCapturing
+              ? <Loader2 size={18} className="animate-spin" />
+              : <Camera size={20} />
+            }
+          </button>
+        </div>
       </div>
 
       {/* Selected instance controls */}
@@ -622,15 +733,68 @@ export default function PlantCameraView({ plants, sprites, homeId, onClose, onCa
         );
       })()}
 
-      {/* Bottom tray */}
-      <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-auto px-4 pb-6">
+      {/* Bottom area: analysis sheet (when visible) + tray */}
+      <div className="absolute bottom-0 left-0 right-0 z-10 pointer-events-auto flex flex-col gap-2 px-4 pb-6">
+
+        {/* AI analysis results */}
+        {analysisResult && (
+          <div className="bg-black/80 backdrop-blur-md rounded-2xl border border-white/10 overflow-hidden animate-in slide-in-from-bottom-4 duration-300">
+            {/* Sheet header */}
+            <div className="flex items-center justify-between px-4 py-3 border-b border-white/10">
+              <div className="flex items-center gap-2">
+                <Sparkles size={13} className="text-amber-400" />
+                <p className="text-white text-xs font-black">AI Placement Analysis</p>
+              </div>
+              <button
+                onClick={() => setAnalysisResult(null)}
+                className="text-white/40 hover:text-white transition-colors"
+                aria-label="Dismiss analysis"
+              >
+                <X size={14} />
+              </button>
+            </div>
+
+            {/* Summary */}
+            {analysisResult.summary && (
+              <p className="px-4 pt-3 pb-1 text-white/60 text-[11px] leading-relaxed">
+                {analysisResult.summary}
+              </p>
+            )}
+
+            {/* Per-plant results */}
+            <div className="px-4 pb-3 pt-2 space-y-2.5 max-h-52 overflow-y-auto" style={{ scrollbarWidth: "none" }}>
+              {analysisResult.plants.map((p) => (
+                <div key={p.name} className="flex items-start gap-2.5">
+                  {p.status === "good"    && <CheckCircle2 size={14} className="text-green-400 shrink-0 mt-0.5" />}
+                  {p.status === "warning" && <TriangleAlert size={14} className="text-amber-400 shrink-0 mt-0.5" />}
+                  {p.status === "issue"   && <CircleX      size={14} className="text-red-400   shrink-0 mt-0.5" />}
+                  <div>
+                    <p className="text-white text-[11px] font-black leading-tight">{p.name}</p>
+                    <p className="text-white/55 text-[11px] leading-snug mt-0.5">{p.note}</p>
+                  </div>
+                </div>
+              ))}
+
+              {analysisResult.general.length > 0 && (
+                <>
+                  <div className="border-t border-white/10 pt-2 mt-1" />
+                  {analysisResult.general.map((note, i) => (
+                    <p key={i} className="text-white/40 text-[11px] leading-snug">• {note}</p>
+                  ))}
+                </>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* Plant tray */}
         <div className="bg-black/55 backdrop-blur-md rounded-2xl border border-white/10 px-4 py-3">
           <p className="text-white/40 text-[10px] font-black uppercase tracking-widest mb-2.5 text-center">
             Drag onto camera to place · drag to move · pinch to resize
           </p>
           <div className="flex gap-3 overflow-x-auto pb-1" style={{ scrollbarWidth: "none" }}>
             {plants.map(plant => {
-              const plantId  = String(plant.id);
+              const plantId   = String(plant.id);
               const spriteUrl = sprites.get(plant.id) || sprites.get(plantId);
               if (!spriteUrl) return null;
               return (
