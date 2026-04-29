@@ -8,7 +8,7 @@
 
 - [x] Phase 1 — Event Logging
 - [x] Phase 2 — Pattern Detection Engine
-- [ ] Phase 3 — AI Evaluation Layer
+- [x] Phase 3 — AI Evaluation Layer
 - [ ] Phase 4 — Notification Surface & Assistant UI
 
 ---
@@ -265,10 +265,10 @@ AI generates free-form text only for the small set of patterns where template su
 
 ### Deliverables
 
-- [ ] Migration: `user_insights` table + RLS
-- [ ] `supabase/functions/_shared/templates.ts` — TEMPLATES map + `buildMessage()`
-- [ ] Edge function: `pattern-evaluate`
-- [ ] Evaluation prompt template
+- [x] Migration: `user_insights` table + RLS
+- [x] `supabase/functions/_shared/templates.ts` — TEMPLATES map + `buildMessage()`
+- [x] Edge function: `pattern-evaluate`
+- [x] Evaluation prompt template
 
 ---
 
