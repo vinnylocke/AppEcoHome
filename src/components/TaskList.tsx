@@ -324,14 +324,20 @@ export default function TaskList({
       }
 
       if (physicalTasks.length > 0) {
-        await Promise.all(
-          physicalTasks.map((t) =>
-            supabase
-              .from("tasks")
-              .update({ due_date: bulkPostponeDate })
-              .eq("id", t.id),
+        const blueprintPhysical = physicalTasks.filter((t: any) => t.blueprint_id);
+        const purePhysical = physicalTasks.filter((t: any) => !t.blueprint_id);
+
+        await Promise.all([
+          ...blueprintPhysical.map(async (t: any) => {
+            await supabase.from("tasks").update({ status: "Skipped" }).eq("id", t.id);
+            await supabase.from("tasks").insert(
+              buildGhostPayload(t, "Pending", { due_date: bulkPostponeDate }),
+            );
+          }),
+          ...purePhysical.map((t: any) =>
+            supabase.from("tasks").update({ due_date: bulkPostponeDate }).eq("id", t.id),
           ),
-        );
+        ]);
       }
 
       toast.success(`Tasks postponed!`, { id: toastId });
@@ -512,15 +518,22 @@ export default function TaskList({
     setIsUpdatingTask(task.id);
     try {
       if (task.isGhost) {
+        // Ghost: tombstone the original slot, create Pending at new date
         await supabase.from("tasks").insert([
           buildGhostPayload(task, "Skipped"),
           buildGhostPayload(task, "Pending", { due_date: postponeDate }),
         ]);
+      } else if (task.blueprint_id) {
+        // Physical blueprint task: mark in-place as Skipped (tombstone so the ghost
+        // engine won't re-generate a ghost at the now-vacated date), then insert a
+        // new Pending task at the postponed date.
+        await supabase.from("tasks").update({ status: "Skipped" }).eq("id", task.id);
+        await supabase.from("tasks").insert(
+          buildGhostPayload(task, "Pending", { due_date: postponeDate }),
+        );
       } else {
-        await supabase
-          .from("tasks")
-          .update({ due_date: postponeDate })
-          .eq("id", task.id);
+        // Pure one-off task (no blueprint): just move it, no ghost to worry about
+        await supabase.from("tasks").update({ due_date: postponeDate }).eq("id", task.id);
       }
       toast.success(`Task postponed to ${formatDisplayDate(postponeDate)}`);
       const delayDays = Math.round(
