@@ -57,14 +57,19 @@ serve(async (req) => {
         .limit(1)
         .single();
 
-      // 🚀 THE FIX: If there are no previous tasks, start exactly on the blueprint's start_date!
       const startStr = bp.start_date || bp.created_at.split("T")[0];
-      let nextDate = lastTask
-        ? parseSafeDate(lastTask.due_date)
-        : parseSafeDate(startStr);
-
+      let nextDate: Date;
       if (lastTask) {
-        nextDate.setDate(nextDate.getDate() + bp.frequency_days); // Step forward from the last task
+        nextDate = parseSafeDate(lastTask.due_date);
+        nextDate.setDate(nextDate.getDate() + bp.frequency_days);
+      } else {
+        // No prior tasks: start from bp.start_date but clamp to today.
+        // Avoids backfilling overdue tasks when a blueprint has a past start_date
+        // (e.g. user backdated their planting). If start_date is in the future
+        // (seasonal blueprint not yet started), nextDate stays in the future and
+        // the while-loop below produces nothing — correct behaviour.
+        const fromStart = parseSafeDate(startStr);
+        nextDate = fromStart < maxDate ? maxDate : fromStart;
       }
 
       const bpEndDate = bp.end_date ? parseSafeDate(bp.end_date) : null;

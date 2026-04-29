@@ -120,24 +120,28 @@ export const AutomationEngine = {
                 .single();
 
               if (createdBp) {
-                // 🚀 FIXED: Only insert an initial physical task if today is within the seasonal window!
-                // Otherwise, let the ghost engine naturally spawn it when the season arrives.
-                let initialTaskDate = null;
+                // Only insert an initial physical task if today is within the seasonal window.
+                // Otherwise let the ghost engine spawn it when the season arrives.
+                let initialTaskDate: string | null = null;
                 if (
                   baseDateStr >= computedStartDate &&
                   (!computedEndDate || baseDateStr <= computedEndDate)
                 ) {
-                  initialTaskDate = baseDateStr; // Planted mid-season, task drops today
+                  initialTaskDate = baseDateStr;
                 }
 
                 if (initialTaskDate) {
+                  // Clamp to today: if the user backdated their planting, the first task
+                  // should still be due today, not in the past.
+                  const todayStr = new Date().toISOString().split("T")[0];
+                  const dueDate = initialTaskDate < todayStr ? todayStr : initialTaskDate;
                   await supabase.from("tasks").insert({
                     home_id: createdBp.home_id,
                     blueprint_id: createdBp.id,
                     title: createdBp.title,
                     description: createdBp.description,
                     type: createdBp.task_type,
-                    due_date: initialTaskDate, // 🚀 Uses today instead of months ago!
+                    due_date: dueDate,
                     status: "Pending",
                     location_id: createdBp.location_id,
                     area_id: createdBp.area_id,

@@ -45,6 +45,23 @@ export const TaskEngine = {
 
     if (bpError) throw bpError;
 
+    // 2b. Fetch Skipped tombstones in the window — excluded from rawTasks but needed
+    //     to suppress ghost re-generation at dates the user already postponed past.
+    const { data: skippedTombstones } = await supabase
+      .from("tasks")
+      .select("blueprint_id, due_date")
+      .eq("home_id", homeId)
+      .eq("status", "Skipped")
+      .gte("due_date", startDateStr)
+      .lte("due_date", endDateStr)
+      .not("blueprint_id", "is", null);
+
+    const tombstoneSet = new Set(
+      (skippedTombstones ?? []).map(
+        (t: any) => `${t.blueprint_id}:${t.due_date}`,
+      ),
+    );
+
     // 3. Filter and Extract Unique IDs
     // 🚀 NEW LOGIC: Filter out historically completed tasks
     const rawTasks = (physicalTasks || []).filter((task) => {
@@ -126,10 +143,11 @@ export const TaskEngine = {
         // Stop if blueprint has an end date and we passed it
         if (bp.end_date && ghostDateStr > bp.end_date) break;
 
-        // Ensure we don't duplicate a task that was already materialized
-        const alreadyExists = rawTasks.some(
-          (t) => t.blueprint_id === bp.id && t.due_date === ghostDateStr,
-        );
+        // Ensure we don't duplicate a task that was already materialized or tombstoned
+        const alreadyExists =
+          rawTasks.some(
+            (t) => t.blueprint_id === bp.id && t.due_date === ghostDateStr,
+          ) || tombstoneSet.has(`${bp.id}:${ghostDateStr}`);
 
         if (
           !alreadyExists &&
