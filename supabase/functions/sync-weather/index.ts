@@ -94,10 +94,13 @@ Deno.serve(async (req) => {
           const params = new URLSearchParams({
             latitude: lat.toString(),
             longitude: lng.toString(),
-            hourly:
-              "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code,precipitation_probability",
+            // Daily gives clean per-day aggregates for rain/wind/heat rules
+            daily: "precipitation_sum,temperature_2m_max,temperature_2m_min,weathercode,windspeed_10m_max,precipitation_probability_max",
+            // Hourly kept for frost detection (need overnight temperature dip timing)
+            hourly: "temperature_2m,wind_speed_10m",
             timezone: "auto",
-            forecast_days: "2",
+            past_days: "1",    // yesterday's actuals let us reason about soil saturation
+            forecast_days: "7",
           });
 
           const weatherRes = await fetch(`${baseUrl}?${params.toString()}`);

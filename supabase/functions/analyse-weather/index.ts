@@ -1,5 +1,13 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { log, warn, error as logError } from "../_shared/logger.ts";
+import {
+  WEATHER_RULES,
+  EMPTY_RESULT,
+  type WeatherContext,
+  type DailySummary,
+  type HourlyPoint,
+  type WeatherRuleResult,
+} from "../_shared/weatherRules/index.ts";
 
 const FN = "analyse-weather";
 
@@ -14,9 +22,10 @@ Deno.serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseKey);
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
 
     const body = await req.json();
     const homeId = body?.record?.home_id;
@@ -25,23 +34,22 @@ Deno.serve(async (req) => {
 
     if (!homeId) throw new Error("Missing home_id in request body.");
 
-    // Fetch snapshot & locations
-    const { data: snapshot } = await supabase
-      .from("weather_snapshots")
-      .select("data")
-      .eq("home_id", homeId)
-      .single();
-    const { data: locations } = await supabase
-      .from("locations")
-      .select("id, name, is_outside")
-      .eq("home_id", homeId);
+    // --- Build context ---
 
-    if (!snapshot || !locations) throw new Error("Missing data.");
+    const [
+      { data: snapshot },
+      { data: locations },
+    ] = await Promise.all([
+      supabase.from("weather_snapshots").select("data").eq("home_id", homeId).single(),
+      supabase.from("locations").select("id, is_outside").eq("home_id", homeId),
+    ]);
 
-    log(FN, "context_loaded", { homeId, locationsCount: locations.length });
+    if (!snapshot || !locations) throw new Error("Missing snapshot or locations.");
 
-    const outsideLocations = locations.filter((loc) => loc.is_outside);
-    if (outsideLocations.length === 0) {
+    const outsideLocations = (locations ?? []).filter((l) => l.is_outside);
+    const outsideLocationIds = outsideLocations.map((l) => l.id);
+
+    if (outsideLocationIds.length === 0) {
       log(FN, "no_outside_locations", { homeId });
       return new Response(
         JSON.stringify({ success: true, message: "No outside locations." }),
@@ -49,128 +57,170 @@ Deno.serve(async (req) => {
       );
     }
 
-    // Check if any tropical plants are in outside areas — if so, lower frost threshold to 5°C
-    const outsideLocationIds = outsideLocations.map((l) => l.id);
+    // Check if any tropical plants occupy outdoor areas
     const { data: outsideAreas } = await supabase
       .from("areas")
       .select("id")
       .in("location_id", outsideLocationIds);
-    const outsideAreaIds = (outsideAreas || []).map((a) => a.id);
+    const outsideAreaIds = (outsideAreas ?? []).map((a) => a.id);
 
-    let frostThreshold = 2;
+    let hasTropicalOutdoor = false;
     if (outsideAreaIds.length > 0) {
       const { data: outdoorInventory } = await supabase
         .from("inventory_items")
         .select("plants(tropical)")
         .eq("home_id", homeId)
         .in("area_id", outsideAreaIds);
-      const hasTropicalOutdoor = (outdoorInventory || []).some((item: any) => item.plants?.tropical === true);
-      if (hasTropicalOutdoor) {
-        frostThreshold = 5;
-        log(FN, "tropical_plants_detected", { homeId, frostThreshold });
-      }
+      hasTropicalOutdoor = (outdoorInventory ?? []).some(
+        (item: any) => item.plants?.tropical === true,
+      );
     }
 
-    const hourly = snapshot.data.hourly;
-    const alerts = [];
+    // --- Parse snapshot into typed structures ---
 
-    let foundFrost = false;
-    let foundWind = false;
-    let foundRain = false;
+    const today = new Date().toISOString().split("T")[0];
 
-    for (let i = 0; i < 48; i++) {
-      if (hourly.temperature_2m[i] === undefined) break;
+    const rawDaily = snapshot.data.daily ?? {};
+    const daily: DailySummary[] = (rawDaily.time ?? []).map(
+      (date: string, i: number) => ({
+        date,
+        precipMm: rawDaily.precipitation_sum?.[i] ?? 0,
+        maxTempC: rawDaily.temperature_2m_max?.[i] ?? 20,
+        minTempC: rawDaily.temperature_2m_min?.[i] ?? 10,
+        maxWindKph: rawDaily.windspeed_10m_max?.[i] ?? 0,
+        wmoCode: rawDaily.weathercode?.[i] ?? 0,
+        precipProbability: rawDaily.precipitation_probability_max?.[i] ?? 0,
+      }),
+    );
 
-      const temp = hourly.temperature_2m[i];
-      const wind = hourly.wind_speed_10m[i];
-      const code = hourly.weather_code[i];
-      const time = hourly.time[i];
+    const rawHourly = snapshot.data.hourly ?? {};
+    // Only pass the next 48h to rules — filter out yesterday's historical hourly data
+    const hourly: HourlyPoint[] = (rawHourly.time ?? [])
+      .map((time: string, i: number) => ({
+        time,
+        tempC: rawHourly.temperature_2m?.[i] ?? 20,
+        windKph: rawHourly.wind_speed_10m?.[i] ?? 0,
+      }))
+      .filter((h: HourlyPoint) => h.time >= today)
+      .slice(0, 48);
 
-      if (!foundFrost && temp <= frostThreshold) {
-        outsideLocations.forEach((loc) =>
-          alerts.push({
-            location_id: loc.id,
-            type: "frost",
-            severity: "critical",
-            message: `Frost warning: ${Math.round(temp)}°C expected.${frostThreshold > 2 ? " Tropical plants are at risk." : ""}`,
-            starts_at: time,
-          }),
-        );
-        foundFrost = true;
+    const ctx: WeatherContext = {
+      homeId,
+      today,
+      outsideLocationIds,
+      hasTropicalOutdoor,
+      daily,
+      hourly,
+    };
+
+    log(FN, "context_built", {
+      homeId,
+      outsideLocations: outsideLocationIds.length,
+      hasTropicalOutdoor,
+      dailyDays: daily.length,
+      hourlyPoints: hourly.length,
+    });
+
+    // --- Run all rules ---
+
+    const allResults: WeatherRuleResult[] = WEATHER_RULES.map((rule) => {
+      try {
+        return rule.evaluate(ctx);
+      } catch (err) {
+        warn(FN, "rule_error", { rule: rule.id, error: String(err) });
+        return EMPTY_RESULT;
       }
-      if (!foundWind && wind >= 40) {
-        outsideLocations.forEach((loc) =>
-          alerts.push({
-            location_id: loc.id,
-            type: "wind",
-            severity: "warning",
-            message: `High winds expected (${Math.round(wind)} km/h).`,
-            starts_at: time,
-          }),
-        );
-        foundWind = true;
-      }
-      if (!foundRain && code >= 50 && code <= 99) {
-        outsideLocations.forEach((loc) =>
-          alerts.push({
-            location_id: loc.id,
-            type: "rain",
-            severity: "info",
-            message: `Rain forecasted. Outdoor watering will be skipped.`,
-            starts_at: time,
-          }),
-        );
-        foundRain = true;
-      }
+    });
 
-      if (foundFrost && foundWind && foundRain) break;
-    }
+    const alerts = allResults.flatMap((r) => r.alerts);
+    const taskAutoCompletes = allResults.flatMap((r) => r.taskAutoCompletes);
+    const notifications = allResults.flatMap((r) => r.notifications);
 
-    log(FN, "alerts_detected", { homeId, alertsCount: alerts.length, frost: foundFrost, wind: foundWind, rain: foundRain });
+    log(FN, "rules_evaluated", {
+      homeId,
+      alerts: alerts.length,
+      taskActions: taskAutoCompletes.length,
+      notifications: notifications.length,
+    });
 
-    // Save Weather Alerts
+    // --- Execute: persist alerts ---
+
     if (alerts.length > 0) {
+      const dbAlerts = alerts.flatMap((alert) =>
+        outsideLocationIds.map((locId) => ({
+          location_id: locId,
+          type: alert.type,
+          severity: alert.severity,
+          message: alert.message,
+          starts_at: alert.starts_at,
+        }))
+      );
       await supabase
         .from("weather_alerts")
-        .upsert(alerts, { onConflict: "location_id, type" });
+        .upsert(dbAlerts, { onConflict: "location_id, type" });
+    }
 
-      // 🚀 NEW: Create Cross-Platform Notifications (Deduplicated per home)
-      const notificationsToInsert = [];
-      if (foundRain)
-        notificationsToInsert.push({
-          home_id: homeId,
-          type: "weather_alert",
-          title: "Nature is watering today! 🌧️",
-          body: "Rain is forecasted. We've auto-completed your outdoor watering tasks.",
-        });
-      if (foundFrost)
-        notificationsToInsert.push({
-          home_id: homeId,
-          type: "weather_alert",
-          title: "Frost Warning ❄️",
-          body: "Freezing temperatures expected. Please protect your outdoor plants.",
-        });
-      if (foundWind)
-        notificationsToInsert.push({
-          home_id: homeId,
-          type: "weather_alert",
-          title: "High Winds Expected 💨",
-          body: "Strong winds forecasted. Secure any vulnerable outdoor plants.",
-        });
+    // --- Execute: auto-complete tasks ---
 
-      if (notificationsToInsert.length > 0) {
-        await supabase.from("notifications").insert(notificationsToInsert);
+    let totalAutoCompleted = 0;
+    for (const action of taskAutoCompletes) {
+      const { data: tasksToComplete } = await supabase
+        .from("tasks")
+        .select("id")
+        .eq("home_id", homeId)
+        .eq("status", "Pending")
+        .eq("type", action.taskType)
+        .lte("due_date", today)
+        .in("location_id", outsideLocationIds);
+
+      if (tasksToComplete?.length) {
+        await supabase
+          .from("tasks")
+          .update({
+            status: "Completed",
+            completed_at: new Date().toISOString(),
+            auto_completed_reason: action.reason,
+          })
+          .in("id", tasksToComplete.map((t) => t.id));
+
+        totalAutoCompleted += tasksToComplete.length;
+        log(FN, "tasks_auto_completed", {
+          homeId,
+          taskType: action.taskType,
+          count: tasksToComplete.length,
+        });
       }
     }
 
-    log(FN, "complete", { homeId, alertsCount: alerts.length });
+    // --- Execute: notifications (dedup by title within this run) ---
+
+    if (notifications.length > 0) {
+      const seen = new Set<string>();
+      const deduped = notifications.filter((n) => {
+        const key = `${n.type}:${n.title}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      await supabase.from("notifications").insert(
+        deduped.map((n) => ({ home_id: homeId, ...n })),
+      );
+    }
+
+    log(FN, "complete", {
+      homeId,
+      alerts: alerts.length,
+      autoCompleted: totalAutoCompleted,
+      notifications: notifications.length,
+    });
 
     return new Response(JSON.stringify({ success: true }), {
       headers: corsHeaders,
     });
-  } catch (error: any) {
-    logError(FN, "error", { error: error.message });
-    return new Response(JSON.stringify({ error: error.message }), {
+  } catch (err: any) {
+    logError(FN, "error", { error: err.message });
+    return new Response(JSON.stringify({ error: err.message }), {
       headers: corsHeaders,
       status: 500,
     });
