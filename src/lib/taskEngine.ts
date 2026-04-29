@@ -24,7 +24,7 @@ export const TaskEngine = {
     // 1. Fetch Physical Tasks (NO array joins)
     let tasksQuery = supabase
       .from("tasks")
-      .select("*, locations(is_outside)")
+      .select("*, locations(name, is_outside), areas(name), plans(name)")
       .eq("home_id", homeId)
       .neq("status", "Skipped");
 
@@ -39,7 +39,7 @@ export const TaskEngine = {
     // 2. Fetch Blueprints (NO array joins)
     const { data: blueprints, error: bpError } = await supabase
       .from("task_blueprints")
-      .select("*, locations(is_outside)")
+      .select("*, locations(name, is_outside), areas(name), plans(name)")
       .eq("home_id", homeId)
       .eq("is_recurring", true);
 

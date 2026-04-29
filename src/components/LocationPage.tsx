@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import {
   ArrowLeft,
@@ -20,13 +21,14 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface LocationPageProps {
   location: any;
-  onBack: () => void;
 }
 
 export const LocationPage: React.FC<LocationPageProps> = ({
   location,
-  onBack,
 }) => {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const areaIdParam = searchParams.get("areaId");
   // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
 
@@ -98,6 +100,13 @@ export const LocationPage: React.FC<LocationPageProps> = ({
     fetchAreas();
   }, [location.id]);
 
+  useEffect(() => {
+    if (areaIdParam && areas.length > 0) {
+      const target = areas.find((a) => String(a.id) === areaIdParam);
+      if (target) setFocusedArea(target);
+    }
+  }, [areaIdParam, areas]);
+
   const handleToggleEnvironment = async () => {
     setIsUpdatingEnv(true);
     const newEnv = !isOutside;
@@ -154,7 +163,7 @@ export const LocationPage: React.FC<LocationPageProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <button
-            onClick={onBack}
+            onClick={() => navigate("/dashboard")}
             className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-white rounded-xl transition-all shadow-sm"
           >
             <ArrowLeft className="w-6 h-6" />
@@ -198,7 +207,10 @@ export const LocationPage: React.FC<LocationPageProps> = ({
             <AreaDetails
               homeId={location.home_id}
               area={focusedArea}
-              onClose={() => setFocusedArea(null)}
+              onClose={() => {
+                setFocusedArea(null);
+                navigate(`/dashboard?locationId=${location.id}`);
+              }}
               onTasksUpdated={handleDataRefresh}
               onAreaUpdated={fetchAreas}
               isOutside={isOutside}
@@ -230,7 +242,10 @@ export const LocationPage: React.FC<LocationPageProps> = ({
                     return (
                       <div
                         key={area.id}
-                        onClick={() => setFocusedArea(area)}
+                        onClick={() => {
+                          setFocusedArea(area);
+                          navigate(`/dashboard?locationId=${location.id}&areaId=${area.id}`);
+                        }}
                         className="bg-white rounded-3xl p-6 border border-rhozly-outline/10 shadow-sm cursor-pointer group hover:border-rhozly-primary/30 hover:shadow-md transition-all relative overflow-hidden"
                       >
                         <div className="absolute inset-0 bg-gradient-to-br from-rhozly-primary/0 to-rhozly-primary/[0.03] opacity-0 group-hover:opacity-100 transition-opacity" />

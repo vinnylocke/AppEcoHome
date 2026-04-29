@@ -369,7 +369,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
     setInitialSearchTerm("");
     setInitialCartItems([]);
     handledDeepLink.current = "";
-    navigate("/shed", { replace: true });
+    navigate(location.state?.returnTo ?? "/dashboard", { replace: true });
   };
 
   const executeArchiveToggle = async () => {

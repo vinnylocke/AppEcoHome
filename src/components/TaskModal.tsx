@@ -5,6 +5,8 @@ import {
   X,
   Leaf,
   Grid,
+  Home,
+  MapPin,
   FolderKanban,
   Link as LinkIcon,
   Lock,
@@ -744,45 +746,90 @@ export default function TaskModal({
             </div>
           ) : (
             <>
-              {task.areas?.name && (
-                <div
-                  className="flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/10 cursor-pointer hover:bg-rhozly-surface-low transition-colors"
-                  onClick={() => {
-                    onClose();
-                    navigate("/areas");
-                  }}
-                >
-                  <div className="w-10 h-10 bg-rhozly-surface rounded-xl flex items-center justify-center text-rhozly-primary shrink-0">
-                    <Grid size={16} />
-                  </div>
-                  <div>
-                    <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
-                      Location • Area
-                    </p>
-                    <p className="text-sm font-bold text-rhozly-on-surface">
-                      {task.locations?.name} • {task.areas?.name}
-                    </p>
-                  </div>
+              {/* Location row — always visible */}
+              <div
+                className={`flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/10 transition-colors ${task.location_id ? "cursor-pointer hover:bg-rhozly-surface-low" : "opacity-50 cursor-default"}`}
+                onClick={() => {
+                  if (!task.location_id) return;
+                  onClose();
+                  navigate(`/dashboard?locationId=${task.location_id}`);
+                }}
+              >
+                <div className="w-10 h-10 bg-rhozly-surface rounded-xl flex items-center justify-center text-rhozly-primary shrink-0">
+                  <Home size={16} />
                 </div>
-              )}
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+                    Location
+                  </p>
+                  <p className="text-sm font-bold text-rhozly-on-surface">
+                    {task.locations?.name || "Not set"}
+                  </p>
+                </div>
+              </div>
 
-              {task.plans?.name && (
+              {/* Area row — always visible */}
+              <div
+                className={`flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/10 transition-colors ${task.area_id ? "cursor-pointer hover:bg-rhozly-surface-low" : "opacity-50 cursor-default"}`}
+                onClick={() => {
+                  if (!task.area_id) return;
+                  onClose();
+                  navigate(`/dashboard?locationId=${task.location_id}&areaId=${task.area_id}`);
+                }}
+              >
+                <div className="w-10 h-10 bg-rhozly-surface rounded-xl flex items-center justify-center text-rhozly-primary shrink-0">
+                  <MapPin size={16} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+                    Area
+                  </p>
+                  <p className="text-sm font-bold text-rhozly-on-surface">
+                    {task.areas?.name || "Not set"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Plan row — always visible */}
+              <div
+                className={`flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/10 transition-colors ${task.plan_id ? "cursor-pointer hover:bg-rhozly-surface-low" : "opacity-50 cursor-default"}`}
+                onClick={() => {
+                  if (!task.plan_id) return;
+                  onClose();
+                  navigate("/planner");
+                }}
+              >
+                <div className="w-10 h-10 bg-rhozly-surface rounded-xl flex items-center justify-center text-rhozly-primary shrink-0">
+                  <FolderKanban size={16} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+                    Plan
+                  </p>
+                  <p className="text-sm font-bold text-rhozly-on-surface">
+                    {task.plans?.name || "Not set"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Plant row — only when exactly one active instance */}
+              {task.area_id && activeIds.length === 1 && inventoryDict[activeIds[0]] && (
                 <div
                   className="flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/10 cursor-pointer hover:bg-rhozly-surface-low transition-colors"
                   onClick={() => {
                     onClose();
-                    navigate("/planner");
+                    navigate(`/dashboard?locationId=${task.location_id}&areaId=${task.area_id}&instanceId=${activeIds[0]}`);
                   }}
                 >
                   <div className="w-10 h-10 bg-rhozly-surface rounded-xl flex items-center justify-center text-rhozly-primary shrink-0">
-                    <FolderKanban size={16} />
+                    <Leaf size={16} />
                   </div>
                   <div>
                     <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
-                      Plan
+                      Plant
                     </p>
                     <p className="text-sm font-bold text-rhozly-on-surface">
-                      {task.plans.name}
+                      {inventoryDict[activeIds[0]]?.identifier || inventoryDict[activeIds[0]]?.plant_name}
                     </p>
                   </div>
                 </div>

@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Check, Sparkles, Database, Loader2 } from "lucide-react";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import toast from "react-hot-toast";
@@ -16,6 +16,7 @@ export const PlantActionButtons = ({
   homeId,
 }: PlantActionProps) => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { setIsOpen } = usePlantDoctor();
 
   const plantList = plants || (plant ? [plant] : []);
@@ -38,7 +39,7 @@ export const PlantActionButtons = ({
           ? "Generating with AI…"
           : "Looking up in Plant Database…",
       );
-      navigate("/shed", { state: { autoImport: selectedRecs, source } });
+      navigate("/shed", { state: { autoImport: selectedRecs, source, returnTo: location.pathname + location.search } });
     } catch (err) {
       console.error("Import failed:", err);
       toast.error("Something went wrong. Please try again.");

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import {
   X,
   Trash2,
@@ -69,6 +69,8 @@ export default function AreaDetails({
 }: AreaDetailsProps) {
   const { setPageContext, preferences } = usePlantDoctor();
   const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
 
   const [plants, setPlants] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -122,6 +124,14 @@ export default function AreaDetails({
   useEffect(() => {
     fetchPlants();
   }, [area.id]);
+
+  useEffect(() => {
+    const instanceIdParam = searchParams.get("instanceId");
+    if (instanceIdParam && plants.length > 0) {
+      const target = plants.find((p) => String(p.id) === instanceIdParam);
+      if (target) setEditingInstance(target);
+    }
+  }, [searchParams, plants]);
 
   useEffect(() => {
     setSelectedIds(new Set());
@@ -461,7 +471,7 @@ export default function AreaDetails({
                 <button
                   onClick={() =>
                     navigate("/shed", {
-                      state: { autoImport: selectedRecs, source: "ai" },
+                      state: { autoImport: selectedRecs, source: "ai", returnTo: location.pathname + location.search },
                     })
                   }
                   className="flex-1 py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
@@ -471,7 +481,7 @@ export default function AreaDetails({
                 <button
                   onClick={() =>
                     navigate("/shed", {
-                      state: { autoImport: selectedRecs, source: "api" },
+                      state: { autoImport: selectedRecs, source: "api", returnTo: location.pathname + location.search },
                     })
                   }
                   className="flex-1 py-4 bg-white border-2 border-rhozly-primary text-rhozly-primary rounded-xl font-black shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
@@ -614,6 +624,7 @@ export default function AreaDetails({
                                     onClick={(e) => {
                                       e.stopPropagation();
                                       setEditingInstance(plant);
+                                      navigate(`/dashboard?locationId=${searchParams.get("locationId")}&areaId=${searchParams.get("areaId")}&instanceId=${plant.id}`);
                                     }}
                                     className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-primary/60 hover:text-rhozly-primary hover:bg-rhozly-primary/10 rounded-xl transition-colors"
                                   >
@@ -867,10 +878,14 @@ export default function AreaDetails({
                 homeId={homeId}
                 instance={editingInstance}
                 currentAreaId={area.id}
-                onClose={() => setEditingInstance(null)}
+                onClose={() => {
+                  setEditingInstance(null);
+                  navigate(`/dashboard?locationId=${searchParams.get("locationId")}&areaId=${searchParams.get("areaId")}`);
+                }}
                 onUpdate={() => {
                   fetchPlants();
                   setEditingInstance(null);
+                  navigate(`/dashboard?locationId=${searchParams.get("locationId")}&areaId=${searchParams.get("areaId")}`);
                 }}
                 onTasksUpdated={onTasksUpdated}
               />

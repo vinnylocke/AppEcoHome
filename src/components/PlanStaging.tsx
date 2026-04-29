@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import {
   ArrowLeft,
@@ -45,6 +45,7 @@ export default function PlanStaging({
   onPlanUpdated,
 }: PlanStagingProps) {
   const navigate = useNavigate();
+  const location = useLocation();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
 
@@ -473,7 +474,7 @@ export default function PlanStaging({
     }));
 
     navigate("/shed", {
-      state: { autoImport: queueItems.map((q) => q.data), source: sourceType },
+      state: { autoImport: queueItems.map((q) => q.data), source: sourceType, returnTo: location.pathname + location.search },
     });
   };
 
