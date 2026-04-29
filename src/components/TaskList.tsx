@@ -22,6 +22,7 @@ import {
   Lock,
   Grid,
   FolderKanban,
+  CloudRain,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -928,6 +929,11 @@ export default function TaskList({
                       {planName && (
                         <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700">
                           <FolderKanban size={10} /> {planName}
+                        </div>
+                      )}
+                      {task.auto_completed_reason && (
+                        <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 text-sky-600" title={task.auto_completed_reason}>
+                          <CloudRain size={10} /> Auto-watered
                         </div>
                       )}
                     </div>

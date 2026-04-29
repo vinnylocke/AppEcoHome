@@ -20,6 +20,7 @@ import {
   ChevronUp,
   Edit3,
   Save,
+  CloudRain,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { formatDisplayDate } from "../lib/dateUtils";
@@ -461,6 +462,23 @@ export default function TaskModal({
               </p>
             </div>
           )
+        )}
+
+        {/* Auto-completed reason */}
+        {task.auto_completed_reason && (
+          <div className="mb-6 bg-sky-50 border border-sky-100 p-4 rounded-2xl flex items-start gap-3">
+            <div className="bg-sky-100 p-2 rounded-xl shrink-0">
+              <CloudRain size={16} className="text-sky-600" />
+            </div>
+            <div>
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-sky-600/70 mb-1">
+                Auto-completed by weather
+              </h4>
+              <p className="text-sm font-bold text-sky-700">
+                {task.auto_completed_reason}
+              </p>
+            </div>
+          </div>
         )}
 
         {/* Context Links (Plants, Area, Plan) */}
