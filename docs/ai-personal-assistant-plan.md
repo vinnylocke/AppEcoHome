@@ -9,7 +9,7 @@
 - [x] Phase 1 — Event Logging
 - [x] Phase 2 — Pattern Detection Engine
 - [x] Phase 3 — AI Evaluation Layer
-- [ ] Phase 4 — Notification Surface & Assistant UI
+- [x] Phase 4 — Notification Surface & Assistant UI
 
 ---
 
@@ -294,9 +294,9 @@ AI generates free-form text only for the small set of patterns where template su
 
 ### Deliverables
 
-- [ ] Home screen assistant card component
-- [ ] "All insights" list view
-- [ ] Dismiss / acknowledge flow
+- [x] Home screen assistant card component
+- [x] "All insights" list view (inline expand)
+- [x] Dismiss / acknowledge flow
 - [ ] Push notification integration (Capacitor Push + Supabase trigger or edge function)
 
 ---

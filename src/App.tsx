@@ -60,6 +60,7 @@ import { PlantDoctorProvider } from "./context/PlantDoctorContext";
 import PlantDoctorChat from "./components/PlantDoctorChat";
 import GardenProfile from "./components/GardenProfile";
 import AilmentWatchlist from "./components/AilmentWatchlist";
+import AssistantCard from "./components/AssistantCard";
 import PlantVisualiser from "./components/PlantVisualiser";
 import RouteWatcher from "./components/RouteWatcher";
 import NavItem from "./components/NavItem";
@@ -685,6 +686,10 @@ export default function App() {
                                     </div>
                                   </div>
                                 )}
+
+                                  {session?.user?.id && (
+                                    <AssistantCard userId={session.user.id} />
+                                  )}
 
                                 <div className="flex items-center justify-between px-1">
                                     <h2 className="font-black opacity-60 uppercase tracking-widest text-sm">
