@@ -32,6 +32,7 @@ import { AutomationEngine } from "../lib/automationEngine";
 import { buildGhostPayload, hasBlockingDependencies } from "../lib/taskMutations";
 import { scoreTaskByPlantPreferences } from "../hooks/useUserPreferences";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { logEvent, EVENT } from "../events/registry";
 
 interface TaskListProps {
   homeId: string;
@@ -214,6 +215,13 @@ export default function TaskList({
         );
       }
 
+      selectedTasks.forEach((t) =>
+        logEvent(EVENT.TASK_COMPLETED, {
+          task_id: t.id,
+          task_type: t.type,
+          inventory_item_ids: t.inventory_item_ids ?? [],
+        }),
+      );
       toast.success(`${selectedTasks.length} tasks completed!`, {
         id: toastId,
       });
@@ -409,6 +417,13 @@ export default function TaskList({
           if (error) throw error;
         }
       }
+      selectedTasks.forEach((t) =>
+        logEvent(EVENT.TASK_SKIPPED, {
+          task_id: t.id,
+          task_type: t.type,
+          inventory_item_ids: t.inventory_item_ids ?? [],
+        }),
+      );
       toast.success(`Tasks removed!`, { id: toastId });
       setIsBulkEditing(false);
       setSelectedTaskIds(new Set());
@@ -508,6 +523,15 @@ export default function TaskList({
           .eq("id", task.id);
       }
       toast.success(`Task postponed to ${formatDisplayDate(postponeDate)}`);
+      const delayDays = Math.round(
+        (new Date(postponeDate).getTime() - new Date(task.due_date).getTime()) / 86_400_000,
+      );
+      logEvent(EVENT.TASK_POSTPONED, {
+        task_id: task.id,
+        task_type: task.type,
+        delay_days: delayDays,
+        inventory_item_ids: task.inventory_item_ids ?? [],
+      });
       setSelectedTask(null);
       setIsPostponing(false);
       onTaskUpdated?.();
@@ -569,6 +593,15 @@ export default function TaskList({
         setSelectedTask(finalData);
       }
       if (newStatus === "Completed") toast.success("Task completed!");
+
+      logEvent(
+        newStatus === "Completed" ? EVENT.TASK_COMPLETED : EVENT.TASK_UNCOMPLETED,
+        {
+          task_id: finalData.id,
+          task_type: finalData.type,
+          inventory_item_ids: finalData.inventory_item_ids ?? [],
+        },
+      );
 
       // 🚀 TRIGGER AUTOMATION ENGINE FOR SINGLE PLANTING TASK
       if (

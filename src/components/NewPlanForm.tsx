@@ -13,6 +13,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { saveInitialPromptMemory } from "../lib/plannerMemory";
+import { logEvent, EVENT } from "../events/registry";
 
 interface NewPlanFormProps {
   homeId: string;
@@ -132,6 +133,7 @@ export default function NewPlanForm({
       // Fire-and-forget: log the event and save structured preferences extracted
       // directly from the form fields (no AI needed — form is already structured).
       saveInitialPromptMemory(homeId, newPlan.id, payloadData);
+      logEvent(EVENT.PLAN_CREATED, { plan_id: newPlan.id, plan_name: newPlan.name });
 
       toast.success("Project Generated Successfully!", { id: toastId });
       onSuccess();

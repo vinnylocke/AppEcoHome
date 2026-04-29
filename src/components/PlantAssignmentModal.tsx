@@ -18,6 +18,7 @@ import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { AutomationEngine } from "../lib/automationEngine"; // 🚀 IMPORT THE ENGINE
+import { logEvent, EVENT } from "../events/registry";
 
 interface PlantAssignmentModalProps {
   plant: any;
@@ -260,6 +261,12 @@ export default function PlantAssignmentModal({
         );
       }
 
+      logEvent(EVENT.PLANT_ASSIGNED, {
+        plant_name: plant.common_name,
+        area_id: formData.areaId,
+        quantity: formData.quantity,
+        is_planted: formData.isPlanted,
+      });
       toast.success(`${plant.common_name} assigned successfully!`);
     } catch (e: any) {
       console.error(e);

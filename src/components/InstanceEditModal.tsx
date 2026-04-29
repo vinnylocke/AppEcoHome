@@ -26,6 +26,7 @@ import { PerenualService } from "../lib/perenualService";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 // 🚀 IMPORT THE ENGINE
 import { AutomationEngine } from "../lib/automationEngine";
+import { logEvent, EVENT } from "../events/registry";
 
 const GROWTH_STATES = [
   "Germination",
@@ -178,6 +179,7 @@ export default function InstanceEditModal({
       const isNowPlanted = payload.status === "Planted";
 
       if (isNowPlanted && !wasPlanted) {
+        logEvent(EVENT.PLANT_INSTANCE_PLANTED, { identifier: instance.identifier, plant_name: instance.plant_name });
         // Just planted! Let the Engine generate/append its blueprints.
         const baseDateStr = payload.is_established
           ? new Date().toISOString().split("T")[0]

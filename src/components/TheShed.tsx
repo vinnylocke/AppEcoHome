@@ -37,6 +37,7 @@ import SmartImage from "./SmartImage";
 import { useCachedShed } from "../hooks/useCachedShed";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { PlantDoctorService } from "../services/plantDoctorService";
+import { logEvent, EVENT } from "../events/registry";
 
 interface Plant {
   id: number;
@@ -328,6 +329,9 @@ export default function TheShed({ homeId }: { homeId: string }) {
       }
     }
     setIsBulkProcessing(false);
+    bulkQueue.filter((q) => q.status === "success").forEach((q) =>
+      logEvent(EVENT.PLANT_ADDED, { plant_name: q.name, source: q.source }),
+    );
     refreshShed(); // 🚀 BACKGROUND SYNC
     toast.success("Import complete");
   };
@@ -381,6 +385,9 @@ export default function TheShed({ homeId }: { homeId: string }) {
       toast.success(
         plant.is_archived ? "Restored to active" : "Moved to archive",
       );
+      if (!plant.is_archived) {
+        logEvent(EVENT.PLANT_ARCHIVED, { plant_id: plant.id, plant_name: plant.common_name });
+      }
       refreshShed(); // 🚀 BACKGROUND SYNC
     } catch (err: any) {
       toast.error(`Failed to update status: ${err.message}`);
@@ -418,6 +425,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
         plantData,
       );
       toast.success(`${plantData.common_name} added to shed!`);
+      logEvent(EVENT.PLANT_ADDED, { plant_name: plantData.common_name, source: "manual" });
       handleCloseModals();
       refreshShed(); // 🚀 BACKGROUND SYNC
     } catch (err: any) {

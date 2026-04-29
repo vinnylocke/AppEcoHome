@@ -15,6 +15,7 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { logEvent, EVENT } from "../events/registry";
 import NewPlanForm from "./NewPlanForm";
 import PlanStaging from "./PlanStaging";
 
@@ -130,6 +131,7 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
           .delete()
           .eq("id", plan.id);
         if (error) throw error;
+        logEvent(EVENT.PLAN_DELETED, { plan_id: plan.id, plan_name: plan.name });
         toast.success("Plan deleted successfully.");
       } else {
         const newStatus = type === "archive" ? "Archived" : "Draft";
@@ -138,6 +140,10 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
           .update({ status: newStatus })
           .eq("id", plan.id);
         if (error) throw error;
+        logEvent(
+          type === "archive" ? EVENT.PLAN_ARCHIVED : EVENT.PLAN_CREATED,
+          { plan_id: plan.id, plan_name: plan.name },
+        );
         setCardFeedback(plan.id, "success");
         toast.success(
           `Plan ${type === "archive" ? "archived" : "restored"}.`,

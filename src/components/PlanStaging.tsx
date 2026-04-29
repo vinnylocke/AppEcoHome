@@ -23,6 +23,7 @@ import {
 import toast from "react-hot-toast";
 import { ConfirmModal } from "./ConfirmModal";
 import { saveMemoryEvent } from "../lib/plannerMemory";
+import { logEvent, EVENT } from "../events/registry";
 import WikiPlantCard from "./WikiPlantCard";
 import {
   injectBlueprintTasks,
@@ -674,6 +675,7 @@ export default function PlanStaging({
       await saveStagingState({ maintenance_active: true });
       setLocalPlanStatus("Completed");
       onPlanUpdated();
+      logEvent(EVENT.PLAN_COMPLETED, { plan_id: plan.id, plan_name: plan.name });
       saveMemoryEvent(homeId, plan.id, "completed_plan", {
         blueprint_title: localBlueprint?.project_overview?.title,
       });

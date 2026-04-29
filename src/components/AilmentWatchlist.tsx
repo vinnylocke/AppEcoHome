@@ -10,6 +10,7 @@ import { supabase } from "../lib/supabase";
 import { PerenualService } from "../lib/perenualService";
 import SmartImage from "./SmartImage";
 import { ConfirmModal } from "./ConfirmModal";
+import { logEvent, EVENT } from "../events/registry";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -723,6 +724,7 @@ function AddAilmentModal({
       const { data, error } = await supabase.from("ailments").insert(payloads).select();
       if (error) throw error;
       (data as Ailment[]).forEach((a) => onSaved(a));
+      (data as Ailment[]).forEach((a) => logEvent(EVENT.AILMENT_ADDED, { ailment_id: a.id, name: a.name, type: a.type }));
       toast.success(`Added ${data.length} ailment${data.length !== 1 ? "s" : ""} to watchlist.`);
       onClose();
     } catch (err: any) {
@@ -1414,12 +1416,17 @@ export default function AilmentWatchlist({ homeId }: { homeId: string }) {
     if (type === "delete") {
       const { error } = await supabase.from("ailments").delete().eq("id", ailment.id);
       if (error) throw error;
+      logEvent(EVENT.AILMENT_DELETED, { ailment_id: ailment.id, name: ailment.name, type: ailment.type });
       setAilments((prev) => prev.filter((a) => a.id !== ailment.id));
       if (selectedAilment?.id === ailment.id) setSelectedAilment(null);
     } else {
       const archived = type === "archive";
       const { error } = await supabase.from("ailments").update({ is_archived: archived }).eq("id", ailment.id);
       if (error) throw error;
+      logEvent(
+        archived ? EVENT.AILMENT_ARCHIVED : EVENT.AILMENT_RESTORED,
+        { ailment_id: ailment.id, name: ailment.name, type: ailment.type },
+      );
       setAilments((prev) => prev.map((a) => a.id === ailment.id ? { ...a, is_archived: archived } : a));
     }
     setConfirmState((s) => ({ ...s, isOpen: false }));

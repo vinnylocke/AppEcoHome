@@ -18,6 +18,7 @@ import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
+import { logEvent, EVENT } from "../events/registry";
 import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
 import { BlueprintService } from "../services/blueprintService";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
@@ -550,6 +551,11 @@ export default function AddTaskModal({
         await supabase.from("task_dependencies").insert(payload);
       }
 
+      logEvent(EVENT.TASK_CREATED, {
+        task_type: form.type,
+        is_recurring: form.isRecurring,
+        inventory_item_ids: form.inventory_item_ids ?? [],
+      });
       toast.success(
         isBlueprintMode
           ? "Automation created!"

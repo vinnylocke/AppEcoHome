@@ -34,6 +34,7 @@ import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { AutomationEngine } from "../lib/automationEngine";
 import { PlantDoctorService } from "../services/plantDoctorService";
 import LinkAilmentModal from "./LinkAilmentModal";
+import { logEvent, EVENT } from "../events/registry";
 
 interface InventoryItem {
   id: string;
@@ -142,9 +143,14 @@ export default function AreaDetails({
     try {
       const ids = Array.from(selectedIds);
 
+      const affectedItems = plants.filter((p) => ids.includes(p.id));
+
       if (action === "delete") {
         await supabase.from("inventory_items").delete().in("id", ids);
         await AutomationEngine.scrubItemsFromAutomations(ids); // 🚀 DELEGATED TO ENGINE
+        affectedItems.forEach((p) =>
+          logEvent(EVENT.PLANT_INSTANCE_DELETED, { identifier: p.identifier, plant_name: p.plant_name }),
+        );
         toast.success("Plants permanently deleted.", { id: toastId });
       } else if (action === "archive" || action === "restore") {
         const newStatus = action === "archive" ? "Archived" : "Unplanted";
@@ -155,6 +161,13 @@ export default function AreaDetails({
 
         if (action === "archive") {
           await AutomationEngine.scrubItemsFromAutomations(ids); // 🚀 DELEGATED TO ENGINE
+          affectedItems.forEach((p) =>
+            logEvent(EVENT.PLANT_INSTANCE_ARCHIVED, { identifier: p.identifier, plant_name: p.plant_name }),
+          );
+        } else {
+          affectedItems.forEach((p) =>
+            logEvent(EVENT.PLANT_INSTANCE_RESTORED, { identifier: p.identifier, plant_name: p.plant_name }),
+          );
         }
 
         toast.success(
@@ -187,6 +200,9 @@ export default function AreaDetails({
       if (payload.status === "Planted") {
         const itemsToPlant = selectedItems.filter(
           (p) => p.status !== "Planted",
+        );
+        itemsToPlant.forEach((p) =>
+          logEvent(EVENT.PLANT_INSTANCE_PLANTED, { identifier: p.identifier, plant_name: p.plant_name }),
         );
         if (itemsToPlant.length > 0) {
           const targetAreaId = payload.area_id || area.id;
@@ -233,6 +249,7 @@ export default function AreaDetails({
           .eq("id", item.id);
         if (error) throw error;
         await AutomationEngine.scrubItemsFromAutomations([item.id]); // 🚀 DELEGATED TO ENGINE
+        logEvent(EVENT.PLANT_INSTANCE_DELETED, { identifier: item.identifier, plant_name: item.plant_name });
         toast.success(`${item.identifier} completely removed from schedules.`);
       } else {
         const newStatus = type === "archive" ? "Archived" : "Unplanted";
@@ -244,6 +261,9 @@ export default function AreaDetails({
 
         if (type === "archive") {
           await AutomationEngine.scrubItemsFromAutomations([item.id]); // 🚀 DELEGATED TO ENGINE
+          logEvent(EVENT.PLANT_INSTANCE_ARCHIVED, { identifier: item.identifier, plant_name: item.plant_name });
+        } else {
+          logEvent(EVENT.PLANT_INSTANCE_RESTORED, { identifier: item.identifier, plant_name: item.plant_name });
         }
 
         toast.success(

@@ -5,6 +5,7 @@ import {
 import { toast } from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 import { AutomationEngine } from "../lib/automationEngine";
+import { logEvent, EVENT } from "../events/registry";
 import { getLocalDateString } from "../lib/taskEngine";
 import type { Ailment, AilmentType } from "./AilmentWatchlist";
 
@@ -99,6 +100,15 @@ export default function LinkAilmentModal({ homeId, plantInstance, onClose, onLin
         ),
       );
 
+      selectedAilments.forEach((a) =>
+        logEvent(EVENT.AILMENT_LINKED, {
+          ailment_id: a.id,
+          ailment_name: a.name,
+          ailment_type: a.type,
+          plant_name: plantInstance.plant_name,
+          identifier: plantInstance.identifier,
+        }),
+      );
       toast.success(`Linked ${selected.size} ailment${selected.size > 1 ? "s" : ""} and scheduled tasks.`);
       onLinked();
       onClose();
