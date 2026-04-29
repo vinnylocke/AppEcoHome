@@ -33,6 +33,10 @@ export const EVENT = {
   VISUALISER_ANALYSE:        "visualiser_analyse",
   // Garden
   GARDEN_QUIZ_DONE:          "garden_quiz_done",
+  // Area scans
+  AREA_SCAN_COMPLETED:       "area_scan_completed",
+  SCAN_TASK_ACCEPTED:        "scan_task_accepted",
+  SCAN_AILMENT_LINKED:       "scan_ailment_linked",
 } as const;
 
 export type EventType = typeof EVENT[keyof typeof EVENT];

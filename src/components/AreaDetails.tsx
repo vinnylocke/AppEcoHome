@@ -22,6 +22,7 @@ import {
   CheckSquare,
   Edit3,
   Bug,
+  ScanLine,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
@@ -34,6 +35,7 @@ import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { AutomationEngine } from "../lib/automationEngine";
 import { PlantDoctorService } from "../services/plantDoctorService";
 import LinkAilmentModal from "./LinkAilmentModal";
+import AreaScanModal from "./AreaScanModal";
 import { logEvent, EVENT } from "../events/registry";
 
 interface InventoryItem {
@@ -98,6 +100,8 @@ export default function AreaDetails({
   }>({ isOpen: false, type: "delete", item: null });
 
   const [linkAilmentTarget, setLinkAilmentTarget] = useState<InventoryItem | null>(null);
+  const [showScanModal, setShowScanModal] = useState(false);
+  const [lastScan, setLastScan] = useState<any | null>(null);
 
   const [expandedGroups, setExpandedGroups] = useState<string[]>([]);
   const [fetchError, setFetchError] = useState(false);
@@ -372,6 +376,13 @@ export default function AreaDetails({
             </div>
           </div>
           <div className="flex items-center gap-2">
+            <button
+              onClick={() => setShowScanModal(true)}
+              className="p-3 text-rhozly-primary hover:bg-rhozly-primary/10 rounded-2xl transition-all border border-rhozly-primary/10 bg-white shadow-sm"
+              title="Scan Area"
+            >
+              <ScanLine className="w-6 h-6" />
+            </button>
             <button
               onClick={getPlantRecommendations}
               disabled={isGettingRecs}
@@ -909,6 +920,18 @@ export default function AreaDetails({
           </>,
           document.body,
         )}
+
+      {showScanModal && (
+        <AreaScanModal
+          homeId={homeId}
+          area={area}
+          onClose={() => setShowScanModal(false)}
+          onScanSaved={(scan) => {
+            setLastScan(scan);
+            setShowScanModal(false);
+          }}
+        />
+      )}
     </>
   );
 }
