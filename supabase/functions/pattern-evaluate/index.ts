@@ -44,7 +44,7 @@ serve(async (_req) => {
     // Fetch unevaluated hits, oldest first so backlog clears in order
     const { data: hits, error: hitsErr } = await db
       .from("user_pattern_hits")
-      .select("id, user_id, pattern_id, inventory_item_id, raw_data, created_at")
+      .select("id, user_id, pattern_id, inventory_item_id, blueprint_id, raw_data, created_at")
       .eq("evaluated", false)
       .order("created_at", { ascending: true })
       .limit(BATCH_LIMIT);
@@ -114,12 +114,47 @@ serve(async (_req) => {
 
     for (const hit of hits as any[]) {
       try {
-        // Skip hits with no item (item was deleted) — just mark evaluated
+        // --- Blueprint-level hits (no plant item, just a blueprint) ---
+        if (!hit.inventory_item_id && hit.blueprint_id) {
+          // Skip if an undismissed insight already exists for this pattern+blueprint
+          const { count: existing } = await db
+            .from("user_insights")
+            .select("id", { count: "exact", head: true })
+            .eq("user_id", hit.user_id)
+            .eq("pattern_id", hit.pattern_id)
+            .eq("blueprint_id", hit.blueprint_id)
+            .is("dismissed_at", null);
+
+          if ((existing ?? 0) > 0) {
+            await db.from("user_pattern_hits").update({ evaluated: true }).eq("id", hit.id);
+            evaluated++;
+            continue;
+          }
+
+          // The threshold IS the significance filter here — no AI call needed.
+          const insightText = buildMessage(hit.pattern_id, hit.raw_data ?? {});
+          await db.from("user_insights").insert({
+            user_id: hit.user_id,
+            pattern_id: hit.pattern_id,
+            blueprint_id: hit.blueprint_id,
+            is_significant: true,
+            insight_text: insightText,
+            ai_meta: { source: "threshold", raw_data: hit.raw_data },
+          });
+          insights++;
+          await db.from("user_pattern_hits").update({ evaluated: true }).eq("id", hit.id);
+          evaluated++;
+          continue;
+        }
+
+        // Skip orphaned hits (neither item nor blueprint) — item was deleted
         if (!hit.inventory_item_id) {
           await db.from("user_pattern_hits").update({ evaluated: true }).eq("id", hit.id);
           evaluated++;
           continue;
         }
+
+        // --- Item-level hits (plant-linked patterns) ---
 
         // Skip if an undismissed insight already exists for this pattern+item
         const { count: existing } = await db

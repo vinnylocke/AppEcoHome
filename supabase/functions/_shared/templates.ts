@@ -7,6 +7,8 @@ const TEMPLATES: Record<string, string> = {
     "You've postponed {plant_name} tasks {rate}% of the time recently. A less frequent schedule might suit it better.",
   streak_broken:
     "You had a {streak}-day care streak going — nice work. {plant_name} is lucky to have you.",
+  blueprint_postpone_rate:
+    "You've postponed '{task_name}' {count} times this month — it might be worth tweaking the schedule.",
 };
 
 export function buildMessage(

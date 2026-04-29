@@ -45,36 +45,85 @@ serve(async (_req) => {
         try {
           const hits = await pattern.detect(userId, homeId, db);
 
-          // Remove stale unevaluated hits that the pattern no longer produces
+          // Fetch current unevaluated hits for stale-cleanup
           const { data: existingHits } = await db
             .from("user_pattern_hits")
-            .select("id, inventory_item_id")
+            .select("id, inventory_item_id, blueprint_id")
             .eq("user_id", userId)
             .eq("pattern_id", pattern.id)
             .eq("evaluated", false);
 
-          const currentItemIds = new Set(hits.map((h) => h.inventoryItemId));
+          const currentItemIds = new Set(
+            hits.map((h) => h.inventoryItemId).filter(Boolean) as string[],
+          );
+          const currentBlueprintIds = new Set(
+            hits.map((h) => h.blueprintId).filter(Boolean) as string[],
+          );
+
+          // Remove stale unevaluated hits that the pattern no longer produces
           const staleIds = (existingHits ?? [])
-            .filter((h: any) => !currentItemIds.has(h.inventory_item_id))
+            .filter((h: any) => {
+              if (h.inventory_item_id) return !currentItemIds.has(h.inventory_item_id);
+              if (h.blueprint_id) return !currentBlueprintIds.has(h.blueprint_id);
+              return false;
+            })
             .map((h: any) => h.id);
 
           if (staleIds.length) {
             await db.from("user_pattern_hits").delete().in("id", staleIds);
           }
 
-          // Upsert current hits (resets evaluated = false so Phase 3 re-evaluates)
+          // Upsert current hits
           for (const hit of hits) {
-            await db.from("user_pattern_hits").upsert(
-              {
-                user_id: userId,
-                pattern_id: pattern.id,
-                inventory_item_id: hit.inventoryItemId,
-                raw_data: hit.rawData,
-                evaluated: false,
-                created_at: new Date().toISOString(),
-              },
-              { onConflict: "user_id,pattern_id,inventory_item_id" },
-            );
+            const isItemHit = !!hit.inventoryItemId;
+            const isBlueprintHit = !!hit.blueprintId && !hit.inventoryItemId;
+
+            if (isItemHit) {
+              // Item-level hit: upsert on the existing table UNIQUE constraint
+              await db.from("user_pattern_hits").upsert(
+                {
+                  user_id: userId,
+                  pattern_id: pattern.id,
+                  inventory_item_id: hit.inventoryItemId,
+                  raw_data: hit.rawData,
+                  evaluated: false,
+                  created_at: new Date().toISOString(),
+                },
+                { onConflict: "user_id,pattern_id,inventory_item_id" },
+              );
+            } else if (isBlueprintHit) {
+              // Blueprint-level hit: partial unique index doesn't support JS upsert,
+              // so manually check-and-update or insert.
+              const { data: existing } = await db
+                .from("user_pattern_hits")
+                .select("id")
+                .eq("user_id", userId)
+                .eq("pattern_id", pattern.id)
+                .eq("blueprint_id", hit.blueprintId!)
+                .is("inventory_item_id", null)
+                .maybeSingle();
+
+              if (existing) {
+                await db
+                  .from("user_pattern_hits")
+                  .update({
+                    raw_data: hit.rawData,
+                    evaluated: false,
+                    created_at: new Date().toISOString(),
+                  })
+                  .eq("id", existing.id);
+              } else {
+                await db.from("user_pattern_hits").insert({
+                  user_id: userId,
+                  pattern_id: pattern.id,
+                  blueprint_id: hit.blueprintId,
+                  raw_data: hit.rawData,
+                  evaluated: false,
+                  created_at: new Date().toISOString(),
+                });
+              }
+            }
+
             totalHits++;
           }
         } catch (err) {
