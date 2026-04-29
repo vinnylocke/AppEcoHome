@@ -68,7 +68,36 @@ export default function PlantEditModal({
         const apiData = await PerenualService.getPlantDetails(
           plant.perenual_id,
         );
-        setFullPlantData({ ...plant, ...apiData });
+
+        // Perenual images are Wasabi signed URLs that expire after 24h.
+        // If the stored URL is missing or a Wasabi URL, fetch a fresh one directly.
+        const isStale = (url?: string) =>
+          !url || url.includes("wasabisys.com") || url.includes("X-Amz-");
+
+        let imageUrl = plant.thumbnail_url;
+        if (isStale(imageUrl)) {
+          try {
+            const key = import.meta.env.VITE_PERENUAL_API_KEY;
+            const res = await fetch(
+              `https://perenual.com/api/v2/species/details/${plant.perenual_id}?key=${key}`,
+            );
+            const fresh = await res.json();
+            imageUrl =
+              fresh.default_image?.regular_url ||
+              fresh.default_image?.thumbnail ||
+              apiData.image_url ||
+              "";
+          } catch {
+            imageUrl = apiData.image_url || "";
+          }
+        }
+
+        setFullPlantData({
+          ...plant,
+          ...apiData,
+          thumbnail_url: imageUrl,
+          image_url: imageUrl,
+        });
         setLoadSuccess(true);
         setTimeout(() => setLoadSuccess(false), 3000);
       } catch (error) {

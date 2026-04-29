@@ -142,6 +142,10 @@ export default function PlantSwipeDeck({
   const [swipeFlash, setSwipeFlash] = useState<"positive" | "negative" | null>(null);
   const seenNames = useRef<string[]>([]);
   const cardRef = useRef<HTMLDivElement>(null);
+  const [dragX, setDragX] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const gestureStartX = useRef<number | null>(null);
+  const latestDragX = useRef(0);
 
   const loadBatch = useCallback(async () => {
     setLoading(true);
@@ -236,6 +240,56 @@ export default function PlantSwipeDeck({
       loadBatch();
     }
   }, [deck, loadBatch]);
+
+  // ── Gesture handlers (touch + mouse drag) ──
+  const startGesture = (clientX: number) => {
+    gestureStartX.current = clientX;
+    setIsDragging(true);
+  };
+
+  const moveGesture = (clientX: number) => {
+    if (gestureStartX.current === null) return;
+    const dx = clientX - gestureStartX.current;
+    latestDragX.current = dx;
+    setDragX(dx);
+  };
+
+  const endGesture = useCallback(async () => {
+    if (gestureStartX.current === null) return;
+    gestureStartX.current = null;
+    setIsDragging(false);
+    const dx = latestDragX.current;
+    if (Math.abs(dx) > 80 && deck.length > 0) {
+      const sentiment: "positive" | "negative" = dx > 0 ? "positive" : "negative";
+      latestDragX.current = dx > 0 ? 700 : -700;
+      setDragX(dx > 0 ? 700 : -700);
+      const [current, ...rest] = deck;
+      setAnnouncement(`${sentiment === "positive" ? "Liked" : "Disliked"} ${current.name}`);
+      setSwipeCount((c) => c + 1);
+      savePref(current, sentiment);
+      setTimeout(() => {
+        latestDragX.current = 0;
+        setDragX(0);
+        setDeck(rest);
+        if (rest.length <= 2) loadBatch();
+      }, 300);
+    } else {
+      latestDragX.current = 0;
+      setDragX(0);
+    }
+  }, [deck, loadBatch]);
+
+  useEffect(() => {
+    if (!isDragging) return;
+    const onMove = (e: MouseEvent) => moveGesture(e.clientX);
+    const onUp = () => endGesture();
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+    };
+  }, [isDragging, endGesture]);
 
   // Auto-focus active card for screen reader accessibility
   useEffect(() => {
@@ -352,8 +406,41 @@ export default function PlantSwipeDeck({
           role="article"
           aria-label={`Plant card: ${current.name}, ${current.scientific_name}. ${current.tagline}`}
           className="absolute inset-0 rounded-3xl bg-white border border-rhozly-outline/20 shadow-xl overflow-hidden focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
-          style={{ zIndex: 1 }}
+          style={{
+            zIndex: 1,
+            touchAction: "none",
+            cursor: isDragging ? "grabbing" : "grab",
+            transform: dragX !== 0
+              ? `translateX(${dragX}px) rotate(${Math.max(-25, Math.min(25, dragX * 0.06))}deg)`
+              : undefined,
+            transition: isDragging ? "none" : "transform 0.3s ease",
+          }}
+          onTouchStart={(e) => startGesture(e.touches[0].clientX)}
+          onTouchMove={(e) => moveGesture(e.touches[0].clientX)}
+          onTouchEnd={endGesture}
+          onMouseDown={(e) => startGesture(e.clientX)}
         >
+          {/* Like / Nope stamp indicators */}
+          {dragX > 20 && (
+            <div
+              className="absolute top-6 left-6 z-20 pointer-events-none -rotate-12"
+              style={{ opacity: Math.min(1, (dragX - 20) / 60) }}
+            >
+              <div className="border-4 border-rhozly-primary rounded-xl px-3 py-1">
+                <p className="text-rhozly-primary font-black text-2xl uppercase tracking-widest">Like</p>
+              </div>
+            </div>
+          )}
+          {dragX < -20 && (
+            <div
+              className="absolute top-6 right-6 z-20 pointer-events-none rotate-12"
+              style={{ opacity: Math.min(1, (-dragX - 20) / 60) }}
+            >
+              <div className="border-4 border-red-400 rounded-xl px-3 py-1">
+                <p className="text-red-400 font-black text-2xl uppercase tracking-widest">Nope</p>
+              </div>
+            </div>
+          )}
           {/* Swipe flash overlay */}
           {swipeFlash && (
             <div
@@ -445,7 +532,7 @@ export default function PlantSwipeDeck({
           save to profile
         </p>
         <p className="text-[11px] text-rhozly-on-surface/30 font-medium">
-          Keyboard: &larr; / A &nbsp;to skip &nbsp;·&nbsp; &rarr; / D &nbsp;to save
+          Swipe or press &larr; / A to skip &nbsp;·&nbsp; &rarr; / D to save
         </p>
       </div>
     </div>

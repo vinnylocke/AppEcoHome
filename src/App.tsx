@@ -18,6 +18,7 @@ import {
   Sprout,
   Sparkles,
   Bug,
+  ScanLine,
 } from "lucide-react";
 
 // 🚀 NATIVE IMPORT
@@ -59,6 +60,7 @@ import { PlantDoctorProvider } from "./context/PlantDoctorContext";
 import PlantDoctorChat from "./components/PlantDoctorChat";
 import GardenProfile from "./components/GardenProfile";
 import AilmentWatchlist from "./components/AilmentWatchlist";
+import PlantVisualiser from "./components/PlantVisualiser";
 import RouteWatcher from "./components/RouteWatcher";
 import NavItem from "./components/NavItem";
 import {
@@ -408,6 +410,7 @@ export default function App() {
     { id: "task_management", icon: <Repeat />, label: "Task Management" },
     { id: "shed", icon: <Database />, label: "The Shed" },
     { id: "watchlist", icon: <Bug />, label: "Watchlist" },
+    { id: "visualiser", icon: <ScanLine />, label: "Plant Visualiser" },
     { id: "planner", icon: <Map />, label: "Planner" },
     { id: "doctor", icon: <Stethoscope />, label: "Plant Doctor" },
     { id: "garden_profile", icon: <Sprout />, label: "Garden Profile" },
@@ -714,6 +717,10 @@ export default function App() {
 
                     {activeTab === "watchlist" && profile?.home_id && (
                       <AilmentWatchlist homeId={profile.home_id} />
+                    )}
+
+                    {activeTab === "visualiser" && profile?.home_id && (
+                      <PlantVisualiser homeId={profile.home_id} />
                     )}
 
                     {activeTab === "doctor" && (
