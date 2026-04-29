@@ -87,7 +87,13 @@ serve(async (req) => {
           due_date: nextDate.toISOString().split("T")[0],
           location_id: bp.location_id,
           area_id: bp.area_id,
-          inventory_item_ids: bp.inventory_item_id ? [bp.inventory_item_id] : null,
+          // Prefer the array column (set by automationEngine); fall back to the
+          // legacy singular column so older blueprints still work.
+          inventory_item_ids: bp.inventory_item_ids?.length
+            ? bp.inventory_item_ids
+            : bp.inventory_item_id
+              ? [bp.inventory_item_id]
+              : null,
         });
 
         nextDate.setDate(nextDate.getDate() + bp.frequency_days);
