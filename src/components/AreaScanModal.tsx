@@ -8,7 +8,8 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
-import { getQuestionsToAsk, ScanQuestion } from "../lib/scanQuestions";
+import { getQuestionsToAsk } from "../lib/scanQuestions";
+import type { ScanQuestion } from "../lib/scanQuestions";
 import { logEvent, EVENT } from "../events/registry";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
