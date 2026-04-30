@@ -637,6 +637,7 @@ function AppShell() {
                                     <WeatherForecast
                                       weatherData={rawWeather}
                                       alerts={alerts}
+                                      homeId={profile?.home_id ?? null}
                                     />
                                   </div>
                                 )}

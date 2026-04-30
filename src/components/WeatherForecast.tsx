@@ -10,6 +10,7 @@ import {
 } from "recharts";
 import { Logger } from "../lib/errorHandler";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { supabase } from "../lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -49,9 +50,31 @@ interface RuleResult {
   thresholdRows?: ThresholdRow[];
 }
 
+interface RawWateringTask {
+  id: string;
+  title: string;
+  status: string;
+  due_date: string;
+  auto_completed_reason: string | null;
+  task_blueprints: { frequency_days: number } | null;
+  locations: { is_outside: boolean } | null;
+}
+
+interface WateringTaskRow {
+  id: string;
+  title: string;
+  status: string;
+  dueDate: string;
+  autoCompletedReason: string | null;
+  frequencyDays: number;
+  rainDays: Array<{ label: string; rainMm: number; exceeded: boolean }>;
+  triggered: boolean;
+}
+
 interface Props {
   weatherData: any;
   alerts: any[];
+  homeId: string | null;
 }
 
 // ─── WMO Code helpers ─────────────────────────────────────────────────────────
@@ -135,24 +158,6 @@ function evaluateRules(rawWeather: any, today: string): RuleResult[] {
     status: rainTriggered ? "info" : "clear",
     heading: rainTriggered ? "Outdoor watering auto-completed" : "No watering tasks skipped today",
     detail: rainWeek ? `Week ahead: ${rainWeek}.` : "No significant rain forecast this week.",
-    thresholdRows: [
-      {
-        label: "Today's rainfall",
-        actual: `${rainToday.toFixed(1)}mm`,
-        threshold: `${RAIN_AUTO_THRESHOLD}mm`,
-        met: rule1Met,
-        note: rule1Met ? "Watering tasks skipped" : undefined,
-      },
-      {
-        label: "Yesterday carry-over",
-        actual: rainYesterday > 0
-          ? `${rainYesterday.toFixed(1)}mm yesterday · ${rainToday.toFixed(1)}mm today`
-          : `${rainYesterday.toFixed(1)}mm yesterday`,
-        threshold: `≥${RAIN_AUTO_THRESHOLD}mm yesterday + any rain today`,
-        met: rule2Met,
-        note: rule2Met ? "Soil still saturated" : undefined,
-      },
-    ],
   });
 
   // 2. Frost Risk
@@ -306,10 +311,30 @@ const METRICS = [
   { id: "humidity", label: "Humidity",     icon: Droplets,    color: "#f59e0b",                             unit: "%",     dataKey: "humidity" },
 ];
 
-export default function WeatherForecast({ weatherData, alerts }: Props) {
+export default function WeatherForecast({ weatherData, alerts, homeId }: Props) {
   const { setPageContext } = usePlantDoctor();
 
   const today = useMemo(() => new Date().toISOString().split("T")[0], []);
+
+  // ── Fetch outdoor watering tasks ─────────────────────────────────────────────
+  const [rawWateringTasks, setRawWateringTasks] = useState<RawWateringTask[]>([]);
+
+  useEffect(() => {
+    if (!homeId) return;
+    const twoDaysAgo = new Date(Date.now() - 2 * 86_400_000).toISOString().split("T")[0];
+    const tomorrow = new Date(Date.now() + 86_400_000).toISOString();
+    supabase
+      .from("tasks")
+      .select("id, title, status, due_date, auto_completed_reason, task_blueprints ( frequency_days ), locations ( is_outside )")
+      .eq("home_id", homeId)
+      .eq("type", "Watering")
+      .gte("due_date", twoDaysAgo)
+      .lte("due_date", tomorrow)
+      .order("due_date", { ascending: false })
+      .then(({ data }) => {
+        if (data) setRawWateringTasks((data as any[]).filter((t) => t.locations?.is_outside));
+      });
+  }, [homeId]);
 
   // ── Parse 7-day strip (today + next 6) ──────────────────────────────────────
   const weekDays = useMemo((): DaySummary[] => {
@@ -370,6 +395,60 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
     () => (weatherData ? evaluateRules(weatherData, today) : []),
     [weatherData, today],
   );
+
+  // ── Per-task rain comparisons ─────────────────────────────────────────────────
+  const taskRainComparisons = useMemo((): WateringTaskRow[] => {
+    if (!weatherData || !rawWateringTasks.length) return [];
+    const THRESHOLD = 5;
+    const daily = weatherData.daily;
+    if (!daily) return [];
+
+    const getRain = (dateStr: string): number => {
+      const idx = (daily.time ?? []).indexOf(dateStr);
+      return idx === -1 ? 0 : (daily.precipitation_sum?.[idx] ?? 0);
+    };
+
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().split("T")[0];
+    const rainYesterday = getRain(yesterday);
+    const rainToday = getRain(today);
+
+    return rawWateringTasks.map((task) => {
+      const dueDate = task.due_date.split("T")[0];
+      const frequencyDays = task.task_blueprints?.frequency_days ?? 7;
+
+      // Build candidate days (yesterday → today) within the task's watering period
+      const candidates = [
+        { label: "Yesterday", date: yesterday, rainMm: rainYesterday },
+        { label: "Today",     date: today,      rainMm: rainToday },
+      ].filter(({ date }) => {
+        const daysFromDue = Math.round(
+          (new Date(dueDate).getTime() - new Date(date).getTime()) / 86_400_000,
+        );
+        return daysFromDue >= 0 && daysFromDue < frequencyDays;
+      });
+
+      const rainDays = candidates.map(({ label, rainMm }) => ({
+        label,
+        rainMm,
+        exceeded: rainMm >= THRESHOLD,
+      }));
+
+      // Mirror edge function logic: today ≥5mm OR (yesterday ≥5mm AND today > 0)
+      const triggered =
+        rainToday >= THRESHOLD || (rainYesterday >= THRESHOLD && rainToday > 0);
+
+      return {
+        id: task.id,
+        title: task.title,
+        status: task.status,
+        dueDate,
+        autoCompletedReason: task.auto_completed_reason,
+        frequencyDays,
+        rainDays,
+        triggered,
+      };
+    });
+  }, [weatherData, rawWateringTasks, today]);
 
   // ── Clamp hour index when day changes ────────────────────────────────────────
   useEffect(() => {
@@ -632,9 +711,10 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
           <div className="px-6 pb-6 space-y-3">
             {ruleResults.map((rule) => {
               const styles = STATUS_STYLES[rule.status];
+              const isRainRule = rule.id === "rain";
               return (
                 <div key={rule.id} className={`rounded-2xl border p-4 space-y-2 ${styles.row}`}>
-                  {/* Header row */}
+                  {/* Header */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
                       {styles.icon}
@@ -648,10 +728,73 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
                     </div>
                   </div>
 
-                  {/* Threshold breakdown */}
-                  {rule.thresholdRows && rule.thresholdRows.length > 0 && (
+                  {/* Per-task rain breakdown (rain rule only) */}
+                  {isRainRule && taskRainComparisons.length > 0 && (
+                    <div className="ml-6 rounded-xl border border-rhozly-outline/20 bg-white/50 overflow-hidden">
+                      <div className="px-3 py-1.5 border-b border-rhozly-outline/10">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/30">
+                          Watering tasks · 5mm auto-complete threshold
+                        </span>
+                      </div>
+                      <div className="divide-y divide-rhozly-outline/10">
+                        {taskRainComparisons.map((task) => (
+                          <div key={task.id} className="px-3 py-2.5 space-y-1.5">
+                            {/* Task title + frequency + status */}
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                <p className="text-xs font-black text-rhozly-on-surface truncate">{task.title}</p>
+                                <span className="text-[10px] font-bold text-rhozly-on-surface/35 shrink-0">
+                                  every {task.frequencyDays}d
+                                </span>
+                              </div>
+                              {task.triggered ? (
+                                <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-700 shrink-0">
+                                  skipped
+                                </span>
+                              ) : (
+                                <span className="text-[9px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-rhozly-outline/15 text-rhozly-on-surface/40 shrink-0">
+                                  pending
+                                </span>
+                              )}
+                            </div>
+
+                            {/* Rain day rows */}
+                            {task.rainDays.map((day, di) => (
+                              <div key={di} className="flex items-center gap-2">
+                                <span className="text-[10px] font-bold text-rhozly-on-surface/40 w-16 shrink-0">{day.label}</span>
+                                {/* Progress bar */}
+                                <div className="flex-1 h-1.5 bg-rhozly-outline/15 rounded-full overflow-hidden">
+                                  <div
+                                    className={`h-full rounded-full transition-all ${day.exceeded ? "bg-blue-500" : "bg-rhozly-outline/40"}`}
+                                    style={{ width: `${Math.min((day.rainMm / 10) * 100, 100)}%` }}
+                                  />
+                                </div>
+                                <span className={`text-xs font-black w-12 text-right shrink-0 ${day.exceeded ? "text-blue-600" : "text-rhozly-on-surface/50"}`}>
+                                  {day.rainMm.toFixed(1)}mm
+                                </span>
+                                <span className="text-[10px] text-rhozly-on-surface/25 shrink-0">/ 5mm</span>
+                                <div className={`w-4 h-4 rounded-full flex items-center justify-center text-[9px] font-black shrink-0 ${
+                                  day.exceeded ? "bg-blue-100 text-blue-700" : "bg-rhozly-outline/15 text-rhozly-on-surface/30"
+                                }`}>
+                                  {day.exceeded ? "✓" : "✗"}
+                                </div>
+                              </div>
+                            ))}
+
+                            {/* Auto-complete reason if set */}
+                            {task.autoCompletedReason && (
+                              <p className="text-[10px] font-bold text-blue-600/70 pl-0.5">{task.autoCompletedReason}</p>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Threshold breakdown for non-rain rules */}
+                  {!isRainRule && rule.thresholdRows && rule.thresholdRows.length > 0 && (
                     <div className="ml-6 mt-1 rounded-xl border border-rhozly-outline/20 bg-white/50 overflow-hidden">
-                      <div className="px-3 py-1.5 border-b border-rhozly-outline/10 flex items-center gap-1.5">
+                      <div className="px-3 py-1.5 border-b border-rhozly-outline/10">
                         <span className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/30">Rule Conditions</span>
                       </div>
                       <div className="divide-y divide-rhozly-outline/10">
@@ -659,24 +802,16 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
                           <div key={i} className="px-3 py-2.5 flex items-start justify-between gap-4">
                             <div className="flex-1 min-w-0">
                               <p className="text-xs font-bold text-rhozly-on-surface/70">{row.label}</p>
-                              {row.note && (
-                                <p className="text-[10px] font-bold text-blue-600 mt-0.5">{row.note}</p>
-                              )}
+                              {row.note && <p className="text-[10px] font-bold text-blue-600 mt-0.5">{row.note}</p>}
                             </div>
                             <div className="flex items-center gap-2.5 shrink-0 text-right">
                               <div>
-                                <p className={`text-xs font-black ${row.met ? "text-rhozly-on-surface" : "text-rhozly-on-surface/50"}`}>
-                                  {row.actual}
-                                </p>
-                                <p className="text-[10px] font-bold text-rhozly-on-surface/30">
-                                  threshold: {row.threshold}
-                                </p>
+                                <p className={`text-xs font-black ${row.met ? "text-rhozly-on-surface" : "text-rhozly-on-surface/50"}`}>{row.actual}</p>
+                                <p className="text-[10px] font-bold text-rhozly-on-surface/30">threshold: {row.threshold}</p>
                               </div>
                               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
                                 row.met
-                                  ? rule.status === "warning" || rule.status === "critical"
-                                    ? "bg-amber-100 text-amber-700"
-                                    : "bg-blue-100 text-blue-700"
+                                  ? rule.status === "warning" || rule.status === "critical" ? "bg-amber-100 text-amber-700" : "bg-blue-100 text-blue-700"
                                   : "bg-rhozly-outline/15 text-rhozly-on-surface/30"
                               }`}>
                                 {row.met ? "✓" : "✗"}
