@@ -926,10 +926,7 @@ export default function AreaDetails({
           homeId={homeId}
           area={area}
           onClose={() => setShowScanModal(false)}
-          onScanSaved={(scan) => {
-            setLastScan(scan);
-            setShowScanModal(false);
-          }}
+          onScanSaved={(scan) => setLastScan(scan)}
         />
       )}
     </>
