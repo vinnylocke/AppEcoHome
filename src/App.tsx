@@ -338,7 +338,6 @@ function AppShell() {
       if (error) throw error;
       setProfile((prev: any) => (prev ? { ...prev, home_id: homeId } : null));
       setIsAddingHome(false);
-      setSelectedLocationId(null);
     } catch (err: any) {
       Logger.error("Failed to switch home", err);
     }
@@ -503,10 +502,7 @@ function AppShell() {
                     icon={link.icon}
                     label={link.label}
                     active={routerLocation.pathname === TAB_URL[link.id] || (link.id === "dashboard" && routerLocation.pathname === "/")}
-                    onClick={() => {
-                      navigate(TAB_URL[link.id]);
-                      setSelectedLocationId(null);
-                    }}
+                    onClick={() => navigate(TAB_URL[link.id])}
                     isCollapsed={isNavCollapsed}
                     isMobile={false}
                   />
@@ -840,7 +836,6 @@ function AppShell() {
                       active={routerLocation.pathname === TAB_URL[link.id] || (link.id === "dashboard" && routerLocation.pathname === "/")}
                       onClick={() => {
                         navigate(TAB_URL[link.id]);
-                        setSelectedLocationId(null);
                         setIsMobileMenuOpen(false);
                       }}
                       isCollapsed={false}

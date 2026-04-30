@@ -361,50 +361,50 @@ export default function AreaDetails({
   return (
     <>
       <div className="space-y-6 animate-in fade-in slide-in-from-right-4 duration-500 pb-32">
-        <div className="flex items-center justify-between bg-rhozly-surface-lowest rounded-3xl p-6 border border-rhozly-outline/30 shadow-sm">
-          <div className="flex items-center gap-4">
-            <div className="bg-rhozly-primary/10 p-3 rounded-2xl">
-              <MapPin className="w-6 h-6 text-rhozly-primary" />
+        <div className="flex items-center justify-between bg-rhozly-surface-lowest rounded-3xl p-4 sm:p-6 border border-rhozly-outline/30 shadow-sm gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="bg-rhozly-primary/10 p-2.5 sm:p-3 rounded-2xl shrink-0">
+              <MapPin className="w-5 h-5 sm:w-6 sm:h-6 text-rhozly-primary" />
             </div>
-            <div>
-              <h3 className="text-2xl font-black font-display text-rhozly-on-surface tracking-tight">
+            <div className="min-w-0">
+              <h3 className="text-xl sm:text-2xl font-black font-display text-rhozly-on-surface tracking-tight truncate">
                 {area.name}
               </h3>
-              <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
+              <p className="text-xs sm:text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-0.5">
                 Area Details
               </p>
             </div>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 shrink-0">
             <button
               onClick={() => setShowScanModal(true)}
-              className="p-3 text-rhozly-primary hover:bg-rhozly-primary/10 rounded-2xl transition-all border border-rhozly-primary/10 bg-white shadow-sm"
+              className="p-2 sm:p-3 text-rhozly-primary hover:bg-rhozly-primary/10 rounded-2xl transition-all border border-rhozly-primary/10 bg-white shadow-sm"
               title="Scan Area"
             >
-              <ScanLine className="w-6 h-6" />
+              <ScanLine className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
             <button
               onClick={getPlantRecommendations}
               disabled={isGettingRecs}
-              className="p-3 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-2xl transition-all border border-rhozly-primary/10 bg-white shadow-sm"
+              className="p-2 sm:p-3 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-2xl transition-all border border-rhozly-primary/10 bg-white shadow-sm"
             >
               {isGettingRecs ? (
-                <Loader2 className="w-6 h-6 animate-spin" />
+                <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
               ) : (
-                <Sparkles className="w-6 h-6" />
+                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
               )}
             </button>
             <button
               onClick={() => setIsEditingArea(true)}
-              className="p-3 text-rhozly-on-surface/40 hover:text-rhozly-primary hover:bg-rhozly-primary/5 rounded-2xl transition-all border border-rhozly-outline/10"
+              className="p-2 sm:p-3 text-rhozly-on-surface/40 hover:text-rhozly-primary hover:bg-rhozly-primary/5 rounded-2xl transition-all border border-rhozly-outline/10"
             >
-              <Settings2 className="w-6 h-6" />
+              <Settings2 className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
             <button
               onClick={onClose}
-              className="p-3 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-2xl transition-all border border-rhozly-outline/10"
+              className="p-2 sm:p-3 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-2xl transition-all border border-rhozly-outline/10"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
           </div>
         </div>
