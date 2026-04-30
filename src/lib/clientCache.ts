@@ -68,13 +68,13 @@ export const extractCurrentWeather = (meteoData: any) => {
     95: { label: "Thunderstorm", icon: CloudLightning },
   };
 
-  const code = hourly.weather_code[i];
+  const code = hourly.weather_code?.[i] ?? hourly.weathercode?.[i];
   const info = weatherMap[code] || { label: "Partly Cloudy", icon: Cloud };
 
   return {
-    temp: hourly.temperature_2m[i],
-    humidity: hourly.relative_humidity_2m[i],
-    wind: hourly.wind_speed_10m[i],
+    temp: hourly.temperature_2m?.[i] ?? 0,
+    humidity: hourly.relative_humidity_2m?.[i] ?? 0,
+    wind: hourly.wind_speed_10m?.[i] ?? 0,
     description: info.label,
     Icon: info.icon,
   };

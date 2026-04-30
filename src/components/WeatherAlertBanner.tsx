@@ -133,11 +133,9 @@ export const WeatherAlertBanner = ({
   }, [alerts]);
 
   const visibleAlerts = useMemo(() => {
-    // "info" severity alerts (e.g. rain auto-complete) are shown in the
-    // Garden Intelligence panel instead — only surface warning/critical here.
-    const actionable = isForecastScreen
-      ? uniqueAlerts
-      : uniqueAlerts.filter((a) => a.severity !== "info");
+    // "info" alerts (e.g. rain auto-complete) live in the Garden Intelligence
+    // panel — never show them in the banner regardless of screen.
+    const actionable = uniqueAlerts.filter((a) => a.severity !== "info");
     return isForecastScreen
       ? actionable
       : actionable.filter((a) => !dismissedIds.includes(a.id));
