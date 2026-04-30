@@ -31,6 +31,14 @@ interface HourlyPoint {
   humidity: number;
 }
 
+interface ThresholdRow {
+  label: string;
+  actual: string;
+  threshold: string;
+  met: boolean;
+  note?: string;
+}
+
 interface RuleResult {
   id: string;
   title: string;
@@ -38,6 +46,7 @@ interface RuleResult {
   status: "clear" | "info" | "warning" | "critical";
   heading: string;
   detail: string;
+  thresholdRows?: ThresholdRow[];
 }
 
 interface Props {
@@ -106,13 +115,14 @@ function evaluateRules(rawWeather: any, today: string): RuleResult[] {
 
   const results: RuleResult[] = [];
 
-  // 1. Rain & Watering
+  // 1. Auto-Watering Completion
+  const RAIN_AUTO_THRESHOLD = 5;
   const rainToday = todayData?.precipMm ?? 0;
   const rainYesterday = yesterdayData?.precipMm ?? 0;
-  const rainTriggered =
-    rainToday >= 5 || (rainYesterday >= 5 && rainToday > 0);
+  const rule1Met = rainToday >= RAIN_AUTO_THRESHOLD;
+  const rule2Met = rainYesterday >= RAIN_AUTO_THRESHOLD && rainToday > 0;
+  const rainTriggered = rule1Met || rule2Met;
 
-  // Build a 7-day rain summary string
   const rainWeek = futureDays.slice(0, 7)
     .filter((d) => d.precipMm > 0 || d.precipProb >= 40)
     .map((d) => `${formatDayLabel(d.date, today)} ${d.precipMm > 0 ? d.precipMm.toFixed(1) + "mm" : d.precipProb + "%"}`)
@@ -120,13 +130,29 @@ function evaluateRules(rawWeather: any, today: string): RuleResult[] {
 
   results.push({
     id: "rain",
-    title: "Rain & Watering",
+    title: "Auto-Watering",
     icon: CloudRain,
     status: rainTriggered ? "info" : "clear",
-    heading: rainTriggered ? "Outdoor watering auto-completed" : "No auto-complete today",
-    detail: rainTriggered
-      ? `${rainToday.toFixed(1)}mm today${rainYesterday > 0 ? ` · ${rainYesterday.toFixed(1)}mm yesterday` : ""} — above 5mm threshold, outdoor watering tasks skipped.${rainWeek ? ` Week ahead: ${rainWeek}.` : ""}`
-      : `Today: ${rainToday.toFixed(1)}mm · Yesterday: ${rainYesterday.toFixed(1)}mm (below 5mm threshold).${rainWeek ? ` Upcoming rain: ${rainWeek}.` : " No significant rain forecast this week."}`,
+    heading: rainTriggered ? "Outdoor watering auto-completed" : "No watering tasks skipped today",
+    detail: rainWeek ? `Week ahead: ${rainWeek}.` : "No significant rain forecast this week.",
+    thresholdRows: [
+      {
+        label: "Today's rainfall",
+        actual: `${rainToday.toFixed(1)}mm`,
+        threshold: `${RAIN_AUTO_THRESHOLD}mm`,
+        met: rule1Met,
+        note: rule1Met ? "Watering tasks skipped" : undefined,
+      },
+      {
+        label: "Yesterday carry-over",
+        actual: rainYesterday > 0
+          ? `${rainYesterday.toFixed(1)}mm yesterday · ${rainToday.toFixed(1)}mm today`
+          : `${rainYesterday.toFixed(1)}mm yesterday`,
+        threshold: `≥${RAIN_AUTO_THRESHOLD}mm yesterday + any rain today`,
+        met: rule2Met,
+        note: rule2Met ? "Soil still saturated" : undefined,
+      },
+    ],
   });
 
   // 2. Frost Risk
@@ -185,19 +211,29 @@ function evaluateRules(rawWeather: any, today: string): RuleResult[] {
       : `Max wind in next 2 days: ${Math.round(maxWind2d)} km/h (threshold: ${WIND_THRESHOLD} km/h).`,
   });
 
-  // 5. Waterlogging
+  // 5. Waterlogging / Overwatering Risk
+  const CONSEC_THRESHOLD = 5;
+  const WATERLOG_MM_THRESHOLD = 5;
+  const WATERLOG_PROB_THRESHOLD = 70;
   let consecutiveRainDays = 0;
+  const rainDayLabels: string[] = [];
   for (const day of futureDays) {
-    if (day.precipMm >= 5 || day.precipProb >= 70) {
+    const byMm = day.precipMm >= WATERLOG_MM_THRESHOLD;
+    const byProb = day.precipProb >= WATERLOG_PROB_THRESHOLD;
+    if (byMm || byProb) {
       consecutiveRainDays++;
+      rainDayLabels.push(
+        byMm
+          ? `${formatDayLabel(day.date, today)} ${day.precipMm.toFixed(1)}mm`
+          : `${formatDayLabel(day.date, today)} ${day.precipProb}%`,
+      );
     } else break;
   }
-  const CONSEC_THRESHOLD = 5;
   const waterlogging = consecutiveRainDays >= CONSEC_THRESHOLD;
 
   results.push({
     id: "waterlogging",
-    title: "Waterlogging Risk",
+    title: "Overwatering Risk",
     icon: Droplets,
     status: waterlogging ? "warning" : "clear",
     heading: waterlogging
@@ -206,10 +242,21 @@ function evaluateRules(rawWeather: any, today: string): RuleResult[] {
         ? `${consecutiveRainDays} consecutive rainy day${consecutiveRainDays === 1 ? "" : "s"} (${CONSEC_THRESHOLD - consecutiveRainDays} more for alert)`
         : "No consecutive rain forecast",
     detail: waterlogging
-      ? `${consecutiveRainDays} days of significant rain in a row — check drainage and soil saturation.`
+      ? `Check drainage and soil saturation — roots at risk after prolonged saturation.`
       : consecutiveRainDays > 0
-        ? `${consecutiveRainDays} rainy days starting today. ${CONSEC_THRESHOLD} consecutive needed to trigger a waterlogging alert.`
+        ? `Rain days detected: ${rainDayLabels.join(" · ")}.`
         : "No run of rainy days forecast this week.",
+    thresholdRows: [
+      {
+        label: "Consecutive rainy days",
+        actual: consecutiveRainDays > 0
+          ? `${consecutiveRainDays} day${consecutiveRainDays !== 1 ? "s" : ""} — ${rainDayLabels.slice(0, 4).join(", ")}${rainDayLabels.length > 4 ? "…" : ""}`
+          : "0 days",
+        threshold: `${CONSEC_THRESHOLD} days (≥${WATERLOG_MM_THRESHOLD}mm or ≥${WATERLOG_PROB_THRESHOLD}% prob each)`,
+        met: waterlogging,
+        note: waterlogging ? "Overwatering alert active" : undefined,
+      },
+    ],
   });
 
   return results;
@@ -586,7 +633,8 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
             {ruleResults.map((rule) => {
               const styles = STATUS_STYLES[rule.status];
               return (
-                <div key={rule.id} className={`rounded-2xl border p-4 space-y-1.5 ${styles.row}`}>
+                <div key={rule.id} className={`rounded-2xl border p-4 space-y-2 ${styles.row}`}>
+                  {/* Header row */}
                   <div className="flex items-center justify-between gap-3">
                     <div className="flex items-center gap-2.5">
                       {styles.icon}
@@ -599,7 +647,51 @@ export default function WeatherForecast({ weatherData, alerts }: Props) {
                       <span className="text-[10px] font-bold text-rhozly-on-surface/30 uppercase tracking-widest">{rule.title}</span>
                     </div>
                   </div>
-                  <p className="text-xs text-rhozly-on-surface/55 leading-relaxed pl-6">{rule.detail}</p>
+
+                  {/* Threshold breakdown */}
+                  {rule.thresholdRows && rule.thresholdRows.length > 0 && (
+                    <div className="ml-6 mt-1 rounded-xl border border-rhozly-outline/20 bg-white/50 overflow-hidden">
+                      <div className="px-3 py-1.5 border-b border-rhozly-outline/10 flex items-center gap-1.5">
+                        <span className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/30">Rule Conditions</span>
+                      </div>
+                      <div className="divide-y divide-rhozly-outline/10">
+                        {rule.thresholdRows.map((row, i) => (
+                          <div key={i} className="px-3 py-2.5 flex items-start justify-between gap-4">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-bold text-rhozly-on-surface/70">{row.label}</p>
+                              {row.note && (
+                                <p className="text-[10px] font-bold text-blue-600 mt-0.5">{row.note}</p>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-2.5 shrink-0 text-right">
+                              <div>
+                                <p className={`text-xs font-black ${row.met ? "text-rhozly-on-surface" : "text-rhozly-on-surface/50"}`}>
+                                  {row.actual}
+                                </p>
+                                <p className="text-[10px] font-bold text-rhozly-on-surface/30">
+                                  threshold: {row.threshold}
+                                </p>
+                              </div>
+                              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 ${
+                                row.met
+                                  ? rule.status === "warning" || rule.status === "critical"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-blue-100 text-blue-700"
+                                  : "bg-rhozly-outline/15 text-rhozly-on-surface/30"
+                              }`}>
+                                {row.met ? "✓" : "✗"}
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Detail text */}
+                  {rule.detail && (
+                    <p className="text-xs text-rhozly-on-surface/55 leading-relaxed pl-6">{rule.detail}</p>
+                  )}
                 </div>
               );
             })}
