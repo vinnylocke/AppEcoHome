@@ -280,14 +280,18 @@ function AppShell() {
           : snapshots?.data;
         if (freshRawData) {
           setRawWeather(freshRawData);
-          setWeather(extractCurrentWeather(freshRawData));
-          sessionStorage.setItem(
-            `weather_cache_${profile.home_id}`,
-            JSON.stringify({
-              data: freshRawData,
-              expiresAt: getMidnightTonight(),
-            }),
-          );
+          try {
+            setWeather(extractCurrentWeather(freshRawData));
+            sessionStorage.setItem(
+              `weather_cache_${profile.home_id}`,
+              JSON.stringify({
+                data: freshRawData,
+                expiresAt: getMidnightTonight(),
+              }),
+            );
+          } catch (e) {
+            Logger.error("Weather parse/cache failed", e);
+          }
         }
       }
     }

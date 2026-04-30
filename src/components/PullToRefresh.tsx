@@ -55,6 +55,7 @@ export default function PullToRefresh({
 
       try {
         await onRefresh();
+        toast.success("Up to date", { duration: 1500 });
       } catch {
         toast.error("Refresh failed. Please try again.");
       } finally {

@@ -36,23 +36,32 @@ export const extractCurrentWeather = (meteoData: any) => {
   if (!hourly) return null;
 
   const now = new Date();
-  const formatter = new Intl.DateTimeFormat("en-US", {
-    timeZone: targetTimezone,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    hour12: false,
-  });
+  let currentHourTarget = "";
+  try {
+    const formatter = new Intl.DateTimeFormat("en-US", {
+      timeZone: targetTimezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      hour12: false,
+    });
+    const p: Record<string, string> = {};
+    formatter.formatToParts(now).forEach((part) => (p[part.type] = part.value));
+    const hr = p.hour === "24" ? "00" : p.hour;
+    currentHourTarget = `${p.year}-${p.month}-${p.day}T${hr}:00`;
+  } catch {
+    // Fallback: format using UTC if timezone is unrecognized
+    const y = now.getUTCFullYear();
+    const m = String(now.getUTCMonth() + 1).padStart(2, "0");
+    const d = String(now.getUTCDate()).padStart(2, "0");
+    const hr = String(now.getUTCHours()).padStart(2, "0");
+    currentHourTarget = `${y}-${m}-${d}T${hr}:00`;
+  }
 
-  const p: Record<string, string> = {};
-  formatter.formatToParts(now).forEach((part) => (p[part.type] = part.value));
-  const hr = p.hour === "24" ? "00" : p.hour;
-  const currentHourTarget = `${p.year}-${p.month}-${p.day}T${hr}:00`;
-
-  const index = hourly.time.findIndex((t: string) =>
+  const index = hourly?.time?.findIndex((t: string) =>
     t.startsWith(currentHourTarget),
-  );
+  ) ?? -1;
   const i = index !== -1 ? index : 0;
 
   const weatherMap: Record<number, { label: string; icon: any }> = {
