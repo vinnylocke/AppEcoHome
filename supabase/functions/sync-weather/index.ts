@@ -96,8 +96,8 @@ Deno.serve(async (req) => {
             longitude: lng.toString(),
             // Daily gives clean per-day aggregates for rain/wind/heat rules
             daily: "precipitation_sum,temperature_2m_max,temperature_2m_min,weathercode,windspeed_10m_max,precipitation_probability_max",
-            // Hourly kept for frost detection (need overnight temperature dip timing)
-            hourly: "temperature_2m,wind_speed_10m",
+            // Hourly: frost detection + chart metrics for all 7 days
+            hourly: "temperature_2m,wind_speed_10m,precipitation_probability,relative_humidity_2m",
             timezone: "auto",
             past_days: "1",    // yesterday's actuals let us reason about soil saturation
             forecast_days: "7",
