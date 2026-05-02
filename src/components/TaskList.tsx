@@ -851,6 +851,7 @@ export default function TaskList({
             return (
               <div
                 key={task.id}
+                data-ghost={task.isGhost ? "true" : undefined}
                 onClick={() => {
                   if (isBulkEditing) {
                     if (!isCompleted) toggleTaskSelection(task.id);

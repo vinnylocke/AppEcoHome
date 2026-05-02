@@ -342,6 +342,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
                     onClick={() =>
                       setItemToDelete({ type: "location", id: loc.id })
                     }
+                    aria-label={`Delete location: ${loc.name}`}
                     className="min-w-[44px] min-h-[44px] p-2 text-rhozly-on-surface/40 hover:text-rhozly-error rounded-2xl flex items-center justify-center"
                   >
                     <Trash2 size={18} />

@@ -100,6 +100,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
     isOpen: boolean;
     type: "delete" | "archive" | "unarchive";
     plant: Plant | null;
+    inventoryCount?: number;
   }>({ isOpen: false, type: "delete", plant: null });
 
   const gridRef = useRef<HTMLDivElement>(null);
@@ -288,6 +289,17 @@ export default function TheShed({ homeId }: { homeId: string }) {
             typeof item.data === "string"
               ? item.data.split("(")[0].trim()
               : item.data.common_name;
+
+          const { data: existingAi } = await supabase
+            .from("plants")
+            .select("id")
+            .eq("home_id", homeId)
+            .ilike("common_name", cleanName)
+            .limit(1);
+          if (existingAi && existingAi.length > 0) {
+            throw new Error(`"${cleanName}" is already in your shed.`);
+          }
+
           const aiData = await PlantDoctorService.generateCareGuide(cleanName);
           if (!aiData) throw new Error("AI failed to generate data");
 
@@ -397,6 +409,14 @@ export default function TheShed({ homeId }: { homeId: string }) {
     }
   };
 
+  const openDeleteConfirm = async (plant: Plant) => {
+    const { count } = await supabase
+      .from("inventory_items")
+      .select("id", { count: "exact", head: true })
+      .eq("plant_id", plant.id);
+    setConfirmState({ isOpen: true, type: "delete", plant, inventoryCount: count ?? 0 });
+  };
+
   const executeDelete = async () => {
     const plant = confirmState.plant;
     if (!plant) return;
@@ -420,6 +440,17 @@ export default function TheShed({ homeId }: { homeId: string }) {
   const handleManualSave = async (plantData: any) => {
     setActionLoading(true);
     try {
+      const { data: existing } = await supabase
+        .from("plants")
+        .select("id")
+        .eq("home_id", homeId)
+        .ilike("common_name", plantData.common_name)
+        .limit(1);
+      if (existing && existing.length > 0) {
+        toast.error(`"${plantData.common_name}" is already in your shed.`);
+        setActionLoading(false);
+        return;
+      }
       await savePlantToDB(
         { ...plantData, source: "manual", perenual_id: null },
         plantData,
@@ -822,11 +853,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
-                        setConfirmState({
-                          isOpen: true,
-                          type: "delete",
-                          plant,
-                        });
+                        openDeleteConfirm(plant);
                       }}
                       aria-label={`Delete ${plant.common_name}`}
                       className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-red-600 flex items-center justify-center shadow-md transition-all active:scale-90"
@@ -978,7 +1005,9 @@ export default function TheShed({ homeId }: { homeId: string }) {
                 }
                 description={
                   confirmState.type === "delete"
-                    ? `Permanently delete ${confirmState.plant.common_name}?`
+                    ? confirmState.inventoryCount
+                      ? `Permanently delete ${confirmState.plant.common_name}? This will also remove ${confirmState.inventoryCount} inventory item${confirmState.inventoryCount > 1 ? "s" : ""}.`
+                      : `Permanently delete ${confirmState.plant.common_name}?`
                     : confirmState.type === "archive"
                       ? `Archive ${confirmState.plant.common_name}?`
                       : `Restore ${confirmState.plant.common_name}?`

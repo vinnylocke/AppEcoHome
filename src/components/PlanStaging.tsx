@@ -171,7 +171,7 @@ export default function PlanStaging({
     ) {
       const newMapping: Record<number, string> = { ...plantMapping };
       let updated = false;
-      localBlueprint.plant_manifest.forEach((plant: any, idx: number) => {
+      localBlueprint.plant_manifest?.forEach((plant: any, idx: number) => {
         if (newMapping[idx] === "create" || !newMapping[idx]) {
           const match = shedPlants.find((p) =>
             p.common_name
@@ -190,7 +190,7 @@ export default function PlanStaging({
       if (updated) setPlantMapping(newMapping);
     } else if (Object.keys(plantMapping).length === 0 && localBlueprint) {
       const newMapping: Record<number, string> = {};
-      localBlueprint.plant_manifest.forEach(
+      localBlueprint.plant_manifest?.forEach(
         (_: any, idx: number) => (newMapping[idx] = "create"),
       );
       setPlantMapping(newMapping);

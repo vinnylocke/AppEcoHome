@@ -234,7 +234,7 @@ function AilmentDetailModal({
 
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
-      <div className="bg-rhozly-surface-lowest rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl border border-rhozly-outline/20">
+      <div data-testid="detail-modal" className="bg-rhozly-surface-lowest rounded-3xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl border border-rhozly-outline/20">
         {/* Header */}
         <div className="flex items-start justify-between p-6 pb-4">
           <div className="flex items-start gap-4">
@@ -1066,16 +1066,18 @@ function AddAilmentModal({
                 <>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
-                      <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 block mb-2">Name *</label>
+                      <label htmlFor="ailment-name" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 block mb-2">Name *</label>
                       <input
+                        id="ailment-name"
                         value={form.name}
                         onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
                         className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-black text-sm border border-transparent focus:border-rhozly-primary outline-none"
                       />
                     </div>
                     <div>
-                      <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 block mb-2">Type *</label>
+                      <label htmlFor="ailment-type" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 block mb-2">Type *</label>
                       <select
+                        id="ailment-type"
                         value={form.type}
                         onChange={(e) => setForm((f) => ({ ...f, type: e.target.value as AilmentType }))}
                         className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-black text-sm border border-transparent focus:border-rhozly-primary outline-none"
@@ -1097,8 +1099,9 @@ function AddAilmentModal({
                   </div>
 
                   <div>
-                    <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 block mb-2">Description *</label>
+                    <label htmlFor="ailment-description" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 block mb-2">Description *</label>
                     <textarea
+                      id="ailment-description"
                       value={form.description}
                       onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                       rows={3}
@@ -1367,7 +1370,7 @@ function AilmentCard({
             </p>
           </div>
           <span className={`inline-flex items-center gap-1 text-[9px] font-black uppercase px-2 py-1 rounded-full ${meta.colour}`}>
-            {ailment.prevention_steps?.length ?? 0} prev · {ailment.remedy_steps?.length ?? 0} rem
+            {meta.icon} {meta.label}
           </span>
         </div>
       </div>

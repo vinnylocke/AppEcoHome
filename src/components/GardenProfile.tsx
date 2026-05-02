@@ -252,8 +252,8 @@ export default function GardenProfile({
         />
       )}
 
-      {/* Preference summary — collapsible */}
-      {prefs.length > 0 && (
+      {/* Preference summary — collapsible (always rendered once profile is loaded) */}
+      {!prefsLoading && (
         <div className="border border-rhozly-outline/20 rounded-3xl bg-white overflow-hidden">
           <button
             onClick={() => setShowPrefs((v) => !v)}
@@ -305,6 +305,11 @@ export default function GardenProfile({
                     ))}
                   </div>
                 </div>
+              )}
+              {positives.length === 0 && negatives.length === 0 && (
+                <p className="text-sm text-rhozly-on-surface/50 text-center py-4">
+                  No preferences yet
+                </p>
               )}
             </div>
           )}

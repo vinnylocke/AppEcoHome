@@ -493,6 +493,7 @@ export default function ManualPlantCreation({
               <div className="space-y-2">
                 <div className="flex justify-between items-end px-1">
                   <label
+                    htmlFor="common_name_input"
                     className={`text-[10px] font-black uppercase ${errors.common_name ? "text-red-500" : "text-rhozly-on-surface/40"}`}
                   >
                     Common Name *
@@ -504,6 +505,7 @@ export default function ManualPlantCreation({
                   )}
                 </div>
                 <input
+                  id="common_name_input"
                   name="common_name"
                   value={formData.common_name}
                   onChange={handleInputChange}
