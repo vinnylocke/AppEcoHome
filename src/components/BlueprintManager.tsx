@@ -498,7 +498,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
               {filteredBlueprints.length} result{filteredBlueprints.length !== 1 ? 's' : ''} found
             </p>
           )}
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          <div data-testid="blueprint-list" className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
             {filteredBlueprints.map((bp) => (
               <div
                 key={bp.id}

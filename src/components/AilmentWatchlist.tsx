@@ -1527,7 +1527,7 @@ export default function AilmentWatchlist({ homeId }: { homeId: string }) {
           <Loader2 className="w-8 h-8 animate-spin text-rhozly-primary" />
         </div>
       ) : displayed.length > 0 ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div data-testid="watchlist-card-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {displayed.map((a) => (
             <AilmentCard
               key={a.id}

@@ -413,9 +413,9 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | TASK-010 | Overdue task — displayed | ✅ | Overdue pending task (due -7 days) visible in task list | Tasks | — | ✅ Passing |
 | TASK-011 | Overdue task — visual indicator | ✅ | Overdue task has red/warning indicator | Tasks | — | ✅ Passing |
 | TASK-012 | Future task — appears in list | ✅ | Future task (due +3 days) visible in window | Tasks | — | ✅ Passing |
-| TASK-013 | Ghost task — appears for blueprint | ✅ | Recurring blueprint without physical task → ghost task appears on correct date | Blueprints | — | ✅ Passing |
+| TASK-013 | Ghost task — appears for blueprint | ✅ | Recurring blueprint without physical task → ghost task appears on correct date; anchored to "Daily Garden Check" (freq=1) blueprint for timezone resilience | Blueprints | — | ✅ Passing |
 | TASK-014 | Skipped task — not in Pending tab | ✅ | Skipped task absent from Pending tab | Tasks | — | ✅ Passing |
-| TASK-015 | Completed task in Completed tab | ✅ | Completed task visible in Completed tab | Tasks | — | ✅ Passing |
+| TASK-015 | Completed task in Completed tab | ✅ | Completed task visible in Completed tab (conditional: seeded due_date is UTC; may not appear in UTC+N timezone near midnight — TASK-016 covers the tab robustly) | Tasks | — | ✅ Passing |
 
 ### Task Actions
 
@@ -430,6 +430,7 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | TASK-022 | Delete task — cancel | ✅ | Click delete, Cancel → task remains | Tasks | — | ✅ Passing |
 | TASK-023 | Task with plant link | ✅ | Task linked to INV_BASIL shows "Basil" plant reference | Tasks + Plants | — | ✅ Passing |
 | TASK-024 | Task with location | ✅ | Task with location shows location name badge | Tasks + Locations | — | ✅ Passing |
+| TASK-025 | Postpone ghost task — shift blueprint | ✅ | Postpone ghost task with "shift all future tasks" toggle → blueprint start_date updated, tombstone created, future ghosts move by same offset | Blueprints | — | ✅ Passing |
 
 ---
 

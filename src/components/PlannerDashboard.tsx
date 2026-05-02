@@ -279,7 +279,7 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
           </p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div data-testid="planner-plan-list" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredPlans.map((plan) => (
             <div
               key={plan.id}

@@ -204,8 +204,7 @@ test.describe("Plant Doctor — diagnose flow (Section 08)", () => {
   });
 
   test("DOC-012: PlantDoctorChat FAB button is visible on /dashboard", async ({ authenticatedPage }) => {
-    await authenticatedPage.goto("/dashboard");
-
+    // Fixture already lands at a fully-loaded /dashboard — no re-navigation needed.
     // PlantDoctorChat renders a fixed bottom-right round button (chat FAB)
     const chatFab = authenticatedPage.locator(".fixed.bottom-6.right-6");
     const fabVisible = await chatFab.isVisible({ timeout: 10000 }).catch(() => false);

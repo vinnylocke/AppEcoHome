@@ -728,9 +728,11 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `highPostponeRate.test.ts` | 7 | High postpone rate pattern (>50%, min 4 events) |
 | `blueprintPostponeRate.test.ts` | 6 | Blueprint postpone rate (ghost + physical task IDs) |
 
-### E2E tests — 306 tests across 16 files
+### E2E tests — 307 tests across 16 files (+ 13 isolation tests)
 
 Tests run across up to 4 parallel workers (`fullyParallel: false` — spec files run in parallel, tests within a file run sequentially).
+
+The `isolation` Playwright project (`npx playwright test --project=isolation` / `npm run test:e2e:isolation`) runs 13 additional data-isolation tests from `data-isolation.spec.ts` using a single worker (`test1@rhozly.com`). These verify that each authenticated user only sees their own home's data.
 
 | File | Tests | Coverage |
 |------|-------|----------|
@@ -738,7 +740,7 @@ Tests run across up to 4 parallel workers (`fullyParallel: false` — spec files
 | `dashboard.spec.ts` | 43 | Dashboard sections, weather card, daily tasks, plant grid, nav links, pull-to-refresh |
 | `plants.spec.ts` | 4 | Shed page load, search input, nav link, plants-or-empty state |
 | `shed-crud.spec.ts` | 30 | Add plant (manual + AI), edit, archive, restore, delete, search/filter, detail drawer |
-| `tasks.spec.ts` | 30 | Daily tasks, pending/completed tabs, complete, postpone, ghost task generation |
+| `tasks.spec.ts` | 31 | Daily tasks, pending/completed tabs, complete, postpone, ghost task generation, shift-blueprint on postpone |
 | `schedule.spec.ts` | 26 | Blueprint list, create blueprint, edit, archive, restore, delete, frequency options |
 | `weather.spec.ts` | 11 | Weather card, 7-day forecast, alert banners, Garden Intelligence rule panel |
 | `plant-doctor.spec.ts` | 13 | Page structure, upload dropzone, image upload flow, mocked AI identify/diagnose results |
@@ -750,3 +752,6 @@ Tests run across up to 4 parallel workers (`fullyParallel: false` — spec files
 | `layout.spec.ts` | 9 | Nav bar visibility, active route highlighting, responsive layout |
 | `lightsensor.spec.ts` | 13 | Light sensor page load, readings display, permission flow |
 | `visualiser.spec.ts` | 11 | Plant visualiser page load, canvas/overlay rendering |
+| `data-isolation.spec.ts` | 13 | **Isolation project only** — cross-home data isolation for plants, ailments, plans, blueprints, locations, tasks, inventory items |
+
+> **Seed note — timezone resilience:** `03_tasks_blueprints.sql` includes a "Daily Garden Check" blueprint (`freq=1`, `start_date = CURRENT_DATE - 1 day`). This ensures at least one ghost task is always visible on any date regardless of UTC/local timezone offset. Ghost task E2E tests anchor to this blueprint so they don't become flaky near midnight UTC on UTC+N machines.

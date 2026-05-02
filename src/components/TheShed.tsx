@@ -765,6 +765,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
         <div
           ref={gridRef}
           onKeyDown={handleGridKeyDown}
+          data-testid="shed-plant-list"
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-32"
         >
           {filteredPlants.length === 0 ? (

@@ -185,6 +185,22 @@ VALUES
     '00000000-0000-0000-0001-000000000001',
     NULL,
     'plant'
+  ),
+  -- Daily check — freq=1 so a ghost always exists regardless of UTC/local-time offset.
+  -- Used by TASK-013/017/019/025 ghost tests which need at least one ghost visible today.
+  (
+    '00000000-0000-0000-0005-000000000009',
+    '00000000-0000-0000-0000-000000000002',
+    'Daily Garden Check',
+    'Maintenance',
+    1,
+    CURRENT_DATE - INTERVAL '1 day',
+    NULL,
+    true,
+    'Low',
+    '00000000-0000-0000-0001-000000000001',
+    NULL,
+    'plant'
   )
 ON CONFLICT (id) DO UPDATE SET
   title            = EXCLUDED.title,

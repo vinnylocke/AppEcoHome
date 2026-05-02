@@ -115,8 +115,8 @@ test.describe("Global layout — navigation (Section 16)", () => {
   });
 
   test("NAV-007: Sign Out button is accessible from the nav", async ({ authenticatedPage }) => {
-    await authenticatedPage.goto("/dashboard");
-
+    // Fixture already lands at a fully-loaded /dashboard — no re-navigation needed.
+    // A redundant goto("/dashboard") here re-triggers the auth/home-load race.
     const signOutButton = authenticatedPage.getByRole("button", { name: /Sign Out/i }).first();
     const isVisible = await signOutButton.isVisible({ timeout: 8000 }).catch(() => false);
 

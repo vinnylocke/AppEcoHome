@@ -41,30 +41,47 @@ export const test = base.extend<AuthFixtures>({
       throw new Error(`Supabase sign-in failed: ${error?.message}`);
     }
 
-    const { access_token, refresh_token } = data.session;
-
-    // Navigate to root first so localStorage is on the right origin
-    await page.goto("/");
-
-    // Inject session into localStorage exactly as the Supabase JS client expects it
     const projectRef = new URL(supabaseUrl).hostname.split(".")[0];
     const storageKey = `sb-${projectRef}-auth-token`;
-    await page.evaluate(
-      ({ key, session }: { key: string; session: object }) => {
-        localStorage.setItem(key, JSON.stringify(session));
+
+    // The app's Supabase client (autoRefreshToken: true) fires GET /auth/v1/user
+    // to validate the restored session on every page load. Under 4-worker parallel
+    // load the local auth server can't keep up — requests time out and the SDK
+    // drops to unauthenticated. Intercept that call and return the already-known
+    // user so no auth validation hits the network at all.
+    await page.route("**/auth/v1/user", (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify(data.session.user),
+      });
+    });
+
+    // Use addInitScript so the session is written to localStorage BEFORE React
+    // (and the Supabase client) initialises on every navigation — eliminates the
+    // race between localStorage write and the SDK's auth restoration step.
+    await page.addInitScript(
+      ({ key, sessionJson }: { key: string; sessionJson: string }) => {
+        localStorage.setItem(key, sessionJson);
       },
-      { key: storageKey, session: data.session },
+      { key: storageKey, sessionJson: JSON.stringify(data.session) },
     );
 
-    // Navigate to /dashboard so the app boots with the injected session.
-    // page.goto waits for load, then we wait for the auth spinner to clear
-    // before handing the page to tests.
     await page.goto("/dashboard");
 
     await page
       .locator(".animate-spin")
       .first()
       .waitFor({ state: "hidden", timeout: 10000 })
+      .catch(() => {});
+
+    await page
+      .getByRole("button", { name: /sign out/i })
+      .waitFor({ state: "visible", timeout: 10000 })
+      .catch(() => {});
+
+    await page
+      .waitForFunction(() => !document.body.innerText.includes("Select Home"), { timeout: 10000 })
       .catch(() => {});
 
     // Fail loudly if the session wasn't recognised so test errors are obvious.
@@ -83,9 +100,10 @@ export const test = base.extend<AuthFixtures>({
 
     await use(page);
 
-    // Cleanup: local scope only — does not invalidate the server-side refresh token,
-    // so other concurrently-running tests keep their sessions.
-    await supabase.auth.signOut({ scope: "local" });
+    // No server-side signOut call — it POSTs to /auth/v1/logout under load and
+    // contributes to the concurrent auth pressure that causes flakiness in the
+    // next test's fixture setup. Each test calls signInWithPassword for a fresh
+    // token, so cleanup is unnecessary for correctness.
   },
 });
 

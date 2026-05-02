@@ -55,6 +55,12 @@ test.describe("Garden Profile — habit quiz", () => {
       .waitFor({ state: "hidden", timeout: 10000 })
       .catch(() => {});
 
+    // Quiz question text renders only after profile + home data loads.
+    // Wait for the HomeDropdown to show the real home name before asserting.
+    await authenticatedPage
+      .waitForFunction(() => !document.body.innerText.includes("Select Home"), { timeout: 10000 })
+      .catch(() => {});
+
     const quizVisible = await profile.progressBar.isVisible({ timeout: 5000 }).catch(() => false);
 
     if (!quizVisible) {

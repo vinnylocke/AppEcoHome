@@ -65,10 +65,30 @@ export class DashboardPage {
   }
 
   async waitForLoad() {
+    // Wait for initial spinner, a positive auth signal, home data resolution,
+    // then any secondary spinners. Weather alerts render after home resolves,
+    // so absence-only checks (no spinner, no "Select Home") pass instantly on
+    // the login page — the Sign Out check prevents that silent false-pass.
     await this.page
       .locator(".animate-spin, .animate-pulse")
       .first()
       .waitFor({ state: "hidden", timeout: 10000 })
+      .catch(() => {});
+
+    await this.page
+      .getByRole("button", { name: /sign out/i })
+      .waitFor({ state: "visible", timeout: 10000 })
+      .catch(() => {});
+
+    await this.page
+      .waitForFunction(() => !document.body.innerText.includes("Select Home"), { timeout: 10000 })
+      .catch(() => {});
+
+    await this.page
+      .waitForFunction(
+        () => document.querySelectorAll(".animate-spin, .animate-pulse").length === 0,
+        { timeout: 10000 },
+      )
       .catch(() => {});
   }
 

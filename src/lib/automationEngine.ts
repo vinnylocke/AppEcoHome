@@ -46,6 +46,7 @@ export const AutomationEngine = {
       const { data: existingBps } = await supabase
         .from("task_blueprints")
         .select("*")
+        .eq("home_id", itemsToPlant[0].home_id)
         .eq("area_id", targetAreaId);
 
       for (const [plantId, itemIds] of Object.entries(grouped)) {

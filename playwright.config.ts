@@ -30,6 +30,15 @@ export default defineConfig({
     {
       name: "chromium",
       use: { ...devices["Desktop Chrome"] },
+      // Isolation tests run only via the dedicated isolation project — excluding them here
+      // prevents the dashboard navigation in ISO-011 from triggering weather auto-complete
+      // and mutating seeded task state that other task tests depend on.
+      testIgnore: "**/data-isolation.spec.ts",
+    },
+    {
+      name: "isolation",
+      use: { ...devices["Desktop Chrome"] },
+      testMatch: "**/data-isolation.spec.ts",
     },
   ],
   webServer: {

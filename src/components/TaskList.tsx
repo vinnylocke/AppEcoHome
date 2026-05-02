@@ -82,6 +82,8 @@ export default function TaskList({
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
   const [showBulkDeleteModal, setShowBulkDeleteModal] = useState(false);
   const [deleteBlueprints, setDeleteBlueprints] = useState(false);
+  const [shiftBlueprint, setShiftBlueprint] = useState(false);
+  const [bulkShiftBlueprintIds, setBulkShiftBlueprintIds] = useState<Set<string>>(new Set());
   const [taskToDelete, setTaskToDelete] = useState<any | null>(null);
   const [archivePrompts, setArchivePrompts] = useState<
     { itemId: string; plantName: string }[] | null
@@ -102,6 +104,7 @@ export default function TaskList({
       const tomorrow = new Date();
       tomorrow.setDate(tomorrow.getDate() + 1);
       setPostponeDate(getLocalDateString(tomorrow));
+      setShiftBlueprint(false);
     }
   }, [selectedTask, isPostponing]);
 
@@ -341,10 +344,42 @@ export default function TaskList({
         ]);
       }
 
+      if (bulkShiftBlueprintIds.size > 0) {
+        // Build offset map from the first selected occurrence per blueprint
+        const bpOffsets = new Map<string, number>();
+        [...ghostTasks, ...physicalTasks.filter((t: any) => t.blueprint_id)].forEach((task: any) => {
+          if (bpOffsets.has(task.blueprint_id)) return;
+          const offset = Math.round(
+            (new Date(bulkPostponeDate).getTime() - new Date(task.due_date).getTime()) / 86_400_000,
+          );
+          bpOffsets.set(task.blueprint_id, offset);
+        });
+
+        await Promise.all(
+          Array.from(bulkShiftBlueprintIds).map(async (bpId) => {
+            const offset = bpOffsets.get(bpId);
+            if (offset === undefined) return;
+            const { data: bp } = await supabase
+              .from("task_blueprints")
+              .select("start_date")
+              .eq("id", bpId)
+              .single();
+            if (!bp?.start_date) return;
+            const newStart = new Date(bp.start_date);
+            newStart.setDate(newStart.getDate() + offset);
+            await supabase
+              .from("task_blueprints")
+              .update({ start_date: getLocalDateString(newStart) })
+              .eq("id", bpId);
+          }),
+        );
+      }
+
       toast.success(`Tasks postponed!`, { id: toastId });
       setIsBulkEditing(false);
       setSelectedTaskIds(new Set());
       setIsBulkPostponing(false);
+      setBulkShiftBlueprintIds(new Set());
       fetchTasksAndGhosts(true);
       onTaskUpdated?.();
     } catch (err) {
@@ -536,18 +571,36 @@ export default function TaskList({
         // Pure one-off task (no blueprint): just move it, no ghost to worry about
         await supabase.from("tasks").update({ due_date: postponeDate }).eq("id", task.id);
       }
-      toast.success(`Task postponed to ${formatDisplayDate(postponeDate)}`);
-      const delayDays = Math.round(
+      const offsetDays = Math.round(
         (new Date(postponeDate).getTime() - new Date(task.due_date).getTime()) / 86_400_000,
       );
+
+      if (shiftBlueprint && task.blueprint_id) {
+        const { data: bp } = await supabase
+          .from("task_blueprints")
+          .select("start_date")
+          .eq("id", task.blueprint_id)
+          .single();
+        if (bp?.start_date) {
+          const newStart = new Date(bp.start_date);
+          newStart.setDate(newStart.getDate() + offsetDays);
+          await supabase
+            .from("task_blueprints")
+            .update({ start_date: getLocalDateString(newStart) })
+            .eq("id", task.blueprint_id);
+        }
+      }
+
+      toast.success(`Task postponed to ${formatDisplayDate(postponeDate)}`);
       logEvent(EVENT.TASK_POSTPONED, {
         task_id: task.id,
         task_type: task.type,
-        delay_days: delayDays,
+        delay_days: offsetDays,
         inventory_item_ids: task.inventory_item_ids ?? [],
       });
       setSelectedTask(null);
       setIsPostponing(false);
+      setShiftBlueprint(false);
       onTaskUpdated?.();
       fetchTasksAndGhosts(true);
     } catch (err) {
@@ -786,7 +839,7 @@ export default function TaskList({
           No tasks!
         </div>
       ) : (
-        <div className={`space-y-3 relative ${isBulkEditing ? "pb-24" : ""}`}>
+        <div data-testid="task-list-container" className={`space-y-3 relative ${isBulkEditing ? "pb-24" : ""}`}>
           {isBulkEditing && viewTab === "pending" && (
             <div className="flex items-center gap-3 p-4 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/10 mb-2">
               <button
@@ -1031,6 +1084,31 @@ export default function TaskList({
                       onChange={(e) => setPostponeDate(e.target.value)}
                       className="w-full p-4 bg-rhozly-surface-low rounded-xl font-bold border border-rhozly-outline/10 focus:border-rhozly-primary outline-none"
                     />
+                    {(selectedTask.isGhost || selectedTask.blueprint_id) &&
+                      postponeDate &&
+                      postponeDate !== selectedTask.due_date && (() => {
+                        const offsetDays = Math.round(
+                          (new Date(postponeDate).getTime() - new Date(selectedTask.due_date).getTime()) / 86_400_000,
+                        );
+                        return (
+                          <label
+                            data-testid="shift-blueprint-toggle"
+                            className="flex items-center gap-3 p-4 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/10 cursor-pointer hover:bg-rhozly-primary/5 transition-colors"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={shiftBlueprint}
+                              onChange={(e) => setShiftBlueprint(e.target.checked)}
+                              className="accent-rhozly-primary w-5 h-5 shrink-0"
+                            />
+                            <span className="text-sm font-bold text-rhozly-on-surface leading-snug">
+                              Shift all future{" "}
+                              <span className="text-rhozly-primary">"{selectedTask.title}"</span>{" "}
+                              tasks ({offsetDays > 0 ? "+" : ""}{offsetDays}d)
+                            </span>
+                          </label>
+                        );
+                      })()}
                     <div className="flex gap-2">
                       <button
                         onClick={() => setIsPostponing(false)}
@@ -1072,31 +1150,76 @@ export default function TaskList({
                     </button>
                   </div>
                   {isBulkPostponing ? (
-                    <div className="flex gap-2">
-                      <input
-                        type="date"
-                        value={bulkPostponeDate}
-                        min={todayStr}
-                        onChange={(e) => setBulkPostponeDate(e.target.value)}
-                        className="flex-1 p-3 bg-rhozly-surface-low rounded-xl font-bold border border-rhozly-outline/10 focus:border-rhozly-primary outline-none"
-                      />
-                      <button
-                        onClick={() => setIsBulkPostponing(false)}
-                        className="px-4 py-3 bg-gray-100 font-bold rounded-xl text-gray-500 hover:bg-gray-200"
-                      >
-                        <X size={18} />
-                      </button>
-                      <button
-                        onClick={handleBulkPostpone}
-                        disabled={isBulkProcessing || !bulkPostponeDate}
-                        className="px-6 py-3 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white font-black rounded-xl transition-all disabled:opacity-50 flex items-center justify-center min-w-[80px]"
-                      >
-                        {isBulkProcessing ? (
-                          <Loader2 className="animate-spin" size={18} />
-                        ) : (
-                          <CheckSquare size={18} />
-                        )}
-                      </button>
+                    <div className="flex flex-col gap-3">
+                      <div className="flex gap-2">
+                        <input
+                          type="date"
+                          value={bulkPostponeDate}
+                          min={todayStr}
+                          onChange={(e) => setBulkPostponeDate(e.target.value)}
+                          className="flex-1 p-3 bg-rhozly-surface-low rounded-xl font-bold border border-rhozly-outline/10 focus:border-rhozly-primary outline-none"
+                        />
+                        <button
+                          onClick={() => { setIsBulkPostponing(false); setBulkShiftBlueprintIds(new Set()); }}
+                          className="px-4 py-3 bg-gray-100 font-bold rounded-xl text-gray-500 hover:bg-gray-200"
+                        >
+                          <X size={18} />
+                        </button>
+                        <button
+                          onClick={handleBulkPostpone}
+                          disabled={isBulkProcessing || !bulkPostponeDate}
+                          className="px-6 py-3 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white font-black rounded-xl transition-all disabled:opacity-50 flex items-center justify-center min-w-[80px]"
+                        >
+                          {isBulkProcessing ? (
+                            <Loader2 className="animate-spin" size={18} />
+                          ) : (
+                            <CheckSquare size={18} />
+                          )}
+                        </button>
+                      </div>
+                      {/* Per-blueprint shift toggles — only appear when a date is chosen */}
+                      {bulkPostponeDate && (() => {
+                        const bpMap = new Map<string, { id: string; title: string; offsetDays: number }>();
+                        getSelectedTaskObjects().forEach((task) => {
+                          if (!task.blueprint_id || bpMap.has(task.blueprint_id)) return;
+                          const offset = Math.round(
+                            (new Date(bulkPostponeDate).getTime() - new Date(task.due_date).getTime()) / 86_400_000,
+                          );
+                          bpMap.set(task.blueprint_id, { id: task.blueprint_id, title: task.title, offsetDays: offset });
+                        });
+                        if (bpMap.size === 0) return null;
+                        return (
+                          <div className="flex flex-col gap-2 pt-1">
+                            <p className="text-xs font-bold text-rhozly-on-surface/50 uppercase tracking-widest px-1">
+                              Also shift all future tasks
+                            </p>
+                            {Array.from(bpMap.values()).map((bp) => (
+                              <label
+                                key={bp.id}
+                                data-testid={`bulk-shift-blueprint-${bp.id}`}
+                                className="flex items-center gap-3 p-3 bg-rhozly-surface-low rounded-xl cursor-pointer hover:bg-rhozly-primary/5 transition-colors"
+                              >
+                                <input
+                                  type="checkbox"
+                                  checked={bulkShiftBlueprintIds.has(bp.id)}
+                                  onChange={(e) => {
+                                    const next = new Set(bulkShiftBlueprintIds);
+                                    e.target.checked ? next.add(bp.id) : next.delete(bp.id);
+                                    setBulkShiftBlueprintIds(next);
+                                  }}
+                                  className="accent-rhozly-primary w-4 h-4 shrink-0"
+                                />
+                                <span className="text-sm font-bold text-rhozly-on-surface leading-snug">
+                                  "{bp.title}"{" "}
+                                  <span className="font-normal text-rhozly-on-surface/60">
+                                    ({bp.offsetDays > 0 ? "+" : ""}{bp.offsetDays}d)
+                                  </span>
+                                </span>
+                              </label>
+                            ))}
+                          </div>
+                        );
+                      })()}
                     </div>
                   ) : (
                     <div className="flex gap-2">

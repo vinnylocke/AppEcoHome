@@ -312,7 +312,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div data-testid="location-list" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {locations.map((loc) => (
             <div
               key={loc.id}
