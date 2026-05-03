@@ -43,14 +43,22 @@ export default function PlantGuidesTab({
         ...((plantRow?.labels as string[]) ?? []),
       ].filter(Boolean);
 
-      const { data } = await supabase
+      // Case-insensitive set so "strawberry" matches a plant named "Strawberry"
+      const lowerTerms = new Set(matchTerms.map((t) => t.toLowerCase()));
+
+      const { data: allGuides } = await supabase
         .from("guides")
         .select("*")
-        .overlaps("labels", matchTerms)
         .order("created_at", { ascending: false });
 
+      const matched = (allGuides ?? []).filter((g: any) =>
+        (g.labels as string[] ?? []).some((l: string) =>
+          lowerTerms.has(l.toLowerCase()),
+        ),
+      );
+
       if (!cancelled) {
-        setGuides(data ?? []);
+        setGuides(matched);
         setIsLoading(false);
       }
     };
