@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
-import { X, Droplets, Calendar, Database, Loader2, RefreshCw, BookOpen } from "lucide-react";
+import { X, Droplets, Calendar, Database, Loader2, RefreshCw, BookOpen, Sun } from "lucide-react";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantScheduleTab from "./PlantScheduleTab";
 import PlantGuidesTab from "./PlantGuidesTab";
+import LightTab from "./LightTab";
 import { PerenualService } from "../lib/perenualService";
 import toast from "react-hot-toast";
 
@@ -38,6 +39,7 @@ export default function PlantEditModal({
   const tabs = [
     { id: "care", label: "Care Guide", icon: Droplets },
     { id: "schedules", label: "Automations", icon: Calendar },
+    { id: "light", label: "Light", icon: Sun },
     { id: "guides", label: "Guides", icon: BookOpen },
   ];
 
@@ -208,6 +210,10 @@ export default function PlantEditModal({
           ) : activeTab === "schedules" ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
               <PlantScheduleTab homeId={homeId} plant={fullPlantData} />
+            </div>
+          ) : activeTab === "light" ? (
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <LightTab plantId={plant.id} plantName={plant.common_name} />
             </div>
           ) : (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">

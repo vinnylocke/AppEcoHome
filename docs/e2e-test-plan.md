@@ -782,6 +782,32 @@ Tests that Supabase Realtime subscriptions keep the UI in sync when rows are mut
 
 ---
 
+## Section 17 — Light Tab
+
+**Spec file:** `tests/e2e/specs/lighttab.spec.ts`  
+**Page object:** `tests/e2e/pages/LightTabPage.ts`  
+**Seed dependency:** `02_plants_shed.sql` — Basil (plant 1000002) has `sunlight: ["Full sun", "Partial shade"]`; Tomato (plant 1000001) has `sunlight: NULL`
+
+### Stage 1 — Instance modal (LGT-001 – LGT-006)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| LGT-001 | ✅ | Light tab button is visible on instance modal | `instance-modal-tab-light` visible | ✅ Passing |
+| LGT-002 | ✅ | Optimal range card shown for Basil (has sunlight data) | `light-tab-optimal-range` visible | ✅ Passing |
+| LGT-003 | ✅ | Get Reading button is visible when optimal range is shown | `light-tab-get-reading-button` visible | ✅ Passing |
+| LGT-004 | ✅ | Clicking Get Reading opens the sensor overlay | `plant-light-reader-back` + "Light Reading" text visible | ✅ Passing |
+| LGT-005 | ✅ | Sensor overlay contains a lux display element | `plant-light-reader-lux` visible | ✅ Passing |
+| LGT-006 | ✅ | Back button closes the sensor overlay | `plant-light-reader-back` not visible; `light-tab-get-reading-button` reappears | ✅ Passing |
+
+### Stage 2 — TheShed plant modal (LGT-007 – LGT-008)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| LGT-007 | ✅ | Light tab visible on plant modal opened from TheShed | `plant-modal-tab-light` visible | ✅ Passing |
+| LGT-008 | ✅ | No-data card shown for plant with null sunlight in DB | `light-tab-no-data` visible | ✅ Passing |
+
+---
+
 ## Appendix B — Page Objects
 
 All Page Objects are implemented. Current files in `tests/e2e/pages/`:
@@ -802,3 +828,4 @@ All Page Objects are implemented. Current files in `tests/e2e/pages/`:
 | `LightSensorPage.ts` | `/lightsensor` |
 | `VisualiserPage.ts` | `/visualiser` |
 | `YieldPage.ts` | `/dashboard` (instance modal yield tab) |
+| `LightTabPage.ts` | `/dashboard` (instance modal light tab) + `/shed` (plant modal light tab) |

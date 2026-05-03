@@ -16,6 +16,7 @@ import {
   Leaf,
   LibraryBig,
   Wheat,
+  Sun,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
@@ -24,6 +25,7 @@ import PlantJournalTab from "./PlantJournalTab";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantGuidesTab from "./PlantGuidesTab";
 import YieldTab from "./YieldTab";
+import LightTab from "./LightTab";
 import { PerenualService } from "../lib/perenualService";
 
 // 🧠 IMPORT THE AI CONTEXT
@@ -65,7 +67,7 @@ export default function InstanceEditModal({
   const { setPageContext } = usePlantDoctor();
 
   const [activeTab, setActiveTab] = useState<
-    "details" | "routine" | "journal" | "care_guide" | "guides" | "yield"
+    "details" | "routine" | "journal" | "care_guide" | "guides" | "yield" | "light"
   >("details");
   const [savingInstance, setSavingInstance] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
@@ -323,6 +325,14 @@ export default function InstanceEditModal({
           >
             <Wheat size={14} /> Yield
           </button>
+
+          <button
+            data-testid="instance-modal-tab-light"
+            onClick={() => setActiveTab("light")}
+            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "light" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+          >
+            <Sun size={14} /> Light
+          </button>
         </div>
 
         {activeTab === "details" && (
@@ -558,6 +568,15 @@ export default function InstanceEditModal({
               plantedAt={instance.planted_at ?? null}
               aiEnabled={aiEnabled}
               instance={instance}
+            />
+          </div>
+        )}
+
+        {activeTab === "light" && (
+          <div className="animate-in slide-in-from-right-4">
+            <LightTab
+              plantId={instance.plant_id ?? null}
+              plantName={instance.plant_name}
             />
           </div>
         )}

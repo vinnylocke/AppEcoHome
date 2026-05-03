@@ -113,7 +113,7 @@ serve(async (req) => {
     }
 
     const prompt = buildYieldPrompt({
-      commonName: plant?.common_name ?? "Unknown plant",
+      commonName: plant?.common_name ?? item.nickname ?? "Unknown plant",
       plantedAt: item.planted_at ?? null,
       expectedHarvestDate: item.expected_harvest_date ?? null,
       cycle: plant?.cycle ?? null,
@@ -131,11 +131,21 @@ serve(async (req) => {
     });
 
     const apiKey = Deno.env.get("GEMINI_API_KEY") ?? "";
-    const raw = await callGeminiCascade(apiKey, FN, toMessages(prompt));
+    const raw = await callGeminiCascade(apiKey, FN, toMessages([prompt]), {
+      responseMimeType: "application/json",
+    });
 
-    // Strip markdown fences if present
+    // Strip markdown fences if present, then extract the JSON object
     const cleaned = raw.replace(/```json\s*/gi, "").replace(/```\s*/g, "").trim();
-    const result = JSON.parse(cleaned);
+    let result: any;
+    try {
+      result = JSON.parse(cleaned);
+    } catch {
+      // Gemini occasionally wraps JSON in prose — extract the first {...} block
+      const match = cleaned.match(/\{[\s\S]*\}/);
+      if (!match) throw new Error("No JSON object found in Gemini response");
+      result = JSON.parse(match[0]);
+    }
 
     log(FN, "prediction_complete", { instance_id, confidence: result.confidence });
 

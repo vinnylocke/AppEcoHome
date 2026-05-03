@@ -117,7 +117,8 @@ export default function YieldTab({
       });
       if (error) throw error;
       setPrediction(data as YieldPrediction);
-    } catch {
+    } catch (err: any) {
+      console.error("[predict-yield] error:", err?.message ?? err);
       toast.error("Failed to get yield prediction. Please try again.");
     } finally {
       setPredicting(false);

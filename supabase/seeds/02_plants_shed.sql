@@ -25,7 +25,7 @@
 
 INSERT INTO public.plants (
   id, common_name, source, home_id, is_archived,
-  watering, care_level, cycle, description
+  watering, care_level, cycle, description, sunlight
 )
 VALUES
   (
@@ -37,7 +37,8 @@ VALUES
     'Average',
     'Medium',
     'Annual',
-    'A versatile fruiting plant suitable for raised beds and containers.'
+    'A versatile fruiting plant suitable for raised beds and containers.',
+    NULL   -- no sunlight data — used for LGT-008 no-data card test
   ),
   (
     1000002,
@@ -48,7 +49,8 @@ VALUES
     'Frequent',
     'Low',
     'Annual',
-    'A fragrant culinary herb that thrives in warm, sunny spots.'
+    'A fragrant culinary herb that thrives in warm, sunny spots.',
+    '["Full sun", "Partial shade"]'::jsonb
   ),
   (
     1000003,
@@ -59,7 +61,8 @@ VALUES
     'Average',
     'Medium',
     'Perennial',
-    'Classic flowering shrub requiring seasonal pruning.'
+    'Classic flowering shrub requiring seasonal pruning.',
+    '["Full sun"]'::jsonb
   ),
   (
     1000004,
@@ -70,7 +73,8 @@ VALUES
     'Frequent',
     'Low',
     'Perennial',
-    'An indoor fern that prefers indirect light and high humidity.'
+    'An indoor fern that prefers indirect light and high humidity.',
+    '["Partial shade", "Shade"]'::jsonb
   ),
   (
     1000005,
@@ -81,7 +85,8 @@ VALUES
     'Average',
     'Low',
     'Perennial',
-    'A vigorous spreading herb — keep contained.'
+    'A vigorous spreading herb — keep contained.',
+    '["Full sun", "Partial shade"]'::jsonb
   ),
   (
     1000006,
@@ -92,14 +97,16 @@ VALUES
     'Minimum',
     'Low',
     'Perennial',
-    'Drought-tolerant fragrant shrub ideal for borders.'
+    'Drought-tolerant fragrant shrub ideal for borders.',
+    '["Full sun"]'::jsonb
   )
 ON CONFLICT (id) DO UPDATE SET
   common_name  = EXCLUDED.common_name,
   home_id      = EXCLUDED.home_id,
   is_archived  = EXCLUDED.is_archived,
   watering     = EXCLUDED.watering,
-  care_level   = EXCLUDED.care_level;
+  care_level   = EXCLUDED.care_level,
+  sunlight     = EXCLUDED.sunlight;
 
 -- ---- Inventory Items ----
 
