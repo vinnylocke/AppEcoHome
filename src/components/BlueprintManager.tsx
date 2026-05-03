@@ -26,6 +26,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { useHomeRealtime } from "../hooks/useHomeRealtime";
 
 interface BlueprintManagerProps {
   homeId: string;
@@ -164,6 +165,8 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
   useEffect(() => {
     fetchBlueprints();
   }, [homeId]);
+
+  useHomeRealtime("task_blueprints", fetchBlueprints);
 
   // 🚀 CASCADE AREA FILTER: If Location is selected, filter available areas
   useEffect(() => {

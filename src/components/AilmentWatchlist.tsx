@@ -11,6 +11,7 @@ import { PerenualService } from "../lib/perenualService";
 import SmartImage from "./SmartImage";
 import { ConfirmModal } from "./ConfirmModal";
 import { logEvent, EVENT } from "../events/registry";
+import { useHomeRealtime } from "../hooks/useHomeRealtime";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1412,6 +1413,7 @@ export default function AilmentWatchlist({ homeId }: { homeId: string }) {
   }, [homeId]);
 
   useEffect(() => { fetchAilments(); }, [fetchAilments]);
+  useHomeRealtime("ailments", fetchAilments);
 
   const handleConfirmAction = async () => {
     const { ailment, type } = confirmState;

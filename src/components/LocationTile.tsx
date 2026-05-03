@@ -186,7 +186,7 @@ export default function LocationTile({
               <div className="w-8 h-8 rounded-full bg-rhozly-primary/10 flex items-center justify-center">
                 <MapPin className="w-4 h-4" />
               </div>
-              <span className="font-display font-black text-xl">
+              <span className="font-display font-black text-xl" data-testid={`location-${site.id}-areas-count`}>
                 {areasCount}
               </span>
             </div>

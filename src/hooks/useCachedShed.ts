@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { supabase } from "../lib/supabase";
+import { useHomeRealtime } from "./useHomeRealtime";
 
 const CACHE_KEY = "rhozly_shed_cache";
 
@@ -79,8 +80,11 @@ export function useCachedShed(homeId: string) {
     fetchShedData();
   }, [fetchShedData]);
 
-  // Expose mutate to force a background sync when a user alters the database
-  const mutate = () => fetchShedData(true);
+  const mutate = useCallback(() => fetchShedData(true), [fetchShedData]);
+
+  useHomeRealtime("plants", mutate);
+  useHomeRealtime("inventory_items", mutate);
 
   return { plants, locations, isInitialLoading, isBackgroundSyncing, mutate };
+
 }

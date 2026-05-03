@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { logEvent, EVENT } from "../events/registry";
+import { useHomeRealtime } from "../hooks/useHomeRealtime";
 import NewPlanForm from "./NewPlanForm";
 import PlanStaging from "./PlanStaging";
 
@@ -68,6 +69,8 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
   useEffect(() => {
     fetchPlans();
   }, [homeId]);
+
+  useHomeRealtime("plans", fetchPlans);
 
   useEffect(() => {
     const handleClickOutside = () => setOpenMenuId(null);

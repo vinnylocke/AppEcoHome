@@ -34,6 +34,7 @@ import { buildGhostPayload, hasBlockingDependencies } from "../lib/taskMutations
 import { scoreTaskByPlantPreferences } from "../hooks/useUserPreferences";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { logEvent, EVENT } from "../events/registry";
+import { useHomeRealtime } from "../hooks/useHomeRealtime";
 
 interface TaskListProps {
   homeId: string;
@@ -175,6 +176,10 @@ export default function TaskList({
   useEffect(() => {
     fetchTasksAndGhosts();
   }, [fetchTasksAndGhosts]);
+
+  const fetchTasksAndGhostsSilent = useCallback(() => fetchTasksAndGhosts(true), [fetchTasksAndGhosts]);
+  useHomeRealtime("tasks", fetchTasksAndGhostsSilent);
+  useHomeRealtime("task_blueprints", fetchTasksAndGhostsSilent);
 
   const toggleTaskSelection = (taskId: string) => {
     const newSet = new Set(selectedTaskIds);

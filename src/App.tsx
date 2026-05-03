@@ -57,6 +57,8 @@ import BlueprintManager from "./components/BlueprintManager";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import PullToRefresh from "./components/PullToRefresh";
 import { PlantDoctorProvider } from "./context/PlantDoctorContext";
+import { HomeRealtimeProvider } from "./context/HomeRealtimeContext";
+import { useHomeRealtime } from "./hooks/useHomeRealtime";
 import PlantDoctorChat from "./components/PlantDoctorChat";
 import GardenProfile from "./components/GardenProfile";
 import AilmentWatchlist from "./components/AilmentWatchlist";
@@ -329,6 +331,18 @@ function AppShell() {
     await Promise.all([fetchDashboardData(), refreshProfile()]);
   };
 
+  // Stable callbacks passed into the Realtime subscriber component (inside the provider).
+  const handleHomeDataRealtime = useCallback(() => {
+    if (!profile?.home_id) return;
+    sessionStorage.removeItem(`locations_cache_${profile.home_id}`);
+    sessionStorage.removeItem(`weather_cache_${profile.home_id}`);
+    fetchDashboardData();
+  }, [profile?.home_id, fetchDashboardData]);
+
+  const handleProfileRealtime = useCallback(() => {
+    refreshProfile();
+  }, []);
+
   const handleSwitchHome = async (homeId: string) => {
     setWeather(null);
     setRawWeather(null);
@@ -347,31 +361,19 @@ function AppShell() {
     }
   };
 
+  // Re-derive current-hour weather from the already-loaded snapshot every 60 min.
+  // No API call needed — just re-picks the current hour from data already in memory.
   useEffect(() => {
-    if (!profile?.home_id) return;
-    const homeChannel = supabase
-      .channel("home-updates")
-      .on("postgres_changes", { event: "*", schema: "public" }, (payload) => {
-        if (
-          [
-            "locations",
-            "areas",
-            "homes",
-            "weather_alerts",
-            "inventory_items",
-          ].includes(payload.table)
-        ) {
-          sessionStorage.removeItem(`locations_cache_${profile.home_id}`);
-          fetchDashboardData();
-        }
-        if (["user_profiles", "home_members"].includes(payload.table))
-          refreshProfile();
-      })
-      .subscribe();
-    return () => {
-      supabase.removeChannel(homeChannel);
-    };
-  }, [profile?.home_id, fetchDashboardData]);
+    if (!rawWeather) return;
+    const id = setInterval(() => {
+      try {
+        setWeather(extractCurrentWeather(rawWeather));
+      } catch {
+        // ignore parse errors on tick
+      }
+    }, 60 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [rawWeather]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -440,6 +442,11 @@ function AppShell() {
   const canUsePortal = typeof document !== "undefined";
 
   return (
+    <HomeRealtimeProvider homeId={profile?.home_id || ""}>
+      <DashboardRealtimeSubscriber
+        onDataRefresh={handleHomeDataRealtime}
+        onProfileRefresh={handleProfileRealtime}
+      />
     <PlantDoctorProvider homeId={profile?.home_id || ""}>
       <Sentry.ErrorBoundary fallback={<p>An unexpected error occurred.</p>}>
           <Toaster />
@@ -864,6 +871,23 @@ function AppShell() {
             )}
       </Sentry.ErrorBoundary>
     </PlantDoctorProvider>
+  </HomeRealtimeProvider>
   );
+}
+
+function DashboardRealtimeSubscriber({
+  onDataRefresh,
+  onProfileRefresh,
+}: {
+  onDataRefresh: () => void;
+  onProfileRefresh: () => void;
+}) {
+  useHomeRealtime("locations", onDataRefresh);
+  useHomeRealtime("areas", onDataRefresh);
+  useHomeRealtime("weather_alerts", onDataRefresh);
+  useHomeRealtime("inventory_items", onDataRefresh);
+  useHomeRealtime("weather_snapshots", onDataRefresh);
+  useHomeRealtime("homes", onProfileRefresh);
+  return null;
 }
 

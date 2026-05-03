@@ -654,6 +654,8 @@ The `.env.test` file in the project root is already configured for local develop
 VITE_SUPABASE_URL=http://127.0.0.1:54321
 VITE_SUPABASE_PUBLISHABLE_KEY=<local anon key>
 TEST_USER_PASSWORD=TestPassword123!
+# Optional — required for realtime.spec.ts (Section 15). Run `supabase status` to get the key.
+SUPABASE_SERVICE_ROLE_KEY=<local service role key>
 ```
 
 E2E tests run with up to 4 parallel workers, each using its own isolated Supabase account:
@@ -704,7 +706,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 95 tests across 5 files
+### Unit tests — 133 tests across 6 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -713,6 +715,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `plantScheduleFactory.test.ts` | 17 | `buildAutoSeasonalSchedules` |
 | `automationEngine.test.ts` | 17 | `calculateSeasonalDate`, `ailmentTaskType`, `frequencyDays` |
 | `taskEngine.test.ts` | 33 | `fetchTasksWithGhosts` (ghost generation, tombstone suppression, completed task filtering) |
+| `useHomeRealtime.test.ts` | 6 | `useHomeRealtime` — callback fires on matching table, debounce, multi-subscriber, cleanup |
 
 ### Edge function tests — Deno
 
@@ -728,7 +731,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `highPostponeRate.test.ts` | 7 | High postpone rate pattern (>50%, min 4 events) |
 | `blueprintPostponeRate.test.ts` | 6 | Blueprint postpone rate (ghost + physical task IDs) |
 
-### E2E tests — 307 tests across 16 files (+ 13 isolation tests)
+### E2E tests — 311 tests across 17 files (+ 13 isolation tests)
 
 Tests run across up to 4 parallel workers (`fullyParallel: false` — spec files run in parallel, tests within a file run sequentially).
 
@@ -752,6 +755,7 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `layout.spec.ts` | 9 | Nav bar visibility, active route highlighting, responsive layout |
 | `lightsensor.spec.ts` | 13 | Light sensor page load, readings display, permission flow |
 | `visualiser.spec.ts` | 11 | Plant visualiser page load, canvas/overlay rendering |
+| `realtime.spec.ts` | 4 | Supabase Realtime subscriptions — area count update, task list update, blueprint list update, weather snapshot update (requires `SUPABASE_SERVICE_ROLE_KEY`, self-skipping otherwise) |
 | `data-isolation.spec.ts` | 13 | **Isolation project only** — cross-home data isolation for plants, ailments, plans, blueprints, locations, tasks, inventory items |
 
 > **Seed note — timezone resilience:** `03_tasks_blueprints.sql` includes a "Daily Garden Check" blueprint (`freq=1`, `start_date = CURRENT_DATE - 1 day`). This ensures at least one ghost task is always visible on any date regardless of UTC/local timezone offset. Ghost task E2E tests anchor to this blueprint so they don't become flaky near midnight UTC on UTC+N machines.
