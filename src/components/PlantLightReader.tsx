@@ -131,7 +131,7 @@ export default function PlantLightReader({ plantName, optimalRange, onClose }: P
   const fitness = optimalRange ? getLightFitness(lux, optimalRange) : null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[200] bg-rhozly-background flex flex-col animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[200] bg-rhozly-bg flex flex-col animate-in fade-in duration-200">
       <canvas ref={canvasRef} className="hidden" />
 
       {/* Header */}
