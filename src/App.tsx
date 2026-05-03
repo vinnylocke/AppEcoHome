@@ -396,6 +396,16 @@ function AppShell() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
+  // Refresh dashboard data whenever the user navigates to /dashboard so the
+  // location tiles always reflect the latest state (e.g. after adding/deleting
+  // an area in Location Management).
+  useEffect(() => {
+    if (routerLocation.pathname !== "/dashboard") return;
+    if (!profile?.home_id) return;
+    sessionStorage.removeItem(`locations_cache_${profile.home_id}`);
+    fetchDashboardData();
+  }, [routerLocation.pathname, profile?.home_id, fetchDashboardData]);
+
   if (loading)
     return (
       <div className="h-screen flex items-center justify-center bg-rhozly-bg">
