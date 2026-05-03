@@ -556,6 +556,7 @@ function AppShell() {
                                 return (
                                   <LocationPage
                                     location={loc}
+                                    aiEnabled={profile?.ai_enabled ?? false}
                                   />
                                 );
                               })()}

@@ -59,6 +59,7 @@ interface AreaDetailsProps {
   isOutside: boolean;
   onTasksUpdated?: () => void;
   onAreaUpdated?: () => void;
+  aiEnabled?: boolean;
 }
 
 export default function AreaDetails({
@@ -68,6 +69,7 @@ export default function AreaDetails({
   isOutside,
   onTasksUpdated,
   onAreaUpdated,
+  aiEnabled = false,
 }: AreaDetailsProps) {
   const { setPageContext, preferences } = usePlantDoctor();
   const navigate = useNavigate();
@@ -890,6 +892,7 @@ export default function AreaDetails({
                 homeId={homeId}
                 instance={editingInstance}
                 currentAreaId={area.id}
+                aiEnabled={aiEnabled}
                 onClose={() => {
                   setEditingInstance(null);
                   navigate(`/dashboard?locationId=${searchParams.get("locationId")}&areaId=${searchParams.get("areaId")}`);

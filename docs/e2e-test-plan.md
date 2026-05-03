@@ -737,6 +737,51 @@ Tests that Supabase Realtime subscriptions keep the UI in sync when rows are mut
 
 ---
 
+## Section 16 — Yield Recorder & Predictor
+
+**File:** `tests/e2e/specs/yield.spec.ts`  
+**Page Object:** `tests/e2e/pages/YieldPage.ts`
+
+**Seed dependencies:**
+- `02_plants_shed.sql` — Basil (BAS-001) planted in Raised Bed A (`instance_id: 0000000N-0000-0000-0004-000000000002`)
+- `10_yield.sql` — 3 yield records (0.15 kg, 0.20 kg, 0.18 kg) + `expected_harvest_date = 2026-06-01`
+
+**Navigation pattern:** Tests navigate via `/dashboard?locationId=...&areaId=...&instanceId=...` which auto-opens the instance modal via `AreaDetails`'s `instanceId` URL-param effect. UUID prefixes are worker-specific (see § Parallel Worker Accounts).
+
+**AI mock:** Stage 2 tests use `mockEdgeFunction(page, "predict-yield", MOCK_PREDICT_YIELD)` to intercept the Edge Function and return a canned `{ estimated_value: 2.4, unit: "kg", confidence: "medium", reasoning: "...", tips: [...] }` response.
+
+### Stage 1 — Yield Recorder (all users)
+
+| ID | Type | Test | Selector / Assertion | Status |
+|---|---|---|---|---|
+| YLD-001 | ✅ | Yield tab is visible when opening an instance modal | `data-testid="instance-modal-tab-yield"` | ✅ Passing |
+| YLD-002 | ✅ | Unit select contains all expected options (g, kg, lbs, oz, items, bunches) | `option[value="${unit}"]` count = 1 each | ✅ Passing |
+| YLD-003 | ✅ | Submitting value=0.5, unit=kg inserts record and shows it in history | `yield-history-list` contains "0.5" | ✅ Passing |
+| YLD-004 | ✅ | Second entry appears at top of history (newest first) | first `yield-record-*` contains "2.2" after logging 1.1 then 2.2 | ✅ Passing |
+| YLD-005 | ❌ | Submitting empty value shows validation error | `data-testid="yield-value-error"` visible | ✅ Passing |
+| YLD-006 | ✅ | Submitting without notes succeeds | history list visible after submit | ✅ Passing |
+| YLD-007 | ✅ | Seeded yield records visible on tab open (0.15, 0.20, 0.18 kg) | `getByText("0.15")`, `getByText("0.2")`, `getByText("0.18")` in history | ✅ Passing |
+| YLD-008 | ❌ | Deleting a record removes it from history | specific `yield-record-${id}` not visible after `yield-delete-${id}` click | ✅ Passing |
+| YLD-009 | ✅ | History shows human-readable date | seeded 2026-04-01 renders as `/April 2026/` | ✅ Passing |
+| YLD-010 | ✅ | After logging yield, Plant Journal tab shows yield_logged entry | `instance-modal-tab-journal` → text `/yield/i` visible | ✅ Passing |
+
+### Stage 2 — Yield Predictor (AI users only)
+
+| ID | Type | Test | Selector / Assertion | Status |
+|---|---|---|---|---|
+| YLD-011 | ✅ | AI-enabled user sees Predict Yield button (not paywall) | `yield-predict-button` visible, `yield-predictor-paywall` not visible | ✅ Passing |
+| YLD-012 | ✅ | Expected harvest date input is visible for AI user | `yield-harvest-date-input` visible | ✅ Passing |
+| YLD-013 | ✅ | Expected harvest date is pre-populated from seed | `yield-harvest-date-input` value = "2026-06-01" | ✅ Passing |
+| YLD-014 | ✅ | Clicking Predict Yield shows loading state | `/Predicting/i` text visible immediately | ✅ Passing |
+| YLD-015 | ✅ | Mocked prediction renders estimated value on the card | `yield-prediction-value` text = "2.4" | ✅ Passing |
+| YLD-016 | ✅ | Confidence badge reads "Medium confidence" for medium response | `yield-prediction-confidence` contains "Medium confidence" | ✅ Passing |
+| YLD-017 | ✅ | Reasoning text from mock is visible on the card | `yield-prediction-reasoning` contains "past harvests" | ✅ Passing |
+| YLD-018 | ✅ | Each tip from mock rendered as list item (2 tips) | `yield-prediction-tips li` count = 2 | ✅ Passing |
+| YLD-019 | ✅ | Clicking Predict Yield again replaces previous prediction (only 1 card) | `yield-prediction-card` count = 1 after second predict | ✅ Passing |
+| YLD-020 | ❌ | Edge Function 500 error shows toast, no prediction card | `/Failed to get yield prediction/i` toast, `yield-prediction-card` not visible | ✅ Passing |
+
+---
+
 ## Appendix B — Page Objects
 
 All Page Objects are implemented. Current files in `tests/e2e/pages/`:
@@ -756,3 +801,4 @@ All Page Objects are implemented. Current files in `tests/e2e/pages/`:
 | `SchedulePage.ts` | `/schedule` |
 | `LightSensorPage.ts` | `/lightsensor` |
 | `VisualiserPage.ts` | `/visualiser` |
+| `YieldPage.ts` | `/dashboard` (instance modal yield tab) |

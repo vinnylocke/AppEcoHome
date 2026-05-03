@@ -76,7 +76,8 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
 │       │   ├── watchlist.spec.ts
 │       │   ├── layout.spec.ts
 │       │   ├── lightsensor.spec.ts
-│       │   └── visualiser.spec.ts
+│       │   ├── visualiser.spec.ts
+│       │   └── yield.spec.ts
 │       ├── pages/                # Page Object Models
 │       │   ├── AuthPage.ts
 │       │   ├── DashboardPage.ts
@@ -90,7 +91,8 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
 │       │   ├── WatchlistPage.ts
 │       │   ├── SchedulePage.ts
 │       │   ├── LightSensorPage.ts
-│       │   └── VisualiserPage.ts
+│       │   ├── VisualiserPage.ts
+│       │   └── YieldPage.ts
 │       └── fixtures/
 │           ├── auth.ts           # authenticatedPage Playwright fixture
 │           └── api-mocks.ts      # mockEdgeFunction() + canned AI responses
@@ -706,7 +708,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 156 tests across 7 files
+### Unit tests — 166 tests across 8 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -717,6 +719,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `taskEngine.test.ts` | 33 | `fetchTasksWithGhosts` (ghost generation, tombstone suppression, completed task filtering) |
 | `useHomeRealtime.test.ts` | 6 | `useHomeRealtime` — callback fires on matching table, debounce, multi-subscriber, cleanup |
 | `plantLabels.test.ts` | 23 | `derivePlantLabels` — plant_type, cycle variants, watering variants, drought_tolerant, care_level, indoor, edible, tropical, pruning deduplication |
+| `yieldService.test.ts` | 10 | `validateYieldValue`, `fetchYieldRecords`, `insertYieldRecord`, `deleteYieldRecord`, `updateExpectedHarvestDate` |
 
 ### Edge function tests — Deno
 
@@ -732,8 +735,9 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `highPostponeRate.test.ts` | 7 | High postpone rate pattern (>50%, min 4 events) |
 | `blueprintPostponeRate.test.ts` | 6 | Blueprint postpone rate (ghost + physical task IDs) |
 | `purgeSpeciesCache.test.ts` | 5 | `purgeStaleSpeciesCache` — empty result, delete count, referenced plants preserved, custom TTL, error propagation |
+| `yield/predictYield.test.ts` | 6 | `buildYieldPrompt` — includes plant name, planted date, harvest date, no-history text, past yields, weather summary |
 
-### E2E tests — 316 tests across 17 files (+ 13 isolation tests)
+### E2E tests — 336 tests across 18 files (+ 13 isolation tests)
 
 Tests run across up to 4 parallel workers (`fullyParallel: false` — spec files run in parallel, tests within a file run sequentially).
 
@@ -758,6 +762,7 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `lightsensor.spec.ts` | 13 | Light sensor page load, readings display, permission flow |
 | `visualiser.spec.ts` | 11 | Plant visualiser page load, canvas/overlay rendering |
 | `realtime.spec.ts` | 4 | Supabase Realtime subscriptions — area count update, task list update, blueprint list update, weather snapshot update (requires `SUPABASE_SERVICE_ROLE_KEY`, self-skipping otherwise) |
+| `yield.spec.ts` | 20 | Yield tab UI (YLD-001–010): log yield, unit options, history ordering, validation, seeded records, delete, human-readable date, journal entry; AI predictor (YLD-011–020): predict button, harvest date pre-fill, loading state, mocked prediction card, confidence badge, reasoning, tips, re-predict, error toast |
 | `data-isolation.spec.ts` | 13 | **Isolation project only** — cross-home data isolation for plants, ailments, plans, blueprints, locations, tasks, inventory items |
 
 > **Seed note — timezone resilience:** `03_tasks_blueprints.sql` includes a "Daily Garden Check" blueprint (`freq=1`, `start_date = CURRENT_DATE - 1 day`). This ensures at least one ghost task is always visible on any date regardless of UTC/local timezone offset. Ghost task E2E tests anchor to this blueprint so they don't become flaky near midnight UTC on UTC+N machines.

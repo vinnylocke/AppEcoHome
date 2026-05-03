@@ -15,7 +15,7 @@ await client.connect();
 
 const seedDir = "supabase/seeds";
 const files = readdirSync(seedDir)
-  .filter((f) => /^0\d.*\.sql$/.test(f))
+  .filter((f) => /^\d{2}.*\.sql$/.test(f))
   .sort();
 
 for (let w = 1; w <= workerCount; w++) {

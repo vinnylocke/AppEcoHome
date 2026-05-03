@@ -21,10 +21,12 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface LocationPageProps {
   location: any;
+  aiEnabled?: boolean;
 }
 
 export const LocationPage: React.FC<LocationPageProps> = ({
   location,
+  aiEnabled = false,
 }) => {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -207,6 +209,7 @@ export const LocationPage: React.FC<LocationPageProps> = ({
             <AreaDetails
               homeId={location.home_id}
               area={focusedArea}
+              aiEnabled={aiEnabled}
               onClose={() => {
                 setFocusedArea(null);
                 navigate(`/dashboard?locationId=${location.id}`);

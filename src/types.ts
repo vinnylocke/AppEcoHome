@@ -36,3 +36,29 @@ export interface Area {
   is_outside: boolean;
   created_at: string;
 }
+
+export interface YieldRecord {
+  id: string;
+  home_id: string;
+  instance_id: string;
+  value: number;
+  unit: string;
+  notes: string | null;
+  harvested_at: string;
+}
+
+export interface NewYieldRecord {
+  home_id: string;
+  instance_id: string;
+  value: number;
+  unit: string;
+  notes?: string | null;
+}
+
+export interface YieldPrediction {
+  estimated_value: number;
+  unit: string;
+  confidence: "low" | "medium" | "high";
+  reasoning: string;
+  tips: string[];
+}

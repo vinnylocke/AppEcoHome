@@ -95,3 +95,15 @@ export const MOCK_WEATHER_SNAPSHOT = {
   hourly: [],
   fetchedAt: "2026-05-01T08:00:00.000Z",
 };
+
+export const MOCK_PREDICT_YIELD = {
+  estimated_value: 2.4,
+  unit: "kg",
+  confidence: "medium",
+  reasoning:
+    "Based on 3 past harvests averaging 1.8 kg and favorable spring weather, a slightly higher yield is expected.",
+  tips: [
+    "Ensure consistent watering during fruit set.",
+    "Apply potassium-rich fertiliser two weeks before harvest.",
+  ],
+};

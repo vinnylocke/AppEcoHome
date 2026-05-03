@@ -15,6 +15,7 @@ import {
   Sprout,
   Leaf,
   LibraryBig,
+  Wheat,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
@@ -22,6 +23,7 @@ import InstanceCareRoutine from "./InstanceCareRoutine";
 import PlantJournalTab from "./PlantJournalTab";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantGuidesTab from "./PlantGuidesTab";
+import YieldTab from "./YieldTab";
 import { PerenualService } from "../lib/perenualService";
 
 // 🧠 IMPORT THE AI CONTEXT
@@ -48,6 +50,7 @@ interface InstanceEditModalProps {
   onClose: () => void;
   onUpdate: (payload: any) => void;
   onTasksUpdated?: () => void;
+  aiEnabled?: boolean;
 }
 
 export default function InstanceEditModal({
@@ -57,11 +60,12 @@ export default function InstanceEditModal({
   onClose,
   onUpdate,
   onTasksUpdated,
+  aiEnabled = false,
 }: InstanceEditModalProps) {
   const { setPageContext } = usePlantDoctor();
 
   const [activeTab, setActiveTab] = useState<
-    "details" | "routine" | "journal" | "care_guide" | "guides"
+    "details" | "routine" | "journal" | "care_guide" | "guides" | "yield"
   >("details");
   const [savingInstance, setSavingInstance] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
@@ -297,6 +301,7 @@ export default function InstanceEditModal({
           </button>
 
           <button
+            data-testid="instance-modal-tab-journal"
             onClick={() => setActiveTab("journal")}
             className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "journal" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
@@ -309,6 +314,14 @@ export default function InstanceEditModal({
             className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "guides" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
             <LibraryBig size={14} /> Guides
+          </button>
+
+          <button
+            data-testid="instance-modal-tab-yield"
+            onClick={() => setActiveTab("yield")}
+            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "yield" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+          >
+            <Wheat size={14} /> Yield
           </button>
         </div>
 
@@ -533,6 +546,18 @@ export default function InstanceEditModal({
             <PlantGuidesTab
               plantId={instance.plant_id}
               commonName={instance.plant_name}
+            />
+          </div>
+        )}
+
+        {activeTab === "yield" && (
+          <div className="animate-in slide-in-from-right-4">
+            <YieldTab
+              instanceId={instance.id}
+              homeId={homeId}
+              plantedAt={instance.planted_at ?? null}
+              aiEnabled={aiEnabled}
+              instance={instance}
             />
           </div>
         )}
