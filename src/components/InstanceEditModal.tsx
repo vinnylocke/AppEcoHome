@@ -17,6 +17,7 @@ import {
   LibraryBig,
   Wheat,
   Sun,
+  BarChart2,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
@@ -26,6 +27,7 @@ import ManualPlantCreation from "./ManualPlantCreation";
 import PlantGuidesTab from "./PlantGuidesTab";
 import YieldTab from "./YieldTab";
 import LightTab from "./LightTab";
+import InstanceStatsTab from "./InstanceStatsTab";
 import { PerenualService } from "../lib/perenualService";
 
 // 🧠 IMPORT THE AI CONTEXT
@@ -67,7 +69,7 @@ export default function InstanceEditModal({
   const { setPageContext } = usePlantDoctor();
 
   const [activeTab, setActiveTab] = useState<
-    "details" | "routine" | "journal" | "care_guide" | "guides" | "yield" | "light"
+    "details" | "routine" | "journal" | "care_guide" | "guides" | "yield" | "light" | "stats"
   >("details");
   const [savingInstance, setSavingInstance] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
@@ -333,6 +335,14 @@ export default function InstanceEditModal({
           >
             <Sun size={14} /> Light
           </button>
+
+          <button
+            data-testid="instance-modal-tab-stats"
+            onClick={() => setActiveTab("stats")}
+            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "stats" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+          >
+            <BarChart2 size={14} /> Stats
+          </button>
         </div>
 
         {activeTab === "details" && (
@@ -578,6 +588,12 @@ export default function InstanceEditModal({
               plantId={instance.plant_id ?? null}
               plantName={instance.plant_name}
             />
+          </div>
+        )}
+
+        {activeTab === "stats" && (
+          <div className="animate-in slide-in-from-right-4">
+            <InstanceStatsTab instance={instance} />
           </div>
         )}
       </div>

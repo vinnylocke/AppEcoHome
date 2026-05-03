@@ -77,7 +77,9 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
 │       │   ├── layout.spec.ts
 │       │   ├── lightsensor.spec.ts
 │       │   ├── visualiser.spec.ts
-│       │   └── yield.spec.ts
+│       │   ├── yield.spec.ts
+│       │   ├── lighttab.spec.ts
+│       │   └── statstab.spec.ts
 │       ├── pages/                # Page Object Models
 │       │   ├── AuthPage.ts
 │       │   ├── DashboardPage.ts
@@ -93,7 +95,8 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
 │       │   ├── LightSensorPage.ts
 │       │   ├── VisualiserPage.ts
 │       │   ├── YieldPage.ts
-│       │   └── LightTabPage.ts
+│       │   ├── LightTabPage.ts
+│       │   └── InstanceStatsTabPage.ts
 │       └── fixtures/
 │           ├── auth.ts           # authenticatedPage Playwright fixture
 │           └── api-mocks.ts      # mockEdgeFunction() + canned AI responses
@@ -739,7 +742,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `purgeSpeciesCache.test.ts` | 5 | `purgeStaleSpeciesCache` — empty result, delete count, referenced plants preserved, custom TTL, error propagation |
 | `yield/predictYield.test.ts` | 6 | `buildYieldPrompt` — includes plant name, planted date, harvest date, no-history text, past yields, weather summary |
 
-### E2E tests — 344 tests across 19 files (+ 13 isolation tests)
+### E2E tests — 351 tests across 20 files (+ 13 isolation tests)
 
 Tests run across up to 4 parallel workers (`fullyParallel: false` — spec files run in parallel, tests within a file run sequentially).
 
@@ -766,6 +769,7 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `realtime.spec.ts` | 4 | Supabase Realtime subscriptions — area count update, task list update, blueprint list update, weather snapshot update (requires `SUPABASE_SERVICE_ROLE_KEY`, self-skipping otherwise) |
 | `yield.spec.ts` | 20 | Yield tab UI (YLD-001–010): log yield, unit options, history ordering, validation, seeded records, delete, human-readable date, journal entry; AI predictor (YLD-011–020): predict button, harvest date pre-fill, loading state, mocked prediction card, confidence badge, reasoning, tips, re-predict, error toast |
 | `lighttab.spec.ts` | 8 | Light tab (LGT-001–006): tab visible, optimal range card, Get Reading button, sensor overlay, lux element, back button; Shed plant modal (LGT-007–008): Light tab on PlantEditModal, no-data card for plant with null sunlight |
+| `statstab.spec.ts` | 7 | Stats tab (STT-001–007): tab visible, plant info shows planted date, yield count ≥ 1, pruning count ≥ 1, ailment row visible, task total visible, Tomato empty states |
 | `data-isolation.spec.ts` | 13 | **Isolation project only** — cross-home data isolation for plants, ailments, plans, blueprints, locations, tasks, inventory items |
 
 > **Seed note — timezone resilience:** `03_tasks_blueprints.sql` includes a "Daily Garden Check" blueprint (`freq=1`, `start_date = CURRENT_DATE - 1 day`). This ensures at least one ghost task is always visible on any date regardless of UTC/local timezone offset. Ghost task E2E tests anchor to this blueprint so they don't become flaky near midnight UTC on UTC+N machines.

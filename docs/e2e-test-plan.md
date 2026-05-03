@@ -808,6 +808,26 @@ Tests that Supabase Realtime subscriptions keep the UI in sync when rows are mut
 
 ---
 
+## Section 18 — Stats Tab
+
+**Spec file:** `tests/e2e/specs/statstab.spec.ts`  
+**Page object:** `tests/e2e/pages/InstanceStatsTabPage.ts`  
+**Seed dependency:** `09_stats.sql` — 2 yield records for Basil, 1 completed Pruning task linked to Basil, 1 plant_instance_ailment linking Basil → Aphid
+
+### Stage 1 — Instance modal (STT-001 – STT-007)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| STT-001 | ✅ | Stats tab button is visible on instance modal | `instance-modal-tab-stats` visible | ✅ Passing |
+| STT-002 | ✅ | Plant Info section shows a planted date for Basil | `stats-plant-info` visible; text does not contain "Not recorded" | ✅ Passing |
+| STT-003 | ✅ | Yield section shows count ≥ 1 (2 seeded records) | `stats-yield-count` ≥ 1 | ✅ Passing |
+| STT-004 | ✅ | Pruning section shows count ≥ 1 (1 seeded prune task) | `stats-prune-count` ≥ 1 | ✅ Passing |
+| STT-005 | ✅ | Issues section shows at least 1 ailment row (seeded Aphid link) | `stats-issue-item` count ≥ 1 | ✅ Passing |
+| STT-006 | ✅ | Task total count element is visible | `stats-task-total` visible | ✅ Passing |
+| STT-007 | ✅ | Empty states shown for Tomato (no yield, pruning, or ailments) | `stats-issues-none` visible; `stats-yield-count` and `stats-prune-count` not visible | ✅ Passing |
+
+---
+
 ## Appendix B — Page Objects
 
 All Page Objects are implemented. Current files in `tests/e2e/pages/`:
