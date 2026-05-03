@@ -804,7 +804,7 @@ function AppShell() {
                       <Route path="/management" element={
                         <div className="h-full animate-in fade-in duration-500">
                           {profile?.home_id ? (
-                            <LocationManager homeId={profile.home_id} />
+                            <LocationManager homeId={profile.home_id} onDataChanged={handleHomeDataRealtime} />
                           ) : (
                             <div className="p-10 text-center opacity-50 font-bold border-2 border-dashed rounded-3xl">
                               Please select a home.

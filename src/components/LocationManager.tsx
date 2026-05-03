@@ -27,6 +27,7 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface Props {
   homeId: string;
+  onDataChanged?: () => void;
 }
 
 type DeleteTarget = {
@@ -35,7 +36,7 @@ type DeleteTarget = {
   locationId?: string;
 };
 
-export const LocationManager: React.FC<Props> = ({ homeId }) => {
+export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
   // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
 
@@ -126,6 +127,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
       setIsAddingLoc(false);
       toast.success("Location created!");
       fetchHierarchy();
+      onDataChanged?.();
     } catch (err: any) {
       Logger.error("Failed to save new location", err);
       toast.error("Failed to create location.");
@@ -146,6 +148,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
       fetchHierarchy();
     } else {
       toast.success("Location renamed.");
+      onDataChanged?.();
     }
   };
 
@@ -204,6 +207,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
       toast.success(
         newIsOutside ? "Switched to Outside." : "Switched to Inside.",
       );
+      onDataChanged?.();
     }
   };
 
@@ -218,6 +222,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
     } else {
       toast.success("New area added!");
       fetchHierarchy();
+      onDataChanged?.();
     }
   };
 
@@ -233,6 +238,7 @@ export const LocationManager: React.FC<Props> = ({ homeId }) => {
       if (error) throw error;
       toast.success(`${type.charAt(0).toUpperCase() + type.slice(1)} deleted.`);
       fetchHierarchy();
+      onDataChanged?.();
     } catch (error: any) {
       Logger.error(`Failed to delete ${itemToDelete.type}`, error);
       toast.error(`Failed to delete ${itemToDelete.type}.`);
