@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import {
-  HomeRealtimeTable,
+  type HomeRealtimeTable,
   useHomeRealtimeContext,
 } from "../context/HomeRealtimeContext";
 
