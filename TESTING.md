@@ -706,7 +706,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 133 tests across 6 files
+### Unit tests — 156 tests across 7 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -716,6 +716,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `automationEngine.test.ts` | 17 | `calculateSeasonalDate`, `ailmentTaskType`, `frequencyDays` |
 | `taskEngine.test.ts` | 33 | `fetchTasksWithGhosts` (ghost generation, tombstone suppression, completed task filtering) |
 | `useHomeRealtime.test.ts` | 6 | `useHomeRealtime` — callback fires on matching table, debounce, multi-subscriber, cleanup |
+| `plantLabels.test.ts` | 23 | `derivePlantLabels` — plant_type, cycle variants, watering variants, drought_tolerant, care_level, indoor, edible, tropical, pruning deduplication |
 
 ### Edge function tests — Deno
 
@@ -730,8 +731,9 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `neglectedPlant.test.ts` | 6 | Neglected plant pattern |
 | `highPostponeRate.test.ts` | 7 | High postpone rate pattern (>50%, min 4 events) |
 | `blueprintPostponeRate.test.ts` | 6 | Blueprint postpone rate (ghost + physical task IDs) |
+| `purgeSpeciesCache.test.ts` | 5 | `purgeStaleSpeciesCache` — empty result, delete count, referenced plants preserved, custom TTL, error propagation |
 
-### E2E tests — 311 tests across 17 files (+ 13 isolation tests)
+### E2E tests — 316 tests across 17 files (+ 13 isolation tests)
 
 Tests run across up to 4 parallel workers (`fullyParallel: false` — spec files run in parallel, tests within a file run sequentially).
 
@@ -750,7 +752,7 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `planner.spec.ts` | 21 | Plan list, create plan, status tabs, plan detail, add stage, task lifecycle |
 | `area-setup.spec.ts` | 21 | Location management, create location, create area, assign plant, delete flows |
 | `garden-profile.spec.ts` | 16 | Garden Profile heading, quiz/completion state, option toggling, Next/Back, progress bar |
-| `guides.spec.ts` | 20 | Guide list, search/filter by level, open guide detail, breadcrumb navigation |
+| `guides.spec.ts` | 25 | Guide list, search/filter by level, open guide detail, breadcrumb navigation; Guides tab in PlantEditModal (GDE-021–025) |
 | `watchlist.spec.ts` | 29 | Ailment list, type filters, add manual/AI, detail modal tabs, archive/restore/delete |
 | `layout.spec.ts` | 9 | Nav bar visibility, active route highlighting, responsive layout |
 | `lightsensor.spec.ts` | 13 | Light sensor page load, readings display, permission flow |

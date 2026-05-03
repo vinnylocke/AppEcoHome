@@ -10,6 +10,8 @@
 --   Watering Basics     — Beginner, labels: ['Watering', 'Beginner']
 --   Pruning Techniques  — Intermediate, labels: ['Pruning', 'Intermediate']
 --   Composting 101      — Beginner, labels: ['Soil', 'Beginner', 'Organic']
+--   Growing Tomatoes    — Beginner, labels: ['Tomato', 'Vegetable', 'Annual']
+--                         (links to the seeded Tomato plant via common_name match)
 -- ============================================================
 
 INSERT INTO public.guides (id, data, labels)
@@ -159,5 +161,47 @@ VALUES
       ]
     }'::jsonb,
     ARRAY['Soil', 'Beginner', 'Organic']
+  )
+  ,
+  -- Growing Tomatoes — Beginner (links to Tomato plant via label match)
+  (
+    '00000000-0000-0000-0009-000000000004',
+    '{
+      "title": "Growing Tomatoes",
+      "subtitle": "From seedling to harvest — everything you need to know",
+      "difficulty": "Beginner",
+      "estimated_minutes": 8,
+      "sections": [
+        {
+          "type": "paragraph",
+          "content": "Tomatoes are one of the most rewarding crops to grow at home. With the right care they will produce abundantly from mid-summer through to first frost."
+        },
+        {
+          "type": "header",
+          "content": "Watering & Feeding"
+        },
+        {
+          "type": "list",
+          "items": [
+            "Water deeply and consistently — irregular watering causes blossom end rot and splitting",
+            "Feed with a high-potassium liquid fertiliser once the first flowers appear",
+            "Mulch around the base to retain moisture and suppress weeds"
+          ]
+        },
+        {
+          "type": "header",
+          "content": "Support & Pruning"
+        },
+        {
+          "type": "paragraph",
+          "content": "Cordon (indeterminate) varieties need staking and regular side-shoot removal. Pinch out side shoots that appear in the leaf axils while they are small. Bush (determinate) varieties require less attention but benefit from a light cage for support."
+        },
+        {
+          "type": "tip",
+          "content": "Pinch out the growing tip once the plant has set four or five trusses to concentrate energy into ripening existing fruit before the end of the season."
+        }
+      ]
+    }'::jsonb,
+    ARRAY['Tomato', 'Vegetable', 'Annual']
   )
 ON CONFLICT (id) DO NOTHING;

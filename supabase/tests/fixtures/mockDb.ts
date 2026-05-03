@@ -12,8 +12,10 @@ export function makeMockDb(tables: Record<string, unknown[]>) {
     chain.in = noop;
     chain.gte = noop;
     chain.lte = noop;
+    chain.lt = noop;
     chain.not = noop;
     chain.order = noop;
+    chain.delete = noop;
     chain.then = (
       onFulfilled: (v: { data: unknown[] }) => unknown,
       onRejected?: (e: unknown) => unknown,

@@ -38,6 +38,7 @@ import { useCachedShed } from "../hooks/useCachedShed";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { PlantDoctorService } from "../services/plantDoctorService";
 import { logEvent, EVENT } from "../events/registry";
+import { derivePlantLabels } from "../lib/plantLabels";
 
 interface Plant {
   id: number;
@@ -156,6 +157,12 @@ export default function TheShed({ homeId }: { homeId: string }) {
       Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
     skeleton.id = manualId;
     skeleton.home_id = homeId;
+
+    // Auto-derive labels for API and AI plants from care data.
+    // Manual plants carry their user-supplied labels from the form already.
+    if (skeleton.source === "api" || skeleton.source === "ai") {
+      skeleton.labels = derivePlantLabels(fullCareData ?? {});
+    }
 
     const { data: savedPlant, error } = await supabase
       .from("plants")
@@ -796,6 +803,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
               <div
                 key={plant.id}
                 data-plant-card
+                data-testid={`plant-card-${plant.id}`}
                 tabIndex={index === focusedIndex ? 0 : -1}
                 onClick={() => setEditingPlant(plant)}
                 onFocus={() => setFocusedIndex(index)}

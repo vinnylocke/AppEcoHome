@@ -14,12 +14,14 @@ import {
   Loader2,
   Sprout,
   Leaf,
+  LibraryBig,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import InstanceCareRoutine from "./InstanceCareRoutine";
 import PlantJournalTab from "./PlantJournalTab";
 import ManualPlantCreation from "./ManualPlantCreation";
+import PlantGuidesTab from "./PlantGuidesTab";
 import { PerenualService } from "../lib/perenualService";
 
 // 🧠 IMPORT THE AI CONTEXT
@@ -59,7 +61,7 @@ export default function InstanceEditModal({
   const { setPageContext } = usePlantDoctor();
 
   const [activeTab, setActiveTab] = useState<
-    "details" | "routine" | "journal" | "care_guide"
+    "details" | "routine" | "journal" | "care_guide" | "guides"
   >("details");
   const [savingInstance, setSavingInstance] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
@@ -300,6 +302,14 @@ export default function InstanceEditModal({
           >
             <BookOpen size={14} /> Journal
           </button>
+
+          <button
+            data-testid="instance-modal-tab-guides"
+            onClick={() => setActiveTab("guides")}
+            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "guides" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+          >
+            <LibraryBig size={14} /> Guides
+          </button>
         </div>
 
         {activeTab === "details" && (
@@ -515,6 +525,15 @@ export default function InstanceEditModal({
         {activeTab === "journal" && (
           <div className="animate-in slide-in-from-right-4">
             <PlantJournalTab inventoryItemId={instance.id} homeId={homeId} />
+          </div>
+        )}
+
+        {activeTab === "guides" && (
+          <div className="animate-in slide-in-from-right-4">
+            <PlantGuidesTab
+              plantId={instance.plant_id}
+              commonName={instance.plant_name}
+            />
           </div>
         )}
       </div>

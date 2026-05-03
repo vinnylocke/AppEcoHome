@@ -16,6 +16,8 @@ import {
   AlertCircle,
   Camera,
   Sun,
+  X,
+  Tag,
 } from "lucide-react";
 import toast from "react-hot-toast";
 
@@ -94,6 +96,8 @@ export default function ManualPlantCreation({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropdownContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
+  const [labelsInput, setLabelsInput] = useState("");
+
   const [formData, setFormData] = useState({
     common_name: "",
     scientific_name: [] as string[],
@@ -130,6 +134,7 @@ export default function ManualPlantCreation({
     is_toxic_pets: false,
     medicinal: false,
     cuisine: false,
+    labels: [] as string[],
   });
 
   // Close dropdown on outside click
@@ -202,6 +207,7 @@ export default function ManualPlantCreation({
         pruning_month: safePruning,
         watering_min_days: initialData.watering_min_days?.toString() || "",
         watering_max_days: initialData.watering_max_days?.toString() || "",
+        labels: Array.isArray(initialData.labels) ? initialData.labels : [],
       }));
     }
   }, [initialData]);
@@ -338,6 +344,7 @@ export default function ManualPlantCreation({
       medicinal: formData.medicinal || false,
       cuisine: formData.cuisine || false,
       thumbnail_url: formData.thumbnail_url || formData.image_url || "",
+      labels: formData.labels,
     };
 
     onSave(cleanPayload);
@@ -528,6 +535,100 @@ export default function ManualPlantCreation({
                   className={`w-full p-4 bg-rhozly-surface-low rounded-2xl outline-none border border-rhozly-outline/10 font-bold resize-none ${isReadOnly ? "opacity-80" : ""}`}
                 />
               </div>
+
+              {!isReadOnly && (
+                <div className="space-y-2">
+                  <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1 flex items-center gap-2">
+                    <Tag size={12} /> Guide Labels
+                  </label>
+                  <div
+                    data-testid="plant-labels-input"
+                    className="p-3 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/10 min-h-[52px]"
+                  >
+                    {(formData.labels as string[]).length > 0 && (
+                      <div className="flex flex-wrap gap-1.5 mb-2">
+                        {(formData.labels as string[]).map((lbl) => (
+                          <span
+                            key={lbl}
+                            data-testid={`plant-label-chip-${lbl}`}
+                            className="flex items-center gap-1 bg-rhozly-primary/10 text-rhozly-primary text-[10px] font-black px-2.5 py-1 rounded-lg"
+                          >
+                            {lbl}
+                            <button
+                              type="button"
+                              onClick={() =>
+                                setFormData((prev) => ({
+                                  ...prev,
+                                  labels: (prev.labels as string[]).filter(
+                                    (l) => l !== lbl,
+                                  ),
+                                }))
+                              }
+                              aria-label={`Remove label ${lbl}`}
+                              className="hover:opacity-60 transition-opacity"
+                            >
+                              <X size={10} />
+                            </button>
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                    <input
+                      type="text"
+                      value={labelsInput}
+                      onChange={(e) => setLabelsInput(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === ",") {
+                          e.preventDefault();
+                          const val = labelsInput.trim().replace(/,$/, "");
+                          if (
+                            val &&
+                            !(formData.labels as string[]).includes(val)
+                          ) {
+                            setFormData((prev) => ({
+                              ...prev,
+                              labels: [...(prev.labels as string[]), val],
+                            }));
+                          }
+                          setLabelsInput("");
+                        }
+                        if (
+                          e.key === "Backspace" &&
+                          !labelsInput &&
+                          (formData.labels as string[]).length > 0
+                        ) {
+                          setFormData((prev) => ({
+                            ...prev,
+                            labels: (prev.labels as string[]).slice(0, -1),
+                          }));
+                        }
+                      }}
+                      onBlur={() => {
+                        const val = labelsInput.trim().replace(/,$/, "");
+                        if (
+                          val &&
+                          !(formData.labels as string[]).includes(val)
+                        ) {
+                          setFormData((prev) => ({
+                            ...prev,
+                            labels: [...(prev.labels as string[]), val],
+                          }));
+                        }
+                        setLabelsInput("");
+                      }}
+                      placeholder={
+                        (formData.labels as string[]).length === 0
+                          ? "Type a label and press Enter..."
+                          : "Add another label..."
+                      }
+                      className="w-full text-sm font-bold bg-transparent outline-none placeholder:opacity-30 placeholder:font-normal"
+                    />
+                  </div>
+                  <p className="text-[10px] font-bold text-rhozly-on-surface/30 ml-1">
+                    Labels link this plant to relevant guides (e.g. Vegetable, Pruning).
+                  </p>
+                </div>
+              )}
             </div>
           )}
         </div>

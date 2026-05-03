@@ -316,3 +316,120 @@ test.describe("Guides — search and filter (Section 13)", () => {
     await expect(guides.guideCard("Composting 101")).toBeVisible({ timeout: 5000 });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section 13 — Guides tab on plant species (PlantEditModal)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test.describe("Guides — plant species Guides tab (Section 13)", () => {
+  test("GDE-021: Guides tab is visible on a plant in The Shed", async ({ authenticatedPage }) => {
+    await authenticatedPage.goto("/shed");
+    await authenticatedPage.waitForLoadState("networkidle");
+
+    // Click the first visible plant card edit button
+    await authenticatedPage
+      .locator('[data-testid^="plant-card-"]')
+      .first()
+      .click();
+
+    // Wait for the modal
+    await expect(
+      authenticatedPage.locator('[data-testid="plant-modal-tab-guides"]'),
+    ).toBeVisible({ timeout: 8000 });
+  });
+
+  test("GDE-022: Guides tab for Tomato shows 'Growing Tomatoes' guide card", async ({ authenticatedPage }) => {
+    await authenticatedPage.goto("/shed");
+    await authenticatedPage.waitForLoadState("networkidle");
+
+    // Open the Tomato plant modal
+    await authenticatedPage
+      .locator("h3, p")
+      .filter({ hasText: "Tomato" })
+      .first()
+      .click();
+
+    await authenticatedPage
+      .locator('[data-testid="plant-modal-tab-guides"]')
+      .click();
+
+    // Guides are globally public (no RLS) so all 4 worker seeds are visible — use first()
+    await expect(
+      authenticatedPage.locator('[data-testid="guide-card-growing-tomatoes"]').first(),
+    ).toBeVisible({ timeout: 8000 });
+  });
+
+  test("GDE-023: Clicking a guide card in the Guides tab opens the inline reader", async ({ authenticatedPage }) => {
+    await authenticatedPage.goto("/shed");
+    await authenticatedPage.waitForLoadState("networkidle");
+
+    await authenticatedPage
+      .locator("h3, p")
+      .filter({ hasText: "Tomato" })
+      .first()
+      .click();
+
+    await authenticatedPage
+      .locator('[data-testid="plant-modal-tab-guides"]')
+      .click();
+
+    // Guides are globally public — use first() to avoid strict mode violation
+    await authenticatedPage
+      .locator('[data-testid="guide-card-growing-tomatoes"]')
+      .first()
+      .click();
+
+    await expect(
+      authenticatedPage.locator('[data-testid="guide-reader-back"]'),
+    ).toBeVisible({ timeout: 5000 });
+  });
+
+  test("GDE-024: Back button in guide reader returns to guide list", async ({ authenticatedPage }) => {
+    await authenticatedPage.goto("/shed");
+    await authenticatedPage.waitForLoadState("networkidle");
+
+    await authenticatedPage
+      .locator("h3, p")
+      .filter({ hasText: "Tomato" })
+      .first()
+      .click();
+
+    await authenticatedPage
+      .locator('[data-testid="plant-modal-tab-guides"]')
+      .click();
+
+    // Guides are globally public — use first() to avoid strict mode violation
+    await authenticatedPage
+      .locator('[data-testid="guide-card-growing-tomatoes"]')
+      .first()
+      .click();
+
+    await authenticatedPage
+      .locator('[data-testid="guide-reader-back"]')
+      .click();
+
+    await expect(
+      authenticatedPage.locator('[data-testid="plant-guides-list"]'),
+    ).toBeVisible({ timeout: 5000 });
+  });
+
+  test("GDE-025: Plant with no matching guides shows empty state", async ({ authenticatedPage }) => {
+    await authenticatedPage.goto("/shed");
+    await authenticatedPage.waitForLoadState("networkidle");
+
+    // Boston Fern has no matching guide labels or name matches
+    await authenticatedPage
+      .locator("h3, p")
+      .filter({ hasText: "Boston Fern" })
+      .first()
+      .click();
+
+    await authenticatedPage
+      .locator('[data-testid="plant-modal-tab-guides"]')
+      .click();
+
+    await expect(
+      authenticatedPage.locator('[data-testid="guides-empty-state"]'),
+    ).toBeVisible({ timeout: 8000 });
+  });
+});

@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
-import { X, Droplets, Calendar, Database, Loader2, RefreshCw } from "lucide-react";
+import { X, Droplets, Calendar, Database, Loader2, RefreshCw, BookOpen } from "lucide-react";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantScheduleTab from "./PlantScheduleTab";
+import PlantGuidesTab from "./PlantGuidesTab";
 import { PerenualService } from "../lib/perenualService";
 import toast from "react-hot-toast";
 
@@ -37,6 +38,7 @@ export default function PlantEditModal({
   const tabs = [
     { id: "care", label: "Care Guide", icon: Droplets },
     { id: "schedules", label: "Automations", icon: Calendar },
+    { id: "guides", label: "Guides", icon: BookOpen },
   ];
 
   // 🧠 LIVE AI SYNC: Update the AI on the Master Plant Template being viewed/edited
@@ -151,6 +153,7 @@ export default function PlantEditModal({
           {tabs.map((tab) => (
             <button
               key={tab.id}
+              data-testid={`plant-modal-tab-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
               className={`flex items-center gap-2 px-6 py-5 text-xs font-black uppercase tracking-widest transition-all border-b-4 ${
                 activeTab === tab.id
@@ -202,9 +205,16 @@ export default function PlantEditModal({
                 isReadOnly={plant.source === "api"}
               />
             </div>
-          ) : (
+          ) : activeTab === "schedules" ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
               <PlantScheduleTab homeId={homeId} plant={fullPlantData} />
+            </div>
+          ) : (
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <PlantGuidesTab
+                plantId={plant.id}
+                commonName={plant.common_name}
+              />
             </div>
           )}
         </div>
