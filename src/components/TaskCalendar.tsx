@@ -41,6 +41,7 @@ const TASK_TYPE_DOT: Record<string, string> = {
   Planting:    "bg-emerald-400",
   Harvesting:  "bg-amber-400",
   Maintenance: "bg-purple-400",
+  Pruning:     "bg-lime-400",
 };
 
 function taskDotColor(type: string, isSelected: boolean): string {

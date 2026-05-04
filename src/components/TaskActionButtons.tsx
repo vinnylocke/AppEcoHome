@@ -39,6 +39,8 @@ const getTaskIcon = (type: string) => {
       return <Droplets size={16} className="text-blue-500" />;
     case "Maintenance":
       return <Scissors size={16} className="text-orange-500" />;
+    case "Pruning":
+      return <Scissors size={16} className="text-lime-600" />;
     case "Harvesting":
       return <Wheat size={16} className="text-yellow-500" />;
     case "Planting":

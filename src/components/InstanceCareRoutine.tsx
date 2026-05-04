@@ -143,6 +143,8 @@ export default function InstanceCareRoutine({
         return <Droplets size={16} className="text-rhozly-primary" />;
       case "Maintenance":
         return <Scissors size={16} className="text-rhozly-secondary" />;
+      case "Pruning":
+        return <Scissors size={16} className="text-lime-600" />;
       case "Harvesting":
         return <Leaf size={16} className="text-rhozly-tertiary" />;
       default:
