@@ -52,7 +52,20 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shapesRef = useRef<ShapeData[]>([]);
 
+  // Manual pan state — kept in refs so pan moves don't trigger re-renders
+  const isPanningRef = useRef(false);
+  const panStartRef = useRef({ x: 0, y: 0 });
+  const lastTouchDistRef = useRef<number | null>(null);
+
+  // Refs that mirror state for use inside stable callbacks
+  const stagePosRef = useRef(stagePos);
+  const zoomRef = useRef(zoom);
+  const containerSizeRef = useRef(containerSize);
+
   useEffect(() => { shapesRef.current = shapes; }, [shapes]);
+  useEffect(() => { stagePosRef.current = stagePos; }, [stagePos]);
+  useEffect(() => { zoomRef.current = zoom; }, [zoom]);
+  useEffect(() => { containerSizeRef.current = containerSize; }, [containerSize]);
 
   // Container resize
   useEffect(() => {
@@ -184,8 +197,14 @@ export default function GardenLayoutEditor({ homeId }: Props) {
 
   const addPreset = useCallback((preset: ShapePreset) => {
     if (!layout) return;
-    const cx = layout.canvas_w_m / 2;
-    const cy = layout.canvas_h_m / 2;
+    // Place at the centre of what the user is currently looking at
+    const pos = stagePosRef.current;
+    const z = zoomRef.current;
+    const sz = containerSizeRef.current;
+    const viewCX = (sz.w / 2 - pos.x) / (z * BASE_PX);
+    const viewCY = (sz.h / 2 - pos.y) / (z * BASE_PX);
+    const cx = Math.max(0, Math.min(layout.canvas_w_m, viewCX));
+    const cy = Math.max(0, Math.min(layout.canvas_h_m, viewCY));
     const id = crypto.randomUUID();
     const base = { id, layout_id: layout.id, area_id: null, label: null, color: preset.color, rotation: 0, z_index: shapesRef.current.length, dashed: preset.dashed ?? false };
     let shape: ShapeData;
@@ -267,11 +286,71 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     triggerSave();
   }, [tool, polyPoints, layout, triggerSave]);
 
-  const handleStageMouseMove = useCallback((e: any) => {
-    if (tool !== "polygon") return;
-    const pos = stageRef.current?.getRelativePointerPosition();
-    if (pos) setPointerPos({ x: pos.x / BASE_PX, y: pos.y / BASE_PX });
+  // Manual pan — mousedown on bare stage background starts it
+  const handleStageMouseDown = useCallback((e: any) => {
+    if (e.target !== e.target.getStage()) return;
+    if (tool === "polygon") return;
+    isPanningRef.current = true;
+    panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY };
   }, [tool]);
+
+  const handleStageMouseMove = useCallback((e: any) => {
+    if (isPanningRef.current) {
+      const dx = e.evt.clientX - panStartRef.current.x;
+      const dy = e.evt.clientY - panStartRef.current.y;
+      panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY };
+      setStagePos(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+    }
+    if (tool === "polygon") {
+      const pos = stageRef.current?.getRelativePointerPosition();
+      if (pos) setPointerPos({ x: pos.x / BASE_PX, y: pos.y / BASE_PX });
+    }
+  }, [tool]);
+
+  const handleStageMouseUp = useCallback(() => {
+    isPanningRef.current = false;
+  }, []);
+
+  // Touch: single finger = pan, two fingers = pinch-zoom
+  const handleTouchStart = useCallback((e: any) => {
+    const touches = e.evt.touches;
+    if (touches.length === 1 && tool !== "polygon") {
+      isPanningRef.current = true;
+      panStartRef.current = { x: touches[0].clientX, y: touches[0].clientY };
+    }
+    if (touches.length === 2) {
+      isPanningRef.current = false;
+      lastTouchDistRef.current = Math.hypot(
+        touches[0].clientX - touches[1].clientX,
+        touches[0].clientY - touches[1].clientY
+      );
+    }
+  }, [tool]);
+
+  const handleTouchMove = useCallback((e: any) => {
+    e.evt.preventDefault();
+    const touches = e.evt.touches;
+    if (touches.length === 1 && isPanningRef.current) {
+      const dx = touches[0].clientX - panStartRef.current.x;
+      const dy = touches[0].clientY - panStartRef.current.y;
+      panStartRef.current = { x: touches[0].clientX, y: touches[0].clientY };
+      setStagePos(prev => ({ x: prev.x + dx, y: prev.y + dy }));
+    }
+    if (touches.length === 2 && lastTouchDistRef.current !== null) {
+      const dist = Math.hypot(
+        touches[0].clientX - touches[1].clientX,
+        touches[0].clientY - touches[1].clientY
+      );
+      const scale = dist / lastTouchDistRef.current;
+      lastTouchDistRef.current = dist;
+      setZoom(prev => Math.max(0.1, Math.min(5, prev * scale)));
+    }
+  }, []);
+
+  const handleTouchEnd = useCallback(() => {
+    isPanningRef.current = false;
+    lastTouchDistRef.current = null;
+  }, []);
 
   const saveSettings = async () => {
     if (!layoutId || !layout) return;
@@ -560,15 +639,19 @@ export default function GardenLayoutEditor({ homeId }: Props) {
             scaleY={zoom}
             x={stagePos.x}
             y={stagePos.y}
-            draggable={tool === "select"}
-            onDragEnd={(e: any) => setStagePos({ x: e.target.x(), y: e.target.y() })}
             onWheel={handleWheel}
             onClick={handleStageClick}
             onTap={handleStageClick}
             onDblClick={handleStageDblClick}
             onDblTap={handleStageDblClick}
+            onMouseDown={handleStageMouseDown}
             onMouseMove={handleStageMouseMove}
-            style={{ cursor: tool === "polygon" ? "crosshair" : "default" }}
+            onMouseUp={handleStageMouseUp}
+            onMouseLeave={handleStageMouseUp}
+            onTouchStart={handleTouchStart}
+            onTouchMove={handleTouchMove}
+            onTouchEnd={handleTouchEnd}
+            style={{ cursor: tool === "polygon" ? "crosshair" : "grab" }}
           >
             <GardenRuler
               canvasWm={layout.canvas_w_m}
@@ -608,8 +691,18 @@ export default function GardenLayoutEditor({ homeId }: Props) {
 
               <Transformer
                 ref={transformerRef}
-                rotateEnabled
                 keepRatio={false}
+                rotateEnabled
+                rotateAnchorOffset={24}
+                rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
+                anchorSize={10}
+                anchorCornerRadius={2}
+                anchorFill="#fff"
+                anchorStroke="#3b82f6"
+                anchorStrokeWidth={1.5}
+                borderStroke="#3b82f6"
+                borderStrokeWidth={1.5}
+                borderDash={[4, 3]}
                 boundBoxFunc={(oldBox: any, newBox: any) =>
                   newBox.width < 5 || newBox.height < 5 ? oldBox : newBox
                 }
