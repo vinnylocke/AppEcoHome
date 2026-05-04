@@ -674,24 +674,26 @@ export default function PlantDoctor({
                         label={selectedPlantName}
                       />
                       <div className="flex flex-col sm:flex-row gap-3 mt-4">
-                        <button
-                          onClick={() =>
-                            perenualEnabled
-                              ? setShowPerenualSearch(true)
-                              : toast.error(
-                                  "Perenual API access is required. Please enable it in your profile settings.",
-                                )
-                          }
-                          disabled={isUIBusy}
-                          className={`flex-1 flex items-center justify-center gap-2 py-4 px-4 border rounded-xl font-black shadow-sm transition-colors disabled:opacity-50 ${perenualEnabled ? "bg-white border-rhozly-outline/20 text-rhozly-primary hover:bg-rhozly-primary/5" : "bg-gray-50 border-gray-200 text-gray-400"}`}
-                        >
-                          {!perenualEnabled ? (
-                            <Lock size={18} />
-                          ) : (
+                        {!perenualEnabled ? (
+                          <div data-testid="perenual-search-gate" className="flex-1 bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 p-4 flex items-center justify-center gap-3">
+                            <div className="w-8 h-8 bg-rhozly-on-surface/5 rounded-xl flex items-center justify-center shrink-0">
+                              <Lock size={16} className="text-rhozly-on-surface/30" />
+                            </div>
+                            <div className="text-left">
+                              <p className="font-black text-rhozly-on-surface text-sm">Perenual Access Required</p>
+                              <p className="text-xs font-bold text-rhozly-on-surface/50">Enable Perenual in profile settings.</p>
+                            </div>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setShowPerenualSearch(true)}
+                            disabled={isUIBusy}
+                            className="flex-1 flex items-center justify-center gap-2 py-4 px-4 border rounded-xl font-black shadow-sm transition-colors disabled:opacity-50 bg-white border-rhozly-outline/20 text-rhozly-primary hover:bg-rhozly-primary/5"
+                          >
                             <Database size={18} />
-                          )}
-                          Search Global API
-                        </button>
+                            Search Global API
+                          </button>
+                        )}
 
                         <button
                           onClick={generateManualCareGuide}
@@ -771,26 +773,30 @@ export default function PlantDoctor({
                         </p>
 
                         <div className="flex flex-col sm:flex-row gap-3">
-                          <button
-                            onClick={() =>
-                              perenualEnabled
-                                ? fetchDetailedInfo("api")
-                                : toast.error(
-                                    "Perenual API access is required. Please enable it in your profile settings.",
-                                  )
-                            }
-                            disabled={isUIBusy}
-                            className={`flex-1 flex items-center justify-center gap-2 py-4 border rounded-xl font-black shadow-sm transition-colors disabled:opacity-50 ${perenualEnabled ? "bg-white border-rhozly-primary-container/20 text-rhozly-primary hover:bg-rhozly-primary-container/10" : "bg-gray-50 border-gray-200 text-gray-400"}`}
-                          >
-                            {isFetchingDetails && perenualEnabled ? (
-                              <Loader2 size={18} className="animate-spin" />
-                            ) : !perenualEnabled ? (
-                              <Lock size={18} />
-                            ) : (
-                              <Globe size={18} />
-                            )}
-                            Search Global API
-                          </button>
+                          {!perenualEnabled ? (
+                            <div data-testid="perenual-disease-gate" className="flex-1 bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 p-4 flex items-center justify-center gap-3">
+                              <div className="w-8 h-8 bg-rhozly-on-surface/5 rounded-xl flex items-center justify-center shrink-0">
+                                <Lock size={16} className="text-rhozly-on-surface/30" />
+                              </div>
+                              <div className="text-left">
+                                <p className="font-black text-rhozly-on-surface text-sm">Perenual Access Required</p>
+                                <p className="text-xs font-bold text-rhozly-on-surface/50">Enable Perenual in profile settings.</p>
+                              </div>
+                            </div>
+                          ) : (
+                            <button
+                              onClick={() => fetchDetailedInfo("api")}
+                              disabled={isUIBusy}
+                              className="flex-1 flex items-center justify-center gap-2 py-4 border rounded-xl font-black shadow-sm transition-colors disabled:opacity-50 bg-white border-rhozly-primary-container/20 text-rhozly-primary hover:bg-rhozly-primary-container/10"
+                            >
+                              {isFetchingDetails ? (
+                                <Loader2 size={18} className="animate-spin" />
+                              ) : (
+                                <Globe size={18} />
+                              )}
+                              Search Global API
+                            </button>
+                          )}
 
                           <button
                             onClick={() => fetchDetailedInfo("ai")}

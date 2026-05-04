@@ -551,7 +551,7 @@ export default function BulkSearchModal({
             />
           </div>
         ) : !isPremium ? (
-          <div className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+          <div data-testid="bulk-search-perenual-gate" className="flex-1 flex flex-col items-center justify-center p-8 text-center">
             <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mb-6 text-amber-600">
               <Lock size={32} />
             </div>

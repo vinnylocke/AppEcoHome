@@ -62,3 +62,51 @@ export async function guardAiByUser(
   }
   return null;
 }
+
+export async function guardPerenualByHome(
+  db: SupabaseClient,
+  homeId: string,
+): Promise<Response | null> {
+  const { data: member } = await db
+    .from("home_members")
+    .select("user_id")
+    .eq("home_id", homeId)
+    .eq("role", "owner")
+    .limit(1)
+    .single();
+
+  if (!member) return null;
+
+  const { data: profile } = await db
+    .from("user_profiles")
+    .select("enable_perenual")
+    .eq("uid", member.user_id)
+    .single();
+
+  if (profile && !profile.enable_perenual) {
+    return new Response(JSON.stringify({ error: "Perenual access required" }), {
+      status: 403,
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
+  return null;
+}
+
+export async function guardPerenualByUser(
+  db: SupabaseClient,
+  userId: string,
+): Promise<Response | null> {
+  const { data: profile } = await db
+    .from("user_profiles")
+    .select("enable_perenual")
+    .eq("uid", userId)
+    .single();
+
+  if (profile && !profile.enable_perenual) {
+    return new Response(JSON.stringify({ error: "Perenual access required" }), {
+      status: 403,
+      headers: { ...CORS, "Content-Type": "application/json" },
+    });
+  }
+  return null;
+}

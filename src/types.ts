@@ -4,6 +4,7 @@ export interface UserProfile {
   display_name: string | null;
   home_id: string | null;
   ai_enabled: boolean;
+  enable_perenual: boolean;
   notification_interval_hours: number;
   created_at: string;
 }

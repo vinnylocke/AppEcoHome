@@ -325,7 +325,7 @@ export default function PlantSearchModal({
   // 🚀 LOGIC FOR PREMIUM LOCK
   if (!isPremium) {
     return createPortal(
-      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
+      <div data-testid="plant-search-perenual-gate" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
         <div className="bg-rhozly-surface-lowest w-full max-w-md p-8 rounded-[3rem] shadow-2xl border border-rhozly-outline/20 text-center relative">
           <button
             onClick={onClose}

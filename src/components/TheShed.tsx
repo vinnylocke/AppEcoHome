@@ -61,7 +61,7 @@ type QueueItem = {
 
 // --- Helpers for Master Plant Creation ---
 
-export default function TheShed({ homeId, aiEnabled = false }: { homeId: string; aiEnabled?: boolean }) {
+export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = false }: { homeId: string; aiEnabled?: boolean; perenualEnabled?: boolean }) {
   const { setPageContext, preferences } = usePlantDoctor();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -85,8 +85,6 @@ export default function TheShed({ homeId, aiEnabled = false }: { homeId: string;
   );
   const [sortMode, setSortMode] = useState<"alphabetical" | "preference">("alphabetical");
   const [searchQuery, setSearchQuery] = useState("");
-  const [isPremium, setIsPremium] = useState(false);
-
   const [showBulkSearch, setShowBulkSearch] = useState(false);
   const [initialSearchTerm, setInitialSearchTerm] = useState("");
   const [initialCartItems, setInitialCartItems] = useState<any[]>([]);
@@ -130,27 +128,6 @@ export default function TheShed({ homeId, aiEnabled = false }: { homeId: string;
     isBulkProcessing,
     setPageContext,
   ]);
-
-  useEffect(() => {
-    const fetchUserProfile = async () => {
-      try {
-        const {
-          data: { user },
-        } = await supabase.auth.getUser();
-        if (user) {
-          const { data, error } = await supabase
-            .from("user_profiles")
-            .select("enable_perenual")
-            .eq("uid", user.id)
-            .single();
-          if (!error && data) setIsPremium(!!data.enable_perenual);
-        }
-      } catch (err) {
-        Logger.error("Failed to fetch user premium status", err);
-      }
-    };
-    fetchUserProfile();
-  }, []);
 
   const savePlantToDB = async (skeleton: any, fullCareData?: any) => {
     const manualId =
@@ -1045,7 +1022,7 @@ export default function TheShed({ homeId, aiEnabled = false }: { homeId: string;
             {showBulkSearch && (
               <BulkSearchModal
                 homeId={homeId}
-                isPremium={isPremium}
+                isPremium={perenualEnabled}
                 initialSearchTerm={initialSearchTerm}
                 initialCartItems={initialCartItems}
                 onClose={handleCloseModals}

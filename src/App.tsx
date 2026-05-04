@@ -736,7 +736,7 @@ function AppShell() {
                       <Route path="/shed" element={
                         profile?.home_id ? (
                           <div className="h-full animate-in fade-in duration-500">
-                            <TheShed homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} />
+                            <TheShed homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} perenualEnabled={profile.enable_perenual ?? false} />
                           </div>
                         ) : null
                       } />

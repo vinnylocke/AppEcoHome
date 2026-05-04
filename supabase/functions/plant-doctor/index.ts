@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { loadPreferences, formatPreferencesBlock } from "../_shared/preferences.ts";
-import { guardAiByHome } from "../_shared/aiGuard.ts";
+import { guardAiByHome, guardPerenualByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 
 const FN = "plant-doctor";
@@ -146,6 +146,11 @@ serve(async (req) => {
           "PERENUAL_API_KEY is missing in edge function environment.",
         );
       if (!diseaseName) throw new Error("Disease name is required.");
+
+      if (homeId) {
+        const guardErr = await guardPerenualByHome(supabase, homeId);
+        if (guardErr) return guardErr;
+      }
 
       log(FN, "perenual_lookup", { diseaseName });
       const res = await fetch(
