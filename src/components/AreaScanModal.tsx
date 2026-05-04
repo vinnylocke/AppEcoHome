@@ -369,6 +369,7 @@ export default function AreaScanModal({
                   </p>
                 </div>
               ) : (
+              <>
               <p className="text-sm text-rhozly-on-surface/60 leading-relaxed">
                 Take or upload a photo of <strong>{area.name}</strong> and our AI will identify
                 plants, flag health issues, spot pests, and suggest tasks.
@@ -393,7 +394,7 @@ export default function AreaScanModal({
                 onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])} />
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
                 onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])} />
-            </div>
+              </>
               )}
             </div>
           )}
