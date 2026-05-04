@@ -141,6 +141,23 @@ serve(async (req) => {
       .eq("id", areaId)
       .single();
 
+    // Fetch lux reading history
+    const { data: luxReadings } = await supabase
+      .from("area_lux_readings")
+      .select("lux_value, recorded_at, source")
+      .eq("area_id", areaId)
+      .order("recorded_at", { ascending: false })
+      .limit(10);
+
+    const luxContext = luxReadings?.length
+      ? `Last ${luxReadings.length} light readings:\n` +
+        luxReadings.map((r: any) =>
+          `  ${r.lux_value.toLocaleString()} lux on ${new Date(r.recorded_at).toLocaleString()} (${r.source})`
+        ).join("\n")
+      : area?.light_intensity_lux
+        ? `Light intensity: ${area.light_intensity_lux} lux (single reading, no history)`
+        : "Light level: unknown";
+
     // Fetch existing plants in this area
     const { data: existingPlants } = await supabase
       .from("inventory_items")
@@ -170,7 +187,8 @@ serve(async (req) => {
 Area: ${area?.name ?? "Unknown area"} (${isOutside ? "outdoor" : "indoor"})
 Location: ${locationName}
 Growing medium: ${area?.growing_medium ?? "unknown"}
-pH: ${area?.medium_ph ?? "unknown"}, Light intensity: ${area?.light_intensity_lux ?? "unknown"} lux
+pH: ${area?.medium_ph ?? "unknown"}
+${luxContext}
 ${existingPlantsCtx}
 ${weatherCtx ? weatherCtx + "\n" : ""}${questionsCtx ? questionsCtx + "\n" : ""}
 For every visible plant: identify it with a confidence score (0–1), assess health, note any pruning needs, and evaluate its position suitability.

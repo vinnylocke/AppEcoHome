@@ -651,7 +651,7 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | LUX-007 | Save disabled — no area selected | ❌ | Save button disabled when no location/area picked | Locations | — | ✅ Passing |
 | LUX-008 | Location dropdown populates | ✅ | Location dropdown has "Outside Garden" as option | Locations | — | ✅ Passing |
 | LUX-009 | Area dropdown populates | ✅ | After selecting location, area dropdown has "Raised Bed A" | Locations | — | ✅ Passing |
-| LUX-010 | Save reading — success | ✅ | Select location + area, click Save → success toast | Locations | — | ✅ Passing |
+| LUX-010 | Save reading — success | ✅ | Select location + area, click Save → success toast (inserts to area_lux_readings + updates denormalized column) | Locations | — | ✅ Passing |
 | LUX-011 | Nav link navigates | ✅ | Nav link → URL `/lightsensor` | Locations | — | ✅ Passing |
 
 > **Note:** Actual pixel-analysis scanning tests require camera permission + headed mode. Flag with `test.skip()` in CI.
@@ -825,6 +825,27 @@ Tests that Supabase Realtime subscriptions keep the UI in sync when rows are mut
 | STT-005 | ✅ | Issues section shows at least 1 ailment row (seeded Aphid link) | `stats-issue-item` count ≥ 1 | ✅ Passing |
 | STT-006 | ✅ | Task total count element is visible | `stats-task-total` visible | ✅ Passing |
 | STT-007 | ✅ | Empty states shown for Tomato (no yield, pruning, or ailments) | `stats-issues-none` visible; `stats-yield-count` and `stats-prune-count` not visible | ✅ Passing |
+
+---
+
+## Section 19 — Area Lux Reading History
+
+**Component:** `AreaLuxReadings.tsx` (rendered inside Area Details modal → Advanced tab)  
+**Seed dependency:** `10_lux_readings.sql` — 3 sensor readings for Raised Bed A  
+
+### Stage 1 — Add-reading form (LUX-ADV-001 – LUX-ADV-003)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| LUX-ADV-001 | ⬜ | Add-reading form renders in area advanced tab | `area-lux-add-form` visible | ⬜ Not written |
+| LUX-ADV-002 | ⬜ | Seeded readings appear in the reading list | `area-lux-reading-item` count ≥ 3 for Raised Bed A | ⬜ Not written |
+| LUX-ADV-003 | ⬜ | Adding a manual reading inserts a row | Enter lux value + click Add → new `area-lux-reading-item` visible | ⬜ Not written |
+
+### Stage 2 — Plant light reader save-to-area (LUX-ADV-004)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| LUX-ADV-004 | ⬜ | "Save to area" button visible on light reader when instance has an area | `plant-light-reader-save-to-area` visible for a planted instance | ⬜ Not written |
 
 ---
 

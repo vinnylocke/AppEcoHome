@@ -1,20 +1,22 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Beaker, Sun, Droplets, FlaskConical, Layers, Zap, CheckCircle } from "lucide-react";
+import { Beaker, Droplets, FlaskConical, Layers, Zap, CheckCircle } from "lucide-react";
 
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import AreaLuxReadings from "./AreaLuxReadings";
 
 interface AreaAdvancedFieldsProps {
   data: any;
+  homeId: string;
   onChange: (fields: any) => void;
 }
 
 interface ValidationErrors {
   medium_ph?: string;
-  light_intensity_lux?: string;
 }
 
 export default function AreaAdvancedFields({
   data,
+  homeId,
   onChange,
 }: AreaAdvancedFieldsProps) {
   const { setPageContext } = usePlantDoctor();
@@ -27,12 +29,6 @@ export default function AreaAdvancedFields({
         const num = parseFloat(value);
         if (value !== "" && (isNaN(num) || num < 0 || num > 14)) {
           return "pH must be between 0 and 14";
-        }
-      }
-      if (name === "light_intensity_lux") {
-        const num = parseFloat(value);
-        if (value !== "" && (isNaN(num) || num < 0 || num > 200000)) {
-          return "Lux must be between 0 and 200,000";
         }
       }
       return undefined;
@@ -197,36 +193,14 @@ export default function AreaAdvancedFields({
           <p className="text-xs text-rhozly-on-surface/30 ml-1">Valid range: 0 – 14</p>
         </div>
 
-        {/* 4. Lux */}
-        <div className="space-y-2">
-          <label className={labelClass}>
-            <Sun size={14} /> Peak Light (Lux)
-          </label>
-          <div className="relative">
-            <input
-              type="number"
-              min="0"
-              max="200000"
-              name="light_intensity_lux"
-              value={data.light_intensity_lux || ""}
-              onChange={handleChange}
-              placeholder="e.g. 5000"
-              aria-describedby={errors.light_intensity_lux ? "light_intensity_lux_error" : undefined}
-              className={inputClass("light_intensity_lux")}
-            />
-            {savedField === "light_intensity_lux" && !errors.light_intensity_lux && (
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-green-500">
-                <CheckCircle size={14} />
-              </span>
-            )}
-          </div>
-          {errors.light_intensity_lux && (
-            <p id="light_intensity_lux_error" className="text-xs text-red-500 ml-1 font-semibold">
-              {errors.light_intensity_lux}
-            </p>
-          )}
-          <p className="text-xs text-rhozly-on-surface/30 ml-1">Typical range: 1,000 – 100,000 lux</p>
-        </div>
+        {/* 4. Light Readings */}
+        {data.id && (
+          <AreaLuxReadings
+            areaId={data.id}
+            homeId={homeId}
+            onLatestChanged={(lux) => onChange({ ...data, light_intensity_lux: lux })}
+          />
+        )}
 
         {/* 5. Water Movement */}
         <div className="space-y-2">

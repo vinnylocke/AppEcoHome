@@ -10,9 +10,12 @@ import PlantLightReader from "./PlantLightReader";
 interface LightTabProps {
   plantId: number | null;
   plantName: string;
+  areaId?: string | null;
+  homeId?: string;
+  areaName?: string | null;
 }
 
-export default function LightTab({ plantId, plantName }: LightTabProps) {
+export default function LightTab({ plantId, plantName, areaId, homeId, areaName }: LightTabProps) {
   const [loading, setLoading] = useState(true);
   const [optimalRange, setOptimalRange] = useState<LuxRange | null>(null);
   const [showReader, setShowReader] = useState(false);
@@ -132,6 +135,9 @@ export default function LightTab({ plantId, plantName }: LightTabProps) {
           plantName={plantName}
           optimalRange={optimalRange}
           onClose={() => setShowReader(false)}
+          areaId={areaId}
+          homeId={homeId}
+          areaName={areaName}
         />
       )}
     </div>

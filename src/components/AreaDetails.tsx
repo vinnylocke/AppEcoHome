@@ -861,6 +861,7 @@ export default function AreaDetails({
                     </div>
                     <AreaAdvancedFields
                       data={areaEditData}
+                      homeId={homeId}
                       onChange={(fields) =>
                         setAreaEditData({ ...areaEditData, ...fields })
                       }

@@ -407,6 +407,16 @@ export default function PlanStaging({
         if (createError) throw createError;
         finalAreaId = newArea.id;
 
+        if (targetLux) {
+          await supabase.from("area_lux_readings").insert({
+            home_id: homeId,
+            area_id: newArea.id,
+            lux_value: targetLux,
+            recorded_at: new Date().toISOString(),
+            source: "manual",
+          });
+        }
+
         setAreas((prev) => [
           ...prev,
           {

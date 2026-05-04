@@ -1,16 +1,21 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
-import { ArrowLeft, Loader2 } from "lucide-react";
+import { ArrowLeft, Loader2, Save } from "lucide-react";
 import { LightSensor as NativeLightSensor } from "@capgo/capacitor-light-sensor";
 import {
   getLightFitness,
   type LuxRange,
 } from "../lib/plantLightUtils";
+import { supabase } from "../lib/supabase";
+import toast from "react-hot-toast";
 
 interface PlantLightReaderProps {
   plantName: string;
   optimalRange: LuxRange | null;
   onClose: () => void;
+  areaId?: string | null;
+  homeId?: string;
+  areaName?: string | null;
 }
 
 function getLightCategory(luxValue: number) {
@@ -25,9 +30,10 @@ function getLightCategory(luxValue: number) {
   return { label: "Direct Sun", color: "text-orange-500", border: "border-orange-400", bg: "bg-orange-50", banner: "bg-orange-500" };
 }
 
-export default function PlantLightReader({ plantName, optimalRange, onClose }: PlantLightReaderProps) {
+export default function PlantLightReader({ plantName, optimalRange, onClose, areaId, homeId, areaName }: PlantLightReaderProps) {
   const [lux, setLux] = useState(0);
   const [isScanning, setIsScanning] = useState(false);
+  const [isSavingToArea, setIsSavingToArea] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -120,6 +126,27 @@ export default function PlantLightReader({ plantName, optimalRange, onClose }: P
     if (animationFrameRef.current) cancelAnimationFrame(animationFrameRef.current);
     if (streamRef.current) streamRef.current.getTracks().forEach((t) => t.stop());
     setIsScanning(false);
+  };
+
+  const handleSaveToArea = async () => {
+    if (!areaId || !homeId) return;
+    setIsSavingToArea(true);
+    try {
+      const { error: insertErr } = await supabase.from("area_lux_readings").insert({
+        home_id: homeId,
+        area_id: areaId,
+        lux_value: lux,
+        recorded_at: new Date().toISOString(),
+        source: "plant",
+      });
+      if (insertErr) throw insertErr;
+      await supabase.from("areas").update({ light_intensity_lux: lux }).eq("id", areaId);
+      toast.success(`Saved ${lux.toLocaleString()} lx to ${areaName ?? "area"}`);
+    } catch {
+      toast.error("Save failed.");
+    } finally {
+      setIsSavingToArea(false);
+    }
   };
 
   useEffect(() => {
@@ -226,6 +253,21 @@ export default function PlantLightReader({ plantName, optimalRange, onClose }: P
           </p>
         )}
       </div>
+
+      {/* Save to area */}
+      {areaId && homeId && isScanning && (
+        <div className="flex justify-center px-6 pb-4">
+          <button
+            data-testid="plant-light-reader-save-to-area"
+            onClick={handleSaveToArea}
+            disabled={isSavingToArea}
+            className="flex items-center gap-2 px-5 py-2.5 bg-rhozly-primary text-white rounded-xl font-black text-xs uppercase tracking-widest hover:opacity-90 active:scale-95 transition-all disabled:opacity-50 shadow-lg"
+          >
+            {isSavingToArea ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+            Save to {areaName ?? "area"}
+          </button>
+        </div>
+      )}
 
       {/* Method indicator */}
       <div className="flex justify-center pb-10">

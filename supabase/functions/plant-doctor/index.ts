@@ -289,6 +289,25 @@ serve(async (req) => {
     }
 
     if (action === "recommend_plants") {
+      // Fetch lux reading history for this area (if an id is available on areaData)
+      let luxRecommendCtx = areaData?.light_intensity_lux
+        ? `Peak Light (Lux): ${areaData.light_intensity_lux}`
+        : "Peak Light (Lux): Unknown";
+      if (areaData?.id) {
+        const { data: luxReadings } = await supabase
+          .from("area_lux_readings")
+          .select("lux_value, recorded_at, source")
+          .eq("area_id", areaData.id)
+          .order("recorded_at", { ascending: false })
+          .limit(10);
+        if (luxReadings?.length) {
+          luxRecommendCtx = `Light history (last ${luxReadings.length} readings):\n` +
+            luxReadings.map((r: any) =>
+              `  ${r.lux_value.toLocaleString()} lux on ${new Date(r.recorded_at).toLocaleString()} (${r.source})`
+            ).join("\n");
+        }
+      }
+
       const prompt = `
         You are an expert master gardener. I need plant recommendations for a specific growing area.
         ${prefsBlock}
@@ -298,7 +317,7 @@ serve(async (req) => {
         - Growing Medium: ${areaData?.growing_medium || "Unknown"}
         - Medium Texture: ${areaData?.medium_texture || "Unknown"}
         - pH Level: ${areaData?.medium_ph || "Unknown"}
-        - Peak Light (Lux): ${areaData?.light_intensity_lux || "Unknown"}
+        - ${luxRecommendCtx}
         - Water Movement: ${areaData?.water_movement || "Unknown"}
         - Nutrient Source: ${areaData?.nutrient_source || "Unknown"}
 

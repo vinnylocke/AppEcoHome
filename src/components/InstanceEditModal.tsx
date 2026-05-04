@@ -587,6 +587,9 @@ export default function InstanceEditModal({
             <LightTab
               plantId={instance.plant_id ?? null}
               plantName={instance.plant_name}
+              areaId={instance.area_id ?? null}
+              homeId={homeId}
+              areaName={instance.area_name ?? null}
             />
           </div>
         )}

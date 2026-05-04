@@ -302,11 +302,19 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     if (!selectedAreaId) return toast.error("Select an area!");
     setIsSaving(true);
     try {
-      const { error } = await supabase
+      const { error: insertErr } = await supabase.from("area_lux_readings").insert({
+        home_id: homeId,
+        area_id: selectedAreaId,
+        lux_value: lux,
+        recorded_at: new Date().toISOString(),
+        source: "sensor",
+      });
+      if (insertErr) throw insertErr;
+      const { error: updateErr } = await supabase
         .from("areas")
         .update({ light_intensity_lux: lux })
         .eq("id", selectedAreaId);
-      if (error) throw error;
+      if (updateErr) throw updateErr;
       toast.success(`Saved ${lux.toLocaleString()} lx!`);
       setLocations((prev) =>
         prev.map((loc) => ({
