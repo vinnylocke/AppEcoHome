@@ -163,6 +163,25 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     triggerSave();
   }, [triggerSave]);
 
+  const reorder = useCallback((id: string, action: "front" | "forward" | "backward" | "back") => {
+    setShapes(prev => {
+      const idx = prev.findIndex(s => s.id === id);
+      if (idx === -1) return prev;
+      const arr = [...prev];
+      if (action === "front") {
+        arr.push(arr.splice(idx, 1)[0]);
+      } else if (action === "forward" && idx < arr.length - 1) {
+        [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+      } else if (action === "backward" && idx > 0) {
+        [arr[idx], arr[idx - 1]] = [arr[idx - 1], arr[idx]];
+      } else if (action === "back") {
+        arr.unshift(arr.splice(idx, 1)[0]);
+      }
+      return arr;
+    });
+    triggerSave();
+  }, [triggerSave]);
+
   const addPreset = useCallback((preset: ShapePreset) => {
     if (!layout) return;
     const cx = layout.canvas_w_m / 2;
@@ -629,6 +648,10 @@ export default function GardenLayoutEditor({ homeId }: Props) {
             onChange={updates => updateShape(selectedShape.id, updates)}
             onDelete={() => deleteShape(selectedShape.id)}
             onClose={() => setSelectedId(null)}
+            onBringToFront={() => reorder(selectedShape.id, "front")}
+            onBringForward={() => reorder(selectedShape.id, "forward")}
+            onSendBackward={() => reorder(selectedShape.id, "backward")}
+            onSendToBack={() => reorder(selectedShape.id, "back")}
           />
         )}
       </div>
@@ -652,6 +675,10 @@ export default function GardenLayoutEditor({ homeId }: Props) {
             onChange={updates => updateShape(selectedShape.id, updates)}
             onDelete={() => deleteShape(selectedShape.id)}
             onClose={() => setSelectedId(null)}
+            onBringToFront={() => reorder(selectedShape.id, "front")}
+            onBringForward={() => reorder(selectedShape.id, "forward")}
+            onSendBackward={() => reorder(selectedShape.id, "backward")}
+            onSendToBack={() => reorder(selectedShape.id, "back")}
           />
         </div>
       )}

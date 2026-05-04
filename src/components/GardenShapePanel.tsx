@@ -31,7 +31,9 @@ export const SHAPE_PRESETS: ShapePreset[] = [
   { id: "tree-canopy",      label: "Tree Canopy",       shapeType: "circle",  color: "#86efac", defaultR: 2, dashed: true },
   { id: "garden-boundary",  label: "Garden Boundary",   shapeType: "rect",    color: "#92400e", defaultW: 20, defaultH: 15, dashed: true },
   { id: "fence-panel",      label: "Fence Panel",       shapeType: "rect",    color: "#92400e", defaultW: 2,  defaultH: 0.15 },
+  { id: "wall",             label: "Wall",              shapeType: "rect",    color: "#78716c", defaultW: 3,  defaultH: 0.2 },
   { id: "gate",             label: "Gate",              shapeType: "rect",    color: "#d97706", defaultW: 1,  defaultH: 0.1 },
+  { id: "door",             label: "Door",              shapeType: "rect",    color: "#b45309", defaultW: 0.9, defaultH: 0.15 },
 ];
 
 interface Props {

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { Trash2, Link, Settings, X, RotateCcw } from "lucide-react";
+import { Trash2, Link, X, RotateCcw, ArrowUpToLine, ArrowUp, ArrowDown, ArrowDownToLine } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 
@@ -31,9 +31,13 @@ interface Props {
   onChange: (updated: Partial<ShapeData>) => void;
   onDelete: () => void;
   onClose: () => void;
+  onBringToFront: () => void;
+  onBringForward: () => void;
+  onSendBackward: () => void;
+  onSendToBack: () => void;
 }
 
-export default function GardenShapeProperties({ shape, homeId, onChange, onDelete, onClose }: Props) {
+export default function GardenShapeProperties({ shape, homeId, onChange, onDelete, onClose, onBringToFront, onBringForward, onSendBackward, onSendToBack }: Props) {
   const [areas, setAreas] = useState<Area[]>([]);
   const [areaSearch, setAreaSearch] = useState("");
   const [showAreaPicker, setShowAreaPicker] = useState(false);
@@ -164,6 +168,29 @@ export default function GardenShapeProperties({ shape, homeId, onChange, onDelet
             >
               <RotateCcw size={13} />
             </button>
+          </div>
+        )}
+
+        {/* Layer order */}
+        {field("Layer Order",
+          <div className="grid grid-cols-4 gap-1">
+            {[
+              { icon: <ArrowDownToLine size={13} />, label: "Back",    action: onSendToBack,   testId: "send-to-back-btn" },
+              { icon: <ArrowDown size={13} />,       label: "Back 1",  action: onSendBackward, testId: "send-backward-btn" },
+              { icon: <ArrowUp size={13} />,         label: "Fwd 1",   action: onBringForward, testId: "bring-forward-btn" },
+              { icon: <ArrowUpToLine size={13} />,   label: "Front",   action: onBringToFront, testId: "bring-to-front-btn" },
+            ].map(btn => (
+              <button
+                key={btn.testId}
+                data-testid={btn.testId}
+                onClick={btn.action}
+                title={btn.label}
+                className="flex flex-col items-center gap-0.5 py-2 rounded-xl bg-rhozly-bg border border-rhozly-outline/20 text-rhozly-on-surface/50 hover:text-rhozly-on-surface hover:border-rhozly-primary/40 transition-colors"
+              >
+                {btn.icon}
+                <span className="text-[8px] font-black uppercase tracking-wide leading-none">{btn.label}</span>
+              </button>
+            ))}
           </div>
         )}
 
