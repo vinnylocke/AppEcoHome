@@ -1,6 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import { log, error as logError } from "../_shared/logger.ts";
+import { log, warn, error as logError } from "../_shared/logger.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { loadPreferences, formatPreferencesBlock } from "../_shared/preferences.ts";
 
@@ -49,7 +49,7 @@ async function fetchAndUploadImage(
 
     return publicUrl;
   } catch (err: any) {
-    console.error("Storage Upload Error:", err.message);
+    warn(FN, "image_upload_failed", { error: err.message, url });
     return null;
   }
 }
@@ -65,7 +65,8 @@ async function getWikiImage(plantName: string) {
       const data = await res.json();
       if (data.type === "disambiguation" || !data.extract) return null;
       return data;
-    } catch (e) {
+    } catch (e: any) {
+      warn(FN, "wiki_image_fetch_failed", { term, error: e?.message });
       return null;
     }
   };

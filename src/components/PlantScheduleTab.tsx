@@ -345,8 +345,8 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         fetchSchedules();
       }
     } catch (err: any) {
-      Logger.error("Failed to auto-generate", err);
-      toast.error(`Generation failed: ${err.message}`, { id: "generate" });
+      Logger.error("Failed to auto-generate schedules", err, {}, `Generation failed: ${err.message}`);
+      toast.dismiss("generate");
     } finally {
       if (!pendingGeneratedSchedules) setSaving(false);
     }
@@ -453,7 +453,8 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
 
       toast.success("Schedules updated & synced beautifully!", { id: "sync" });
     } catch (err: any) {
-      toast.error("Sync failed: " + err.message, { id: "sync" });
+      Logger.error("Failed to sync schedules to plants", err, {}, "Sync failed: " + err.message);
+      toast.dismiss("sync");
     } finally {
       setPendingGeneratedSchedules(null);
       setSaving(false);
@@ -649,8 +650,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       closeForm();
       fetchSchedules();
     } catch (err: any) {
-      Logger.error("Failed to save schedule", err);
-      toast.error(`Failed to save: ${err.message}`);
+      Logger.error("Failed to save schedule", err, {}, `Failed to save: ${err.message}`);
     } finally {
       setSaving(false);
     }
@@ -667,7 +667,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       setSchedules(schedules.filter((s) => s.id !== id));
       toast.success("Schedule deleted");
     } catch (err: any) {
-      toast.error(`Failed to delete: ${err.message}`);
+      Logger.error("Failed to delete schedule", err, {}, `Failed to delete: ${err.message}`);
     } finally {
       setSaving(false);
       setConfirmDeleteId(null);

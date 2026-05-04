@@ -129,8 +129,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
       fetchHierarchy();
       onDataChanged?.();
     } catch (err: any) {
-      Logger.error("Failed to save new location", err);
-      toast.error("Failed to create location.");
+      Logger.error("Failed to save new location", err, {}, "Failed to create location.");
     }
   };
 
@@ -143,8 +142,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
       .eq("id", loc.id);
 
     if (error) {
-      Logger.error("Failed to rename location", error);
-      toast.error("Failed to rename location.");
+      Logger.error("Failed to rename location", error, {}, "Failed to rename location.");
       fetchHierarchy();
     } else {
       toast.success("Location renamed.");
@@ -169,8 +167,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
       .eq("id", area.id);
 
     if (error) {
-      Logger.error("Failed to update area", error);
-      toast.error("Failed to save area updates.");
+      Logger.error("Failed to update area", error, {}, "Failed to save area updates.");
       fetchHierarchy();
     } else {
       setLocations((prevLocations) =>
@@ -195,8 +192,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
       .eq("id", loc.id);
 
     if (error) {
-      Logger.error("Failed to toggle environment", error);
-      toast.error("Failed to update environment.");
+      Logger.error("Failed to toggle environment", error, {}, "Failed to update environment.");
       fetchHierarchy();
     } else {
       setLocations(
@@ -217,8 +213,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
       .insert([{ name: "New Area", location_id: locationId }]);
 
     if (error) {
-      Logger.error("Failed to add area", error);
-      toast.error("Failed to add area.");
+      Logger.error("Failed to add area", error, {}, "Failed to add area.");
     } else {
       toast.success("New area added!");
       fetchHierarchy();
@@ -240,8 +235,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
       fetchHierarchy();
       onDataChanged?.();
     } catch (error: any) {
-      Logger.error(`Failed to delete ${itemToDelete.type}`, error);
-      toast.error(`Failed to delete ${itemToDelete.type}.`);
+      Logger.error(`Failed to delete ${itemToDelete.type}`, error, { type: itemToDelete.type, id: itemToDelete.id }, `Failed to delete ${itemToDelete.type}.`);
     } finally {
       setIsDeleting(false);
       setItemToDelete(null);

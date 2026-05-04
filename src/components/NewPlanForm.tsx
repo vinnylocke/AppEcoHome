@@ -12,6 +12,7 @@ import {
   ShieldAlert,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 import { saveInitialPromptMemory } from "../lib/plannerMemory";
 import { logEvent, EVENT } from "../events/registry";
 
@@ -138,7 +139,7 @@ export default function NewPlanForm({
       toast.success("Project Generated Successfully!", { id: toastId });
       onSuccess();
     } catch (err: any) {
-      console.error(err);
+      Logger.error("Failed to generate landscape plan", err, {});
       toast.error(
         (t) => (
           <span className="flex items-center gap-3">

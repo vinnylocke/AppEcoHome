@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 import { getQuestionsToAsk } from "../lib/scanQuestions";
 import type { ScanQuestion } from "../lib/scanQuestions";
 import { logEvent, EVENT } from "../events/registry";
@@ -311,8 +312,8 @@ export default function AreaScanModal({
         urgency: suggestion.urgency,
       });
       setTaskStates((prev) => ({ ...prev, [idx]: "accepted" }));
-    } catch {
-      toast.error("Could not create task.");
+    } catch (err) {
+      Logger.error("Failed to create task from scan", err, {}, "Could not create task.");
     } finally {
       setSavingTask(null);
     }
@@ -857,8 +858,8 @@ function LinkAilmentFromScan({
       });
       setLinked(true);
       toast.success(`${pest.name} linked to watchlist.`);
-    } catch {
-      toast.error("Could not link ailment.");
+    } catch (err) {
+      Logger.error("Failed to link ailment to watchlist", err, {}, "Could not link ailment.");
     } finally {
       setLinking(false);
     }

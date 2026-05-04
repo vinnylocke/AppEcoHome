@@ -336,7 +336,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
           errorMsg.includes("Please Upg")
         ) {
           errorMsg = "Perenual API limit reached (Premium required).";
-          toast.error(`API limit reached — ${item.name} could not be imported.`);
+          Logger.error("Perenual API limit reached during bulk import", err, { itemName: item.name }, `API limit reached — ${item.name} could not be imported.`);
         }
         setBulkQueue((prev) =>
           prev.map((q) =>
@@ -409,7 +409,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
       }
       refreshShed(); // 🚀 BACKGROUND SYNC
     } catch (err: any) {
-      toast.error(`Failed to update status: ${err.message}`);
+      Logger.error("Failed to update plant archive status", err, {}, `Failed to update status: ${err.message}`);
     } finally {
       setActionLoading(false);
       setConfirmState({ isOpen: false, type: "delete", plant: null });
@@ -438,7 +438,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
       setConfirmState({ isOpen: false, type: "delete", plant: null });
       refreshShed(); // 🚀 BACKGROUND SYNC
     } catch (err: any) {
-      toast.error(`Failed to delete: ${err.message}`);
+      Logger.error("Failed to delete plant from shed", err, {}, `Failed to delete: ${err.message}`);
     } finally {
       setActionLoading(false);
     }
@@ -467,7 +467,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
       handleCloseModals();
       refreshShed(); // 🚀 BACKGROUND SYNC
     } catch (err: any) {
-      toast.error(`Failed to save: ${err.message}`);
+      Logger.error("Failed to save plant to shed", err, {}, `Failed to save: ${err.message}`);
     } finally {
       setActionLoading(false);
     }
@@ -486,7 +486,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
       setEditingPlant(updatedData);
       refreshShed(); // 🚀 BACKGROUND SYNC
     } catch (err: any) {
-      toast.error(`Update failed: ${err.message}`);
+      Logger.error("Failed to update plant in shed", err, {}, `Update failed: ${err.message}`);
     } finally {
       setActionLoading(false);
     }
@@ -570,7 +570,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
 
       return insertedItems;
     } catch (err: any) {
-      toast.error(`Assignment failed: ${err.message}`);
+      Logger.error("Failed to assign plant to area", err, {}, `Assignment failed: ${err.message}`);
       return null;
     } finally {
       setActionLoading(false);

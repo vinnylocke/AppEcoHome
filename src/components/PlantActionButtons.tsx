@@ -3,6 +3,7 @@ import { useNavigate, useLocation } from "react-router-dom";
 import { Check, Sparkles, Database, Loader2 } from "lucide-react";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 
 interface PlantActionProps {
   plant?: { name: string; search_query: string };
@@ -41,8 +42,7 @@ export const PlantActionButtons = ({
       );
       navigate("/shed", { state: { autoImport: selectedRecs, source, returnTo: location.pathname + location.search } });
     } catch (err) {
-      console.error("Import failed:", err);
-      toast.error("Something went wrong. Please try again.");
+      Logger.error("Plant import to shed failed", err, {}, "Something went wrong. Please try again.");
     } finally {
       setIsImporting(false);
     }

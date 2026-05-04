@@ -15,6 +15,7 @@ import {
   CloudSun,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { AutomationEngine } from "../lib/automationEngine"; // 🚀 IMPORT THE ENGINE
@@ -221,8 +222,7 @@ export default function PlantAssignmentModal({
 
       toast.success("AI generated a fresh planting schedule!");
     } catch (error: any) {
-      console.error("AI Schedule Error:", error);
-      toast.error(`Failed: ${error.message}`);
+      Logger.error("AI schedule generation failed", error, {}, `Failed: ${error.message}`);
     } finally {
       setIsAiLoading(false);
     }
@@ -269,7 +269,7 @@ export default function PlantAssignmentModal({
       });
       toast.success(`${plant.common_name} assigned successfully!`);
     } catch (e: any) {
-      console.error(e);
+      Logger.error("Plant assignment failed", e, {});
       const message = e?.message || "Something went wrong. Please try again.";
       toast.error(message, {
         duration: 6000,

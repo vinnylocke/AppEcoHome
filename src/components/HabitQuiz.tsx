@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { CheckCircle2, ChevronRight, Leaf } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 
 interface QuizOption {
   label: string;
@@ -282,8 +283,7 @@ export default function HabitQuiz({ homeId, userId, onComplete }: Props) {
 
       setDone(true);
     } catch (err: any) {
-      toast.error("Something went wrong saving your answers. Please try again.");
-      console.error(err);
+      Logger.error("Failed to save habit quiz answers", err, {}, "Something went wrong saving your answers. Please try again.");
     } finally {
       setSaving(false);
     }

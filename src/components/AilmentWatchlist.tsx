@@ -6,6 +6,7 @@ import {
   CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
 import { PerenualService } from "../lib/perenualService";
 import SmartImage from "./SmartImage";
@@ -225,7 +226,7 @@ function AilmentDetailModal({
     setDeleting(true);
     const { error } = await supabase.from("ailments").delete().eq("id", ailment.id);
     if (error) {
-      toast.error("Could not delete ailment.");
+      Logger.error("Failed to delete ailment", error, { ailmentId: ailment.id }, "Could not delete ailment.");
       setDeleting(false);
     } else {
       onDelete(ailment.id);
@@ -624,7 +625,7 @@ function AddAilmentModal({
       setExpandedAiId(null);
       if (results.length === 0) toast.error("No results found. Try a different search.");
     } catch (err: any) {
-      toast.error(err.message || "AI search failed.");
+      Logger.error("AI ailment search failed", err, { homeId, query: aiQuery }, err.message || "AI search failed.");
     } finally {
       setAiSearchLoading(false);
     }
@@ -655,7 +656,7 @@ function AddAilmentModal({
       onSaved(data as Ailment);
       onClose();
     } catch (err: any) {
-      toast.error(err.message || "Save failed.");
+      Logger.error("Failed to save ailment", err, { homeId }, err.message || "Save failed.");
     } finally {
       setSaving(false);
     }
@@ -729,7 +730,7 @@ function AddAilmentModal({
       toast.success(`Added ${data.length} ailment${data.length !== 1 ? "s" : ""} to watchlist.`);
       onClose();
     } catch (err: any) {
-      toast.error(err.message || "Save failed.");
+      Logger.error("Failed to bulk save ailments", err, { homeId }, err.message || "Save failed.");
     } finally {
       setSaving(false);
     }
@@ -1405,7 +1406,7 @@ export default function AilmentWatchlist({ homeId }: { homeId: string }) {
       .eq("home_id", homeId)
       .order("created_at", { ascending: false });
     if (error) {
-      toast.error("Could not load watchlist.");
+      Logger.error("Failed to load ailment watchlist", error, { homeId }, "Could not load watchlist.");
     } else {
       setAilments((data || []) as Ailment[]);
     }

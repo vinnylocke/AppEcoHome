@@ -12,6 +12,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 
 interface Pref {
   id: string;
@@ -132,8 +133,8 @@ export default function GardenProfile({
       setQuizDone(false);
       setTab("quiz");
       toast.success("Garden profile reset.");
-    } catch {
-      toast.error("Something went wrong.");
+    } catch (err) {
+      Logger.error("Failed to reset garden profile", err, {}, "Something went wrong.");
     } finally {
       setResetting(false);
     }

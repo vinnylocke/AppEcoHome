@@ -60,6 +60,7 @@ import { PlantDoctorProvider } from "./context/PlantDoctorContext";
 import { HomeRealtimeProvider } from "./context/HomeRealtimeContext";
 import { useHomeRealtime } from "./hooks/useHomeRealtime";
 import PlantDoctorChat from "./components/PlantDoctorChat";
+import ErrorPage from "./components/ErrorPage";
 import GardenProfile from "./components/GardenProfile";
 import AilmentWatchlist from "./components/AilmentWatchlist";
 import AssistantCard from "./components/AssistantCard";
@@ -368,8 +369,8 @@ function AppShell() {
     const id = setInterval(() => {
       try {
         setWeather(extractCurrentWeather(rawWeather));
-      } catch {
-        // ignore parse errors on tick
+      } catch (e: any) {
+        Logger.error("Weather extraction failed on interval tick", e);
       }
     }, 60 * 60 * 1000);
     return () => clearInterval(id);
@@ -458,7 +459,7 @@ function AppShell() {
         onProfileRefresh={handleProfileRealtime}
       />
     <PlantDoctorProvider homeId={profile?.home_id || ""}>
-      <Sentry.ErrorBoundary fallback={<p>An unexpected error occurred.</p>}>
+      <Sentry.ErrorBoundary fallback={({ error }) => <ErrorPage error={error instanceof Error ? error : undefined} />}>
           <Toaster />
           <div className="min-h-screen bg-rhozly-bg text-rhozly-on-surface font-body flex flex-col relative selection:bg-rhozly-primary/20">
             <div className="fixed top-0 left-1/4 w-96 h-96 bg-rhozly-primary/5 rounded-full blur-3xl pointer-events-none" />

@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 import InstanceCareRoutine from "./InstanceCareRoutine";
 import PlantJournalTab from "./PlantJournalTab";
 import ManualPlantCreation from "./ManualPlantCreation";
@@ -143,8 +144,7 @@ export default function InstanceEditModal({
             setCareGuideData(plantRecord);
           }
         } catch (err) {
-          console.error("Failed to load care guide", err);
-          toast.error("Failed to load master care guide.");
+          Logger.error("Failed to load care guide", err, {}, "Failed to load master care guide.");
         } finally {
           setLoadingCareGuide(false);
         }

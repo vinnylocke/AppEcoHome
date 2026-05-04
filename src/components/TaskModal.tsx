@@ -25,6 +25,7 @@ import {
   CloudRain,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 import { formatDisplayDate } from "../lib/dateUtils";
 
 interface TaskModalProps {
@@ -145,8 +146,7 @@ export default function TaskModal({
         setBlocking(blockingTasks || []);
       } else setBlocking([]);
     } catch (e) {
-      console.error(e);
-      toast.error("Failed to load task dependencies.");
+      Logger.error("Failed to load task dependencies", e, { taskId: targetTask.id }, "Failed to load task dependencies.");
     } finally {
       setIsDependenciesLoading(false);
     }
@@ -241,7 +241,7 @@ export default function TaskModal({
         if (error) throw error;
         setDepSearchResults(data || []);
       } catch (e) {
-        console.error("Dependency Search Error:", e);
+        Logger.error("Dependency search failed", e, { homeId, taskId: task.id });
       } finally {
         setIsSearchingDeps(false);
       }
@@ -296,7 +296,7 @@ export default function TaskModal({
       resetLinkBuilder();
       onTasksUpdated();
     } catch (e) {
-      toast.error("Failed to link task.");
+      Logger.error("Failed to link task dependency", e, { homeId, taskId: task.id, linkTaskId }, "Failed to link task.");
     } finally {
       setIsDependenciesLoading(false);
     }
@@ -318,7 +318,7 @@ export default function TaskModal({
       loadDependencies(task);
       onTasksUpdated();
     } catch (e) {
-      toast.error("Failed to remove dependency.");
+      Logger.error("Failed to remove task dependency", e, { taskId, dependsOnId }, "Failed to remove dependency.");
     } finally {
       setIsDependenciesLoading(false);
     }
@@ -344,7 +344,7 @@ export default function TaskModal({
       onTasksUpdated();
       setTimeout(onClose, 800);
     } catch (e) {
-      toast.error("Failed to update instances.");
+      Logger.error("Failed to update task plant instances", e, { taskId: task.id }, "Failed to update instances.");
     } finally {
       setIsSavingInstances(false);
     }
@@ -380,7 +380,7 @@ export default function TaskModal({
       onTasksUpdated();
       setTimeout(onClose, 800);
     } catch (e) {
-      toast.error("Failed to save task details.");
+      Logger.error("Failed to save task details", e, { taskId: task.id }, "Failed to save task details.");
     } finally {
       setIsSavingDetails(false);
     }

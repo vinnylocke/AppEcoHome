@@ -151,7 +151,7 @@ export default function PlantDoctor({
         .eq("status", "Planted");
 
       if (error) {
-        toast.error("Could not load your shed — please refresh and try again.");
+        Logger.error("Failed to fetch inventory", error, { homeId }, "Could not load your shed — please refresh and try again.");
         return;
       }
       if (!data) return;
@@ -238,8 +238,8 @@ export default function PlantDoctor({
       setSelectedDisease(null);
       setSickInventoryId(null);
       setSaveToJournal(true);
-    } catch (error) {
-      toast.error("Failed to load image.");
+    } catch (error: any) {
+      Logger.error("Failed to load image file", error, {}, "Failed to load image.");
     }
   };
 
@@ -305,7 +305,7 @@ export default function PlantDoctor({
         `Successfully ${action === "identify" ? "identified" : "diagnosed"}!`,
       );
     } catch (error: any) {
-      toast.error(error.message || "Failed to analyze plant.");
+      Logger.error("Plant AI analysis failed", error, { homeId, action }, error.message || "Failed to analyze plant.");
     } finally {
       setIsProcessing(false);
     }
@@ -331,7 +331,7 @@ export default function PlantDoctor({
       setAiResult((prev) => ({ ...prev, diseaseInfo: data.diseaseInfo }));
       toast.success("Detailed report loaded.");
     } catch (err: any) {
-      toast.error(err.message || "Failed to fetch details.");
+      Logger.error("Failed to fetch disease details", err, { diseaseName: selectedDisease, type }, err.message || "Failed to fetch details.");
     } finally {
       setIsFetchingDetails(false);
     }
@@ -346,7 +346,7 @@ export default function PlantDoctor({
       setAiResult((prev) => ({ ...prev, plantData: data.plantData }));
       setShowManualAdd(true);
     } catch (error: any) {
-      toast.error("Failed to generate care guide automatically.");
+      Logger.error("Failed to generate care guide", error, { plantName: selectedPlantName, homeId }, "Failed to generate care guide automatically.");
     } finally {
       setIsGeneratingGuide(false);
     }
@@ -378,7 +378,7 @@ export default function PlantDoctor({
       }));
       toast.success("Treatment plan generated!");
     } catch (error: any) {
-      toast.error("Failed to generate treatment plan.");
+      Logger.error("Failed to generate treatment plan", error, { homeId, sickInventoryId, selectedDisease }, "Failed to generate treatment plan.");
     } finally {
       setIsGeneratingTreatment(false);
     }
@@ -429,7 +429,7 @@ export default function PlantDoctor({
       setShowManualAdd(false);
       clearImage();
     } catch (error: any) {
-      toast.error("Failed to save plant.");
+      Logger.error("Failed to save manual plant", error, { homeId }, "Failed to save plant.");
     } finally {
       setIsProcessing(false);
     }

@@ -8,6 +8,7 @@ import {
 } from "../lib/plantLightUtils";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 
 interface PlantLightReaderProps {
   plantName: string;
@@ -142,8 +143,8 @@ export default function PlantLightReader({ plantName, optimalRange, onClose, are
       if (insertErr) throw insertErr;
       await supabase.from("areas").update({ light_intensity_lux: lux }).eq("id", areaId);
       toast.success(`Saved ${lux.toLocaleString()} lx to ${areaName ?? "area"}`);
-    } catch {
-      toast.error("Save failed.");
+    } catch (err) {
+      Logger.error("Failed to save light reading to area", err, {}, "Save failed.");
     } finally {
       setIsSavingToArea(false);
     }

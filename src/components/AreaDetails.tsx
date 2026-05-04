@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 import AreaAdvancedFields from "./AreaAdvancedFields";
 import InstanceEditModal from "./InstanceEditModal";
 import BulkConfigModal from "./BulkConfigModal";
@@ -122,7 +123,7 @@ export default function AreaDetails({
       setPlants(data || []);
     } catch (error: any) {
       setFetchError(true);
-      toast.error("Could not load plants.");
+      Logger.error("Failed to load area plants", error, {}, "Could not load plants.");
     } finally {
       setLoading(false);
     }
@@ -198,7 +199,8 @@ export default function AreaDetails({
       fetchPlants();
       if (onTasksUpdated) onTasksUpdated();
     } catch (e: any) {
-      toast.error("Bulk action failed.", { id: toastId });
+      Logger.error("Bulk action failed in area details", e, {}, "Bulk action failed.");
+      toast.dismiss(toastId);
     } finally {
       setIsBulkProcessing(false);
     }
@@ -249,7 +251,8 @@ export default function AreaDetails({
       if (payload.area_id && payload.area_id !== area.id && onAreaUpdated)
         onAreaUpdated();
     } catch (e) {
-      toast.error("Failed to update plants.", { id: toastId });
+      Logger.error("Failed to update plants in area details", e, {}, "Failed to update plants.");
+      toast.dismiss(toastId);
     } finally {
       setIsBulkProcessing(false);
     }
@@ -291,7 +294,7 @@ export default function AreaDetails({
       fetchPlants();
       if (onTasksUpdated) onTasksUpdated();
     } catch (err: any) {
-      toast.error("Action failed: " + err.message);
+      Logger.error("Area action failed", err, {}, "Action failed: " + err.message);
     }
   };
 
@@ -333,7 +336,7 @@ export default function AreaDetails({
         toast.success("AI found some perfect companion matches!");
       }
     } catch (err: any) {
-      toast.error("Could not generate recommendations.");
+      Logger.error("Failed to generate area plant recommendations", err, {}, "Could not generate recommendations.");
     } finally {
       setIsGettingRecs(false);
     }
@@ -353,7 +356,7 @@ export default function AreaDetails({
       setIsEditingArea(false);
       if (onAreaUpdated) onAreaUpdated();
     } catch (error: any) {
-      toast.error("Failed to save changes.");
+      Logger.error("Failed to save area changes", error, {}, "Failed to save changes.");
     } finally {
       setSavingArea(false);
     }

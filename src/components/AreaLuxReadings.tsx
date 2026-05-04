@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Sun, Plus, Loader2, Pencil, Trash2, Check, X } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 
 interface LuxReading {
   id: string;
@@ -108,8 +109,8 @@ export default function AreaLuxReadings({ areaId, homeId, onLatestChanged }: Pro
         await supabase.from("areas").update({ light_intensity_lux: fresh[0].lux_value }).eq("id", areaId);
         onLatestChanged(fresh[0].lux_value);
       }
-    } catch {
-      toast.error("Failed to add reading");
+    } catch (err) {
+      Logger.error("Failed to add lux reading", err, { areaId }, "Failed to add reading");
     } finally {
       setSaving(false);
     }
@@ -158,8 +159,8 @@ export default function AreaLuxReadings({ areaId, homeId, onLatestChanged }: Pro
         await supabase.from("areas").update({ light_intensity_lux: fresh[0].lux_value }).eq("id", areaId);
         onLatestChanged(fresh[0].lux_value);
       }
-    } catch {
-      toast.error("Failed to update reading");
+    } catch (err) {
+      Logger.error("Failed to update lux reading", err, { areaId, readingId: r.id }, "Failed to update reading");
     } finally {
       setEditSaving(false);
     }
@@ -182,8 +183,8 @@ export default function AreaLuxReadings({ areaId, homeId, onLatestChanged }: Pro
       const newLux = fresh?.[0]?.lux_value ?? null;
       await supabase.from("areas").update({ light_intensity_lux: newLux }).eq("id", areaId);
       if (newLux !== null) onLatestChanged(newLux);
-    } catch {
-      toast.error("Failed to delete reading");
+    } catch (err) {
+      Logger.error("Failed to delete lux reading", err, { areaId, readingId: r.id }, "Failed to delete reading");
     } finally {
       setDeletingId(null);
     }

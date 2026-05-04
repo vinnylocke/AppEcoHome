@@ -11,6 +11,7 @@ import {
 import YieldPredictionCard from "./YieldPredictionCard";
 import type { YieldRecord, YieldPrediction } from "../types";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 
 const UNIT_OPTIONS = ["g", "kg", "lbs", "oz", "items", "bunches", "Other…"] as const;
 
@@ -54,7 +55,7 @@ export default function YieldTab({
     setLoadingRecords(true);
     fetchYieldRecords(instanceId)
       .then((data) => { if (!cancelled) setRecords(data); })
-      .catch(() => { if (!cancelled) toast.error("Failed to load yield history."); })
+      .catch((err) => { if (!cancelled) Logger.error("Failed to load yield history", err, {}, "Failed to load yield history."); })
       .finally(() => { if (!cancelled) setLoadingRecords(false); });
     return () => { cancelled = true; };
   }, [instanceId]);
@@ -81,8 +82,8 @@ export default function YieldTab({
       setValue("");
       setNotes("");
       toast.success("Yield logged.");
-    } catch {
-      toast.error("Failed to log yield.");
+    } catch (err) {
+      Logger.error("Failed to log yield", err, {}, "Failed to log yield.");
     } finally {
       setSubmitting(false);
     }
@@ -92,8 +93,8 @@ export default function YieldTab({
     try {
       await deleteYieldRecord(id);
       setRecords((prev) => prev.filter((r) => r.id !== id));
-    } catch {
-      toast.error("Failed to delete record.");
+    } catch (err) {
+      Logger.error("Failed to delete yield record", err, {}, "Failed to delete record.");
     }
   };
 
@@ -101,8 +102,8 @@ export default function YieldTab({
     setSavingHarvestDate(true);
     try {
       await updateExpectedHarvestDate(instanceId, expectedHarvestDate || null);
-    } catch {
-      toast.error("Failed to save harvest date.");
+    } catch (err) {
+      Logger.error("Failed to save harvest date", err, {}, "Failed to save harvest date.");
     } finally {
       setSavingHarvestDate(false);
     }
@@ -118,8 +119,7 @@ export default function YieldTab({
       if (error) throw error;
       setPrediction(data as YieldPrediction);
     } catch (err: any) {
-      console.error("[predict-yield] error:", err?.message ?? err);
-      toast.error("Failed to get yield prediction. Please try again.");
+      Logger.error("Failed to get yield prediction", err, {}, "Failed to get yield prediction. Please try again.");
     } finally {
       setPredicting(false);
     }

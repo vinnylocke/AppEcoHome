@@ -16,6 +16,7 @@ import {
   Sprout,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 import { ConfirmModal } from "./ConfirmModal";
 
 // 🧠 IMPORT THE AI CONTEXT
@@ -94,7 +95,7 @@ export default function InstanceCareRoutine({
       if (error) throw error;
       setBlueprints(data || []);
     } catch (error) {
-      toast.error("Failed to load care routine.");
+      Logger.error("Failed to load care routine", error, {}, "Failed to load care routine.");
     } finally {
       setIsLoading(false);
     }
@@ -212,9 +213,8 @@ export default function InstanceCareRoutine({
         if (onRoutineUpdated) onRoutineUpdated();
       }, 600);
     } catch (error) {
-      // Rollback on error
       setBlueprints(previousBlueprints);
-      toast.error("Failed to update routine.");
+      Logger.error("Failed to update care routine", error, {}, "Failed to update routine.");
     }
   };
 
@@ -243,7 +243,7 @@ export default function InstanceCareRoutine({
 
       if (onRoutineUpdated) onRoutineUpdated();
     } catch (error: any) {
-      toast.error("Failed to delete routine.");
+      Logger.error("Failed to delete care routine", error, {}, "Failed to delete routine.");
     } finally {
       setIsDeleting(false);
       setRoutineToDelete(null);
@@ -351,7 +351,6 @@ export default function InstanceCareRoutine({
         if (onRoutineUpdated) onRoutineUpdated();
       }, 600);
     } catch (error) {
-      // Rollback on error
       setBlueprints(previousBlueprints);
       setIsAdding(true);
       setNewRoutine({
@@ -363,7 +362,7 @@ export default function InstanceCareRoutine({
         start_date: optimisticRoutine.start_date,
         end_date: optimisticRoutine.end_date || "",
       });
-      toast.error("Failed to create routine.");
+      Logger.error("Failed to create care routine", error, {}, "Failed to create routine.");
     } finally {
       setIsSavingNew(false);
     }

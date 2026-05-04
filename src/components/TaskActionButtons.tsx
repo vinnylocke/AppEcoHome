@@ -15,6 +15,7 @@ import {
   Repeat,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 
 interface SuggestedTask {
   title: string;
@@ -167,16 +168,15 @@ export const TaskActionButtons = ({
           .from("task_dependencies")
           .insert(dependenciesToInsert);
         if (depError) {
-          console.error("Failed to link task dependencies", depError);
-          toast.error("Some task links could not be saved.");
+          Logger.error("Failed to link task dependencies", depError, {}, "Some task links could not be saved.");
         }
       }
 
       toast.success("Tasks added to your calendar!", { id: toastId });
       if (onSuccess) onSuccess();
     } catch (error: any) {
-      console.error(error);
-      toast.error("Failed to save some tasks.", { id: toastId });
+      Logger.error("Failed to save tasks to calendar", error, {}, "Failed to save some tasks.");
+      toast.dismiss(toastId);
     } finally {
       setIsProcessing(false);
     }

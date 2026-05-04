@@ -21,6 +21,7 @@ import {
   Plus,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 import { ConfirmModal } from "./ConfirmModal";
 import { saveMemoryEvent } from "../lib/plannerMemory";
 import { logEvent, EVENT } from "../events/registry";
@@ -223,8 +224,7 @@ export default function PlanStaging({
     try {
       await confirmState.onConfirm();
     } catch (err: any) {
-      console.error(err);
-      toast.error(err.message || "Action failed.");
+      Logger.error("Confirm action failed in plan staging", err, { planId: plan.id }, err.message || "Action failed.");
     } finally {
       setIsProcessing(false);
       setConfirmState(null);
@@ -306,7 +306,8 @@ export default function PlanStaging({
       setRegenFeedback("");
       onPlanUpdated();
     } catch (err: any) {
-      toast.error(err.message || "Failed to regenerate.", { id: toastId });
+      Logger.error("Failed to regenerate landscape plan", err, { homeId, planId: plan.id }, err.message || "Failed to regenerate.");
+      toast.dismiss(toastId);
     } finally {
       setIsRegenerating(false);
     }
@@ -434,7 +435,8 @@ export default function PlanStaging({
       await saveStagingState({ linked_area_id: finalAreaId });
       toast.success("Area confirmed!", { id: toastId });
     } catch (err: any) {
-      toast.error(err.message || "Failed to secure area.", { id: toastId });
+      Logger.error("Failed to confirm area in plan staging", err, { homeId, planId: plan.id }, err.message || "Failed to secure area.");
+      toast.dismiss(toastId);
       setLocalStagingState(plan.staging_state || {});
     } finally {
       setIsProcessing(false);
@@ -579,7 +581,8 @@ export default function PlanStaging({
       setTimeout(() => setShowSuccessFeedback(false), 2000);
       toast.success("Inventory staged successfully!", { id: toastId });
     } catch (err: any) {
-      toast.error(err.message || "Failed to stage inventory.", { id: toastId });
+      Logger.error("Failed to bulk assign plants in plan staging", err, { homeId, planId: plan.id }, err.message || "Failed to stage inventory.");
+      toast.dismiss(toastId);
     } finally {
       setIsProcessing(false);
     }
@@ -646,7 +649,8 @@ export default function PlanStaging({
       setTimeout(() => setShowSuccessFeedback(false), 2000);
       toast.success("Tasks scheduled and linked!", { id: toastId });
     } catch (err) {
-      toast.error("Failed to inject tasks.", { id: toastId });
+      Logger.error("Failed to inject plan tasks", err, { homeId, planId: plan.id }, "Failed to inject tasks.");
+      toast.dismiss(toastId);
     } finally {
       setIsProcessing(false);
     }
@@ -694,7 +698,8 @@ export default function PlanStaging({
       setTimeout(() => setShowSuccessFeedback(false), 2000);
       toast.success("Project Complete! Maintenance automated.", { id: toastId });
     } catch (err) {
-      toast.error("Failed to activate blueprints.", { id: toastId });
+      Logger.error("Failed to activate maintenance blueprints", err, { homeId, planId: plan.id }, "Failed to activate blueprints.");
+      toast.dismiss(toastId);
     } finally {
       setIsProcessing(false);
     }

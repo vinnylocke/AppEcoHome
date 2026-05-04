@@ -15,6 +15,7 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 import { logEvent, EVENT } from "../events/registry";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
 import NewPlanForm from "./NewPlanForm";
@@ -58,8 +59,7 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
       .order("created_at", { ascending: false });
 
     if (error) {
-      toast.error("Failed to load plans.");
-      console.error(error);
+      Logger.error("Failed to load plans", error, {}, "Failed to load plans.");
     } else {
       setPlans(data || []);
     }
@@ -164,8 +164,7 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
             ? "archive this plan"
             : "restore this plan";
       setCardFeedback(plan.id, "error");
-      toast.error(`Could not ${label}. Please try again.`);
-      console.error(err);
+      Logger.error(`Failed to ${label}`, err, {}, `Could not ${label}. Please try again.`);
     } finally {
       setIsProcessingAction(false);
     }

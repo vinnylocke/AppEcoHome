@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, Trash2, Images, Loader2, ChevronLeft, ChevronRight, Maximize2 } from "lucide-react";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
 
 interface Capture {
@@ -61,8 +62,7 @@ export default function CaptureGallery({ homeId, onClose }: Props) {
 
       setCaptures(withUrls);
     } catch (err) {
-      console.error("[CaptureGallery] Load error:", err);
-      toast.error("Could not load captures.");
+      Logger.error("Failed to load captures", err, {}, "Could not load captures.");
     } finally {
       setIsLoading(false);
     }
@@ -96,8 +96,7 @@ export default function CaptureGallery({ homeId, onClose }: Props) {
         return next;
       });
     } catch (err) {
-      console.error("[CaptureGallery] Delete error:", err);
-      toast.error("Could not delete capture.");
+      Logger.error("Failed to delete capture", err, {}, "Could not delete capture.");
     } finally {
       setDeleting(prev => {
         const next = new Set(prev);

@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { X, Camera, Trash2, AlertCircle, Loader2, Sparkles, CheckCircle2, TriangleAlert, CircleX } from "lucide-react";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -513,8 +514,7 @@ export default function PlantCameraView({ plants, sprites, homeId, onClose, onCa
       toast.success("Captured! View in your gallery.");
       onCapture?.(path);
     } catch (err: any) {
-      console.error("[PlantCameraView] Capture error:", err);
-      toast.error("Capture failed. Please try again.");
+      Logger.error("Plant camera capture failed", err, {}, "Capture failed. Please try again.");
     } finally {
       setIsCapturing(false);
     }
@@ -593,8 +593,7 @@ export default function PlantCameraView({ plants, sprites, homeId, onClose, onCa
       };
       setAnalysisResult(result);
     } catch (err: any) {
-      console.error("[PlantCameraView] Analysis error:", err);
-      toast.error("Analysis failed. Please try again.");
+      Logger.error("Plant camera analysis failed", err, {}, "Analysis failed. Please try again.");
     } finally {
       setIsAnalysing(false);
     }

@@ -303,7 +303,8 @@ export default function TaskList({
       fetchTasksAndGhosts(true);
       onTaskUpdated?.();
     } catch (err) {
-      toast.error("Failed to complete tasks.", { id: toastId });
+      Logger.error("Bulk complete tasks failed", err, { homeId }, "Failed to complete tasks.");
+      toast.dismiss(toastId);
     } finally {
       setIsBulkProcessing(false);
     }
@@ -388,7 +389,8 @@ export default function TaskList({
       fetchTasksAndGhosts(true);
       onTaskUpdated?.();
     } catch (err) {
-      toast.error("Failed to postpone tasks.", { id: toastId });
+      Logger.error("Bulk postpone tasks failed", err, { homeId }, "Failed to postpone tasks.");
+      toast.dismiss(toastId);
     } finally {
       setIsBulkProcessing(false);
     }
@@ -478,7 +480,8 @@ export default function TaskList({
       fetchTasksAndGhosts(true);
       onTaskUpdated?.();
     } catch (err) {
-      toast.error("Failed to remove tasks.", { id: toastId });
+      Logger.error("Bulk delete tasks failed", err, { homeId }, "Failed to remove tasks.");
+      toast.dismiss(toastId);
     } finally {
       setIsBulkProcessing(false);
     }
@@ -547,7 +550,7 @@ export default function TaskList({
       onTaskUpdated?.();
       fetchTasksAndGhosts(true);
     } catch (err) {
-      toast.error("Failed to remove task.");
+      Logger.error("Single delete task failed", err, { homeId, taskId: taskToDelete?.id }, "Failed to remove task.");
     } finally {
       setIsUpdatingTask(null);
     }
@@ -609,7 +612,7 @@ export default function TaskList({
       onTaskUpdated?.();
       fetchTasksAndGhosts(true);
     } catch (err) {
-      toast.error("Failed to postpone task.");
+      Logger.error("Postpone task failed", err, { homeId, taskId: task.id, postponeDate }, "Failed to postpone task.");
     } finally {
       setIsUpdatingTask(null);
     }
@@ -628,7 +631,7 @@ export default function TaskList({
           return;
         }
       } catch (err) {
-        console.error("Dependency check failed", err);
+        Logger.error("Dependency check failed", err);
       }
     }
 
@@ -720,7 +723,7 @@ export default function TaskList({
       }
       onTaskUpdated?.();
     } catch (err) {
-      toast.error("Update failed.");
+      Logger.error("Toggle task completion failed", err, { homeId, taskId: task.id, newStatus }, "Update failed.");
     } finally {
       setIsUpdatingTask(null);
     }
@@ -746,7 +749,7 @@ export default function TaskList({
       fetchTasksAndGhosts(true);
       onTaskUpdated?.();
     } catch (err: any) {
-      toast.error("Failed to archive plants.");
+      Logger.error("Failed to archive plants", err, { homeId }, "Failed to archive plants.");
     } finally {
       setIsArchiving(false);
     }

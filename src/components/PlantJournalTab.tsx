@@ -13,6 +13,7 @@ import {
   Link as LinkIcon,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { Logger } from "../lib/errorHandler";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -134,8 +135,7 @@ export default function PlantJournalTab({
       if (error) throw error;
       setEntries(data || []);
     } catch (error) {
-      console.error("Failed to fetch journal entries", error);
-      toast.error("Failed to load journal.");
+      Logger.error("Failed to fetch journal entries", error, {}, "Failed to load journal.");
     } finally {
       setLoading(false);
     }
@@ -153,7 +153,7 @@ export default function PlantJournalTab({
       if (error) throw error;
       setAvailableTasks(data || []);
     } catch (error) {
-      console.error("Failed to fetch tasks for linking", error);
+      Logger.error("Failed to fetch tasks for journal linking", error);
     }
   };
 
@@ -196,7 +196,7 @@ export default function PlantJournalTab({
       setForm((prev) => ({ ...prev, image_url: publicUrl }));
       toast.success("Photo attached!");
     } catch (err: any) {
-      toast.error("Failed to attach photo.");
+      Logger.error("Failed to attach journal photo", err, {}, "Failed to attach photo.");
     } finally {
       setUploading(false);
       setUploadProgress(0);
@@ -230,7 +230,7 @@ export default function PlantJournalTab({
       setForm({ subject: "", description: "", image_url: "", task_id: "" });
       fetchEntries();
     } catch (error: any) {
-      toast.error(`Failed to save: ${error.message}`);
+      Logger.error("Failed to save journal entry", error, {}, `Failed to save: ${error.message}`);
     } finally {
       setSaving(false);
     }
@@ -249,7 +249,7 @@ export default function PlantJournalTab({
       // Return focus to the previously focused delete button if it exists
       deleteButtonRef.current?.focus();
     } catch (error: any) {
-      toast.error("Failed to delete entry");
+      Logger.error("Failed to delete journal entry", error, {}, "Failed to delete entry");
       setDeleteConfirm(null);
     }
   };
