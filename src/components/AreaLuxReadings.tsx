@@ -304,7 +304,7 @@ export default function AreaLuxReadings({ areaId, homeId, onLatestChanged }: Pro
               <div
                 key={r.id}
                 data-testid="area-lux-reading-item"
-                className="flex items-center justify-between bg-white rounded-xl px-3 py-2.5 border border-rhozly-outline/10 group"
+                className="flex items-center justify-between bg-white rounded-xl px-3 py-2.5 border border-rhozly-outline/10"
               >
                 <div className="flex items-center gap-2">
                   <Sun size={12} className="text-amber-400 shrink-0" />
@@ -322,7 +322,7 @@ export default function AreaLuxReadings({ areaId, homeId, onLatestChanged }: Pro
                   <span className={`text-[9px] font-black uppercase tracking-wide px-1.5 py-0.5 rounded-md ${SOURCE_COLOR[r.source] ?? "bg-gray-100 text-gray-600"}`}>
                     {SOURCE_LABEL[r.source] ?? r.source}
                   </span>
-                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-1">
                     <button
                       onClick={() => startEdit(r)}
                       className="w-6 h-6 flex items-center justify-center rounded-lg hover:bg-rhozly-surface text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors"
