@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { X, Camera, Trash2, AlertCircle, Loader2, Sparkles, CheckCircle2, TriangleAlert, CircleX } from "lucide-react";
+import { X, Camera, Trash2, AlertCircle, Loader2, Sparkles, CheckCircle2, TriangleAlert, CircleX, Lock } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
@@ -41,6 +41,7 @@ interface Props {
   plants: Plant[];
   sprites: Map<string | number, string>;  // plantId → spriteUrl
   homeId: string;
+  aiEnabled?: boolean;
   onClose: () => void;
   onCapture?: (storagePath: string) => void;  // called after successful save
 }
@@ -54,7 +55,7 @@ const CORNER_HIT_RADIUS = 22;   // px in canvas space
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function PlantCameraView({ plants, sprites, homeId, onClose, onCapture }: Props) {
+export default function PlantCameraView({ plants, sprites, homeId, aiEnabled = false, onClose, onCapture }: Props) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoRef  = useRef<HTMLVideoElement>(null);
   const rafRef    = useRef<number>(0);
@@ -579,7 +580,7 @@ export default function PlantCameraView({ plants, sprites, homeId, onClose, onCa
         .map(p => ({ name: p!.common_name, sunlight: p!.sunlight, watering: p!.watering }));
 
       const { data, error } = await supabase.functions.invoke("visualiser-analyse", {
-        body: { imageBase64: base64, mimeType: "image/jpeg", plants: placedPlants },
+        body: { imageBase64: base64, mimeType: "image/jpeg", plants: placedPlants, homeId },
       });
 
       if (error) throw error;
@@ -656,17 +657,23 @@ export default function PlantCameraView({ plants, sprites, homeId, onClose, onCa
 
         <div className="flex items-center gap-2 pointer-events-auto">
           {instances.length > 0 && (
-            <button
-              onClick={handleAnalyse}
-              disabled={isAnalysing}
-              className="w-11 h-11 rounded-2xl bg-amber-400/20 backdrop-blur-md flex items-center justify-center text-amber-300 hover:bg-amber-400/30 transition-colors border border-amber-400/20 disabled:opacity-50"
-              aria-label="Analyse plant placement"
-            >
-              {isAnalysing
-                ? <Loader2 size={18} className="animate-spin" />
-                : <Sparkles size={18} />
-              }
-            </button>
+            !aiEnabled ? (
+              <div data-testid="visualiser-ai-gate" className="w-11 h-11 rounded-2xl bg-white/10 backdrop-blur-md flex items-center justify-center border border-white/10" title="AI Tier Required">
+                <Lock size={18} className="text-white/30" />
+              </div>
+            ) : (
+              <button
+                onClick={handleAnalyse}
+                disabled={isAnalysing}
+                className="w-11 h-11 rounded-2xl bg-amber-400/20 backdrop-blur-md flex items-center justify-center text-amber-300 hover:bg-amber-400/30 transition-colors border border-amber-400/20 disabled:opacity-50"
+                aria-label="Analyse plant placement"
+              >
+                {isAnalysing
+                  ? <Loader2 size={18} className="animate-spin" />
+                  : <Sparkles size={18} />
+                }
+              </button>
+            )
           )}
           <button
             onClick={handleCapture}

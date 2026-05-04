@@ -27,7 +27,7 @@ const FALLBACK_IMAGE =
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function PlantVisualiser({ homeId }: { homeId: string }) {
+export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId: string; aiEnabled?: boolean }) {
   const { plants, isInitialLoading } = useCachedShed(homeId);
 
   const [search, setSearch] = useState("");
@@ -287,6 +287,7 @@ export default function PlantVisualiser({ homeId }: { homeId: string }) {
           plants={selectedPlants}
           sprites={confirmedSprites}
           homeId={homeId}
+          aiEnabled={aiEnabled}
           onClose={() => setShowCamera(false)}
           onCapture={() => {
             setCaptureCount(c => c + 1);

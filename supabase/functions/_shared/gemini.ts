@@ -17,6 +17,13 @@ export interface GeminiMessage {
   parts: GeminiPart[];
 }
 
+export interface GeminiUsage {
+  promptTokenCount: number;
+  candidatesTokenCount: number;
+  totalTokenCount: number;
+  model: string;
+}
+
 export interface GeminiOptions {
   systemPrompt?: string;
   temperature?: number;
@@ -50,15 +57,15 @@ export function toMessages(
 
 /**
  * Call the Gemini REST API with model cascade and per-model retry on transient
- * errors (503, 429, timeout).  Returns the raw response text — callers are
- * responsible for JSON.parse() when they expect structured output.
+ * errors (503, 429, timeout). Returns the response text and usage metadata.
+ * Callers are responsible for JSON.parse() when they expect structured output.
  */
 export async function callGeminiCascade(
   apiKey: string,
   fn: string,
   messages: GeminiMessage[],
   opts: GeminiOptions = {},
-): Promise<string> {
+): Promise<{ text: string; usage: GeminiUsage }> {
   const models = opts.models ?? DEFAULT_MODELS;
   const maxRetries = opts.maxRetriesPerModel ?? 2;
   const timeoutMs = opts.timeoutMs ?? 45_000;
@@ -70,14 +77,14 @@ export async function callGeminiCascade(
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
       log(fn, "model_attempt", { model, attempt, ...extra });
       try {
-        const text = await Promise.race([
+        const result = await Promise.race([
           callOnce(apiKey, model, messages, opts),
           new Promise<never>((_, reject) =>
             setTimeout(() => reject(new Error("Timeout")), timeoutMs),
           ),
         ]);
-        log(fn, "model_success", { model, attempt, ...extra });
-        return text;
+        log(fn, "model_success", { model, attempt, tokens: result.usage.totalTokenCount, ...extra });
+        return result;
       } catch (err: any) {
         lastError = err;
         warn(fn, "model_failed", { model, attempt, error: err.message, ...extra });
@@ -102,7 +109,7 @@ async function callOnce(
   model: string,
   messages: GeminiMessage[],
   opts: GeminiOptions,
-): Promise<string> {
+): Promise<{ text: string; usage: GeminiUsage }> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
   const generationConfig: any = {
@@ -137,5 +144,13 @@ async function callOnce(
   }
 
   const data = await res.json();
-  return data.candidates[0].content.parts[0].text;
+  return {
+    text: data.candidates[0].content.parts[0].text,
+    usage: {
+      promptTokenCount: data.usageMetadata?.promptTokenCount ?? 0,
+      candidatesTokenCount: data.usageMetadata?.candidatesTokenCount ?? 0,
+      totalTokenCount: data.usageMetadata?.totalTokenCount ?? 0,
+      model,
+    },
+  };
 }

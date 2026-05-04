@@ -52,7 +52,7 @@ serve(async (req) => {
       - MUST include the plant name and task category.
     `;
 
-    const rawText = await callGeminiCascade(
+    const { text: rawText } = await callGeminiCascade(
       geminiApiKey,
       FN,
       [{ role: "user", parts: [{ text: `Topic: ${topic}` }] }],

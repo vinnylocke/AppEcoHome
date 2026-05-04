@@ -577,10 +577,21 @@ export default function PlantDoctor({
                 </button>
               </div>
 
+              {!aiEnabled ? (
+                <div data-testid="plant-doctor-ai-gate" className="bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 p-6 text-center">
+                  <div className="w-10 h-10 bg-rhozly-on-surface/5 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                    <Lock size={18} className="text-rhozly-on-surface/30" />
+                  </div>
+                  <p className="font-black text-rhozly-on-surface text-sm mb-1">AI Tier Required</p>
+                  <p className="text-xs font-bold text-rhozly-on-surface/50 leading-relaxed">
+                    Upgrade to AI tier to unlock plant identification and diagnosis.
+                  </p>
+                </div>
+              ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <button
                   onClick={() => handleAiAction("identify")}
-                  disabled={isUIBusy || !aiEnabled}
+                  disabled={isUIBusy}
                   className={`flex items-center justify-center gap-3 p-4 rounded-2xl font-black text-lg transition-all group ${activeAction === "identify" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-white text-rhozly-primary border border-rhozly-primary/20 hover:bg-rhozly-primary/10 hover:border-rhozly-primary/40 disabled:opacity-50"}`}
                 >
                   {isProcessing && activeAction === "identify" ? (
@@ -592,7 +603,7 @@ export default function PlantDoctor({
                 </button>
                 <button
                   onClick={() => handleAiAction("diagnose")}
-                  disabled={isUIBusy || !aiEnabled}
+                  disabled={isUIBusy}
                   className={`flex items-center justify-center gap-3 p-4 rounded-2xl font-black text-lg transition-all group ${activeAction === "diagnose" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-rhozly-primary text-white hover:bg-rhozly-primary-container disabled:opacity-50"}`}
                 >
                   {isProcessing && activeAction === "diagnose" ? (
@@ -603,6 +614,7 @@ export default function PlantDoctor({
                   Diagnose Health
                 </button>
               </div>
+              )}
 
               {aiResult && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-4">

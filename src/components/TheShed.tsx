@@ -61,7 +61,7 @@ type QueueItem = {
 
 // --- Helpers for Master Plant Creation ---
 
-export default function TheShed({ homeId }: { homeId: string }) {
+export default function TheShed({ homeId, aiEnabled = false }: { homeId: string; aiEnabled?: boolean }) {
   const { setPageContext, preferences } = usePlantDoctor();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -1039,6 +1039,7 @@ export default function TheShed({ homeId }: { homeId: string }) {
                 onClose={() => setSelectedPlant(null)}
                 isAssigning={actionLoading}
                 homeId={homeId}
+                aiEnabled={aiEnabled}
               />
             )}
             {showBulkSearch && (

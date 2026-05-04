@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { log, warn, error as logError } from "../_shared/logger.ts";
+import { guardAiByHome } from "../_shared/aiGuard.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 
 const FN = "scan-area";
 
@@ -132,6 +134,9 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
+    const guardErr = await guardAiByHome(supabase, homeId);
+    if (guardErr) return guardErr;
+
     log(FN, "request_received", { homeId, areaId });
 
     // Fetch area + location context
@@ -205,7 +210,7 @@ Return valid JSON matching the schema exactly.`;
       { text: userText },
     ]);
 
-    const raw = await callGeminiCascade(
+    const { text: raw, usage } = await callGeminiCascade(
       apiKey,
       FN,
       messages,
@@ -227,6 +232,7 @@ Return valid JSON matching the schema exactly.`;
 
     const analysis = JSON.parse(raw);
     log(FN, "analysis_complete", { homeId, areaId, plantCount: analysis.plants?.length ?? 0 });
+    await logAiUsage(supabase, { homeId, functionName: FN, action: "scan_area", usage });
 
     return new Response(JSON.stringify(analysis), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

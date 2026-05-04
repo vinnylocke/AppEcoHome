@@ -736,7 +736,7 @@ function AppShell() {
                       <Route path="/shed" element={
                         profile?.home_id ? (
                           <div className="h-full animate-in fade-in duration-500">
-                            <TheShed homeId={profile.home_id} />
+                            <TheShed homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} />
                           </div>
                         ) : null
                       } />
@@ -744,7 +744,7 @@ function AppShell() {
                       <Route path="/watchlist" element={
                         profile?.home_id ? (
                           <div className="h-full animate-in fade-in duration-500">
-                            <AilmentWatchlist homeId={profile.home_id} />
+                            <AilmentWatchlist homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} />
                           </div>
                         ) : null
                       } />
@@ -752,7 +752,7 @@ function AppShell() {
                       <Route path="/visualiser" element={
                         profile?.home_id ? (
                           <div className="h-full animate-in fade-in duration-500">
-                            <PlantVisualiser homeId={profile.home_id} />
+                            <PlantVisualiser homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} />
                           </div>
                         ) : null
                       } />
@@ -760,7 +760,7 @@ function AppShell() {
                       <Route path="/planner" element={
                         profile?.home_id ? (
                           <div className="h-full animate-in fade-in duration-500">
-                            <PlannerDashboard homeId={profile.home_id} />
+                            <PlannerDashboard homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} />
                           </div>
                         ) : null
                       } />

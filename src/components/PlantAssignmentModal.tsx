@@ -13,6 +13,7 @@ import {
   Sparkles,
   BrainCircuit,
   CloudSun,
+  Lock,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -24,10 +25,11 @@ import { logEvent, EVENT } from "../events/registry";
 interface PlantAssignmentModalProps {
   plant: any;
   locations: any[];
-  onAssign: (data: any) => Promise<void>; // 🚀 Made this async so we can await it
+  onAssign: (data: any) => Promise<void>;
   onClose: () => void;
   isAssigning: boolean;
   homeId: string;
+  aiEnabled?: boolean;
 }
 
 const GROWTH_STATES = [
@@ -56,6 +58,7 @@ export default function PlantAssignmentModal({
   onClose,
   isAssigning,
   homeId,
+  aiEnabled = false,
 }: PlantAssignmentModalProps) {
   const { setPageContext } = usePlantDoctor();
 
@@ -445,6 +448,17 @@ export default function PlantAssignmentModal({
             {!formData.isPlanted && (
               <div className="space-y-4 animate-in fade-in zoom-in-95">
                 {!aiResult ? (
+                  !aiEnabled ? (
+                    <div data-testid="scheduler-ai-gate" className="bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 p-6 text-center">
+                      <div className="w-10 h-10 bg-rhozly-on-surface/5 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                        <Lock size={18} className="text-rhozly-on-surface/30" />
+                      </div>
+                      <p className="font-black text-rhozly-on-surface text-sm mb-1">AI Tier Required</p>
+                      <p className="text-xs font-bold text-rhozly-on-surface/50 leading-relaxed">
+                        Upgrade to AI tier to unlock AI-powered planting schedules.
+                      </p>
+                    </div>
+                  ) : (
                   <div className="bg-rhozly-surface-low p-6 rounded-3xl border border-rhozly-outline/10 shadow-sm text-center">
                     <CloudSun
                       className="mx-auto text-rhozly-primary mb-3"
@@ -475,6 +489,7 @@ export default function PlantAssignmentModal({
                       )}
                     </button>
                   </div>
+                  )
                 ) : (
                   <div className="space-y-4">
                     <div className="bg-rhozly-surface-lowest p-5 rounded-3xl border border-rhozly-outline/10 shadow-sm relative overflow-hidden">

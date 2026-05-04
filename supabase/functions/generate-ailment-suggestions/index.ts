@@ -1,6 +1,9 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { callGeminiCascade } from "../_shared/gemini.ts";
+import { guardAiByUser } from "../_shared/aiGuard.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 
 const FN = "generate-ailment-suggestions";
 
@@ -72,6 +75,20 @@ serve(async (req) => {
 
     if (!query?.trim()) throw new Error("query is required");
 
+    const authHeader = req.headers.get("Authorization") ?? "";
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+      { global: { headers: { Authorization: authHeader } } },
+    );
+    const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
+    const userId = user?.id ?? null;
+
+    if (userId) {
+      const guardErr = await guardAiByUser(supabase, userId);
+      if (guardErr) return guardErr;
+    }
+
     log(FN, "request_received", { query });
 
     const systemPrompt = `
@@ -99,7 +116,7 @@ ${extraContext ? `\nADDITIONAL CONTEXT:\n${extraContext}` : ""}
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiApiKey) throw new Error("Missing GEMINI_API_KEY");
 
-    const rawText = await callGeminiCascade(
+    const { text: rawText, usage } = await callGeminiCascade(
       geminiApiKey,
       FN,
       [{ role: "user", parts: [{ text: `Search query: "${query}"` }] }],
@@ -128,6 +145,7 @@ ${extraContext ? `\nADDITIONAL CONTEXT:\n${extraContext}` : ""}
       remedy_steps:     stampIds(ailment.remedy_steps),
     }));
 
+    await logAiUsage(supabase, { userId, functionName: FN, action: "ailment_suggestions", usage });
     log(FN, "result", { query, count: results.length });
 
     return new Response(

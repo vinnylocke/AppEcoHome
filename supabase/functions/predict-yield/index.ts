@@ -3,6 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { buildYieldPrompt } from "../_shared/yieldPrompt.ts";
 import { log, warn } from "../_shared/logger.ts";
+import { guardAiByHome } from "../_shared/aiGuard.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 
 const FN = "predict-yield";
 
@@ -31,29 +33,8 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    // Verify AI tier — find the home owner and check ai_enabled
-    const { data: memberRows } = await db
-      .from("home_members")
-      .select("user_id, role")
-      .eq("home_id", home_id)
-      .eq("role", "owner")
-      .limit(1)
-      .single();
-
-    if (memberRows) {
-      const { data: profileRow } = await db
-        .from("user_profiles")
-        .select("ai_enabled")
-        .eq("uid", memberRows.user_id)
-        .single();
-
-      if (!profileRow?.ai_enabled) {
-        return new Response(
-          JSON.stringify({ error: "AI tier required" }),
-          { status: 403, headers: { ...CORS, "Content-Type": "application/json" } },
-        );
-      }
-    }
+    const guardErr = await guardAiByHome(db, home_id);
+    if (guardErr) return guardErr;
 
     // Fetch all context in parallel
     const [
@@ -131,7 +112,7 @@ serve(async (req) => {
     });
 
     const apiKey = Deno.env.get("GEMINI_API_KEY") ?? "";
-    const raw = await callGeminiCascade(apiKey, FN, toMessages([prompt]), {
+    const { text: raw, usage } = await callGeminiCascade(apiKey, FN, toMessages([prompt]), {
       responseMimeType: "application/json",
     });
 
@@ -147,6 +128,7 @@ serve(async (req) => {
       result = JSON.parse(match[0]);
     }
 
+    await logAiUsage(db, { homeId: home_id, functionName: FN, action: "yield_prediction", usage });
     log(FN, "prediction_complete", { instance_id, confidence: result.confidence });
 
     return new Response(JSON.stringify(result), {

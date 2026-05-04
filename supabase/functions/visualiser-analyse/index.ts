@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
+import { guardAiByHome } from "../_shared/aiGuard.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 
 const FN = "visualiser-analyse";
 
@@ -41,10 +44,11 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { imageBase64, mimeType, plants } = await req.json() as {
+    const { imageBase64, mimeType, plants, homeId } = await req.json() as {
       imageBase64: string;
       mimeType: string;
       plants: PlantContext[];
+      homeId?: string;
     };
 
     if (!imageBase64) throw new Error("imageBase64 is required");
@@ -52,6 +56,16 @@ serve(async (req) => {
 
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey) throw new Error("GEMINI_API_KEY not configured");
+
+    const db = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+
+    if (homeId) {
+      const guardErr = await guardAiByHome(db, homeId);
+      if (guardErr) return guardErr;
+    }
 
     const plantList = plants
       .map((p) => {
@@ -79,7 +93,7 @@ Be specific to what you can actually see. If the image is unclear in any area, s
       { text: userText },
     ]);
 
-    const raw = await callGeminiCascade(
+    const { text: raw, usage } = await callGeminiCascade(
       apiKey,
       FN,
       messages,
@@ -94,6 +108,9 @@ Be specific to what you can actually see. If the image is unclear in any area, s
     );
 
     const result = JSON.parse(raw);
+    if (homeId) {
+      await logAiUsage(db, { homeId, functionName: FN, action: "visualiser_analyse", usage });
+    }
 
     return new Response(JSON.stringify(result), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -933,6 +933,7 @@ export default function AreaDetails({
         <AreaScanModal
           homeId={homeId}
           area={area}
+          aiEnabled={aiEnabled}
           onClose={() => setShowScanModal(false)}
           onScanSaved={(scan) => setLastScan(scan)}
         />

@@ -9,6 +9,8 @@ import {
   type PreferenceRow,
 } from "../_shared/preferences.ts";
 import { callGeminiCascade } from "../_shared/gemini.ts";
+import { guardAiByUser } from "../_shared/aiGuard.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 
 const FN = "generate-landscape-plan";
 
@@ -61,7 +63,7 @@ async function extractPreferencesFromFeedback(
   feedbackText: string,
 ): Promise<Array<{ entity_type: string; entity_name: string; sentiment: string; reason: string | null }>> {
   try {
-    const rawText = await callGeminiCascade(
+    const { text: rawText } = await callGeminiCascade(
       apiKey,
       FN,
       [{
@@ -177,6 +179,11 @@ serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser(authToken);
     const userId = user?.id;
 
+    if (userId) {
+      const guardErr = await guardAiByUser(supabase, userId);
+      if (guardErr) return guardErr;
+    }
+
     log(FN, "request_received", {
       userId: userId ?? null,
       homeId,
@@ -290,7 +297,7 @@ serve(async (req) => {
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiApiKey) throw new Error("Missing GEMINI_API_KEY");
 
-    const rawText = await callGeminiCascade(
+    const { text: rawText, usage } = await callGeminiCascade(
       geminiApiKey,
       FN,
       [{ role: "user", parts: [{ text: promptText }] }],
@@ -299,6 +306,7 @@ serve(async (req) => {
 
     const aiResult = JSON.parse(rawText);
 
+    await logAiUsage(supabase, { homeId, userId: userId ?? null, functionName: FN, action: isRegeneration ? "regenerate_plan" : "generate_plan", usage });
     log(FN, "result", {
       title: aiResult.project_overview?.title,
       difficulty: aiResult.project_overview?.estimated_difficulty,

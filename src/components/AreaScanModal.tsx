@@ -4,7 +4,7 @@ import {
   X, Camera, Upload, Loader2, CheckCircle2, AlertTriangle, AlertCircle,
   Leaf, Bug, Droplets, Wind, Sun, Sprout, ChevronDown, ChevronUp,
   Check, Minus, Edit3, Trash2, Sparkles, ScanLine, RefreshCw,
-  Biohazard, FlaskConical, Clock, CalendarDays, RotateCcw, ArrowRight,
+  Biohazard, FlaskConical, Clock, CalendarDays, RotateCcw, ArrowRight, Lock,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
@@ -69,6 +69,7 @@ interface AreaScanModalProps {
   weatherSnap?: any;
   onClose: () => void;
   onScanSaved: (scan: any) => void;
+  aiEnabled?: boolean;
 }
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -155,6 +156,7 @@ export default function AreaScanModal({
   weatherSnap,
   onClose,
   onScanSaved,
+  aiEnabled = false,
 }: AreaScanModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -356,6 +358,17 @@ export default function AreaScanModal({
           {/* ── IDLE: capture or upload ──────────────────────────────── */}
           {flow === "idle" && (
             <div className="space-y-4">
+              {!aiEnabled ? (
+                <div data-testid="area-scan-ai-gate" className="bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 p-6 text-center">
+                  <div className="w-10 h-10 bg-rhozly-on-surface/5 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                    <Lock size={18} className="text-rhozly-on-surface/30" />
+                  </div>
+                  <p className="font-black text-rhozly-on-surface text-sm mb-1">AI Tier Required</p>
+                  <p className="text-xs font-bold text-rhozly-on-surface/50 leading-relaxed">
+                    Upgrade to AI tier to scan your garden areas with AI.
+                  </p>
+                </div>
+              ) : (
               <p className="text-sm text-rhozly-on-surface/60 leading-relaxed">
                 Take or upload a photo of <strong>{area.name}</strong> and our AI will identify
                 plants, flag health issues, spot pests, and suggest tasks.
@@ -380,6 +393,8 @@ export default function AreaScanModal({
                 onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])} />
               <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
                 onChange={(e) => e.target.files?.[0] && handleFileSelect(e.target.files[0])} />
+            </div>
+              )}
             </div>
           )}
 

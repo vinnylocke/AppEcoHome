@@ -10,6 +10,8 @@ import {
   type PreferenceRow,
 } from "../_shared/preferences.ts";
 import { callGeminiCascade } from "../_shared/gemini.ts";
+import { guardAiByHome } from "../_shared/aiGuard.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 
 const FN = "plant-doctor-ai";
 
@@ -94,6 +96,9 @@ serve(async (req) => {
     // not per-home (otherwise all household members share one preference set).
     const { data: { user } } = await supabase.auth.getUser(authToken);
     const userId = user?.id ?? null;
+
+    const guardErr = await guardAiByHome(supabase, homeId);
+    if (guardErr) return guardErr;
 
     log(FN, "request_received", {
       homeId,
@@ -203,7 +208,7 @@ serve(async (req) => {
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiApiKey) throw new Error("Missing GEMINI_API_KEY");
 
-    const rawText = await callGeminiCascade(geminiApiKey, FN, geminiMessages, {
+    const { text: rawText, usage } = await callGeminiCascade(geminiApiKey, FN, geminiMessages, {
       systemPrompt,
       temperature: 0.7,
       maxOutputTokens: 1500,
@@ -238,6 +243,8 @@ serve(async (req) => {
         });
       }
     }
+
+    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "chat", usage });
 
     log(FN, "result", {
       homeId,

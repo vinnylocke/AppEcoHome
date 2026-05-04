@@ -3,6 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { loadPreferences, formatPreferencesBlock } from "../_shared/preferences.ts";
+import { guardAiByHome } from "../_shared/aiGuard.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 
 const FN = "plant-doctor";
 
@@ -12,7 +14,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// 🚀 HELPER: Upload external image to Supabase Storage
+// HELPER: Upload external image to Supabase Storage
 async function fetchAndUploadImage(
   url: string,
   plantName: string,
@@ -54,7 +56,7 @@ async function fetchAndUploadImage(
   }
 }
 
-// 🚀 HELPER: Get Image URL from Wikipedia (DEEP FALLBACK)
+// HELPER: Get Image URL from Wikipedia (DEEP FALLBACK)
 async function getWikiImage(plantName: string) {
   const fetchWiki = async (term: string) => {
     try {
@@ -136,7 +138,7 @@ serve(async (req) => {
     });
 
     // -------------------------------------------------------------
-    // 1. NON-LLM ACTIONS (API FETCHES)
+    // 1. NON-LLM ACTIONS (API FETCHES) — exempt from AI gate
     // -------------------------------------------------------------
     if (action === "fetch_perenual_disease") {
       if (!perenualKey)
@@ -193,11 +195,14 @@ serve(async (req) => {
     }
 
     // -------------------------------------------------------------
-    // 2. LLM ACTIONS (GEMINI)
+    // 2. LLM ACTIONS — guard AI tier
     // -------------------------------------------------------------
+    if (homeId) {
+      const guardErr = await guardAiByHome(supabase, homeId);
+      if (guardErr) return guardErr;
+    }
 
     // Load user preferences once for all personalised actions.
-    // If no homeId provided the prefs array is empty and no block is injected.
     const userPrefs = homeId
       ? await loadPreferences(supabase, { homeId })
       : [];
@@ -209,12 +214,13 @@ serve(async (req) => {
 
     if (action === "search_plants_text") {
       const prompt = `User searching: "${plantSearch}". Return top 5 matches as JSON: {"matches": ["Common Name (Scientific Name)"]}`;
-      const text = await callGeminiCascade(apiKey, FN, toMessages([prompt]), { logContext: { action } });
+      const { text, usage } = await callGeminiCascade(apiKey, FN, toMessages([prompt]), { logContext: { action } });
       const cleanJson = text
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
       const parsed = JSON.parse(cleanJson);
+      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "search_plants_text", usage });
       log(FN, "result", { action, matchesCount: parsed.matches?.length ?? 0, query: plantSearch });
       return new Response(cleanJson, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -225,7 +231,7 @@ serve(async (req) => {
       if (!targetPlant) throw new Error("No target plant provided.");
       const cleanName = targetPlant.split("(")[0].trim();
 
-      const prompt = `Generate a comprehensive botanical care guide for "${cleanName}". 
+      const prompt = `Generate a comprehensive botanical care guide for "${cleanName}".
       Respond ONLY in valid JSON format.
       Schema:
       {
@@ -257,8 +263,8 @@ serve(async (req) => {
         }
       }`;
 
-      let aiText = await callGeminiCascade(apiKey, FN, toMessages([prompt]), { logContext: { action } });
-      aiText = aiText
+      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages([prompt]), { logContext: { action } });
+      let aiText = rawText
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
@@ -276,6 +282,7 @@ serve(async (req) => {
         if (permanentUrl) parsedData.plantData.thumbnail_url = permanentUrl;
       }
 
+      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "generate_care_guide", usage });
       log(FN, "result", {
         action,
         plant: cleanName,
@@ -341,12 +348,13 @@ serve(async (req) => {
         }
       `;
 
-      let aiText = await callGeminiCascade(apiKey, FN, toMessages([prompt]), { logContext: { action } });
-      aiText = aiText
+      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages([prompt]), { logContext: { action } });
+      let aiText = rawText
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
       const parsedData = JSON.parse(aiText);
+      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "recommend_plants", usage });
       log(FN, "result", {
         action,
         homeId: homeId ?? null,
@@ -370,9 +378,9 @@ serve(async (req) => {
       );
 
       const promptText = `
-        Identify the plant in this image. 
+        Identify the plant in this image.
         ${plantSearch ? `The user thinks it might be a "${plantSearch}". Confirm if this is correct.` : ""}
-        
+
         You MUST respond ONLY in valid JSON format. Return the top 3 most likely common names.
         {
           "notes": "A brief 1-2 sentence observation.",
@@ -386,12 +394,13 @@ serve(async (req) => {
         },
       ];
 
-      let aiText = await callGeminiCascade(apiKey, FN, toMessages(contents), { logContext: { action } });
-      aiText = aiText
+      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages(contents), { logContext: { action } });
+      let aiText = rawText
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
       const parsed = JSON.parse(aiText);
+      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "identify_vision", usage });
       log(FN, "result", { action, possibleNames: parsed.possible_names ?? [] });
       return new Response(aiText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -427,12 +436,13 @@ serve(async (req) => {
         },
       ];
 
-      let aiText = await callGeminiCascade(apiKey, FN, toMessages(contents), { logContext: { action } });
-      aiText = aiText
+      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages(contents), { logContext: { action } });
+      let aiText = rawText
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
       const parsed = JSON.parse(aiText);
+      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "diagnose", usage });
       log(FN, "result", {
         action,
         possibleDiseases: parsed.possible_diseases ?? null,
@@ -457,11 +467,12 @@ serve(async (req) => {
           }
         }
       `;
-      let aiText = await callGeminiCascade(apiKey, FN, toMessages([promptText]), { logContext: { action } });
-      aiText = aiText
+      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages([promptText]), { logContext: { action } });
+      let aiText = rawText
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
+      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "get_ai_disease_info", usage });
       log(FN, "result", { action, diseaseName, hasNotes: !!notes });
       return new Response(aiText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -481,7 +492,7 @@ serve(async (req) => {
         3. RECURRING TREATMENTS: Only use "is_recurring": true for active, ongoing medical treatments (e.g., applying fungicide, spraying neem oil).
         4. MAXIMUM DURATION: For recurring treatments, "end_offset_days" MUST be short. Use 14 or 21 days maximum. Never exceed 21 days.
         5. TASK TYPES: Use ONLY the "Maintenance" task_type for all medical tasks (pruning, spraying, adjusting environment).
-        
+
         You MUST respond ONLY in valid JSON using this exact schema. Do not use markdown blocks.
         {
           "remedial_schedules": [
@@ -496,12 +507,13 @@ serve(async (req) => {
           ]
         }
       `;
-      let aiText = await callGeminiCascade(apiKey, FN, toMessages([promptText]), { logContext: { action } });
-      aiText = aiText
+      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages([promptText]), { logContext: { action } });
+      let aiText = rawText
         .replace(/```json/gi, "")
         .replace(/```/g, "")
         .trim();
       const parsed = JSON.parse(aiText);
+      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "generate_remedial_plan", usage });
       log(FN, "result", {
         action,
         targetPlant,

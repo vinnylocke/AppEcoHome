@@ -10,6 +10,7 @@ import {
   MapPin,
   Leaf,
   ShieldAlert,
+  Lock,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -20,6 +21,7 @@ interface NewPlanFormProps {
   homeId: string;
   onClose: () => void;
   onSuccess: () => void;
+  aiEnabled?: boolean;
 }
 
 const SUNLIGHT_OPTIONS = [
@@ -35,6 +37,7 @@ export default function NewPlanForm({
   homeId,
   onClose,
   onSuccess,
+  aiEnabled = false,
 }: NewPlanFormProps) {
   const [step, setStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
@@ -585,6 +588,16 @@ export default function NewPlanForm({
             >
               Next Step <ChevronRight size={20} />
             </button>
+          ) : !aiEnabled ? (
+            <div data-testid="plan-generator-ai-gate" className="flex-1 bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 p-4 text-center flex items-center justify-center gap-3">
+              <div className="w-8 h-8 bg-rhozly-on-surface/5 rounded-xl flex items-center justify-center shrink-0">
+                <Lock size={16} className="text-rhozly-on-surface/30" />
+              </div>
+              <div className="text-left">
+                <p className="font-black text-rhozly-on-surface text-sm">AI Tier Required</p>
+                <p className="text-xs font-bold text-rhozly-on-surface/50">Upgrade to unlock AI plan generation.</p>
+              </div>
+            </div>
           ) : (
             <button
               onClick={handleGeneratePlan}

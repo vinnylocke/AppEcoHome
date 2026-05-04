@@ -23,9 +23,10 @@ import PlanStaging from "./PlanStaging";
 
 interface PlannerDashboardProps {
   homeId: string;
+  aiEnabled?: boolean;
 }
 
-export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
+export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerDashboardProps) {
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<
@@ -435,6 +436,7 @@ export default function PlannerDashboard({ homeId }: PlannerDashboardProps) {
       {showNewPlanModal && (
         <NewPlanForm
           homeId={homeId}
+          aiEnabled={aiEnabled}
           onClose={() => setShowNewPlanModal(false)}
           onSuccess={() => {
             setShowNewPlanModal(false);

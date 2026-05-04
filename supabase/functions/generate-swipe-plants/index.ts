@@ -3,6 +3,8 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { loadPreferences, formatPreferencesBlock, ENTITY_TYPES } from "../_shared/preferences.ts";
 import { callGeminiCascade } from "../_shared/gemini.ts";
+import { guardAiByHome } from "../_shared/aiGuard.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 
 const FN = "generate-swipe-plants";
 
@@ -69,6 +71,9 @@ serve(async (req) => {
     );
     const userId = user?.id ?? null;
 
+    const guardErr = await guardAiByHome(supabase, homeId);
+    if (guardErr) return guardErr;
+
     log(FN, "request_received", { homeId, userId, count, seenCount: alreadySeenPlantNames.length });
 
     const [inventoryRes, existingPrefs] = await Promise.all([
@@ -111,7 +116,7 @@ serve(async (req) => {
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiApiKey) throw new Error("Missing GEMINI_API_KEY");
 
-    const rawText = await callGeminiCascade(
+    const { text: rawText, usage } = await callGeminiCascade(
       geminiApiKey,
       FN,
       [{ role: "user", parts: [{ text: `Generate ${count} plant suggestions.` }] }],
@@ -130,6 +135,7 @@ serve(async (req) => {
       source: "ai" as const,
     }));
 
+    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "swipe_plants", usage });
     log(FN, "result", { homeId, userId, plantCount: plants.length });
 
     return new Response(

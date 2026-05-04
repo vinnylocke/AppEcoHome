@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   Plus, Search, Loader2, Bug, Leaf, Biohazard, X, Sparkles,
   Database, Edit3, Trash2, ChevronRight, ChevronUp, ChevronLeft, AlertTriangle,
-  CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore,
+  CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -965,6 +965,17 @@ function AddAilmentModal({
               {/* AI search + results */}
               {mode === "ai" && (
                 <div className="space-y-4">
+                  {!aiEnabled ? (
+                    <div data-testid="ailment-ai-gate" className="bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 p-6 text-center">
+                      <div className="w-10 h-10 bg-rhozly-on-surface/5 rounded-2xl flex items-center justify-center mx-auto mb-3">
+                        <Lock size={18} className="text-rhozly-on-surface/30" />
+                      </div>
+                      <p className="font-black text-rhozly-on-surface text-sm mb-1">AI Tier Required</p>
+                      <p className="text-xs font-bold text-rhozly-on-surface/50 leading-relaxed">
+                        Upgrade to AI tier to search for pests and diseases using AI.
+                      </p>
+                    </div>
+                  ) : (
                   <div className="flex gap-2">
                     <input
                       value={aiQuery}
@@ -982,6 +993,7 @@ function AddAilmentModal({
                       {aiSearchLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
                     </button>
                   </div>
+                  )}
 
                   {aiSearchLoading && (
                     <div className="flex items-center justify-center gap-2 py-8 text-amber-500/70">
@@ -1384,7 +1396,7 @@ function AilmentCard({
 
 export type AilmentFilter = "all" | AilmentType;
 
-export default function AilmentWatchlist({ homeId }: { homeId: string }) {
+export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId: string; aiEnabled?: boolean }) {
   const [ailments, setAilments] = useState<Ailment[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewTab, setViewTab] = useState<"active" | "archived">("active");
