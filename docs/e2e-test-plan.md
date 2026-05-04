@@ -870,3 +870,33 @@ All Page Objects are implemented. Current files in `tests/e2e/pages/`:
 | `VisualiserPage.ts` | `/visualiser` |
 | `YieldPage.ts` | `/dashboard` (instance modal yield tab) |
 | `LightTabPage.ts` | `/dashboard` (instance modal light tab) + `/shed` (plant modal light tab) |
+
+---
+
+## Section 20 — Garden Layout Builder
+
+**Route:** `/garden-layout` (list) and `/garden-layout/:layoutId` (editor)  
+**Components:** `GardenLayoutList.tsx`, `GardenLayoutEditor.tsx`, `GardenShapePanel.tsx`, `GardenShapeProperties.tsx`, `GardenRuler.tsx`, `GardenScaleBar.tsx`  
+**Seed dependency:** None yet (layouts created during tests)  
+
+### Stage 1 — Layout list (GLB-001 – GLB-005)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-001 | ⬜ | Layout list page loads via nav | `create-layout-btn` visible | ⬜ Not written |
+| GLB-002 | ⬜ | Create layout shows name input and navigates to editor | Click `create-layout-btn` → `new-layout-name-input` visible → fill → `create-layout-confirm` → URL contains `/garden-layout/` | ⬜ Not written |
+| GLB-003 | ⬜ | Layout card appears in list after creation | `layout-card-{id}` visible | ⬜ Not written |
+| GLB-004 | ⬜ | Rename layout inline | Pencil icon → edit name → Save | ⬜ Not written |
+| GLB-005 | ⬜ | Delete layout removes it from list | Delete icon → card gone | ⬜ Not written |
+
+### Stage 2 — Editor canvas (GLB-006 – GLB-012)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-006 | ⬜ | Editor loads with toolbar and back button | `back-to-layouts-btn` visible, layout name in toolbar | ⬜ Not written |
+| GLB-007 | ⬜ | Adding a preset shape shows "Unsaved" then "Saved" | Click `shape-tile-raised-bed` → saveState transitions to Saved | ⬜ Not written |
+| GLB-008 | ⬜ | Canvas settings modal opens and saves | `canvas-settings-btn` → modal → `layout-name-input`, `canvas-width-input`, `canvas-height-input` → `save-settings-btn` | ⬜ Not written |
+| GLB-009 | ⬜ | Zoom in/out buttons work | `zoom-in-btn` click increases zoom display | ⬜ Not written |
+| GLB-010 | ⬜ | Shape properties panel opens on shape select | Select shape → `shape-label-input` visible | ⬜ Not written |
+| GLB-011 | ⬜ | Deleting a shape removes it | `delete-shape-btn` click → shape gone from canvas | ⬜ Not written |
+| GLB-012 | ⬜ | Custom polygon tool toggles | `shape-tile-custom` → polygon mode hint visible | ⬜ Not written |

@@ -19,6 +19,7 @@ import {
   Sparkles,
   Bug,
   ScanLine,
+  LayoutTemplate,
 } from "lucide-react";
 
 // 🚀 NATIVE IMPORT
@@ -65,6 +66,8 @@ import GardenProfile from "./components/GardenProfile";
 import AilmentWatchlist from "./components/AilmentWatchlist";
 import AssistantCard from "./components/AssistantCard";
 import PlantVisualiser from "./components/PlantVisualiser";
+import GardenLayoutList from "./components/GardenLayoutList";
+import GardenLayoutEditor from "./components/GardenLayoutEditor";
 import NavItem from "./components/NavItem";
 import {
   getMidnightTonight,
@@ -102,6 +105,7 @@ const TAB_URL: Record<string, string> = {
   lightsensor:     "/lightsensor",
   guides:          "/guides",
   management:      "/management",
+  garden_layout:   "/garden-layout",
   admin_guides:    "/admin/guides",
 };
 
@@ -440,6 +444,7 @@ function AppShell() {
     { id: "lightsensor", icon: <Sun />, label: "Light Sensor" },
     { id: "guides", icon: <BookOpen />, label: "Guides" },
     { id: "management", icon: <Wrench />, label: "Location Management" },
+    { id: "garden_layout", icon: <LayoutTemplate />, label: "Garden Layout" },
   ];
 
   if (profile?.is_admin) {
@@ -823,6 +828,22 @@ function AppShell() {
                             </div>
                           )}
                         </div>
+                      } />
+
+                      <Route path="/garden-layout" element={
+                        profile?.home_id ? (
+                          <div className="h-full animate-in fade-in duration-500">
+                            <GardenLayoutList homeId={profile.home_id} />
+                          </div>
+                        ) : null
+                      } />
+
+                      <Route path="/garden-layout/:layoutId" element={
+                        profile?.home_id ? (
+                          <div className="h-full animate-in fade-in duration-500">
+                            <GardenLayoutEditor homeId={profile.home_id} />
+                          </div>
+                        ) : null
                       } />
 
                       {profile?.is_admin && (
