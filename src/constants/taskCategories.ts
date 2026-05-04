@@ -3,6 +3,7 @@ export const TASK_CATEGORIES = [
   "Watering",
   "Harvesting",
   "Maintenance",
+  "Pruning",
 ] as const;
 
 export type TaskCategory = (typeof TASK_CATEGORIES)[number];

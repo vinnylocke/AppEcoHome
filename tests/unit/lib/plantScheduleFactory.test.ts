@@ -135,12 +135,12 @@ describe("buildAutoSeasonalSchedules — harvest periods", () => {
 // ---- Pruning schedules ----
 
 describe("buildAutoSeasonalSchedules — pruning periods", () => {
-  test("generates one Maintenance schedule per pruning period", () => {
+  test("generates one Pruning schedule per pruning period", () => {
     const schedules = buildAutoSeasonalSchedules({
       ...BASE,
       pruningPeriods: ["spring"],
     });
-    const pruning = schedules.filter((s) => s.task_type === "Maintenance");
+    const pruning = schedules.filter((s) => s.task_type === "Pruning");
     expect(pruning).toHaveLength(1);
   });
 
@@ -149,7 +149,7 @@ describe("buildAutoSeasonalSchedules — pruning periods", () => {
       ...BASE,
       pruningPeriods: ["spring"],
     });
-    const pruning = schedules.find((s) => s.task_type === "Maintenance")!;
+    const pruning = schedules.find((s) => s.task_type === "Pruning")!;
     expect(pruning.title).toBe("Spring Pruning");
   });
 

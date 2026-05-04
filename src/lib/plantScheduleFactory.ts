@@ -5,7 +5,7 @@ interface PlantScheduleRow {
   plant_id: number | string;
   title: string;
   description: string;
-  task_type: "Harvesting" | "Maintenance" | "Watering";
+  task_type: "Harvesting" | "Maintenance" | "Watering" | "Pruning";
   trigger_event: "Planted";
   start_reference: string;
   start_offset_days: 0;
@@ -65,7 +65,7 @@ export function buildAutoSeasonalSchedules({
       plant_id: plantId,
       title: `${niceTitle} Pruning`,
       description: `Auto-generated from Care Guide`,
-      task_type: "Maintenance",
+      task_type: "Pruning",
       trigger_event: "Planted",
       start_reference: `Seasonal:${start}:${niceTitle} Pruning Start`,
       start_offset_days: 0,
