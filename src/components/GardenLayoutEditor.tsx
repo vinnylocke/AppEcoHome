@@ -139,6 +139,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               points: s.points,
               rotation: s.rotation,
               z_index: i,
+              dashed: s.dashed ?? false,
             }))
           );
           if (insErr) throw insErr;
@@ -167,7 +168,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     const cx = layout.canvas_w_m / 2;
     const cy = layout.canvas_h_m / 2;
     const id = crypto.randomUUID();
-    const base = { id, layout_id: layout.id, area_id: null, label: null, color: preset.color, rotation: 0, z_index: shapesRef.current.length };
+    const base = { id, layout_id: layout.id, area_id: null, label: null, color: preset.color, rotation: 0, z_index: shapesRef.current.length, dashed: preset.dashed ?? false };
     let shape: ShapeData;
     if (preset.shapeType === "circle") {
       shape = { ...base, shape_type: "circle", x_m: cx, y_m: cy, width_m: null, height_m: null, radius_m: preset.defaultR ?? 0.5, points: null };
@@ -237,6 +238,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       points: polyPoints.slice(0, -1),
       rotation: 0,
       z_index: shapesRef.current.length,
+      dashed: false,
     };
     setShapes(prev => [...prev, newShape]);
     setSelectedId(id);
@@ -305,9 +307,11 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       onTransformEnd,
     };
 
-    const fill = shape.color + "bb";
+    // Dashed shapes (boundaries, canopies) get a very light fill so interior remains visible
+    const fill = shape.dashed ? shape.color + "22" : shape.color + "bb";
     const stroke = shape.color;
     const sw = isSel ? 2.5 : 1.5;
+    const dashProp = shape.dashed ? [8, 5] : undefined;
 
     let node: React.ReactNode = null;
     let labelX = 0, labelY = 0;
@@ -328,6 +332,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           strokeWidth={sw}
           rotation={shape.rotation}
           cornerRadius={3}
+          dash={dashProp}
           onClick={shapeClick}
           onTap={shapeClick}
           {...sharedDrag}
@@ -347,6 +352,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           stroke={stroke}
           strokeWidth={sw}
           rotation={shape.rotation}
+          dash={dashProp}
           onClick={shapeClick}
           onTap={shapeClick}
           {...sharedDrag}
@@ -368,6 +374,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           stroke={stroke}
           strokeWidth={sw}
           rotation={shape.rotation}
+          dash={dashProp}
           onClick={shapeClick}
           onTap={shapeClick}
           {...sharedDrag}
@@ -390,6 +397,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           stroke={stroke}
           strokeWidth={sw}
           rotation={shape.rotation}
+          dash={dashProp}
           draggable={tool === "select"}
           onClick={shapeClick}
           onTap={shapeClick}

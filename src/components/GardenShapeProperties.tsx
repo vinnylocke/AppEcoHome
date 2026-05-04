@@ -18,6 +18,7 @@ export type ShapeData = {
   points: { x: number; y: number }[] | null;
   rotation: number;
   z_index: number;
+  dashed: boolean;
 };
 
 const SWATCHES = ["#4ade80", "#a3e635", "#bfdbfe", "#7dd3fc", "#fbbf24", "#f87171", "#d6d3d1", "#a8a29e"];
