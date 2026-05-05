@@ -19,6 +19,8 @@ export type ShapeData = {
   rotation: number;
   z_index: number;
   dashed: boolean;
+  extrude_m: number | null;
+  preset_id: string | null;
 };
 
 const SWATCHES = ["#4ade80", "#a3e635", "#bfdbfe", "#7dd3fc", "#fbbf24", "#f87171", "#d6d3d1", "#a8a29e"];
@@ -169,6 +171,18 @@ export default function GardenShapeProperties({ shape, homeId, onChange, onDelet
               <RotateCcw size={13} />
             </button>
           </div>
+        )}
+
+        {/* Height (3D extrusion) */}
+        {field("Height (m)",
+          <input
+            data-testid="shape-extrude-input"
+            type="number" min="0" step="0.05"
+            value={shape.extrude_m ?? ""}
+            onChange={e => onChange({ extrude_m: parseFloat(e.target.value) || null })}
+            placeholder="0.3"
+            className="w-full bg-rhozly-bg rounded-xl px-3 py-2 text-xs font-bold text-rhozly-on-surface border border-rhozly-outline/20 outline-none focus:border-rhozly-primary"
+          />
         )}
 
         {/* Layer order */}

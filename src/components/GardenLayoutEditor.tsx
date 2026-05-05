@@ -4,6 +4,7 @@ import { Stage, Layer, Rect, Circle, Ellipse, Line, Text, Transformer } from "re
 import {
   ArrowLeft, ZoomIn, ZoomOut, Settings, CheckCircle2, Loader2, X,
 } from "lucide-react";
+import GardenLayout3D from "./GardenLayout3D";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
@@ -33,6 +34,8 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   const [shapes, setShapes] = useState<ShapeData[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [tool, setTool] = useState<"select" | "polygon">("select");
+  const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
+  const [homeLatLng, setHomeLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [zoom, setZoom] = useState(1);
   const [stagePos, setStagePos] = useState({ x: 32, y: 32 });
   const [polyPoints, setPolyPoints] = useState<{ x: number; y: number }[]>([]);
@@ -85,14 +88,15 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     return () => window.removeEventListener("resize", handle);
   }, []);
 
-  // Load layout + shapes
+  // Load layout + shapes + home lat/lng
   useEffect(() => {
     if (!layoutId) return;
     (async () => {
       try {
-        const [{ data: lay, error: layErr }, { data: shps, error: shpErr }] = await Promise.all([
+        const [{ data: lay, error: layErr }, { data: shps, error: shpErr }, { data: homeRow }] = await Promise.all([
           supabase.from("garden_layouts").select("*").eq("id", layoutId).single(),
           supabase.from("garden_shapes").select("*").eq("layout_id", layoutId).order("z_index"),
+          supabase.from("homes").select("lat,lng").eq("id", homeId).maybeSingle(),
         ]);
         if (layErr) throw layErr;
         if (shpErr) throw shpErr;
@@ -102,7 +106,15 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           setSettingW(lay.canvas_w_m);
           setSettingH(lay.canvas_h_m);
         }
-        setShapes((shps ?? []).map((s: any) => ({ ...s, points: s.points ?? null })));
+        if (homeRow?.lat != null && homeRow?.lng != null) {
+          setHomeLatLng({ lat: homeRow.lat, lng: homeRow.lng });
+        }
+        setShapes((shps ?? []).map((s: any) => ({
+          ...s,
+          points: s.points ?? null,
+          extrude_m: s.extrude_m ?? null,
+          preset_id: s.preset_id ?? null,
+        })));
       } catch (err) {
         Logger.error("Failed to load layout", err);
         toast.error("Could not load layout.");
@@ -110,7 +122,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         setLoading(false);
       }
     })();
-  }, [layoutId]);
+  }, [layoutId, homeId]);
 
   // Attach transformer to selected node (not for polygons)
   useEffect(() => {
@@ -153,6 +165,8 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               rotation: s.rotation,
               z_index: i,
               dashed: s.dashed ?? false,
+              extrude_m: s.extrude_m ?? null,
+              preset_id: s.preset_id ?? null,
             }))
           );
           if (insErr) throw insErr;
@@ -206,7 +220,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     const cx = Math.max(0, Math.min(layout.canvas_w_m, viewCX));
     const cy = Math.max(0, Math.min(layout.canvas_h_m, viewCY));
     const id = crypto.randomUUID();
-    const base = { id, layout_id: layout.id, area_id: null, label: null, color: preset.color, rotation: 0, z_index: shapesRef.current.length, dashed: preset.dashed ?? false };
+    const base = { id, layout_id: layout.id, area_id: null, label: null, color: preset.color, rotation: 0, z_index: shapesRef.current.length, dashed: preset.dashed ?? false, extrude_m: preset.extrude_m, preset_id: preset.id };
     let shape: ShapeData;
     if (preset.shapeType === "circle") {
       shape = { ...base, shape_type: "circle", x_m: cx, y_m: cy, width_m: null, height_m: null, radius_m: preset.defaultR ?? 0.5, points: null };
@@ -277,6 +291,8 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       rotation: 0,
       z_index: shapesRef.current.length,
       dashed: false,
+      extrude_m: 0.3,
+      preset_id: null,
     };
     setShapes(prev => [...prev, newShape]);
     setSelectedId(id);
@@ -589,23 +605,43 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           )}
         </div>
 
-        {/* Zoom controls */}
-        <div className="flex items-center gap-0.5">
+        {/* 2D / 3D pill toggle */}
+        <div className="flex items-center gap-0.5 bg-rhozly-surface rounded-xl p-0.5">
           <button
-            data-testid="zoom-out-btn"
-            onClick={() => adjustZoom(-0.15)}
-            className="p-1.5 rounded-lg text-rhozly-on-surface/50 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
+            data-testid="view-2d-btn"
+            onClick={() => setViewMode("2d")}
+            className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${viewMode === "2d" ? "bg-white text-rhozly-on-surface shadow-sm" : "text-rhozly-on-surface/50"}`}
           >
-            <ZoomOut size={16} />
+            2D
           </button>
           <button
-            data-testid="zoom-in-btn"
-            onClick={() => adjustZoom(0.15)}
-            className="p-1.5 rounded-lg text-rhozly-on-surface/50 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
+            data-testid="view-3d-btn"
+            onClick={() => setViewMode("3d")}
+            className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${viewMode === "3d" ? "bg-white text-rhozly-on-surface shadow-sm" : "text-rhozly-on-surface/50"}`}
           >
-            <ZoomIn size={16} />
+            3D
           </button>
         </div>
+
+        {/* Zoom controls (2D only) */}
+        {viewMode === "2d" && (
+          <div className="flex items-center gap-0.5">
+            <button
+              data-testid="zoom-out-btn"
+              onClick={() => adjustZoom(-0.15)}
+              className="p-1.5 rounded-lg text-rhozly-on-surface/50 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
+            >
+              <ZoomOut size={16} />
+            </button>
+            <button
+              data-testid="zoom-in-btn"
+              onClick={() => adjustZoom(0.15)}
+              className="p-1.5 rounded-lg text-rhozly-on-surface/50 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
+            >
+              <ZoomIn size={16} />
+            </button>
+          </div>
+        )}
 
         {/* Canvas settings */}
         <button
@@ -623,6 +659,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         {!isMobile && (
           <GardenShapePanel
             tool={tool}
+            viewMode={viewMode}
             onAddPreset={addPreset}
             onStartPolygon={() => { setTool("polygon"); setPolyPoints([]); setSelectedId(null); }}
             isMobile={false}
@@ -630,7 +667,22 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         )}
 
         {/* Canvas */}
-        <div ref={containerRef} className="flex-1 relative overflow-hidden bg-rhozly-bg">
+        <div ref={containerRef} className="flex-1 relative overflow-hidden bg-rhozly-bg" style={{ position: "relative" }}>
+          {/* 3D view — mounted when 3D mode is active */}
+          {viewMode === "3d" && (
+            <GardenLayout3D
+              shapes={shapes}
+              selectedId={selectedId}
+              canvasW={layout.canvas_w_m}
+              canvasH={layout.canvas_h_m}
+              homeLatLng={homeLatLng}
+              onSelect={setSelectedId}
+              onShapeChange={updateShape}
+            />
+          )}
+
+          {/* 2D Konva stage — hidden (not unmounted) in 3D mode so it stays initialised */}
+          <div style={{ display: viewMode === "2d" ? "block" : "none", position: "absolute", inset: 0 }}>
           <Stage
             ref={stageRef}
             width={containerSize.w}
@@ -731,6 +783,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               </button>
             </>
           )}
+          </div>{/* end 2D wrapper */}
         </div>
 
         {/* Desktop: properties panel on right (when shape selected) */}
@@ -753,6 +806,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       {isMobile && (
         <GardenShapePanel
           tool={tool}
+          viewMode={viewMode}
           onAddPreset={addPreset}
           onStartPolygon={() => { setTool("polygon"); setPolyPoints([]); setSelectedId(null); }}
           isMobile
