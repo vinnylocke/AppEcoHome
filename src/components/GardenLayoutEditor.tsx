@@ -675,6 +675,8 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               selectedId={selectedId}
               canvasW={layout.canvas_w_m}
               canvasH={layout.canvas_h_m}
+              containerW={containerSize.w}
+              containerH={containerSize.h}
               homeLatLng={homeLatLng}
               onSelect={setSelectedId}
               onShapeChange={updateShape}
