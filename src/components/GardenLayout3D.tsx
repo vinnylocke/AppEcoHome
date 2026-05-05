@@ -36,7 +36,7 @@ export default function GardenLayout3D({ shapes, selectedId, canvasW, canvasH, o
   return (
     <div style={{ position: "absolute", inset: 0 }}>
       <Canvas
-        shadows={{ type: THREE.PCFShadowMap }}
+        shadows="percentage"
         camera={{ position: [canvasW / 2, 20, canvasH + 15], fov: 45 }}
         style={{ background: "#e8f5e9", height: "100%", width: "100%" }}
       >
