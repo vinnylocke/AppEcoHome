@@ -667,8 +667,8 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         )}
 
         {/* Canvas */}
-        <div ref={containerRef} className="flex-1 relative overflow-hidden bg-rhozly-bg" style={{ position: "relative" }}>
-          {/* 3D view — mounted when 3D mode is active */}
+        <div ref={containerRef} className="flex-1 relative overflow-hidden bg-rhozly-bg">
+          {/* 3D view */}
           {viewMode === "3d" && (
             <GardenLayout3D
               shapes={shapes}
@@ -681,9 +681,8 @@ export default function GardenLayoutEditor({ homeId }: Props) {
             />
           )}
 
-          {/* 2D Konva stage — hidden (not unmounted) in 3D mode so it stays initialised */}
-          <div style={{ display: viewMode === "2d" ? "block" : "none", position: "absolute", inset: 0 }}>
-          <Stage
+          {/* 2D Konva stage */}
+          {viewMode === "2d" && <Stage
             ref={stageRef}
             width={containerSize.w}
             height={containerSize.h}
@@ -760,13 +759,12 @@ export default function GardenLayoutEditor({ homeId }: Props) {
                 }
               />
             </Layer>
-          </Stage>
+          </Stage>}
 
-          {/* Scale bar overlay */}
-          <GardenScaleBar pxPerM={BASE_PX * zoom} zoom={zoom} />
+          {/* Scale bar + polygon instructions — 2D only */}
+          {viewMode === "2d" && <GardenScaleBar pxPerM={BASE_PX * zoom} zoom={zoom} />}
 
-          {/* Polygon instructions */}
-          {tool === "polygon" && (
+          {viewMode === "2d" && tool === "polygon" && (
             <>
               <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-xl px-4 py-2 border border-rhozly-outline/20 shadow-sm pointer-events-none">
                 <p className="text-xs font-black text-rhozly-on-surface/70">
@@ -783,7 +781,6 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               </button>
             </>
           )}
-          </div>{/* end 2D wrapper */}
         </div>
 
         {/* Desktop: properties panel on right (when shape selected) */}
