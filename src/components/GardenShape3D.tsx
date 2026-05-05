@@ -6,8 +6,7 @@ import type { ShapeData } from "./GardenShapeProperties";
 interface Props {
   shape: ShapeData;
   isSelected: boolean;
-  transformMode: "translate" | "rotate";
-  orbitRef: React.RefObject<any>;
+  interactionMode: "draw" | "move" | "rotate";
   onSelect: () => void;
   onChange: (updates: Partial<ShapeData>) => void;
 }
@@ -16,7 +15,7 @@ function round3(n: number) {
   return Math.round(n * 1000) / 1000;
 }
 
-export default function GardenShape3D({ shape, isSelected, transformMode, orbitRef, onSelect, onChange }: Props) {
+export default function GardenShape3D({ shape, isSelected, interactionMode, onSelect, onChange }: Props) {
   const meshRef = useRef<THREE.Mesh>(null!);
   const extrude = shape.extrude_m ?? 0.3;
   const isTransparent = shape.dashed || shape.preset_id === "tree-canopy" || shape.preset_id === "pond";
@@ -31,7 +30,6 @@ export default function GardenShape3D({ shape, isSelected, transformMode, orbitR
     />
   );
 
-  // Pre-compute polygon shape — always called (hooks rule), only used when shape_type === polygon
   const polyShape = useMemo(() => {
     const pts = shape.points;
     if (!pts || pts.length < 3) return null;
@@ -43,6 +41,7 @@ export default function GardenShape3D({ shape, isSelected, transformMode, orbitR
   }, [shape.points, shape.x_m, shape.y_m]);
 
   const handleClick = (e: any) => {
+    if (interactionMode === "rotate") return;
     e.stopPropagation();
     onSelect();
   };
@@ -59,24 +58,9 @@ export default function GardenShape3D({ shape, isSelected, transformMode, orbitR
     }
   };
 
-  const handleRotateChange = () => {
-    if (!meshRef.current) return;
-    const deg = (meshRef.current.rotation.y * 180) / Math.PI;
-    onChange({ rotation: round3(-deg) });
-  };
-
-  const transformControls = isSelected ? (
-    <TransformControls
-      object={meshRef}
-      mode={transformMode}
-      showY={false}
-      translationSnap={0.1}
-      rotationSnap={Math.PI / 12}
-      onMouseDown={() => { if (orbitRef.current) orbitRef.current.enabled = false; }}
-      onMouseUp={() => { if (orbitRef.current) orbitRef.current.enabled = true; }}
-      onChange={transformMode === "rotate" ? handleRotateChange : handleTransformChange}
-    />
-  ) : null;
+  // TransformControls only shown when shape is selected AND we're in move mode.
+  // OrbitControls is not mounted in move mode so no ref manipulation needed.
+  const showTransform = isSelected && interactionMode === "move";
 
   // ---- tree canopy (sphere) ----
   if (shape.preset_id === "tree-canopy") {
@@ -87,7 +71,9 @@ export default function GardenShape3D({ shape, isSelected, transformMode, orbitR
           <sphereGeometry args={[r, 16, 12]} />
           {material}
         </mesh>
-        {transformControls}
+        {showTransform && (
+          <TransformControls object={meshRef} mode="translate" showY={false} translationSnap={0.1} onChange={handleTransformChange} />
+        )}
       </group>
     );
   }
@@ -104,7 +90,9 @@ export default function GardenShape3D({ shape, isSelected, transformMode, orbitR
             ? <meshPhongMaterial color={shape.color} transparent opacity={0.85} shininess={120} />
             : material}
         </mesh>
-        {transformControls}
+        {showTransform && (
+          <TransformControls object={meshRef} mode="translate" showY={false} translationSnap={0.1} onChange={handleTransformChange} />
+        )}
       </group>
     );
   }
@@ -120,7 +108,9 @@ export default function GardenShape3D({ shape, isSelected, transformMode, orbitR
           <cylinderGeometry args={[1, 1, depth, 32]} />
           {material}
         </mesh>
-        {transformControls}
+        {showTransform && (
+          <TransformControls object={meshRef} mode="translate" showY={false} translationSnap={0.1} onChange={handleTransformChange} />
+        )}
       </group>
     );
   }
@@ -142,16 +132,8 @@ export default function GardenShape3D({ shape, isSelected, transformMode, orbitR
           <extrudeGeometry args={[polyShape, { depth, bevelEnabled: false }]} />
           {material}
         </mesh>
-        {isSelected && (
-          <TransformControls
-            object={meshRef}
-            mode="translate"
-            showY={false}
-            translationSnap={0.1}
-            onMouseDown={() => { if (orbitRef.current) orbitRef.current.enabled = false; }}
-            onMouseUp={() => { if (orbitRef.current) orbitRef.current.enabled = true; }}
-            onChange={handlePolyChange}
-          />
+        {showTransform && (
+          <TransformControls object={meshRef} mode="translate" showY={false} translationSnap={0.1} onChange={handlePolyChange} />
         )}
       </group>
     );
@@ -179,7 +161,9 @@ export default function GardenShape3D({ shape, isSelected, transformMode, orbitR
           ? <meshBasicMaterial color={shape.color} wireframe />
           : material}
       </mesh>
-      {transformControls}
+      {showTransform && (
+        <TransformControls object={meshRef} mode="translate" showY={false} translationSnap={0.1} onChange={handleTransformChange} />
+      )}
     </group>
   );
 }

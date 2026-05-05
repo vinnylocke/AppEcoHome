@@ -1,7 +1,9 @@
 import React, { useRef, useState, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
+import type { ThreeEvent } from "@react-three/fiber";
 import { OrbitControls, Html, GizmoHelper, GizmoViewport } from "@react-three/drei";
 import type { ShapeData } from "./GardenShapeProperties";
+import type { ShapePreset } from "./GardenShapePanel";
 import GardenShape3D from "./GardenShape3D";
 
 interface Props {
@@ -9,23 +11,90 @@ interface Props {
   selectedId: string | null;
   canvasW: number;
   canvasH: number;
+  northOffset: number;
+  interactionMode: "draw" | "move" | "rotate";
+  pendingPreset: ShapePreset | null;
   homeLatLng: { lat: number; lng: number } | null;
   onSelect: (id: string | null) => void;
   onShapeChange: (id: string, updates: Partial<ShapeData>) => void;
+  onDrawShape: (start: { x: number; y: number }, end: { x: number; y: number }) => void;
   sunPosition?: { altitude: number; azimuth: number };
 }
 
 const SUN_DIST = 50;
 
-export default function GardenLayout3D({ shapes, selectedId, canvasW, canvasH, onSelect, onShapeChange, sunPosition }: Props) {
+// World-space North arrow — orbits with the scene so orientation is always correct.
+function NorthArrow({ northOffset, canvasW, canvasH }: { northOffset: number; canvasW: number; canvasH: number }) {
+  const rad = -northOffset * Math.PI / 180;
+  const arrowLen = 1.4;
+  const px = Math.max(canvasW * 0.08, 1.5);
+  const pz = Math.max(canvasH * 0.08, 1.5);
+  return (
+    <group position={[px, 0.02, pz]} rotation={[0, rad, 0]}>
+      <mesh rotation={[-Math.PI / 2, 0, 0]}>
+        <circleGeometry args={[1.1, 32]} />
+        <meshBasicMaterial color="white" opacity={0.82} transparent />
+      </mesh>
+      <mesh position={[0, 0.04, -arrowLen * 0.45]}>
+        <boxGeometry args={[0.14, 0.08, arrowLen * 0.9]} />
+        <meshBasicMaterial color="#ef4444" />
+      </mesh>
+      <mesh position={[0, 0.04, -arrowLen]} rotation={[Math.PI / 2, 0, 0]}>
+        <coneGeometry args={[0.22, 0.45, 8]} />
+        <meshBasicMaterial color="#ef4444" />
+      </mesh>
+      <mesh position={[0, 0.04, arrowLen * 0.35]}>
+        <boxGeometry args={[0.10, 0.06, arrowLen * 0.6]} />
+        <meshBasicMaterial color="#9ca3af" />
+      </mesh>
+      <Html position={[0, 0.5, -arrowLen - 0.3]} center>
+        <span style={{ fontSize: 11, fontWeight: 900, color: "#ef4444", textShadow: "0 1px 3px rgba(255,255,255,0.9)", userSelect: "none" }}>N</span>
+      </Html>
+    </group>
+  );
+}
+
+// Ghost preview of shape being drawn in 3D
+function DrawGhost({ preset, start, end }: {
+  preset: ShapePreset;
+  start: { x: number; z: number };
+  end: { x: number; z: number };
+}) {
+  const x1 = Math.min(start.x, end.x), x2 = Math.max(start.x, end.x);
+  const z1 = Math.min(start.z, end.z), z2 = Math.max(start.z, end.z);
+  const w = Math.max(0.1, x2 - x1);
+  const h = Math.max(0.1, z2 - z1);
+  const cx = (x1 + x2) / 2, cz = (z1 + z2) / 2;
+  const extrude = preset.extrude_m ?? 0.3;
+
+  if (preset.shapeType === "circle") {
+    const r = Math.max(0.05, Math.min(w, h) / 2);
+    return (
+      <mesh position={[cx, extrude / 2, cz]}>
+        <cylinderGeometry args={[r, r, extrude, 32]} />
+        <meshBasicMaterial color={preset.color} opacity={0.4} transparent />
+      </mesh>
+    );
+  }
+  return (
+    <mesh position={[cx, extrude / 2, cz]}>
+      <boxGeometry args={[w, extrude, h]} />
+      <meshBasicMaterial color={preset.color} opacity={0.4} transparent />
+    </mesh>
+  );
+}
+
+export default function GardenLayout3D({
+  shapes, selectedId, canvasW, canvasH, northOffset,
+  interactionMode, pendingPreset,
+  onSelect, onShapeChange, onDrawShape, sunPosition,
+}: Props) {
   const orbitRef = useRef<any>(null);
-  const [transformMode, setTransformMode] = useState<"translate" | "rotate">("translate");
+  const draw3DStart = useRef<{ x: number; z: number } | null>(null);
+  const [draw3DCurrent, setDraw3DCurrent] = useState<{ x: number; z: number } | null>(null);
 
   const maxDim = Math.max(canvasW, canvasH);
 
-  // Compute directional light position from sun angles.
-  // Pass directly as prop so R3F's reconciler applies it — never mutate a ref
-  // when R3F owns the same prop (reconciler overwrites on every render).
   const lightPos = useMemo<[number, number, number]>(() => {
     if (!sunPosition) return [canvasW / 2 + maxDim * 0.6, maxDim * 0.6, canvasH / 2 - maxDim * 0.3];
     const lx = SUN_DIST * Math.cos(sunPosition.altitude) * Math.sin(sunPosition.azimuth);
@@ -34,17 +103,15 @@ export default function GardenLayout3D({ shapes, selectedId, canvasW, canvasH, o
     return [canvasW / 2 + lx, Math.max(2, ly), canvasH / 2 + lz];
   }, [sunPosition, canvasW, canvasH, maxDim]);
 
-  // Sky colour shifts with sun altitude: night → dawn/dusk → day
   const skyColor = useMemo(() => {
     if (!sunPosition) return "#d4e8d4";
     const alt = sunPosition.altitude;
-    if (alt > 0.35) return "#87ceeb";   // high sun — sky blue
-    if (alt > 0.08) return "#f5a623";   // low sun — golden hour
-    if (alt > 0)    return "#ff6b35";   // near horizon — red/orange
-    return "#1a1a2e";                   // below horizon — night
+    if (alt > 0.35) return "#87ceeb";
+    if (alt > 0.08) return "#f5a623";
+    if (alt > 0)    return "#ff6b35";
+    return "#1a1a2e";
   }, [sunPosition]);
 
-  // Ambient light dims at night
   const ambientIntensity = useMemo(() => {
     if (!sunPosition) return 0.6;
     const alt = sunPosition.altitude;
@@ -52,22 +119,42 @@ export default function GardenLayout3D({ shapes, selectedId, canvasW, canvasH, o
     return 0.15 + 0.55 * Math.min(alt / 0.5, 1);
   }, [sunPosition]);
 
+  // Ground plane pointer handlers for draw mode.
+  // e.point gives the world-space intersection — x/z map directly to the 2D canvas coords.
+  const handleGroundDown = (e: ThreeEvent<PointerEvent>) => {
+    if (interactionMode !== "draw" || !pendingPreset) return;
+    e.stopPropagation();
+    draw3DStart.current = { x: e.point.x, z: e.point.z };
+    setDraw3DCurrent({ x: e.point.x, z: e.point.z });
+  };
+  const handleGroundMove = (e: ThreeEvent<PointerEvent>) => {
+    if (interactionMode !== "draw" || !draw3DStart.current) return;
+    e.stopPropagation();
+    setDraw3DCurrent({ x: e.point.x, z: e.point.z });
+  };
+  const handleGroundUp = (e: ThreeEvent<PointerEvent>) => {
+    if (interactionMode !== "draw" || !draw3DStart.current) return;
+    e.stopPropagation();
+    const s = draw3DStart.current;
+    const end = { x: e.point.x, z: e.point.z };
+    // Map 3D x/z → 2D x_m/y_m (z = y_m in 2D)
+    onDrawShape({ x: s.x, y: s.z }, { x: end.x, y: end.z });
+    draw3DStart.current = null;
+    setDraw3DCurrent(null);
+  };
+
+  const cursorStyle = interactionMode === "draw" ? "crosshair" : interactionMode === "move" ? "default" : "grab";
+
   return (
-    <div style={{ position: "absolute", inset: 0 }}>
+    <div style={{ position: "absolute", inset: 0, cursor: cursorStyle }}>
       <Canvas
         shadows="percentage"
         camera={{ position: [canvasW / 2, 20, canvasH + 15], fov: 45 }}
         style={{ width: "100%", height: "100%" }}
       >
-        {/* Sky colour — set as scene background so WebGL clear matches */}
         <color attach="background" args={[skyColor]} />
-
         <ambientLight intensity={ambientIntensity} />
 
-        {/* Directional light — position prop drives R3F reconciler, never ref-mutate.
-            Shadow frustum must be large enough to cover the whole scene from any
-            sun angle. Light can be SUN_DIST (50m) from centre in any direction, so
-            we need ±(SUN_DIST + maxDim) to guarantee the scene is always covered. */}
         <directionalLight
           position={lightPos}
           intensity={sunPosition && sunPosition.altitude > 0 ? 1.4 : 0.3}
@@ -80,27 +167,40 @@ export default function GardenLayout3D({ shapes, selectedId, canvasW, canvasH, o
           shadow-camera-bottom={-(SUN_DIST + maxDim)}
         />
 
-        <OrbitControls
-          ref={orbitRef}
-          target={[canvasW / 2, 0, canvasH / 2]}
-          maxPolarAngle={Math.PI / 2 - 0.05}
-          enableDamping
-          dampingFactor={0.08}
-        />
+        {/* OrbitControls only mounted in rotate (view) mode.
+            Unmounting removes all DOM event listeners so they cannot
+            intercept pointer events needed by draw / move modes. */}
+        {interactionMode === "rotate" && (
+          <OrbitControls
+            makeDefault
+            ref={orbitRef}
+            target={[canvasW / 2, 0, canvasH / 2]}
+            maxPolarAngle={Math.PI / 2 - 0.05}
+            enableDamping
+            dampingFactor={0.08}
+          />
+        )}
 
-        {/* Ground plane */}
-        <mesh receiveShadow rotation={[-Math.PI / 2, 0, 0]} position={[canvasW / 2, 0, canvasH / 2]}>
+        {/* Ground plane — visible surface + pointer target for draw mode */}
+        <mesh
+          receiveShadow
+          rotation={[-Math.PI / 2, 0, 0]}
+          position={[canvasW / 2, 0, canvasH / 2]}
+          onPointerDown={handleGroundDown}
+          onPointerMove={handleGroundMove}
+          onPointerUp={handleGroundUp}
+        >
           <planeGeometry args={[canvasW, canvasH]} />
           <meshLambertMaterial color="#c8e6c9" />
         </mesh>
 
-        {/* Grid */}
         <gridHelper
           args={[maxDim, maxDim, "#aaaaaa", "#dddddd"]}
           position={[canvasW / 2, 0.001, canvasH / 2]}
         />
 
-        {/* Sun sphere — shows where light is coming from */}
+        <NorthArrow northOffset={northOffset} canvasW={canvasW} canvasH={canvasH} />
+
         {sunPosition && sunPosition.altitude > 0 && (
           <mesh position={lightPos}>
             <sphereGeometry args={[1.8, 16, 10]} />
@@ -108,53 +208,44 @@ export default function GardenLayout3D({ shapes, selectedId, canvasW, canvasH, o
           </mesh>
         )}
 
-        {/* Shapes */}
+        {/* 3D draw ghost */}
+        {interactionMode === "draw" && pendingPreset && draw3DStart.current && draw3DCurrent && (
+          <DrawGhost
+            preset={pendingPreset}
+            start={draw3DStart.current}
+            end={draw3DCurrent}
+          />
+        )}
+
         {shapes.map(s => (
           <GardenShape3D
             key={s.id}
             shape={s}
             isSelected={s.id === selectedId}
-            transformMode={transformMode}
-            orbitRef={orbitRef}
+            interactionMode={interactionMode}
             onSelect={() => onSelect(s.id)}
             onChange={u => onShapeChange(s.id, u)}
           />
         ))}
 
-        {/* Invisible deselect plane */}
-        <mesh
-          rotation={[-Math.PI / 2, 0, 0]}
-          position={[canvasW / 2, -0.01, canvasH / 2]}
-          onClick={() => onSelect(null)}
-        >
-          <planeGeometry args={[canvasW * 10, canvasH * 10]} />
-          <meshBasicMaterial transparent opacity={0} />
-        </mesh>
+        {/* Invisible wide deselect plane — only active in move mode */}
+        {interactionMode === "move" && (
+          <mesh
+            rotation={[-Math.PI / 2, 0, 0]}
+            position={[canvasW / 2, -0.01, canvasH / 2]}
+            onClick={() => onSelect(null)}
+          >
+            <planeGeometry args={[canvasW * 10, canvasH * 10]} />
+            <meshBasicMaterial transparent opacity={0} />
+          </mesh>
+        )}
 
-        {/* Move / Rotate HUD */}
-        <Html position={[canvasW / 2, 0, -2]} center>
-          <div className="flex gap-1 bg-white/90 backdrop-blur-sm rounded-xl px-2 py-1 shadow border border-rhozly-outline/20">
-            <button
-              data-testid="3d-mode-translate"
-              onClick={() => setTransformMode("translate")}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${transformMode === "translate" ? "bg-rhozly-primary text-white" : "text-rhozly-on-surface/60 hover:bg-rhozly-surface"}`}
-            >
-              Move
-            </button>
-            <button
-              data-testid="3d-mode-rotate"
-              onClick={() => setTransformMode("rotate")}
-              className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${transformMode === "rotate" ? "bg-rhozly-primary text-white" : "text-rhozly-on-surface/60 hover:bg-rhozly-surface"}`}
-            >
-              Rotate
-            </button>
-          </div>
-        </Html>
-
-        {/* Orientation gizmo */}
-        <GizmoHelper alignment="bottom-right" margin={[60, 60]}>
-          <GizmoViewport axisColors={["#ef4444", "#22c55e", "#3b82f6"]} labelColor="white" />
-        </GizmoHelper>
+        {/* Gizmo only useful when orbiting */}
+        {interactionMode === "rotate" && (
+          <GizmoHelper alignment="bottom-right" margin={[60, 60]}>
+            <GizmoViewport axisColors={["#ef4444", "#22c55e", "#3b82f6"]} labelColor="white" />
+          </GizmoHelper>
+        )}
       </Canvas>
     </div>
   );

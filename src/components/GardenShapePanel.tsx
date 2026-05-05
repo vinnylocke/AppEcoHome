@@ -38,8 +38,9 @@ export const SHAPE_PRESETS: ShapePreset[] = [
 ];
 
 interface Props {
-  tool: "select" | "polygon";
+  tool: "select" | "polygon" | "draw";
   viewMode: "2d" | "3d";
+  pendingPresetId?: string | null;
   onAddPreset: (preset: ShapePreset) => void;
   onStartPolygon: () => void;
   isMobile: boolean;
@@ -96,7 +97,7 @@ function ShapeIcon({ preset }: { preset: ShapePreset }) {
   );
 }
 
-export default function GardenShapePanel({ tool, viewMode, onAddPreset, onStartPolygon, isMobile }: Props) {
+export default function GardenShapePanel({ tool, viewMode, pendingPresetId, onAddPreset, onStartPolygon, isMobile }: Props) {
   if (isMobile) {
     return (
       <div className="flex gap-2 overflow-x-auto px-4 py-2 bg-white border-t border-rhozly-outline/20 shrink-0">
@@ -105,7 +106,7 @@ export default function GardenShapePanel({ tool, viewMode, onAddPreset, onStartP
             key={preset.id}
             data-testid={`shape-tile-${preset.id}`}
             onClick={() => onAddPreset(preset)}
-            className="flex flex-col items-center gap-1 shrink-0 p-2 rounded-2xl hover:bg-rhozly-surface active:scale-95 transition-all"
+            className={`flex flex-col items-center gap-1 shrink-0 p-2 rounded-2xl active:scale-95 transition-all ${pendingPresetId === preset.id ? "bg-rhozly-primary/10 ring-1 ring-rhozly-primary" : "hover:bg-rhozly-surface"}`}
           >
             <ShapeIcon preset={preset} />
             <span className="text-[9px] font-black text-rhozly-on-surface/60 whitespace-nowrap">{preset.label}</span>
@@ -138,7 +139,7 @@ export default function GardenShapePanel({ tool, viewMode, onAddPreset, onStartP
             key={preset.id}
             data-testid={`shape-tile-${preset.id}`}
             onClick={() => onAddPreset(preset)}
-            className="w-full flex items-center gap-2.5 p-2 rounded-2xl hover:bg-rhozly-surface active:scale-95 transition-all text-left"
+            className={`w-full flex items-center gap-2.5 p-2 rounded-2xl active:scale-95 transition-all text-left ${pendingPresetId === preset.id ? "bg-rhozly-primary/10 ring-1 ring-rhozly-primary" : "hover:bg-rhozly-surface"}`}
           >
             <ShapeIcon preset={preset} />
             <span className="text-xs font-bold text-rhozly-on-surface/70 leading-tight">{preset.label}</span>

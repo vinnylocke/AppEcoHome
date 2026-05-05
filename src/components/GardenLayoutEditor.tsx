@@ -3,6 +3,7 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Stage, Layer, Rect, Circle, Ellipse, Line, Text, Transformer } from "react-konva";
 import {
   ArrowLeft, ZoomIn, ZoomOut, Settings, CheckCircle2, Loader2, X, Play, Pause,
+  Pencil, Hand, Eye,
 } from "lucide-react";
 import GardenLayout3D from "./GardenLayout3D";
 import GardenCompass from "./GardenCompass";
@@ -36,7 +37,11 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   const [layout, setLayout] = useState<Layout | null>(null);
   const [shapes, setShapes] = useState<ShapeData[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [tool, setTool] = useState<"select" | "polygon">("select");
+  const [tool, setTool] = useState<"select" | "polygon" | "draw">("select");
+  const [interactionMode, setInteractionMode] = useState<"draw" | "move" | "rotate">("move");
+  const [pendingPreset, setPendingPreset] = useState<ShapePreset | null>(null);
+  const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
+  const [drawCurrent, setDrawCurrent] = useState<{ x: number; y: number } | null>(null);
   const [viewMode, setViewMode] = useState<"2d" | "3d">("2d");
   const [homeLatLng, setHomeLatLng] = useState<{ lat: number; lng: number } | null>(null);
   const [zoom, setZoom] = useState(1);
@@ -58,6 +63,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     Math.round((new Date().getHours() * 60 + new Date().getMinutes()) / 5) * 5
   );
   const [isPlaying, setIsPlaying] = useState(false);
+  const [compassReadState, setCompassReadState] = useState<"idle" | "ready" | "done">("idle");
 
   const stageRef = useRef<any>(null);
   const transformerRef = useRef<any>(null);
@@ -80,6 +86,27 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   useEffect(() => { stagePosRef.current = stagePos; }, [stagePos]);
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useEffect(() => { containerSizeRef.current = containerSize; }, [containerSize]);
+
+  // Escape cancels draw mode or polygon drawing
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape") return;
+      if (tool === "draw") {
+        setPendingPreset(null);
+        setDrawStart(null);
+        setDrawCurrent(null);
+        setTool("select");
+        setInteractionMode("move");
+      } else if (tool === "polygon") {
+        setPolyPoints([]);
+        setPointerPos(null);
+        setTool("select");
+        setInteractionMode("move");
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [tool]);
 
   // Container resize
   useEffect(() => {
@@ -267,34 +294,54 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     triggerSave();
   }, [triggerSave]);
 
+  // Selecting a preset arms draw mode — user then drags on canvas to place + size the shape.
   const addPreset = useCallback((preset: ShapePreset) => {
-    if (!layout) return;
-    // Place at the centre of what the user is currently looking at
-    const pos = stagePosRef.current;
-    const z = zoomRef.current;
-    const sz = containerSizeRef.current;
-    const viewCX = (sz.w / 2 - pos.x) / (z * BASE_PX);
-    const viewCY = (sz.h / 2 - pos.y) / (z * BASE_PX);
-    const cx = Math.max(0, Math.min(layout.canvas_w_m, viewCX));
-    const cy = Math.max(0, Math.min(layout.canvas_h_m, viewCY));
+    setPendingPreset(preset);
+    setTool("draw");
+    setInteractionMode("draw");
+    setDrawStart(null);
+    setDrawCurrent(null);
+    setSelectedId(null);
+  }, []);
+
+  // Commit the dragged rect/circle as a real shape once the user releases the mouse.
+  const commitDraw = useCallback((start: { x: number; y: number }, end: { x: number; y: number }) => {
+    if (!layout || !pendingPreset) return;
+    const minM = 0.1; // minimum 10 cm in any dimension
+    const x1 = Math.min(start.x, end.x);
+    const y1 = Math.min(start.y, end.y);
+    const x2 = Math.max(start.x, end.x);
+    const y2 = Math.max(start.y, end.y);
+    const w = Math.max(minM, x2 - x1);
+    const h = Math.max(minM, y2 - y1);
+    const cx = (x1 + x2) / 2;
+    const cy = (y1 + y2) / 2;
     const id = crypto.randomUUID();
-    const base = { id, layout_id: layout.id, area_id: null, label: null, color: preset.color, rotation: 0, z_index: shapesRef.current.length, dashed: preset.dashed ?? false, extrude_m: preset.extrude_m, preset_id: preset.id };
+    const base = {
+      id, layout_id: layout.id, area_id: null, label: null,
+      color: pendingPreset.color, rotation: 0,
+      z_index: shapesRef.current.length,
+      dashed: pendingPreset.dashed ?? false,
+      extrude_m: pendingPreset.extrude_m,
+      preset_id: pendingPreset.id,
+    };
     let shape: ShapeData;
-    if (preset.shapeType === "circle") {
-      shape = { ...base, shape_type: "circle", x_m: cx, y_m: cy, width_m: null, height_m: null, radius_m: preset.defaultR ?? 0.5, points: null };
-    } else if (preset.shapeType === "ellipse") {
-      shape = { ...base, shape_type: "ellipse", x_m: cx, y_m: cy, width_m: preset.defaultW ?? 2, height_m: preset.defaultH ?? 1, radius_m: null, points: null };
-    } else if (preset.shapeType === "polygon") {
-      shape = { ...base, shape_type: "polygon", x_m: cx, y_m: cy, width_m: null, height_m: null, radius_m: null, points: preset.defaultPoints ?? [] };
+    if (pendingPreset.shapeType === "circle") {
+      shape = { ...base, shape_type: "circle", x_m: cx, y_m: cy, width_m: null, height_m: null, radius_m: Math.max(minM, Math.min(w, h) / 2), points: null };
+    } else if (pendingPreset.shapeType === "ellipse") {
+      shape = { ...base, shape_type: "ellipse", x_m: cx, y_m: cy, width_m: w, height_m: h, radius_m: null, points: null };
     } else {
-      const w = preset.defaultW ?? 1, h = preset.defaultH ?? 1;
-      shape = { ...base, shape_type: "rect", x_m: cx - w / 2, y_m: cy - h / 2, width_m: w, height_m: h, radius_m: null, points: null };
+      shape = { ...base, shape_type: "rect", x_m: x1, y_m: y1, width_m: w, height_m: h, radius_m: null, points: null };
     }
     setShapes(prev => [...prev, shape]);
     setSelectedId(id);
+    setPendingPreset(null);
+    setDrawStart(null);
+    setDrawCurrent(null);
     setTool("select");
+    setInteractionMode("move");
     triggerSave();
-  }, [layout, triggerSave]);
+  }, [layout, pendingPreset, triggerSave]);
 
   // Zoom via scroll wheel
   const handleWheel = useCallback((e: any) => {
@@ -364,9 +411,19 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   const handleStageMouseDown = useCallback((e: any) => {
     if (e.target !== e.target.getStage()) return;
     if (tool === "polygon") return;
-    isPanningRef.current = true;
-    panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY };
-  }, [tool]);
+    if (tool === "draw") {
+      const pos = stageRef.current.getRelativePointerPosition();
+      const pt = { x: pos.x / BASE_PX, y: pos.y / BASE_PX };
+      setDrawStart(pt);
+      setDrawCurrent(pt);
+      return;
+    }
+    // Pan canvas only in rotate (view) mode; in move mode background click just deselects
+    if (interactionMode === "rotate") {
+      isPanningRef.current = true;
+      panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY };
+    }
+  }, [tool, interactionMode]);
 
   const handleStageMouseMove = useCallback((e: any) => {
     if (isPanningRef.current) {
@@ -379,16 +436,30 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       const pos = stageRef.current?.getRelativePointerPosition();
       if (pos) setPointerPos({ x: pos.x / BASE_PX, y: pos.y / BASE_PX });
     }
-  }, [tool]);
+    if (tool === "draw" && drawStart) {
+      const pos = stageRef.current?.getRelativePointerPosition();
+      if (pos) setDrawCurrent({ x: pos.x / BASE_PX, y: pos.y / BASE_PX });
+    }
+  }, [tool, drawStart]);
 
   const handleStageMouseUp = useCallback(() => {
     isPanningRef.current = false;
-  }, []);
+    if (tool === "draw" && drawStart && drawCurrent) {
+      commitDraw(drawStart, drawCurrent);
+    }
+  }, [tool, drawStart, drawCurrent, commitDraw]);
 
   // Touch: single finger = pan, two fingers = pinch-zoom
   const handleTouchStart = useCallback((e: any) => {
     const touches = e.evt.touches;
-    if (touches.length === 1 && tool !== "polygon") {
+    if (touches.length === 1 && tool === "draw") {
+      const pos = stageRef.current.getRelativePointerPosition();
+      const pt = { x: pos.x / BASE_PX, y: pos.y / BASE_PX };
+      setDrawStart(pt);
+      setDrawCurrent(pt);
+      return;
+    }
+    if (touches.length === 1 && tool !== "polygon" && interactionMode === "rotate") {
       isPanningRef.current = true;
       panStartRef.current = { x: touches[0].clientX, y: touches[0].clientY };
     }
@@ -399,11 +470,16 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         touches[0].clientY - touches[1].clientY
       );
     }
-  }, [tool]);
+  }, [tool, interactionMode]);
 
   const handleTouchMove = useCallback((e: any) => {
     e.evt.preventDefault();
     const touches = e.evt.touches;
+    if (touches.length === 1 && tool === "draw" && drawStart) {
+      const pos = stageRef.current?.getRelativePointerPosition();
+      if (pos) setDrawCurrent({ x: pos.x / BASE_PX, y: pos.y / BASE_PX });
+      return;
+    }
     if (touches.length === 1 && isPanningRef.current) {
       const dx = touches[0].clientX - panStartRef.current.x;
       const dy = touches[0].clientY - panStartRef.current.y;
@@ -419,12 +495,15 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       lastTouchDistRef.current = dist;
       setZoom(prev => Math.max(0.1, Math.min(5, prev * scale)));
     }
-  }, []);
+  }, [tool, drawStart]);
 
   const handleTouchEnd = useCallback(() => {
     isPanningRef.current = false;
     lastTouchDistRef.current = null;
-  }, []);
+    if (tool === "draw" && drawStart && drawCurrent) {
+      commitDraw(drawStart, drawCurrent);
+    }
+  }, [tool, drawStart, drawCurrent, commitDraw]);
 
   const saveSettings = async () => {
     if (!layoutId || !layout) return;
@@ -449,7 +528,11 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   // Shape renderer
   const renderShape = (shape: ShapeData) => {
     const isSel = shape.id === selectedId;
-    const shapeClick = (e: any) => { e.cancelBubble = true; setSelectedId(shape.id); };
+    const shapeClick = (e: any) => {
+      if (interactionMode === "rotate") return; // no selection while navigating
+      e.cancelBubble = true;
+      setSelectedId(shape.id);
+    };
 
     const onTransformEnd = (e: any) => {
       const node = e.target;
@@ -476,7 +559,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     };
 
     const sharedDrag = {
-      draggable: tool === "select",
+      draggable: interactionMode === "move" && tool === "select",
       onDragEnd: (e: any) => updateShape(shape.id, { x_m: e.target.x() / BASE_PX, y_m: e.target.y() / BASE_PX }),
       onTransformEnd,
     };
@@ -572,7 +655,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           strokeWidth={sw}
           rotation={shape.rotation}
           dash={dashProp}
-          draggable={tool === "select"}
+          draggable={interactionMode === "move" && tool === "select"}
           onClick={shapeClick}
           onTap={shapeClick}
           onDragEnd={(e: any) => {
@@ -665,6 +748,30 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           )}
         </div>
 
+        {/* Interaction mode — Draw / Move / Rotate */}
+        <div className="flex items-center gap-0.5 bg-rhozly-surface rounded-xl p-0.5">
+          {([
+            { id: "draw",   label: "Draw",   Icon: Pencil },
+            { id: "move",   label: "Move",   Icon: Hand   },
+            { id: "rotate", label: "View",   Icon: Eye    },
+          ] as { id: "draw" | "move" | "rotate"; label: string; Icon: any }[]).map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              data-testid={`mode-${id}-btn`}
+              onClick={() => {
+                setInteractionMode(id);
+                if (id !== "draw") { setPendingPreset(null); setTool("select"); setDrawStart(null); setDrawCurrent(null); }
+                if (id === "draw" && !pendingPreset) { /* wait for preset selection */ }
+              }}
+              title={label}
+              className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${interactionMode === id ? "bg-white text-rhozly-on-surface shadow-sm" : "text-rhozly-on-surface/50 hover:text-rhozly-on-surface"}`}
+            >
+              <Icon size={13} />
+              <span className="hidden sm:inline">{label}</span>
+            </button>
+          ))}
+        </div>
+
         {/* 2D / 3D pill toggle */}
         <div className="flex items-center gap-0.5 bg-rhozly-surface rounded-xl p-0.5">
           <button
@@ -754,7 +861,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         {/* Canvas settings */}
         <button
           data-testid="canvas-settings-btn"
-          onClick={() => setShowSettings(true)}
+          onClick={() => { setShowSettings(true); setCompassReadState("idle"); }}
           className="p-1.5 rounded-xl text-rhozly-on-surface/50 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
         >
           <Settings size={16} />
@@ -768,6 +875,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           <GardenShapePanel
             tool={tool}
             viewMode={viewMode}
+            pendingPresetId={pendingPreset?.id ?? null}
             onAddPreset={addPreset}
             onStartPolygon={() => { setTool("polygon"); setPolyPoints([]); setSelectedId(null); }}
             isMobile={false}
@@ -783,9 +891,13 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               selectedId={selectedId}
               canvasW={layout.canvas_w_m}
               canvasH={layout.canvas_h_m}
+              northOffset={northOffset}
+              interactionMode={interactionMode}
+              pendingPreset={pendingPreset}
               homeLatLng={homeLatLng}
-              onSelect={setSelectedId}
+              onSelect={id => { if (interactionMode !== "rotate") setSelectedId(id); }}
               onShapeChange={updateShape}
+              onDrawShape={commitDraw}
               sunPosition={sunPosition}
             />
           )}
@@ -813,7 +925,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               onTouchStart={handleTouchStart}
               onTouchMove={handleTouchMove}
               onTouchEnd={handleTouchEnd}
-              style={{ cursor: tool === "polygon" ? "crosshair" : "grab" }}
+              style={{ cursor: tool === "polygon" || tool === "draw" ? "crosshair" : interactionMode === "rotate" ? "grab" : "default" }}
             >
               <GardenRuler
                 canvasWm={layout.canvas_w_m}
@@ -825,6 +937,27 @@ export default function GardenLayoutEditor({ homeId }: Props) {
 
               <Layer>
                 {shapes.map(renderShape)}
+
+                {/* Draw-mode ghost — shows shape size as user drags */}
+                {tool === "draw" && drawStart && drawCurrent && pendingPreset && (() => {
+                  const x1 = Math.min(drawStart.x, drawCurrent.x) * BASE_PX;
+                  const y1 = Math.min(drawStart.y, drawCurrent.y) * BASE_PX;
+                  const w  = Math.abs(drawCurrent.x - drawStart.x) * BASE_PX;
+                  const h  = Math.abs(drawCurrent.y - drawStart.y) * BASE_PX;
+                  const cx = (drawStart.x + drawCurrent.x) / 2 * BASE_PX;
+                  const cy = (drawStart.y + drawCurrent.y) / 2 * BASE_PX;
+                  const r  = Math.min(w, h) / 2;
+                  if (w < 2 && h < 2) return null;
+                  const fill = pendingPreset.color + "55";
+                  const stroke = pendingPreset.color;
+                  if (pendingPreset.shapeType === "circle") {
+                    return <Circle x={cx} y={cy} radius={r} fill={fill} stroke={stroke} strokeWidth={1.5} dash={[5,3]} listening={false} />;
+                  }
+                  if (pendingPreset.shapeType === "ellipse") {
+                    return <Ellipse x={cx} y={cy} radiusX={w/2} radiusY={h/2} fill={fill} stroke={stroke} strokeWidth={1.5} dash={[5,3]} listening={false} />;
+                  }
+                  return <Rect x={x1} y={y1} width={w} height={h} fill={fill} stroke={stroke} strokeWidth={1.5} dash={[5,3]} listening={false} />;
+                })()}
 
                 {/* In-progress polygon preview */}
                 {tool === "polygon" && polyPoints.length > 0 && (() => {
@@ -876,13 +1009,32 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           {/* Scale bar + polygon instructions — 2D only */}
           {viewMode === "2d" && <GardenScaleBar pxPerM={BASE_PX * zoom} zoom={zoom} />}
 
-          {/* Compass overlay — always visible in both 2D and 3D */}
-          <div
-            data-testid="canvas-compass-overlay"
-            className="absolute bottom-4 left-4 z-10 bg-white/80 backdrop-blur-sm rounded-2xl p-1.5 shadow-md border border-rhozly-outline/10 pointer-events-none"
-          >
-            <GardenCompass value={northOffset} size={64} readOnly />
-          </div>
+          {/* Compass overlay — 2D only. In 3D the North arrow lives inside the scene
+              so it orbits correctly with the camera. */}
+          {viewMode === "2d" && (
+            <div
+              data-testid="canvas-compass-overlay"
+              className="absolute bottom-4 left-4 z-10 bg-white/80 backdrop-blur-sm rounded-2xl p-1.5 shadow-md border border-rhozly-outline/10 pointer-events-none"
+            >
+              <GardenCompass value={northOffset} size={64} readOnly />
+            </div>
+          )}
+
+          {viewMode === "2d" && tool === "draw" && (
+            <>
+              <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-xl px-4 py-2 border border-rhozly-outline/20 shadow-sm pointer-events-none">
+                <p className="text-xs font-black text-rhozly-on-surface/70">
+                  {pendingPreset?.label ?? "Shape"} — click and drag to place
+                </p>
+              </div>
+              <button
+                onClick={() => { setPendingPreset(null); setDrawStart(null); setDrawCurrent(null); setTool("select"); setInteractionMode("move"); }}
+                className="absolute top-4 right-4 p-2 rounded-xl bg-white border border-rhozly-outline/20 shadow-sm text-rhozly-on-surface/50 hover:text-rhozly-on-surface transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </>
+          )}
 
           {viewMode === "2d" && tool === "polygon" && (
             <>
@@ -949,14 +1101,15 @@ export default function GardenLayoutEditor({ homeId }: Props) {
 
       {/* Canvas settings modal */}
       {showSettings && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm p-4">
-          <div className="bg-white rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-xl">
-            <div className="flex items-center justify-between">
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm p-4">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-xl flex flex-col max-h-[90vh]">
+            <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-rhozly-outline/10 flex-shrink-0">
               <p className="font-black text-rhozly-on-surface">Canvas Settings</p>
               <button onClick={() => setShowSettings(false)} className="p-1.5 rounded-lg text-rhozly-on-surface/40 hover:text-rhozly-on-surface">
                 <X size={16} />
               </button>
             </div>
+            <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
 
             <div>
               <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">Layout Name</p>
@@ -997,29 +1150,104 @@ export default function GardenLayoutEditor({ homeId }: Props) {
             </div>
 
             {/* Garden orientation */}
-            <div>
-              <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">Garden Orientation</p>
-              <p className="text-xs text-rhozly-on-surface/50 mb-3">Drag the arrow to point toward real-world North.</p>
-              <div className="flex items-center gap-4">
-                <GardenCompass value={settingNorthOffset} onChange={setSettingNorthOffset} size={88} />
-                <div className="flex-1">
-                  <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">North Offset (°)</p>
-                  <input
-                    data-testid="north-offset-input"
-                    type="number"
-                    min={0}
-                    max={359}
-                    step={1}
-                    value={settingNorthOffset}
-                    onChange={e => setSettingNorthOffset(((Number(e.target.value) % 360) + 360) % 360)}
-                    className="w-full bg-rhozly-bg rounded-xl px-3 py-2.5 text-sm font-bold text-rhozly-on-surface border border-rhozly-outline/20 outline-none focus:border-rhozly-primary"
-                  />
-                  <p className="text-[10px] text-rhozly-on-surface/40 mt-1">0° = canvas top is North</p>
-                </div>
-              </div>
-            </div>
+            {(() => {
+              const takeReading = async () => {
+                try {
+                  if (typeof (DeviceOrientationEvent as any).requestPermission === "function") {
+                    const perm = await (DeviceOrientationEvent as any).requestPermission();
+                    if (perm !== "granted") { setCompassReadState("idle"); return; }
+                  }
+                  setCompassReadState("ready");
+                  const onReading = (e: DeviceOrientationEvent & { webkitCompassHeading?: number }) => {
+                    let heading: number | null = null;
+                    if (e.webkitCompassHeading != null) {
+                      heading = e.webkitCompassHeading;
+                    } else if (e.absolute && e.alpha != null) {
+                      heading = (360 - e.alpha) % 360;
+                    }
+                    if (heading == null) return;
+                    setSettingNorthOffset(Math.round(heading) % 360);
+                    setCompassReadState("done");
+                    window.removeEventListener("deviceorientationabsolute", onReading as any);
+                    window.removeEventListener("deviceorientation", onReading as any);
+                  };
+                  window.addEventListener("deviceorientationabsolute", onReading as any, { once: true });
+                  window.addEventListener("deviceorientation", onReading as any, { once: true });
+                  setTimeout(() => {
+                    window.removeEventListener("deviceorientationabsolute", onReading as any);
+                    window.removeEventListener("deviceorientation", onReading as any);
+                    if (compassReadState !== "done") setCompassReadState("idle");
+                  }, 8000);
+                } catch { setCompassReadState("idle"); }
+              };
 
-            <div className="flex gap-3 pt-1">
+              const DIRS = ["N","NE","E","SE","S","SW","W","NW"] as const;
+              const snap45 = (d: number) => DIRS[Math.round(((d % 360) + 360) % 360 / 45) % 8];
+              const northLabel = snap45(settingNorthOffset === 0 ? 0 : (360 - settingNorthOffset) % 360);
+
+              return (
+                <div>
+                  <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">Garden Orientation</p>
+                  <p className="text-xs text-rhozly-on-surface/60 mb-3 leading-relaxed">
+                    The grid has two fixed axes: <span className="font-black text-rhozly-on-surface">X</span> (left → right) and <span className="font-black text-rhozly-on-surface">Z</span> (top → bottom). Drag the <span className="font-black text-rhozly-primary">N arrow</span> on the compass below until North points in the correct direction relative to those axes.
+                  </p>
+
+                  {/* Compass on top of grid — the grid is the fixed reference */}
+                  <div className="relative w-44 h-44 mx-auto mb-3 rounded-2xl overflow-hidden bg-rhozly-bg border border-rhozly-outline/20">
+                    {/* Grid background */}
+                    <svg width="100%" height="100%" viewBox="0 0 176 176" className="absolute inset-0 pointer-events-none">
+                      {[44,88,132].map(p => (
+                        <g key={p}>
+                          <line x1={p} y1={0} x2={p} y2={176} stroke="#e5e7eb" strokeWidth={0.8} />
+                          <line x1={0} y1={p} x2={176} y2={p} stroke="#e5e7eb" strokeWidth={0.8} />
+                        </g>
+                      ))}
+                      {/* X axis */}
+                      <line x1={0} y1={88} x2={176} y2={88} stroke="#9ca3af" strokeWidth={1.5} />
+                      {/* Z axis */}
+                      <line x1={88} y1={0} x2={88} y2={176} stroke="#9ca3af" strokeWidth={1.5} />
+                      {/* Axis labels */}
+                      <text x={158} y={82} fontSize={9} fontWeight="bold" fill="#9ca3af">+X</text>
+                      <text x={92} y={168} fontSize={9} fontWeight="bold" fill="#9ca3af">+Z</text>
+                    </svg>
+                    {/* Draggable compass centred on the grid */}
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <GardenCompass value={settingNorthOffset} onChange={v => { setSettingNorthOffset(v); setCompassReadState("idle"); }} size={120} />
+                    </div>
+                  </div>
+                  <p className="text-xs text-center text-rhozly-on-surface/50 mb-3">
+                    North is <span className="font-black text-rhozly-primary">{northLabel}</span> of the grid origin
+                  </p>
+
+                  {/* Phone compass shortcut */}
+                  <div className="bg-rhozly-surface rounded-2xl p-3">
+                    <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">Auto-calibrate with phone compass</p>
+                    {compassReadState !== "done" ? (
+                      <>
+                        <p className="text-xs text-rhozly-on-surface/60 mb-2 leading-relaxed">
+                          Go to your garden. Hold the phone flat and rotate yourself until the layout on screen matches what's in front of you. Then tap <span className="font-black text-rhozly-on-surface">Read Now</span>.
+                        </p>
+                        <button
+                          data-testid="compass-read-btn"
+                          onClick={takeReading}
+                          className={`w-full py-2.5 rounded-xl text-xs font-black transition-colors ${compassReadState === "ready" ? "bg-rhozly-primary/20 text-rhozly-primary animate-pulse" : "bg-rhozly-primary text-white"}`}
+                        >
+                          {compassReadState === "ready" ? "Waiting for sensor…" : "Read Now"}
+                        </button>
+                      </>
+                    ) : (
+                      <p className="text-xs text-rhozly-primary font-black text-center py-1">
+                        ✓ Set from phone compass — drag the N arrow above to fine-tune
+                      </p>
+                    )}
+                  </div>
+                  <input type="hidden" data-testid="north-offset-input" value={settingNorthOffset} readOnly />
+                </div>
+              );
+            })()}
+
+            </div>{/* end scrollable body */}
+            <div className="flex gap-3 px-6 py-4 border-t border-rhozly-outline/10 flex-shrink-0">
               <button
                 onClick={() => setShowSettings(false)}
                 className="flex-1 py-3 rounded-2xl border border-rhozly-outline/20 text-sm font-black text-rhozly-on-surface/60"
