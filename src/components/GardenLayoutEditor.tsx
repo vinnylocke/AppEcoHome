@@ -1,10 +1,11 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Stage, Layer, Rect, Circle, Ellipse, Line, Text, Transformer } from "react-konva";
 import {
-  ArrowLeft, ZoomIn, ZoomOut, Settings, CheckCircle2, Loader2, X,
+  ArrowLeft, ZoomIn, ZoomOut, Settings, CheckCircle2, Loader2, X, Play, Pause,
 } from "lucide-react";
 import GardenLayout3D from "./GardenLayout3D";
+import GardenCompass from "./GardenCompass";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
@@ -12,12 +13,14 @@ import GardenRuler from "./GardenRuler";
 import GardenScaleBar from "./GardenScaleBar";
 import GardenShapePanel, { type ShapePreset } from "./GardenShapePanel";
 import GardenShapeProperties, { type ShapeData } from "./GardenShapeProperties";
+import { useSunPosition } from "../hooks/useSunPosition";
 
 interface Layout {
   id: string;
   name: string;
   canvas_w_m: number;
   canvas_h_m: number;
+  north_offset_deg: number;
 }
 
 interface Props {
@@ -48,12 +51,20 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   const [settingName, setSettingName] = useState("");
   const [settingW, setSettingW] = useState(30);
   const [settingH, setSettingH] = useState(20);
+  const [northOffset, setNorthOffset] = useState(0);
+  const [settingNorthOffset, setSettingNorthOffset] = useState(0);
+  const [sunDate, setSunDate] = useState(() => new Date().toLocaleDateString("en-CA"));
+  const [sunMinutes, setSunMinutes] = useState(() =>
+    Math.round((new Date().getHours() * 60 + new Date().getMinutes()) / 5) * 5
+  );
+  const [isPlaying, setIsPlaying] = useState(false);
 
   const stageRef = useRef<any>(null);
   const transformerRef = useRef<any>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const shapesRef = useRef<ShapeData[]>([]);
+  const playIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Manual pan state — kept in refs so pan moves don't trigger re-renders
   const isPanningRef = useRef(false);
@@ -88,6 +99,42 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     return () => window.removeEventListener("resize", handle);
   }, []);
 
+  // Sun position — build Date from slider, call SunCalc, convert to scene azimuth
+  const sunDateObj = useMemo(() => {
+    const d = new Date(sunDate);
+    d.setHours(0, sunMinutes, 0, 0);
+    return d;
+  }, [sunDate, sunMinutes]);
+
+  const rawSunPos = useSunPosition(
+    homeLatLng?.lat ?? null,
+    homeLatLng?.lng ?? null,
+    sunDateObj
+  );
+
+  // sceneAzimuth = -sunAzimuth - northOffsetRad
+  // SunCalc: 0=South, +West. Scene +X=East, +Z=South. Negate to match axes.
+  const northOffsetRad = northOffset * Math.PI / 180;
+  const sunPosition = (rawSunPos && rawSunPos.altitude > 0)
+    ? { altitude: rawSunPos.altitude, azimuth: -rawSunPos.azimuth - northOffsetRad }
+    : undefined;
+
+  // Play/pause — advance slider 5 min every 200 ms (≈ 1 full day in ~2 min)
+  useEffect(() => {
+    if (!isPlaying) {
+      if (playIntervalRef.current) { clearInterval(playIntervalRef.current); playIntervalRef.current = null; }
+      return;
+    }
+    playIntervalRef.current = setInterval(() => {
+      setSunMinutes(prev => {
+        const next = prev + 5;
+        if (next >= 1440) { setIsPlaying(false); return 1440; }
+        return next;
+      });
+    }, 200);
+    return () => { if (playIntervalRef.current) clearInterval(playIntervalRef.current); };
+  }, [isPlaying]);
+
   // Load layout + shapes + home lat/lng
   useEffect(() => {
     if (!layoutId) return;
@@ -105,6 +152,8 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           setSettingName(lay.name);
           setSettingW(lay.canvas_w_m);
           setSettingH(lay.canvas_h_m);
+          setNorthOffset(lay.north_offset_deg ?? 0);
+          setSettingNorthOffset(lay.north_offset_deg ?? 0);
         }
         if (homeRow?.lat != null && homeRow?.lng != null) {
           setHomeLatLng({ lat: homeRow.lat, lng: homeRow.lng });
@@ -375,10 +424,12 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         name: settingName.trim() || layout.name,
         canvas_w_m: settingW,
         canvas_h_m: settingH,
+        north_offset_deg: settingNorthOffset,
         updated_at: new Date().toISOString(),
       }).eq("id", layoutId);
       if (error) throw error;
-      setLayout(l => l ? { ...l, name: settingName.trim() || l.name, canvas_w_m: settingW, canvas_h_m: settingH } : l);
+      setLayout(l => l ? { ...l, name: settingName.trim() || l.name, canvas_w_m: settingW, canvas_h_m: settingH, north_offset_deg: settingNorthOffset } : l);
+      setNorthOffset(settingNorthOffset);
       setShowSettings(false);
     } catch (err) {
       Logger.error("Failed to save canvas settings", err);
@@ -643,6 +694,40 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           </div>
         )}
 
+        {/* Sun time controls — 3D only */}
+        {viewMode === "3d" && (
+          <div className="flex items-center gap-1.5 shrink-0">
+            <input
+              data-testid="sun-date-input"
+              type="date"
+              value={sunDate}
+              onChange={e => { setSunDate(e.target.value); setIsPlaying(false); }}
+              className="bg-rhozly-surface rounded-lg px-2 py-1 text-[10px] font-black text-rhozly-on-surface border border-rhozly-outline/20 outline-none focus:border-rhozly-primary"
+            />
+            <input
+              data-testid="sun-time-slider"
+              type="range"
+              min={0}
+              max={1440}
+              step={5}
+              value={sunMinutes}
+              onChange={e => { setSunMinutes(Number(e.target.value)); setIsPlaying(false); }}
+              className="w-24 accent-rhozly-primary"
+            />
+            <span className="text-[10px] font-black text-rhozly-on-surface/70 w-10 shrink-0 tabular-nums">
+              {String(Math.floor(sunMinutes / 60)).padStart(2, "0")}:{String(sunMinutes % 60).padStart(2, "0")}
+            </span>
+            <button
+              data-testid="sun-play-btn"
+              onClick={() => setIsPlaying(p => !p)}
+              title={isPlaying ? "Pause sun animation" : "Play sun animation"}
+              className="p-1.5 rounded-lg text-rhozly-on-surface/50 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
+            >
+              {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+            </button>
+          </div>
+        )}
+
         {/* Canvas settings */}
         <button
           data-testid="canvas-settings-btn"
@@ -678,6 +763,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               homeLatLng={homeLatLng}
               onSelect={setSelectedId}
               onShapeChange={updateShape}
+              sunPosition={sunPosition}
             />
           )}
 
@@ -876,6 +962,29 @@ export default function GardenLayoutEditor({ homeId }: Props) {
                   onChange={e => setSettingH(parseFloat(e.target.value) || 20)}
                   className="w-full bg-rhozly-bg rounded-xl px-3 py-2.5 text-sm font-bold text-rhozly-on-surface border border-rhozly-outline/20 outline-none focus:border-rhozly-primary"
                 />
+              </div>
+            </div>
+
+            {/* Garden orientation */}
+            <div>
+              <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">Garden Orientation</p>
+              <p className="text-xs text-rhozly-on-surface/50 mb-3">Drag the arrow to point toward real-world North.</p>
+              <div className="flex items-center gap-4">
+                <GardenCompass value={settingNorthOffset} onChange={setSettingNorthOffset} size={88} />
+                <div className="flex-1">
+                  <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">North Offset (°)</p>
+                  <input
+                    data-testid="north-offset-input"
+                    type="number"
+                    min={0}
+                    max={359}
+                    step={1}
+                    value={settingNorthOffset}
+                    onChange={e => setSettingNorthOffset(((Number(e.target.value) % 360) + 360) % 360)}
+                    className="w-full bg-rhozly-bg rounded-xl px-3 py-2.5 text-sm font-bold text-rhozly-on-surface border border-rhozly-outline/20 outline-none focus:border-rhozly-primary"
+                  />
+                  <p className="text-[10px] text-rhozly-on-surface/40 mt-1">0° = canvas top is North</p>
+                </div>
               </div>
             </div>
 
