@@ -1,10 +1,10 @@
-import React, { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Stage, Layer, Rect, Circle, Ellipse, Line, Text, Transformer } from "react-konva";
 import {
   ArrowLeft, ZoomIn, ZoomOut, Settings, CheckCircle2, Loader2, X,
 } from "lucide-react";
-const GardenLayout3D = lazy(() => import("./GardenLayout3D"));
+import GardenLayout3D from "./GardenLayout3D";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
@@ -668,23 +668,17 @@ export default function GardenLayoutEditor({ homeId }: Props) {
 
         {/* Canvas */}
         <div ref={containerRef} className="flex-1 relative overflow-hidden bg-rhozly-bg">
-          {/* 3D view — lazy loaded so Three.js bundle doesn't block initial page load */}
+          {/* 3D view */}
           {viewMode === "3d" && (
-            <Suspense fallback={
-              <div className="absolute inset-0 flex items-center justify-center bg-rhozly-bg">
-                <Loader2 size={28} className="animate-spin text-rhozly-primary" />
-              </div>
-            }>
-              <GardenLayout3D
-                shapes={shapes}
-                selectedId={selectedId}
-                canvasW={layout.canvas_w_m}
-                canvasH={layout.canvas_h_m}
-                homeLatLng={homeLatLng}
-                onSelect={setSelectedId}
-                onShapeChange={updateShape}
-              />
-            </Suspense>
+            <GardenLayout3D
+              shapes={shapes}
+              selectedId={selectedId}
+              canvasW={layout.canvas_w_m}
+              canvasH={layout.canvas_h_m}
+              homeLatLng={homeLatLng}
+              onSelect={setSelectedId}
+              onShapeChange={updateShape}
+            />
           )}
 
           {/* 2D Konva stage */}
