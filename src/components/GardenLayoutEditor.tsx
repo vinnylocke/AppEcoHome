@@ -675,93 +675,94 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               selectedId={selectedId}
               canvasW={layout.canvas_w_m}
               canvasH={layout.canvas_h_m}
-              containerW={containerSize.w}
-              containerH={containerSize.h}
               homeLatLng={homeLatLng}
               onSelect={setSelectedId}
               onShapeChange={updateShape}
             />
           )}
 
-          {/* 2D Konva stage */}
-          {viewMode === "2d" && <Stage
-            ref={stageRef}
-            width={containerSize.w}
-            height={containerSize.h}
-            scaleX={zoom}
-            scaleY={zoom}
-            x={stagePos.x}
-            y={stagePos.y}
-            onWheel={handleWheel}
-            onClick={handleStageClick}
-            onTap={handleStageClick}
-            onDblClick={handleStageDblClick}
-            onDblTap={handleStageDblClick}
-            onMouseDown={handleStageMouseDown}
-            onMouseMove={handleStageMouseMove}
-            onMouseUp={handleStageMouseUp}
-            onMouseLeave={handleStageMouseUp}
-            onTouchStart={handleTouchStart}
-            onTouchMove={handleTouchMove}
-            onTouchEnd={handleTouchEnd}
-            style={{ cursor: tool === "polygon" ? "crosshair" : "grab" }}
-          >
-            <GardenRuler
-              canvasWm={layout.canvas_w_m}
-              canvasHm={layout.canvas_h_m}
-              pxPerM={BASE_PX}
-              offsetX={0}
-              offsetY={0}
-            />
-
-            <Layer>
-              {shapes.map(renderShape)}
-
-              {/* In-progress polygon preview */}
-              {tool === "polygon" && polyPoints.length > 0 && (() => {
-                const preview = [
-                  ...polyPoints.flatMap(p => [p.x * BASE_PX, p.y * BASE_PX]),
-                  ...(pointerPos ? [pointerPos.x * BASE_PX, pointerPos.y * BASE_PX] : []),
-                ];
-                return (
-                  <>
-                    <Line points={preview} stroke="#4ade80" strokeWidth={1.5} dash={[5, 3]} listening={false} />
-                    {polyPoints.map((p, i) => (
-                      <Circle
-                        key={`pv-${i}`}
-                        x={p.x * BASE_PX}
-                        y={p.y * BASE_PX}
-                        radius={4}
-                        fill={i === 0 ? "#22c55e" : "#fff"}
-                        stroke="#4ade80"
-                        strokeWidth={1.5}
-                        listening={false}
-                      />
-                    ))}
-                  </>
-                );
-              })()}
-
-              <Transformer
-                ref={transformerRef}
-                keepRatio={false}
-                rotateEnabled
-                rotateAnchorOffset={24}
-                rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
-                anchorSize={10}
-                anchorCornerRadius={2}
-                anchorFill="#fff"
-                anchorStroke="#3b82f6"
-                anchorStrokeWidth={1.5}
-                borderStroke="#3b82f6"
-                borderStrokeWidth={1.5}
-                borderDash={[4, 3]}
-                boundBoxFunc={(oldBox: any, newBox: any) =>
-                  newBox.width < 5 || newBox.height < 5 ? oldBox : newBox
-                }
+          {/* 2D Konva stage — always mounted so containerRef retains its flex height.
+              Hidden in 3D mode via visibility so R3F's container measures correctly. */}
+          <div style={{ visibility: viewMode === "2d" ? "visible" : "hidden", pointerEvents: viewMode === "2d" ? "auto" : "none" }}>
+            <Stage
+              ref={stageRef}
+              width={containerSize.w}
+              height={containerSize.h}
+              scaleX={zoom}
+              scaleY={zoom}
+              x={stagePos.x}
+              y={stagePos.y}
+              onWheel={handleWheel}
+              onClick={handleStageClick}
+              onTap={handleStageClick}
+              onDblClick={handleStageDblClick}
+              onDblTap={handleStageDblClick}
+              onMouseDown={handleStageMouseDown}
+              onMouseMove={handleStageMouseMove}
+              onMouseUp={handleStageMouseUp}
+              onMouseLeave={handleStageMouseUp}
+              onTouchStart={handleTouchStart}
+              onTouchMove={handleTouchMove}
+              onTouchEnd={handleTouchEnd}
+              style={{ cursor: tool === "polygon" ? "crosshair" : "grab" }}
+            >
+              <GardenRuler
+                canvasWm={layout.canvas_w_m}
+                canvasHm={layout.canvas_h_m}
+                pxPerM={BASE_PX}
+                offsetX={0}
+                offsetY={0}
               />
-            </Layer>
-          </Stage>}
+
+              <Layer>
+                {shapes.map(renderShape)}
+
+                {/* In-progress polygon preview */}
+                {tool === "polygon" && polyPoints.length > 0 && (() => {
+                  const preview = [
+                    ...polyPoints.flatMap(p => [p.x * BASE_PX, p.y * BASE_PX]),
+                    ...(pointerPos ? [pointerPos.x * BASE_PX, pointerPos.y * BASE_PX] : []),
+                  ];
+                  return (
+                    <>
+                      <Line points={preview} stroke="#4ade80" strokeWidth={1.5} dash={[5, 3]} listening={false} />
+                      {polyPoints.map((p, i) => (
+                        <Circle
+                          key={`pv-${i}`}
+                          x={p.x * BASE_PX}
+                          y={p.y * BASE_PX}
+                          radius={4}
+                          fill={i === 0 ? "#22c55e" : "#fff"}
+                          stroke="#4ade80"
+                          strokeWidth={1.5}
+                          listening={false}
+                        />
+                      ))}
+                    </>
+                  );
+                })()}
+
+                <Transformer
+                  ref={transformerRef}
+                  keepRatio={false}
+                  rotateEnabled
+                  rotateAnchorOffset={24}
+                  rotationSnaps={[0, 45, 90, 135, 180, 225, 270, 315]}
+                  anchorSize={10}
+                  anchorCornerRadius={2}
+                  anchorFill="#fff"
+                  anchorStroke="#3b82f6"
+                  anchorStrokeWidth={1.5}
+                  borderStroke="#3b82f6"
+                  borderStrokeWidth={1.5}
+                  borderDash={[4, 3]}
+                  boundBoxFunc={(oldBox: any, newBox: any) =>
+                    newBox.width < 5 || newBox.height < 5 ? oldBox : newBox
+                  }
+                />
+              </Layer>
+            </Stage>
+          </div>
 
           {/* Scale bar + polygon instructions — 2D only */}
           {viewMode === "2d" && <GardenScaleBar pxPerM={BASE_PX * zoom} zoom={zoom} />}

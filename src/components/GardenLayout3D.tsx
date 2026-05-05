@@ -10,15 +10,13 @@ interface Props {
   selectedId: string | null;
   canvasW: number;
   canvasH: number;
-  containerW: number;
-  containerH: number;
   homeLatLng: { lat: number; lng: number } | null;
   onSelect: (id: string | null) => void;
   onShapeChange: (id: string, updates: Partial<ShapeData>) => void;
   sunPosition?: { altitude: number; azimuth: number };
 }
 
-export default function GardenLayout3D({ shapes, selectedId, canvasW, canvasH, containerW, containerH, onSelect, onShapeChange, sunPosition }: Props) {
+export default function GardenLayout3D({ shapes, selectedId, canvasW, canvasH, onSelect, onShapeChange, sunPosition }: Props) {
   const orbitRef = useRef<any>(null);
   const sunLightRef = useRef<THREE.DirectionalLight>(null!);
   const [transformMode, setTransformMode] = useState<"translate" | "rotate">("translate");
@@ -36,11 +34,11 @@ export default function GardenLayout3D({ shapes, selectedId, canvasW, canvasH, c
   const maxDim = Math.max(canvasW, canvasH);
 
   return (
-    <div style={{ position: "absolute", top: 0, left: 0, width: containerW, height: containerH }}>
+    <div style={{ position: "absolute", inset: 0 }}>
       <Canvas
         shadows="percentage"
         camera={{ position: [canvasW / 2, 20, canvasH + 15], fov: 45 }}
-        style={{ background: "#e8f5e9", width: containerW, height: containerH }}
+        style={{ background: "#e8f5e9", width: "100%", height: "100%" }}
       >
         <ambientLight intensity={0.6} />
         <directionalLight
