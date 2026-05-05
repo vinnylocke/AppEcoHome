@@ -99,6 +99,15 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     return () => window.removeEventListener("resize", handle);
   }, []);
 
+  // Browser geolocation fallback — used when the home has no lat/lng in the DB
+  useEffect(() => {
+    if (!("geolocation" in navigator)) return;
+    navigator.geolocation.getCurrentPosition(
+      pos => setHomeLatLng(prev => prev ?? { lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {} // permission denied — sun controls show a prompt instead
+    );
+  }, []);
+
   // Sun position — build Date from slider, call SunCalc, convert to scene azimuth
   const sunDateObj = useMemo(() => {
     const d = new Date(sunDate);
@@ -696,36 +705,50 @@ export default function GardenLayoutEditor({ homeId }: Props) {
 
         {/* Sun time controls — 3D only */}
         {viewMode === "3d" && (
-          <div className="flex items-center gap-1.5 shrink-0">
-            <input
-              data-testid="sun-date-input"
-              type="date"
-              value={sunDate}
-              onChange={e => { setSunDate(e.target.value); setIsPlaying(false); }}
-              className="bg-rhozly-surface rounded-lg px-2 py-1 text-[10px] font-black text-rhozly-on-surface border border-rhozly-outline/20 outline-none focus:border-rhozly-primary"
-            />
-            <input
-              data-testid="sun-time-slider"
-              type="range"
-              min={0}
-              max={1440}
-              step={5}
-              value={sunMinutes}
-              onChange={e => { setSunMinutes(Number(e.target.value)); setIsPlaying(false); }}
-              className="w-24 accent-rhozly-primary"
-            />
-            <span className="text-[10px] font-black text-rhozly-on-surface/70 w-10 shrink-0 tabular-nums">
-              {String(Math.floor(sunMinutes / 60)).padStart(2, "0")}:{String(sunMinutes % 60).padStart(2, "0")}
-            </span>
+          homeLatLng ? (
+            <div className="flex items-center gap-1.5 shrink-0">
+              <input
+                data-testid="sun-date-input"
+                type="date"
+                value={sunDate}
+                onChange={e => { setSunDate(e.target.value); setIsPlaying(false); }}
+                className="bg-rhozly-surface rounded-lg px-2 py-1 text-[10px] font-black text-rhozly-on-surface border border-rhozly-outline/20 outline-none focus:border-rhozly-primary"
+              />
+              <input
+                data-testid="sun-time-slider"
+                type="range"
+                min={0}
+                max={1440}
+                step={5}
+                value={sunMinutes}
+                onChange={e => { setSunMinutes(Number(e.target.value)); setIsPlaying(false); }}
+                className="w-24 accent-rhozly-primary"
+              />
+              <span className="text-[10px] font-black text-rhozly-on-surface/70 w-10 shrink-0 tabular-nums">
+                {String(Math.floor(sunMinutes / 60)).padStart(2, "0")}:{String(sunMinutes % 60).padStart(2, "0")}
+              </span>
+              <button
+                data-testid="sun-play-btn"
+                onClick={() => setIsPlaying(p => !p)}
+                title={isPlaying ? "Pause sun animation" : "Play sun animation"}
+                className="p-1.5 rounded-lg text-rhozly-on-surface/50 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
+              >
+                {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+              </button>
+            </div>
+          ) : (
             <button
-              data-testid="sun-play-btn"
-              onClick={() => setIsPlaying(p => !p)}
-              title={isPlaying ? "Pause sun animation" : "Play sun animation"}
-              className="p-1.5 rounded-lg text-rhozly-on-surface/50 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
+              data-testid="sun-location-prompt"
+              onClick={() => navigator.geolocation.getCurrentPosition(
+                pos => setHomeLatLng({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                () => {}
+              )}
+              className="text-[10px] font-black text-amber-500 hover:text-amber-600 transition-colors shrink-0"
+              title="Sun simulation needs your location"
             >
-              {isPlaying ? <Pause size={14} /> : <Play size={14} />}
+              ☀ Allow location for sun
             </button>
-          </div>
+          )
         )}
 
         {/* Canvas settings */}

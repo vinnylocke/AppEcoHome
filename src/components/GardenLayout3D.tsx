@@ -64,17 +64,20 @@ export default function GardenLayout3D({ shapes, selectedId, canvasW, canvasH, o
 
         <ambientLight intensity={ambientIntensity} />
 
-        {/* Directional light — position prop drives R3F reconciler, never ref-mutate */}
+        {/* Directional light — position prop drives R3F reconciler, never ref-mutate.
+            Shadow frustum must be large enough to cover the whole scene from any
+            sun angle. Light can be SUN_DIST (50m) from centre in any direction, so
+            we need ±(SUN_DIST + maxDim) to guarantee the scene is always covered. */}
         <directionalLight
           position={lightPos}
           intensity={sunPosition && sunPosition.altitude > 0 ? 1.4 : 0.3}
           castShadow
           shadow-mapSize={[2048, 2048]}
-          shadow-camera-far={200}
-          shadow-camera-left={-maxDim}
-          shadow-camera-right={maxDim}
-          shadow-camera-top={maxDim}
-          shadow-camera-bottom={-maxDim}
+          shadow-camera-far={SUN_DIST * 4}
+          shadow-camera-left={-(SUN_DIST + maxDim)}
+          shadow-camera-right={SUN_DIST + maxDim}
+          shadow-camera-top={SUN_DIST + maxDim}
+          shadow-camera-bottom={-(SUN_DIST + maxDim)}
         />
 
         <OrbitControls
