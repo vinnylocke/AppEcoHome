@@ -2,11 +2,12 @@ import React, { useRef, useCallback } from "react";
 
 interface Props {
   value: number;       // clockwise degrees from canvas-up to real-world North
-  onChange: (deg: number) => void;
+  onChange?: (deg: number) => void;
   size?: number;
+  readOnly?: boolean;
 }
 
-export default function GardenCompass({ value, onChange, size = 96 }: Props) {
+export default function GardenCompass({ value, onChange, size = 96, readOnly = false }: Props) {
   const cx = size / 2;
   const cy = size / 2;
   const r = size / 2 - 8;
@@ -24,6 +25,7 @@ export default function GardenCompass({ value, onChange, size = 96 }: Props) {
   }, [value]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
+    if (readOnly || !onChange) return;
     e.preventDefault();
     isDragging.current = true;
     onChange(getAngle(e.clientX, e.clientY));
@@ -39,7 +41,7 @@ export default function GardenCompass({ value, onChange, size = 96 }: Props) {
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
-  }, [getAngle, onChange]);
+  }, [readOnly, onChange, getAngle]);
 
   const rad = (value * Math.PI) / 180;
   const tipX = cx + arrowLen * Math.sin(rad);
@@ -55,13 +57,13 @@ export default function GardenCompass({ value, onChange, size = 96 }: Props) {
       width={size}
       height={size}
       viewBox={`0 0 ${size} ${size}`}
-      style={{ cursor: "grab", userSelect: "none", touchAction: "none" }}
+      style={{ cursor: readOnly ? "default" : "grab", userSelect: "none", touchAction: "none" }}
       onMouseDown={handleMouseDown}
-      role="slider"
+      role={readOnly ? "img" : "slider"}
       aria-label="Garden north orientation"
-      aria-valuenow={value}
-      aria-valuemin={0}
-      aria-valuemax={359}
+      aria-valuenow={readOnly ? undefined : value}
+      aria-valuemin={readOnly ? undefined : 0}
+      aria-valuemax={readOnly ? undefined : 359}
     >
       {/* Outer ring */}
       <circle cx={cx} cy={cy} r={r} fill="#f8faf8" stroke="#d1d5db" strokeWidth={1.5} />
@@ -71,8 +73,6 @@ export default function GardenCompass({ value, onChange, size = 96 }: Props) {
         const a = (i * 90 * Math.PI) / 180;
         const tx = cx + (r - 10) * Math.sin(a);
         const ty = cy - (r - 10) * Math.cos(a);
-        const lx = cx + (r + 1) * Math.sin(a);
-        const ly = cy - (r + 1) * Math.cos(a);
         return (
           <g key={label}>
             <line

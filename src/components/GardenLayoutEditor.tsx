@@ -876,6 +876,14 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           {/* Scale bar + polygon instructions — 2D only */}
           {viewMode === "2d" && <GardenScaleBar pxPerM={BASE_PX * zoom} zoom={zoom} />}
 
+          {/* Compass overlay — always visible in both 2D and 3D */}
+          <div
+            data-testid="canvas-compass-overlay"
+            className="absolute bottom-4 left-4 z-10 bg-white/80 backdrop-blur-sm rounded-2xl p-1.5 shadow-md border border-rhozly-outline/10 pointer-events-none"
+          >
+            <GardenCompass value={northOffset} size={64} readOnly />
+          </div>
+
           {viewMode === "2d" && tool === "polygon" && (
             <>
               <div className="absolute top-4 left-1/2 -translate-x-1/2 bg-white/90 backdrop-blur-sm rounded-xl px-4 py-2 border border-rhozly-outline/20 shadow-sm pointer-events-none">
