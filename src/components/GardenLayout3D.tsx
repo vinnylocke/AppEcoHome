@@ -1,7 +1,6 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import { OrbitControls, Html, GizmoHelper, GizmoViewport } from "@react-three/drei";
-import * as THREE from "three";
 import type { ShapeData } from "./GardenShapeProperties";
 import GardenShape3D from "./GardenShape3D";
 
@@ -16,42 +15,66 @@ interface Props {
   sunPosition?: { altitude: number; azimuth: number };
 }
 
+const SUN_DIST = 50;
+
 export default function GardenLayout3D({ shapes, selectedId, canvasW, canvasH, onSelect, onShapeChange, sunPosition }: Props) {
   const orbitRef = useRef<any>(null);
-  const sunLightRef = useRef<THREE.DirectionalLight>(null!);
   const [transformMode, setTransformMode] = useState<"translate" | "rotate">("translate");
 
-  // Sun trajectory — update directional light position when sunPosition changes
-  useEffect(() => {
-    if (!sunPosition || !sunLightRef.current) return;
-    const dist = 50;
-    const lx = dist * Math.cos(sunPosition.altitude) * Math.sin(sunPosition.azimuth);
-    const ly = dist * Math.sin(sunPosition.altitude);
-    const lz = dist * Math.cos(sunPosition.altitude) * Math.cos(sunPosition.azimuth);
-    sunLightRef.current.position.set(canvasW / 2 + lx, Math.max(1, ly), canvasH / 2 + lz);
-  }, [sunPosition, canvasW, canvasH]);
-
   const maxDim = Math.max(canvasW, canvasH);
+
+  // Compute directional light position from sun angles.
+  // Pass directly as prop so R3F's reconciler applies it — never mutate a ref
+  // when R3F owns the same prop (reconciler overwrites on every render).
+  const lightPos = useMemo<[number, number, number]>(() => {
+    if (!sunPosition) return [canvasW / 2 + maxDim * 0.6, maxDim * 0.6, canvasH / 2 - maxDim * 0.3];
+    const lx = SUN_DIST * Math.cos(sunPosition.altitude) * Math.sin(sunPosition.azimuth);
+    const ly = SUN_DIST * Math.sin(sunPosition.altitude);
+    const lz = SUN_DIST * Math.cos(sunPosition.altitude) * Math.cos(sunPosition.azimuth);
+    return [canvasW / 2 + lx, Math.max(2, ly), canvasH / 2 + lz];
+  }, [sunPosition, canvasW, canvasH, maxDim]);
+
+  // Sky colour shifts with sun altitude: night → dawn/dusk → day
+  const skyColor = useMemo(() => {
+    if (!sunPosition) return "#d4e8d4";
+    const alt = sunPosition.altitude;
+    if (alt > 0.35) return "#87ceeb";   // high sun — sky blue
+    if (alt > 0.08) return "#f5a623";   // low sun — golden hour
+    if (alt > 0)    return "#ff6b35";   // near horizon — red/orange
+    return "#1a1a2e";                   // below horizon — night
+  }, [sunPosition]);
+
+  // Ambient light dims at night
+  const ambientIntensity = useMemo(() => {
+    if (!sunPosition) return 0.6;
+    const alt = sunPosition.altitude;
+    if (alt <= 0) return 0.15;
+    return 0.15 + 0.55 * Math.min(alt / 0.5, 1);
+  }, [sunPosition]);
 
   return (
     <div style={{ position: "absolute", inset: 0 }}>
       <Canvas
         shadows="percentage"
         camera={{ position: [canvasW / 2, 20, canvasH + 15], fov: 45 }}
-        style={{ background: "#e8f5e9", width: "100%", height: "100%" }}
+        style={{ width: "100%", height: "100%" }}
       >
-        <ambientLight intensity={0.6} />
+        {/* Sky colour — set as scene background so WebGL clear matches */}
+        <color attach="background" args={[skyColor]} />
+
+        <ambientLight intensity={ambientIntensity} />
+
+        {/* Directional light — position prop drives R3F reconciler, never ref-mutate */}
         <directionalLight
-          ref={sunLightRef}
-          position={[canvasW, 30, 0]}
-          intensity={1.2}
+          position={lightPos}
+          intensity={sunPosition && sunPosition.altitude > 0 ? 1.4 : 0.3}
           castShadow
           shadow-mapSize={[2048, 2048]}
           shadow-camera-far={200}
-          shadow-camera-left={-canvasW}
-          shadow-camera-right={canvasW}
-          shadow-camera-top={canvasH}
-          shadow-camera-bottom={-canvasH}
+          shadow-camera-left={-maxDim}
+          shadow-camera-right={maxDim}
+          shadow-camera-top={maxDim}
+          shadow-camera-bottom={-maxDim}
         />
 
         <OrbitControls
@@ -73,6 +96,14 @@ export default function GardenLayout3D({ shapes, selectedId, canvasW, canvasH, o
           args={[maxDim, maxDim, "#aaaaaa", "#dddddd"]}
           position={[canvasW / 2, 0.001, canvasH / 2]}
         />
+
+        {/* Sun sphere — shows where light is coming from */}
+        {sunPosition && sunPosition.altitude > 0 && (
+          <mesh position={lightPos}>
+            <sphereGeometry args={[1.8, 16, 10]} />
+            <meshBasicMaterial color="#fde68a" />
+          </mesh>
+        )}
 
         {/* Shapes */}
         {shapes.map(s => (
