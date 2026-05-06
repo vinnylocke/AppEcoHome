@@ -2,6 +2,12 @@ import React, { useState } from "react";
 import { supabase } from "../lib/supabase";
 import { Home, Plus, ArrowLeft, X, Key, Loader2 } from "lucide-react";
 import { Logger } from "../lib/errorHandler";
+import { COUNTRIES } from "../constants/countries";
+
+const ALL_TIMEZONES: string[] = (() => {
+  try { return (Intl as any).supportedValuesOf("timeZone") as string[]; }
+  catch { return ["UTC"]; }
+})();
 
 type SetupStep = "selection" | "create" | "join";
 
@@ -25,23 +31,28 @@ export const HomeSetup: React.FC<Props> = ({
   // Create Home State
   const [homeName, setHomeName] = useState("");
   const [postcode, setPostcode] = useState("");
+  const [country, setCountry] = useState("GB");
+  const [timezone, setTimezone] = useState(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC"
+  );
 
   // Join Home State
   const [homeId, setHomeId] = useState("");
 
   const handleCreate = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!homeName.trim() || !postcode.trim()) return;
+    if (!homeName.trim() || !postcode.trim() || !country || !timezone) return;
 
     setFormError(null);
     setLoading(true);
     try {
       Logger.log("Starting home creation process...");
 
-      // 1. Create the home AND set the address in one single, bulletproof step
       const { data: newHomeId, error } = await supabase.rpc("create_new_home", {
         home_name: homeName.trim(),
         postcode: postcode.trim().toUpperCase(),
+        country,
+        timezone,
       });
       if (error) throw error;
 
@@ -250,6 +261,51 @@ export const HomeSetup: React.FC<Props> = ({
                       className="w-full px-4 py-3 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl focus:outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary transition-all font-bold text-rhozly-on-surface uppercase"
                       placeholder="e.g. CR3 5ED"
                     />
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="country"
+                      className="block text-sm font-bold text-rhozly-on-surface"
+                    >
+                      Country
+                    </label>
+                    <select
+                      id="country"
+                      required
+                      data-testid="home-setup-country"
+                      value={country}
+                      onChange={(e) => setCountry(e.target.value)}
+                      className="w-full px-4 py-3 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl focus:outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary transition-all font-bold text-rhozly-on-surface"
+                    >
+                      {COUNTRIES.map((c) => (
+                        <option key={c.code} value={c.code}>{c.name}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <label
+                      htmlFor="timezone"
+                      className="block text-sm font-bold text-rhozly-on-surface"
+                    >
+                      Timezone
+                    </label>
+                    <select
+                      id="timezone"
+                      required
+                      data-testid="home-setup-timezone"
+                      value={timezone}
+                      onChange={(e) => setTimezone(e.target.value)}
+                      className="w-full px-4 py-3 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl focus:outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary transition-all font-bold text-rhozly-on-surface"
+                    >
+                      {ALL_TIMEZONES.map((tz) => (
+                        <option key={tz} value={tz}>{tz.replace(/_/g, " ")}</option>
+                      ))}
+                    </select>
+                    <p className="text-xs font-bold text-rhozly-on-surface/40">
+                      Auto-detected from your browser — change if needed.
+                    </p>
                   </div>
                 </div>
 
