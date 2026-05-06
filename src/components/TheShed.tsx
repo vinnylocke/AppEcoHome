@@ -139,6 +139,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     // Manual plants carry their user-supplied labels from the form already.
     if (skeleton.source === "api" || skeleton.source === "ai") {
       skeleton.labels = derivePlantLabels(fullCareData ?? {});
+      if (!skeleton.sunlight && fullCareData?.sunlight?.length) {
+        skeleton.sunlight = fullCareData.sunlight;
+      }
     }
 
     const { data: savedPlant, error } = await supabase

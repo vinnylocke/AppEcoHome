@@ -5,6 +5,7 @@ import {
   getOptimalLuxRange,
   type LuxRange,
 } from "../lib/plantLightUtils";
+import { PerenualService } from "../lib/perenualService";
 import PlantLightReader from "./PlantLightReader";
 
 interface LightTabProps {
@@ -26,19 +27,28 @@ export default function LightTab({ plantId, plantName, areaId, homeId, areaName 
       return;
     }
     let cancelled = false;
-    supabase
-      .from("plants")
-      .select("sunlight")
-      .eq("id", plantId)
-      .single()
-      .then(({ data }) => {
-        if (cancelled) return;
-        if (data?.sunlight) {
-          const sunlight = Array.isArray(data.sunlight) ? data.sunlight : [];
-          setOptimalRange(getOptimalLuxRange(sunlight));
-        }
+    (async () => {
+      const { data } = await supabase
+        .from("plants")
+        .select("sunlight, source, perenual_id")
+        .eq("id", plantId)
+        .single();
+      if (cancelled) return;
+
+      let sunlight: string[] = Array.isArray(data?.sunlight) ? data.sunlight : [];
+
+      if (sunlight.length === 0 && data?.source === "api" && data?.perenual_id) {
+        try {
+          const details = await PerenualService.getPlantDetails(Number(data.perenual_id));
+          if (!cancelled) sunlight = details.sunlight ?? [];
+        } catch { /* non-critical */ }
+      }
+
+      if (!cancelled) {
+        setOptimalRange(getOptimalLuxRange(sunlight));
         setLoading(false);
-      });
+      }
+    })();
     return () => { cancelled = true; };
   }, [plantId]);
 
