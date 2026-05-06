@@ -204,6 +204,9 @@ Lightweight Plant Doctor integration sheet. Shows pre-populated suggested items 
 Encapsulates all Supabase CRUD. Returns:
 `{ lists, isLoading, createList, renameList, deleteList, markComplete, reopenList, addItem, toggleItem, deleteItem }`
 
+### `supabase/functions/search-plants-ai/index.ts`
+New Edge Function. Receives `{ query: string }`, guards with `guardAiByUser`, calls Gemini with a targeted prompt, returns `{ plants: Array<{ name: string; description: string }> }`. Invoked from the browser via `supabase.functions.invoke("search-plants-ai", ...)`. Used only when `ai_enabled = true` and the user has explicitly tapped "Search via AI".
+
 ### `tests/e2e/specs/shopping.spec.ts`
 Playwright E2E spec.
 
@@ -221,7 +224,18 @@ E2E seed: two lists (one active, one completed) with items. UUID prefix: `000000
 1. Import `ShoppingLists` and `ShoppingCart` from lucide-react.
 2. Add `shopping: "/shopping"` to `TAB_URL`.
 3. Add nav link: `{ id: "shopping", icon: <ShoppingCart />, label: "Shopping List" }` (after `shed`).
-4. Add `<Route path="/shopping" element={<ShoppingLists homeId={profile.home_id} />} />`.
+4. Add route — pass both feature flags as props:
+```tsx
+<Route path="/shopping" element={
+  profile?.home_id ? (
+    <ShoppingLists
+      homeId={profile.home_id}
+      aiEnabled={!!profile.ai_enabled}
+      perenualEnabled={!!profile.enable_perenual}
+    />
+  ) : null
+} />
+```
 
 ### `src/context/HomeRealtimeContext.tsx`
 Add to `HOME_TABLES`:
@@ -249,6 +263,8 @@ Add `/shopping` to the Routes table.
 
 ### `ShoppingLists.tsx` (page root)
 
+Props: `{ homeId: string; aiEnabled: boolean; perenualEnabled: boolean }`
+
 State: `selectedListId`, `showAddItem`, `isCreating`
 
 ```
@@ -259,6 +275,8 @@ State: `selectedListId`, `showAddItem`, `isCreating`
 </div>
 <AddItemSheet />           ← portal, renders when showAddItem
 ```
+
+`aiEnabled` and `perenualEnabled` are threaded through to `AddItemSheet` — they do not affect any other sub-component.
 
 ### `ShoppingListCard.tsx`
 
@@ -280,9 +298,11 @@ Sort: unchecked first (creation order), checked after (creation order).
 
 ### `AddItemSheet.tsx`
 
-Internal states: `"idle" | "searching" | "results" | "preview" | "shed_offer" | "no_results"`
+Props include `aiEnabled: boolean` and `perenualEnabled: boolean` (threaded from page root).
 
-Plant tab search triggers on 400 ms debounce. Perenual and shed queries run concurrently.
+Internal states: `"idle" | "searching" | "shed_results" | "fallback_choice" | "perenual_searching" | "ai_searching" | "perenual_results" | "ai_results" | "preview" | "shed_offer" | "no_results"`
+
+Plant tab: shed query always runs on user input (debounced 400 ms). External search only triggers after user explicitly chooses a fallback method. See Section 5.
 
 Product tab: text input + `<select>` from `SHOPPING_CATEGORIES`.
 
@@ -296,33 +316,86 @@ Product tab: text input + `<select>` from `SHOPPING_CATEGORIES`.
 
 ## 5. Plant Search Flow
 
+The shed is always searched first. External search (Perenual or AI) is user-triggered, not automatic — and the available fallback methods depend entirely on the user's feature flags (`aiEnabled`, `perenualEnabled`).
+
+### State machine
+
 ```
 IDLE
-  └─ user types (debounced 400ms)
-      ↓
-SEARCHING
-  ├─ query inventory_items (shed) — Supabase client
-  └─ searchPlants(query) — Perenual API
-      ↓
-RESULTS
+  └─ user types (debounced 400 ms)
+       ↓
+SEARCHING (shed only — always)
+  └─ query inventory_items WHERE home_id=X AND plant_name ILIKE '%q%'
+       ↓
+SHED_RESULTS
   ├─ "In Your Shed" section
-  │   └─ tap "+ Add" → insert item (source='shed', already_in_shed=true) → done
-  └─ "Global Search" section (Perenual)
-      └─ tap row → PREVIEW
-            ↓
-      getPlantDetails(id)
-      Show: thumbnail, name, cycle, watering, sunlight
-      [Add to list] → insert item (source='perenual', already_in_shed=false)
-                    → SHED_OFFER
-      [Back]
-            ↓
-      SHED_OFFER (inline, not a modal)
-      "Want to add [name] to your Shed too?"
-      [Add to Shed] → insert to inventory_items → close sheet
-      [Skip]        → close sheet
+  │   └─ tap "+ Add" → insert (source='shed', already_in_shed=true) → done
+  │
+  └─ below shed results, show fallback row based on flags:
+       ├─ both enabled  → two buttons: [Search Perenual] [Search via AI]
+       ├─ perenual only → one button:  [Search Perenual]
+       ├─ ai only       → one button:  [Search via AI]
+       └─ neither       → small text:  "No additional search methods available"
+            ↓ (user taps a button)
+
+── Perenual path ──────────────────────────────────────────────────────────────
+PERENUAL_SEARCHING
+  └─ perenualService.searchPlants(query)
+       ↓
+PERENUAL_RESULTS
+  └─ list of Perenual species (thumbnail + name + scientific name)
+       └─ tap row → PREVIEW
+              ↓
+         perenualService.getPlantDetails(id)
+         Show: thumbnail, name, cycle, watering, sunlight
+         [Add to list] → insert (source='perenual', already_in_shed=false) → SHED_OFFER
+         [Back]
+              ↓
+         SHED_OFFER (inline, not a modal)
+         "Want to add [name] to your Shed too?"
+         [Add to Shed] → insert to inventory_items → close sheet
+         [Skip]        → close sheet
+
+── AI path ────────────────────────────────────────────────────────────────────
+AI_SEARCHING
+  └─ supabase.functions.invoke("search-plants-ai", { body: { query } })
+       ↓
+AI_RESULTS
+  └─ list of AI-suggested plant names (name + brief description, no thumbnail)
+       └─ tap row → insert (source='ai', already_in_shed=false) → SHED_OFFER
+              ↓ same SHED_OFFER flow as Perenual path
 ```
 
-If Perenual fails: shed results still shown, inline error below global section.
+### `search-plants-ai` Edge Function
+
+New file: `supabase/functions/search-plants-ai/index.ts`
+
+- Called from browser via `supabase.functions.invoke()` (CORS-safe, auth enforced).
+- Guards: calls `guardAiByUser(db, userId)` from `_shared/aiGuard.ts` — returns 403 if `ai_enabled` is false.
+- Prompt to Gemini: given a search query, return up to 8 matching plant names with a one-sentence description each, as a JSON array `[{ name, description }]`.
+- No image — AI plant results show a generic leaf icon in the UI.
+- Response shape: `{ plants: Array<{ name: string; description: string }> }`
+
+This function is intentionally lightweight — it does not return watering schedules or full care data. Its only job is name discovery. The shed-offer flow after adding an AI result follows the same pattern as Perenual.
+
+### UI states summary
+
+| State | Shed section | Fallback section |
+|-------|-------------|-----------------|
+| `idle` | Empty input | — |
+| `searching` | Spinner | — |
+| `shed_results` | Results list | Fallback buttons (flag-dependent) |
+| `perenual_searching` | Results (frozen) | Loading spinner |
+| `perenual_results` | Results | Perenual list below |
+| `ai_searching` | Results (frozen) | Loading spinner |
+| `ai_results` | Results | AI list below |
+| `preview` | Hidden | Plant detail card |
+| `shed_offer` | Hidden | Inline offer prompt |
+| `no_results` | "Nothing in your shed" | Fallback buttons |
+
+If shed returns zero results, the fallback buttons are still shown (the shed section shows an empty state message instead). The user can still trigger Perenual or AI search even when the shed is empty.
+
+If an external search fails: inline error below its section; shed results remain interactive.
 
 ---
 
@@ -399,11 +472,13 @@ Render at bottom of `PlantDoctor.tsx` JSX, only when `showAddToList && addToList
 | 4 | Page + sub-components (no AddItemSheet) + route + nav | `/shopping` renders; lists CRUD works |
 | 5 | `AddItemSheet` — product tab only | Products can be added |
 | 6 | `AddItemSheet` — plant tab + shed search | Shed plants can be added |
-| 7 | `AddItemSheet` — Perenual fallback + shed offer | Full plant search works |
-| 8 | Completed lists section | Collapsible completed section |
-| 9 | `AddToListSheet` + Plant Doctor integration | Doctor can add to lists |
-| 10 | E2E seeds + Playwright spec + Page Object | Tests pass |
-| 11 | Vitest unit tests | `deriveShoppingItemsFromDiagnosis` + hook tested |
+| 7 | `AddItemSheet` — Perenual fallback (flag-gated) + preview + shed offer | Perenual search works |
+| 8 | `search-plants-ai` Edge Function | AI plant search backend ready |
+| 9 | `AddItemSheet` — AI fallback (flag-gated) | AI plant search works |
+| 10 | Completed lists section | Collapsible completed section |
+| 11 | `AddToListSheet` + Plant Doctor integration | Doctor can add to lists |
+| 12 | E2E seeds + Playwright spec + Page Object | Tests pass |
+| 13 | Vitest unit tests | `deriveShoppingItemsFromDiagnosis` + hook tested |
 
 ---
 
@@ -425,7 +500,10 @@ Render at bottom of `PlantDoctor.tsx` JSX, only when `showAddToList && addToList
 | Plant tab | `shopping-tab-plant` |
 | Product tab | `shopping-tab-product` |
 | Plant search input | `shopping-plant-search-input` |
-| Plant result row | `shopping-plant-result-{index}` |
+| "Search Perenual" fallback button | `shopping-fallback-perenual` |
+| "Search via AI" fallback button | `shopping-fallback-ai` |
+| Plant result row (Perenual) | `shopping-perenual-result-{index}` |
+| Plant result row (AI) | `shopping-ai-result-{index}` |
 | Add plant confirm | `shopping-add-plant-confirm` |
 | Add to Shed yes | `shopping-add-to-shed-yes` |
 | Skip shed offer | `shopping-add-to-shed-skip` |
