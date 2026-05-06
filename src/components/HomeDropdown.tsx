@@ -230,7 +230,7 @@ export const HomeDropdown: React.FC<Props> = ({
                   </div>
 
                   {/* Quick Actions (Reveal on Hover) */}
-                  <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                  <div className="flex items-center gap-0.5">
                     {home.role === "owner" && (
                       <button
                         onClick={(e) => {

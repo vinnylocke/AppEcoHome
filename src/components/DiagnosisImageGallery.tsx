@@ -328,7 +328,7 @@ function ThumbnailImage({
       </div>
 
       {/* Hover action buttons */}
-      <div className="absolute top-1.5 right-1.5 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity flex flex-col gap-1">
+      <div className="absolute top-1.5 right-1.5 flex flex-col gap-1">
         <a
           href={image.photo_page}
           target="_blank"

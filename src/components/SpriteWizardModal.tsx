@@ -773,7 +773,7 @@ function PersonalTab({
               alt="Your image"
               className="max-h-48 w-full object-contain"
             />
-            <div className="absolute inset-0 bg-black/0 hover:bg-black/20 transition-colors flex items-center justify-center opacity-0 hover:opacity-100">
+            <div className="absolute inset-0 bg-black/10 flex items-center justify-center">
               <div className="bg-white/90 backdrop-blur-sm rounded-xl px-3 py-1.5 text-xs font-black text-rhozly-on-surface flex items-center gap-1.5">
                 <Upload size={12} /> Replace
               </div>

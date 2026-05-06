@@ -341,7 +341,7 @@ export default function HomeManagement({
                               memberName: member.displayName || member.email,
                             })
                           }
-                          className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-7 h-7 rounded-xl text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
+                          className="flex items-center justify-center w-7 h-7 rounded-xl text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
                           title="Remove member"
                         >
                           <UserX size={13} />

@@ -88,7 +88,7 @@ export default function ShoppingListItems({ items, onToggle, onDelete }: Props) 
           <button
             data-testid={`shopping-item-delete-${item.id}`}
             onClick={() => onDelete(item.id)}
-            className="p-1 rounded-lg text-rhozly-on-surface/20 hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all shrink-0"
+            className="p-1 rounded-lg text-rhozly-on-surface/20 hover:text-red-400 transition-all shrink-0"
             title="Remove item"
           >
             <Trash2 size={13} />

@@ -251,7 +251,7 @@ export const LocationPage: React.FC<LocationPageProps> = ({
                         }}
                         className="bg-white rounded-3xl p-6 border border-rhozly-outline/10 shadow-sm cursor-pointer group hover:border-rhozly-primary/30 hover:shadow-md transition-all relative overflow-hidden"
                       >
-                        <div className="absolute inset-0 bg-gradient-to-br from-rhozly-primary/0 to-rhozly-primary/[0.03] opacity-0 group-hover:opacity-100 transition-opacity" />
+                        <div className="absolute inset-0 bg-gradient-to-br from-rhozly-primary/0 to-rhozly-primary/[0.03]" />
 
                         <div className="relative z-10 flex justify-between items-start">
                           <div className="space-y-4">
@@ -273,7 +273,7 @@ export const LocationPage: React.FC<LocationPageProps> = ({
                               e.stopPropagation();
                               setAreaToDelete(area);
                             }}
-                            className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/20 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all opacity-0 group-hover:opacity-100"
+                            className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/20 hover:text-red-500 hover:bg-red-50 rounded-xl transition-all"
                           >
                             <Trash2 className="w-5 h-5" />
                           </button>

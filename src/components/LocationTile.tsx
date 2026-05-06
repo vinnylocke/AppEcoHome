@@ -148,7 +148,7 @@ export default function LocationTile({
           : "bg-rhozly-surface-lowest border-rhozly-outline/30"
       }`}
     >
-      <div className="absolute inset-0 bg-gradient-to-br from-rhozly-primary/0 to-rhozly-primary/[0.05] opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
+      <div className="absolute inset-0 bg-gradient-to-br from-rhozly-primary/0 to-rhozly-primary/[0.05]" />
 
       <div className="relative z-10">
         {/* Hazard Banner */}

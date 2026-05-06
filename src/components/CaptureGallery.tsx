@@ -178,7 +178,7 @@ export default function CaptureGallery({ homeId, onClose }: Props) {
                     )}
 
                     {/* Hover overlay */}
-                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex flex-col justify-between p-3 opacity-0 group-hover:opacity-100">
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/50 to-transparent flex flex-col justify-between p-3">
                       <div className="flex justify-between items-start">
                         <div className="w-8 h-8 rounded-lg bg-white/20 backdrop-blur-sm flex items-center justify-center">
                           <Maximize2 size={13} className="text-white" />

@@ -694,9 +694,7 @@ export default function AreaScanModal({
                         <span className="px-3 py-1.5 rounded-full bg-rhozly-primary/10 text-rhozly-primary text-xs font-bold cursor-default">
                           {c.name}
                         </span>
-                        <div className="absolute bottom-full left-0 mb-2 hidden group-hover:block z-10 bg-rhozly-on-surface text-white text-xs rounded-xl px-3 py-2 max-w-48 shadow-lg">
-                          {c.reason}
-                        </div>
+                        <p className="text-[10px] font-bold text-rhozly-on-surface/50 mt-1">{c.reason}</p>
                       </div>
                     ))}
                   </div>

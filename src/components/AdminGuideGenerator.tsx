@@ -247,7 +247,7 @@ export default function AdminGuideGenerator() {
                       setIsEditingTitle(true);
                     }}
                     aria-label="Edit guide title"
-                    className="mt-1 p-1.5 rounded-lg text-rhozly-on-surface/30 hover:text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 shrink-0"
+                    className="mt-1 p-1.5 rounded-lg text-rhozly-on-surface/30 hover:text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors shrink-0"
                   >
                     <Pencil size={16} />
                   </button>
