@@ -5,6 +5,7 @@ import { OrbitControls, Html, GizmoHelper, GizmoViewport } from "@react-three/dr
 import type { ShapeData } from "./GardenShapeProperties";
 import type { ShapePreset } from "./GardenShapePanel";
 import GardenShape3D from "./GardenShape3D";
+import { SUN_CLASS_COLOR, SUN_CLASS_TEXT_COLOR, type ShapeSunResult, type SunClass } from "../lib/sunAnalysis";
 
 interface Props {
   shapes: ShapeData[];
@@ -19,6 +20,12 @@ interface Props {
   onShapeChange: (id: string, updates: Partial<ShapeData>) => void;
   onDrawShape: (start: { x: number; y: number }, end: { x: number; y: number }) => void;
   sunPosition?: { altitude: number; azimuth: number };
+  areaPlants: Record<string, Array<{ id: string; plant_name: string; nickname: string | null }>>;
+  areaLuxReadings: Array<{ area_id: string; lux_value: number; recorded_at: string }>;
+  showLuxOverlay: boolean;
+  sunAnalysisResults: ShapeSunResult[] | null;
+  showSunOverlay: boolean;
+  sunDateObj: Date;
 }
 
 const SUN_DIST = 50;
@@ -88,6 +95,8 @@ export default function GardenLayout3D({
   shapes, selectedId, canvasW, canvasH, northOffset,
   interactionMode, pendingPreset,
   onSelect, onShapeChange, onDrawShape, sunPosition,
+  areaPlants, areaLuxReadings, showLuxOverlay,
+  sunAnalysisResults, showSunOverlay, sunDateObj,
 }: Props) {
   const orbitRef = useRef<any>(null);
   const draw3DStart = useRef<{ x: number; z: number } | null>(null);
@@ -118,6 +127,19 @@ export default function GardenLayout3D({
     if (alt <= 0) return 0.15;
     return 0.15 + 0.55 * Math.min(alt / 0.5, 1);
   }, [sunPosition]);
+
+  // Match lux readings to the current time slider (±30 min)
+  const luxByArea = useMemo(() => {
+    const windowMs = 30 * 60 * 1000;
+    const centre = sunDateObj.getTime();
+    const out: Record<string, number> = {};
+    for (const r of areaLuxReadings) {
+      if (Math.abs(new Date(r.recorded_at).getTime() - centre) <= windowMs) {
+        if (!(r.area_id in out)) out[r.area_id] = r.lux_value;
+      }
+    }
+    return out;
+  }, [areaLuxReadings, sunDateObj]);
 
   // Ground plane pointer handlers for draw mode.
   // e.point gives the world-space intersection — x/z map directly to the 2D canvas coords.
@@ -225,8 +247,32 @@ export default function GardenLayout3D({
             interactionMode={interactionMode}
             onSelect={() => onSelect(s.id)}
             onChange={u => onShapeChange(s.id, u)}
+            plantedItems={s.area_id ? (areaPlants[s.area_id] ?? []) : []}
+            luxReading={showLuxOverlay && s.area_id ? (luxByArea[s.area_id] ?? null) : null}
+            sunResult={sunAnalysisResults?.find(r => r.shapeId === s.id) ?? null}
+            showSunOverlay={showSunOverlay}
           />
         ))}
+
+        {/* Sun classification legend */}
+        {showSunOverlay && sunAnalysisResults && (
+          <Html position={[0, 0, 0]} style={{ pointerEvents: "none" }}>
+            <div style={{
+              position: "fixed", bottom: 12, left: 12,
+              background: "white", borderRadius: 12,
+              padding: "8px 12px", boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+            }}>
+              {(Object.entries(SUN_CLASS_COLOR) as [SunClass, string][]).map(([label, color]) => (
+                <div key={label} style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+                  <div style={{ width: 10, height: 10, borderRadius: 2, background: color }} />
+                  <span style={{ fontSize: 10, fontWeight: 900, color: SUN_CLASS_TEXT_COLOR[label] }}>
+                    {label}
+                  </span>
+                </div>
+              ))}
+            </div>
+          </Html>
+        )}
 
         {/* Invisible wide deselect plane — only active in move mode */}
         {interactionMode === "move" && (

@@ -15,6 +15,7 @@ import GardenScaleBar from "./GardenScaleBar";
 import GardenShapePanel, { type ShapePreset } from "./GardenShapePanel";
 import GardenShapeProperties, { type ShapeData } from "./GardenShapeProperties";
 import { useSunPosition } from "../hooks/useSunPosition";
+import { computeAllShapesSunHours, type ShapeSunResult } from "../lib/sunAnalysis";
 
 interface Layout {
   id: string;
@@ -64,6 +65,14 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   );
   const [isPlaying, setIsPlaying] = useState(false);
   const [compassReadState, setCompassReadState] = useState<"idle" | "ready" | "done">("idle");
+  const [areaPlants, setAreaPlants] = useState<
+    Record<string, Array<{ id: string; plant_name: string; nickname: string | null }>>
+  >({});
+  const [areaLuxReadings, setAreaLuxReadings] = useState<
+    Array<{ area_id: string; lux_value: number; recorded_at: string }>
+  >([]);
+  const [showLuxOverlay, setShowLuxOverlay] = useState(false);
+  const [showSunOverlay, setShowSunOverlay] = useState(false);
 
   const stageRef = useRef<any>(null);
   const transformerRef = useRef<any>(null);
@@ -154,6 +163,40 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   const sunPosition = (rawSunPos && rawSunPos.altitude > 0)
     ? { altitude: rawSunPos.altitude, azimuth: -rawSunPos.azimuth - northOffsetRad }
     : undefined;
+
+  // Fetch plants for all linked areas
+  const areaIdKey = shapes.map(s => s.area_id).filter(Boolean).sort().join(",");
+  useEffect(() => {
+    const ids = [...new Set(shapes.map(s => s.area_id).filter(Boolean))] as string[];
+    if (!ids.length) { setAreaPlants({}); return; }
+    supabase.from("inventory_items")
+      .select("id, plant_name, nickname, area_id")
+      .in("area_id", ids).eq("status", "Planted")
+      .then(({ data }) => {
+        const map: Record<string, Array<{ id: string; plant_name: string; nickname: string | null }>> = {};
+        for (const r of data ?? []) if (r.area_id) (map[r.area_id] ??= []).push(r);
+        setAreaPlants(map);
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [areaIdKey]);
+
+  // Fetch lux readings (3D only)
+  useEffect(() => {
+    if (viewMode !== "3d") return;
+    const ids = [...new Set(shapes.map(s => s.area_id).filter(Boolean))] as string[];
+    if (!ids.length) { setAreaLuxReadings([]); return; }
+    supabase.from("area_lux_readings")
+      .select("area_id, lux_value, recorded_at")
+      .in("area_id", ids).order("recorded_at", { ascending: false })
+      .then(({ data }) => setAreaLuxReadings(data ?? []));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [viewMode, areaIdKey]);
+
+  // Sun classification — synchronous, runs only when overlay is active
+  const sunAnalysisResults = useMemo<ShapeSunResult[] | null>(() => {
+    if (!showSunOverlay || !homeLatLng || !shapes.length) return null;
+    return computeAllShapesSunHours(shapes, homeLatLng.lat, homeLatLng.lng, new Date(sunDate), northOffset);
+  }, [showSunOverlay, shapes, homeLatLng, sunDate, northOffset]);
 
   // Play/pause — advance slider 5 min every 200 ms (≈ 1 full day in ~2 min)
   useEffect(() => {
@@ -842,6 +885,20 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               >
                 {isPlaying ? <Pause size={14} /> : <Play size={14} />}
               </button>
+              <button
+                data-testid="toggle-lux-btn"
+                onClick={() => setShowLuxOverlay(v => !v)}
+                className={`px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${showLuxOverlay ? "bg-amber-100 text-amber-700" : "text-rhozly-on-surface/50 hover:bg-rhozly-surface"}`}
+              >
+                Lux
+              </button>
+              <button
+                data-testid="toggle-sun-btn"
+                onClick={() => setShowSunOverlay(v => !v)}
+                className={`px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${showSunOverlay ? "bg-yellow-100 text-yellow-700" : "text-rhozly-on-surface/50 hover:bg-rhozly-surface"}`}
+              >
+                Sun
+              </button>
             </div>
           ) : (
             <button
@@ -899,6 +956,12 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               onShapeChange={updateShape}
               onDrawShape={commitDraw}
               sunPosition={sunPosition}
+              areaPlants={areaPlants}
+              areaLuxReadings={areaLuxReadings}
+              showLuxOverlay={showLuxOverlay}
+              sunAnalysisResults={sunAnalysisResults}
+              showSunOverlay={showSunOverlay}
+              sunDateObj={sunDateObj}
             />
           )}
 

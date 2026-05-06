@@ -1,7 +1,8 @@
 import React, { useRef, useMemo } from "react";
-import { TransformControls } from "@react-three/drei";
+import { TransformControls, Html } from "@react-three/drei";
 import * as THREE from "three";
 import type { ShapeData } from "./GardenShapeProperties";
+import { getShapeCentre, SUN_CLASS_COLOR, SUN_CLASS_TEXT_COLOR, type ShapeSunResult } from "../lib/sunAnalysis";
 
 interface Props {
   shape: ShapeData;
@@ -9,13 +10,20 @@ interface Props {
   interactionMode: "draw" | "move" | "rotate";
   onSelect: () => void;
   onChange: (updates: Partial<ShapeData>) => void;
+  plantedItems: Array<{ id: string; plant_name: string; nickname: string | null }>;
+  luxReading: number | null;
+  sunResult: ShapeSunResult | null;
+  showSunOverlay: boolean;
 }
 
 function round3(n: number) {
   return Math.round(n * 1000) / 1000;
 }
 
-export default function GardenShape3D({ shape, isSelected, interactionMode, onSelect, onChange }: Props) {
+export default function GardenShape3D({
+  shape, isSelected, interactionMode, onSelect, onChange,
+  plantedItems, luxReading, sunResult, showSunOverlay,
+}: Props) {
   const meshRef = useRef<THREE.Mesh>(null!);
   const extrude = shape.extrude_m ?? 0.3;
   const isTransparent = shape.dashed || shape.preset_id === "tree-canopy" || shape.preset_id === "pond";
@@ -58,9 +66,85 @@ export default function GardenShape3D({ shape, isSelected, interactionMode, onSe
     }
   };
 
-  // TransformControls only shown when shape is selected AND we're in move mode.
-  // OrbitControls is not mounted in move mode so no ref manipulation needed.
   const showTransform = isSelected && interactionMode === "move";
+
+  // Overlay helpers — computed once and reused in every shape branch
+  const centre = getShapeCentre(shape);
+  const topY = shape.preset_id === "tree-canopy"
+    ? 2 * (shape.radius_m ?? 2) + 0.1
+    : Math.max(0.02, extrude) + 0.1;
+
+  const plantBillboard = plantedItems.length > 0 ? (
+    <Html position={[centre.x, topY, centre.z]} center style={{ pointerEvents: "none" }}>
+      <div style={{
+        background: "rgba(255,255,255,0.93)", border: "1px solid #bbf7d0",
+        borderRadius: 8, padding: "3px 8px", fontSize: 10, fontWeight: 700, color: "#166534",
+      }}>
+        {plantedItems.slice(0, 3).map(p => (
+          <div key={p.id}>🌱 {p.nickname ?? p.plant_name}</div>
+        ))}
+        {plantedItems.length > 3 && (
+          <div style={{ color: "#9ca3af" }}>+{plantedItems.length - 3} more</div>
+        )}
+      </div>
+    </Html>
+  ) : null;
+
+  const luxBadge = luxReading !== null ? (
+    <Html
+      position={[centre.x, topY + (plantedItems.length > 0 ? 0.55 : 0), centre.z]}
+      center
+      style={{ pointerEvents: "none" }}
+    >
+      <div style={{
+        background: "rgba(255,237,213,0.95)", border: "1px solid #fed7aa",
+        borderRadius: 6, padding: "2px 6px", fontSize: 10, fontWeight: 900, color: "#c2410c",
+      }}>
+        ☀️ {luxReading.toLocaleString()} lx
+      </div>
+    </Html>
+  ) : null;
+
+  const sunOverlayGeom = useMemo(() => {
+    if (shape.shape_type === "rect" || shape.shape_type === "path") {
+      return <planeGeometry args={[shape.width_m ?? 1, shape.height_m ?? 1]} />;
+    }
+    if (shape.shape_type === "circle" || shape.preset_id === "tree-canopy") {
+      return <circleGeometry args={[shape.radius_m ?? 0.5, 32]} />;
+    }
+    if (shape.shape_type === "ellipse") {
+      return <planeGeometry args={[shape.width_m ?? 2, shape.height_m ?? 1]} />;
+    }
+    if (shape.shape_type === "polygon" && shape.points) {
+      const xs = shape.points.map(p => p.x + shape.x_m);
+      const zs = shape.points.map(p => p.y + shape.y_m);
+      const bw = Math.max(...xs) - Math.min(...xs);
+      const bh = Math.max(...zs) - Math.min(...zs);
+      return <planeGeometry args={[Math.max(0.1, bw), Math.max(0.1, bh)]} />;
+    }
+    return <planeGeometry args={[shape.width_m ?? 1, shape.height_m ?? 1]} />;
+  }, [shape.shape_type, shape.preset_id, shape.width_m, shape.height_m, shape.radius_m, shape.points, shape.x_m, shape.y_m]);
+
+  const sunOverlay = showSunOverlay && sunResult ? (
+    <>
+      <mesh position={[centre.x, 0.02, centre.z]} rotation={[-Math.PI / 2, 0, 0]} renderOrder={-1}>
+        {sunOverlayGeom}
+        <meshBasicMaterial
+          color={SUN_CLASS_COLOR[sunResult.classification]}
+          transparent opacity={0.45} depthWrite={false}
+        />
+      </mesh>
+      <Html position={[centre.x, 0.05, centre.z]} center style={{ pointerEvents: "none" }}>
+        <span style={{
+          fontSize: 9, fontWeight: 900,
+          color: SUN_CLASS_TEXT_COLOR[sunResult.classification],
+          textShadow: "0 1px 2px rgba(255,255,255,0.9)", whiteSpace: "nowrap",
+        }}>
+          {sunResult.classification}
+        </span>
+      </Html>
+    </>
+  ) : null;
 
   // ---- tree canopy (sphere) ----
   if (shape.preset_id === "tree-canopy") {
@@ -74,6 +158,9 @@ export default function GardenShape3D({ shape, isSelected, interactionMode, onSe
         {showTransform && (
           <TransformControls object={meshRef} mode="translate" showY={false} translationSnap={0.1} onChange={handleTransformChange} />
         )}
+        {plantBillboard}
+        {luxBadge}
+        {sunOverlay}
       </group>
     );
   }
@@ -93,6 +180,9 @@ export default function GardenShape3D({ shape, isSelected, interactionMode, onSe
         {showTransform && (
           <TransformControls object={meshRef} mode="translate" showY={false} translationSnap={0.1} onChange={handleTransformChange} />
         )}
+        {plantBillboard}
+        {luxBadge}
+        {sunOverlay}
       </group>
     );
   }
@@ -111,6 +201,9 @@ export default function GardenShape3D({ shape, isSelected, interactionMode, onSe
         {showTransform && (
           <TransformControls object={meshRef} mode="translate" showY={false} translationSnap={0.1} onChange={handleTransformChange} />
         )}
+        {plantBillboard}
+        {luxBadge}
+        {sunOverlay}
       </group>
     );
   }
@@ -135,6 +228,9 @@ export default function GardenShape3D({ shape, isSelected, interactionMode, onSe
         {showTransform && (
           <TransformControls object={meshRef} mode="translate" showY={false} translationSnap={0.1} onChange={handlePolyChange} />
         )}
+        {plantBillboard}
+        {luxBadge}
+        {sunOverlay}
       </group>
     );
   }
@@ -164,6 +260,9 @@ export default function GardenShape3D({ shape, isSelected, interactionMode, onSe
       {showTransform && (
         <TransformControls object={meshRef} mode="translate" showY={false} translationSnap={0.1} onChange={handleTransformChange} />
       )}
+      {plantBillboard}
+      {luxBadge}
+      {sunOverlay}
     </group>
   );
 }

@@ -43,10 +43,21 @@ export default function GardenShapeProperties({ shape, homeId, onChange, onDelet
   const [areas, setAreas] = useState<Area[]>([]);
   const [areaSearch, setAreaSearch] = useState("");
   const [showAreaPicker, setShowAreaPicker] = useState(false);
+  const [plantedHere, setPlantedHere] = useState<
+    Array<{ id: string; plant_name: string; nickname: string | null }>
+  >([]);
 
   useEffect(() => {
     fetchAreas();
   }, [homeId]);
+
+  useEffect(() => {
+    if (!shape.area_id) { setPlantedHere([]); return; }
+    supabase.from("inventory_items")
+      .select("id, plant_name, nickname")
+      .eq("area_id", shape.area_id).eq("status", "Planted")
+      .then(({ data }) => setPlantedHere(data ?? []));
+  }, [shape.area_id]);
 
   const fetchAreas = async () => {
     try {
@@ -255,6 +266,18 @@ export default function GardenShapeProperties({ shape, homeId, onChange, onDelet
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Planted Here */}
+        {plantedHere.length > 0 && field("Planted Here",
+          <div className="space-y-1">
+            {plantedHere.map(p => (
+              <div key={p.id} className="flex items-center gap-1.5 text-xs font-bold text-rhozly-on-surface/70">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 shrink-0" />
+                {p.nickname ?? p.plant_name}
+              </div>
+            ))}
           </div>
         )}
 
