@@ -9,10 +9,19 @@ import {
   Loader2,
   UserPlus,
   Key,
+  UserX,
+  Users,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import { ConfirmModal } from "./ConfirmModal";
+
+interface HomeMember {
+  userId: string;
+  role: "owner" | "member";
+  displayName: string | null;
+  email: string;
+}
 
 interface HomeWithRole {
   id: string;
@@ -20,6 +29,7 @@ interface HomeWithRole {
   role: "owner" | "member";
   country: string | null;
   timezone: string | null;
+  members: HomeMember[];
 }
 
 interface Props {
@@ -29,6 +39,11 @@ interface Props {
   onAddNewHome: () => void;
   onHomeChanged: () => void;
 }
+
+type ModalState =
+  | { open: false }
+  | { open: true; type: "leave" | "delete"; homeId: string; homeName: string }
+  | { open: true; type: "remove_member"; homeId: string; homeName: string; memberId: string; memberName: string };
 
 export default function HomeManagement({
   currentHomeId,
@@ -40,33 +55,62 @@ export default function HomeManagement({
   const [homes, setHomes] = useState<HomeWithRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedId, setCopiedId] = useState<string | null>(null);
-
   const [joinId, setJoinId] = useState("");
   const [isJoining, setIsJoining] = useState(false);
   const [joinError, setJoinError] = useState<string | null>(null);
-
-  const [modal, setModal] = useState<{
-    open: boolean;
-    type: "leave" | "delete" | null;
-    homeId: string | null;
-    homeName: string;
-  }>({ open: false, type: null, homeId: null, homeName: "" });
+  const [modal, setModal] = useState<ModalState>({ open: false });
   const [isProcessing, setIsProcessing] = useState(false);
 
   const fetchHomes = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("home_members")
-      .select("role, homes ( id, name, country, timezone )")
-      .eq("user_id", userId);
-    if (!error && data) {
-      setHomes(
-        data
-          .filter((r) => r.homes)
-          .map((r: any) => ({ ...r.homes, role: r.role })),
+    try {
+      // Fetch all homes the user belongs to
+      const { data: memberRows, error } = await supabase
+        .from("home_members")
+        .select("role, homes ( id, name, country, timezone )")
+        .eq("user_id", userId);
+      if (error || !memberRows) { setLoading(false); return; }
+
+      const homeList: Omit<HomeWithRole, "members">[] = memberRows
+        .filter((r) => r.homes)
+        .map((r: any) => ({ ...r.homes, role: r.role }));
+
+      const homeIds = homeList.map((h) => h.id);
+      if (!homeIds.length) { setHomes([]); setLoading(false); return; }
+
+      // Fetch all members for all homes in one query
+      const { data: allMemberRows } = await supabase
+        .from("home_members")
+        .select("home_id, user_id, role")
+        .in("home_id", homeIds);
+
+      // Fetch profiles for all those users
+      const userIds = [...new Set((allMemberRows ?? []).map((m) => m.user_id))];
+      const { data: profiles } = await supabase
+        .from("user_profiles")
+        .select("uid, display_name, email")
+        .in("uid", userIds);
+
+      const profileMap = Object.fromEntries(
+        (profiles ?? []).map((p) => [p.uid, p]),
       );
+
+      // Group members by home
+      const membersByHome: Record<string, HomeMember[]> = {};
+      for (const m of allMemberRows ?? []) {
+        const p = profileMap[m.user_id];
+        (membersByHome[m.home_id] ??= []).push({
+          userId: m.user_id,
+          role: m.role as "owner" | "member",
+          displayName: p?.display_name ?? null,
+          email: p?.email ?? m.user_id,
+        });
+      }
+
+      setHomes(homeList.map((h) => ({ ...h, members: membersByHome[h.id] ?? [] })));
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   }, [userId]);
 
   useEffect(() => { fetchHomes(); }, [fetchHomes]);
@@ -79,28 +123,33 @@ export default function HomeManagement({
   };
 
   const handleConfirm = async () => {
-    if (!modal.homeId || !modal.type) return;
+    if (!modal.open) return;
     setIsProcessing(true);
     try {
-      const rpc = modal.type === "delete" ? "delete_home_entirely" : "leave_home";
-      const { error } = await supabase.rpc(rpc, { home_id_param: modal.homeId });
-      if (error) throw error;
-
-      if (currentHomeId === modal.homeId) {
-        await supabase
-          .from("user_profiles")
-          .update({ home_id: null })
-          .eq("uid", userId);
+      if (modal.type === "remove_member") {
+        const { error } = await supabase
+          .from("home_members")
+          .delete()
+          .eq("home_id", modal.homeId)
+          .eq("user_id", modal.memberId);
+        if (error) throw error;
+        Logger.success(`Removed ${modal.memberName} from ${modal.homeName}`);
+      } else {
+        const rpc = modal.type === "delete" ? "delete_home_entirely" : "leave_home";
+        const { error } = await supabase.rpc(rpc, { home_id_param: modal.homeId });
+        if (error) throw error;
+        if (currentHomeId === modal.homeId) {
+          await supabase.from("user_profiles").update({ home_id: null }).eq("uid", userId);
+        }
+        Logger.success(
+          `Successfully ${modal.type === "delete" ? "deleted" : "left"} ${modal.homeName}`,
+        );
       }
-
-      Logger.success(
-        `Successfully ${modal.type === "delete" ? "deleted" : "left"} ${modal.homeName}`,
-      );
-      setModal({ open: false, type: null, homeId: null, homeName: "" });
+      setModal({ open: false });
       await fetchHomes();
       onHomeChanged();
     } catch (err: any) {
-      Logger.error(`Failed to ${modal.type} home`, err, {}, err.message);
+      Logger.error("Home action failed", err, {}, err.message);
     } finally {
       setIsProcessing(false);
     }
@@ -113,16 +162,11 @@ export default function HomeManagement({
     setJoinError(null);
     setIsJoining(true);
     try {
-      const { error: joinErr } = await supabase.from("home_members").insert([
-        { home_id: trimmed, user_id: userId, role: "member" },
-      ]);
+      const { error: joinErr } = await supabase
+        .from("home_members")
+        .insert([{ home_id: trimmed, user_id: userId, role: "member" }]);
       if (joinErr) throw new Error("Invalid Home ID or you are already a member.");
-
-      await supabase
-        .from("user_profiles")
-        .update({ home_id: trimmed })
-        .eq("uid", userId);
-
+      await supabase.from("user_profiles").update({ home_id: trimmed }).eq("uid", userId);
       setJoinId("");
       Logger.success("Successfully joined the home!");
       await fetchHomes();
@@ -135,8 +179,30 @@ export default function HomeManagement({
     }
   };
 
+  const initials = (member: HomeMember) => {
+    const name = member.displayName || member.email;
+    return name.slice(0, 1).toUpperCase();
+  };
+
+  const modalTitle = () => {
+    if (!modal.open) return "";
+    if (modal.type === "delete") return "Delete Home";
+    if (modal.type === "leave") return "Leave Home";
+    return "Remove Member";
+  };
+
+  const modalDesc = () => {
+    if (!modal.open) return "";
+    if (modal.type === "delete")
+      return `Are you absolutely sure you want to permanently delete "${modal.homeName}"? This will erase all locations, areas, and plant data. This cannot be undone.`;
+    if (modal.type === "leave")
+      return `Are you sure you want to leave "${modal.homeName}"? You'll lose access until an owner invites you back.`;
+    return `Remove ${(modal as any).memberName} from "${modal.homeName}"? They will lose access to this home.`;
+  };
+
   return (
     <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-black text-rhozly-on-surface tracking-tight">
@@ -157,7 +223,7 @@ export default function HomeManagement({
       </div>
 
       {/* Homes list */}
-      <div className="space-y-3">
+      <div className="space-y-4">
         {loading ? (
           <div className="flex items-center justify-center py-12 text-rhozly-on-surface/30">
             <Loader2 size={20} className="animate-spin" />
@@ -180,19 +246,12 @@ export default function HomeManagement({
                   : "border-rhozly-outline/20"
               }`}
             >
+              {/* Home header row */}
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-3 min-w-0">
-                  <div
-                    className={`w-2.5 h-2.5 rounded-full shrink-0 ${
-                      home.id === currentHomeId
-                        ? "bg-rhozly-primary"
-                        : "bg-rhozly-on-surface/20"
-                    }`}
-                  />
+                  <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${home.id === currentHomeId ? "bg-rhozly-primary" : "bg-rhozly-on-surface/20"}`} />
                   <div className="min-w-0">
-                    <p className="font-black text-rhozly-on-surface truncate">
-                      {home.name}
-                    </p>
+                    <p className="font-black text-rhozly-on-surface truncate">{home.name}</p>
                     {(home.country || home.timezone) && (
                       <p className="text-xs font-bold text-rhozly-on-surface/40 truncate">
                         {[home.country, home.timezone?.replace(/_/g, " ")].filter(Boolean).join(" · ")}
@@ -201,16 +260,10 @@ export default function HomeManagement({
                   </div>
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
-                  <span
-                    className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${
-                      home.role === "owner"
-                        ? "bg-rhozly-primary/10 text-rhozly-primary"
-                        : "bg-rhozly-surface text-rhozly-on-surface/50"
-                    }`}
-                  >
+                  <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full ${home.role === "owner" ? "bg-rhozly-primary/10 text-rhozly-primary" : "bg-rhozly-surface text-rhozly-on-surface/50"}`}>
                     {home.role}
                   </span>
-                  {home.id !== currentHomeId && (
+                  {home.id !== currentHomeId ? (
                     <button
                       data-testid={`home-mgmt-switch-${home.id}`}
                       onClick={() => onSwitchHome(home.id)}
@@ -218,8 +271,7 @@ export default function HomeManagement({
                     >
                       Switch
                     </button>
-                  )}
-                  {home.id === currentHomeId && (
+                  ) : (
                     <span className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-xl bg-emerald-50 text-emerald-600">
                       Active
                     </span>
@@ -227,35 +279,84 @@ export default function HomeManagement({
                 </div>
               </div>
 
-              {/* Invite ID row — owners only */}
+              {/* Invite ID — owners only */}
               {home.role === "owner" && (
                 <div className="flex items-center gap-2 bg-rhozly-surface rounded-2xl px-4 py-2.5">
                   <UserPlus size={13} className="text-rhozly-on-surface/30 shrink-0" />
-                  <p className="flex-1 text-xs font-mono text-rhozly-on-surface/50 truncate">
-                    {home.id}
-                  </p>
+                  <p className="flex-1 text-xs font-mono text-rhozly-on-surface/50 truncate">{home.id}</p>
                   <button
                     data-testid={`home-mgmt-copy-${home.id}`}
                     onClick={() => copyId(home.id)}
                     className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-rhozly-primary hover:text-rhozly-primary/70 transition-colors shrink-0"
                   >
-                    {copiedId === home.id ? (
-                      <Check size={12} className="text-emerald-500" />
-                    ) : (
-                      <Copy size={12} />
-                    )}
+                    {copiedId === home.id ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
                     {copiedId === home.id ? "Copied!" : "Copy ID"}
                   </button>
                 </div>
               )}
 
+              {/* Members list */}
+              {home.members.length > 0 && (
+                <div className="space-y-1">
+                  <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest flex items-center gap-1.5 mb-2">
+                    <Users size={11} />
+                    Members ({home.members.length})
+                  </p>
+                  {home.members.map((member) => (
+                    <div
+                      key={member.userId}
+                      data-testid={`home-mgmt-member-${member.userId}`}
+                      className="flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-rhozly-surface transition-colors group"
+                    >
+                      <div className="w-8 h-8 rounded-full bg-rhozly-primary/10 flex items-center justify-center shrink-0">
+                        <span className="text-xs font-black text-rhozly-primary">
+                          {initials(member)}
+                        </span>
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-black text-rhozly-on-surface truncate">
+                          {member.displayName || member.email}
+                          {member.userId === userId && (
+                            <span className="ml-1.5 text-[9px] font-black text-rhozly-on-surface/30">(you)</span>
+                          )}
+                        </p>
+                        {member.displayName && (
+                          <p className="text-[10px] font-bold text-rhozly-on-surface/40 truncate">{member.email}</p>
+                        )}
+                      </div>
+                      <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0 ${member.role === "owner" ? "bg-rhozly-primary/10 text-rhozly-primary" : "bg-rhozly-surface text-rhozly-on-surface/40"}`}>
+                        {member.role}
+                      </span>
+                      {/* Remove button — owners only, not for self */}
+                      {home.role === "owner" && member.userId !== userId && (
+                        <button
+                          data-testid={`home-mgmt-remove-member-${member.userId}`}
+                          onClick={() =>
+                            setModal({
+                              open: true,
+                              type: "remove_member",
+                              homeId: home.id,
+                              homeName: home.name,
+                              memberId: member.userId,
+                              memberName: member.displayName || member.email,
+                            })
+                          }
+                          className="opacity-0 group-hover:opacity-100 flex items-center justify-center w-7 h-7 rounded-xl text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
+                          title="Remove member"
+                        >
+                          <UserX size={13} />
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+
               {/* Danger zone */}
-              <div className="flex items-center gap-2 pt-1">
+              <div className="flex items-center gap-2 pt-1 border-t border-rhozly-outline/10">
                 <button
                   data-testid={`home-mgmt-leave-${home.id}`}
-                  onClick={() =>
-                    setModal({ open: true, type: "leave", homeId: home.id, homeName: home.name })
-                  }
+                  onClick={() => setModal({ open: true, type: "leave", homeId: home.id, homeName: home.name })}
                   className="flex items-center gap-1.5 text-xs font-black text-rhozly-on-surface/40 hover:text-red-500 transition-colors px-3 py-2 rounded-xl hover:bg-red-50"
                 >
                   <LogOut size={13} />
@@ -264,9 +365,7 @@ export default function HomeManagement({
                 {home.role === "owner" && (
                   <button
                     data-testid={`home-mgmt-delete-${home.id}`}
-                    onClick={() =>
-                      setModal({ open: true, type: "delete", homeId: home.id, homeName: home.name })
-                    }
+                    onClick={() => setModal({ open: true, type: "delete", homeId: home.id, homeName: home.name })}
                     className="flex items-center gap-1.5 text-xs font-black text-rhozly-on-surface/40 hover:text-red-500 transition-colors px-3 py-2 rounded-xl hover:bg-red-50"
                   >
                     <Trash2 size={13} />
@@ -320,15 +419,11 @@ export default function HomeManagement({
       <ConfirmModal
         isOpen={modal.open}
         isLoading={isProcessing}
-        onClose={() => setModal({ ...modal, open: false })}
+        onClose={() => setModal({ open: false })}
         onConfirm={handleConfirm}
-        title={modal.type === "delete" ? "Delete Home" : "Leave Home"}
-        description={
-          modal.type === "delete"
-            ? `Are you absolutely sure you want to permanently delete "${modal.homeName}"? This will erase all locations, areas, and plant data. This cannot be undone.`
-            : `Are you sure you want to leave "${modal.homeName}"? You'll lose access until an owner invites you back.`
-        }
-        confirmText={modal.type === "delete" ? "Delete Home" : "Leave Home"}
+        title={modalTitle()}
+        description={modalDesc()}
+        confirmText={modal.open && modal.type === "remove_member" ? "Remove Member" : modal.open && modal.type === "delete" ? "Delete Home" : "Leave Home"}
         isDestructive
       />
     </div>
