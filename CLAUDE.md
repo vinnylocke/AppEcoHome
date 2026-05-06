@@ -25,6 +25,7 @@ The app is called **Rhozly** — use this name in all user-facing text and commi
 | [docs/area-scan-plan.md](docs/area-scan-plan.md) | Build plan for the AI-powered area scan feature |
 | [docs/routing-migration-plan.md](docs/routing-migration-plan.md) | Plan to migrate from state-based tabs to full React Router |
 | [docs/deep-linking-plan.md](docs/deep-linking-plan.md) | Plan for native deep-link handling via Capacitor |
+| [docs/shopping-list-plan.md](docs/shopping-list-plan.md) | Build plan for the Shopping List feature — multi-list CRUD, plant/product search, Plant Doctor integration |
 
 **Always read the relevant plan document at the start of a session** before making changes to a feature area.
 
@@ -195,6 +196,7 @@ npm run test:e2e
 | `/visualiser` | PlantVisualiser |
 | `/lightsensor` | LightSensor |
 | `/guides` | GuideList |
+| `/shopping` | ShoppingLists |
 
 ---
 
