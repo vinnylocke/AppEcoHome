@@ -6,7 +6,6 @@ import {
   Cloud,
   Menu,
   Home,
-  User,
   Wrench,
   Loader2,
   Sun,
@@ -69,7 +68,10 @@ import PlantVisualiser from "./components/PlantVisualiser";
 import GardenLayoutList from "./components/GardenLayoutList";
 import GardenLayoutEditor from "./components/GardenLayoutEditor";
 import ShoppingLists from "./components/ShoppingLists";
+import HomeManagement from "./components/HomeManagement";
+import UserProfileDropdown from "./components/UserProfileDropdown";
 import { ShoppingCart } from "lucide-react";
+import { Building2 } from "lucide-react";
 import NavItem from "./components/NavItem";
 import {
   getMidnightTonight,
@@ -107,9 +109,10 @@ const TAB_URL: Record<string, string> = {
   lightsensor:     "/lightsensor",
   guides:          "/guides",
   management:      "/management",
-  garden_layout:   "/garden-layout",
-  shopping:        "/shopping",
-  admin_guides:    "/admin/guides",
+  garden_layout:    "/garden-layout",
+  shopping:         "/shopping",
+  home_management:  "/home-management",
+  admin_guides:     "/admin/guides",
 };
 
 function AppShell() {
@@ -475,6 +478,7 @@ function AppShell() {
     { id: "guides", icon: <BookOpen />, label: "Guides" },
     { id: "management", icon: <Wrench />, label: "Location Management" },
     { id: "garden_layout", icon: <LayoutTemplate />, label: "Garden Layout" },
+    { id: "home_management", icon: <Building2 />, label: "Home Management" },
   ];
 
   if (profile?.is_admin) {
@@ -526,27 +530,10 @@ function AppShell() {
                   />
                 </div>
               </div>
-              <div className="flex items-center gap-4 cursor-pointer group">
-                <button
-                  onClick={() => supabase.auth.signOut()}
-                  className="text-xs font-black text-white/60 hover:text-white uppercase tracking-widest transition-colors mr-2"
-                >
-                  Sign Out
-                </button>
-                <div className="text-right hidden sm:block text-white">
-                  <p className="text-sm font-bold">
-                    {profile?.display_name || "Guest"}
-                  </p>
-                  <p className="text-[10px] uppercase tracking-widest text-white/60 font-semibold">
-                    Master Gardener
-                  </p>
-                </div>
-                <div className="w-11 h-11 rounded-full bg-white/20 p-[2px] backdrop-blur-sm">
-                  <div className="w-full h-full rounded-full border-2 border-white/30 bg-rhozly-primary-container flex items-center justify-center overflow-hidden">
-                    <User className="w-5 h-5 text-white" />
-                  </div>
-                </div>
-              </div>
+              <UserProfileDropdown
+                displayName={profile?.display_name ?? null}
+                email={session?.user?.email ?? null}
+              />
             </header>
 
             <div className="flex flex-1 overflow-hidden relative z-10 w-full">
@@ -884,6 +871,20 @@ function AppShell() {
                         profile?.home_id ? (
                           <div className="h-full animate-in fade-in duration-500">
                             <GardenLayoutEditor homeId={profile.home_id} />
+                          </div>
+                        ) : null
+                      } />
+
+                      <Route path="/home-management" element={
+                        profile?.home_id && session?.user?.id ? (
+                          <div className="h-full animate-in fade-in duration-500">
+                            <HomeManagement
+                              currentHomeId={profile.home_id}
+                              userId={session.user.id}
+                              onSwitchHome={handleSwitchHome}
+                              onAddNewHome={() => setIsAddingHome(true)}
+                              onHomeChanged={refreshProfile}
+                            />
                           </div>
                         ) : null
                       } />
