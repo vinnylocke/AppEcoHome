@@ -25,6 +25,7 @@ import {
   Globe,
   BrainCircuit,
   BookOpen,
+  ShoppingCart,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -35,6 +36,8 @@ import ManualPlantCreation from "./ManualPlantCreation";
 import PlantSearchModal from "./PlantSearchModal";
 import DiagnosisImageGallery from "./DiagnosisImageGallery";
 import PlantInstancePicker from "./PlantInstancePicker";
+import AddToListSheet, { type SuggestedItem } from "./shopping/AddToListSheet";
+import type { ShoppingList } from "../types/shopping";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -92,6 +95,9 @@ export default function PlantDoctor({
   const [sickInventoryId, setSickInventoryId] = useState<string | null>(null);
   const [isApplyingTreatment, setIsApplyingTreatment] = useState(false);
   const [treatmentApplied, setTreatmentApplied] = useState(false);
+  const [showAddToList, setShowAddToList] = useState(false);
+  const [addToListItems, setAddToListItems] = useState<SuggestedItem[]>([]);
+  const [addToListActiveLists, setAddToListActiveLists] = useState<ShoppingList[]>([]);
 
   const [saveToJournal, setSaveToJournal] = useState(true);
 
@@ -273,6 +279,43 @@ export default function PlantDoctor({
       };
       img.onerror = reject;
     });
+  };
+
+  const openAddToListSheet = async (items: SuggestedItem[]) => {
+    try {
+      const { data } = await supabase
+        .from("shopping_lists")
+        .select("id, name, status, home_id, created_at, updated_at")
+        .eq("home_id", homeId)
+        .eq("status", "active")
+        .order("created_at", { ascending: false });
+      setAddToListActiveLists(data ?? []);
+    } catch { setAddToListActiveLists([]); }
+    setAddToListItems(items);
+    setShowAddToList(true);
+  };
+
+  const handleAddToListConfirm = async (listId: string, items: SuggestedItem[]) => {
+    for (const item of items) {
+      await supabase.from("shopping_list_items").insert({
+        list_id: listId,
+        home_id: homeId,
+        item_type: item.item_type,
+        name: item.name,
+        is_checked: false,
+        category: item.category ?? null,
+        doctor_session_id: "plant-doctor",
+      });
+    }
+  };
+
+  const handleCreateAndAddToList = async (listName: string, items: SuggestedItem[]) => {
+    const { data: newList } = await supabase
+      .from("shopping_lists")
+      .insert({ home_id: homeId, name: listName })
+      .select()
+      .single();
+    if (newList) await handleAddToListConfirm(newList.id, items);
   };
 
   const handleAiAction = async (action: "identify" | "diagnose") => {
@@ -712,6 +755,15 @@ export default function PlantDoctor({
                           )}
                         </button>
                       </div>
+                      <div className="border-t border-rhozly-outline/10 pt-3 mt-1">
+                        <button
+                          data-testid="doctor-add-plant-to-list"
+                          onClick={() => openAddToListSheet([{ name: selectedPlantName, item_type: "plant" }])}
+                          className="w-full flex items-center justify-center gap-2 py-3 border border-rhozly-primary/20 rounded-xl font-black text-sm text-rhozly-primary hover:bg-rhozly-primary/5 transition-colors"
+                        >
+                          <ShoppingCart size={16} /> Add to Shopping List
+                        </button>
+                      </div>
                     </div>
                   )}
 
@@ -976,6 +1028,24 @@ export default function PlantDoctor({
                             )}
                           </button>
                         )}
+                        <div className="border-t border-rhozly-outline/10 pt-3 mt-1">
+                          <button
+                            data-testid="doctor-add-treatment-to-list"
+                            onClick={() => {
+                              const items: SuggestedItem[] = [];
+                              if (selectedDisease) {
+                                items.push({ name: `Treatment for ${selectedDisease}`, item_type: "product", category: "Pest Control" });
+                              }
+                              for (const s of aiResult?.remedial_schedules ?? []) {
+                                if (s.product) items.push({ name: s.product, item_type: "product", category: "Pest Control" });
+                              }
+                              if (items.length) openAddToListSheet(items);
+                            }}
+                            className="w-full flex items-center justify-center gap-2 py-3 border border-rhozly-primary/20 rounded-xl font-black text-sm text-rhozly-primary hover:bg-rhozly-primary/5 transition-colors"
+                          >
+                            <ShoppingCart size={16} /> Add treatments to Shopping List
+                          </button>
+                        </div>
                       </div>
                     )}
                 </div>
@@ -1040,6 +1110,16 @@ export default function PlantDoctor({
           />
         </div>
       </div>
+      {showAddToList && addToListItems.length > 0 && (
+        <AddToListSheet
+          homeId={homeId}
+          suggestedItems={addToListItems}
+          activeLists={addToListActiveLists}
+          onClose={() => setShowAddToList(false)}
+          onConfirm={handleAddToListConfirm}
+          onCreateAndConfirm={handleCreateAndAddToList}
+        />
+      )}
     </>
   );
 }

@@ -13,6 +13,8 @@ const HOME_TABLES = [
   { table: "plants",            filter: (id: string) => `home_id=eq.${id}` },
   { table: "ailments",          filter: (id: string) => `home_id=eq.${id}` },
   { table: "plans",             filter: (id: string) => `home_id=eq.${id}` },
+  { table: "shopping_lists",    filter: (id: string) => `home_id=eq.${id}` },
+  { table: "shopping_list_items", filter: (id: string) => `home_id=eq.${id}` },
 ] as const;
 
 export type HomeRealtimeTable = (typeof HOME_TABLES)[number]["table"];

@@ -68,6 +68,8 @@ import AssistantCard from "./components/AssistantCard";
 import PlantVisualiser from "./components/PlantVisualiser";
 import GardenLayoutList from "./components/GardenLayoutList";
 import GardenLayoutEditor from "./components/GardenLayoutEditor";
+import ShoppingLists from "./components/ShoppingLists";
+import { ShoppingCart } from "lucide-react";
 import NavItem from "./components/NavItem";
 import {
   getMidnightTonight,
@@ -106,6 +108,7 @@ const TAB_URL: Record<string, string> = {
   guides:          "/guides",
   management:      "/management",
   garden_layout:   "/garden-layout",
+  shopping:        "/shopping",
   admin_guides:    "/admin/guides",
 };
 
@@ -462,6 +465,7 @@ function AppShell() {
     // 🚀 NEW: Task Management Tab
     { id: "task_management", icon: <Repeat />, label: "Task Management" },
     { id: "shed", icon: <Database />, label: "The Shed" },
+    { id: "shopping", icon: <ShoppingCart />, label: "Shopping List" },
     { id: "watchlist", icon: <Bug />, label: "Watchlist" },
     { id: "visualiser", icon: <ScanLine />, label: "Plant Visualiser" },
     { id: "planner", icon: <Map />, label: "Planner" },
@@ -768,6 +772,18 @@ function AppShell() {
                         profile?.home_id ? (
                           <div className="h-full animate-in fade-in duration-500">
                             <TheShed homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} perenualEnabled={profile.enable_perenual ?? false} />
+                          </div>
+                        ) : null
+                      } />
+
+                      <Route path="/shopping" element={
+                        profile?.home_id ? (
+                          <div className="h-full animate-in fade-in duration-500">
+                            <ShoppingLists
+                              homeId={profile.home_id}
+                              aiEnabled={profile.ai_enabled ?? false}
+                              perenualEnabled={profile.enable_perenual ?? false}
+                            />
                           </div>
                         ) : null
                       } />
