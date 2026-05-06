@@ -1136,7 +1136,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
                 />
               </div>
               <div className="flex-1">
-                <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">Height (m)</p>
+                <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">Length (m)</p>
                 <input
                   data-testid="canvas-height-input"
                   type="number"

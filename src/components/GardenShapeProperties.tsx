@@ -130,7 +130,7 @@ export default function GardenShapeProperties({ shape, homeId, onChange, onDelet
               />
             </div>
             <div className="flex-1">
-              <p className="text-[9px] font-bold text-rhozly-on-surface/40 mb-0.5">H</p>
+              <p className="text-[9px] font-bold text-rhozly-on-surface/40 mb-0.5">L</p>
               <input
                 data-testid="shape-height-input"
                 type="number" min="0.1" step="0.1"

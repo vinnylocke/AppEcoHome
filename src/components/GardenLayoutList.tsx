@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, LayoutTemplate, Pencil, Trash2, ChevronRight, Loader2 } from "lucide-react";
+import { Plus, LayoutTemplate, Pencil, Trash2, ChevronRight, Loader2, Wand2, SquareDashed, ArrowLeft } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
@@ -18,20 +18,121 @@ interface Props {
   homeId: string;
 }
 
+type GardenShape = "rect" | "square" | "l-shape";
+type BorderStyle = "none" | "fence" | "hedge" | "wall";
+type EdgeConfig = { style: BorderStyle; height: number };
+
+// SVG viewBox is 200×150 for all shapes
+interface EdgeDef {
+  id: string;
+  label: string;
+  x1: number; y1: number; x2: number; y2: number;
+  lx: number; ly: number; anchor: "start" | "middle" | "end";
+}
+
+const RECT_EDGES: EdgeDef[] = [
+  { id: "top",    label: "Top",    x1: 15,  y1: 20,  x2: 185, y2: 20,  lx: 100, ly: 12,  anchor: "middle" },
+  { id: "right",  label: "Right",  x1: 185, y1: 20,  x2: 185, y2: 130, lx: 194, ly: 78,  anchor: "start"  },
+  { id: "bottom", label: "Bottom", x1: 185, y1: 130, x2: 15,  y2: 130, lx: 100, ly: 144, anchor: "middle" },
+  { id: "left",   label: "Left",   x1: 15,  y1: 130, x2: 15,  y2: 20,  lx: 6,   ly: 78,  anchor: "end"    },
+];
+
+// L-shape: polygon 15,15 185,15 185,55 71,55 71,135 15,135
+// inner step is ~1/3 of full width/height
+const L_EDGES: EdgeDef[] = [
+  { id: "top",         label: "Top",        x1: 15,  y1: 15,  x2: 185, y2: 15,  lx: 100, ly: 7,   anchor: "middle" },
+  { id: "right-outer", label: "Right",      x1: 185, y1: 15,  x2: 185, y2: 55,  lx: 194, ly: 37,  anchor: "start"  },
+  { id: "inner-horiz", label: "Inner top",  x1: 185, y1: 55,  x2: 71,  y2: 55,  lx: 128, ly: 46,  anchor: "middle" },
+  { id: "inner-vert",  label: "Inner side", x1: 71,  y1: 55,  x2: 71,  y2: 135, lx: 80,  ly: 97,  anchor: "start"  },
+  { id: "bottom",      label: "Bottom",     x1: 71,  y1: 135, x2: 15,  y2: 135, lx: 43,  ly: 148, anchor: "middle" },
+  { id: "left",        label: "Left",       x1: 15,  y1: 135, x2: 15,  y2: 15,  lx: 6,   ly: 75,  anchor: "end"    },
+];
+
+function getEdgeDefs(shape: GardenShape): EdgeDef[] {
+  return shape === "l-shape" ? L_EDGES : RECT_EDGES;
+}
+
+function getShapePoints(shape: GardenShape): string {
+  return shape === "l-shape"
+    ? "15,15 185,15 185,55 71,55 71,135 15,135"
+    : "15,20 185,20 185,130 15,130";
+}
+
+function edgeToRectGeom(
+  edgeId: string,
+  shape: GardenShape,
+  gW: number, gH: number,
+  ox: number, oy: number,
+  t: number,
+): { x_m: number; y_m: number; width_m: number; height_m: number } | null {
+  if (shape === "rect" || shape === "square") {
+    const map: Record<string, { x_m: number; y_m: number; width_m: number; height_m: number }> = {
+      top:    { x_m: ox,        y_m: oy,        width_m: gW, height_m: t  },
+      right:  { x_m: ox+gW-t,  y_m: oy,        width_m: t,  height_m: gH },
+      bottom: { x_m: ox,        y_m: oy+gH-t,  width_m: gW, height_m: t  },
+      left:   { x_m: ox,        y_m: oy,        width_m: t,  height_m: gH },
+    };
+    return map[edgeId] ?? null;
+  }
+  if (shape === "l-shape") {
+    const sc = Math.min(gW / 3, gH / 3);
+    const map: Record<string, { x_m: number; y_m: number; width_m: number; height_m: number }> = {
+      "top":          { x_m: ox,        y_m: oy,       width_m: gW,    height_m: t     },
+      "right-outer":  { x_m: ox+gW-t,  y_m: oy,       width_m: t,     height_m: sc    },
+      "inner-horiz":  { x_m: ox+sc,    y_m: oy+sc,    width_m: gW-sc, height_m: t     },
+      "inner-vert":   { x_m: ox+sc,    y_m: oy+sc,    width_m: t,     height_m: gH-sc },
+      "bottom":       { x_m: ox,        y_m: oy+gH-t, width_m: sc,    height_m: t     },
+      "left":         { x_m: ox,        y_m: oy,       width_m: t,     height_m: gH    },
+    };
+    return map[edgeId] ?? null;
+  }
+  return null;
+}
+
+const BORDER_META: Record<Exclude<BorderStyle, "none">, {
+  color: string; preset_id: string | null; thickness: number; label: string; svgColor: string;
+}> = {
+  fence: { color: "#a16207", preset_id: "fence-panel", thickness: 0.15, label: "Fence", svgColor: "#b45309" },
+  hedge: { color: "#16a34a", preset_id: null,          thickness: 0.5,  label: "Hedge", svgColor: "#16a34a" },
+  wall:  { color: "#78716c", preset_id: "wall",         thickness: 0.2,  label: "Wall",  svgColor: "#57534e" },
+};
+
+const DEFAULT_EDGE_CONFIG: EdgeConfig = { style: "none", height: 1.2 };
+
+function StylePill({ active, onClick, label, color }: { active: boolean; onClick: () => void; label: string; color?: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-3 py-1.5 rounded-xl text-[11px] font-black transition-colors ${
+        active ? "text-white" : "bg-rhozly-surface text-rhozly-on-surface/60 hover:bg-rhozly-surface-low"
+      }`}
+      style={active && color ? { backgroundColor: color } : active ? {} : {}}
+    >
+      {label}
+    </button>
+  );
+}
+
 export default function GardenLayoutList({ homeId }: Props) {
   const navigate = useNavigate();
   const [layouts, setLayouts] = useState<Layout[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
-  const [newName, setNewName] = useState("");
-  const [showCreate, setShowCreate] = useState(false);
   const [renamingId, setRenamingId] = useState<string | null>(null);
   const [renameValue, setRenameValue] = useState("");
   const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  useEffect(() => {
-    fetchLayouts();
-  }, [homeId]);
+  // Wizard
+  const [wizardMode, setWizardMode] = useState<null | "choice" | "scratch" | "builder">(null);
+  const [builderStep, setBuilderStep] = useState<1 | 2 | 3>(1);
+  const [bName, setBName] = useState("");
+  const [bShape, setBShape] = useState<GardenShape>("rect");
+  const [bWidth, setBWidth] = useState(10);
+  const [bLength, setBLength] = useState(8);
+  const [borders, setBorders] = useState<Record<string, EdgeConfig>>({});
+  const [selectedEdgeId, setSelectedEdgeId] = useState<string | null>(null);
+
+  useEffect(() => { fetchLayouts(); }, [homeId]);
 
   const fetchLayouts = async () => {
     try {
@@ -50,8 +151,19 @@ export default function GardenLayoutList({ homeId }: Props) {
     }
   };
 
-  const handleCreate = async () => {
-    const name = newName.trim() || "New Layout";
+  const closeWizard = () => {
+    setWizardMode(null);
+    setBuilderStep(1);
+    setBName("");
+    setBShape("rect");
+    setBWidth(10);
+    setBLength(8);
+    setBorders({});
+    setSelectedEdgeId(null);
+  };
+
+  const handleCreateScratch = async () => {
+    const name = bName.trim() || "New Layout";
     setCreating(true);
     try {
       const { data, error } = await supabase
@@ -60,9 +172,100 @@ export default function GardenLayoutList({ homeId }: Props) {
         .select()
         .single();
       if (error) throw error;
-      setShowCreate(false);
-      setNewName("");
+      closeWizard();
       navigate(`/garden-layout/${data.id}`);
+    } catch (err) {
+      Logger.error("Failed to create layout", err);
+      toast.error("Could not create layout.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleBuilderFinish = async () => {
+    const name = bName.trim() || "New Layout";
+    const gW = bShape === "square" ? Math.max(bWidth, bLength) : bWidth;
+    const gH = bShape === "square" ? Math.max(bWidth, bLength) : bLength;
+    const padding = 4;
+    const canvasW = Math.max(20, gW + padding * 2);
+    const canvasH = Math.max(15, gH + padding * 2);
+    const ox = (canvasW - gW) / 2;
+    const oy = (canvasH - gH) / 2;
+
+    setCreating(true);
+    try {
+      const { data: layout, error: layoutErr } = await supabase
+        .from("garden_layouts")
+        .insert({ home_id: homeId, name, canvas_w_m: canvasW, canvas_h_m: canvasH })
+        .select()
+        .single();
+      if (layoutErr) throw layoutErr;
+
+      const shapesToInsert: object[] = [];
+
+      // Garden boundary
+      if (bShape === "l-shape") {
+        const sc = Math.min(gW / 3, gH / 3);
+        shapesToInsert.push({
+          layout_id: layout.id,
+          shape_type: "polygon",
+          preset_id: "garden-boundary",
+          label: "Garden Boundary",
+          color: "#92400e",
+          x_m: 0, y_m: 0,
+          width_m: null, height_m: null, radius_m: null,
+          points: [
+            { x: ox,        y: oy },
+            { x: ox + gW,   y: oy },
+            { x: ox + gW,   y: oy + sc },
+            { x: ox + sc,   y: oy + sc },
+            { x: ox + sc,   y: oy + gH },
+            { x: ox,        y: oy + gH },
+          ],
+          rotation: 0, z_index: 0, dashed: true, extrude_m: 0,
+        });
+      } else {
+        shapesToInsert.push({
+          layout_id: layout.id,
+          shape_type: "rect",
+          preset_id: "garden-boundary",
+          label: "Garden Boundary",
+          color: "#92400e",
+          x_m: ox, y_m: oy,
+          width_m: gW, height_m: gH,
+          radius_m: null, points: null,
+          rotation: 0, z_index: 0, dashed: true, extrude_m: 0,
+        });
+      }
+
+      // Border edges
+      for (const [edgeId, cfg] of Object.entries(borders)) {
+        if (cfg.style === "none") continue;
+        const meta = BORDER_META[cfg.style];
+        const geom = edgeToRectGeom(edgeId, bShape, gW, gH, ox, oy, meta.thickness);
+        if (!geom) continue;
+        const edgeDef = getEdgeDefs(bShape).find(e => e.id === edgeId);
+        shapesToInsert.push({
+          layout_id: layout.id,
+          shape_type: "rect",
+          preset_id: meta.preset_id,
+          label: edgeDef ? `${edgeDef.label} ${meta.label}` : meta.label,
+          color: meta.color,
+          x_m: geom.x_m, y_m: geom.y_m,
+          width_m: geom.width_m, height_m: geom.height_m,
+          radius_m: null, points: null,
+          rotation: 0, z_index: 1, dashed: false,
+          extrude_m: cfg.height,
+        });
+      }
+
+      if (shapesToInsert.length > 0) {
+        const { error: shapesErr } = await supabase.from("garden_shapes").insert(shapesToInsert);
+        if (shapesErr) throw shapesErr;
+      }
+
+      closeWizard();
+      navigate(`/garden-layout/${layout.id}`);
     } catch (err) {
       Logger.error("Failed to create layout", err);
       toast.error("Could not create layout.");
@@ -102,6 +305,17 @@ export default function GardenLayoutList({ homeId }: Props) {
     }
   };
 
+  const updateEdge = (edgeId: string, patch: Partial<EdgeConfig>) => {
+    setBorders(prev => ({
+      ...prev,
+      [edgeId]: { ...(prev[edgeId] ?? DEFAULT_EDGE_CONFIG), ...patch },
+    }));
+  };
+
+  const selectedEdge = selectedEdgeId ? (borders[selectedEdgeId] ?? DEFAULT_EDGE_CONFIG) : null;
+
+  const effectiveLength = bShape === "square" ? bWidth : bLength;
+
   return (
     <div className="h-full flex flex-col bg-rhozly-bg">
       {/* Header */}
@@ -110,7 +324,7 @@ export default function GardenLayoutList({ homeId }: Props) {
           <h1 className="text-2xl font-black text-rhozly-on-surface">Garden Layouts</h1>
           <button
             data-testid="create-layout-btn"
-            onClick={() => setShowCreate(true)}
+            onClick={() => setWizardMode("choice")}
             className="w-10 h-10 bg-rhozly-primary rounded-2xl flex items-center justify-center text-white shadow-lg shadow-rhozly-primary/20 active:scale-95 transition-transform"
           >
             <Plus size={20} />
@@ -119,41 +333,7 @@ export default function GardenLayoutList({ homeId }: Props) {
         <p className="text-xs font-bold text-rhozly-on-surface/50">Draw and manage your garden spaces</p>
       </div>
 
-      {/* Create form */}
-      {showCreate && (
-        <div className="mx-6 mb-4 bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 p-4 space-y-3 animate-in fade-in zoom-in-95">
-          <p className="text-xs font-black text-rhozly-on-surface/50 uppercase tracking-widest">New layout name</p>
-          <input
-            data-testid="new-layout-name-input"
-            autoFocus
-            type="text"
-            placeholder="e.g. Back Garden"
-            value={newName}
-            onChange={e => setNewName(e.target.value)}
-            onKeyDown={e => e.key === "Enter" && handleCreate()}
-            className="w-full bg-rhozly-bg rounded-2xl px-4 py-3 text-sm font-bold text-rhozly-on-surface border border-rhozly-outline/20 outline-none focus:border-rhozly-primary"
-          />
-          <div className="flex gap-2">
-            <button
-              onClick={() => { setShowCreate(false); setNewName(""); }}
-              className="flex-1 py-3 rounded-2xl border border-rhozly-outline/20 text-sm font-black text-rhozly-on-surface/60"
-            >
-              Cancel
-            </button>
-            <button
-              data-testid="create-layout-confirm"
-              onClick={handleCreate}
-              disabled={creating}
-              className="flex-1 py-3 rounded-2xl bg-rhozly-primary text-white text-sm font-black disabled:opacity-50 flex items-center justify-center gap-2"
-            >
-              {creating ? <Loader2 size={16} className="animate-spin" /> : null}
-              Create
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* List */}
+      {/* Layout list */}
       <div className="flex-1 overflow-y-auto px-6 pb-6 space-y-3">
         {loading ? (
           <div className="flex items-center justify-center pt-16">
@@ -167,7 +347,7 @@ export default function GardenLayoutList({ homeId }: Props) {
             <p className="font-black text-rhozly-on-surface text-sm">No layouts yet</p>
             <p className="text-xs font-bold text-rhozly-on-surface/50">Create a layout to start mapping your garden</p>
             <button
-              onClick={() => setShowCreate(true)}
+              onClick={() => setWizardMode("choice")}
               className="mt-2 px-6 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg shadow-rhozly-primary/20"
             >
               Create your first layout
@@ -200,10 +380,7 @@ export default function GardenLayoutList({ homeId }: Props) {
                   <div className="w-10 h-10 bg-rhozly-primary/10 rounded-2xl flex items-center justify-center shrink-0">
                     <LayoutTemplate size={18} className="text-rhozly-primary" />
                   </div>
-                  <button
-                    onClick={() => navigate(`/garden-layout/${layout.id}`)}
-                    className="flex-1 text-left min-w-0"
-                  >
+                  <button onClick={() => navigate(`/garden-layout/${layout.id}`)} className="flex-1 text-left min-w-0">
                     <p className="font-black text-rhozly-on-surface text-sm truncate">{layout.name}</p>
                     <p className="text-xs font-bold text-rhozly-on-surface/40">{layout.canvas_w_m}m × {layout.canvas_h_m}m</p>
                   </button>
@@ -222,10 +399,7 @@ export default function GardenLayoutList({ homeId }: Props) {
                   >
                     {deletingId === layout.id ? <Loader2 size={15} className="animate-spin" /> : <Trash2 size={15} />}
                   </button>
-                  <button
-                    onClick={() => navigate(`/garden-layout/${layout.id}`)}
-                    className="p-2 rounded-xl text-rhozly-on-surface/30"
-                  >
+                  <button onClick={() => navigate(`/garden-layout/${layout.id}`)} className="p-2 rounded-xl text-rhozly-on-surface/30">
                     <ChevronRight size={16} />
                   </button>
                 </div>
@@ -234,6 +408,370 @@ export default function GardenLayoutList({ homeId }: Props) {
           ))
         )}
       </div>
+
+      {/* ====== Wizard modal ====== */}
+      {wizardMode !== null && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-white rounded-3xl shadow-2xl flex flex-col max-h-[92vh]">
+
+            {/* Method choice */}
+            {wizardMode === "choice" && (
+              <>
+                <div className="px-6 pt-6 pb-4 shrink-0">
+                  <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">New Layout</p>
+                  <h2 className="text-xl font-black text-rhozly-on-surface">How would you like to start?</h2>
+                </div>
+                <div className="px-6 pb-6 space-y-3 flex-1 overflow-y-auto">
+                  <button
+                    data-testid="create-blank-canvas"
+                    onClick={() => setWizardMode("scratch")}
+                    className="w-full flex items-start gap-4 p-5 rounded-3xl border-2 border-rhozly-outline/20 hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-left active:scale-[0.98]"
+                  >
+                    <div className="w-12 h-12 bg-rhozly-surface rounded-2xl flex items-center justify-center shrink-0">
+                      <SquareDashed size={22} className="text-rhozly-on-surface/50" />
+                    </div>
+                    <div>
+                      <p className="font-black text-rhozly-on-surface text-sm">Blank Canvas</p>
+                      <p className="text-xs font-bold text-rhozly-on-surface/50 mt-0.5 leading-relaxed">Start with an empty grid and place everything yourself.</p>
+                    </div>
+                  </button>
+                  <button
+                    data-testid="create-garden-builder"
+                    onClick={() => setWizardMode("builder")}
+                    className="w-full flex items-start gap-4 p-5 rounded-3xl border-2 border-rhozly-primary/30 bg-rhozly-primary/5 hover:border-rhozly-primary/60 hover:bg-rhozly-primary/10 transition-all text-left active:scale-[0.98]"
+                  >
+                    <div className="w-12 h-12 bg-rhozly-primary/15 rounded-2xl flex items-center justify-center shrink-0">
+                      <Wand2 size={22} className="text-rhozly-primary" />
+                    </div>
+                    <div>
+                      <p className="font-black text-rhozly-on-surface text-sm">Garden Builder</p>
+                      <p className="text-xs font-bold text-rhozly-on-surface/50 mt-0.5 leading-relaxed">Pick your shape, size, and border styles to get started quickly.</p>
+                    </div>
+                  </button>
+                </div>
+                <div className="px-6 pb-6 shrink-0">
+                  <button onClick={closeWizard} className="w-full py-3 rounded-2xl border border-rhozly-outline/20 text-sm font-black text-rhozly-on-surface/60">
+                    Cancel
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Blank canvas */}
+            {wizardMode === "scratch" && (
+              <>
+                <div className="px-6 pt-6 pb-4 shrink-0 flex items-center gap-3">
+                  <button onClick={() => setWizardMode("choice")} className="p-2 -ml-2 rounded-xl hover:bg-rhozly-surface transition-colors">
+                    <ArrowLeft size={18} className="text-rhozly-on-surface/50" />
+                  </button>
+                  <div>
+                    <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">Blank Canvas</p>
+                    <h2 className="text-lg font-black text-rhozly-on-surface">Name your layout</h2>
+                  </div>
+                </div>
+                <div className="px-6 pb-4 flex-1 overflow-y-auto">
+                  <input
+                    data-testid="new-layout-name-input"
+                    autoFocus
+                    type="text"
+                    placeholder="e.g. Back Garden"
+                    value={bName}
+                    onChange={e => setBName(e.target.value)}
+                    onKeyDown={e => e.key === "Enter" && handleCreateScratch()}
+                    className="w-full bg-rhozly-bg rounded-2xl px-4 py-3 text-sm font-bold text-rhozly-on-surface border border-rhozly-outline/20 outline-none focus:border-rhozly-primary"
+                  />
+                </div>
+                <div className="px-6 pb-6 flex gap-3 shrink-0">
+                  <button onClick={closeWizard} className="flex-1 py-3 rounded-2xl border border-rhozly-outline/20 text-sm font-black text-rhozly-on-surface/60">Cancel</button>
+                  <button
+                    data-testid="create-layout-confirm"
+                    onClick={handleCreateScratch}
+                    disabled={creating}
+                    className="flex-1 py-3 rounded-2xl bg-rhozly-primary text-white text-sm font-black disabled:opacity-50 flex items-center justify-center gap-2"
+                  >
+                    {creating && <Loader2 size={15} className="animate-spin" />}
+                    Create
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Builder wizard */}
+            {wizardMode === "builder" && (() => {
+              const goBack = () => {
+                if (builderStep === 1) { setWizardMode("choice"); return; }
+                setSelectedEdgeId(null);
+                setBuilderStep(s => (s - 1) as 1 | 2 | 3);
+              };
+              const goNext = () => {
+                setSelectedEdgeId(null);
+                setBuilderStep(s => (s + 1) as 1 | 2 | 3);
+              };
+
+              return (
+                <>
+                  {/* Header */}
+                  <div className="px-6 pt-6 pb-3 shrink-0">
+                    <div className="flex items-center gap-3 mb-4">
+                      <button onClick={goBack} className="p-2 -ml-2 rounded-xl hover:bg-rhozly-surface transition-colors">
+                        <ArrowLeft size={18} className="text-rhozly-on-surface/50" />
+                      </button>
+                      <div className="flex-1">
+                        <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">Garden Builder · Step {builderStep} of 3</p>
+                        <h2 className="text-lg font-black text-rhozly-on-surface leading-tight">
+                          {builderStep === 1 && "Name & Shape"}
+                          {builderStep === 2 && "Garden Size"}
+                          {builderStep === 3 && "Border Styles"}
+                        </h2>
+                      </div>
+                    </div>
+                    <div className="flex gap-1.5">
+                      {[1, 2, 3].map(n => (
+                        <div key={n} className={`h-1.5 flex-1 rounded-full transition-colors ${n <= builderStep ? "bg-rhozly-primary" : "bg-rhozly-outline/20"}`} />
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Step content */}
+                  <div className="flex-1 overflow-y-auto px-6 py-2 space-y-5">
+
+                    {/* Step 1 */}
+                    {builderStep === 1 && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-rhozly-on-surface/50 uppercase tracking-widest">Layout Name</label>
+                          <input
+                            data-testid="builder-layout-name-input"
+                            autoFocus
+                            type="text"
+                            placeholder="e.g. Back Garden"
+                            value={bName}
+                            onChange={e => setBName(e.target.value)}
+                            className="w-full bg-rhozly-bg rounded-2xl px-4 py-3 text-sm font-bold text-rhozly-on-surface border border-rhozly-outline/20 outline-none focus:border-rhozly-primary"
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-rhozly-on-surface/50 uppercase tracking-widest">Garden Shape</label>
+                          <div className="grid grid-cols-3 gap-2">
+                            {([
+                              { id: "rect",    label: "Rectangle", icon: (
+                                <svg viewBox="0 0 40 28" className="w-10 h-7"><rect x="2" y="2" width="36" height="24" rx="2" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2"/></svg>
+                              )},
+                              { id: "square",  label: "Square", icon: (
+                                <svg viewBox="0 0 28 28" className="w-7 h-7"><rect x="2" y="2" width="24" height="24" rx="2" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2"/></svg>
+                              )},
+                              { id: "l-shape", label: "L-Shape", icon: (
+                                <svg viewBox="0 0 28 28" className="w-7 h-7"><polygon points="2,2 12,2 12,12 26,12 26,26 2,26" fill="currentColor" opacity="0.15" stroke="currentColor" strokeWidth="2"/></svg>
+                              )},
+                            ] as { id: GardenShape; label: string; icon: React.ReactNode }[]).map(({ id, label, icon }) => (
+                              <button
+                                key={id}
+                                data-testid={`shape-option-${id}`}
+                                onClick={() => { setBShape(id); setBorders({}); }}
+                                className={`flex flex-col items-center gap-2 p-3 rounded-2xl border-2 transition-all ${bShape === id ? "border-rhozly-primary bg-rhozly-primary/8 text-rhozly-primary" : "border-rhozly-outline/20 text-rhozly-on-surface/40 hover:border-rhozly-outline/40"}`}
+                              >
+                                {icon}
+                                <span className="text-[10px] font-black">{label}</span>
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Step 2 */}
+                    {builderStep === 2 && (
+                      <>
+                        <div className="space-y-2">
+                          <label className="text-[10px] font-black text-rhozly-on-surface/50 uppercase tracking-widest">
+                            {bShape === "square" ? "Size" : "Width"} (metres)
+                          </label>
+                          <div className="flex items-center gap-3">
+                            <input
+                              data-testid="builder-width-input"
+                              type="number" min="1" max="200" step="0.5"
+                              value={bWidth}
+                              onChange={e => setBWidth(parseFloat(e.target.value) || 1)}
+                              className="flex-1 bg-rhozly-bg rounded-2xl px-4 py-3 text-sm font-bold text-rhozly-on-surface border border-rhozly-outline/20 outline-none focus:border-rhozly-primary"
+                            />
+                            <span className="text-sm font-black text-rhozly-on-surface/40">m</span>
+                          </div>
+                        </div>
+                        {bShape !== "square" && (
+                          <div className="space-y-2">
+                            <label className="text-[10px] font-black text-rhozly-on-surface/50 uppercase tracking-widest">Length (metres)</label>
+                            <div className="flex items-center gap-3">
+                              <input
+                                data-testid="builder-length-input"
+                                type="number" min="1" max="200" step="0.5"
+                                value={bLength}
+                                onChange={e => setBLength(parseFloat(e.target.value) || 1)}
+                                className="flex-1 bg-rhozly-bg rounded-2xl px-4 py-3 text-sm font-bold text-rhozly-on-surface border border-rhozly-outline/20 outline-none focus:border-rhozly-primary"
+                              />
+                              <span className="text-sm font-black text-rhozly-on-surface/40">m</span>
+                            </div>
+                          </div>
+                        )}
+                        {/* Size preview */}
+                        <div className="bg-rhozly-surface rounded-2xl p-4 flex flex-col items-center gap-2">
+                          <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">Preview</p>
+                          <svg viewBox="0 0 200 150" style={{ width: "100%", maxWidth: 220 }}>
+                            <polygon
+                              points={getShapePoints(bShape === "square" ? "rect" : bShape)}
+                              fill="#86efac30" stroke="#16a34a" strokeWidth="2"
+                            />
+                          </svg>
+                          <p className="text-xs font-black text-rhozly-on-surface/60">
+                            {bShape === "square" ? `${bWidth}m × ${bWidth}m` : `${bWidth}m × ${effectiveLength}m`}
+                          </p>
+                        </div>
+                      </>
+                    )}
+
+                    {/* Step 3 — interactive edge selector */}
+                    {builderStep === 3 && (() => {
+                      const edges = getEdgeDefs(bShape);
+                      return (
+                        <div className="space-y-4">
+                          <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">
+                            Tap an edge to set its border material
+                          </p>
+
+                          {/* SVG shape outline */}
+                          <div className="bg-rhozly-surface rounded-2xl p-3">
+                            <svg
+                              viewBox="-5 0 210 160"
+                              style={{ width: "100%", display: "block" }}
+                            >
+                              {/* Shape fill */}
+                              <polygon
+                                points={getShapePoints(bShape)}
+                                fill="#bbf7d040"
+                                stroke="none"
+                              />
+
+                              {/* Edge lines — render click targets first (wider, transparent), then visible lines */}
+                              {edges.map(edge => {
+                                const cfg = borders[edge.id] ?? DEFAULT_EDGE_CONFIG;
+                                const isSelected = selectedEdgeId === edge.id;
+                                const isConfigured = cfg.style !== "none";
+                                const strokeColor = isSelected
+                                  ? "#f97316"
+                                  : isConfigured
+                                    ? BORDER_META[cfg.style as Exclude<BorderStyle, "none">].svgColor
+                                    : "#9ca3af";
+                                const strokeW = isSelected ? 5 : isConfigured ? 4 : 2.5;
+
+                                return (
+                                  <g key={edge.id}>
+                                    {/* Visible line */}
+                                    <line
+                                      x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2}
+                                      stroke={strokeColor}
+                                      strokeWidth={strokeW}
+                                      strokeLinecap="round"
+                                    />
+                                    {/* Wide transparent click target */}
+                                    <line
+                                      x1={edge.x1} y1={edge.y1} x2={edge.x2} y2={edge.y2}
+                                      stroke="transparent"
+                                      strokeWidth={18}
+                                      style={{ cursor: "pointer" }}
+                                      onClick={() => setSelectedEdgeId(isSelected ? null : edge.id)}
+                                    />
+                                    {/* Label */}
+                                    <text
+                                      x={edge.lx} y={edge.ly}
+                                      textAnchor={edge.anchor}
+                                      fontSize={8}
+                                      fontWeight={isSelected ? "900" : "700"}
+                                      fill={isSelected ? "#f97316" : isConfigured ? strokeColor : "#9ca3af"}
+                                    >
+                                      {isConfigured && cfg.style !== "none"
+                                        ? `${edge.label} · ${BORDER_META[cfg.style as Exclude<BorderStyle, "none">].label}`
+                                        : edge.label}
+                                    </text>
+                                  </g>
+                                );
+                              })}
+                            </svg>
+                          </div>
+
+                          {/* Edge config panel */}
+                          {selectedEdgeId && selectedEdge ? (
+                            <div className="bg-rhozly-bg rounded-2xl p-4 space-y-3 border border-rhozly-outline/20">
+                              <p className="text-xs font-black text-rhozly-on-surface">
+                                {getEdgeDefs(bShape).find(e => e.id === selectedEdgeId)?.label} edge
+                              </p>
+                              <div className="flex gap-1.5 flex-wrap">
+                                {(["none", "fence", "hedge", "wall"] as BorderStyle[]).map(style => {
+                                  const isActive = selectedEdge.style === style;
+                                  const color = style !== "none" ? BORDER_META[style].svgColor : undefined;
+                                  return (
+                                    <StylePill
+                                      key={style}
+                                      active={isActive}
+                                      onClick={() => updateEdge(selectedEdgeId, { style })}
+                                      label={style === "none" ? "None" : BORDER_META[style].label}
+                                      color={isActive && color ? color : undefined}
+                                    />
+                                  );
+                                })}
+                              </div>
+                              {selectedEdge.style !== "none" && (
+                                <div className="flex items-center gap-3">
+                                  <label className="text-[10px] font-black text-rhozly-on-surface/50 uppercase tracking-widest shrink-0">Height</label>
+                                  <input
+                                    type="number" min="0.1" max="5" step="0.1"
+                                    value={selectedEdge.height}
+                                    onChange={e => updateEdge(selectedEdgeId, { height: parseFloat(e.target.value) || 0.1 })}
+                                    className="flex-1 bg-white rounded-xl px-3 py-2 text-xs font-bold text-rhozly-on-surface border border-rhozly-outline/20 outline-none focus:border-rhozly-primary"
+                                  />
+                                  <span className="text-xs font-black text-rhozly-on-surface/40 shrink-0">m</span>
+                                </div>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-center text-xs font-bold text-rhozly-on-surface/40 py-2">
+                              Select an edge above to configure its border
+                            </p>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </div>
+
+                  {/* Footer */}
+                  <div className="px-6 pb-6 pt-4 flex gap-3 shrink-0 border-t border-rhozly-outline/10">
+                    <button onClick={closeWizard} className="flex-1 py-3 rounded-2xl border border-rhozly-outline/20 text-sm font-black text-rhozly-on-surface/60">
+                      Cancel
+                    </button>
+                    {builderStep < 3 ? (
+                      <button
+                        data-testid="builder-next-btn"
+                        onClick={goNext}
+                        className="flex-1 py-3 rounded-2xl bg-rhozly-primary text-white text-sm font-black"
+                      >
+                        Next
+                      </button>
+                    ) : (
+                      <button
+                        data-testid="builder-create-btn"
+                        onClick={handleBuilderFinish}
+                        disabled={creating}
+                        className="flex-1 py-3 rounded-2xl bg-rhozly-primary text-white text-sm font-black disabled:opacity-50 flex items-center justify-center gap-2"
+                      >
+                        {creating && <Loader2 size={15} className="animate-spin" />}
+                        Create Layout
+                      </button>
+                    )}
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
