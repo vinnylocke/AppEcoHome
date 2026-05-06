@@ -306,11 +306,12 @@ function AppShell() {
 
   const refreshProfile = async () => {
     if (!session?.user) return;
-    const { data: profileData } = await supabase
+    const { data: profileData, error } = await supabase
       .from("user_profiles")
       .select("*")
       .eq("uid", session.user.id)
       .single();
+    if (error) throw error;
     if (profileData && !profileData.home_id) {
       const { data: otherMemberships } = await supabase
         .from("home_members")
@@ -381,20 +382,45 @@ function AppShell() {
   }, [rawWeather]);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      if (!session) setLoading(false);
-    });
+    // Safety bail: if auth resolution never completes (offline, SW update race,
+    // expired token refresh hang) unblock the UI after 8 s so the screen
+    // doesn't stay blank/spinning forever.
+    const bail = setTimeout(() => setLoading(false), 8_000);
+
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        clearTimeout(bail);
+        setSession(session);
+        if (!session) setLoading(false);
+      })
+      .catch(() => {
+        clearTimeout(bail);
+        setLoading(false);
+      });
+
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) =>
       setSession(session),
     );
-    return () => subscription.unsubscribe();
+    return () => {
+      clearTimeout(bail);
+      subscription.unsubscribe();
+    };
   }, []);
 
   useEffect(() => {
-    if (session?.user) refreshProfile().then(() => setLoading(false));
+    if (!session?.user) return;
+    // Safety bail: if the profile query hangs (slow network after cold open),
+    // unblock the UI so the user isn't stuck on a loading spinner.
+    const bail = setTimeout(() => setLoading(false), 8_000);
+    refreshProfile()
+      .catch(err => Logger.error("Profile load failed on cold start", err))
+      .finally(() => {
+        clearTimeout(bail);
+        setLoading(false);
+      });
+    return () => clearTimeout(bail);
   }, [session]);
 
   useEffect(() => {
