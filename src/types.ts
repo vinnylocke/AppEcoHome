@@ -19,8 +19,14 @@ export interface HomeMember {
   id: string;
   home_id: string;
   user_id: string;
-  role: "owner" | "member";
+  role: "owner" | "admin" | "member" | "viewer";
+  permissions: Record<string, boolean>;
   created_at: string;
+}
+
+export interface HomeMemberWithProfile extends HomeMember {
+  display_name: string | null;
+  email: string | null;
 }
 export interface Location {
   id: string;

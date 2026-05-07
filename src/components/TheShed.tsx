@@ -40,6 +40,7 @@ import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { PlantDoctorService } from "../services/plantDoctorService";
 import { logEvent, EVENT } from "../events/registry";
 import { derivePlantLabels } from "../lib/plantLabels";
+import { usePermissions } from "../context/HomePermissionsContext";
 
 interface Plant {
   id: number;
@@ -63,6 +64,7 @@ type QueueItem = {
 // --- Helpers for Master Plant Creation ---
 
 export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = false }: { homeId: string; aiEnabled?: boolean; perenualEnabled?: boolean }) {
+  const { can } = usePermissions();
   const { setPageContext, preferences } = usePlantDoctor();
   const location = useLocation();
   const [searchParams] = useSearchParams();
@@ -677,13 +679,15 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 />
               )}
               <div className="ml-auto xl:ml-0">
-                <button
-                  onClick={() => setShowBulkSearch(true)}
-                  aria-label="Add plant"
-                  className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
-                >
-                  <Plus size={18} /> Add
-                </button>
+                {can("shed.add") && (
+                  <button
+                    onClick={() => setShowBulkSearch(true)}
+                    aria-label="Add plant"
+                    className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
+                  >
+                    <Plus size={18} /> Add
+                  </button>
+                )}
               </div>
             </div>
             <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
@@ -827,34 +831,38 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                     </span>
                   </div>
                   <div className="absolute top-4 right-4 flex gap-2">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setConfirmState({
-                          isOpen: true,
-                          type: plant.is_archived ? "unarchive" : "archive",
-                          plant,
-                        });
-                      }}
-                      aria-label={plant.is_archived ? `Restore ${plant.common_name}` : `Archive ${plant.common_name}`}
-                      className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-orange-600 flex items-center justify-center shadow-md transition-all active:scale-90"
-                    >
-                      {plant.is_archived ? (
-                        <ArchiveRestore size={16} />
-                      ) : (
-                        <Archive size={16} />
-                      )}
-                    </button>
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        openDeleteConfirm(plant);
-                      }}
-                      aria-label={`Delete ${plant.common_name}`}
-                      className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-red-600 flex items-center justify-center shadow-md transition-all active:scale-90"
-                    >
-                      <Trash2 size={16} />
-                    </button>
+                    {can("shed.delete") && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmState({
+                            isOpen: true,
+                            type: plant.is_archived ? "unarchive" : "archive",
+                            plant,
+                          });
+                        }}
+                        aria-label={plant.is_archived ? `Restore ${plant.common_name}` : `Archive ${plant.common_name}`}
+                        className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-orange-600 flex items-center justify-center shadow-md transition-all active:scale-90"
+                      >
+                        {plant.is_archived ? (
+                          <ArchiveRestore size={16} />
+                        ) : (
+                          <Archive size={16} />
+                        )}
+                      </button>
+                    )}
+                    {can("shed.delete") && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDeleteConfirm(plant);
+                        }}
+                        aria-label={`Delete ${plant.common_name}`}
+                        className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-red-600 flex items-center justify-center shadow-md transition-all active:scale-90"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
                   </div>
                 </div>
                 <div className="p-6">

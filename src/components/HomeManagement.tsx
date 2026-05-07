@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import {
   Building2,
   Copy,
@@ -14,11 +14,14 @@ import {
   Pencil,
   Save,
   X,
+  ChevronDown,
+  Settings2,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import { ConfirmModal } from "./ConfirmModal";
 import { COUNTRIES } from "../constants/countries";
+import { resolvePermissions, ROLE_DEFAULTS, type Role, type PermissionKey } from "../lib/permissions";
 
 const ALL_TIMEZONES: string[] = (() => {
   try { return (Intl as any).supportedValuesOf("timeZone") as string[]; }
@@ -26,11 +29,59 @@ const ALL_TIMEZONES: string[] = (() => {
 })();
 
 interface HomeMember {
+  memberId: string;
   userId: string;
-  role: "owner" | "member";
+  role: Role;
+  permissions: Record<string, boolean>;
   displayName: string | null;
   email: string;
 }
+
+const PERMISSION_GROUPS: Array<{ label: string; keys: Array<{ key: PermissionKey; label: string }> }> = [
+  { label: "The Shed", keys: [
+    { key: "shed.add", label: "Add plants" },
+    { key: "shed.edit", label: "Edit plants" },
+    { key: "shed.delete", label: "Delete plants" },
+  ]},
+  { label: "Areas & Locations", keys: [
+    { key: "areas.create", label: "Create areas" },
+    { key: "areas.edit", label: "Edit areas" },
+    { key: "areas.delete", label: "Delete areas" },
+    { key: "locations.create", label: "Create locations" },
+    { key: "locations.edit", label: "Edit locations" },
+    { key: "locations.delete", label: "Delete locations" },
+  ]},
+  { label: "Tasks", keys: [
+    { key: "tasks.create_home", label: "Create home tasks" },
+    { key: "tasks.create_personal", label: "Create personal tasks" },
+    { key: "tasks.edit_own", label: "Edit own tasks" },
+    { key: "tasks.edit_any", label: "Edit any task" },
+    { key: "tasks.delete_own", label: "Delete own tasks" },
+    { key: "tasks.delete_any", label: "Delete any task" },
+    { key: "tasks.view_home", label: "View home tasks" },
+    { key: "tasks.view_members", label: "View members' personal tasks" },
+  ]},
+  { label: "Ailments", keys: [
+    { key: "ailments.add", label: "Add ailments" },
+    { key: "ailments.edit", label: "Edit ailments" },
+    { key: "ailments.delete", label: "Delete ailments" },
+  ]},
+  { label: "Plans", keys: [
+    { key: "plans.create", label: "Create plans" },
+    { key: "plans.edit", label: "Edit plans" },
+    { key: "plans.delete", label: "Delete plans" },
+  ]},
+  { label: "Garden Layout", keys: [
+    { key: "layout.edit", label: "Edit layout" },
+  ]},
+  { label: "Shopping", keys: [
+    { key: "shopping.create_list", label: "Create lists" },
+    { key: "shopping.add_items", label: "Add items" },
+    { key: "shopping.edit_items", label: "Edit items" },
+    { key: "shopping.delete_items", label: "Delete items" },
+    { key: "shopping.delete_list", label: "Delete lists" },
+  ]},
+];
 
 interface HomeWithRole {
   id: string;
@@ -77,10 +128,12 @@ export default function HomeManagement({
   const [joinError, setJoinError] = useState<string | null>(null);
   const [modal, setModal] = useState<ModalState>({ open: false });
   const [isProcessing, setIsProcessing] = useState(false);
+  const [openConfigMemberId, setOpenConfigMemberId] = useState<string | null>(null);
 
   // Per-home editing state: homeId → form or null (not editing)
   const [editingForms, setEditingForms] = useState<Record<string, EditForm | null>>({});
   const [savingHomeId, setSavingHomeId] = useState<string | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchHomes = useCallback(async () => {
     setLoading(true);
@@ -100,7 +153,7 @@ export default function HomeManagement({
 
       const { data: allMemberRows } = await supabase
         .from("home_members")
-        .select("home_id, user_id, role")
+        .select("id, home_id, user_id, role, permissions")
         .in("home_id", homeIds);
 
       const userIds = [...new Set((allMemberRows ?? []).map((m) => m.user_id))];
@@ -117,8 +170,10 @@ export default function HomeManagement({
       for (const m of allMemberRows ?? []) {
         const p = profileMap[m.user_id];
         (membersByHome[m.home_id] ??= []).push({
+          memberId: m.id,
           userId: m.user_id,
-          role: m.role as "owner" | "member",
+          role: m.role as Role,
+          permissions: m.permissions ?? {},
           displayName: p?.display_name ?? null,
           email: p?.email ?? m.user_id,
         });
@@ -222,6 +277,46 @@ export default function HomeManagement({
     }
   };
 
+  const updateMemberRole = async (memberId: string, newRole: Role) => {
+    const { error } = await supabase
+      .from("home_members")
+      .update({ role: newRole, permissions: {} })
+      .eq("id", memberId);
+    if (error) { Logger.error("Failed to update role", error); return; }
+    await fetchHomes();
+  };
+
+  const updateMemberPermission = (
+    memberId: string,
+    currentPerms: Record<string, boolean>,
+    key: PermissionKey,
+    value: boolean,
+    role: Role,
+  ) => {
+    const roleDefaults = ROLE_DEFAULTS[role];
+    const newPerms = { ...currentPerms, [key]: value };
+    // If the value matches the role default, remove the override to keep JSONB clean
+    if (roleDefaults[key] === value) delete newPerms[key];
+
+    // Optimistic update in local state
+    setHomes((prev) => prev.map((home) => ({
+      ...home,
+      members: home.members.map((m) =>
+        m.memberId === memberId ? { ...m, permissions: newPerms } : m
+      ),
+    })));
+
+    // Debounced save
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      const { error } = await supabase
+        .from("home_members")
+        .update({ permissions: newPerms })
+        .eq("id", memberId);
+      if (error) Logger.error("Failed to save permission", error);
+    }, 500);
+  };
+
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = joinId.trim();
@@ -247,9 +342,12 @@ export default function HomeManagement({
   };
 
   const initials = (member: HomeMember) => {
-    const name = member.displayName || member.email;
+    const name = member.displayName || member.email || "?";
     return name.slice(0, 1).toUpperCase();
   };
+
+  const isManagerOfHome = (home: HomeWithRole) =>
+    home.role === "owner" || home.role === "admin";
 
   const modalTitle = () => {
     if (!modal.open) return "";
@@ -492,52 +590,106 @@ export default function HomeManagement({
                       <Users size={11} />
                       Members ({home.members.length})
                     </p>
-                    {home.members.map((member) => (
-                      <div
-                        key={member.userId}
-                        data-testid={`home-mgmt-member-${member.userId}`}
-                        className="flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-rhozly-surface transition-colors"
-                      >
-                        <div className="w-8 h-8 rounded-full bg-rhozly-primary/10 flex items-center justify-center shrink-0">
-                          <span className="text-xs font-black text-rhozly-primary">
-                            {initials(member)}
-                          </span>
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-xs font-black text-rhozly-on-surface truncate">
-                            {member.displayName || member.email}
-                            {member.userId === userId && (
-                              <span className="ml-1.5 text-[9px] font-black text-rhozly-on-surface/30">(you)</span>
+                    {home.members.map((member) => {
+                      const isMe = member.userId === userId;
+                      const canManage = isManagerOfHome(home) && !isMe && member.role !== "owner";
+                      const isConfigOpen = openConfigMemberId === member.memberId;
+                      const resolved = resolvePermissions(member.role, member.permissions as any);
+
+                      return (
+                        <div key={member.userId} data-testid={`home-mgmt-member-${member.userId}`}>
+                          {/* Member row */}
+                          <div className="flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-rhozly-surface transition-colors">
+                            <div className="w-8 h-8 rounded-full bg-rhozly-primary/10 flex items-center justify-center shrink-0">
+                              <span className="text-xs font-black text-rhozly-primary">{initials(member)}</span>
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="text-xs font-black text-rhozly-on-surface truncate">
+                                {member.displayName || member.email}
+                                {isMe && <span className="ml-1.5 text-[9px] font-black text-rhozly-on-surface/30">(you)</span>}
+                              </p>
+                              {member.displayName && (
+                                <p className="text-[10px] font-bold text-rhozly-on-surface/40 truncate">{member.email}</p>
+                              )}
+                            </div>
+
+                            {/* Role — dropdown for manageable members, badge otherwise */}
+                            {canManage ? (
+                              <select
+                                data-testid={`home-mgmt-role-${member.userId}`}
+                                value={member.role}
+                                onChange={(e) => updateMemberRole(member.memberId, e.target.value as Role)}
+                                className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-rhozly-surface border border-rhozly-outline/20 text-rhozly-on-surface/60 outline-none cursor-pointer"
+                              >
+                                <option value="admin">Admin</option>
+                                <option value="member">Member</option>
+                                <option value="viewer">Viewer</option>
+                              </select>
+                            ) : (
+                              <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0 ${member.role === "owner" ? "bg-rhozly-primary/10 text-rhozly-primary" : member.role === "admin" ? "bg-violet-100 text-violet-700" : "bg-rhozly-surface text-rhozly-on-surface/40"}`}>
+                                {member.role}
+                              </span>
                             )}
-                          </p>
-                          {member.displayName && (
-                            <p className="text-[10px] font-bold text-rhozly-on-surface/40 truncate">{member.email}</p>
+
+                            {/* Configure button */}
+                            {canManage && (
+                              <button
+                                data-testid={`home-mgmt-configure-${member.userId}`}
+                                onClick={() => setOpenConfigMemberId(isConfigOpen ? null : member.memberId)}
+                                className={`flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-xl transition-colors ${isConfigOpen ? "bg-rhozly-primary/10 text-rhozly-primary" : "text-rhozly-on-surface/40 hover:bg-rhozly-surface"}`}
+                              >
+                                <Settings2 size={11} />
+                                <ChevronDown size={10} className={`transition-transform ${isConfigOpen ? "rotate-180" : ""}`} />
+                              </button>
+                            )}
+
+                            {/* Remove button */}
+                            {canManage && (
+                              <button
+                                data-testid={`home-mgmt-remove-member-${member.userId}`}
+                                onClick={() => setModal({
+                                  open: true, type: "remove_member",
+                                  homeId: home.id, homeName: home.name,
+                                  memberId: member.userId,
+                                  memberName: member.displayName || member.email,
+                                })}
+                                className="flex items-center justify-center w-7 h-7 rounded-xl text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
+                                title="Remove member"
+                              >
+                                <UserX size={13} />
+                              </button>
+                            )}
+                          </div>
+
+                          {/* Permission accordion */}
+                          {isConfigOpen && canManage && (
+                            <div className="ml-11 mt-1 mb-2 bg-rhozly-surface/60 border border-rhozly-outline/15 rounded-2xl p-3 space-y-3">
+                              {PERMISSION_GROUPS.map((group) => (
+                                <div key={group.label}>
+                                  <p className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/30 mb-1.5">{group.label}</p>
+                                  <div className="flex flex-wrap gap-2">
+                                    {group.keys.map(({ key, label }) => {
+                                      const checked = resolved[key];
+                                      return (
+                                        <button
+                                          key={key}
+                                          data-testid={`perm-toggle-${member.userId}-${key}`}
+                                          onClick={() => updateMemberPermission(member.memberId, member.permissions, key, !checked, member.role)}
+                                          className={`flex items-center gap-1.5 text-[10px] font-bold px-2.5 py-1 rounded-full border transition-colors ${checked ? "bg-emerald-50 border-emerald-200 text-emerald-700" : "bg-white border-rhozly-outline/20 text-rhozly-on-surface/40"}`}
+                                        >
+                                          <span className={`w-1.5 h-1.5 rounded-full ${checked ? "bg-emerald-500" : "bg-rhozly-on-surface/20"}`} />
+                                          {label}
+                                        </button>
+                                      );
+                                    })}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
                           )}
                         </div>
-                        <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0 ${member.role === "owner" ? "bg-rhozly-primary/10 text-rhozly-primary" : "bg-rhozly-surface text-rhozly-on-surface/40"}`}>
-                          {member.role}
-                        </span>
-                        {home.role === "owner" && member.userId !== userId && (
-                          <button
-                            data-testid={`home-mgmt-remove-member-${member.userId}`}
-                            onClick={() =>
-                              setModal({
-                                open: true,
-                                type: "remove_member",
-                                homeId: home.id,
-                                homeName: home.name,
-                                memberId: member.userId,
-                                memberName: member.displayName || member.email,
-                              })
-                            }
-                            className="flex items-center justify-center w-7 h-7 rounded-xl text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
-                            title="Remove member"
-                          >
-                            <UserX size={13} />
-                          </button>
-                        )}
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 

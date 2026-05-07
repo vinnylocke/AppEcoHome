@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabase";
+import { usePermissions } from "../context/HomePermissionsContext";
 import {
   Loader2,
   Sparkles,
@@ -27,6 +28,7 @@ interface PlannerDashboardProps {
 }
 
 export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerDashboardProps) {
+  const { can } = usePermissions();
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<
@@ -229,12 +231,14 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
             AI-Assisted Plan Management
           </p>
         </div>
-        <button
-          onClick={() => setShowNewPlanModal(true)}
-          className="px-6 py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:bg-rhozly-primary/90 transition-transform active:scale-95 flex items-center gap-2 w-full md:w-auto justify-center"
-        >
-          <Sparkles size={20} /> New Plan
-        </button>
+        {can("plans.create") && (
+          <button
+            onClick={() => setShowNewPlanModal(true)}
+            className="px-6 py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:bg-rhozly-primary/90 transition-transform active:scale-95 flex items-center gap-2 w-full md:w-auto justify-center"
+          >
+            <Sparkles size={20} /> New Plan
+          </button>
+        )}
       </div>
 
       {/* Tabs */}

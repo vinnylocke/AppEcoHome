@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ShoppingCart, Plus, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import { usePermissions } from "../context/HomePermissionsContext";
 import { useShoppingLists } from "../hooks/useShoppingLists";
 import ShoppingListCard from "./shopping/ShoppingListCard";
 import AddItemSheet from "./shopping/AddItemSheet";
@@ -11,6 +12,7 @@ interface Props {
 }
 
 export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Props) {
+  const { can } = usePermissions();
   const {
     lists, items, isLoading,
     createList, renameList, deleteList, markComplete, reopenList,
@@ -64,15 +66,17 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
               </p>
             </div>
           </div>
-          <button
-            data-testid="shopping-new-list-btn"
-            onClick={handleNewList}
-            disabled={isCreating}
-            className="flex items-center gap-1.5 bg-rhozly-primary text-white text-xs font-black px-4 py-2.5 rounded-2xl hover:bg-rhozly-primary/90 active:scale-95 transition-all disabled:opacity-60"
-          >
-            {isCreating ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
-            New List
-          </button>
+          {can("shopping.create_list") && (
+            <button
+              data-testid="shopping-new-list-btn"
+              onClick={handleNewList}
+              disabled={isCreating}
+              className="flex items-center gap-1.5 bg-rhozly-primary text-white text-xs font-black px-4 py-2.5 rounded-2xl hover:bg-rhozly-primary/90 active:scale-95 transition-all disabled:opacity-60"
+            >
+              {isCreating ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              New List
+            </button>
+          )}
         </div>
 
         {/* Loading */}

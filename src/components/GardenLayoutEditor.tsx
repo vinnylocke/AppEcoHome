@@ -16,6 +16,7 @@ import GardenShapePanel, { type ShapePreset } from "./GardenShapePanel";
 import GardenShapeProperties, { type ShapeData } from "./GardenShapeProperties";
 import { useSunPosition } from "../hooks/useSunPosition";
 import { computeAllShapesSunHours, type ShapeSunResult } from "../lib/sunAnalysis";
+import { usePermissions } from "../context/HomePermissionsContext";
 
 interface Layout {
   id: string;
@@ -32,6 +33,8 @@ interface Props {
 const BASE_PX = 50; // pixels per metre at zoom = 1
 
 export default function GardenLayoutEditor({ homeId }: Props) {
+  const { can } = usePermissions();
+  const canEdit = can("layout.edit");
   const { layoutId } = useParams<{ layoutId: string }>();
   const navigate = useNavigate();
 
@@ -794,7 +797,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         {/* Interaction mode — Draw / Move / Rotate */}
         <div className="flex items-center gap-0.5 bg-rhozly-surface rounded-xl p-0.5">
           {([
-            { id: "draw",   label: "Draw",   Icon: Pencil },
+            ...(canEdit ? [{ id: "draw",   label: "Draw",   Icon: Pencil }] : []),
             { id: "move",   label: "Move",   Icon: Hand   },
             { id: "rotate", label: "View",   Icon: Eye    },
           ] as { id: "draw" | "move" | "rotate"; label: string; Icon: any }[]).map(({ id, label, Icon }) => (
@@ -928,7 +931,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       {/* Editor body */}
       <div className={`flex-1 flex overflow-hidden ${isMobile ? "flex-col" : "flex-row"}`}>
         {/* Desktop: shape panel on left */}
-        {!isMobile && (
+        {!isMobile && canEdit && (
           <GardenShapePanel
             tool={tool}
             viewMode={viewMode}
@@ -1135,7 +1138,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       </div>
 
       {/* Mobile: shape panel at bottom */}
-      {isMobile && (
+      {isMobile && canEdit && (
         <GardenShapePanel
           tool={tool}
           viewMode={viewMode}

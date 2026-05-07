@@ -14,6 +14,7 @@ import MultiImageGallery from "./MultiImageGallery";
 import { ConfirmModal } from "./ConfirmModal";
 import { logEvent, EVENT } from "../events/registry";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
+import { usePermissions } from "../context/HomePermissionsContext";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1318,11 +1319,13 @@ function AilmentCard({
   onClick,
   onArchiveToggle,
   onDelete,
+  canDelete,
 }: {
   ailment: Ailment;
   onClick: () => void;
   onArchiveToggle: () => void;
   onDelete: () => void;
+  canDelete: boolean;
 }) {
   const meta = TYPE_META[ailment.type];
   const srcMeta = SOURCE_META[ailment.source] ?? SOURCE_META.manual;
@@ -1368,22 +1371,24 @@ function AilmentCard({
         />
 
         {/* Archive + Delete buttons — top right */}
-        <div className="absolute top-4 right-4 flex gap-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); onArchiveToggle(); }}
-            aria-label={ailment.is_archived ? "Restore ailment" : "Archive ailment"}
-            className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-orange-600 flex items-center justify-center shadow-md transition-all active:scale-90"
-          >
-            {ailment.is_archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
-          </button>
-          <button
-            onClick={(e) => { e.stopPropagation(); onDelete(); }}
-            aria-label="Delete ailment"
-            className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-red-600 flex items-center justify-center shadow-md transition-all active:scale-90"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
+        {canDelete && (
+          <div className="absolute top-4 right-4 flex gap-2">
+            <button
+              onClick={(e) => { e.stopPropagation(); onArchiveToggle(); }}
+              aria-label={ailment.is_archived ? "Restore ailment" : "Archive ailment"}
+              className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-orange-600 flex items-center justify-center shadow-md transition-all active:scale-90"
+            >
+              {ailment.is_archived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+            </button>
+            <button
+              onClick={(e) => { e.stopPropagation(); onDelete(); }}
+              aria-label="Delete ailment"
+              className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-red-600 flex items-center justify-center shadow-md transition-all active:scale-90"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Body */}
@@ -1414,6 +1419,7 @@ function AilmentCard({
 export type AilmentFilter = "all" | AilmentType;
 
 export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId: string; aiEnabled?: boolean }) {
+  const { can } = usePermissions();
   const [ailments, setAilments] = useState<Ailment[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewTab, setViewTab] = useState<"active" | "archived">("active");
@@ -1501,12 +1507,14 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
           <h1 className="font-black text-3xl text-rhozly-on-surface tracking-tight">Watchlist</h1>
           <p className="text-sm font-bold text-rhozly-on-surface/40 mt-1">Invasive plants, pests &amp; diseases</p>
         </div>
-        <button
-          onClick={() => setShowAdd(true)}
-          className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
-        >
-          <Plus size={18} /> Add
-        </button>
+        {can("ailments.add") && (
+          <button
+            onClick={() => setShowAdd(true)}
+            className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
+          >
+            <Plus size={18} /> Add
+          </button>
+        )}
       </div>
 
       {/* Active / Archived tabs + type filters */}
@@ -1567,6 +1575,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
               onClick={() => setSelectedAilment(a)}
               onArchiveToggle={() => setConfirmState({ isOpen: true, type: a.is_archived ? "unarchive" : "archive", ailment: a })}
               onDelete={() => setConfirmState({ isOpen: true, type: "delete", ailment: a })}
+              canDelete={can("ailments.delete")}
             />
           ))}
         </div>
@@ -1580,7 +1589,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
               ? "No archived ailments."
               : "Your watchlist is empty."}
           </p>
-          {!search && viewTab === "active" && (
+          {!search && viewTab === "active" && can("ailments.add") && (
             <button
               onClick={() => setShowAdd(true)}
               className="mt-4 px-5 py-2.5 bg-rhozly-primary text-white rounded-2xl text-sm font-black hover:scale-[1.02] transition-transform"

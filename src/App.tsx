@@ -48,6 +48,7 @@ import { usePushNotifications } from "./hooks/usePushNotifications";
 import PullToRefresh from "./components/PullToRefresh";
 import { PlantDoctorProvider } from "./context/PlantDoctorContext";
 import { HomeRealtimeProvider } from "./context/HomeRealtimeContext";
+import { HomePermissionsProvider } from "./context/HomePermissionsContext";
 import { useHomeRealtime } from "./hooks/useHomeRealtime";
 import PlantDoctorChat from "./components/PlantDoctorChat";
 import ErrorPage from "./components/ErrorPage";
@@ -463,6 +464,7 @@ function AppShell() {
   const canUsePortal = typeof document !== "undefined";
 
   return (
+    <HomePermissionsProvider homeId={profile?.home_id} userId={session?.user?.id}>
     <HomeRealtimeProvider homeId={profile?.home_id || ""}>
       <DashboardRealtimeSubscriber
         onDataRefresh={handleHomeDataRealtime}
@@ -908,6 +910,7 @@ function AppShell() {
       </Sentry.ErrorBoundary>
     </PlantDoctorProvider>
   </HomeRealtimeProvider>
+  </HomePermissionsProvider>
   );
 }
 
