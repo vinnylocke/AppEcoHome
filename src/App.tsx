@@ -772,6 +772,7 @@ function AppShell() {
                         <div className="h-full animate-in fade-in duration-500">
                           <PlantDoctor
                             homeId={profile?.home_id}
+                            userId={session?.user?.id}
                             aiEnabled={profile?.ai_enabled}
                             isPremium={profile?.enable_perenual}
                             perenualEnabled={profile?.enable_perenual}
