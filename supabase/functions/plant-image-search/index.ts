@@ -145,15 +145,17 @@ serve(async (req) => {
     const unsplashKey = Deno.env.get("UNSPLASH_ACCESS_KEY");
     const pixabayKey = Deno.env.get("PIXABAY_API_KEY");
     if (!unsplashKey) throw new Error("Missing UNSPLASH_ACCESS_KEY secret");
-    if (!pixabayKey) throw new Error("Missing PIXABAY_API_KEY secret");
+    // Pixabay is optional — skip gracefully if key not available
 
     const perSource = Math.ceil(count / 3);
 
-    const [unsplashRes, pixabayRes, wikiRes] = await Promise.allSettled([
+    const promises: Promise<GalleryImage[]>[] = [
       fetchUnsplash(query, perSource, unsplashKey),
-      fetchPixabay(query, perSource, pixabayKey),
+      pixabayKey ? fetchPixabay(query, perSource, pixabayKey) : Promise.resolve([]),
       fetchWikipedia(query),
-    ]);
+    ];
+
+    const [unsplashRes, pixabayRes, wikiRes] = await Promise.allSettled(promises);
 
     const unsplash = unsplashRes.status === "fulfilled" ? unsplashRes.value : [];
     const pixabay = pixabayRes.status === "fulfilled" ? pixabayRes.value : [];
