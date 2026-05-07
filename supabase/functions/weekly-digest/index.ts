@@ -208,7 +208,16 @@ Deno.serve(async () => {
     const { monday, sunday } = getWeekWindow();
     log(FN, "request_received", { monday, sunday });
 
-    // 1. All homes
+    // 1. Materialize blueprint tasks for the full week before querying
+    try {
+      await supabase.functions.invoke("generate-tasks", { body: {} });
+      log(FN, "generate_tasks_complete");
+    } catch (err: any) {
+      warn(FN, "generate_tasks_failed", { error: err.message });
+      // Non-fatal — continue with whatever tasks are already in DB
+    }
+
+    // 2. All homes
     const { data: homes, error: homesErr } = await supabase
       .from("homes")
       .select("id, name");
@@ -223,7 +232,7 @@ Deno.serve(async () => {
 
     for (const home of homes) {
       try {
-        // 2. Members with emails
+        // 3. Members with emails
         const { data: memberRows } = await supabase
           .from("home_members")
           .select("user_id")

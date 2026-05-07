@@ -43,11 +43,17 @@ serve(async (req) => {
 
     const tasksToInsert = [];
 
-    // 🚀 THE FIX: Cap the physical task generation strictly at TODAY. Let ghosts handle the future.
+    // Materialize through end of current UTC week (Sunday) so the weekly digest
+    // can query physical tasks for Mon–Sun without relying on ghost generation.
     const todayStr = new Date().toISOString().split("T")[0];
-    const maxDate = parseSafeDate(todayStr);
+    const now = new Date();
+    const dayOfWeek = now.getUTCDay(); // 0=Sun, 1=Mon…
+    const daysToSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
+    const sunday = new Date(now);
+    sunday.setUTCDate(now.getUTCDate() + daysToSunday);
+    const maxDate = parseSafeDate(sunday.toISOString().split("T")[0]);
 
-    // 2. Loop through blueprints and project tasks UP TO TODAY ONLY
+    // 2. Loop through blueprints and project tasks through end of current week
     for (const bp of blueprints || []) {
       const { data: lastTask } = await supabase
         .from("tasks")
@@ -64,17 +70,19 @@ serve(async (req) => {
         nextDate.setDate(nextDate.getDate() + bp.frequency_days);
       } else {
         // No prior tasks: start from bp.start_date but clamp to today.
-        // Avoids backfilling overdue tasks when a blueprint has a past start_date
-        // (e.g. user backdated their planting). If start_date is in the future
-        // (seasonal blueprint not yet started), nextDate stays in the future and
-        // the while-loop below produces nothing — correct behaviour.
+        // Avoids backfilling overdue tasks when a blueprint has a past start_date.
+        // Clamp uses today (not the extended maxDate) so we don't skip Mon–Sat for
+        // new blueprints that have never generated a task. If start_date is in the
+        // future (seasonal blueprint not yet started), nextDate stays future and
+        // the while-loop produces nothing — correct behaviour.
         const fromStart = parseSafeDate(startStr);
-        nextDate = fromStart < maxDate ? maxDate : fromStart;
+        const today = parseSafeDate(todayStr);
+        nextDate = fromStart < today ? today : fromStart;
       }
 
       const bpEndDate = bp.end_date ? parseSafeDate(bp.end_date) : null;
 
-      // Loop will naturally IGNORE future seasons because nextDate > maxDate!
+      // Loop generates through end of current week; future seasons naturally produce nothing when nextDate > maxDate.
       while (nextDate <= maxDate) {
         if (bpEndDate && nextDate > bpEndDate) break;
 
