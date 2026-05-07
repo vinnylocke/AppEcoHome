@@ -8,6 +8,7 @@ import {
   Sprout,
   Wand2,
   ChevronRight,
+  Medal,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
@@ -69,6 +70,7 @@ export default function UserProfileDropdown({ displayName, email, isAdmin }: Pro
 
   const profileItems: DropdownItem[] = [
     { testId: "user-profile-garden-profile", icon: <Sprout size={15} />, label: "Garden Profile", path: "/profile" },
+    { testId: "nav-gardener-profile", icon: <Medal size={15} />, label: "Gardener's Profile", path: "/gardener" },
   ];
 
   const managementItems: DropdownItem[] = [
@@ -98,7 +100,7 @@ export default function UserProfileDropdown({ displayName, email, isAdmin }: Pro
 
       {open && (
         <>
-          <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
+          <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
           <div
             data-testid="user-profile-dropdown"
             className="absolute top-full right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-rhozly-outline/20 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"

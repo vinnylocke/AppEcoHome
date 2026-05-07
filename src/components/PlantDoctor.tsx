@@ -30,6 +30,7 @@ import {
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
+import { EVENT, logEvent } from "../events/registry";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 import ManualPlantCreation from "./ManualPlantCreation";
@@ -344,6 +345,11 @@ export default function PlantDoctor({
       });
 
       setAiResult(data);
+      if (action === "identify") {
+        logEvent(EVENT.AI_IDENTIFY, { plant_name: data?.possible_names?.[0] ?? null });
+      } else {
+        logEvent(EVENT.AI_DIAGNOSE, { diagnosis: data?.possible_diseases?.[0] ?? null });
+      }
       toast.success(
         `Successfully ${action === "identify" ? "identified" : "diagnosed"}!`,
       );

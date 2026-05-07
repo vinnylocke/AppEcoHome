@@ -725,6 +725,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `plantLabels.test.ts` | 23 | `derivePlantLabels` — plant_type, cycle variants, watering variants, drought_tolerant, care_level, indoor, edible, tropical, pruning deduplication |
 | `yieldService.test.ts` | 10 | `validateYieldValue`, `fetchYieldRecords`, `insertYieldRecord`, `deleteYieldRecord`, `updateExpectedHarvestDate` |
 | `plantLightUtils.test.ts` | 16 | `getOptimalLuxRange` — full sun/partial/shade mapping, union of ranges, empty/unknown returns null; `getLightFitness` — all 5 ratings, boundary values, color/bgColor presence |
+| `achievements.test.ts` | 13 | `computeUnlocked` — early_adopter always on, per-threshold unlocks for growing/tasks/AI/planning/health/explorer, progress function bounds, all defs have unique keys |
 
 ### Edge function tests — Deno
 

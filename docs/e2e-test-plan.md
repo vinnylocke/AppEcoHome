@@ -552,6 +552,26 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 
 ---
 
+## Section 11b — Gardener's Profile (/gardener)
+
+**Spec file:** `tests/e2e/specs/gardener-profile.spec.ts` _(not yet written)_
+**Seed required:** `00_bootstrap.sql`
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| GP-001 | Nav item visible | ✅ | Click username avatar → "Gardener's Profile" item in dropdown | Bootstrap | — | ❌ Pending |
+| GP-002 | Navigate to /gardener | ✅ | Click "Gardener's Profile" → URL `/gardener` | Bootstrap | — | ❌ Pending |
+| GP-003 | Account tab renders | ✅ | `/gardener` → "Account" tab active, display name input visible | Bootstrap | — | ❌ Pending |
+| GP-004 | Display name save | ✅ | Edit display name → Save → toast + nav name updates | Bootstrap | — | ❌ Pending |
+| GP-005 | Email change shows confirmation hint | ✅ | Enter new email → Save → "Check your inbox" message shown | Bootstrap | — | ❌ Pending |
+| GP-006 | Password mismatch validation | ✅ | New password ≠ confirm password → error toast, no API call | Bootstrap | — | ❌ Pending |
+| GP-007 | Achievements tab renders | ✅ | Click "Achievements" tab → achievement grid visible | Bootstrap | — | ❌ Pending |
+| GP-008 | Early Adopter always unlocked | ✅ | Achievements tab → "Early Adopter" card is unlocked (full color) | Bootstrap | — | ❌ Pending |
+| GP-009 | Locked achievement shows no description | ✅ | Unearned achievement card shows "Keep going to unlock" | Bootstrap | — | ❌ Pending |
+| GP-010 | Stats tab renders | ✅ | Click "Stats" tab → metric cards with numeric values | Bootstrap | — | ❌ Pending |
+
+---
+
 ## Section 12 — Location Management (/management)
 
 **Spec file:** `tests/e2e/specs/area-setup.spec.ts`

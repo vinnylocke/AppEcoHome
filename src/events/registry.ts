@@ -37,6 +37,9 @@ export const EVENT = {
   AREA_SCAN_COMPLETED:       "area_scan_completed",
   SCAN_TASK_ACCEPTED:        "scan_task_accepted",
   SCAN_AILMENT_LINKED:       "scan_ailment_linked",
+  // Plant Doctor AI
+  AI_IDENTIFY:               "ai_identify",
+  AI_DIAGNOSE:               "ai_diagnose",
 } as const;
 
 export type EventType = typeof EVENT[keyof typeof EVENT];

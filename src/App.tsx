@@ -53,6 +53,7 @@ import { useHomeRealtime } from "./hooks/useHomeRealtime";
 import PlantDoctorChat from "./components/PlantDoctorChat";
 import ErrorPage from "./components/ErrorPage";
 import GardenProfile from "./components/GardenProfile";
+import GardenerProfile from "./components/GardenerProfile";
 import AssistantCard from "./components/AssistantCard";
 import PlantVisualiser from "./components/PlantVisualiser";
 import GardenLayoutList from "./components/GardenLayoutList";
@@ -780,6 +781,22 @@ function AppShell() {
                               userId={session.user.id}
                               aiEnabled={profile.ai_enabled}
                               perenualEnabled={!!profile.enable_perenual}
+                            />
+                          </div>
+                        ) : null
+                      } />
+
+                      <Route path="/gardener" element={
+                        profile?.home_id && session?.user?.id ? (
+                          <div className="animate-in fade-in duration-500 py-6 px-4">
+                            <GardenerProfile
+                              userId={session.user.id}
+                              homeId={profile.home_id}
+                              displayName={profile.display_name ?? null}
+                              email={session.user.email ?? null}
+                              onDisplayNameChange={(name) =>
+                                setProfile((prev: any) => prev ? { ...prev, display_name: name } : prev)
+                              }
                             />
                           </div>
                         ) : null
