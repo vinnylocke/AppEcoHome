@@ -82,7 +82,7 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { messages, currentContext, homeId } = await req.json();
+    const { messages, currentContext, homeId, imageBase64, imageMimeType } = await req.json();
 
     const authHeader = req.headers.get("Authorization") ?? "";
     const authToken = authHeader.replace("Bearer ", "");
@@ -198,12 +198,28 @@ serve(async (req) => {
       - "I need frost-hardy plants" → entity_type: climate, entity_name: frost-hardy, sentiment: positive
       - "I have sandy soil" → entity_type: soil, entity_name: Sandy Soil, sentiment: positive
       Do NOT infer preferences — only capture what is explicitly stated.
+
+      IMAGE ANALYSIS RULES (only apply when the user sends an image):
+      - If the user sends a plant photo for identification: describe what you can see, identify the most likely species, provide care advice, and include it in suggested_plants if confident.
+      - If the user sends a photo showing damage, discolouration, or visible pests/disease: diagnose the most likely cause, severity, and treatment plan.
+      - Always be honest about uncertainty — say so if the image quality or angle makes identification difficult.
+      - Never claim certainty you do not have from a single image.
     `;
 
-    const geminiMessages = messages.map((msg: any) => ({
-      role: msg.role === "assistant" ? "model" : msg.role,
-      parts: [{ text: msg.content }],
-    }));
+    // Strip the data-URL prefix if present (Gemini only wants raw base64)
+    const rawBase64 = imageBase64
+      ? imageBase64.replace(/^data:[^;]+;base64,/, "")
+      : null;
+    const mimeType = imageMimeType ?? "image/jpeg";
+
+    const geminiMessages = messages.map((msg: any, i: number) => {
+      const isLastUser = msg.role === "user" && i === messages.length - 1;
+      const parts: any[] = [{ text: msg.content }];
+      if (isLastUser && rawBase64) {
+        parts.push({ inlineData: { data: rawBase64, mimeType } });
+      }
+      return { role: msg.role === "assistant" ? "model" : msg.role, parts };
+    });
 
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiApiKey) throw new Error("Missing GEMINI_API_KEY");

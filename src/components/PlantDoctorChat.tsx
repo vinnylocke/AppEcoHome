@@ -14,7 +14,11 @@ import {
   ChevronDown,
   ChevronUp,
   Trash2,
+  Camera,
+  ImagePlus,
 } from "lucide-react";
+import { Camera as CapCamera, CameraResultType, CameraSource } from "@capacitor/camera";
+import { Capacitor } from "@capacitor/core";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
@@ -23,11 +27,18 @@ import toast from "react-hot-toast";
 import { PlantActionButtons } from "./PlantActionButtons";
 import { TaskActionButtons } from "./TaskActionButtons";
 
+interface PendingImage {
+  base64: string;       // raw base64 (no data-URL prefix)
+  previewUrl: string;   // data-URL for display
+  mimeType: string;
+}
+
 interface Message {
   _key?: string;
   id?: string;
   role: "user" | "assistant";
   content: string;
+  imagePreviewUrl?: string;
   suggested_plants?: Array<{ name: string; search_query: string }>;
   suggested_tasks?: Array<any>;
   preferences_captured?: number;
@@ -108,9 +119,72 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     Record<string, "positive" | "negative">
   >({});
 
+  const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
+
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const keyCounter = useRef(0);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const nextKey = () => `k${++keyCounter.current}`;
+
+  // Compress a File to a base64 JPEG (800px wide max, 70% quality)
+  const compressImage = (file: File): Promise<string> =>
+    new Promise((resolve, reject) => {
+      const img = new Image();
+      img.src = URL.createObjectURL(file);
+      img.onload = () => {
+        const canvas = document.createElement("canvas");
+        const MAX_W = 800;
+        const scale = MAX_W / img.width;
+        canvas.width = MAX_W;
+        canvas.height = img.height * scale;
+        const ctx = canvas.getContext("2d");
+        if (!ctx) return reject("No canvas context");
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        const dataUrl = canvas.toDataURL("image/jpeg", 0.7);
+        resolve(dataUrl.split(",")[1]);
+      };
+      img.onerror = reject;
+    });
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    try {
+      const base64 = await compressImage(file);
+      setPendingImage({
+        base64,
+        previewUrl: `data:image/jpeg;base64,${base64}`,
+        mimeType: "image/jpeg",
+      });
+    } catch {
+      toast.error("Couldn't process that image.");
+    }
+  };
+
+  const handleCameraCapture = async () => {
+    if (Capacitor.isNativePlatform()) {
+      try {
+        const photo = await CapCamera.getPhoto({
+          quality: 80,
+          allowEditing: false,
+          resultType: CameraResultType.Base64,
+          source: CameraSource.Camera,
+        });
+        if (photo.base64String) {
+          setPendingImage({
+            base64: photo.base64String,
+            previewUrl: `data:image/${photo.format};base64,${photo.base64String}`,
+            mimeType: `image/${photo.format}`,
+          });
+        }
+      } catch {
+        // user cancelled — no-op
+      }
+    } else {
+      fileInputRef.current?.click();
+    }
+  };
 
   // Resolve user ID once on mount
   useEffect(() => {
@@ -244,9 +318,17 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     }
   };
 
-  const callAI = async (historyForAI: { role: string; content: string }[]) => {
+  const callAI = async (
+    historyForAI: { role: string; content: string }[],
+    image?: PendingImage | null,
+  ) => {
     const { data, error } = await supabase.functions.invoke("plant-doctor-ai", {
-      body: { messages: historyForAI, currentContext: pageContext, homeId },
+      body: {
+        messages: historyForAI,
+        currentContext: pageContext,
+        homeId,
+        ...(image ? { imageBase64: image.base64, imageMimeType: image.mimeType } : {}),
+      },
     });
     if (error) throw error;
     if (!data?.reply) throw new Error("No reply received from AI");
@@ -260,15 +342,23 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim() || isLoading) return;
+    if ((!input.trim() && !pendingImage) || isLoading) return;
 
-    const userText = input.trim();
+    const userText = input.trim() || (pendingImage ? "Please identify or diagnose what you see in this image." : "");
+    const imageSnapshot = pendingImage;
     const userKey = nextKey();
+
     setMessages((prev) => [
       ...prev,
-      { _key: userKey, role: "user", content: userText },
+      {
+        _key: userKey,
+        role: "user",
+        content: userText,
+        imagePreviewUrl: imageSnapshot?.previewUrl,
+      },
     ]);
     setInput("");
+    setPendingImage(null);
     setIsLoading(true);
 
     try {
@@ -287,7 +377,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
         .map((m) => ({ role: m.role, content: m.content }));
       historyForAI.push({ role: "user", content: userText });
 
-      const data = await callAI(historyForAI);
+      const data = await callAI(historyForAI, imageSnapshot);
 
       const assistantKey = nextKey();
       setMessages((prev) => [
@@ -492,6 +582,13 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                       <div
                         className={`p-3 rounded-2xl max-w-[85%] text-sm flex flex-col gap-2 ${msg.role === "user" ? "bg-rhozly-primary text-white rounded-tr-sm" : "bg-white border border-rhozly-outline/10 text-rhozly-on-surface rounded-tl-sm shadow-sm"}`}
                       >
+                        {msg.imagePreviewUrl && (
+                          <img
+                            src={msg.imagePreviewUrl}
+                            alt="Attached photo"
+                            className="w-full max-h-48 object-cover rounded-xl mb-1"
+                          />
+                        )}
                         <div className="whitespace-pre-wrap">{msg.content}</div>
 
                         {msg.role === "assistant" &&
@@ -594,23 +691,68 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
             )}
           </div>
 
+          {/* Image preview strip */}
+          {pendingImage && (
+            <div className="px-3 pt-2 bg-white border-t border-rhozly-outline/10 flex items-center gap-2">
+              <div className="relative">
+                <img
+                  src={pendingImage.previewUrl}
+                  alt="Pending attachment"
+                  className="h-16 w-16 object-cover rounded-xl border border-rhozly-outline/20"
+                />
+                <button
+                  type="button"
+                  onClick={() => setPendingImage(null)}
+                  className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-red-500 text-white rounded-full flex items-center justify-center shadow"
+                  aria-label="Remove image"
+                >
+                  <X size={10} />
+                </button>
+              </div>
+              <p className="text-xs text-rhozly-on-surface/50 font-bold">
+                Image attached — ask me to identify or diagnose
+              </p>
+            </div>
+          )}
+
           {/* Input */}
           <form
             onSubmit={sendMessage}
-            className="p-3 bg-white border-t border-rhozly-outline/10 flex gap-2 shrink-0"
+            className="p-3 bg-white border-t border-rhozly-outline/10 flex gap-2 shrink-0 items-center"
           >
+            {/* Hidden file input for web */}
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              className="hidden"
+              onChange={handleFileChange}
+            />
+
+            {/* Camera / file button */}
+            <button
+              type="button"
+              data-testid="chat-attach-image-btn"
+              onClick={handleCameraCapture}
+              disabled={isLoading || isLoadingHistory}
+              className="p-2.5 rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-primary hover:bg-rhozly-surface-low transition-colors disabled:opacity-30 shrink-0"
+              title="Attach photo"
+            >
+              {Capacitor.isNativePlatform() ? <Camera size={20} /> : <ImagePlus size={20} />}
+            </button>
+
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder="Ask about your garden..."
+              placeholder={pendingImage ? "Ask about this photo…" : "Ask about your garden…"}
               className="flex-1 bg-rhozly-surface-low rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-rhozly-primary/20 transition-all"
               disabled={isLoading || isLoadingHistory}
             />
             <button
               type="submit"
-              disabled={isLoading || isLoadingHistory || !input.trim()}
-              className="bg-rhozly-primary text-white p-3 rounded-xl disabled:opacity-50 hover:bg-rhozly-primary/90 transition-colors"
+              disabled={isLoading || isLoadingHistory || (!input.trim() && !pendingImage)}
+              className="bg-rhozly-primary text-white p-3 rounded-xl disabled:opacity-50 hover:bg-rhozly-primary/90 transition-colors shrink-0"
             >
               <Send size={18} />
             </button>
