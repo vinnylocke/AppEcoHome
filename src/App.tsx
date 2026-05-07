@@ -536,6 +536,24 @@ function AppShell() {
               </nav>
 
               <main className="flex-1 relative w-full overflow-hidden">
+                {/* Full-bleed routes that must escape the padded PullToRefresh wrapper */}
+                <Routes>
+                  <Route path="/sun-trajectory" element={
+                    <div className="absolute inset-0 z-20 animate-in fade-in duration-500">
+                      {profile?.home_id ? (
+                        <SunTrajectoryAR homeId={profile.home_id} />
+                      ) : (
+                        <div className="h-full flex flex-col items-center justify-center p-10 text-center">
+                          <Loader2 className="animate-spin text-rhozly-primary mb-4" size={40} />
+                          <p className="font-bold text-rhozly-on-surface/40 uppercase tracking-widest text-[10px]">
+                            Loading Home Data...
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  } />
+                </Routes>
+
                 <PullToRefresh onRefresh={handleManualRefresh}>
                   <div className="p-4 md:p-8 pb-28 md:pb-8 min-h-full">
                     <Routes>
@@ -828,20 +846,6 @@ function AppShell() {
                         </div>
                       } />
 
-                      <Route path="/sun-trajectory" element={
-                        <div className="h-full animate-in fade-in duration-500">
-                          {profile?.home_id ? (
-                            <SunTrajectoryAR homeId={profile.home_id} />
-                          ) : (
-                            <div className="h-full flex flex-col items-center justify-center p-10 text-center">
-                              <Loader2 className="animate-spin text-rhozly-primary mb-4" size={40} />
-                              <p className="font-bold text-rhozly-on-surface/40 uppercase tracking-widest text-[10px]">
-                                Loading Home Data...
-                              </p>
-                            </div>
-                          )}
-                        </div>
-                      } />
 
                       <Route path="/guides" element={
                         <div className="h-full animate-in fade-in duration-500">
