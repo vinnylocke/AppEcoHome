@@ -1,11 +1,7 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
-import {
-  Role,
-  PermissionKey,
-  PermissionSet,
-  resolvePermissions,
-} from "../lib/permissions";
+import type { Role, PermissionKey, PermissionSet } from "../lib/permissions";
+import { resolvePermissions } from "../lib/permissions";
 import type { HomeMemberWithProfile } from "../types";
 
 interface HomePermissionsResult {
