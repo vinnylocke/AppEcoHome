@@ -74,13 +74,31 @@ import {
   setLocationCache,
 } from "./lib/clientCache";
 
-// Check for SW updates on load and again each time the app comes back to the
-// foreground (catches the case where a deploy happened while the app was backgrounded).
+// Service worker update checks + background-time reload safety net.
 if ("serviceWorker" in navigator) {
+  // When the SW changes controller (new SW activated after user taps "Reload"
+  // in the UpdateBanner), reload the page so old JS doesn't run with the new SW.
+  navigator.serviceWorker.addEventListener("controllerchange", () => {
+    window.location.reload();
+  });
+
   navigator.serviceWorker.ready.then((registration) => {
     registration.update();
+
+    let hiddenAt = 0;
     document.addEventListener("visibilitychange", () => {
-      if (document.visibilityState === "visible") registration.update();
+      if (document.visibilityState === "hidden") {
+        hiddenAt = Date.now();
+      } else if (document.visibilityState === "visible") {
+        // Check for a new SW version each time the app comes to the foreground.
+        registration.update();
+        // If the app was backgrounded for > 30 minutes, do a hard reload.
+        // This recovers from the OS killing the WebView process (common on iOS
+        // under memory pressure) which can leave the app in a broken state.
+        if (hiddenAt > 0 && Date.now() - hiddenAt > 30 * 60 * 1000) {
+          window.location.reload();
+        }
+      }
     });
   });
 }
