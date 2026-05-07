@@ -6,19 +6,12 @@ import {
   Cloud,
   Menu,
   Home,
-  Wrench,
   Loader2,
-  Sun,
   Database,
   Stethoscope,
   X,
   Map,
-  Repeat,
-  Sprout,
   Sparkles,
-  Bug,
-  ScanLine,
-  LayoutTemplate,
 } from "lucide-react";
 
 // 🚀 NATIVE IMPORT
@@ -28,7 +21,6 @@ import { App as CapApp } from "@capacitor/app";
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
 import AdminGuideGenerator from "./components/AdminGuideGenerator";
-import { Wand2 } from "lucide-react";
 
 // Components
 import LocationTile from "./components/LocationTile";
@@ -48,9 +40,7 @@ import TaskList from "./components/TaskList";
 import PlantDoctor from "./components/PlantDoctor";
 import LightSensor from "./components/LightSensor";
 import GuideList from "./components/GuideList";
-import { BookOpen } from "lucide-react";
 
-import PlannerDashboard from "./components/PlannerDashboard";
 // 🚀 NEW: Import the Blueprint Manager
 import BlueprintManager from "./components/BlueprintManager";
 
@@ -62,16 +52,15 @@ import { useHomeRealtime } from "./hooks/useHomeRealtime";
 import PlantDoctorChat from "./components/PlantDoctorChat";
 import ErrorPage from "./components/ErrorPage";
 import GardenProfile from "./components/GardenProfile";
-import AilmentWatchlist from "./components/AilmentWatchlist";
 import AssistantCard from "./components/AssistantCard";
 import PlantVisualiser from "./components/PlantVisualiser";
 import GardenLayoutList from "./components/GardenLayoutList";
 import GardenLayoutEditor from "./components/GardenLayoutEditor";
-import ShoppingLists from "./components/ShoppingLists";
 import HomeManagement from "./components/HomeManagement";
+import GardenHub from "./components/GardenHub";
+import PlannerHub from "./components/PlannerHub";
+import ToolsHub from "./components/ToolsHub";
 import UserProfileDropdown from "./components/UserProfileDropdown";
-import { ShoppingCart } from "lucide-react";
-import { Building2 } from "lucide-react";
 import NavItem from "./components/NavItem";
 import {
   getMidnightTonight,
@@ -113,6 +102,7 @@ const TAB_URL: Record<string, string> = {
   shopping:         "/shopping",
   home_management:  "/home-management",
   admin_guides:     "/admin/guides",
+  tools:            "/tools",
 };
 
 function AppShell() {
@@ -464,30 +454,11 @@ function AppShell() {
     );
 
   const navLinks = [
-    { id: "dashboard", icon: <Home />, label: "Dashboard" },
-    // 🚀 NEW: Task Management Tab
-    { id: "task_management", icon: <Repeat />, label: "Task Management" },
-    { id: "shed", icon: <Database />, label: "The Shed" },
-    { id: "shopping", icon: <ShoppingCart />, label: "Shopping List" },
-    { id: "watchlist", icon: <Bug />, label: "Watchlist" },
-    { id: "visualiser", icon: <ScanLine />, label: "Plant Visualiser" },
-    { id: "planner", icon: <Map />, label: "Planner" },
-    { id: "doctor", icon: <Stethoscope />, label: "Plant Doctor" },
-    { id: "garden_profile", icon: <Sprout />, label: "Garden Profile" },
-    { id: "lightsensor", icon: <Sun />, label: "Light Sensor" },
-    { id: "guides", icon: <BookOpen />, label: "Guides" },
-    { id: "management", icon: <Wrench />, label: "Location Management" },
-    { id: "garden_layout", icon: <LayoutTemplate />, label: "Garden Layout" },
-    { id: "home_management", icon: <Building2 />, label: "Home Management" },
+    { id: "dashboard", icon: <Home />, label: "Home",   matchPaths: ["/dashboard", "/"] },
+    { id: "shed",      icon: <Database />, label: "Garden", matchPaths: ["/shed", "/watchlist"] },
+    { id: "planner",   icon: <Map />, label: "Plan",    matchPaths: ["/planner", "/shopping"] },
+    { id: "tools",     icon: <Stethoscope />, label: "Tools",   matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout"] },
   ];
-
-  if (profile?.is_admin) {
-    navLinks.push({
-      id: "admin_guides",
-      icon: <Wand2 />,
-      label: "Guide Studio",
-    });
-  }
 
   const canUsePortal = typeof document !== "undefined";
 
@@ -533,6 +504,7 @@ function AppShell() {
               <UserProfileDropdown
                 displayName={profile?.display_name ?? null}
                 email={session?.user?.email ?? null}
+                isAdmin={profile?.is_admin ?? false}
               />
             </header>
 
@@ -545,7 +517,7 @@ function AppShell() {
                     key={link.id}
                     icon={link.icon}
                     label={link.label}
-                    active={routerLocation.pathname === TAB_URL[link.id] || (link.id === "dashboard" && routerLocation.pathname === "/")}
+                    active={link.matchPaths.some(p => routerLocation.pathname === p || routerLocation.pathname.startsWith(p + "/"))}
                     onClick={() => navigate(TAB_URL[link.id])}
                     isCollapsed={isNavCollapsed}
                     isMobile={false}
@@ -757,30 +729,20 @@ function AppShell() {
 
                       <Route path="/shed" element={
                         profile?.home_id ? (
-                          <div className="h-full animate-in fade-in duration-500">
-                            <TheShed homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} perenualEnabled={profile.enable_perenual ?? false} />
-                          </div>
+                          <GardenHub homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} perenualEnabled={profile.enable_perenual ?? false} />
                         ) : null
                       } />
 
-                      <Route path="/shopping" element={
-                        profile?.home_id ? (
-                          <div className="h-full animate-in fade-in duration-500">
-                            <ShoppingLists
-                              homeId={profile.home_id}
-                              aiEnabled={profile.ai_enabled ?? false}
-                              perenualEnabled={profile.enable_perenual ?? false}
-                            />
-                          </div>
-                        ) : null
-                      } />
+                      {/* Redirect legacy /watchlist deep-link to the Garden Hub watchlist tab */}
+                      <Route path="/watchlist" element={<Navigate to="/shed?tab=watchlist" replace />} />
 
-                      <Route path="/watchlist" element={
-                        profile?.home_id ? (
-                          <div className="h-full animate-in fade-in duration-500">
-                            <AilmentWatchlist homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} />
-                          </div>
-                        ) : null
+                      {/* Redirect legacy /shopping deep-link to the Planner Hub shopping tab */}
+                      <Route path="/shopping" element={<Navigate to="/planner?tab=shopping" replace />} />
+
+                      <Route path="/tools" element={
+                        <div className="h-full overflow-auto animate-in fade-in duration-500">
+                          <ToolsHub />
+                        </div>
                       } />
 
                       <Route path="/visualiser" element={
@@ -793,9 +755,7 @@ function AppShell() {
 
                       <Route path="/planner" element={
                         profile?.home_id ? (
-                          <div className="h-full animate-in fade-in duration-500">
-                            <PlannerDashboard homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} />
-                          </div>
+                          <PlannerHub homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} perenualEnabled={profile.enable_perenual ?? false} />
                         ) : null
                       } />
 
@@ -921,7 +881,7 @@ function AppShell() {
                       key={link.id}
                       icon={link.icon}
                       label={link.label}
-                      active={routerLocation.pathname === TAB_URL[link.id] || (link.id === "dashboard" && routerLocation.pathname === "/")}
+                      active={link.matchPaths.some(p => routerLocation.pathname === p || routerLocation.pathname.startsWith(p + "/"))}
                       onClick={() => {
                         navigate(TAB_URL[link.id]);
                         setIsMobileMenuOpen(false);

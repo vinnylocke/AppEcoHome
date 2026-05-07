@@ -1,14 +1,55 @@
 import React, { useState, useRef, useEffect } from "react";
-import { User, LogOut, Building2 } from "lucide-react";
+import {
+  User,
+  LogOut,
+  Building2,
+  Wrench,
+  Repeat,
+  Sprout,
+  Wand2,
+  ChevronRight,
+} from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
 
 interface Props {
   displayName: string | null;
   email: string | null;
+  isAdmin?: boolean;
 }
 
-export default function UserProfileDropdown({ displayName, email }: Props) {
+interface DropdownItem {
+  testId: string;
+  icon: React.ReactNode;
+  label: string;
+  path: string;
+}
+
+function DropdownLink({ item, onNavigate }: { item: DropdownItem; onNavigate: (path: string) => void }) {
+  return (
+    <button
+      data-testid={item.testId}
+      onClick={(e) => { e.stopPropagation(); onNavigate(item.path); }}
+      className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors group"
+    >
+      <span className="text-rhozly-on-surface/40 group-hover:text-rhozly-primary transition-colors">
+        {item.icon}
+      </span>
+      <span className="flex-1 text-left">{item.label}</span>
+      <ChevronRight size={12} className="text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50 transition-colors" />
+    </button>
+  );
+}
+
+function SectionLabel({ label }: { label: string }) {
+  return (
+    <p className="px-3 pt-2 pb-1 text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/30">
+      {label}
+    </p>
+  );
+}
+
+export default function UserProfileDropdown({ displayName, email, isAdmin }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
@@ -20,6 +61,21 @@ export default function UserProfileDropdown({ displayName, email }: Props) {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  const go = (path: string) => {
+    setOpen(false);
+    navigate(path);
+  };
+
+  const profileItems: DropdownItem[] = [
+    { testId: "user-profile-garden-profile", icon: <Sprout size={15} />, label: "Garden Profile", path: "/profile" },
+  ];
+
+  const managementItems: DropdownItem[] = [
+    { testId: "user-profile-location-management", icon: <Wrench size={15} />, label: "Location Management", path: "/management" },
+    { testId: "user-profile-home-management", icon: <Building2 size={15} />, label: "Home Management", path: "/home-management" },
+    { testId: "user-profile-task-manager", icon: <Repeat size={15} />, label: "Task Manager", path: "/schedule" },
+  ];
 
   return (
     <div
@@ -45,41 +101,50 @@ export default function UserProfileDropdown({ displayName, email }: Props) {
           <div className="fixed inset-0 z-40" onClick={() => setOpen(false)} />
           <div
             data-testid="user-profile-dropdown"
-            className="absolute top-full right-0 mt-2 w-56 bg-white rounded-2xl shadow-xl border border-rhozly-outline/20 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+            className="absolute top-full right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-rhozly-outline/20 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
           >
+            {/* Name + email header */}
             <div className="px-4 py-3 border-b border-rhozly-outline/10">
               <p className="text-sm font-black text-rhozly-on-surface truncate">
                 {displayName || "Guest"}
               </p>
               {email && (
-                <p className="text-xs text-rhozly-on-surface/40 font-bold truncate">
-                  {email}
-                </p>
+                <p className="text-xs text-rhozly-on-surface/40 font-bold truncate">{email}</p>
               )}
             </div>
 
-            <div className="p-1.5">
-              <button
-                data-testid="user-profile-home-management"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setOpen(false);
-                  navigate("/home-management");
-                }}
-                className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors"
-              >
-                <Building2 size={15} className="text-rhozly-on-surface/50" />
-                Home Management
-              </button>
+            {/* Profile section */}
+            <div className="p-1.5 pb-0">
+              <SectionLabel label="Account" />
+              {profileItems.map((item) => (
+                <DropdownLink key={item.path} item={item} onNavigate={go} />
+              ))}
             </div>
 
-            <div className="border-t border-rhozly-outline/10 p-1.5">
+            {/* Management section */}
+            <div className="p-1.5 pb-0">
+              <SectionLabel label="Management" />
+              {managementItems.map((item) => (
+                <DropdownLink key={item.path} item={item} onNavigate={go} />
+              ))}
+            </div>
+
+            {/* Admin section */}
+            {isAdmin && (
+              <div className="p-1.5 pb-0">
+                <SectionLabel label="Admin" />
+                <DropdownLink
+                  item={{ testId: "user-profile-guide-studio", icon: <Wand2 size={15} />, label: "Guide Studio", path: "/admin/guides" }}
+                  onNavigate={go}
+                />
+              </div>
+            )}
+
+            {/* Sign out */}
+            <div className="border-t border-rhozly-outline/10 p-1.5 mt-1.5">
               <button
                 data-testid="user-profile-sign-out"
-                onClick={(e) => {
-                  e.stopPropagation();
-                  supabase.auth.signOut();
-                }}
+                onClick={(e) => { e.stopPropagation(); supabase.auth.signOut(); }}
                 className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-red-600 hover:bg-red-50 transition-colors"
               >
                 <LogOut size={15} />

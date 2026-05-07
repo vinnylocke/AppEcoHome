@@ -568,7 +568,7 @@ export default function PlantDoctor({
         <div className="mb-6 px-2">
           <h2 className="text-2xl sm:text-3xl font-black font-display text-rhozly-on-surface tracking-tight flex items-center gap-3">
             <Stethoscope className="w-8 h-8 text-rhozly-primary" />
-            Plant Doctor
+            Garden AI
           </h2>
           <p className="text-xs sm:text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
             AI-Powered Identification & Diagnosis

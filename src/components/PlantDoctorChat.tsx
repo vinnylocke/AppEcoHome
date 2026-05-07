@@ -45,7 +45,7 @@ interface Message {
 }
 
 const WELCOME_CONTENT =
-  "Hello! I'm the Plant Doctor. How can I help your garden grow today?";
+  "Hello! I'm your Garden AI. How can I help your garden grow today?";
 
 // Lightweight wiki info card shown per suggested plant
 function ChatPlantCard({
@@ -524,7 +524,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                 <Bot size={18} />
               </div>
               <div>
-                <h3 className="font-black leading-none">Plant Doctor</h3>
+                <h3 className="font-black leading-none">Garden AI</h3>
                 <p className="text-[10px] opacity-80 mt-0.5">
                   Context-Aware AI
                 </p>
