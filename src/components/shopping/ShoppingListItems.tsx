@@ -1,6 +1,7 @@
 import React from "react";
 import { Trash2, Leaf } from "lucide-react";
 import type { ShoppingListItem } from "../../types/shopping";
+import { usePermissions } from "../../context/HomePermissionsContext";
 
 interface Props {
   items: ShoppingListItem[];
@@ -9,6 +10,7 @@ interface Props {
 }
 
 export default function ShoppingListItems({ items, onToggle, onDelete }: Props) {
+  const { can } = usePermissions();
   const sorted = [
     ...items.filter(i => !i.is_checked),
     ...items.filter(i => i.is_checked),
@@ -34,8 +36,9 @@ export default function ShoppingListItems({ items, onToggle, onDelete }: Props) 
             data-testid={`shopping-item-checkbox-${item.id}`}
             type="checkbox"
             checked={item.is_checked}
-            onChange={e => onToggle(item.id, e.target.checked)}
-            className="w-4 h-4 rounded accent-rhozly-primary shrink-0 cursor-pointer"
+            onChange={e => can("shopping.edit_items") && onToggle(item.id, e.target.checked)}
+            disabled={!can("shopping.edit_items")}
+            className="w-4 h-4 rounded accent-rhozly-primary shrink-0 cursor-pointer disabled:opacity-50 disabled:cursor-default"
           />
 
           {/* Thumbnail / icon */}
@@ -85,14 +88,16 @@ export default function ShoppingListItems({ items, onToggle, onDelete }: Props) 
           </div>
 
           {/* Delete */}
-          <button
-            data-testid={`shopping-item-delete-${item.id}`}
-            onClick={() => onDelete(item.id)}
-            className="p-1 rounded-lg text-rhozly-on-surface/20 hover:text-red-400 transition-all shrink-0"
-            title="Remove item"
-          >
-            <Trash2 size={13} />
-          </button>
+          {can("shopping.delete_items") && (
+            <button
+              data-testid={`shopping-item-delete-${item.id}`}
+              onClick={() => onDelete(item.id)}
+              className="p-1 rounded-lg text-rhozly-on-surface/20 hover:text-red-400 transition-all shrink-0"
+              title="Remove item"
+            >
+              <Trash2 size={13} />
+            </button>
+          )}
         </li>
       ))}
     </ul>

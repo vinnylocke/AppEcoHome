@@ -168,6 +168,9 @@ export const TaskEngine = {
             plan_id: bp.plan_id,
             inventory_item_ids: bp.inventory_item_ids || [],
             locations: bp.locations,
+            scope: bp.scope || "home",
+            created_by: bp.created_by || null,
+            assigned_to: bp.assigned_to || null,
             isGhost: true,
           });
         }

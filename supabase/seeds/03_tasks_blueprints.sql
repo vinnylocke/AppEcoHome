@@ -63,7 +63,7 @@ WHERE home_id = '00000000-0000-0000-0000-000000000002'
 INSERT INTO public.task_blueprints (
   id, home_id, title, task_type, frequency_days,
   start_date, end_date, is_recurring, priority,
-  location_id, area_id, blueprint_type
+  location_id, area_id, blueprint_type, scope, created_by
 )
 VALUES
   -- Weekly Watering — whole garden
@@ -79,7 +79,9 @@ VALUES
     'Medium',
     '00000000-0000-0000-0001-000000000001',
     NULL,
-    'plant'
+    'plant',
+    'home',
+    '00000000-0000-0000-0000-000000000001'
   ),
   -- Basil Watering — every 3 days
   (
@@ -94,7 +96,9 @@ VALUES
     'High',
     '00000000-0000-0000-0001-000000000001',
     '00000000-0000-0000-0002-000000000001',
-    'plant'
+    'plant',
+    'home',
+    '00000000-0000-0000-0000-000000000001'
   ),
   -- Rose Pruning — monthly, seasonal (Apr–Oct)
   (
@@ -109,7 +113,9 @@ VALUES
     'Medium',
     '00000000-0000-0000-0001-000000000001',
     '00000000-0000-0000-0002-000000000002',
-    'plant'
+    'plant',
+    'home',
+    '00000000-0000-0000-0000-000000000001'
   ),
   -- Fern Inspection — every 14 days
   (
@@ -124,7 +130,9 @@ VALUES
     'Low',
     '00000000-0000-0000-0001-000000000002',
     '00000000-0000-0000-0002-000000000004',
-    'plant'
+    'plant',
+    'home',
+    '00000000-0000-0000-0000-000000000001'
   ),
   -- Tomato Harvest — weekly
   (
@@ -139,7 +147,9 @@ VALUES
     'High',
     '00000000-0000-0000-0001-000000000001',
     '00000000-0000-0000-0002-000000000001',
-    'plant'
+    'plant',
+    'home',
+    '00000000-0000-0000-0000-000000000001'
   ),
   -- Monthly Fertilizing
   (
@@ -154,7 +164,9 @@ VALUES
     'Medium',
     '00000000-0000-0000-0001-000000000001',
     NULL,
-    'plant'
+    'plant',
+    'home',
+    '00000000-0000-0000-0000-000000000001'
   ),
   -- Pest Control — ailment blueprint type
   (
@@ -169,7 +181,9 @@ VALUES
     'High',
     '00000000-0000-0000-0001-000000000001',
     NULL,
-    'ailment'
+    'ailment',
+    'home',
+    '00000000-0000-0000-0000-000000000001'
   ),
   -- General Maintenance — weekly
   (
@@ -184,7 +198,9 @@ VALUES
     'Low',
     '00000000-0000-0000-0001-000000000001',
     NULL,
-    'plant'
+    'plant',
+    'home',
+    '00000000-0000-0000-0000-000000000001'
   ),
   -- Daily check — freq=1 so a ghost always exists regardless of UTC/local-time offset.
   -- Used by TASK-013/017/019/025 ghost tests which need at least one ghost visible today.
@@ -200,7 +216,9 @@ VALUES
     'Low',
     '00000000-0000-0000-0001-000000000001',
     NULL,
-    'plant'
+    'plant',
+    'home',
+    '00000000-0000-0000-0000-000000000001'
   )
 ON CONFLICT (id) DO UPDATE SET
   title            = EXCLUDED.title,
@@ -212,7 +230,9 @@ ON CONFLICT (id) DO UPDATE SET
   priority         = EXCLUDED.priority,
   location_id      = EXCLUDED.location_id,
   area_id          = EXCLUDED.area_id,
-  blueprint_type   = EXCLUDED.blueprint_type;
+  blueprint_type   = EXCLUDED.blueprint_type,
+  scope            = EXCLUDED.scope,
+  created_by       = EXCLUDED.created_by;
 
 -- ---- Standalone Physical Tasks ----
 -- Note: tasks uses inventory_item_ids uuid[] (plural array, added in migration 20260424)
@@ -221,7 +241,7 @@ ON CONFLICT (id) DO UPDATE SET
 -- Pending watering task — due today
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,
-  location_id, inventory_item_ids
+  location_id, inventory_item_ids, scope, created_by
 )
 VALUES (
   '00000000-0000-0000-0006-000000000001',
@@ -231,14 +251,16 @@ VALUES (
   'Pending',
   CURRENT_DATE,
   '00000000-0000-0000-0001-000000000001',
-  '{}'
+  '{}',
+  'home',
+  '00000000-0000-0000-0000-000000000001'
 )
-ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending';
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
 
 -- Completed inspection task — due today, marked done
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,
-  location_id, inventory_item_ids, completed_at
+  location_id, inventory_item_ids, completed_at, scope, created_by
 )
 VALUES (
   '00000000-0000-0000-0006-000000000002',
@@ -249,14 +271,16 @@ VALUES (
   CURRENT_DATE,
   '00000000-0000-0000-0001-000000000001',
   '{}',
-  now()
+  now(),
+  'home',
+  '00000000-0000-0000-0000-000000000001'
 )
-ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Completed', completed_at = now();
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Completed', completed_at = now(), scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
 
 -- Skipped fertilizing task — due yesterday
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,
-  location_id, inventory_item_ids
+  location_id, inventory_item_ids, scope, created_by
 )
 VALUES (
   '00000000-0000-0000-0006-000000000003',
@@ -266,14 +290,16 @@ VALUES (
   'Skipped',
   CURRENT_DATE - INTERVAL '1 day',
   '00000000-0000-0000-0001-000000000001',
-  '{}'
+  '{}',
+  'home',
+  '00000000-0000-0000-0000-000000000001'
 )
-ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE - INTERVAL '1 day', status = 'Skipped';
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE - INTERVAL '1 day', status = 'Skipped', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
 
 -- Overdue pending task — due 7 days ago
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,
-  location_id, inventory_item_ids
+  location_id, inventory_item_ids, scope, created_by
 )
 VALUES (
   '00000000-0000-0000-0006-000000000004',
@@ -283,14 +309,16 @@ VALUES (
   'Pending',
   CURRENT_DATE - INTERVAL '7 days',
   '00000000-0000-0000-0001-000000000001',
-  '{}'
+  '{}',
+  'home',
+  '00000000-0000-0000-0000-000000000001'
 )
-ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE - INTERVAL '7 days', status = 'Pending';
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE - INTERVAL '7 days', status = 'Pending', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
 
 -- Pruning task — due today
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,
-  location_id, area_id, inventory_item_ids
+  location_id, area_id, inventory_item_ids, scope, created_by
 )
 VALUES (
   '00000000-0000-0000-0006-000000000005',
@@ -301,14 +329,16 @@ VALUES (
   CURRENT_DATE,
   '00000000-0000-0000-0001-000000000001',
   '00000000-0000-0000-0002-000000000002',
-  ARRAY['00000000-0000-0000-0004-000000000003']::uuid[]
+  ARRAY['00000000-0000-0000-0004-000000000003']::uuid[],
+  'home',
+  '00000000-0000-0000-0000-000000000001'
 )
-ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending';
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
 
 -- Watering task with full metadata — due today
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,
-  location_id, area_id, inventory_item_ids
+  location_id, area_id, inventory_item_ids, scope, created_by
 )
 VALUES (
   '00000000-0000-0000-0006-000000000006',
@@ -319,14 +349,16 @@ VALUES (
   CURRENT_DATE,
   '00000000-0000-0000-0001-000000000001',
   '00000000-0000-0000-0002-000000000001',
-  ARRAY['00000000-0000-0000-0004-000000000002']::uuid[]
+  ARRAY['00000000-0000-0000-0004-000000000002']::uuid[],
+  'home',
+  '00000000-0000-0000-0000-000000000001'
 )
-ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending';
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
 
 -- Fertilizing — due today
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,
-  location_id, inventory_item_ids
+  location_id, inventory_item_ids, scope, created_by
 )
 VALUES (
   '00000000-0000-0000-0006-000000000007',
@@ -336,14 +368,16 @@ VALUES (
   'Pending',
   CURRENT_DATE,
   '00000000-0000-0000-0001-000000000001',
-  '{}'
+  '{}',
+  'home',
+  '00000000-0000-0000-0000-000000000001'
 )
-ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending';
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
 
 -- Pruning — due in 5 days
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,
-  location_id, inventory_item_ids
+  location_id, inventory_item_ids, scope, created_by
 )
 VALUES (
   '00000000-0000-0000-0006-000000000008',
@@ -353,14 +387,16 @@ VALUES (
   'Pending',
   CURRENT_DATE + INTERVAL '5 days',
   '00000000-0000-0000-0001-000000000001',
-  ARRAY['00000000-0000-0000-0004-000000000003']::uuid[]
+  ARRAY['00000000-0000-0000-0004-000000000003']::uuid[],
+  'home',
+  '00000000-0000-0000-0000-000000000001'
 )
-ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE + INTERVAL '5 days', status = 'Pending';
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE + INTERVAL '5 days', status = 'Pending', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
 
 -- Harvesting — due today (keeps badge visible even when ghost is suppressed)
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,
-  location_id, area_id, inventory_item_ids
+  location_id, area_id, inventory_item_ids, scope, created_by
 )
 VALUES (
   '00000000-0000-0000-0006-000000000009',
@@ -371,14 +407,16 @@ VALUES (
   CURRENT_DATE,
   '00000000-0000-0000-0001-000000000001',
   '00000000-0000-0000-0002-000000000001',
-  ARRAY['00000000-0000-0000-0004-000000000001']::uuid[]
+  ARRAY['00000000-0000-0000-0004-000000000001']::uuid[],
+  'home',
+  '00000000-0000-0000-0000-000000000001'
 )
-ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending';
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
 
 -- Inspection — due today
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,
-  location_id, inventory_item_ids
+  location_id, inventory_item_ids, scope, created_by
 )
 VALUES (
   '00000000-0000-0000-0006-000000000010',
@@ -388,14 +426,16 @@ VALUES (
   'Pending',
   CURRENT_DATE,
   '00000000-0000-0000-0001-000000000002',
-  ARRAY['00000000-0000-0000-0004-000000000004']::uuid[]
+  ARRAY['00000000-0000-0000-0004-000000000004']::uuid[],
+  'home',
+  '00000000-0000-0000-0000-000000000001'
 )
-ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending';
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
 
 -- Pest Control — due today
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,
-  location_id, inventory_item_ids
+  location_id, inventory_item_ids, scope, created_by
 )
 VALUES (
   '00000000-0000-0000-0006-000000000011',
@@ -405,14 +445,16 @@ VALUES (
   'Pending',
   CURRENT_DATE,
   '00000000-0000-0000-0001-000000000001',
-  '{}'
+  '{}',
+  'home',
+  '00000000-0000-0000-0000-000000000001'
 )
-ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending';
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
 
 -- Maintenance — due tomorrow
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,
-  location_id, inventory_item_ids
+  location_id, inventory_item_ids, scope, created_by
 )
 VALUES (
   '00000000-0000-0000-0006-000000000012',
@@ -422,14 +464,16 @@ VALUES (
   'Pending',
   CURRENT_DATE + INTERVAL '1 day',
   '00000000-0000-0000-0001-000000000001',
-  '{}'
+  '{}',
+  'home',
+  '00000000-0000-0000-0000-000000000001'
 )
-ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE + INTERVAL '1 day', status = 'Pending';
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE + INTERVAL '1 day', status = 'Pending', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
 
 -- Planting — due today (tests TASK-009 Planting badge)
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,
-  location_id, area_id, inventory_item_ids
+  location_id, area_id, inventory_item_ids, scope, created_by
 )
 VALUES (
   '00000000-0000-0000-0006-000000000013',
@@ -440,6 +484,8 @@ VALUES (
   CURRENT_DATE,
   '00000000-0000-0000-0001-000000000001',
   '00000000-0000-0000-0002-000000000001',
-  ARRAY['00000000-0000-0000-0004-000000000001']::uuid[]
+  ARRAY['00000000-0000-0000-0004-000000000001']::uuid[],
+  'home',
+  '00000000-0000-0000-0000-000000000001'
 )
-ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending';
+ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';

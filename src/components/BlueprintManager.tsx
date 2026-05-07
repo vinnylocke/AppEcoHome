@@ -20,6 +20,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { usePermissions } from "../context/HomePermissionsContext";
 
 import AddTaskModal from "./AddTaskModal";
 import { ConfirmModal } from "./ConfirmModal";
@@ -34,6 +35,7 @@ interface BlueprintManagerProps {
 
 export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
   const { preferences } = usePlantDoctor();
+  const { can } = usePermissions();
   const [blueprints, setBlueprints] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -295,12 +297,15 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
             Manage Recurring Automations
           </p>
         </div>
-        <button
-          onClick={() => setIsBuilding(true)}
-          className="flex items-center justify-center gap-2 bg-rhozly-primary text-white px-6 py-3.5 rounded-2xl font-black shadow-lg hover:scale-105 transition-transform active:scale-95"
-        >
-          <Plus size={18} strokeWidth={3} /> New Automation
-        </button>
+        {can("tasks.create_home") && (
+          <button
+            data-testid="blueprint-new-btn"
+            onClick={() => setIsBuilding(true)}
+            className="flex items-center justify-center gap-2 bg-rhozly-primary text-white px-6 py-3.5 rounded-2xl font-black shadow-lg hover:scale-105 transition-transform active:scale-95"
+          >
+            <Plus size={18} strokeWidth={3} /> New Automation
+          </button>
+        )}
       </div>
 
       {/* 🚀 NEW: Search & Filter Top Bar */}
@@ -468,12 +473,14 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
           <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6 max-w-md">
             Create custom schedules or use the AI Planner to generate them automatically.
           </p>
-          <button
-            onClick={() => setIsBuilding(true)}
-            className="flex items-center justify-center gap-2 bg-rhozly-primary text-white px-8 py-4 rounded-2xl font-black shadow-lg hover:scale-105 transition-transform active:scale-95"
-          >
-            <Plus size={20} strokeWidth={3} /> Create Your First Automation
-          </button>
+          {can("tasks.create_home") && (
+            <button
+              onClick={() => setIsBuilding(true)}
+              className="flex items-center justify-center gap-2 bg-rhozly-primary text-white px-8 py-4 rounded-2xl font-black shadow-lg hover:scale-105 transition-transform active:scale-95"
+            >
+              <Plus size={20} strokeWidth={3} /> Create Your First Automation
+            </button>
+          )}
         </div>
       ) : filteredBlueprints.length === 0 ? (
         <div className="bg-rhozly-surface border border-rhozly-outline/10 rounded-3xl p-12 text-center flex flex-col items-center justify-center py-24 shadow-sm animate-in fade-in">

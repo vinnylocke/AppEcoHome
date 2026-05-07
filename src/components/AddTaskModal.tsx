@@ -22,6 +22,7 @@ import { logEvent, EVENT } from "../events/registry";
 import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
 import { BlueprintService } from "../services/blueprintService";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
+import { usePermissions } from "../context/HomePermissionsContext";
 export { TASK_CATEGORIES } from "../constants/taskCategories";
 
 interface Props {
@@ -43,6 +44,7 @@ export default function AddTaskModal({
   onSuccess,
 }: Props) {
   const { setPageContext, preferences } = usePlantDoctor();
+  const { can, homeMembers } = usePermissions();
 
   const [loading, setLoading] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
@@ -50,6 +52,11 @@ export default function AddTaskModal({
   const [liveRegionMessage, setLiveRegionMessage] = useState("");
   const [titleError, setTitleError] = useState(false);
   const [dateError, setDateError] = useState(false);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+  }, []);
 
   const [form, setForm] = useState({
     title: existingBlueprint?.title || "",
@@ -66,6 +73,8 @@ export default function AddTaskModal({
     isRecurring: existingBlueprint ? true : isBlueprintMode ? true : false,
     frequency_days: existingBlueprint?.frequency_days || 7,
     end_date: existingBlueprint?.end_date || "",
+    scope: (existingBlueprint?.scope as "home" | "personal") || "home",
+    assigned_to: existingBlueprint?.assigned_to || "",
   });
 
   const [smartPresets, setSmartPresets] = useState<{ type: string; frequency_days: number }[]>([]);
@@ -85,7 +94,9 @@ export default function AddTaskModal({
       form.plan_id !== init.plan_id ||
       form.isRecurring !== init.isRecurring ||
       form.frequency_days !== init.frequency_days ||
-      form.end_date !== init.end_date
+      form.end_date !== init.end_date ||
+      form.scope !== init.scope ||
+      form.assigned_to !== init.assigned_to
     );
   };
 
@@ -456,6 +467,8 @@ export default function AddTaskModal({
             frequency_days: form.frequency_days,
             start_date: form.start_date,
             end_date: form.end_date || null,
+            scope: form.scope,
+            assigned_to: form.assigned_to || null,
           })
           .eq("id", existingBlueprint.id);
 
@@ -482,6 +495,9 @@ export default function AddTaskModal({
               is_recurring: true,
               start_date: form.start_date,
               end_date: form.end_date || null,
+              scope: form.scope,
+              created_by: currentUserId,
+              assigned_to: form.assigned_to || null,
             },
           ])
           .select()
@@ -504,6 +520,9 @@ export default function AddTaskModal({
               plan_id: form.plan_id || null,
               inventory_item_ids: form.inventory_item_ids,
               status: "Pending",
+              scope: form.scope,
+              created_by: currentUserId,
+              assigned_to: form.assigned_to || null,
             },
           ])
           .select()
@@ -528,6 +547,9 @@ export default function AddTaskModal({
               area_id: form.area_id || null,
               plan_id: form.plan_id || null,
               inventory_item_ids: form.inventory_item_ids,
+              scope: form.scope,
+              created_by: currentUserId,
+              assigned_to: form.assigned_to || null,
             },
           ])
           .select()
@@ -863,6 +885,66 @@ export default function AddTaskModal({
                 ))}
               </select>
             </div>
+
+            {(can("tasks.create_home") || can("tasks.create_personal")) && (
+              <div className="sm:col-span-2">
+                <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-2 ml-1">
+                  Task Scope
+                </label>
+                <div className="flex gap-2">
+                  {can("tasks.create_home") && (
+                    <button
+                      type="button"
+                      data-testid="task-scope-home"
+                      onClick={() => setForm({ ...form, scope: "home" })}
+                      className={`flex-1 py-3 rounded-2xl text-sm font-black border transition-colors ${
+                        form.scope === "home"
+                          ? "bg-rhozly-primary text-white border-rhozly-primary"
+                          : "bg-rhozly-surface-low text-rhozly-on-surface/60 border-transparent hover:border-rhozly-primary/30"
+                      }`}
+                    >
+                      Home
+                    </button>
+                  )}
+                  {can("tasks.create_personal") && (
+                    <button
+                      type="button"
+                      data-testid="task-scope-personal"
+                      onClick={() => setForm({ ...form, scope: "personal", assigned_to: currentUserId || "" })}
+                      className={`flex-1 py-3 rounded-2xl text-sm font-black border transition-colors ${
+                        form.scope === "personal"
+                          ? "bg-rhozly-primary text-white border-rhozly-primary"
+                          : "bg-rhozly-surface-low text-rhozly-on-surface/60 border-transparent hover:border-rhozly-primary/30"
+                      }`}
+                    >
+                      Personal
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {form.scope === "home" && homeMembers.length > 1 && (
+              <div className="sm:col-span-2">
+                <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-2 ml-1">
+                  Assign To (Optional)
+                </label>
+                <select
+                  data-testid="task-assigned-to"
+                  value={form.assigned_to}
+                  onChange={(e) => setForm({ ...form, assigned_to: e.target.value })}
+                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:border-rhozly-primary cursor-pointer"
+                >
+                  <option value="">Unassigned</option>
+                  {homeMembers.map((m) => (
+                    <option key={m.user_id} value={m.user_id}>
+                      {m.display_name || m.email || m.user_id}
+                      {m.user_id === currentUserId ? " (you)" : ""}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
 
             {!existingBlueprint && (
               <div className="sm:col-span-2 pt-4 border-t border-rhozly-outline/5 mt-2">

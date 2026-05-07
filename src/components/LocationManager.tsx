@@ -24,6 +24,7 @@ import toast from "react-hot-toast";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { usePermissions } from "../context/HomePermissionsContext";
 
 interface Props {
   homeId: string;
@@ -39,6 +40,7 @@ type DeleteTarget = {
 export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
   // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
+  const { can } = usePermissions();
 
   const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -262,8 +264,9 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
               Organize your spaces and growing areas.
             </p>
           </div>
-          {!isAddingLoc && (
+          {!isAddingLoc && can("locations.create") && (
             <button
+              data-testid="location-add-btn"
               onClick={() => setIsAddingLoc(true)}
               className="flex items-center gap-2 px-6 py-3 bg-rhozly-primary text-white rounded-2xl text-sm font-bold hover:bg-rhozly-primary/90 transition-all shadow-md"
             >
@@ -321,6 +324,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
               <div className="flex items-center justify-between gap-4 mb-6">
                 <input
                   value={loc.name}
+                  readOnly={!can("locations.edit")}
                   onChange={(e) =>
                     setLocations(
                       locations.map((l) =>
@@ -328,25 +332,29 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                       ),
                     )
                   }
-                  onBlur={() => handleUpdateLocationDB(loc)}
-                  className="text-2xl font-black font-display text-rhozly-on-surface bg-transparent border-b-2 border-transparent hover:border-rhozly-outline/30 focus:border-rhozly-primary focus:outline-none w-full transition-colors pb-1"
+                  onBlur={() => can("locations.edit") && handleUpdateLocationDB(loc)}
+                  className={`text-2xl font-black font-display text-rhozly-on-surface bg-transparent border-b-2 border-transparent focus:outline-none w-full transition-colors pb-1 ${can("locations.edit") ? "hover:border-rhozly-outline/30 focus:border-rhozly-primary" : "cursor-default"}`}
                 />
                 <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => toggleEnvironment(loc)}
-                    className={`min-w-[44px] min-h-[44px] px-4 py-2 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 ${!loc.is_outside ? "bg-rhozly-primary-container/30 text-rhozly-primary" : "bg-rhozly-secondary-container/40 text-rhozly-secondary"}`}
-                  >
-                    {!loc.is_outside ? <Home size={16} /> : <Sun size={16} />}
-                  </button>
-                  <button
-                    onClick={() =>
-                      setItemToDelete({ type: "location", id: loc.id })
-                    }
-                    aria-label={`Delete location: ${loc.name}`}
-                    className="min-w-[44px] min-h-[44px] p-2 text-rhozly-on-surface/40 hover:text-rhozly-error rounded-2xl flex items-center justify-center"
-                  >
-                    <Trash2 size={18} />
-                  </button>
+                  {can("locations.edit") && (
+                    <button
+                      onClick={() => toggleEnvironment(loc)}
+                      className={`min-w-[44px] min-h-[44px] px-4 py-2 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 ${!loc.is_outside ? "bg-rhozly-primary-container/30 text-rhozly-primary" : "bg-rhozly-secondary-container/40 text-rhozly-secondary"}`}
+                    >
+                      {!loc.is_outside ? <Home size={16} /> : <Sun size={16} />}
+                    </button>
+                  )}
+                  {can("locations.delete") && (
+                    <button
+                      onClick={() =>
+                        setItemToDelete({ type: "location", id: loc.id })
+                      }
+                      aria-label={`Delete location: ${loc.name}`}
+                      className="min-w-[44px] min-h-[44px] p-2 text-rhozly-on-surface/40 hover:text-rhozly-error rounded-2xl flex items-center justify-center"
+                    >
+                      <Trash2 size={18} />
+                    </button>
+                  )}
                 </div>
               </div>
 
@@ -355,12 +363,15 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                   <h4 className="text-xs font-black text-rhozly-on-surface/50 uppercase tracking-widest">
                     Areas ({loc.areas.length})
                   </h4>
-                  <button
-                    onClick={() => addArea(loc.id)}
-                    className="text-xs font-bold text-rhozly-primary bg-rhozly-primary/10 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
-                  >
-                    <Plus size={14} /> Add Area
-                  </button>
+                  {can("areas.create") && (
+                    <button
+                      data-testid="area-add-btn"
+                      onClick={() => addArea(loc.id)}
+                      className="text-xs font-bold text-rhozly-primary bg-rhozly-primary/10 px-3 py-1.5 rounded-lg flex items-center gap-1.5"
+                    >
+                      <Plus size={14} /> Add Area
+                    </button>
+                  )}
                 </div>
 
                 <div className="space-y-2">
@@ -372,6 +383,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                       <MapPin className="w-4 h-4 text-rhozly-primary/40" />
                       <input
                         value={area.name}
+                        readOnly={!can("areas.edit")}
                         onChange={(e) =>
                           setLocations(
                             locations.map((l) =>
@@ -388,29 +400,33 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                             ),
                           )
                         }
-                        onBlur={() => handleUpdateAreaDB(area)}
-                        className="flex-1 text-sm font-bold text-rhozly-on-surface bg-transparent focus:outline-none"
+                        onBlur={() => can("areas.edit") && handleUpdateAreaDB(area)}
+                        className={`flex-1 text-sm font-bold text-rhozly-on-surface bg-transparent focus:outline-none ${!can("areas.edit") ? "cursor-default" : ""}`}
                       />
                       <div className="flex gap-1 transition-opacity">
-                        <button
-                          onClick={() => setEditingArea(area)}
-                          className="min-w-[44px] min-h-[44px] p-2 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-xl flex items-center justify-center"
-                          title="Advanced Metrics"
-                        >
-                          <Settings2 size={16} />
-                        </button>
-                        <button
-                          onClick={() =>
-                            setItemToDelete({
-                              type: "area",
-                              id: area.id,
-                              locationId: loc.id,
-                            })
-                          }
-                          className="min-w-[44px] min-h-[44px] p-2 text-rhozly-on-surface/30 hover:text-rhozly-error rounded-xl flex items-center justify-center"
-                        >
-                          <Trash2 size={16} />
-                        </button>
+                        {can("areas.edit") && (
+                          <button
+                            onClick={() => setEditingArea(area)}
+                            className="min-w-[44px] min-h-[44px] p-2 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-xl flex items-center justify-center"
+                            title="Advanced Metrics"
+                          >
+                            <Settings2 size={16} />
+                          </button>
+                        )}
+                        {can("areas.delete") && (
+                          <button
+                            onClick={() =>
+                              setItemToDelete({
+                                type: "area",
+                                id: area.id,
+                                locationId: loc.id,
+                              })
+                            }
+                            className="min-w-[44px] min-h-[44px] p-2 text-rhozly-on-surface/30 hover:text-rhozly-error rounded-xl flex items-center justify-center"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))}

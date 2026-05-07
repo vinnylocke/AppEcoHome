@@ -2,6 +2,7 @@ import React, { useState, useRef, useEffect } from "react";
 import { ChevronDown, ChevronRight, MoreHorizontal, Check, RotateCcw, Pencil, Trash2, Plus } from "lucide-react";
 import type { ShoppingList, ShoppingListItem } from "../../types/shopping";
 import ShoppingListItems from "./ShoppingListItems";
+import { usePermissions } from "../../context/HomePermissionsContext";
 
 interface Props {
   list: ShoppingList;
@@ -22,6 +23,7 @@ export default function ShoppingListCard({
   onRename, onDelete, onMarkComplete, onReopen,
   onAddItem, onToggleItem, onDeleteItem,
 }: Props) {
+  const { can } = usePermissions();
   const [showMenu, setShowMenu] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(list.name);
@@ -108,13 +110,15 @@ export default function ShoppingListCard({
 
           {showMenu && (
             <div className="absolute right-0 top-8 z-30 bg-white rounded-2xl shadow-lg border border-rhozly-outline/10 py-1 w-44 overflow-hidden">
-              <button
-                onClick={() => { setIsRenaming(true); setRenameValue(list.name); setShowMenu(false); }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-rhozly-on-surface hover:bg-rhozly-surface transition-colors"
-              >
-                <Pencil size={13} /> Rename
-              </button>
-              {isCompleted ? (
+              {can("shopping.edit_items") && (
+                <button
+                  onClick={() => { setIsRenaming(true); setRenameValue(list.name); setShowMenu(false); }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-rhozly-on-surface hover:bg-rhozly-surface transition-colors"
+                >
+                  <Pencil size={13} /> Rename
+                </button>
+              )}
+              {can("shopping.edit_items") && (isCompleted ? (
                 <button
                   data-testid={`shopping-reopen-${list.id}`}
                   onClick={() => { onReopen(); setShowMenu(false); }}
@@ -130,15 +134,19 @@ export default function ShoppingListCard({
                 >
                   <Check size={13} /> Mark Complete
                 </button>
+              ))}
+              {can("shopping.delete_list") && (
+                <>
+                  <div className="border-t border-rhozly-outline/10 my-1" />
+                  <button
+                    data-testid={`shopping-delete-list-${list.id}`}
+                    onClick={() => { onDelete(); setShowMenu(false); }}
+                    className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors"
+                  >
+                    <Trash2 size={13} /> Delete
+                  </button>
+                </>
               )}
-              <div className="border-t border-rhozly-outline/10 my-1" />
-              <button
-                data-testid={`shopping-delete-list-${list.id}`}
-                onClick={() => { onDelete(); setShowMenu(false); }}
-                className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors"
-              >
-                <Trash2 size={13} /> Delete
-              </button>
             </div>
           )}
         </div>
@@ -163,7 +171,7 @@ export default function ShoppingListCard({
             onDelete={onDeleteItem}
           />
 
-          {!isCompleted && (
+          {!isCompleted && can("shopping.add_items") && (
             <button
               data-testid={`shopping-add-item-btn-${list.id}`}
               onClick={onAddItem}

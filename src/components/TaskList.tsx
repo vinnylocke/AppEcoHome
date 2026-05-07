@@ -35,6 +35,7 @@ import { scoreTaskByPlantPreferences } from "../hooks/useUserPreferences";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { logEvent, EVENT } from "../events/registry";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
+import { usePermissions } from "../context/HomePermissionsContext";
 
 interface TaskListProps {
   homeId: string;
@@ -62,9 +63,16 @@ export default function TaskList({
 }: TaskListProps) {
   const navigate = useNavigate();
   const { preferences } = usePlantDoctor();
+  const { can } = usePermissions();
 
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [scopeFilter, setScopeFilter] = useState<"all" | "home" | "mine" | "assigned">("all");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+  }, []);
   const [isUpdatingTask, setIsUpdatingTask] = useState<string | null>(null);
   const [selectedTask, setSelectedTask] = useState<any | null>(null);
   const [inventoryDict, setInventoryDict] = useState<Record<string, any>>({});
@@ -779,16 +787,23 @@ export default function TaskList({
   // JS sort is stable so equal-score tasks keep their existing relative order.
   // Must stay above the early loading return to satisfy Rules of Hooks.
   const filteredTasks = useMemo(() => {
-    const tabTasks = tasks.filter((t) =>
+    let tabTasks = tasks.filter((t) =>
       viewTab === "pending" ? t.status !== "Completed" : t.status === "Completed",
     );
+    if (scopeFilter === "home") {
+      tabTasks = tabTasks.filter((t) => t.scope === "home");
+    } else if (scopeFilter === "mine" && currentUserId) {
+      tabTasks = tabTasks.filter((t) => t.created_by === currentUserId);
+    } else if (scopeFilter === "assigned" && currentUserId) {
+      tabTasks = tabTasks.filter((t) => t.assigned_to === currentUserId);
+    }
     if (!preferences.length) return tabTasks;
     return [...tabTasks].sort((a, b) => {
       const scoreA = scoreTaskByPlantPreferences(a, inventoryDict, preferences);
       const scoreB = scoreTaskByPlantPreferences(b, inventoryDict, preferences);
       return scoreB - scoreA;
     });
-  }, [tasks, viewTab, inventoryDict, preferences]);
+  }, [tasks, viewTab, inventoryDict, preferences, scopeFilter, currentUserId]);
 
   if (loading)
     return (
@@ -818,29 +833,48 @@ export default function TaskList({
   return (
     <>
       {tasks.length > 0 && (
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4 animate-in fade-in">
-          <div className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/5">
-            <button
-              onClick={() => setViewTab("pending")}
-              className={`flex-1 px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === "pending" ? "bg-white text-rhozly-primary shadow-sm border border-rhozly-primary/10" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-            >
-              Pending ({pendingCount})
-            </button>
-            <button
-              onClick={() => setViewTab("completed")}
-              className={`flex-1 px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === "completed" ? "bg-white text-green-600 shadow-sm border border-green-100" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-            >
-              Completed ({completedCount})
-            </button>
+        <div className="flex flex-col gap-3 mb-4 animate-in fade-in">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <div className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/5">
+              <button
+                onClick={() => setViewTab("pending")}
+                className={`flex-1 px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === "pending" ? "bg-white text-rhozly-primary shadow-sm border border-rhozly-primary/10" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+              >
+                Pending ({pendingCount})
+              </button>
+              <button
+                onClick={() => setViewTab("completed")}
+                className={`flex-1 px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === "completed" ? "bg-white text-green-600 shadow-sm border border-green-100" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+              >
+                Completed ({completedCount})
+              </button>
+            </div>
+            {viewTab === "pending" && pendingCount > 0 && !isBulkEditing && (
+              <button
+                onClick={() => setIsBulkEditing(true)}
+                className="flex items-center justify-center gap-1.5 px-4 py-3 sm:py-2 bg-rhozly-surface-low rounded-xl text-xs font-black uppercase tracking-widest text-rhozly-on-surface/60 hover:text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors"
+              >
+                <ListChecks size={16} /> Bulk Edit
+              </button>
+            )}
           </div>
-          {viewTab === "pending" && pendingCount > 0 && !isBulkEditing && (
-            <button
-              onClick={() => setIsBulkEditing(true)}
-              className="flex items-center justify-center gap-1.5 px-4 py-3 sm:py-2 bg-rhozly-surface-low rounded-xl text-xs font-black uppercase tracking-widest text-rhozly-on-surface/60 hover:text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors"
-            >
-              <ListChecks size={16} /> Bulk Edit
-            </button>
-          )}
+          <div className="flex gap-1.5 flex-wrap">
+            {(["all", "home", "mine", "assigned"] as const).map((f) => {
+              const labels: Record<string, string> = { all: "All", home: "Home", mine: "Mine", assigned: "Assigned to me" };
+              if (f === "mine" && !can("tasks.create_personal")) return null;
+              if (f === "assigned" && !currentUserId) return null;
+              return (
+                <button
+                  key={f}
+                  data-testid={`task-scope-filter-${f}`}
+                  onClick={() => setScopeFilter(f)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-black transition-all ${scopeFilter === f ? "bg-rhozly-primary text-white" : "bg-rhozly-surface-low text-rhozly-on-surface/50 hover:text-rhozly-on-surface"}`}
+                >
+                  {labels[f]}
+                </button>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -1007,17 +1041,19 @@ export default function TaskList({
                 <div className="flex flex-col sm:flex-row items-center gap-2 mt-3 sm:mt-0 sm:ml-4 shrink-0">
                   {!isBulkEditing && !isCompleted && (
                     <div className="flex items-center gap-1 bg-gray-50 border border-gray-100 rounded-xl p-0.5">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setTaskToDelete(task);
-                        }}
-                        className="p-3 min-w-[44px] min-h-[44px] sm:p-2 sm:min-w-0 sm:min-h-0 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"
-                        aria-label={`Remove task: ${task.title}`}
-                        title="Remove Task"
-                      >
-                        <Trash2 size={16} />
-                      </button>
+                      {(task.created_by === currentUserId ? can("tasks.delete_own") : can("tasks.delete_any")) && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setTaskToDelete(task);
+                          }}
+                          className="p-3 min-w-[44px] min-h-[44px] sm:p-2 sm:min-w-0 sm:min-h-0 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"
+                          aria-label={`Remove task: ${task.title}`}
+                          title="Remove Task"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation();
