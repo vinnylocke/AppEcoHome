@@ -1,9 +1,8 @@
 import React from "react";
 import { useSearchParams } from "react-router-dom";
-import { Map, ShoppingCart, BarChart3 } from "lucide-react";
+import { Map, ShoppingCart } from "lucide-react";
 import PlannerDashboard from "./PlannerDashboard";
 import ShoppingLists from "./ShoppingLists";
-import GardenReports from "./GardenReports";
 
 interface Props {
   homeId: string;
@@ -14,7 +13,6 @@ interface Props {
 const TABS = [
   { id: "planner",  label: "Planner",  icon: <Map size={15} /> },
   { id: "shopping", label: "Shopping", icon: <ShoppingCart size={15} /> },
-  { id: "reports",  label: "Reports",  icon: <BarChart3 size={15} /> },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -64,9 +62,6 @@ export default function PlannerHub({ homeId, aiEnabled = false, perenualEnabled 
         )}
         {activeTab === "shopping" && (
           <ShoppingLists homeId={homeId} aiEnabled={aiEnabled} perenualEnabled={perenualEnabled} />
-        )}
-        {activeTab === "reports" && (
-          <GardenReports homeId={homeId} />
         )}
       </div>
     </div>
