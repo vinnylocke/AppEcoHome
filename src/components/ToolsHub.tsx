@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Stethoscope, LayoutTemplate, ScanLine, Sun, BookOpen, ChevronRight } from "lucide-react";
+import { Stethoscope, LayoutTemplate, ScanLine, Sun, Sunrise, BookOpen, ChevronRight } from "lucide-react";
 
 interface Tool {
   id: string;
@@ -43,6 +43,14 @@ const TOOLS: Tool[] = [
     description: "Measure light levels to find the perfect spot for each plant.",
     path: "/lightsensor",
     color: "bg-amber-50 text-amber-700 border-amber-100",
+  },
+  {
+    id: "sun-tracker",
+    icon: <Sunrise size={22} />,
+    label: "Sun Tracker",
+    description: "Point your camera at the sky to see the sun's path and garden shadow zones.",
+    path: "/sun-trajectory",
+    color: "bg-orange-50 text-orange-700 border-orange-100",
   },
   {
     id: "guides",

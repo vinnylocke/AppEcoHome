@@ -39,6 +39,7 @@ import TaskCalendar from "./components/TaskCalendar";
 import TaskList from "./components/TaskList";
 import PlantDoctor from "./components/PlantDoctor";
 import LightSensor from "./components/LightSensor";
+import SunTrajectoryAR from "./components/SunTrajectoryAR";
 import GuideList from "./components/GuideList";
 
 // 🚀 NEW: Import the Blueprint Manager
@@ -465,7 +466,7 @@ function AppShell() {
     { id: "dashboard", icon: <Home />, label: "Home",   matchPaths: ["/dashboard", "/"] },
     { id: "shed",      icon: <Database />, label: "Garden", matchPaths: ["/shed", "/watchlist"] },
     { id: "planner",   icon: <Map />, label: "Plan",    matchPaths: ["/planner", "/shopping"] },
-    { id: "tools",     icon: <Stethoscope />, label: "Tools",   matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout"] },
+    { id: "tools",     icon: <Stethoscope />, label: "Tools",   matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
   ];
 
   const canUsePortal = typeof document !== "undefined";
@@ -819,6 +820,21 @@ function AppShell() {
                                 className="animate-spin text-rhozly-primary mb-4"
                                 size={40}
                               />
+                              <p className="font-bold text-rhozly-on-surface/40 uppercase tracking-widest text-[10px]">
+                                Loading Home Data...
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      } />
+
+                      <Route path="/sun-trajectory" element={
+                        <div className="h-full animate-in fade-in duration-500">
+                          {profile?.home_id ? (
+                            <SunTrajectoryAR homeId={profile.home_id} />
+                          ) : (
+                            <div className="h-full flex flex-col items-center justify-center p-10 text-center">
+                              <Loader2 className="animate-spin text-rhozly-primary mb-4" size={40} />
                               <p className="font-bold text-rhozly-on-surface/40 uppercase tracking-widest text-[10px]">
                                 Loading Home Data...
                               </p>

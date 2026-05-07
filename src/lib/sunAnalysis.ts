@@ -139,6 +139,27 @@ export function computeSunHours(
   return { shapeId: shape.id, sunHours, classification: classify(sunHours) };
 }
 
+/**
+ * Check whether a shape's centre is in shadow at a single point in time.
+ * Used by the Sun Tracker garden panel for real-time shadow coloring.
+ */
+export function isShapeInShadowAt(
+  shape: ShapeData,
+  allShapes: ShapeData[],
+  lat: number,
+  lng: number,
+  date: Date,
+  northOffsetDeg: number,
+): boolean {
+  const pos = SunCalc.getPosition(date, lat, lng);
+  if (pos.altitude < 0.05) return true; // sun below horizon
+  const northRad = northOffsetDeg * Math.PI / 180;
+  const sceneAz = -pos.azimuth - northRad;
+  const { x: cx, z: cz } = getShapeCentre(shape);
+  const blockers = allShapes.filter(b => b.id !== shape.id && (b.extrude_m ?? 0) > 0.05);
+  return blockers.some(b => isPointInBlockerShadow(cx, cz, b, sceneAz, pos.altitude));
+}
+
 export function computeAllShapesSunHours(
   shapes: ShapeData[],
   lat: number,
