@@ -142,10 +142,18 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   useEffect(() => {
     if (!("geolocation" in navigator)) return;
     navigator.geolocation.getCurrentPosition(
-      pos => setHomeLatLng(prev => prev ?? { lat: pos.coords.latitude, lng: pos.coords.longitude }),
-      () => {} // permission denied — sun controls show a prompt instead
+      pos => {
+        setHomeLatLng(prev => {
+          if (prev != null) return prev;
+          const lat = pos.coords.latitude;
+          const lng = pos.coords.longitude;
+          supabase.from("homes").update({ lat, lng }).eq("id", homeId);
+          return { lat, lng };
+        });
+      },
+      () => {},
     );
-  }, []);
+  }, [homeId]);
 
   // Sun position — build Date from slider, call SunCalc, convert to scene azimuth
   const sunDateObj = useMemo(() => {
@@ -907,7 +915,12 @@ export default function GardenLayoutEditor({ homeId }: Props) {
             <button
               data-testid="sun-location-prompt"
               onClick={() => navigator.geolocation.getCurrentPosition(
-                pos => setHomeLatLng({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                pos => {
+                  const lat = pos.coords.latitude;
+                  const lng = pos.coords.longitude;
+                  setHomeLatLng({ lat, lng });
+                  supabase.from("homes").update({ lat, lng }).eq("id", homeId);
+                },
                 () => {}
               )}
               className="text-[10px] font-black text-amber-500 hover:text-amber-600 transition-colors shrink-0"

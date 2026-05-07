@@ -879,7 +879,7 @@ export default function SunTrajectoryAR({ homeId }: Props) {
   // Garden panel
   const [showGardenPanel, setShowGardenPanel] = useState(false);
 
-  // Fetch home lat/lng
+  // Fetch home lat/lng — fall back to geolocation and persist if not stored
   useEffect(() => {
     if (!homeId) return;
     supabase
@@ -890,6 +890,16 @@ export default function SunTrajectoryAR({ homeId }: Props) {
       .then(({ data }) => {
         if (data?.lat != null && data?.lng != null) {
           setLatLng({ lat: data.lat, lng: data.lng });
+        } else if ("geolocation" in navigator) {
+          navigator.geolocation.getCurrentPosition(
+            pos => {
+              const lat = pos.coords.latitude;
+              const lng = pos.coords.longitude;
+              setLatLng({ lat, lng });
+              supabase.from("homes").update({ lat, lng }).eq("id", homeId);
+            },
+            () => {},
+          );
         }
       });
   }, [homeId]);
@@ -898,7 +908,7 @@ export default function SunTrajectoryAR({ homeId }: Props) {
   useEffect(() => {
     let active = true;
     navigator.mediaDevices
-      .getUserMedia({ video: { facingMode: "environment" } })
+      .getUserMedia({ video: { facingMode: { ideal: "environment" } } })
       .then(stream => {
         if (!active) { stream.getTracks().forEach(t => t.stop()); return; }
         streamRef.current = stream;
@@ -1045,14 +1055,12 @@ export default function SunTrajectoryAR({ homeId }: Props) {
 
       {/* Camera + canvas */}
       <div ref={containerRef} className="relative flex-1 overflow-hidden">
-        {cameraReady && (
-          <video
-            ref={videoRef}
-            className="absolute inset-0 w-full h-full object-cover"
-            playsInline
-            muted
-          />
-        )}
+        <video
+          ref={videoRef}
+          className={`absolute inset-0 w-full h-full object-cover${cameraReady ? "" : " hidden"}`}
+          playsInline
+          muted
+        />
         {!cameraReady && !cameraError && (
           <div className="absolute inset-0 flex items-center justify-center bg-sky-900">
             <Loader2 size={32} className="animate-spin text-white/50" />
