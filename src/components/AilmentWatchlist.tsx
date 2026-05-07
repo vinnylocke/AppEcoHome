@@ -10,6 +10,7 @@ import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
 import { PerenualService } from "../lib/perenualService";
 import SmartImage from "./SmartImage";
+import MultiImageGallery from "./MultiImageGallery";
 import { ConfirmModal } from "./ConfirmModal";
 import { logEvent, EVENT } from "../events/registry";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
@@ -240,17 +241,25 @@ function AilmentDetailModal({
         {/* Header */}
         <div className="flex items-start justify-between p-6 pb-4">
           <div className="flex items-start gap-4">
-            {ailment.thumbnail_url ? (
-              <SmartImage
-                src={ailment.thumbnail_url}
-                alt={ailment.name}
-                className="w-16 h-16 rounded-2xl object-cover bg-rhozly-surface-low shrink-0"
+            <div className="relative shrink-0">
+              {ailment.thumbnail_url ? (
+                <SmartImage
+                  src={ailment.thumbnail_url}
+                  alt={ailment.name}
+                  className="w-16 h-16 rounded-2xl object-cover bg-rhozly-surface-low"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-2xl bg-rhozly-surface-low flex items-center justify-center">
+                  {meta.icon}
+                </div>
+              )}
+              <MultiImageGallery
+                query={`${ailment.name}${ailment.scientific_name ? ` ${ailment.scientific_name}` : ""} ${ailment.type}`}
+                label={ailment.name}
+                existingImageUrl={ailment.thumbnail_url}
+                triggerClassName="absolute -bottom-1 -right-1"
               />
-            ) : (
-              <div className="w-16 h-16 rounded-2xl bg-rhozly-surface-low flex items-center justify-center shrink-0">
-                {meta.icon}
-              </div>
-            )}
+            </div>
             <div>
               <h3 className="font-black text-2xl text-rhozly-on-surface leading-tight">{ailment.name}</h3>
               {ailment.scientific_name && (
@@ -1349,6 +1358,14 @@ function AilmentCard({
             {srcMeta.icon} {srcMeta.label}
           </span>
         </div>
+
+        {/* Photos button — bottom left */}
+        <MultiImageGallery
+          query={`${ailment.name}${ailment.scientific_name ? ` ${ailment.scientific_name}` : ""} ${ailment.type}`}
+          label={ailment.name}
+          existingImageUrl={ailment.thumbnail_url}
+          triggerClassName="absolute bottom-3 left-3"
+        />
 
         {/* Archive + Delete buttons — top right */}
         <div className="absolute top-4 right-4 flex gap-2">

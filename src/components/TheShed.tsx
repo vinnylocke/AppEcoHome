@@ -34,6 +34,7 @@ import { PerenualService } from "../lib/perenualService";
 import { useLocation, useSearchParams, useNavigate } from "react-router-dom";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import SmartImage from "./SmartImage";
+import MultiImageGallery from "./MultiImageGallery";
 import { useCachedShed } from "../hooks/useCachedShed";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { PlantDoctorService } from "../services/plantDoctorService";
@@ -807,6 +808,11 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                     loading="lazy" // 🚀 STOPS IMAGE BOTTLENECKING
                     decoding="async" // 🚀 STOPS MAIN THREAD FREEZING
                     className="w-full h-full object-cover"
+                  />
+                  <MultiImageGallery
+                    query={`${plant.common_name}${plant.scientific_name ? ` ${plant.scientific_name}` : ""} plant`}
+                    label={plant.common_name}
+                    existingImageUrl={plant.thumbnail_url}
                   />
                   <div className="absolute top-4 left-4">
                     <span className={`bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 shadow-sm border border-white/20 ${

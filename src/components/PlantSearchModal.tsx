@@ -14,6 +14,7 @@ import { PerenualService } from "../lib/perenualService";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import ManualPlantCreation from "./ManualPlantCreation";
+import MultiImageGallery from "./MultiImageGallery";
 
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
@@ -494,7 +495,7 @@ export default function PlantSearchModal({
                       }`}
                     >
                       <div className="flex items-center gap-4">
-                        <div className="w-16 h-16 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0">
+                        <div className="relative w-16 h-16 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0">
                           {plant.default_image?.thumbnail &&
                           !plant.default_image?.thumbnail.includes(
                             "upgrade_access",
@@ -509,6 +510,13 @@ export default function PlantSearchModal({
                               <Database size={24} />
                             </div>
                           )}
+                          <MultiImageGallery
+                            query={`${plant.common_name} ${plant.scientific_name?.[0] ?? ""} plant`}
+                            label={plant.common_name}
+                            existingImageUrl={plant.default_image?.thumbnail?.includes("upgrade_access") ? null : (plant.default_image?.thumbnail ?? null)}
+                            triggerClassName="absolute bottom-1 right-1"
+                            compact
+                          />
                         </div>
                         <div>
                           <h4 className="font-black text-lg text-rhozly-on-surface leading-tight">

@@ -10,25 +10,124 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 
-interface ImageResult {
+export interface GalleryImage {
   id: string;
   thumb_url: string;
-  small_url: string;
+  full_url: string;
   alt: string;
-  photo_page: string;
-  photographer_name: string;
-  photographer_url: string;
-  report_url: string;
+  source: "unsplash" | "pixabay" | "wikipedia" | "stored";
+  // Unsplash — required by license
+  photo_page?: string;
+  photographer_name?: string;
+  photographer_url?: string;
+  report_url?: string;
+  // Wikipedia
+  wiki_page?: string;
+  // Pixabay
+  pixabay_page?: string;
 }
 
 // ---------------------------------------------------------------------------
-// Report modal — links directly to Unsplash's DMCA / copyright report form
+// Attribution helpers — vary per source
+// ---------------------------------------------------------------------------
+function LightboxAttribution({ image }: { image: GalleryImage }) {
+  if (image.source === "unsplash" && image.photographer_name) {
+    return (
+      <p className="text-xs text-white/70">
+        Photo by{" "}
+        <a
+          href={image.photographer_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-white underline hover:text-white/90"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {image.photographer_name}
+        </a>{" "}
+        on{" "}
+        <a
+          href="https://unsplash.com?utm_source=rhozly&utm_medium=referral"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-white underline hover:text-white/90"
+          onClick={(e) => e.stopPropagation()}
+        >
+          Unsplash
+        </a>
+      </p>
+    );
+  }
+  if (image.source === "wikipedia" && image.wiki_page) {
+    return (
+      <a
+        href={image.wiki_page}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs text-white/70 underline hover:text-white/90 flex items-center gap-1"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ExternalLink size={10} /> Source: Wikipedia
+      </a>
+    );
+  }
+  if (image.source === "pixabay" && image.pixabay_page) {
+    return (
+      <a
+        href={image.pixabay_page}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-xs text-white/70 underline hover:text-white/90 flex items-center gap-1"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <ExternalLink size={10} /> via Pixabay
+      </a>
+    );
+  }
+  return null;
+}
+
+function ThumbAttribution({ image }: { image: GalleryImage }) {
+  if (image.source === "unsplash" && image.photographer_name) {
+    return (
+      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
+        <a
+          href={image.photographer_url}
+          target="_blank"
+          rel="noopener noreferrer"
+          onClick={(e) => e.stopPropagation()}
+          className="text-[10px] text-white/80 font-bold truncate block hover:text-white leading-tight"
+          title={`Photo by ${image.photographer_name} on Unsplash`}
+        >
+          {image.photographer_name}
+        </a>
+      </div>
+    );
+  }
+  if (image.source === "wikipedia") {
+    return (
+      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
+        <span className="text-[10px] text-white/70 font-bold leading-tight block">Wikipedia</span>
+      </div>
+    );
+  }
+  if (image.source === "pixabay") {
+    return (
+      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/60 to-transparent px-2 py-1.5">
+        <span className="text-[10px] text-white/70 font-bold leading-tight block">Pixabay</span>
+      </div>
+    );
+  }
+  return null;
+}
+
+// ---------------------------------------------------------------------------
+// Unsplash report modal — only relevant for Unsplash images
 // ---------------------------------------------------------------------------
 function ReportModal({
   image,
   onClose,
 }: {
-  image: ImageResult;
+  image: GalleryImage;
   onClose: () => void;
 }) {
   return createPortal(
@@ -64,13 +163,11 @@ function ReportModal({
             <X size={18} />
           </button>
         </div>
-
         <p className="text-sm text-gray-600 mb-5 leading-relaxed">
           If this image infringes copyright, is incorrectly attributed, or is
           otherwise inappropriate, you can report it directly via Unsplash's
           reporting system.
         </p>
-
         <a
           href={image.report_url}
           target="_blank"
@@ -80,9 +177,8 @@ function ReportModal({
         >
           <ExternalLink size={14} /> Report on Unsplash
         </a>
-
         <p className="text-xs text-gray-400 text-center mt-3 leading-relaxed">
-          All images are provided under the{" "}
+          All Unsplash images are provided under the{" "}
           <a
             href="https://unsplash.com/license"
             target="_blank"
@@ -91,7 +187,7 @@ function ReportModal({
           >
             Unsplash License
           </a>
-          . Thumbnails are shown for visual reference only.
+          .
         </p>
       </div>
     </div>,
@@ -100,14 +196,14 @@ function ReportModal({
 }
 
 // ---------------------------------------------------------------------------
-// Lightbox — keyboard-navigable full-size viewer with attribution
+// Lightbox — keyboard-navigable full-size viewer
 // ---------------------------------------------------------------------------
-function Lightbox({
+export function Lightbox({
   images,
   startIndex,
   onClose,
 }: {
-  images: ImageResult[];
+  images: GalleryImage[];
   startIndex: number;
   onClose: () => void;
 }) {
@@ -118,7 +214,6 @@ function Lightbox({
   const prev = () => setIdx((i) => (i > 0 ? i - 1 : images.length - 1));
   const next = () => setIdx((i) => (i < images.length - 1 ? i + 1 : 0));
 
-  // Keyboard navigation
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -129,44 +224,21 @@ function Lightbox({
     return () => window.removeEventListener("keydown", onKey);
   }, [idx]);
 
-  // Focus trap
   useEffect(() => {
     const lightbox = lightboxRef.current;
     if (!lightbox) return;
-
-    const focusableSelector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
-    const previouslyFocused = document.activeElement as HTMLElement;
-
-    const handleTabKey = (e: KeyboardEvent) => {
+    const selector = 'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])';
+    const prev = document.activeElement as HTMLElement;
+    const handleTab = (e: KeyboardEvent) => {
       if (e.key !== "Tab") return;
-
-      const focusableElements = lightbox.querySelectorAll<HTMLElement>(focusableSelector);
-      const firstElement = focusableElements[0];
-      const lastElement = focusableElements[focusableElements.length - 1];
-
-      if (e.shiftKey) {
-        if (document.activeElement === firstElement) {
-          e.preventDefault();
-          lastElement?.focus();
-        }
-      } else {
-        if (document.activeElement === lastElement) {
-          e.preventDefault();
-          firstElement?.focus();
-        }
-      }
+      const els = lightbox.querySelectorAll<HTMLElement>(selector);
+      const first = els[0], last = els[els.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last?.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first?.focus(); }
     };
-
-    const focusableElements = lightbox.querySelectorAll<HTMLElement>(focusableSelector);
-    const firstFocusable = focusableElements[0];
-
-    window.addEventListener("keydown", handleTabKey);
-    firstFocusable?.focus();
-
-    return () => {
-      window.removeEventListener("keydown", handleTabKey);
-      previouslyFocused?.focus();
-    };
+    window.addEventListener("keydown", handleTab);
+    lightbox.querySelectorAll<HTMLElement>(selector)[0]?.focus();
+    return () => { window.removeEventListener("keydown", handleTab); prev?.focus(); };
   }, []);
 
   return createPortal(
@@ -190,8 +262,8 @@ function Lightbox({
 
         {/* Image */}
         <img
-          src={image.small_url}
-          alt={image.alt || "Plant reference image"}
+          src={image.full_url}
+          alt={image.alt || "Reference image"}
           className="w-full max-h-[60vh] object-contain rounded-2xl shadow-2xl"
         />
 
@@ -215,45 +287,26 @@ function Lightbox({
           </>
         )}
 
-        {/* Attribution — Unsplash requires linking photographer + platform */}
+        {/* Attribution row */}
         <div className="mt-3 flex items-center justify-between w-full px-1">
-          <p className="text-xs text-white/70">
-            Photo by{" "}
-            <a
-              href={image.photographer_url}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white underline hover:text-white/90"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {image.photographer_name}
-            </a>{" "}
-            on{" "}
-            <a
-              href="https://unsplash.com?utm_source=rhozly&utm_medium=referral"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-white underline hover:text-white/90"
-              onClick={(e) => e.stopPropagation()}
-            >
-              Unsplash
-            </a>
-          </p>
+          <LightboxAttribution image={image} />
           <span className="text-xs text-white/40 tabular-nums shrink-0 ml-4">
             {idx + 1} / {images.length}
           </span>
         </div>
 
-        {/* Source link */}
-        <a
-          href={image.photo_page}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-2 text-xs text-white/50 hover:text-white/80 flex items-center gap-1 transition-colors"
-          onClick={(e) => e.stopPropagation()}
-        >
-          <ExternalLink size={11} /> View original on Unsplash
-        </a>
+        {/* Source link (Unsplash only) */}
+        {image.source === "unsplash" && image.photo_page && (
+          <a
+            href={image.photo_page}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mt-2 text-xs text-white/50 hover:text-white/80 flex items-center gap-1 transition-colors"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ExternalLink size={11} /> View original on Unsplash
+          </a>
+        )}
       </div>
     </div>,
     document.body,
@@ -261,115 +314,120 @@ function Lightbox({
 }
 
 // ---------------------------------------------------------------------------
-// Gallery thumbnail skeleton
+// Skeleton placeholder
 // ---------------------------------------------------------------------------
 function Skeleton() {
   return (
     <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
       {Array.from({ length: 5 }).map((_, i) => (
-        <div
-          key={i}
-          className="shrink-0 w-28 h-28 sm:w-32 sm:h-32 bg-gray-100 rounded-2xl animate-pulse"
-        />
+        <div key={i} className="shrink-0 w-28 h-28 sm:w-32 sm:h-32 bg-gray-100 rounded-2xl animate-pulse" />
       ))}
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Image thumbnail with loading state
+// Single thumbnail card
 // ---------------------------------------------------------------------------
 function ThumbnailImage({
   image,
   label,
   onClick,
-  onReport
+  onReport,
 }: {
-  image: ImageResult;
+  image: GalleryImage;
   label: string;
   onClick: () => void;
   onReport: () => void;
 }) {
-  const [imageLoaded, setImageLoaded] = useState(false);
+  const [loaded, setLoaded] = useState(false);
 
   return (
     <div
       className="group shrink-0 w-28 h-28 sm:w-32 sm:h-32 rounded-2xl overflow-hidden relative border border-gray-100 shadow-sm cursor-zoom-in"
       onClick={onClick}
     >
-      {/* Loading placeholder */}
-      {!imageLoaded && (
-        <div className="absolute inset-0 bg-gray-100 animate-pulse" />
-      )}
-
-      {/* Thumbnail */}
+      {!loaded && <div className="absolute inset-0 bg-gray-100 animate-pulse" />}
       <img
         src={image.thumb_url}
-        alt={image.alt ? `${image.alt} - ${label}` : `Reference image for ${label}`}
+        alt={image.alt ? `${image.alt} — ${label}` : `Reference image for ${label}`}
         loading="lazy"
-        onLoad={() => setImageLoaded(true)}
-        className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-105 ${
-          imageLoaded ? 'opacity-100' : 'opacity-0'
-        }`}
+        onLoad={() => setLoaded(true)}
+        className={`w-full h-full object-cover transition-all duration-300 group-hover:scale-105 ${loaded ? "opacity-100" : "opacity-0"}`}
       />
 
-      {/* Always-visible attribution strip — required by Unsplash License */}
-      <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 py-1.5">
-        <a
-          href={image.photographer_url}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="text-xs text-white/80 font-bold truncate block hover:text-white leading-tight"
-          title={`Photo by ${image.photographer_name} on Unsplash`}
-        >
-          {image.photographer_name}
-        </a>
-      </div>
+      <ThumbAttribution image={image} />
 
-      {/* Hover action buttons */}
+      {/* Action icons — top right */}
       <div className="absolute top-1.5 right-1.5 flex flex-col gap-1">
-        <a
-          href={image.photo_page}
-          target="_blank"
-          rel="noopener noreferrer"
-          onClick={(e) => e.stopPropagation()}
-          className="w-6 h-6 bg-white/90 rounded-lg flex items-center justify-center shadow-sm hover:bg-white transition-colors"
-          title="View on Unsplash"
-        >
-          <ExternalLink size={11} className="text-gray-700" />
-        </a>
-        <button
-          onClick={(e) => {
-            e.stopPropagation();
-            onReport();
-          }}
-          className="w-6 h-6 bg-white/90 rounded-lg flex items-center justify-center shadow-sm hover:bg-red-50 transition-colors"
-          title="Report this image"
-        >
-          <Flag size={11} className="text-gray-500" />
-        </button>
+        {image.source === "unsplash" && image.photo_page && (
+          <>
+            <a
+              href={image.photo_page}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="w-6 h-6 bg-white/90 rounded-lg flex items-center justify-center shadow-sm hover:bg-white transition-colors"
+              title="View on Unsplash"
+            >
+              <ExternalLink size={11} className="text-gray-700" />
+            </a>
+            <button
+              onClick={(e) => { e.stopPropagation(); onReport(); }}
+              className="w-6 h-6 bg-white/90 rounded-lg flex items-center justify-center shadow-sm hover:bg-red-50 transition-colors"
+              title="Report this image"
+            >
+              <Flag size={11} className="text-gray-500" />
+            </button>
+          </>
+        )}
+        {image.source === "wikipedia" && image.wiki_page && (
+          <a
+            href={image.wiki_page}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="w-6 h-6 bg-white/90 rounded-lg flex items-center justify-center shadow-sm hover:bg-white transition-colors"
+            title="View on Wikipedia"
+          >
+            <ExternalLink size={11} className="text-gray-700" />
+          </a>
+        )}
+        {image.source === "pixabay" && image.pixabay_page && (
+          <a
+            href={image.pixabay_page}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
+            className="w-6 h-6 bg-white/90 rounded-lg flex items-center justify-center shadow-sm hover:bg-white transition-colors"
+            title="View on Pixabay"
+          >
+            <ExternalLink size={11} className="text-gray-700" />
+          </a>
+        )}
       </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Main component
+// Main gallery component — inline strip + lightbox
 // ---------------------------------------------------------------------------
 interface Props {
-  /** Search query sent to the image API (e.g. "Monstera plant" or "Root Rot plant disease") */
+  /** Search query sent to the image API */
   query: string;
-  /** Human-readable label shown above the gallery (e.g. "Monstera Deliciosa") */
+  /** Human-readable label shown above the gallery */
   label: string;
+  /** If provided, shown as the first image in the gallery */
+  existingImageUrl?: string | null;
 }
 
-export default function DiagnosisImageGallery({ query, label }: Props) {
-  const [images, setImages] = useState<ImageResult[]>([]);
+export default function DiagnosisImageGallery({ query, label, existingImageUrl }: Props) {
+  const [images, setImages] = useState<GalleryImage[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
-  const [reportImage, setReportImage] = useState<ImageResult | null>(null);
+  const [reportImage, setReportImage] = useState<GalleryImage | null>(null);
 
   const loadImages = () => {
     if (!query) return;
@@ -379,21 +437,27 @@ export default function DiagnosisImageGallery({ query, label }: Props) {
     setImages([]);
 
     supabase.functions
-      .invoke("plant-image-search", { body: { query, count: 6 } })
+      .invoke("plant-image-search", { body: { query, count: 9 } })
       .then(({ data, error }) => {
         if (cancelled) return;
         if (!error && Array.isArray(data?.images)) {
-          setImages(data.images);
+          // Prepend the stored image if provided
+          const stored: GalleryImage[] = existingImageUrl
+            ? [{
+                id: "stored-0",
+                thumb_url: existingImageUrl,
+                full_url: existingImageUrl,
+                alt: label,
+                source: "stored",
+              }]
+            : [];
+          setImages([...stored, ...data.images]);
         } else {
           setFetchError(true);
         }
       })
-      .catch(() => {
-        if (!cancelled) setFetchError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+      .catch(() => { if (!cancelled) setFetchError(true); })
+      .finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
   };
@@ -429,11 +493,7 @@ export default function DiagnosisImageGallery({ query, label }: Props) {
           <Images size={11} /> Reference photos — {label}
         </p>
 
-        {/* Scrollable thumbnail strip */}
-        <div
-          className="flex gap-3 overflow-x-auto pb-2"
-          style={{ scrollbarWidth: "none" }}
-        >
+        <div className="flex gap-3 overflow-x-auto pb-2" style={{ scrollbarWidth: "none" }}>
           {images.map((image, i) => (
             <ThumbnailImage
               key={image.id}
@@ -445,9 +505,9 @@ export default function DiagnosisImageGallery({ query, label }: Props) {
           ))}
         </div>
 
-        {/* Platform attribution footer — required by Unsplash License */}
+        {/* Platform footer — Unsplash license requires this */}
         <p className="text-xs text-gray-400 mt-2 ml-1">
-          Thumbnails via{" "}
+          Photos via{" "}
           <a
             href="https://unsplash.com?utm_source=rhozly&utm_medium=referral"
             target="_blank"
@@ -456,7 +516,16 @@ export default function DiagnosisImageGallery({ query, label }: Props) {
           >
             Unsplash
           </a>
-          . Shown for visual reference only.
+          ,{" "}
+          <a
+            href="https://pixabay.com"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-gray-600"
+          >
+            Pixabay
+          </a>{" "}
+          &amp; Wikipedia. Shown for visual reference only.
         </p>
       </div>
 
@@ -468,11 +537,8 @@ export default function DiagnosisImageGallery({ query, label }: Props) {
         />
       )}
 
-      {reportImage && (
-        <ReportModal
-          image={reportImage}
-          onClose={() => setReportImage(null)}
-        />
+      {reportImage?.source === "unsplash" && (
+        <ReportModal image={reportImage} onClose={() => setReportImage(null)} />
       )}
     </>
   );
