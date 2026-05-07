@@ -9,9 +9,11 @@ import {
   Wand2,
   ChevronRight,
   Medal,
+  LifeBuoy,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
+import ContactSupportModal from "./ContactSupportModal";
 
 interface Props {
   displayName: string | null;
@@ -52,6 +54,7 @@ function SectionLabel({ label }: { label: string }) {
 
 export default function UserProfileDropdown({ displayName, email, isAdmin }: Props) {
   const [open, setOpen] = useState(false);
+  const [supportOpen, setSupportOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
 
@@ -80,6 +83,7 @@ export default function UserProfileDropdown({ displayName, email, isAdmin }: Pro
   ];
 
   return (
+    <>
     <div
       ref={ref}
       className="relative flex items-center gap-3 cursor-pointer select-none"
@@ -142,6 +146,22 @@ export default function UserProfileDropdown({ displayName, email, isAdmin }: Pro
               </div>
             )}
 
+            {/* Support */}
+            <div className="p-1.5 pb-0">
+              <SectionLabel label="Help" />
+              <button
+                data-testid="user-profile-contact-support"
+                onClick={(e) => { e.stopPropagation(); setOpen(false); setSupportOpen(true); }}
+                className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors group"
+              >
+                <span className="text-rhozly-on-surface/40 group-hover:text-rhozly-primary transition-colors">
+                  <LifeBuoy size={15} />
+                </span>
+                <span className="flex-1 text-left">Contact Support</span>
+                <ChevronRight size={12} className="text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50 transition-colors" />
+              </button>
+            </div>
+
             {/* Sign out */}
             <div className="border-t border-rhozly-outline/10 p-1.5 mt-1.5">
               <button
@@ -157,5 +177,14 @@ export default function UserProfileDropdown({ displayName, email, isAdmin }: Pro
         </>
       )}
     </div>
+
+    {supportOpen && (
+      <ContactSupportModal
+        defaultName={displayName}
+        defaultEmail={email}
+        onClose={() => setSupportOpen(false)}
+      />
+    )}
+    </>
   );
 }
