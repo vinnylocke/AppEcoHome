@@ -26,6 +26,9 @@ import {
   BrainCircuit,
   BookOpen,
   ShoppingCart,
+  Bug,
+  ShieldCheck,
+  Leaf,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -82,7 +85,7 @@ export default function PlantDoctor({
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   const [isGeneratingTreatment, setIsGeneratingTreatment] = useState(false);
   const [activeAction, setActiveAction] = useState<
-    "identify" | "diagnose" | null
+    "identify" | "diagnose" | "pest" | null
   >(null);
 
   const [myInventory, setMyInventory] = useState<any[]>([]);
@@ -102,6 +105,8 @@ export default function PlantDoctor({
     null,
   );
   const [selectedDisease, setSelectedDisease] = useState<string | null>(null);
+  const [selectedPest, setSelectedPest] = useState<string | null>(null);
+  const [isFetchingPestDetails, setIsFetchingPestDetails] = useState(false);
   const [sickInventoryId, setSickInventoryId] = useState<string | null>(null);
   const [isApplyingTreatment, setIsApplyingTreatment] = useState(false);
   const [treatmentApplied, setTreatmentApplied] = useState(false);
@@ -267,6 +272,7 @@ export default function PlantDoctor({
     setAiResult(null);
     setSelectedPlantName(null);
     setSelectedDisease(null);
+    setSelectedPest(null);
     setSickInventoryId(null);
     setTreatmentApplied(false);
     setCurrentSessionId(null);
@@ -275,7 +281,7 @@ export default function PlantDoctor({
   };
 
   const saveSession = async (
-    action: "identify" | "diagnose",
+    action: "identify" | "diagnose" | "pest",
     result: typeof aiResult,
     base64: string,
   ) => {
@@ -363,7 +369,7 @@ export default function PlantDoctor({
     if (newList) await handleAddToListConfirm(newList.id, items);
   };
 
-  const handleAiAction = async (action: "identify" | "diagnose") => {
+  const handleAiAction = async (action: "identify" | "diagnose" | "pest") => {
     if (!aiEnabled) return toast.error("AI features are disabled.");
     if (!selectedFile) return toast.error("Upload an image first.");
 
@@ -372,6 +378,7 @@ export default function PlantDoctor({
     setAiResult(null);
     setSelectedPlantName(null);
     setSelectedDisease(null);
+    setSelectedPest(null);
     setSickInventoryId(null);
 
     try {
@@ -379,12 +386,13 @@ export default function PlantDoctor({
       const sickPlantName = sickInventoryId
         ? myInventory.find((i) => i.id === sickInventoryId)?.plants?.common_name
         : undefined;
+      const apiAction = action === "identify" ? "identify_vision" : action === "diagnose" ? "diagnose" : "identify_pest";
       const data = await PlantDoctorService.analyzeImage({
         homeId,
         imageBase64: base64Data,
         mimeType: "image/jpeg",
-        action: action === "identify" ? "identify_vision" : "diagnose",
-        plantSearch,
+        action: apiAction,
+        plantSearch: action !== "pest" ? plantSearch : undefined,
         targetPlant: action === "diagnose" ? (sickPlantName ?? undefined) : undefined,
       });
 
@@ -392,12 +400,12 @@ export default function PlantDoctor({
       saveSession(action, data, base64Data); // fire-and-forget
       if (action === "identify") {
         logEvent(EVENT.AI_IDENTIFY, { plant_name: data?.possible_names?.[0] ?? null });
-      } else {
+      } else if (action === "diagnose") {
         logEvent(EVENT.AI_DIAGNOSE, { diagnosis: data?.possible_diseases?.[0] ?? null });
+      } else {
+        logEvent(EVENT.AI_IDENTIFY, { pest_name: data?.possible_pests?.[0] ?? null });
       }
-      toast.success(
-        `Successfully ${action === "identify" ? "identified" : "diagnosed"}!`,
-      );
+      toast.success(action === "diagnose" ? "Diagnosis complete!" : "Identification complete!");
     } catch (error: any) {
       Logger.error("Plant AI analysis failed", error, { homeId, action }, error.message || "Failed to analyze plant.");
     } finally {
@@ -431,6 +439,23 @@ export default function PlantDoctor({
     }
   };
 
+  const fetchPestDetails = async () => {
+    if (!selectedPest) return;
+    setIsFetchingPestDetails(true);
+    try {
+      const data = await PlantDoctorService.fetchPestDetails({
+        pestName: selectedPest,
+        notes: aiResult?.notes,
+      });
+      setAiResult((prev) => ({ ...prev, pestInfo: data.pestInfo }));
+      toast.success("Pest details loaded.");
+    } catch (err: any) {
+      Logger.error("Failed to fetch pest details", err, { pestName: selectedPest }, "Failed to fetch pest details.");
+    } finally {
+      setIsFetchingPestDetails(false);
+    }
+  };
+
   const generateManualCareGuide = async () => {
     if (!selectedPlantName) return;
     setIsGeneratingGuide(true);
@@ -453,7 +478,9 @@ export default function PlantDoctor({
     );
     const plantName = selectedItem?.plants?.common_name || "Unknown Plant";
 
-    const contextToUse = aiResult?.diseaseInfo
+    const contextToUse = aiResult?.pestInfo
+      ? `${aiResult.pestInfo.treatment} Prevention: ${aiResult.pestInfo.prevention}`
+      : aiResult?.diseaseInfo
       ? aiResult.diseaseInfo.solution
       : aiResult?.notes;
     if (!contextToUse) return;
@@ -597,6 +624,7 @@ export default function PlantDoctor({
     isProcessing ||
     isGeneratingGuide ||
     isFetchingDetails ||
+    isFetchingPestDetails ||
     isGeneratingTreatment ||
     isApplyingTreatment;
 
@@ -710,30 +738,48 @@ export default function PlantDoctor({
                   </p>
                 </div>
               ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="grid grid-cols-3 gap-2 sm:gap-3">
                 <button
                   onClick={() => handleAiAction("identify")}
                   disabled={isUIBusy}
-                  className={`flex items-center justify-center gap-3 p-4 rounded-2xl font-black text-lg transition-all group ${activeAction === "identify" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-white text-rhozly-primary border border-rhozly-primary/20 hover:bg-rhozly-primary/10 hover:border-rhozly-primary/40 disabled:opacity-50"}`}
+                  data-testid="doctor-btn-identify"
+                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "identify" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-white text-rhozly-primary border border-rhozly-primary/20 hover:bg-rhozly-primary/10 hover:border-rhozly-primary/40 disabled:opacity-50"}`}
                 >
                   {isProcessing && activeAction === "identify" ? (
-                    <Loader2 className="w-6 h-6 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    <Search className="w-6 h-6 group-hover:scale-110" />
-                  )}{" "}
-                  Identify Plant
+                    <Search className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  )}
+                  <span>Identify</span>
+                  <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Plant</span>
                 </button>
                 <button
                   onClick={() => handleAiAction("diagnose")}
                   disabled={isUIBusy}
-                  className={`flex items-center justify-center gap-3 p-4 rounded-2xl font-black text-lg transition-all group ${activeAction === "diagnose" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-rhozly-primary text-white hover:bg-rhozly-primary-container disabled:opacity-50"}`}
+                  data-testid="doctor-btn-diagnose"
+                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "diagnose" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-rhozly-primary text-white hover:bg-rhozly-primary-container disabled:opacity-50"}`}
                 >
                   {isProcessing && activeAction === "diagnose" ? (
-                    <Loader2 className="w-6 h-6 animate-spin" />
+                    <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    <Activity className="w-6 h-6 group-hover:scale-110" />
-                  )}{" "}
-                  Diagnose Health
+                    <Activity className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  )}
+                  <span>Diagnose</span>
+                  <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Health</span>
+                </button>
+                <button
+                  onClick={() => handleAiAction("pest")}
+                  disabled={isUIBusy}
+                  data-testid="doctor-btn-pest"
+                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "pest" ? "bg-amber-500 text-white shadow-md scale-[1.02]" : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 disabled:opacity-50"}`}
+                >
+                  {isProcessing && activeAction === "pest" ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <Bug className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  )}
+                  <span>Identify</span>
+                  <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Pest</span>
                 </button>
               </div>
               )}
@@ -890,6 +936,35 @@ export default function PlantDoctor({
                     <DiagnosisImageGallery
                       query={`${selectedDisease} plant disease`}
                       label={selectedDisease}
+                    />
+                  )}
+
+                  {aiResult.possible_pests &&
+                    aiResult.possible_pests.length > 0 &&
+                    !selectedPest &&
+                    activeAction === "pest" && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
+                        <h3 className="font-black text-rhozly-on-surface mb-4 flex items-center gap-2">
+                          <Bug size={20} className="text-amber-600" /> What do you see?
+                        </h3>
+                        <div className="space-y-2">
+                          {aiResult.possible_pests.map((name, i) => (
+                            <button
+                              key={i}
+                              onClick={() => setSelectedPest(name)}
+                              className="w-full text-left p-4 bg-white rounded-2xl border border-amber-200 font-bold hover:border-amber-400 hover:bg-amber-50 transition-all text-rhozly-on-surface"
+                            >
+                              {name}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                  {activeAction === "pest" && selectedPest && (
+                    <DiagnosisImageGallery
+                      query={`${selectedPest} garden pest insect`}
+                      label={selectedPest}
                     />
                   )}
 
@@ -1083,9 +1158,214 @@ export default function PlantDoctor({
                       </div>
                     )}
 
+                  {activeAction === "pest" &&
+                    selectedPest &&
+                    aiResult.is_pest === false && (
+                      <div className="bg-green-50 border border-green-200 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-3">
+                            <div className="w-10 h-10 bg-green-100 rounded-2xl flex items-center justify-center">
+                              <CheckCircle2 size={20} className="text-green-600" />
+                            </div>
+                            <div>
+                              <h3 className="font-black text-green-800">Beneficial Insect!</h3>
+                              <p className="text-xs font-bold text-green-600">{selectedPest}</p>
+                            </div>
+                          </div>
+                          {confirmedValue ? (
+                            <span className="flex items-center gap-1 text-xs font-black text-green-600 bg-green-100 px-2 py-1 rounded-lg">
+                              <CheckCircle2 size={12} /> Confirmed
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setSelectedPest(null)}
+                              className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-green-600 transition-colors"
+                            >
+                              <ChevronLeft size={14} /> Change
+                            </button>
+                          )}
+                        </div>
+                        {aiResult.notes && (
+                          <p className="text-sm font-medium text-green-700/80 leading-relaxed mb-3">
+                            {aiResult.notes}
+                          </p>
+                        )}
+                        <p className="text-xs font-bold text-green-700 bg-green-100 rounded-xl p-3">
+                          This is a beneficial insect — great for your garden! No treatment needed. Consider encouraging more.
+                        </p>
+                        {currentSessionId && !confirmedValue && (
+                          <button
+                            data-testid="doctor-confirm-pest"
+                            onClick={() => {
+                              setConfirmedValue(selectedPest);
+                              confirmSession(currentSessionId, selectedPest!);
+                            }}
+                            className="w-full mt-3 flex items-center justify-center gap-2 py-3 bg-green-500 text-white rounded-xl font-black text-sm hover:bg-green-600 transition-colors"
+                          >
+                            <CheckCircle2 size={16} /> Confirm identification
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                  {activeAction === "pest" &&
+                    selectedPest &&
+                    aiResult.is_pest !== false &&
+                    !aiResult.pestInfo &&
+                    !aiResult.remedial_schedules && (
+                      <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
+                        <div className="flex items-center justify-between mb-3">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <Bug size={20} className="text-amber-600" />
+                            <h3 className="font-black text-lg text-rhozly-on-surface">{selectedPest}</h3>
+                            {aiResult.pest_severity && (
+                              <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
+                                aiResult.pest_severity === "High"
+                                  ? "bg-red-100 text-red-700"
+                                  : aiResult.pest_severity === "Medium"
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-yellow-100 text-yellow-700"
+                              }`}>
+                                {aiResult.pest_severity} risk
+                              </span>
+                            )}
+                          </div>
+                          {confirmedValue ? (
+                            <span className="flex items-center gap-1 text-xs font-black text-green-600 bg-green-50 px-2 py-1 rounded-lg shrink-0">
+                              <CheckCircle2 size={12} /> Confirmed
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => setSelectedPest(null)}
+                              className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-on-surface transition-colors shrink-0"
+                            >
+                              <ChevronLeft size={14} /> Change
+                            </button>
+                          )}
+                        </div>
+                        <p className="text-sm font-bold text-rhozly-on-surface/70 mb-4">
+                          Get detailed information to build a treatment and prevention plan.
+                        </p>
+                        <button
+                          onClick={fetchPestDetails}
+                          disabled={isUIBusy}
+                          className="w-full flex items-center justify-center gap-2 py-4 bg-amber-500 text-white rounded-xl font-black shadow-sm hover:bg-amber-600 transition-colors disabled:opacity-50"
+                        >
+                          {isFetchingPestDetails ? (
+                            <Loader2 size={18} className="animate-spin" />
+                          ) : (
+                            <BrainCircuit size={18} />
+                          )}
+                          Get pest details
+                        </button>
+                        {currentSessionId && !confirmedValue && (
+                          <button
+                            data-testid="doctor-confirm-pest"
+                            onClick={() => {
+                              setConfirmedValue(selectedPest);
+                              confirmSession(currentSessionId, selectedPest!);
+                            }}
+                            className="w-full mt-2 flex items-center justify-center gap-2 py-3 bg-green-500 text-white rounded-xl font-black text-sm hover:bg-green-600 transition-colors"
+                          >
+                            <CheckCircle2 size={16} /> Confirm identification
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                  {activeAction === "pest" &&
+                    selectedPest &&
+                    aiResult.pestInfo &&
+                    !aiResult.remedial_schedules && (
+                      <div className="bg-white border border-rhozly-outline/10 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
+                        <div className="flex items-center justify-between mb-4">
+                          <p className="text-xs font-black text-amber-600 uppercase tracking-widest flex items-center gap-1">
+                            <Bug size={12} /> {selectedPest}
+                          </p>
+                          {confirmedValue ? (
+                            <span className="flex items-center gap-1 text-xs font-black text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                              <CheckCircle2 size={12} /> Confirmed
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => {
+                                setSelectedPest(null);
+                                setAiResult((prev) =>
+                                  prev ? { ...prev, pestInfo: undefined, remedial_schedules: undefined } : null,
+                                );
+                              }}
+                              className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors"
+                            >
+                              <ChevronLeft size={14} /> Change
+                            </button>
+                          )}
+                        </div>
+                        <div className="mb-6 space-y-4">
+                          <div>
+                            <h4 className="font-black text-sm text-amber-600 mb-1 uppercase tracking-widest flex items-center gap-2">
+                              <BrainCircuit size={14} /> About this pest
+                            </h4>
+                            <p className="text-sm text-rhozly-on-surface/80">{aiResult.pestInfo.description}</p>
+                          </div>
+                          <div>
+                            <h4 className="font-black text-sm text-amber-600 mb-1 uppercase tracking-widest flex items-center gap-2">
+                              <Leaf size={14} /> Affected plants
+                            </h4>
+                            <p className="text-sm text-rhozly-on-surface/80">{aiResult.pestInfo.affected_plants}</p>
+                          </div>
+                          <div>
+                            <h4 className="font-black text-sm text-amber-600 mb-1 uppercase tracking-widest flex items-center gap-2">
+                              <Stethoscope size={14} /> Treatment
+                            </h4>
+                            <p className="text-sm text-rhozly-on-surface/80">{aiResult.pestInfo.treatment}</p>
+                          </div>
+                          <div>
+                            <h4 className="font-black text-sm text-amber-600 mb-1 uppercase tracking-widest flex items-center gap-2">
+                              <ShieldCheck size={14} /> Prevention
+                            </h4>
+                            <p className="text-sm text-rhozly-on-surface/80">{aiResult.pestInfo.prevention}</p>
+                          </div>
+                        </div>
+                        <div className="space-y-3 pt-4 border-t border-rhozly-outline/10">
+                          {currentSessionId && !confirmedValue && (
+                            <button
+                              data-testid="doctor-confirm-pest"
+                              onClick={() => {
+                                setConfirmedValue(selectedPest);
+                                confirmSession(currentSessionId, selectedPest!);
+                              }}
+                              className="w-full flex items-center justify-center gap-2 py-3 bg-green-500 text-white rounded-xl font-black text-sm hover:bg-green-600 transition-colors"
+                            >
+                              <CheckCircle2 size={16} /> Confirm this identification
+                            </button>
+                          )}
+                          <label className="block text-xs font-black text-amber-600/80 uppercase tracking-widest">
+                            Select Affected Plant
+                          </label>
+                          <PlantInstancePicker
+                            items={myInventory}
+                            selectedId={sickInventoryId}
+                            onSelect={setSickInventoryId}
+                            placeholder="Select a specific planted item from your shed..."
+                          />
+                          <button
+                            onClick={generateTreatmentPlan}
+                            disabled={!sickInventoryId || isGeneratingTreatment}
+                            className="w-full py-5 bg-amber-500 text-white rounded-xl font-black text-lg shadow-lg hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                          >
+                            {isGeneratingTreatment ? (
+                              <><Loader2 size={18} className="animate-spin" /> Drafting Plan...</>
+                            ) : (
+                              <><CalendarPlus size={18} /> Generate Treatment Plan</>
+                            )}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
                   {aiResult.remedial_schedules &&
                     aiResult.remedial_schedules.length > 0 &&
-                    activeAction === "diagnose" && (
+                    (activeAction === "diagnose" || activeAction === "pest") && (
                       <div className="bg-rhozly-primary-container/5 border border-rhozly-primary-container/20 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
                         <div className="flex items-center gap-2 mb-2 text-rhozly-primary">
                           <Syringe size={20} />
@@ -1166,8 +1446,9 @@ export default function PlantDoctor({
                             data-testid="doctor-add-treatment-to-list"
                             onClick={() => {
                               const items: SuggestedItem[] = [];
-                              if (selectedDisease) {
-                                items.push({ name: `Treatment for ${selectedDisease}`, item_type: "product", category: "Pest Control" });
+                              const condition = selectedDisease || selectedPest;
+                              if (condition) {
+                                items.push({ name: `Treatment for ${condition}`, item_type: "product", category: "Pest Control" });
                               }
                               for (const s of aiResult?.remedial_schedules ?? []) {
                                 if (s.product) items.push({ name: s.product, item_type: "product", category: "Pest Control" });

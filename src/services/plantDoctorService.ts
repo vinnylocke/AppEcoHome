@@ -6,6 +6,14 @@ export interface DiseaseInfo {
   source: string;
 }
 
+export interface PestInfo {
+  description: string;
+  affected_plants: string;
+  treatment: string;
+  prevention: string;
+  source: string;
+}
+
 export interface VisionResult {
   notes?: string;
   possible_names?: string[];
@@ -13,6 +21,10 @@ export interface VisionResult {
   diseaseInfo?: DiseaseInfo;
   plantData?: any;
   remedial_schedules?: any[];
+  possible_pests?: string[];
+  is_pest?: boolean;
+  pest_severity?: "Low" | "Medium" | "High" | null;
+  pestInfo?: PestInfo;
 }
 
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
@@ -29,11 +41,18 @@ export const PlantDoctorService = {
     homeId?: string;
     imageBase64: string;
     mimeType: string;
-    action: "identify_vision" | "diagnose";
+    action: "identify_vision" | "diagnose" | "identify_pest";
     plantSearch?: string;
     targetPlant?: string;
   }): Promise<VisionResult> {
     return invoke(params);
+  },
+
+  fetchPestDetails(params: {
+    pestName: string;
+    notes?: string;
+  }): Promise<{ pestInfo?: PestInfo }> {
+    return invoke({ action: "get_ai_pest_info", pestName: params.pestName, notes: params.notes });
   },
 
   fetchDiseaseDetails(params: {

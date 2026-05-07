@@ -8,6 +8,7 @@ import {
   Loader2,
   ImageOff,
   Clock,
+  Bug,
 } from "lucide-react";
 import type { PlantDoctorSession } from "../hooks/usePlantDoctorSessions";
 
@@ -28,8 +29,11 @@ function formatDate(iso: string): string {
 function SessionCard({ session }: { session: PlantDoctorSession }) {
   const [expanded, setExpanded] = useState(false);
   const isIdentify = session.action === "identify";
+  const isPest = session.action === "pest";
   const candidates = isIdentify
     ? session.results.possible_names ?? []
+    : isPest
+    ? session.results.possible_pests ?? []
     : session.results.possible_diseases ?? [];
 
   return (
@@ -62,11 +66,13 @@ function SessionCard({ session }: { session: PlantDoctorSession }) {
                 className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
                   isIdentify
                     ? "bg-rhozly-primary/10 text-rhozly-primary"
+                    : isPest
+                    ? "bg-orange-100 text-orange-700"
                     : "bg-amber-100 text-amber-700"
                 }`}
               >
-                {isIdentify ? <Search size={9} /> : <Activity size={9} />}
-                {isIdentify ? "Identify" : "Diagnose"}
+                {isIdentify ? <Search size={9} /> : isPest ? <Bug size={9} /> : <Activity size={9} />}
+                {isIdentify ? "Identify" : isPest ? "Pest" : "Diagnose"}
               </span>
               <span className="text-[10px] font-bold text-rhozly-on-surface/40 flex items-center gap-1">
                 <Clock size={9} />
@@ -123,7 +129,7 @@ function SessionCard({ session }: { session: PlantDoctorSession }) {
           {candidates.length > 0 && (
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-2">
-                {isIdentify ? "Possible Plants" : "Possible Conditions"}
+                {isIdentify ? "Possible Plants" : isPest ? "Possible Insects / Pests" : "Possible Conditions"}
               </p>
               <div className="space-y-1.5">
                 {candidates.map((c, i) => (

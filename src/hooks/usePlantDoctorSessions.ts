@@ -5,12 +5,15 @@ export interface PlantDoctorSession {
   id: string;
   user_id: string;
   home_id: string;
-  action: "identify" | "diagnose";
+  action: "identify" | "diagnose" | "pest";
   image_path: string | null;
   results: {
     notes?: string;
     possible_names?: string[];
     possible_diseases?: string[] | null;
+    possible_pests?: string[];
+    is_pest?: boolean;
+    pest_severity?: string | null;
   };
   confirmed_value: string | null;
   confirmed_at: string | null;

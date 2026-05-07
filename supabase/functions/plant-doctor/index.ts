@@ -123,6 +123,7 @@ serve(async (req) => {
       mimeType,
       diagnosisContext,
       diseaseName,
+      pestName,
       notes,
     } = body;
 
@@ -529,6 +530,72 @@ serve(async (req) => {
           frequencyDays: t.frequency_days ?? null,
         })),
       });
+      return new Response(aiText, {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "identify_pest") {
+      if (!imageBase64) throw new Error("No image data provided.");
+      const cleanBase64 = imageBase64.replace(
+        /^data:image\/(png|jpeg|jpg|webp);base64,/,
+        "",
+      );
+
+      const promptText = `
+        Analyze this image and identify the insect or creature visible.
+        Determine whether it is a garden pest or a beneficial insect.
+
+        Return ONLY valid JSON using this exact schema:
+        {
+          "notes": "A brief 1-2 sentence observation about what you see.",
+          "possible_pests": ["Most Likely Common Name", "Alternative 1", "Alternative 2"],
+          "is_pest": true or false,
+          "pest_severity": "Low" or "Medium" or "High" or null
+        }
+
+        is_pest = true if the insect is harmful to plants (aphids, spider mites, whitefly, vine weevil, caterpillars, mealybugs, scale insects, thrips, fungus gnats, slugs, cutworms, etc.).
+        is_pest = false if beneficial (honeybee, bumblebee, ladybird/ladybug, lacewing, hoverfly, ground beetle, earthworm, parasitic wasp, etc.).
+        pest_severity: null if not a pest. Low = cosmetic damage only. Medium = can damage crops or plants. High = serious infestation threat.
+        possible_pests should always contain the top 3 most likely identifications regardless of is_pest status.
+        CRITICAL: Provide ONLY the simple common name. Do NOT include scientific names or Latin names in brackets.
+      `;
+      const contents = [
+        promptText,
+        { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } },
+      ];
+
+      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages(contents), { logContext: { action } });
+      let aiText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+      const parsed = JSON.parse(aiText);
+      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "identify_pest", usage });
+      log(FN, "result", { action, possiblePests: parsed.possible_pests ?? [], isPest: parsed.is_pest });
+      return new Response(aiText, {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "get_ai_pest_info") {
+      if (!pestName) throw new Error("Pest name is required.");
+      const promptText = `
+        Provide detailed information about the garden pest or insect: "${pestName}".
+        ${notes ? `Context from initial identification: "${notes}"` : ""}
+
+        Return ONLY valid JSON using this exact schema. Do not use markdown blocks.
+        {
+          "pestInfo": {
+            "description": "2-3 sentence description of the insect, its appearance, and how it damages plants.",
+            "affected_plants": "Which plants and crops are most vulnerable to this pest.",
+            "treatment": "Step-by-step treatment to eliminate or control the pest.",
+            "prevention": "How to prevent future infestations or encourage beneficial alternatives.",
+            "source": "ai"
+          }
+        }
+      `;
+      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages([promptText]), { logContext: { action } });
+      let aiText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "get_ai_pest_info", usage });
+      log(FN, "result", { action, pestName });
       return new Response(aiText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
