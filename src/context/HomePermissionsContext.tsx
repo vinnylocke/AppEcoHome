@@ -43,24 +43,36 @@ export function HomePermissionsProvider({ homeId, userId, children }: Props) {
     }
     setIsLoading(true);
 
-    // Fetch current user's membership row + all home members with profile
-    Promise.all([
-      supabase
-        .from("home_members")
-        .select("role, permissions")
-        .eq("home_id", homeId)
-        .eq("user_id", userId)
-        .single(),
-      supabase
-        .from("home_members")
-        .select("id, home_id, user_id, role, permissions, created_at, user_profiles(display_name, email)")
-        .eq("home_id", homeId),
-    ]).then(([myRow, allRows]) => {
+    const load = async () => {
+      const [myRow, allRows] = await Promise.all([
+        supabase
+          .from("home_members")
+          .select("role, permissions")
+          .eq("home_id", homeId)
+          .eq("user_id", userId)
+          .single(),
+        supabase
+          .from("home_members")
+          .select("id, home_id, user_id, role, permissions, created_at")
+          .eq("home_id", homeId),
+      ]);
+
       if (myRow.data) {
         setRole(myRow.data.role as Role);
         setOverrides(myRow.data.permissions ?? {});
       }
-      if (allRows.data) {
+
+      if (allRows.data && allRows.data.length > 0) {
+        const userIds = allRows.data.map((m: any) => m.user_id);
+        const { data: profiles } = await supabase
+          .from("user_profiles")
+          .select("uid, display_name, email")
+          .in("uid", userIds);
+
+        const profileMap = Object.fromEntries(
+          (profiles ?? []).map((p: any) => [p.uid, p]),
+        );
+
         const members: HomeMemberWithProfile[] = allRows.data.map((m: any) => ({
           id: m.id,
           home_id: m.home_id,
@@ -68,13 +80,16 @@ export function HomePermissionsProvider({ homeId, userId, children }: Props) {
           role: m.role,
           permissions: m.permissions ?? {},
           created_at: m.created_at,
-          display_name: m.user_profiles?.display_name ?? null,
-          email: m.user_profiles?.email ?? null,
+          display_name: profileMap[m.user_id]?.display_name ?? null,
+          email: profileMap[m.user_id]?.email ?? null,
         }));
         setHomeMembers(members);
       }
+
       setIsLoading(false);
-    });
+    };
+
+    load().catch(() => setIsLoading(false));
   }, [homeId, userId]);
 
   const permissions = useMemo<PermissionSet | null>(() => {

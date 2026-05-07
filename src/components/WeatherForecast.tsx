@@ -341,10 +341,14 @@ export default function WeatherForecast({ weatherData, alerts, homeId }: Props) 
     if (!weatherData?.daily) return [];
     const raw = weatherData.daily;
     const times: string[] = raw.time ?? [];
-    const todayIdx = times.findIndex((t) => t === today);
-    if (todayIdx < 0) return [];
-    return times.slice(todayIdx, todayIdx + 7).map((date, i) => {
-      const absIdx = todayIdx + i;
+    if (times.length === 0) return [];
+    const exactIdx = times.findIndex((t) => t === today);
+    // Fall back to nearest future date if snapshot is stale (fetched on a prior day)
+    const startIdx = exactIdx >= 0
+      ? exactIdx
+      : Math.max(0, times.findIndex((t) => t > today));
+    return times.slice(startIdx, startIdx + 7).map((date, i) => {
+      const absIdx = startIdx + i;
       return {
         date,
         maxTempC:   raw.temperature_2m_max?.[absIdx] ?? 0,
