@@ -64,6 +64,7 @@ import PlannerHub from "./components/PlannerHub";
 import ToolsHub from "./components/ToolsHub";
 import UserProfileDropdown from "./components/UserProfileDropdown";
 import NavItem from "./components/NavItem";
+import UpdateBanner from "./components/UpdateBanner";
 import {
   getMidnightTonight,
   getCachedWeatherData,
@@ -72,10 +73,14 @@ import {
   setLocationCache,
 } from "./lib/clientCache";
 
-// Force the browser to check for Service Worker updates
+// Check for SW updates on load and again each time the app comes back to the
+// foreground (catches the case where a deploy happened while the app was backgrounded).
 if ("serviceWorker" in navigator) {
   navigator.serviceWorker.ready.then((registration) => {
     registration.update();
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") registration.update();
+    });
   });
 }
 
@@ -84,6 +89,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <AppShell />
+      <UpdateBanner />
     </BrowserRouter>
   );
 }

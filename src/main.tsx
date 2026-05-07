@@ -6,10 +6,12 @@ import * as Sentry from "@sentry/react";
 
 import { registerSW } from "virtual:pwa-register";
 
-// When a new service worker activates it replaces cached JS chunks.
-// If the running app tries to lazy-load an old chunk that no longer exists
-// it gets a network error and React renders nothing.  Reload once to pick
-// up the fresh bundle — the sessionStorage flag prevents infinite loops.
+// Module-scope flag — resets on every real page load but survives
+// background/foreground cycles within the same session (unlike sessionStorage).
+// This prevents the blank-screen loop where sessionStorage's persistence
+// across foreground events caused the chunk-error reload to fire only once.
+let chunkReloading = false;
+
 function handleChunkError(msg: string) {
   if (
     msg.includes("Failed to fetch dynamically imported module") ||
@@ -17,8 +19,8 @@ function handleChunkError(msg: string) {
     msg.includes("Unable to preload CSS") ||
     msg.includes("Loading chunk")
   ) {
-    if (!sessionStorage.getItem("chunk_reload")) {
-      sessionStorage.setItem("chunk_reload", "1");
+    if (!chunkReloading) {
+      chunkReloading = true;
       window.location.reload();
     }
   }
@@ -28,14 +30,17 @@ window.addEventListener("unhandledrejection", e =>
   handleChunkError((e.reason as Error)?.message ?? ""),
 );
 
-// Auto-reload when a new SW version is waiting — keeps cached assets in sync.
-registerSW({
+// When a new SW version is waiting, dispatch an event so the UpdateBanner
+// component can show a user-facing "Reload" prompt instead of silently
+// reloading mid-session (which was disorienting and could also loop).
+const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {
-    if (!sessionStorage.getItem("sw_refresh")) {
-      sessionStorage.setItem("sw_refresh", "1");
-      window.location.reload();
-    }
+    window.dispatchEvent(
+      new CustomEvent("pwa-update-available", {
+        detail: { reload: () => updateSW(true) },
+      }),
+    );
   },
   onOfflineReady() {},
 });
