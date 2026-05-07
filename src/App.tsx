@@ -903,6 +903,9 @@ function AppShell() {
                         } />
                       )}
 
+                      {/* No-op entries for full-bleed routes handled by the sibling Routes above */}
+                      <Route path="/sun-trajectory" element={null} />
+
                       <Route path="*" element={<Navigate to="/dashboard" replace />} />
                     </Routes>
                   </div>
