@@ -7,7 +7,9 @@ import {
   Clock,
   BarChart,
   AlertTriangle,
+  Users,
 } from "lucide-react";
+import CommunityGuideReader from "./CommunityGuideReader";
 
 interface PlantGuidesTabProps {
   plantId: number;
@@ -21,6 +23,14 @@ export default function PlantGuidesTab({
   const [guides, setGuides] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [activeGuide, setActiveGuide] = useState<any | null>(null);
+  const [activeCommunityGuideId, setActiveCommunityGuideId] = useState<string | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setCurrentUserId(user.id);
+    });
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -28,6 +38,9 @@ export default function PlantGuidesTab({
     const fetchGuides = async () => {
       setIsLoading(true);
       setActiveGuide(null);
+
+      const { data: { user } } = await supabase.auth.getUser();
+      const userId = user?.id ?? null;
 
       // Fetch the plant's own labels first, then match guides that overlap
       // with [commonName, ...plantLabels] so both name-specific guides
@@ -46,19 +59,32 @@ export default function PlantGuidesTab({
       // Case-insensitive set so "strawberry" matches a plant named "Strawberry"
       const lowerTerms = new Set(matchTerms.map((t) => t.toLowerCase()));
 
-      const { data: allGuides } = await supabase
-        .from("guides")
-        .select("*")
-        .order("created_at", { ascending: false });
+      const [{ data: allGuides }, { data: communityRaw }] = await Promise.all([
+        supabase
+          .from("guides")
+          .select("*")
+          .order("created_at", { ascending: false }),
+        supabase
+          .from("community_guides")
+          .select("*, user_profiles!author_id(display_name), community_guide_stars!left(user_id)")
+          .overlaps("labels", matchTerms.map((t) => t.toLowerCase()))
+          .eq("is_draft", false),
+      ]);
 
-      const matched = (allGuides ?? []).filter((g: any) =>
+      const rhozlyMatched = (allGuides ?? []).filter((g: any) =>
         (g.labels as string[] ?? []).some((l: string) =>
           lowerTerms.has(l.toLowerCase()),
         ),
       );
 
+      // Community guides visible only if user is author or has starred
+      const communityMatched = (communityRaw ?? []).filter((g: any) =>
+        g.author_id === userId ||
+        (g.community_guide_stars ?? []).some((s: any) => s.user_id === userId)
+      ).map((g: any) => ({ ...g, _isCommunity: true }));
+
       if (!cancelled) {
-        setGuides(matched);
+        setGuides([...rhozlyMatched, ...communityMatched]);
         setIsLoading(false);
       }
     };
@@ -75,6 +101,16 @@ export default function PlantGuidesTab({
         <Loader2 className="animate-spin text-rhozly-primary mb-4" size={28} />
         <p className="text-sm font-bold">Finding relevant guides...</p>
       </div>
+    );
+  }
+
+  if (activeCommunityGuideId) {
+    return (
+      <CommunityGuideReader
+        guideId={activeCommunityGuideId}
+        currentUserId={currentUserId}
+        onBack={() => setActiveCommunityGuideId(null)}
+      />
     );
   }
 
@@ -115,18 +151,25 @@ export default function PlantGuidesTab({
       {guides.map((guide) => (
         <button
           key={guide.id}
-          data-testid={`guide-card-${guide.data?.title?.replace(/\s+/g, "-").toLowerCase()}`}
-          onClick={() => setActiveGuide(guide)}
+          data-testid={`guide-card-${(guide._isCommunity ? guide.title : guide.data?.title)?.replace(/\s+/g, "-").toLowerCase()}`}
+          onClick={() => guide._isCommunity ? setActiveCommunityGuideId(guide.id) : setActiveGuide(guide)}
           className="w-full text-left p-4 bg-rhozly-surface-low rounded-2xl border border-rhozly-outline/10 hover:border-rhozly-primary/30 hover:bg-rhozly-primary/5 transition-all group"
         >
           <div className="flex items-start justify-between gap-3">
             <div className="flex-1 min-w-0">
-              <p className="font-black text-rhozly-on-surface text-sm leading-tight truncate group-hover:text-rhozly-primary transition-colors">
-                {guide.data?.title}
-              </p>
-              {guide.data?.subtitle && (
+              <div className="flex items-center gap-2 mb-0.5">
+                <p className="font-black text-rhozly-on-surface text-sm leading-tight truncate group-hover:text-rhozly-primary transition-colors">
+                  {guide._isCommunity ? guide.title : guide.data?.title}
+                </p>
+                {guide._isCommunity && (
+                  <span className="flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-rhozly-primary/10 text-rhozly-primary shrink-0">
+                    <Users size={8} /> Community
+                  </span>
+                )}
+              </div>
+              {(guide._isCommunity ? guide.subtitle : guide.data?.subtitle) && (
                 <p className="text-xs font-bold text-rhozly-on-surface/50 mt-1 leading-snug line-clamp-2">
-                  {guide.data.subtitle}
+                  {guide._isCommunity ? guide.subtitle : guide.data?.subtitle}
                 </p>
               )}
             </div>

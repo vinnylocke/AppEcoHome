@@ -23,10 +23,12 @@ import {
   Edit3,
   Save,
   CloudRain,
+  Users,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { formatDisplayDate } from "../lib/dateUtils";
+import { usePermissions } from "../context/HomePermissionsContext";
 
 interface TaskModalProps {
   task: any;
@@ -57,6 +59,12 @@ export default function TaskModal({
   onTasksUpdated,
 }: TaskModalProps) {
   const navigate = useNavigate();
+  const { homeMembers } = usePermissions();
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+  }, []);
 
   // Local UI State
   const [showTaskInstances, setShowTaskInstances] = useState(false);
@@ -77,6 +85,8 @@ export default function TaskModal({
     location_id: task.location_id || "",
     area_id: task.area_id || "",
     plan_id: task.plan_id || "",
+    scope: (task.scope as "home" | "personal") || "home",
+    assigned_to: task.assigned_to || "",
   });
   const [dropdownOptions, setDropdownOptions] = useState({
     locations: [] as any[],
@@ -360,6 +370,10 @@ export default function TaskModal({
         location_id: editForm.location_id || null,
         area_id: editForm.area_id || null,
         plan_id: editForm.plan_id || null,
+        scope: editForm.scope,
+        assigned_to: editForm.scope === "personal"
+          ? (currentUserId || null)
+          : (editForm.assigned_to || null),
       };
 
       if (task.isGhost) {
@@ -729,6 +743,60 @@ export default function TaskModal({
                     </select>
                   </div>
 
+                  <div>
+                    <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-2 block">
+                      Scope
+                    </label>
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        data-testid="task-scope-home"
+                        onClick={() => setEditForm({ ...editForm, scope: "home" })}
+                        className={`flex-1 py-3 rounded-2xl text-sm font-black border transition-colors ${
+                          editForm.scope === "home"
+                            ? "bg-rhozly-primary text-white border-rhozly-primary"
+                            : "bg-rhozly-surface-low text-rhozly-on-surface/60 border-transparent hover:border-rhozly-primary/30"
+                        }`}
+                      >
+                        Home
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="task-scope-personal"
+                        onClick={() => setEditForm({ ...editForm, scope: "personal", assigned_to: currentUserId || "" })}
+                        className={`flex-1 py-3 rounded-2xl text-sm font-black border transition-colors ${
+                          editForm.scope === "personal"
+                            ? "bg-rhozly-primary text-white border-rhozly-primary"
+                            : "bg-rhozly-surface-low text-rhozly-on-surface/60 border-transparent hover:border-rhozly-primary/30"
+                        }`}
+                      >
+                        Personal
+                      </button>
+                    </div>
+                  </div>
+
+                  {editForm.scope === "home" && homeMembers.length > 1 && (
+                    <div>
+                      <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-1 block">
+                        Assign To (Optional)
+                      </label>
+                      <select
+                        data-testid="task-assigned-to"
+                        value={editForm.assigned_to}
+                        onChange={(e) => setEditForm({ ...editForm, assigned_to: e.target.value })}
+                        className="w-full p-3 rounded-xl border border-rhozly-outline/10 outline-none focus:border-rhozly-primary text-sm font-bold"
+                      >
+                        <option value="">Unassigned</option>
+                        {homeMembers.map((m) => (
+                          <option key={m.user_id} value={m.user_id}>
+                            {m.display_name || m.email || m.user_id}
+                            {m.user_id === currentUserId ? " (you)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+
                   <button
                     onClick={handleSaveDetails}
                     disabled={isSavingDetails}
@@ -808,6 +876,28 @@ export default function TaskModal({
                   </p>
                   <p className="text-sm font-bold text-rhozly-on-surface">
                     {task.plans?.name || "Not set"}
+                  </p>
+                </div>
+              </div>
+
+              {/* Scope / Assignee row */}
+              <div className="flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/10">
+                <div className="w-10 h-10 bg-rhozly-surface rounded-xl flex items-center justify-center text-rhozly-primary shrink-0">
+                  <Users size={16} />
+                </div>
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+                    Scope
+                  </p>
+                  <p className="text-sm font-bold text-rhozly-on-surface">
+                    {task.scope === "personal" ? "Personal" : "Home"}
+                    {task.assigned_to
+                      ? task.assigned_to === currentUserId
+                        ? " · Assigned to you"
+                        : ` · ${homeMembers.find(m => m.user_id === task.assigned_to)?.display_name || "Team member"}`
+                      : task.scope !== "personal"
+                      ? " · Unassigned"
+                      : ""}
                   </p>
                 </div>
               </div>

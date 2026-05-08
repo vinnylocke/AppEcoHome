@@ -14,8 +14,24 @@ import {
   X,
   RefreshCw,
 } from "lucide-react";
+import CommunityGuidesTab from "./CommunityGuidesTab";
+
+const GUIDE_TABS = [
+  { id: "rhozly",    label: "Rhozly Guides",   testid: "guides-tab-rhozly" },
+  { id: "community", label: "Community Guides", testid: "guides-tab-community" },
+] as const;
+
+type GuideTabId = (typeof GUIDE_TABS)[number]["id"];
 
 export default function GuideList() {
+  const [activeTab, setActiveTab] = useState<GuideTabId>("rhozly");
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user) setCurrentUserId(user.id);
+    });
+  }, []);
   const [guides, setGuides] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [fetchError, setFetchError] = useState<string | null>(null);
@@ -250,6 +266,34 @@ export default function GuideList() {
   // --- LIBRARY DIRECTORY VIEW ---
   return (
     <div className="max-w-5xl mx-auto pb-32 animate-in fade-in duration-500">
+      {/* Tab bar */}
+      <div className="flex gap-1 mb-8">
+        {GUIDE_TABS.map((tab) => {
+          const isActive = activeTab === tab.id;
+          return (
+            <button
+              key={tab.id}
+              data-testid={tab.testid}
+              onClick={() => setActiveTab(tab.id)}
+              className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all border-b-2 ${
+                isActive
+                  ? "text-rhozly-primary border-rhozly-primary bg-rhozly-primary/5"
+                  : "text-rhozly-on-surface/40 border-transparent hover:text-rhozly-on-surface/70 hover:bg-rhozly-surface-low"
+              }`}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Community tab */}
+      {activeTab === "community" && (
+        <CommunityGuidesTab currentUserId={currentUserId} />
+      )}
+
+      {/* Rhozly guides tab */}
+      {activeTab === "rhozly" && <div>
       <div className="mb-8">
         <h2 className="text-3xl font-black font-display text-rhozly-on-surface">
           Rhozly Guides
@@ -497,6 +541,7 @@ export default function GuideList() {
           })}
         </div>
       )}
+      </div>}
     </div>
   );
 }

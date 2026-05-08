@@ -4,6 +4,8 @@ import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
+import { requireAuth } from "../_shared/requireAuth.ts";
+import { enforceRateLimit } from "../_shared/rateLimit.ts";
 
 const FN = "scan-area";
 
@@ -133,6 +135,12 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
+
+    const authResult = await requireAuth(req, supabase);
+    if (authResult instanceof Response) return authResult;
+
+    const rateLimitErr = await enforceRateLimit(supabase, authResult.user.id, FN, 5);
+    if (rateLimitErr) return rateLimitErr;
 
     const guardErr = await guardAiByHome(supabase, homeId);
     if (guardErr) return guardErr;

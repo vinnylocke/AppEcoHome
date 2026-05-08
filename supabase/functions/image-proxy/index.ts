@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { requireAuth } from "../_shared/requireAuth.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,13 +13,16 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { imageUrl, plantName } = await req.json();
-    if (!imageUrl) throw new Error("No image URL provided");
-
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
+
+    const authResult = await requireAuth(req, supabase);
+    if (authResult instanceof Response) return authResult;
+
+    const { imageUrl, plantName } = await req.json();
+    if (!imageUrl) throw new Error("No image URL provided");
 
     // 1. Download the image
     const response = await fetch(imageUrl);

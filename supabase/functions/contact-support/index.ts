@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { log, error as logError } from "../_shared/logger.ts";
 import { sendEmail } from "../_shared/resend.ts";
+import { requireAuth } from "../_shared/requireAuth.ts";
+import { enforceRateLimit } from "../_shared/rateLimit.ts";
 
 const FN = "contact-support";
 
@@ -13,6 +15,17 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
+    const supabase = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+
+    const authResult = await requireAuth(req, supabase);
+    if (authResult instanceof Response) return authResult;
+
+    const rateLimitErr = await enforceRateLimit(supabase, authResult.user.id, FN, 3);
+    if (rateLimitErr) return rateLimitErr;
+
     const { name, email, message } = await req.json();
 
     if (!name || !email || !message) {

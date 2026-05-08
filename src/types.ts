@@ -5,6 +5,7 @@ export interface UserProfile {
   home_id: string | null;
   ai_enabled: boolean;
   enable_perenual: boolean;
+  subscription_tier: "sprout" | "botanist" | "sage" | "evergreen" | null;
   notification_interval_hours: number;
   created_at: string;
 }

@@ -920,3 +920,66 @@ All Page Objects are implemented. Current files in `tests/e2e/pages/`:
 | GLB-010 | ⬜ | Shape properties panel opens on shape select | Select shape → `shape-label-input` visible | ⬜ Not written |
 | GLB-011 | ⬜ | Deleting a shape removes it | `delete-shape-btn` click → shape gone from canvas | ⬜ Not written |
 | GLB-012 | ⬜ | Custom polygon tool toggles | `shape-tile-custom` → polygon mode hint visible | ⬜ Not written |
+
+---
+
+## Section 14 — Community Guides
+
+**Route:** `/guides` (Community Guides tab)
+**Components:** `GuideList.tsx`, `CommunityGuidesTab.tsx`, `CommunityGuideEditor.tsx`, `CommunityGuideReader.tsx`
+**Spec file:** `tests/e2e/specs/community-guides.spec.ts`
+**Seed dependency:** `supabase/seeds/11_community_guides.sql`
+- Guide 1: "How to Prune Tomatoes for Maximum Yield" — labels: tomato, pruning, vegetables; 1 star; 2 comments
+- Guide 2: "Deep Watering Techniques for Healthy Roots" — labels: watering, roots, soil
+
+### Stage 1 — Tab navigation (CGU-001 – CGU-004)
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| CGU-001 | ✅ | Rhozly Guides tab visible on /guides | `guides-tab-rhozly` visible | ⬜ Pending |
+| CGU-002 | ✅ | Community Guides tab visible on /guides | `guides-tab-community` visible | ⬜ Pending |
+| CGU-003 | ✅ | Clicking Community tab shows community list | `community-guides-list` visible | ⬜ Pending |
+| CGU-004 | ✅ | Write a Guide button visible on community tab | `write-guide-btn` visible | ⬜ Pending |
+
+### Stage 2 — Seeded guide display (CGU-005 – CGU-006)
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| CGU-005 | ✅ | Seeded guide 'How to Prune Tomatoes' appears in list | Text visible | ⬜ Pending |
+| CGU-006 | ✅ | Seeded guide 'Deep Watering Techniques' appears | Text visible | ⬜ Pending |
+
+### Stage 3 — Reader view (CGU-007 – CGU-010)
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| CGU-007 | ✅ | Clicking guide card opens reader (star button visible) | `community-guide-star-btn` visible | ⬜ Pending |
+| CGU-008 | ✅ | Author sees Edit guide button in reader | `community-guide-edit-btn` visible | ⬜ Pending |
+| CGU-009 | ✅ | Seeded comments visible in reader | Comment text visible | ⬜ Pending |
+| CGU-010 | ✅ | Back button returns to community list | `community-guides-list` visible | ⬜ Pending |
+
+### Stage 4 — Starring (CGU-011)
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| CGU-011 | ✅ | Star button toggles star count (star then unstar) | `community-guide-star-btn` text changes: 0 → 1 → 0 | ⬜ Pending |
+
+### Stage 5 — Comments (CGU-012)
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| CGU-012 | ✅ | Adding a comment appears in thread | Comment text visible after submit | ⬜ Pending |
+
+### Stage 6 — Authoring (CGU-013 – CGU-016)
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| CGU-013 | ✅ | Write a Guide button opens editor overlay | `community-guide-editor` visible | ⬜ Pending |
+| CGU-014 | ✅ | Editor has all required inputs | title, subtitle, labels, publish, draft inputs all visible | ⬜ Pending |
+| CGU-015 | ✅ | Publishing a guide shows it in the list | Fill title → Publish → back → guide card visible | ⬜ Pending |
+| CGU-016 | ✅ | Author sees Edit button on own guide | `community-guide-edit-btn` visible | ⬜ Pending |
+
+### Stage 7 — Draft isolation (CGU-017)
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| CGU-017 | ❌ | Draft guide not visible in public community list | Save draft → back → draft title absent from list | ⬜ Pending |

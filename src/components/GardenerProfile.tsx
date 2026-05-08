@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import { toast } from "react-hot-toast";
-import { User, Trophy, BarChart2, Save, Loader2, Lock } from "lucide-react";
+import { User, Trophy, BarChart2, Save, Loader2, Lock, Trash2, AlertTriangle, X, CheckCircle2 } from "lucide-react";
+import { TIERS, type TierId } from "../constants/tiers";
 import { useAchievements } from "../hooks/useAchievements";
 import { ACHIEVEMENTS } from "../lib/achievements";
 
@@ -10,18 +11,22 @@ interface Props {
   homeId: string;
   displayName: string | null;
   email: string | null;
+  subscriptionTier: TierId | null;
   onDisplayNameChange?: (name: string) => void;
+  onTierChange?: (tier: TierId, aiEnabled: boolean, perenualEnabled: boolean) => void;
 }
 
 type Tab = "account" | "achievements" | "stats";
 
 // ─── Account Tab ────────────────────────────────────────────────────────────
 
-function AccountTab({ userId, displayName, email, onDisplayNameChange }: {
+function AccountTab({ userId, displayName, email, subscriptionTier, onDisplayNameChange, onTierChange }: {
   userId: string;
   displayName: string | null;
   email: string | null;
+  subscriptionTier: TierId | null;
   onDisplayNameChange?: (name: string) => void;
+  onTierChange?: (tier: TierId, aiEnabled: boolean, perenualEnabled: boolean) => void;
 }) {
   const [nameValue, setNameValue] = useState(displayName ?? "");
   const [isSavingName, setIsSavingName] = useState(false);
@@ -33,6 +38,37 @@ function AccountTab({ userId, displayName, email, onDisplayNameChange }: {
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [isSavingPassword, setIsSavingPassword] = useState(false);
+
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteConfirmText, setDeleteConfirmText] = useState("");
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const [pendingTier, setPendingTier] = useState<TierId | null>(subscriptionTier);
+  const [showTierConfirmModal, setShowTierConfirmModal] = useState(false);
+  const [isSwitchingTier, setIsSwitchingTier] = useState(false);
+
+  async function confirmSwitchTier() {
+    if (!pendingTier || pendingTier === subscriptionTier) return;
+    setIsSwitchingTier(true);
+    const tier = TIERS.find((t) => t.id === pendingTier)!;
+    const { error } = await supabase
+      .from("user_profiles")
+      .update({
+        subscription_tier: tier.id,
+        ai_enabled: tier.ai_enabled,
+        enable_perenual: tier.enable_perenual,
+      })
+      .eq("uid", userId);
+    setIsSwitchingTier(false);
+    setShowTierConfirmModal(false);
+    if (error) {
+      toast.error("Failed to switch plan");
+      setPendingTier(subscriptionTier);
+    } else {
+      toast.success(`Switched to ${tier.name}`);
+      onTierChange?.(tier.id, tier.ai_enabled, tier.enable_perenual);
+    }
+  }
 
   async function saveName() {
     const trimmed = nameValue.trim();
@@ -90,6 +126,36 @@ function AccountTab({ userId, displayName, email, onDisplayNameChange }: {
       setCurrentPassword("");
       setNewPassword("");
       setConfirmPassword("");
+    }
+  }
+
+  async function deleteAccount() {
+    setIsDeleting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      const token = session?.access_token;
+      if (!token) throw new Error("No active session");
+
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const res = await fetch(`${supabaseUrl}/functions/v1/delete-account`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+          apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY,
+        },
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? "Failed to delete account");
+      }
+
+      await supabase.auth.signOut();
+    } catch (err: any) {
+      setIsDeleting(false);
+      setShowDeleteModal(false);
+      toast.error(err.message ?? "Failed to delete account");
     }
   }
 
@@ -183,6 +249,201 @@ function AccountTab({ userId, displayName, email, onDisplayNameChange }: {
           Update Password
         </button>
       </section>
+
+      {/* Plan */}
+      <section className="bg-white rounded-2xl border border-rhozly-outline/10 p-4 space-y-3">
+        <h3 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">Your Plan</h3>
+        <div className="grid grid-cols-2 gap-2">
+          {TIERS.map((tier) => {
+            const isSaved = subscriptionTier === tier.id;
+            const isSelected = pendingTier === tier.id;
+            return (
+              <button
+                key={tier.id}
+                data-testid={`plan-card-${tier.id}`}
+                onClick={() => setPendingTier(tier.id)}
+                disabled={isSwitchingTier}
+                className={`relative text-left rounded-xl border-2 p-3 transition-all disabled:opacity-60 ${
+                  isSelected
+                    ? `${tier.accentBg} ${tier.accentBorder}`
+                    : "bg-rhozly-surface/40 border-rhozly-outline/10 hover:border-rhozly-outline/30"
+                }`}
+              >
+                {isSaved && (
+                  <span className={`absolute top-2 right-2 text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${tier.accentBg} ${tier.accentText}`}>
+                    Current
+                  </span>
+                )}
+                {isSelected && !isSaved && (
+                  <CheckCircle2 size={13} className={`absolute top-2.5 right-2.5 ${tier.accentText}`} />
+                )}
+                <span className="text-lg block mb-1 mt-4">{tier.icon}</span>
+                <p className={`text-xs font-black ${isSelected ? tier.accentText : "text-rhozly-on-surface"}`}>
+                  {tier.name}
+                </p>
+                <p className="text-[10px] font-medium text-rhozly-on-surface/50 leading-snug mt-0.5">
+                  {tier.vibe}
+                </p>
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Update button — only shown when selection differs from saved tier */}
+        {pendingTier && pendingTier !== subscriptionTier && (
+          <button
+            data-testid="plan-update-btn"
+            onClick={() => setShowTierConfirmModal(true)}
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-rhozly-primary text-white text-xs font-black transition-opacity"
+          >
+            <Save size={13} />
+            Update Plan
+          </button>
+        )}
+      </section>
+
+      {/* Tier switch confirmation modal */}
+      {showTierConfirmModal && pendingTier && (() => {
+        const from = TIERS.find((t) => t.id === subscriptionTier);
+        const to = TIERS.find((t) => t.id === pendingTier)!;
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+            <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm p-6 space-y-4">
+              <div className="flex items-start justify-between">
+                <h2 className="text-sm font-black text-rhozly-on-surface">Switch to {to.name}?</h2>
+                <button
+                  onClick={() => setShowTierConfirmModal(false)}
+                  className="text-rhozly-on-surface/30 hover:text-rhozly-on-surface transition-colors"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+
+              <div className={`rounded-2xl border-2 ${to.accentBg} ${to.accentBorder} p-4`}>
+                <div className="flex items-center gap-2 mb-2">
+                  <span className="text-2xl">{to.icon}</span>
+                  <div>
+                    <p className={`text-sm font-black ${to.accentText}`}>{to.name}</p>
+                    <p className="text-[10px] font-medium text-rhozly-on-surface/60">{to.vibe}</p>
+                  </div>
+                </div>
+                <ul className="space-y-1">
+                  {to.features.map((f) => (
+                    <li key={f} className="flex items-center gap-1.5 text-[11px] font-medium text-rhozly-on-surface/70">
+                      <span className={`text-[10px] ${to.accentText}`}>✓</span>
+                      {f}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+
+              {from && (
+                <p className="text-xs text-rhozly-on-surface/50 font-medium text-center">
+                  You are currently on <span className="font-black text-rhozly-on-surface/70">{from.name}</span>.
+                  This change takes effect immediately.
+                </p>
+              )}
+
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setShowTierConfirmModal(false)}
+                  disabled={isSwitchingTier}
+                  className="flex-1 py-2.5 rounded-xl border border-rhozly-outline/20 text-xs font-black text-rhozly-on-surface/60 hover:bg-rhozly-surface transition-colors disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  data-testid="plan-confirm-btn"
+                  onClick={confirmSwitchTier}
+                  disabled={isSwitchingTier}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-white text-xs font-black disabled:opacity-50 transition-opacity bg-rhozly-primary`}
+                >
+                  {isSwitchingTier ? <Loader2 size={13} className="animate-spin" /> : null}
+                  {isSwitchingTier ? "Saving…" : `Switch to ${to.name}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Danger Zone */}
+      <section className="bg-white rounded-2xl border border-red-200 p-4 space-y-3">
+        <h3 className="text-xs font-black uppercase tracking-widest text-red-500">Danger Zone</h3>
+        <p className="text-xs text-rhozly-on-surface/60 font-medium leading-relaxed">
+          Permanently delete your account and all associated data. This cannot be undone.
+        </p>
+        <button
+          data-testid="delete-account-btn"
+          onClick={() => { setShowDeleteModal(true); setDeleteConfirmText(""); }}
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-300 text-red-600 text-xs font-black hover:bg-red-50 transition-colors"
+        >
+          <Trash2 size={13} />
+          Delete Account
+        </button>
+      </section>
+
+      {/* Delete confirmation modal */}
+      {showDeleteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-red-100 flex items-center justify-center shrink-0">
+                  <AlertTriangle size={16} className="text-red-500" />
+                </div>
+                <h2 className="text-sm font-black text-rhozly-on-surface">Delete Account</h2>
+              </div>
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                className="text-rhozly-on-surface/30 hover:text-rhozly-on-surface transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <ul className="text-xs text-rhozly-on-surface/70 font-medium space-y-1.5 pl-1">
+              <li className="flex gap-2"><span className="text-red-400 shrink-0">•</span>All your plants, tasks, locations, and plans will be deleted</li>
+              <li className="flex gap-2"><span className="text-red-400 shrink-0">•</span>Guides you've written will remain but show as "Anonymous"</li>
+              <li className="flex gap-2"><span className="text-red-400 shrink-0">•</span>If you own a home with other members, ownership passes to the next member</li>
+              <li className="flex gap-2"><span className="text-red-400 shrink-0">•</span>If you're the only member of a home, that home will be deleted</li>
+            </ul>
+
+            <div className="space-y-2">
+              <p className="text-xs font-black text-rhozly-on-surface/60 uppercase tracking-widest">
+                Type DELETE to confirm
+              </p>
+              <input
+                data-testid="delete-account-confirm-input"
+                type="text"
+                value={deleteConfirmText}
+                onChange={(e) => setDeleteConfirmText(e.target.value)}
+                placeholder="DELETE"
+                className="w-full text-sm font-bold text-rhozly-on-surface bg-rhozly-surface rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-red-400"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setShowDeleteModal(false)}
+                disabled={isDeleting}
+                className="flex-1 py-2.5 rounded-xl border border-rhozly-outline/20 text-xs font-black text-rhozly-on-surface/60 hover:bg-rhozly-surface transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                data-testid="delete-account-confirm-btn"
+                onClick={deleteAccount}
+                disabled={deleteConfirmText !== "DELETE" || isDeleting}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-red-500 text-white text-xs font-black disabled:opacity-40 transition-opacity"
+              >
+                {isDeleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                {isDeleting ? "Deleting…" : "Delete Account"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -209,7 +470,7 @@ function AchievementCard({ def, unlocked, unlockedAt, progress }: {
         {def.label}
       </p>
       <p className={`text-[10px] font-medium leading-tight ${unlocked ? "text-rhozly-on-surface/60" : "text-rhozly-on-surface/30"}`}>
-        {unlocked ? def.description : "Keep going to unlock"}
+        {def.description}
       </p>
       {unlocked && unlockedAt && (
         <p className="text-[9px] font-black uppercase tracking-widest text-rhozly-primary/60 mt-auto">
@@ -269,7 +530,7 @@ function StatsTab({ stats }: { stats: NonNullable<ReturnType<typeof useAchieveme
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export default function GardenerProfile({ userId, homeId, displayName, email, onDisplayNameChange }: Props) {
+export default function GardenerProfile({ userId, homeId, displayName, email, subscriptionTier, onDisplayNameChange, onTierChange }: Props) {
   const [tab, setTab] = useState<Tab>("account");
   const { stats, unlockedKeys, unlockedAt, isLoading } = useAchievements(userId, homeId);
 
@@ -330,7 +591,9 @@ export default function GardenerProfile({ userId, homeId, displayName, email, on
           userId={userId}
           displayName={displayName}
           email={email}
+          subscriptionTier={subscriptionTier}
           onDisplayNameChange={onDisplayNameChange}
+          onTierChange={onTierChange}
         />
       )}
 

@@ -73,13 +73,17 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
 │       │   ├── area-setup.spec.ts
 │       │   ├── garden-profile.spec.ts
 │       │   ├── guides.spec.ts
+│       │   ├── community-guides.spec.ts
 │       │   ├── watchlist.spec.ts
 │       │   ├── layout.spec.ts
 │       │   ├── lightsensor.spec.ts
 │       │   ├── visualiser.spec.ts
 │       │   ├── yield.spec.ts
 │       │   ├── lighttab.spec.ts
-│       │   └── statstab.spec.ts
+│       │   ├── statstab.spec.ts
+│       │   ├── security-auth.spec.ts
+│       │   ├── security-xss.spec.ts
+│       │   └── security-storage.spec.ts
 │       ├── pages/                # Page Object Models
 │       │   ├── AuthPage.ts
 │       │   ├── DashboardPage.ts
@@ -105,6 +109,8 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
     └── tests/
         ├── deno.json             # Deno import map (@std/assert, @shared/ alias)
         ├── setup_test.ts         # Placeholder — keeps "no tests found" error away
+        ├── rls_isolation.test.ts # Tier A — 16 cross-tenant RLS isolation tests
+        ├── edge_function_auth.test.ts # Tier B — 7 edge function auth/rate-limit tests
         ├── fixtures/
         │   ├── weatherContext.ts # makeWeatherContext() + mutators
         │   ├── patternData.ts    # makeUserEvent(), makePatternHit(), sequence builders
@@ -742,8 +748,10 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `blueprintPostponeRate.test.ts` | 6 | Blueprint postpone rate (ghost + physical task IDs) |
 | `purgeSpeciesCache.test.ts` | 5 | `purgeStaleSpeciesCache` — empty result, delete count, referenced plants preserved, custom TTL, error propagation |
 | `yield/predictYield.test.ts` | 6 | `buildYieldPrompt` — includes plant name, planted date, harvest date, no-history text, past yields, weather summary |
+| `rls_isolation.test.ts` | 16 | Cross-tenant RLS — tasks, inventory, locations, plans, blueprints, ailments, weather_alerts, community_guides, home_members, yield_records, user_profiles |
+| `edge_function_auth.test.ts` | 7 | Edge function auth — plant-doctor/contact-support/scan-area/generate-guide/image-proxy reject missing/invalid JWT; scan-area 400 on missing homeId |
 
-### E2E tests — 351 tests across 20 files (+ 13 isolation tests)
+### E2E tests — 372 tests across 23 files (+ 13 isolation tests)
 
 Tests run across up to 4 parallel workers (`fullyParallel: false` — spec files run in parallel, tests within a file run sequentially).
 
@@ -772,7 +780,13 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `lighttab.spec.ts` | 8 | Light tab (LGT-001–006): tab visible, optimal range card, Get Reading button, sensor overlay, lux element, back button; Shed plant modal (LGT-007–008): Light tab on PlantEditModal, no-data card for plant with null sunlight |
 | `statstab.spec.ts` | 7 | Stats tab (STT-001–007): tab visible, plant info shows planted date, yield count ≥ 1, pruning count ≥ 1, ailment row visible, task total visible, Tomato empty states |
 | `data-isolation.spec.ts` | 13 | **Isolation project only** — cross-home data isolation for plants, ailments, plans, blueprints, locations, tasks, inventory items |
+| `community-guides.spec.ts` | 17 | Tab visibility, guide display, reader view, star toggle, comment, publish guide, draft isolation |
+| `security-auth.spec.ts` | 8 | AUTH-001–008: unauthenticated routes redirect to /auth, sign-out invalidates session, post-logout DB query returns 0 rows |
+| `security-xss.spec.ts` | 7 | XSS-001–007: XSS payloads in task title, guide title, guide comment, guide body, location name, plan name — `window.__xss` stays undefined |
+| `security-storage.spec.ts` | 6 | STG-001–006: cross-home area-scan read blocked, alien community-guides upload blocked, alien file delete, SVG MIME rejected, oversized upload rejected, area-scans bucket is private |
 
 > **Seed note — timezone resilience:** `03_tasks_blueprints.sql` includes a "Daily Garden Check" blueprint (`freq=1`, `start_date = CURRENT_DATE - 1 day`). This ensures at least one ghost task is always visible on any date regardless of UTC/local timezone offset. Ghost task E2E tests anchor to this blueprint so they don't become flaky near midnight UTC on UTC+N machines.
 >
-> **Seed files:** 10 seed files apply in order: `00_bootstrap`, `01_locations_areas`, `02_plants_shed`, `03_tasks_blueprints`, `04_weather`, `05_planner`, `06_ailments_watchlist`, `07_guides`, `08_profile_preferences`, `09_stats`, `10_lux_readings`. `10_lux_readings.sql` seeds 3 sensor lux readings (8000, 35000, 15000 lux at different times of day) for Raised Bed A, providing E2E tests with area lux history data.
+> **Seed files:** 12 seed files apply in order: `00_bootstrap`, `01_locations_areas`, `02_plants_shed`, `03_tasks_blueprints`, `04_weather`, `05_planner`, `06_ailments_watchlist`, `07_guides`, `08_profile_preferences`, `09_stats`, `10_lux_readings`, `11_community_guides`. `11_community_guides.sql` seeds 2 published community guides (UUIDs `0000000N-0000-0000-0010-000000000001/2`) with stars and comments, used by community-guides and security E2E tests.
+
+> **RLS / edge function tests (Deno):** The integration tests in `rls_isolation.test.ts` and `edge_function_auth.test.ts` connect to the local Supabase instance and require both worker accounts to be seeded (`npm run test:seed`). They are skipped automatically if `VITE_SUPABASE_PUBLISHABLE_KEY` is not in the environment. The `npm run test:functions` command now includes `--env=.env.test` to load these vars automatically.

@@ -55,6 +55,8 @@ import PlantDoctorChat from "./components/PlantDoctorChat";
 import ErrorPage from "./components/ErrorPage";
 import GardenProfile from "./components/GardenProfile";
 import GardenerProfile from "./components/GardenerProfile";
+import TierSelection from "./components/TierSelection";
+import { type TierId } from "./constants/tiers";
 import AssistantCard from "./components/AssistantCard";
 import PlantVisualiser from "./components/PlantVisualiser";
 import GardenLayoutList from "./components/GardenLayoutList";
@@ -480,6 +482,20 @@ function AppShell() {
       />
     );
 
+  // New users who have a home but haven't picked a plan yet
+  if (profile && profile.home_id && !profile.subscription_tier)
+    return (
+      <TierSelection
+        userId={session.user.id}
+        onComplete={(tier: TierId, aiEnabled: boolean, perenualEnabled: boolean) => {
+          setProfile((prev: any) => prev
+            ? { ...prev, subscription_tier: tier, ai_enabled: aiEnabled, enable_perenual: perenualEnabled }
+            : prev
+          );
+        }}
+      />
+    );
+
   const navLinks = [
     { id: "dashboard", icon: <Home />, label: "Home",   matchPaths: ["/dashboard", "/"] },
     { id: "shed",      icon: <Database />, label: "Garden", matchPaths: ["/shed", "/watchlist"] },
@@ -838,8 +854,15 @@ function AppShell() {
                               homeId={profile.home_id}
                               displayName={profile.display_name ?? null}
                               email={session.user.email ?? null}
+                              subscriptionTier={profile.subscription_tier ?? null}
                               onDisplayNameChange={(name) =>
                                 setProfile((prev: any) => prev ? { ...prev, display_name: name } : prev)
+                              }
+                              onTierChange={(tier, aiEnabled, perenualEnabled) =>
+                                setProfile((prev: any) => prev
+                                  ? { ...prev, subscription_tier: tier, ai_enabled: aiEnabled, enable_perenual: perenualEnabled }
+                                  : prev
+                                )
                               }
                             />
                           </div>

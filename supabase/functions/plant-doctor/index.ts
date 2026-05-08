@@ -5,6 +5,8 @@ import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { loadPreferences, formatPreferencesBlock } from "../_shared/preferences.ts";
 import { guardAiByHome, guardPerenualByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
+import { requireAuth } from "../_shared/requireAuth.ts";
+import { enforceRateLimit } from "../_shared/rateLimit.ts";
 
 const FN = "plant-doctor";
 
@@ -110,6 +112,10 @@ serve(async (req) => {
 
     if (!apiKey) throw new Error("GEMINI_API_KEY is not set.");
 
+    const authResult = await requireAuth(req, supabase);
+    if (authResult instanceof Response) return authResult;
+    const callerUserId = authResult.user.id;
+
     const body = await req.json();
     const {
       action,
@@ -201,8 +207,11 @@ serve(async (req) => {
     }
 
     // -------------------------------------------------------------
-    // 2. LLM ACTIONS — guard AI tier
+    // 2. LLM ACTIONS — guard AI tier + rate limit
     // -------------------------------------------------------------
+    const rateLimitErr = await enforceRateLimit(supabase, callerUserId, FN);
+    if (rateLimitErr) return rateLimitErr;
+
     if (homeId) {
       const guardErr = await guardAiByHome(supabase, homeId);
       if (guardErr) return guardErr;

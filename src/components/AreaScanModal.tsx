@@ -216,7 +216,11 @@ export default function AreaScanModal({
 
       if (uploadError) throw uploadError;
 
-      const imageUrl = supabase.storage.from("area-scans").getPublicUrl(filePath).data.publicUrl;
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from("area-scans")
+        .createSignedUrl(filePath, 3600);
+      if (signedUrlError) throw signedUrlError;
+      const imageUrl = signedUrlData.signedUrl;
 
       // Call edge function
       setFlow("analysing");

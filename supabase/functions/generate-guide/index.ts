@@ -2,6 +2,8 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { log, error as logError } from "../_shared/logger.ts";
 import { callGeminiCascade } from "../_shared/gemini.ts";
+import { requireAuth } from "../_shared/requireAuth.ts";
+import { enforceRateLimit } from "../_shared/rateLimit.ts";
 
 const FN = "generate-guide";
 
@@ -28,6 +30,12 @@ serve(async (req) => {
       throw new Error("Missing Supabase Variables");
 
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const authResult = await requireAuth(req, supabase);
+    if (authResult instanceof Response) return authResult;
+
+    const rateLimitErr = await enforceRateLimit(supabase, authResult.user.id, FN);
+    if (rateLimitErr) return rateLimitErr;
 
     // UPDATED PROMPT: Added 'list' type and forced step-by-step breakdown
     const systemPrompt = `
