@@ -8,29 +8,29 @@ interface Props {
 
 export default function CookiePolicyModal({ onClose }: Props) {
   return createPortal(
-    <div className="fixed inset-0 z-[200] flex flex-col bg-white animate-in fade-in duration-200">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-rhozly-outline/15 shrink-0">
+    <div className="fixed inset-0 z-[200] flex flex-col bg-rhozly-bg animate-in fade-in duration-200">
+      {/* Header — matches app header */}
+      <div className="flex items-center justify-between px-5 py-4 shrink-0 bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container shadow-md">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+          <p className="text-[10px] font-black uppercase tracking-widest text-white/50">
             Rhozly
           </p>
-          <h2 className="text-base font-black text-rhozly-on-surface leading-tight">
+          <h2 className="text-base font-black text-white leading-tight">
             Cookie Policy
           </h2>
         </div>
         <button
           onClick={onClose}
-          className="p-2 rounded-xl hover:bg-rhozly-surface-low transition-colors"
+          className="p-2 rounded-xl hover:bg-white/20 transition-colors"
           aria-label="Close cookie policy"
         >
-          <X size={18} className="text-rhozly-on-surface/50" />
+          <X size={18} className="text-white/70" />
         </button>
       </div>
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-5 py-6 max-w-2xl mx-auto w-full">
-        <p className="text-[11px] font-bold text-rhozly-on-surface/40 mb-6">
+        <p className="text-[11px] font-bold text-rhozly-on-surface/40 mb-6 uppercase tracking-widest">
           Last updated: 9 May 2026
         </p>
 
@@ -44,7 +44,7 @@ export default function CookiePolicyModal({ onClose }: Props) {
         </Section>
 
         <Section title="Definitions">
-          <dl className="space-y-2">
+          <div className="bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/15 divide-y divide-rhozly-outline/10">
             <Definition term="Company">Rhozly ("we", "us", or "our").</Definition>
             <Definition term="Cookies">
               Small files placed on your computer, mobile device, or other device by a website,
@@ -56,11 +56,11 @@ export default function CookiePolicyModal({ onClose }: Props) {
             <Definition term="You">
               The individual accessing or using the Service.
             </Definition>
-          </dl>
+          </div>
         </Section>
 
         <Section title="Types of Cookies We Use">
-          <div className="space-y-4">
+          <div className="space-y-3">
             <CookieType
               name="Necessary / Essential Cookies"
               type="Session"
@@ -91,20 +91,20 @@ export default function CookiePolicyModal({ onClose }: Props) {
             intended.
           </p>
           <p className="mb-3">Browser-specific guidance:</p>
-          <ul className="space-y-1">
-            <Li>
-              <strong>Chrome:</strong> Settings → Privacy and security → Cookies and other site data
-            </Li>
-            <Li>
-              <strong>Microsoft Edge:</strong> Settings → Cookies and site permissions → Manage and delete cookies
-            </Li>
-            <Li>
-              <strong>Firefox:</strong> Settings → Privacy & Security → Cookies and Site Data
-            </Li>
-            <Li>
-              <strong>Safari:</strong> Preferences → Privacy → Manage Website Data
-            </Li>
-          </ul>
+          <div className="bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/15 divide-y divide-rhozly-outline/10">
+            <BrowserRow browser="Chrome">
+              Settings → Privacy and security → Cookies and other site data
+            </BrowserRow>
+            <BrowserRow browser="Microsoft Edge">
+              Settings → Cookies and site permissions → Manage and delete cookies
+            </BrowserRow>
+            <BrowserRow browser="Firefox">
+              Settings → Privacy &amp; Security → Cookies and Site Data
+            </BrowserRow>
+            <BrowserRow browser="Safari">
+              Preferences → Privacy → Manage Website Data
+            </BrowserRow>
+          </div>
           <p className="mt-3">
             Please note that disabling necessary cookies will prevent you from signing in or using
             the app.
@@ -120,16 +120,18 @@ export default function CookiePolicyModal({ onClose }: Props) {
         </Section>
 
         <Section title="Contact Us">
-          <p>
-            If you have questions about our use of cookies, please contact us at{" "}
-            <a
-              href="mailto:privacy@rhozly.com"
-              className="text-rhozly-primary font-bold underline underline-offset-2"
-            >
-              privacy@rhozly.com
-            </a>
-            .
-          </p>
+          <div className="bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/15 p-4">
+            <p>
+              If you have questions about our use of cookies, please contact us at{" "}
+              <a
+                href="mailto:privacy@rhozly.com"
+                className="text-rhozly-primary font-bold underline underline-offset-2"
+              >
+                privacy@rhozly.com
+              </a>
+              .
+            </p>
+          </div>
         </Section>
 
         <div className="h-8" />
@@ -142,7 +144,10 @@ export default function CookiePolicyModal({ onClose }: Props) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-6">
-      <h3 className="text-sm font-black text-rhozly-on-surface mb-2">{title}</h3>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-1 h-4 rounded-full bg-rhozly-primary shrink-0" />
+        <h3 className="text-sm font-black text-rhozly-on-surface uppercase tracking-widest">{title}</h3>
+      </div>
       <div className="text-[13px] font-medium text-rhozly-on-surface/70 leading-relaxed space-y-2">
         {children}
       </div>
@@ -152,9 +157,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Definition({ term, children }: { term: string; children: React.ReactNode }) {
   return (
-    <div className="flex gap-2">
-      <dt className="font-black text-rhozly-on-surface shrink-0">{term}:</dt>
-      <dd>{children}</dd>
+    <div className="flex gap-3 px-4 py-3">
+      <dt className="font-black text-rhozly-on-surface shrink-0 text-[13px]">{term}:</dt>
+      <dd className="text-[13px] font-medium text-rhozly-on-surface/60">{children}</dd>
     </div>
   );
 }
@@ -171,14 +176,14 @@ function CookieType({
   children: React.ReactNode;
 }) {
   return (
-    <div className="p-3 rounded-xl bg-rhozly-surface-low border border-rhozly-outline/10">
-      <p className="font-black text-rhozly-on-surface text-[13px] mb-1">{name}</p>
-      <div className="flex gap-3 mb-2">
-        <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
-          Type: {type}
+    <div className="bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/15 p-4">
+      <p className="font-black text-rhozly-on-surface text-[13px] mb-2">{name}</p>
+      <div className="flex gap-2 mb-3">
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-rhozly-primary/8 text-rhozly-primary border border-rhozly-primary/15">
+          {type}
         </span>
-        <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
-          By: {administered}
+        <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-widest bg-rhozly-primary/8 text-rhozly-primary border border-rhozly-primary/15">
+          {administered}
         </span>
       </div>
       <p className="text-[12px] font-medium text-rhozly-on-surface/60 leading-relaxed">
@@ -188,10 +193,19 @@ function CookieType({
   );
 }
 
+function BrowserRow({ browser, children }: { browser: string; children: React.ReactNode }) {
+  return (
+    <div className="flex gap-3 px-4 py-3">
+      <span className="font-black text-rhozly-on-surface shrink-0 text-[13px]">{browser}:</span>
+      <span className="text-[13px] font-medium text-rhozly-on-surface/60">{children}</span>
+    </div>
+  );
+}
+
 function Li({ children }: { children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-2">
-      <span className="text-rhozly-primary shrink-0 mt-0.5">•</span>
+      <span className="w-1.5 h-1.5 rounded-full bg-rhozly-primary shrink-0 mt-1.5" />
       <span>{children}</span>
     </li>
   );

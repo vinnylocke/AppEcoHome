@@ -8,29 +8,29 @@ interface Props {
 
 export default function PrivacyPolicyModal({ onClose }: Props) {
   return createPortal(
-    <div className="fixed inset-0 z-[200] flex flex-col bg-white animate-in fade-in duration-200">
-      {/* Header */}
-      <div className="flex items-center justify-between px-5 py-4 border-b border-rhozly-outline/15 shrink-0">
+    <div className="fixed inset-0 z-[200] flex flex-col bg-rhozly-bg animate-in fade-in duration-200">
+      {/* Header — matches app header */}
+      <div className="flex items-center justify-between px-5 py-4 shrink-0 bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container shadow-md">
         <div>
-          <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+          <p className="text-[10px] font-black uppercase tracking-widest text-white/50">
             Rhozly
           </p>
-          <h2 className="text-base font-black text-rhozly-on-surface leading-tight">
+          <h2 className="text-base font-black text-white leading-tight">
             Privacy Policy
           </h2>
         </div>
         <button
           onClick={onClose}
-          className="p-2 rounded-xl hover:bg-rhozly-surface-low transition-colors"
+          className="p-2 rounded-xl hover:bg-white/20 transition-colors"
           aria-label="Close privacy policy"
         >
-          <X size={18} className="text-rhozly-on-surface/50" />
+          <X size={18} className="text-white/70" />
         </button>
       </div>
 
       {/* Scrollable content */}
       <div className="flex-1 overflow-y-auto px-5 py-6 max-w-2xl mx-auto w-full">
-        <p className="text-[11px] font-bold text-rhozly-on-surface/40 mb-6">
+        <p className="text-[11px] font-bold text-rhozly-on-surface/40 mb-6 uppercase tracking-widest">
           Last updated: 9 May 2026
         </p>
 
@@ -43,29 +43,29 @@ export default function PrivacyPolicyModal({ onClose }: Props) {
         </Section>
 
         <Section title="Definitions">
-          <dl className="space-y-2">
+          <div className="bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/15 divide-y divide-rhozly-outline/10">
             <Definition term="Account">Your unique access point to the Service.</Definition>
             <Definition term="Company">Rhozly, based in the United Kingdom.</Definition>
             <Definition term="Personal Data">Information relating to an identified or identifiable individual.</Definition>
             <Definition term="Usage Data">Information collected automatically when you use the Service.</Definition>
             <Definition term="Service Provider">Third parties that process data on our behalf.</Definition>
-          </dl>
+          </div>
         </Section>
 
         <Section title="Data We Collect">
           <p className="mb-3">We may collect the following personal data:</p>
-          <ul className="space-y-1">
+          <ul className="space-y-1 mb-3">
             <Li>Email address</Li>
             <Li>First and last name</Li>
             <Li>Home address and location information</Li>
           </ul>
-          <p className="mt-3 mb-3">Usage data collected automatically includes:</p>
-          <ul className="space-y-1">
+          <p className="mb-3">Usage data collected automatically includes:</p>
+          <ul className="space-y-1 mb-3">
             <Li>IP address and browser information</Li>
             <Li>Pages visited and time spent in the app</Li>
             <Li>Device identifiers and mobile device information</Li>
           </ul>
-          <p className="mt-3 mb-3">With your permission, the app may also access:</p>
+          <p className="mb-3">With your permission, the app may also access:</p>
           <ul className="space-y-1">
             <Li>Location (for weather and garden planning features)</Li>
             <Li>Camera and photos (for plant identification and area scanning)</Li>
@@ -148,16 +148,18 @@ export default function PrivacyPolicyModal({ onClose }: Props) {
         </Section>
 
         <Section title="Contact Us">
-          <p>
-            Questions or concerns about this policy? Please contact us at{" "}
-            <a
-              href="mailto:privacy@rhozly.com"
-              className="text-rhozly-primary font-bold underline underline-offset-2"
-            >
-              privacy@rhozly.com
-            </a>
-            .
-          </p>
+          <div className="bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/15 p-4">
+            <p>
+              Questions or concerns about this policy? Please contact us at{" "}
+              <a
+                href="mailto:privacy@rhozly.com"
+                className="text-rhozly-primary font-bold underline underline-offset-2"
+              >
+                privacy@rhozly.com
+              </a>
+              .
+            </p>
+          </div>
         </Section>
 
         <div className="h-8" />
@@ -170,7 +172,10 @@ export default function PrivacyPolicyModal({ onClose }: Props) {
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <div className="mb-6">
-      <h3 className="text-sm font-black text-rhozly-on-surface mb-2">{title}</h3>
+      <div className="flex items-center gap-2 mb-3">
+        <span className="w-1 h-4 rounded-full bg-rhozly-primary shrink-0" />
+        <h3 className="text-sm font-black text-rhozly-on-surface uppercase tracking-widest">{title}</h3>
+      </div>
       <div className="text-[13px] font-medium text-rhozly-on-surface/70 leading-relaxed space-y-2">
         {children}
       </div>
@@ -180,9 +185,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 
 function Definition({ term, children }: { term: string; children: React.ReactNode }) {
   return (
-    <div className="flex gap-2">
-      <dt className="font-black text-rhozly-on-surface shrink-0">{term}:</dt>
-      <dd>{children}</dd>
+    <div className="flex gap-3 px-4 py-3">
+      <dt className="font-black text-rhozly-on-surface shrink-0 text-[13px]">{term}:</dt>
+      <dd className="text-[13px] font-medium text-rhozly-on-surface/60">{children}</dd>
     </div>
   );
 }
@@ -190,7 +195,7 @@ function Definition({ term, children }: { term: string; children: React.ReactNod
 function Li({ children }: { children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-2">
-      <span className="text-rhozly-primary shrink-0 mt-0.5">•</span>
+      <span className="w-1.5 h-1.5 rounded-full bg-rhozly-primary shrink-0 mt-1.5" />
       <span>{children}</span>
     </li>
   );
