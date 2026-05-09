@@ -325,20 +325,39 @@ export default function SpriteWizardModal({ plants, homeId, onComplete, onClose 
     if (!url) return;
     setPhase("removing-bg");
     setBgProgress(0);
-    setBgLabel("Preparing…");
+    setBgLabel("Fetching image…");
+
+    let sourceObjUrl: string | null = null;
     try {
-      const blob = await removeBackground(url, {
+      // Fetch the image into a local blob first. Passing a remote URL directly to
+      // removeBackground causes a CORS-tainted canvas → blank transparent output.
+      // A same-origin blob: URL bypasses that entirely.
+      if (!url.startsWith("blob:")) {
+        const res = await fetch(url, { mode: "cors" });
+        if (!res.ok) throw new Error(`Image fetch failed (${res.status})`);
+        const imgBlob = await res.blob();
+        sourceObjUrl = URL.createObjectURL(imgBlob);
+      } else {
+        sourceObjUrl = url;
+      }
+
+      setBgLabel("Preparing…");
+      const blob = await removeBackground(sourceObjUrl, {
         progress: (key: string, current: number, total: number) => {
           setBgLabel(key);
           if (total > 0) setBgProgress(Math.round((current / total) * 100));
         },
       } as any);
+
+      if (!url.startsWith("blob:") && sourceObjUrl) URL.revokeObjectURL(sourceObjUrl);
+
       const objUrl = URL.createObjectURL(blob);
       setProcessedBlob(blob);
       setProcessedObjUrl(objUrl);
       processedObjUrlRef.current = objUrl;
       setPhase("confirming");
     } catch (err: any) {
+      if (!url.startsWith("blob:") && sourceObjUrl) URL.revokeObjectURL(sourceObjUrl);
       console.error("[Sprite Wizard] Background removal error:", err);
       toast.error("Background removal failed. Try a different image.");
       setPhase("picking");
