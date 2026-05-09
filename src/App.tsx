@@ -68,6 +68,7 @@ import ToolsHub from "./components/ToolsHub";
 import UserProfileDropdown from "./components/UserProfileDropdown";
 import NavItem from "./components/NavItem";
 import UpdateBanner from "./components/UpdateBanner";
+import PrivacyPolicyModal from "./components/PrivacyPolicyModal";
 import {
   getMidnightTonight,
   getCachedWeatherData,
@@ -150,6 +151,7 @@ function AppShell() {
 
   // Mobile Nav State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   useEffect(() => {
     const handleDeepLink = async () => {
@@ -554,19 +556,27 @@ function AppShell() {
 
             <div className="flex flex-1 overflow-hidden relative z-10 w-full">
               <nav
-                className={`hidden md:flex flex-col justify-start p-6 gap-2 transition-all duration-300 border-r border-rhozly-primary/20 bg-rhozly-primary-container ${isNavCollapsed ? "w-28 items-center" : "w-72"}`}
+                className={`hidden md:flex flex-col justify-between p-6 transition-all duration-300 border-r border-rhozly-primary/20 bg-rhozly-primary-container ${isNavCollapsed ? "w-28 items-center" : "w-72"}`}
               >
-                {navLinks.map((link) => (
-                  <NavItem
-                    key={link.id}
-                    icon={link.icon}
-                    label={link.label}
-                    active={link.matchPaths.some(p => routerLocation.pathname === p || routerLocation.pathname.startsWith(p + "/"))}
-                    onClick={() => navigate(TAB_URL[link.id])}
-                    isCollapsed={isNavCollapsed}
-                    isMobile={false}
-                  />
-                ))}
+                <div className="flex flex-col gap-2">
+                  {navLinks.map((link) => (
+                    <NavItem
+                      key={link.id}
+                      icon={link.icon}
+                      label={link.label}
+                      active={link.matchPaths.some(p => routerLocation.pathname === p || routerLocation.pathname.startsWith(p + "/"))}
+                      onClick={() => navigate(TAB_URL[link.id])}
+                      isCollapsed={isNavCollapsed}
+                      isMobile={false}
+                    />
+                  ))}
+                </div>
+                <button
+                  onClick={() => setShowPrivacy(true)}
+                  className="text-[10px] font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center mt-4"
+                >
+                  {isNavCollapsed ? "Privacy" : "Privacy Policy"}
+                </button>
               </nav>
 
               <main className="flex-1 relative w-full overflow-hidden">
@@ -980,6 +990,12 @@ function AppShell() {
                       isMobile={true}
                     />
                   ))}
+                  <button
+                    onClick={() => { setShowPrivacy(true); setIsMobileMenuOpen(false); }}
+                    className="text-[10px] font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center pt-1 pb-0.5"
+                  >
+                    Privacy Policy
+                  </button>
                 </nav>
 
                 <button
@@ -995,6 +1011,7 @@ function AppShell() {
               </div>,
               document.body,
             )}
+      {showPrivacy && <PrivacyPolicyModal onClose={() => setShowPrivacy(false)} />}
       </Sentry.ErrorBoundary>
     </PlantDoctorProvider>
   </HomeRealtimeProvider>

@@ -1,4 +1,5 @@
 import React, { useState, useRef } from "react";
+import PrivacyPolicyModal from "./PrivacyPolicyModal";
 import { supabase } from "../lib/supabase";
 import { Sprout, Mail, Lock, Loader2, ArrowRight } from "lucide-react";
 import { motion } from "framer-motion";
@@ -20,6 +21,7 @@ export const Auth: React.FC = () => {
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isForgotPassword, setIsForgotPassword] = useState(false);
   const [forgotPasswordSent, setForgotPasswordSent] = useState(false);
+  const [showPrivacy, setShowPrivacy] = useState(false);
 
   // Refs for focus management
   const firstNameRef = useRef<HTMLInputElement>(null);
@@ -654,8 +656,17 @@ export const Auth: React.FC = () => {
               {isSignUp ? "Sign In" : "Create Account"}
             </button>
           </p>
+          <button
+            onClick={() => setShowPrivacy(true)}
+            className="mt-3 text-[11px] font-bold opacity-40 hover:opacity-70 transition-opacity underline underline-offset-2"
+            style={{ color: theme.colors.onSurface }}
+          >
+            Privacy Policy
+          </button>
         </div>
       </main>
+
+      {showPrivacy && <PrivacyPolicyModal onClose={() => setShowPrivacy(false)} />}
     </div>
   );
 };
