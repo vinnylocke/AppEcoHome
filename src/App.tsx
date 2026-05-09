@@ -69,6 +69,7 @@ import UserProfileDropdown from "./components/UserProfileDropdown";
 import NavItem from "./components/NavItem";
 import UpdateBanner from "./components/UpdateBanner";
 import PrivacyPolicyModal from "./components/PrivacyPolicyModal";
+import CookiePolicyModal from "./components/CookiePolicyModal";
 import {
   getMidnightTonight,
   getCachedWeatherData,
@@ -152,6 +153,7 @@ function AppShell() {
   // Mobile Nav State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
+  const [showCookies, setShowCookies] = useState(false);
 
   useEffect(() => {
     const handleDeepLink = async () => {
@@ -571,12 +573,20 @@ function AppShell() {
                     />
                   ))}
                 </div>
-                <button
-                  onClick={() => setShowPrivacy(true)}
-                  className="text-[10px] font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center mt-4"
-                >
-                  {isNavCollapsed ? "Privacy" : "Privacy Policy"}
-                </button>
+                <div className="flex flex-col gap-1 mt-4">
+                  <button
+                    onClick={() => setShowPrivacy(true)}
+                    className="text-[10px] font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center"
+                  >
+                    {isNavCollapsed ? "Privacy" : "Privacy Policy"}
+                  </button>
+                  <button
+                    onClick={() => setShowCookies(true)}
+                    className="text-[10px] font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center"
+                  >
+                    {isNavCollapsed ? "Cookies" : "Cookie Policy"}
+                  </button>
+                </div>
               </nav>
 
               <main className="flex-1 relative w-full overflow-hidden">
@@ -990,12 +1000,20 @@ function AppShell() {
                       isMobile={true}
                     />
                   ))}
-                  <button
-                    onClick={() => { setShowPrivacy(true); setIsMobileMenuOpen(false); }}
-                    className="text-[10px] font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center pt-1 pb-0.5"
-                  >
-                    Privacy Policy
-                  </button>
+                  <div className="flex justify-center gap-4 pt-1 pb-0.5">
+                    <button
+                      onClick={() => { setShowPrivacy(true); setIsMobileMenuOpen(false); }}
+                      className="text-[10px] font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors"
+                    >
+                      Privacy Policy
+                    </button>
+                    <button
+                      onClick={() => { setShowCookies(true); setIsMobileMenuOpen(false); }}
+                      className="text-[10px] font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors"
+                    >
+                      Cookie Policy
+                    </button>
+                  </div>
                 </nav>
 
                 <button
@@ -1012,6 +1030,7 @@ function AppShell() {
               document.body,
             )}
       {showPrivacy && <PrivacyPolicyModal onClose={() => setShowPrivacy(false)} />}
+      {showCookies && <CookiePolicyModal onClose={() => setShowCookies(false)} />}
       </Sentry.ErrorBoundary>
     </PlantDoctorProvider>
   </HomeRealtimeProvider>
