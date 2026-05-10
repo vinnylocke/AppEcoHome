@@ -387,22 +387,26 @@ export const flowRegistry: FlowDef[] = [
         body: "Select the Manual tab — this lets you create a plant with just the details you know, with no database required.",
         attachTo: { element: "[data-testid='bulk-search-tab-manual']", on: "bottom" },
         advanceOn: { selector: "[data-testid='bulk-search-tab-manual']", event: "click" },
+        noSpotlight: true,
       },
       {
         title: "Name your plant",
-        body: "Type the common name — 'Tomato', 'Peace Lily', 'Fiddle Leaf Fig'. This is the name Rhozly will use across tasks, recommendations, and diagnoses. Tap Next when you've typed it.",
-        attachTo: { element: "[data-testid='plant-common-name-input']", on: "bottom" },
+        body: "Type the common name — 'Tomato', 'Peace Lily', 'Fiddle Leaf Fig'. This is what Rhozly will use across tasks and recommendations. Tap Next when you've typed it.",
+        attachTo: { element: null, on: null },
+        noSpotlight: true,
       },
       {
         title: "Fill in what you know",
         body: "Scroll down to see care fields — watering schedule, sunlight, cycle type, and more. Don't worry about completing every field; you can always edit the plant later. Tap Next when you're happy.",
         attachTo: { element: null, on: null },
+        noSpotlight: true,
       },
       {
         title: "Save your plant",
         body: "Tap Save Plant and your entry will appear in the Shed immediately.",
         attachTo: { element: "[data-testid='plant-form-save-btn']", on: "top" },
         advanceOn: { selector: "[data-testid='plant-form-save-btn']", event: "click" },
+        noSpotlight: true,
       },
       {
         title: "Your plant is in the Shed!",

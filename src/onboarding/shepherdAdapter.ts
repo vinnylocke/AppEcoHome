@@ -154,12 +154,21 @@ export function buildTour(
             footer.prepend(dotsEl);
           }
 
-          // Immediate spotlight update (works for elements already in the DOM)
-          updateSpotlight(step.attachTo.element);
+          if (step.noSpotlight) {
+            // Hide all panels — used for steps inside modals where blur panels
+            // would sit above the modal content and create a visual conflict.
+            PANEL_IDS.forEach((id) => {
+              const el = document.getElementById(id);
+              if (el) el.style.display = "none";
+            });
+          } else {
+            // Immediate spotlight update (works for elements already in the DOM)
+            updateSpotlight(step.attachTo.element);
 
-          // Delayed second pass handles elements that render asynchronously after
-          // the previous step's interaction (e.g. a modal sheet opening)
-          setTimeout(() => updateSpotlight(step.attachTo.element), 350);
+            // Delayed second pass handles elements rendered asynchronously
+            // (e.g. a modal or sheet that opens in response to the previous step)
+            setTimeout(() => updateSpotlight(step.attachTo.element), 350);
+          }
 
           // Manual advanceOn via native listener — avoids Shepherd's built-in
           // advanceOn which can conflict with React's synthetic event handling.

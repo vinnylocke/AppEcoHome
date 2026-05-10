@@ -19,6 +19,7 @@ export interface StepDef {
     selector: string;
     event: string;
   };
+  noSpotlight?: boolean;
 }
 
 export interface FlowDef {

@@ -73,7 +73,10 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
   }) => {
     const status = onboardingState[flowId] ?? "not-started";
     return (
-      <div className="flex items-start gap-3 py-3 px-4 hover:bg-rhozly-surface-low/60 transition-colors rounded-2xl group">
+      <button
+        onClick={() => { onStartFlow(flowId); onClose(); }}
+        className="w-full flex items-start gap-3 py-3 px-4 hover:bg-rhozly-surface-low/60 active:bg-rhozly-surface-low transition-colors rounded-2xl text-left"
+      >
         <StatusIcon status={status} />
         <div className="flex-1 min-w-0">
           <p className="text-[13px] font-black text-rhozly-on-surface leading-tight truncate">{title}</p>
@@ -85,13 +88,8 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
             <span className="text-[10px] font-bold text-rhozly-on-surface/30">~{estimated_minutes} min</span>
           </div>
         </div>
-        <button
-          onClick={() => { onStartFlow(flowId); onClose(); }}
-          className="shrink-0 flex items-center gap-1 px-3 py-1.5 rounded-xl text-[11px] font-black bg-rhozly-primary/8 text-rhozly-primary hover:bg-rhozly-primary hover:text-white transition-all opacity-0 group-hover:opacity-100"
-        >
-          {status === "completed" ? "Rerun" : "Start"} <ChevronRight size={11} />
-        </button>
-      </div>
+        <ChevronRight size={15} className="shrink-0 mt-0.5 text-rhozly-primary/40" />
+      </button>
     );
   };
 
