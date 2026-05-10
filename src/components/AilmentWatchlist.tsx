@@ -131,7 +131,7 @@ function StepBuilder({
             <button
               type="button"
               onClick={() => onChange(steps.filter((_, i) => i !== idx).map((s, i) => ({ ...s, step_order: i + 1 })))}
-              className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-rhozly-on-surface/30 hover:text-red-500 transition-colors"
+              className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/30 hover:text-red-500 transition-colors"
             >
               <X size={14} />
             </button>
@@ -225,10 +225,12 @@ function AilmentDetailModal({
   const meta = TYPE_META[ailment.type];
 
   const executeDelete = async () => {
+    setShowDeleteConfirm(false);
     setDeleting(true);
     const { error } = await supabase.from("ailments").delete().eq("id", ailment.id);
     if (error) {
-      Logger.error("Failed to delete ailment", error, { ailmentId: ailment.id }, "Could not delete ailment.");
+      Logger.error("Failed to delete ailment", error, { ailmentId: ailment.id });
+      toast.error("Could not delete ailment — please try again.");
       setDeleting(false);
     } else {
       onClose();
@@ -276,14 +278,14 @@ function AilmentDetailModal({
             <button
               onClick={() => setShowDeleteConfirm(true)}
               disabled={deleting}
-              className="p-3 bg-rhozly-surface-low rounded-2xl hover:bg-red-50 hover:text-red-500 transition-colors"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center bg-rhozly-surface-low rounded-2xl hover:bg-red-50 hover:text-red-500 transition-colors"
               aria-label="Delete ailment"
             >
               {deleting ? <Loader2 size={16} className="animate-spin" /> : <Trash2 size={16} />}
             </button>
             <button
               onClick={onClose}
-              className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
+              className="min-w-[44px] min-h-[44px] flex items-center justify-center bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
               aria-label="Close"
             >
               <X size={20} />
@@ -423,6 +425,7 @@ function AddAilmentModal({
   const [mode, setMode] = useState<CreationMode>("manual");
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
+  const [formErrors, setFormErrors] = useState<{ name?: string; description?: string }>({});
 
   // Shared bulk-add step
   const [step, setStep] = useState<"tabs" | "review">("tabs");
@@ -549,6 +552,7 @@ function AddAilmentModal({
     if (previewCache[id]) return;
     setPreviewCache((p) => ({ ...p, [id]: { loading: true } }));
 
+    let networkError = false;
     const tryWiki = async (term: string) => {
       try {
         const res = await fetch(`https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(term)}`);
@@ -556,7 +560,10 @@ function AddAilmentModal({
         const data = await res.json();
         if (data.type === "disambiguation" || !data.extract) return null;
         return data;
-      } catch { return null; }
+      } catch {
+        networkError = true;
+        return null;
+      }
     };
 
     const data =
@@ -570,7 +577,7 @@ function AddAilmentModal({
       [id]: {
         loading: false,
         image: data?.thumbnail?.source || data?.originalimage?.source,
-        desc: data?.extract || "No encyclopedia entry found.",
+        desc: data?.extract || (networkError ? "Could not load encyclopedia data — check your connection." : "No encyclopedia entry found."),
       },
     }));
   };
@@ -589,7 +596,11 @@ function AddAilmentModal({
     try {
       const results = await PerenualService.searchPestDisease(perenualQuery);
       setPerenualResults(results);
-      if (results.length === 0) setPerenualError("No results found. Try a different search term.");
+      if (results.length === 0) {
+        setPerenualError("No results found. Try a different search term.");
+      } else {
+        toast.success(`${results.length} result${results.length !== 1 ? "s" : ""} found`);
+      }
     } catch (err: any) {
       setPerenualError(err.message || "Perenual search failed.");
     } finally {
@@ -634,7 +645,11 @@ function AddAilmentModal({
       setCheckedAiIds(new Set());
       setAiPreviewCache({});
       setExpandedAiId(null);
-      if (results.length === 0) toast.error("No results found. Try a different search.");
+      if (results.length === 0) {
+        toast.error("No results found. Try a different search.");
+      } else {
+        toast.success(`${results.length} suggestion${results.length !== 1 ? "s" : ""} generated`);
+      }
     } catch (err: any) {
       Logger.error("AI ailment search failed", err, { homeId, query: aiQuery }, err.message || "AI search failed.");
     } finally {
@@ -643,8 +658,11 @@ function AddAilmentModal({
   };
 
   const handleSave = async () => {
-    if (!form.name.trim()) { toast.error("Name is required."); return; }
-    if (!form.description.trim()) { toast.error("Description is required."); return; }
+    const errors: { name?: string; description?: string } = {};
+    if (!form.name.trim()) errors.name = "Name is required";
+    if (!form.description.trim()) errors.description = "Description is required";
+    if (Object.keys(errors).length) { setFormErrors(errors); return; }
+    setFormErrors({});
     setSaving(true);
     try {
       const payload = {
@@ -823,13 +841,13 @@ function AddAilmentModal({
                         </span>
                         <span className="text-[9px] font-black text-rhozly-on-surface/30">Perenual</span>
                         <span className="text-[9px] font-black text-rhozly-on-surface/30">
-                          {built.prevention_steps.length} prev · {built.remedy_steps.length} rem
+                          {built.prevention_steps.length} prevention · {built.remedy_steps.length} remedy
                         </span>
                       </div>
                     </div>
                     <button
                       onClick={() => setCheckedPerenualIds((prev) => { const n = new Set(prev); n.delete(r.id); return n; })}
-                      className="p-2 text-rhozly-on-surface/30 hover:text-red-500 transition-colors"
+                      className="p-2 text-rhozly-on-surface/30 hover:text-rhozly-error transition-colors"
                       aria-label="Remove"
                     >
                       <X size={14} />
@@ -842,7 +860,7 @@ function AddAilmentModal({
               {aiResults.filter((r) => checkedAiIds.has(r.cartId)).map((r) => {
                 const meta = TYPE_META[r.data.type as AilmentType];
                 return (
-                  <div key={r.cartId} className="bg-white border border-rhozly-outline/10 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+                  <div key={r.cartId} className="bg-rhozly-surface-lowest border border-rhozly-outline/10 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
                     <div className="w-12 h-12 rounded-xl bg-rhozly-surface-low overflow-hidden shrink-0 flex items-center justify-center text-amber-300">
                       <Sparkles size={20} />
                     </div>
@@ -854,13 +872,13 @@ function AddAilmentModal({
                         </span>
                         <span className="text-[9px] font-black text-amber-500">AI</span>
                         <span className="text-[9px] font-black text-rhozly-on-surface/30">
-                          {(r.data.prevention_steps || []).length} prev · {(r.data.remedy_steps || []).length} rem
+                          {(r.data.prevention_steps || []).length} prevention · {(r.data.remedy_steps || []).length} remedy
                         </span>
                       </div>
                     </div>
                     <button
                       onClick={() => setCheckedAiIds((prev) => { const n = new Set(prev); n.delete(r.cartId); return n; })}
-                      className="p-2 text-rhozly-on-surface/30 hover:text-red-500 transition-colors"
+                      className="p-2 text-rhozly-on-surface/30 hover:text-rhozly-error transition-colors"
                       aria-label="Remove"
                     >
                       <X size={14} />
@@ -993,7 +1011,7 @@ function AddAilmentModal({
                       onChange={(e) => setAiQuery(e.target.value)}
                       onKeyDown={(e) => e.key === "Enter" && searchWithAI()}
                       placeholder="e.g. rose pests, black spot, aphids…"
-                      className="flex-1 p-4 bg-white rounded-2xl font-black text-sm border border-rhozly-outline/10 focus:border-amber-500 outline-none"
+                      className="flex-1 p-4 bg-rhozly-surface-lowest rounded-2xl font-black text-sm border border-rhozly-outline/10 focus:border-amber-500 outline-none"
                     />
                     <button
                       onClick={searchWithAI}
@@ -1071,9 +1089,13 @@ function AddAilmentModal({
                             {isExpanded && (
                               <div className="border-t border-rhozly-outline/5 bg-rhozly-surface-low/40 p-4 animate-in slide-in-from-top-2">
                                 <div className="flex gap-3 items-start">
-                                  {preview?.image && (
+                                  {preview?.image ? (
                                     <img src={preview.image} alt={r.data.name} className="w-20 h-20 rounded-xl object-cover shadow-sm shrink-0" />
-                                  )}
+                                  ) : !preview?.loading ? (
+                                    <div className="w-20 h-20 rounded-xl bg-rhozly-surface-low flex items-center justify-center shrink-0 text-rhozly-on-surface/20 border border-rhozly-outline/10">
+                                      <Sparkles size={18} />
+                                    </div>
+                                  ) : null}
                                   <p className="text-xs font-semibold text-rhozly-on-surface/70 leading-relaxed">{r.data.description}</p>
                                 </div>
                               </div>
@@ -1089,15 +1111,16 @@ function AddAilmentModal({
               {/* Manual form */}
               {showSteps && (
                 <>
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label htmlFor="ailment-name" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 block mb-2">Name *</label>
                       <input
                         id="ailment-name"
                         value={form.name}
-                        onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                        className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-black text-sm border border-transparent focus:border-rhozly-primary outline-none"
+                        onChange={(e) => { setForm((f) => ({ ...f, name: e.target.value })); if (formErrors.name) setFormErrors((fe) => ({ ...fe, name: undefined })); }}
+                        className={`w-full p-4 bg-rhozly-surface-low rounded-2xl font-black text-sm border outline-none focus:border-rhozly-primary ${formErrors.name ? "border-red-400" : "border-transparent"}`}
                       />
+                      {formErrors.name && <p className="text-[10px] font-bold text-red-500 mt-1 ml-1">{formErrors.name}</p>}
                     </div>
                     <div>
                       <label htmlFor="ailment-type" className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 block mb-2">Type *</label>
@@ -1128,10 +1151,11 @@ function AddAilmentModal({
                     <textarea
                       id="ailment-description"
                       value={form.description}
-                      onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                      onChange={(e) => { setForm((f) => ({ ...f, description: e.target.value })); if (formErrors.description) setFormErrors((fe) => ({ ...fe, description: undefined })); }}
                       rows={3}
-                      className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-black text-sm border border-transparent focus:border-rhozly-primary outline-none resize-none"
+                      className={`w-full p-4 bg-rhozly-surface-low rounded-2xl font-black text-sm border outline-none focus:border-rhozly-primary resize-none ${formErrors.description ? "border-red-400" : "border-transparent"}`}
                     />
+                    {formErrors.description && <p className="text-[10px] font-bold text-red-500 mt-1 ml-1">{formErrors.description}</p>}
                   </div>
 
                   <div>
@@ -1163,7 +1187,7 @@ function AddAilmentModal({
                             <button
                               type="button"
                               onClick={() => setForm((f) => ({ ...f, symptoms: f.symptoms.filter((_, i) => i !== idx) }))}
-                              className="p-1.5 text-rhozly-on-surface/30 hover:text-red-500 transition-colors"
+                              className="p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/30 hover:text-red-500 transition-colors"
                               aria-label="Remove symptom"
                             >
                               <X size={14} />
@@ -1259,7 +1283,7 @@ function AddAilmentModal({
               className="flex-1 py-3.5 bg-rhozly-primary text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform disabled:opacity-60"
             >
               {saving ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}
-              {saving ? "Adding…" : `Add ${totalSelected} Ailment${totalSelected !== 1 ? "s" : ""}`}
+              {saving ? `Adding ${totalSelected} ailment${totalSelected !== 1 ? "s" : ""}…` : `Add ${totalSelected} Ailment${totalSelected !== 1 ? "s" : ""}`}
             </button>
           </div>
         )}
@@ -1403,7 +1427,7 @@ function AilmentCard({
         <div className="mt-auto pt-5 border-t border-rhozly-outline/10 flex items-center justify-between">
           <div>
             <p className="text-[10px] font-black text-rhozly-on-surface/30 uppercase tracking-widest">Steps</p>
-            <p className="text-2xl font-black text-rhozly-primary">
+            <p className="text-lg font-black text-rhozly-primary">
               {(ailment.prevention_steps?.length ?? 0) + (ailment.remedy_steps?.length ?? 0)}
             </p>
           </div>
@@ -1460,24 +1484,35 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
   const handleConfirmAction = async () => {
     const { ailment, type } = confirmState;
     if (!ailment) return;
-    if (type === "delete") {
-      const { error } = await supabase.from("ailments").delete().eq("id", ailment.id);
-      if (error) throw error;
-      logEvent(EVENT.AILMENT_DELETED, { ailment_id: ailment.id, name: ailment.name, type: ailment.type });
-      setAilments((prev) => prev.filter((a) => a.id !== ailment.id));
-      if (selectedAilment?.id === ailment.id) setSelectedAilment(null);
-    } else {
-      const archived = type === "archive";
-      const { error } = await supabase.from("ailments").update({ is_archived: archived }).eq("id", ailment.id);
-      if (error) throw error;
-      logEvent(
-        archived ? EVENT.AILMENT_ARCHIVED : EVENT.AILMENT_RESTORED,
-        { ailment_id: ailment.id, name: ailment.name, type: ailment.type },
-      );
-      toast.success(archived ? "Moved to archived" : "Restored to watchlist");
-      setAilments((prev) => prev.map((a) => a.id === ailment.id ? { ...a, is_archived: archived } : a));
+    try {
+      if (type === "delete") {
+        const { error } = await supabase.from("ailments").delete().eq("id", ailment.id);
+        if (error) throw error;
+        logEvent(EVENT.AILMENT_DELETED, { ailment_id: ailment.id, name: ailment.name, type: ailment.type });
+        setAilments((prev) => prev.filter((a) => a.id !== ailment.id));
+        if (selectedAilment?.id === ailment.id) setSelectedAilment(null);
+        toast.success(`"${ailment.name}" deleted`);
+      } else {
+        const archived = type === "archive";
+        setAilments((prev) => prev.map((a) => a.id === ailment.id ? { ...a, is_archived: archived } : a));
+        setConfirmState((s) => ({ ...s, isOpen: false }));
+        const { error } = await supabase.from("ailments").update({ is_archived: archived }).eq("id", ailment.id);
+        if (error) {
+          setAilments((prev) => prev.map((a) => a.id === ailment.id ? { ...a, is_archived: !archived } : a));
+          throw error;
+        }
+        logEvent(
+          archived ? EVENT.AILMENT_ARCHIVED : EVENT.AILMENT_RESTORED,
+          { ailment_id: ailment.id, name: ailment.name, type: ailment.type },
+        );
+        toast.success(archived ? "Moved to archived" : "Restored to watchlist");
+        return;
+      }
+      setConfirmState((s) => ({ ...s, isOpen: false }));
+    } catch (err: any) {
+      Logger.error("Confirm action failed", err, { ailmentId: ailment.id, type });
+      toast.error(err?.message ?? "Action failed — please try again.");
     }
-    setConfirmState((s) => ({ ...s, isOpen: false }));
   };
 
   // Counts and display scoped to current view tab
@@ -1511,7 +1546,14 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="font-black text-3xl text-rhozly-on-surface tracking-tight">Watchlist</h1>
+          <h1 className="font-black text-3xl text-rhozly-on-surface tracking-tight flex items-center gap-3">
+            Watchlist
+            {counts.all > 0 && (
+              <span className="text-sm font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
+                {counts.all}
+              </span>
+            )}
+          </h1>
           <p className="text-sm font-bold text-rhozly-on-surface/40 mt-1">Invasive plants, pests &amp; diseases</p>
         </div>
         {can("ailments.add") && (
@@ -1526,12 +1568,14 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
 
       {/* Active / Archived tabs + type filters */}
       <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
-        <div className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10">
+        <div role="tablist" aria-label="Ailment status" className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10">
           {(["active", "archived"] as const).map((tab) => (
             <button
               key={tab}
+              role="tab"
+              aria-selected={viewTab === tab}
               onClick={() => setViewTab(tab)}
-              className={`flex-1 sm:flex-none px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === tab ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+              className={`flex-1 sm:flex-none px-6 py-2 min-h-[44px] rounded-xl text-sm font-black transition-all ${viewTab === tab ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
@@ -1548,7 +1592,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
             <button
               key={f.id}
               onClick={() => setFilter(f.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all ${filter === f.id ? "bg-white text-rhozly-primary shadow-sm border border-rhozly-outline/10" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+              className={`flex items-center gap-1.5 px-4 py-2 min-h-[44px] rounded-xl text-xs font-black whitespace-nowrap transition-all ${filter === f.id ? "bg-white text-rhozly-primary shadow-sm border border-rhozly-outline/10" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
             >
               {f.icon}{f.label}
               <span className="ml-1 opacity-60">{counts[f.id]}</span>
@@ -1564,16 +1608,12 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder={`Search ${viewTab} ailments…`}
-          className="w-full pl-11 pr-4 py-3 rounded-2xl border border-rhozly-outline/20 bg-white font-bold text-sm focus:outline-none focus:ring-2 focus:ring-rhozly-primary/30"
+          className="w-full pl-11 pr-4 py-3.5 min-h-[44px] rounded-2xl border border-rhozly-outline/20 bg-white font-bold text-sm focus:outline-none focus:ring-2 focus:ring-rhozly-primary/30"
         />
       </div>
 
       {/* Grid */}
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-rhozly-primary" />
-        </div>
-      ) : fetchError ? (
+      {fetchError ? (
         <div className="py-20 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/20">
           <AlertTriangle size={36} className="mx-auto mb-3 text-red-400" />
           <p className="font-black text-rhozly-on-surface/40 mb-4">Could not load watchlist.</p>
@@ -1583,6 +1623,19 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
           >
             Retry
           </button>
+        </div>
+      ) : loading ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-rhozly-surface-lowest rounded-3xl overflow-hidden border border-rhozly-outline/10 animate-pulse">
+              <div className="h-44 bg-rhozly-surface-low" />
+              <div className="p-6 space-y-3">
+                <div className="h-5 w-2/3 bg-rhozly-surface-low rounded-full" />
+                <div className="h-3 w-full bg-rhozly-surface-low rounded-full" />
+                <div className="h-3 w-4/5 bg-rhozly-surface-low rounded-full" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : displayed.length > 0 ? (
         <div data-testid="watchlist-card-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">

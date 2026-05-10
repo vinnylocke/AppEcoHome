@@ -78,10 +78,13 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     locations,
     isInitialLoading: loading,
     isBackgroundSyncing,
+    isError: shedFetchError,
     mutate: refreshShed, // Renamed to refreshShed for clarity in action handlers
+    setPlants,
   } = useCachedShed(homeId);
 
   const [actionLoading, setActionLoading] = useState(false);
+  const [archivingPlantId, setArchivingPlantId] = useState<number | null>(null);
 
   const [viewTab, setViewTab] = useState<"active" | "archived">("active");
   const [filterSource, setFilterSource] = useState<"all" | "manual" | "api" | "ai">(
@@ -500,25 +503,29 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   const executeArchiveToggle = async () => {
     const plant = confirmState.plant;
     if (!plant) return;
+    const nowArchived = !plant.is_archived;
+    setConfirmState({ isOpen: false, type: "delete", plant: null });
+    setArchivingPlantId(plant.id);
     setActionLoading(true);
     try {
       const { error } = await supabase
         .from("plants")
-        .update({ is_archived: !plant.is_archived })
+        .update({ is_archived: nowArchived })
         .eq("id", plant.id);
-      if (error) throw error;
-      toast.success(
-        plant.is_archived ? "Restored to active" : "Moved to archive",
-      );
-      if (!plant.is_archived) {
+      if (error) {
+        throw error;
+      }
+      setPlants((prev) => prev.map((p) => p.id === plant.id ? { ...p, is_archived: nowArchived } : p));
+      toast.success(nowArchived ? "Moved to archive" : "Restored to active");
+      if (nowArchived) {
         logEvent(EVENT.PLANT_ARCHIVED, { plant_id: plant.id, plant_name: plant.common_name });
       }
-      refreshShed(); // 🚀 BACKGROUND SYNC
+      refreshShed();
     } catch (err: any) {
-      Logger.error("Failed to update plant archive status", err, {}, `Failed to update status: ${err.message}`);
+      Logger.error("Failed to update plant archive status", err, {}, "Could not update archive status — please try again.");
     } finally {
+      setArchivingPlantId(null);
       setActionLoading(false);
-      setConfirmState({ isOpen: false, type: "delete", plant: null });
     }
   };
 
@@ -544,7 +551,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       setConfirmState({ isOpen: false, type: "delete", plant: null });
       refreshShed(); // 🚀 BACKGROUND SYNC
     } catch (err: any) {
-      Logger.error("Failed to delete plant from shed", err, {}, `Failed to delete: ${err.message}`);
+      Logger.error("Failed to delete plant from shed", err, {}, "Could not delete plant — please try again.");
     } finally {
       setActionLoading(false);
     }
@@ -573,7 +580,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       handleCloseModals();
       refreshShed(); // 🚀 BACKGROUND SYNC
     } catch (err: any) {
-      Logger.error("Failed to save plant to shed", err, {}, `Failed to save: ${err.message}`);
+      Logger.error("Failed to save plant to shed", err, {}, "Could not save plant — please check your connection and try again.");
     } finally {
       setActionLoading(false);
     }
@@ -667,7 +674,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             });
           });
         });
-        await supabase.from("tasks").insert(tasksToInsert);
+        const { error: taskError } = await supabase.from("tasks").insert(tasksToInsert);
+        if (taskError) Logger.warn("Failed to create smart schedule tasks", { taskError });
       }
 
       toast.success(`Successfully assigned ${assignmentData.quantity} plants!`);
@@ -768,7 +776,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
           {Array.from({ length: 8 }).map((_, i) => (
             <div
               key={i}
-              className="bg-rhozly-surface-lowest rounded-[2.5rem] overflow-hidden border border-rhozly-outline/20 shadow-sm animate-pulse"
+              className="bg-rhozly-surface-lowest rounded-3xl overflow-hidden border border-rhozly-outline/20 shadow-sm animate-pulse"
             >
               <div className="h-44 bg-rhozly-surface-low" />
               <div className="p-6 space-y-3">
@@ -791,9 +799,14 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-10">
           <div>
             <div className="flex items-center gap-4">
-              <h2 className="text-4xl font-black font-display text-rhozly-on-surface">
+              <h1 className="text-4xl font-black font-display text-rhozly-on-surface flex items-center gap-3">
                 The Shed
-              </h2>
+                {plants.filter((p) => !p.is_archived).length > 0 && (
+                  <span className="text-base font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
+                    {plants.filter((p) => !p.is_archived).length}
+                  </span>
+                )}
+              </h1>
               {/* 🚀 SILENT SYNC INDICATOR */}
               {isBackgroundSyncing && (
                 <Loader2
@@ -814,9 +827,16 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 )}
               </div>
             </div>
-            <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-              Your Shed Plant Library
+            <p className="text-sm font-bold text-rhozly-on-surface/50 uppercase tracking-widest mt-1">
+              <span className="font-black text-rhozly-on-surface/70">{plants.filter(p => !p.is_archived).length}</span> species · <span className="font-black text-rhozly-on-surface/70">{plants.filter(p => !p.is_archived).reduce((acc, p) => acc + (p.instance_count || 0), 0)}</span> instances
             </p>
+            {shedFetchError && (
+              <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-xs font-bold text-red-600">
+                <AlertCircle size={14} />
+                Could not refresh — showing cached data.
+                <button onClick={refreshShed} className="underline ml-1 hover:text-red-700 transition-colors">Retry</button>
+              </div>
+            )}
           </div>
           <div className="flex flex-col gap-4">
             <div className="relative flex items-center">
@@ -836,7 +856,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 <button
                   onClick={() => setSearchQuery("")}
                   aria-label="Clear search"
-                  className="absolute right-3 p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center text-rhozly-on-surface/40 hover:text-rhozly-on-surface rounded-lg transition-colors"
+                  className="absolute right-3 p-1.5 min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/40 hover:text-rhozly-on-surface rounded-lg transition-colors"
                 >
                   <X size={16} />
                 </button>
@@ -848,7 +868,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                   <button
                     key={tab}
                     onClick={() => setViewTab(tab as any)}
-                    className={`flex-1 sm:flex-none px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === tab ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+                    className={`flex-1 sm:flex-none px-6 py-2 min-h-[44px] rounded-xl text-sm font-black transition-all ${viewTab === tab ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
                   >
                     {tab.charAt(0).toUpperCase() + tab.slice(1)}
                   </button>
@@ -896,7 +916,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               <p className="text-sm font-bold text-rhozly-on-surface/40 max-w-xs text-center">
                 {searchQuery
                   ? `Try adjusting your search term or filters`
-                  : `Add plants to your library to get started`}
+                  : `Add plants to your Shed to get started`}
               </p>
               {searchQuery && (
                 <button
@@ -924,8 +944,13 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 }}
                 role="button"
                 aria-label={`View details for ${plant.common_name}`}
-                className="bg-rhozly-surface-lowest rounded-[2.5rem] overflow-hidden border border-rhozly-outline/20 shadow-sm group flex flex-col cursor-pointer hover:border-rhozly-primary/30 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 transition-all"
+                className="relative bg-rhozly-surface-lowest rounded-3xl overflow-hidden border border-rhozly-outline/20 shadow-sm group flex flex-col cursor-pointer hover:border-rhozly-primary/30 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 transition-all"
               >
+                {archivingPlantId === plant.id && (
+                  <div className="absolute inset-0 z-20 bg-white/80 rounded-3xl flex items-center justify-center">
+                    <Loader2 size={22} className="animate-spin text-rhozly-primary" />
+                  </div>
+                )}
                 <div className="h-44 relative overflow-hidden bg-rhozly-primary/5">
                   <SmartImage
                     src={
@@ -943,7 +968,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                     existingImageUrl={plant.thumbnail_url}
                   />
                   <div className="absolute top-4 left-4">
-                    <span className={`bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[10px] font-black uppercase flex items-center gap-1.5 shadow-sm border border-white/20 ${
+                    <span className={`bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-black uppercase flex items-center gap-1.5 shadow-sm border border-white/20 ${
                       plant.source === "api" ? "text-rhozly-primary" :
                       plant.source === "ai"  ? "text-amber-500" :
                                                "text-rhozly-on-surface/60"
@@ -997,14 +1022,14 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                     {plant.scientific_name?.[0] || "Unknown Species"}
                   </p>
                   {scorePlantByPreferences(plant.common_name || "", plant.scientific_name?.[0] || "", preferences) > 0 && (
-                    <span className="inline-flex items-center gap-1 mt-2 mb-2 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                      <Sparkles size={9} /> Matches your taste
+                    <span className="inline-flex items-center gap-1 mt-1.5 text-[9px] font-bold text-rhozly-on-surface/40">
+                      <Sparkles size={8} className="text-rhozly-primary/70" /> Matches your taste
                     </span>
                   )}
                   <div className="mt-auto pt-5 border-t border-rhozly-outline/10 flex items-center justify-between">
                     <div>
                       <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">
-                        In Home
+                        Instances
                       </p>
                       <span className="inline-flex items-center justify-center min-w-[2rem] px-2.5 py-0.5 rounded-full bg-rhozly-primary/15 text-rhozly-primary text-xl font-black">
                         {plant.instance_count}
@@ -1035,19 +1060,23 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
           <>
             {bulkQueue.length > 0 && (
               <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in zoom-in-95">
-                <div className="bg-rhozly-surface-lowest w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/20 flex flex-col max-h-[85vh]">
+                <div className="bg-rhozly-surface-lowest w-full max-w-md rounded-3xl p-8 shadow-2xl border border-rhozly-outline/20 flex flex-col max-h-[85vh]">
                   <div className="flex justify-between items-start mb-8">
                     <div>
                       <h3 className="text-3xl font-black">Importing Plants</h3>
                       <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
                         {isBulkProcessing
-                          ? "Processing your queue..."
+                          ? `${bulkQueue.filter(q => q.status === "success").length} / ${bulkQueue.length} imported…`
                           : "Import Complete!"}
                       </p>
                     </div>
                     {!isBulkProcessing && (
                       <button
-                        onClick={() => setBulkQueue([])}
+                        onClick={() => {
+                          const n = bulkQueue.filter((q) => q.status === "success").length;
+                          if (n > 0) toast.success(`${n} plant${n !== 1 ? "s" : ""} imported successfully.`);
+                          setBulkQueue([]);
+                        }}
                         className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
                       >
                         <X size={24} />
@@ -1058,11 +1087,11 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                     {bulkQueue.map((item) => (
                       <div
                         key={item.id}
-                        className={`flex items-center justify-between p-4 bg-white border rounded-2xl shadow-sm transition-all ${item.status === "processing" ? "border-rhozly-primary ring-1 ring-rhozly-primary/20" : "border-rhozly-outline/10"}`}
+                        className={`flex items-center justify-between p-4 bg-rhozly-surface-lowest border rounded-2xl shadow-sm transition-all ${item.status === "processing" ? "border-rhozly-primary ring-1 ring-rhozly-primary/20" : "border-rhozly-outline/10"}`}
                       >
                         <div className="flex items-center gap-4">
                           <div
-                            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${item.status === "pending" ? "bg-gray-100 text-gray-400" : item.status === "processing" ? "bg-rhozly-primary/10 text-rhozly-primary" : item.status === "success" ? "bg-green-100 text-green-500" : "bg-red-100 text-red-500"}`}
+                            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${item.status === "pending" ? "bg-rhozly-surface-low text-rhozly-on-surface/30" : item.status === "processing" ? "bg-rhozly-primary/10 text-rhozly-primary" : item.status === "success" ? "bg-green-100 text-green-500" : "bg-rhozly-error/10 text-rhozly-error"}`}
                           >
                             {item.status === "pending" && <Clock size={18} />}
                             {item.status === "processing" && (
@@ -1107,7 +1136,11 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                   </div>
                   {!isBulkProcessing && (
                     <button
-                      onClick={() => setBulkQueue([])}
+                      onClick={() => {
+                        const n = bulkQueue.filter((q) => q.status === "success").length;
+                        if (n > 0) toast.success(`${n} plant${n !== 1 ? "s" : ""} imported successfully.`);
+                        setBulkQueue([]);
+                      }}
                       className="mt-8 w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-xl hover:scale-105 transition-transform"
                     >
                       Return to Shed
@@ -1255,26 +1288,26 @@ function ConfirmModal({
         aria-modal="true"
         aria-labelledby="confirm-modal-title"
         aria-describedby="confirm-modal-description"
-        className="bg-white p-6 rounded-[2.5rem] w-full max-w-sm"
+        className="bg-rhozly-surface-lowest p-6 rounded-3xl w-full max-w-sm"
       >
         <h3 id="confirm-modal-title" className="font-black text-lg mb-2">
           {title}
         </h3>
-        <p id="confirm-modal-description" className="text-sm font-bold text-gray-500 mb-6">
+        <p id="confirm-modal-description" className="text-sm font-bold text-rhozly-on-surface/60 mb-6">
           {description}
         </p>
         <div className="flex gap-3">
           <button
             ref={cancelButtonRef}
             onClick={onClose}
-            className="flex-1 py-3 rounded-2xl font-bold bg-gray-100 hover:bg-gray-200"
+            className="flex-1 py-3 rounded-2xl font-bold bg-rhozly-surface-low hover:bg-rhozly-surface text-rhozly-on-surface"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={isLoading}
-            className={`flex-1 py-3 rounded-2xl font-bold text-white ${isDestructive ? "bg-red-500 hover:bg-red-600" : "bg-rhozly-primary"}`}
+            className={`flex-1 py-3 rounded-2xl font-bold text-white ${isDestructive ? "bg-rhozly-error hover:opacity-90" : "bg-rhozly-primary"}`}
           >
             {isLoading ? (
               <Loader2 className="animate-spin mx-auto" size={18} />

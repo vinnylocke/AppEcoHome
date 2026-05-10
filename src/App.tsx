@@ -14,6 +14,7 @@ import {
   Sparkles,
   MapPin,
   RefreshCw,
+  AlertCircle,
 } from "lucide-react";
 
 // 🚀 NATIVE IMPORT
@@ -148,6 +149,7 @@ function AppShell() {
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [profileLoadError, setProfileLoadError] = useState(false);
   const [isAddingHome, setIsAddingHome] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
   const [weather, setWeather] = useState<any>(null);
@@ -156,6 +158,7 @@ function AppShell() {
   const [dashboardError, setDashboardError] = useState(false);
   const [dashboardLoaded, setDashboardLoaded] = useState(false);
   const [isHomeLoading, setIsHomeLoading] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Mobile Nav State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -183,7 +186,7 @@ function AppShell() {
           if (!error) {
             Logger.success("Login Successful!");
           } else {
-            Logger.error("Native session restoration failed", error);
+            Logger.error("Native session restoration failed", error, {}, "Sign-in failed — please try again.");
           }
         }
       });
@@ -251,6 +254,7 @@ function AppShell() {
   );
   const [quizCompleted, setQuizCompleted] = useState<boolean | null>(null);
   const [quizPromptDismissed, setQuizPromptDismissed] = useState(false);
+  const [quizPromptFading, setQuizPromptFading] = useState(false);
 
   useEffect(() => {
     if (!profile?.home_id || !session?.user?.id) return;
@@ -381,9 +385,11 @@ function AppShell() {
 
   const handleManualRefresh = async () => {
     if (!profile?.home_id) return;
+    setIsRefreshing(true);
     sessionStorage.removeItem(`weather_cache_${profile.home_id}`);
     sessionStorage.removeItem(`locations_cache_${profile.home_id}`);
     await Promise.all([fetchDashboardData(), refreshProfile()]);
+    setIsRefreshing(false);
     toast.success("Feed refreshed");
   };
 
@@ -414,8 +420,10 @@ function AppShell() {
       if (error) throw error;
       setProfile((prev: any) => (prev ? { ...prev, home_id: homeId } : null));
       setIsAddingHome(false);
+      toast.success("Switched home");
     } catch (err: any) {
       Logger.error("Failed to switch home", err);
+      toast.error("Failed to switch home");
     } finally {
       setIsHomeLoading(false);
     }
@@ -468,8 +476,12 @@ function AppShell() {
     // Safety bail: if the profile query hangs (slow network after cold open),
     // unblock the UI so the user isn't stuck on a loading spinner.
     const bail = setTimeout(() => setLoading(false), 8_000);
+    setProfileLoadError(false);
     refreshProfile()
-      .catch(err => Logger.error("Profile load failed on cold start", err))
+      .catch(err => {
+        Logger.error("Profile load failed on cold start", err);
+        setProfileLoadError(true);
+      })
       .finally(() => {
         clearTimeout(bail);
         setLoading(false);
@@ -498,6 +510,21 @@ function AppShell() {
       </div>
     );
   if (!session) return <Auth />;
+  if (profileLoadError && !profile) return (
+    <div className="h-screen flex flex-col items-center justify-center gap-4 bg-rhozly-bg px-6 text-center">
+      <AlertCircle size={40} className="text-red-400" />
+      <div>
+        <p className="font-black text-lg text-rhozly-on-surface">Could not load your profile</p>
+        <p className="text-sm text-rhozly-on-surface/50 mt-1">Check your connection and try again.</p>
+      </div>
+      <button
+        onClick={() => { setProfileLoadError(false); setLoading(true); refreshProfile().catch(() => setProfileLoadError(true)).finally(() => setLoading(false)); }}
+        className="px-6 py-3 bg-rhozly-primary text-white rounded-2xl font-black flex items-center gap-2 hover:opacity-90 transition"
+      >
+        <RefreshCw size={16} /> Retry
+      </button>
+    </div>
+  );
   if (profile && (!profile.home_id || isAddingHome))
     return (
       <HomeSetup
@@ -526,7 +553,7 @@ function AppShell() {
     );
 
   const navLinks = [
-    { id: "dashboard", icon: <Home />, label: "Home",   matchPaths: ["/dashboard", "/"] },
+    { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", "/"] },
     { id: "shed",      icon: <Database />, label: "Garden", matchPaths: ["/shed", "/watchlist"] },
     { id: "planner",   icon: <Map />, label: "Plan",    matchPaths: ["/planner", "/shopping"] },
     { id: "tools",     icon: <Stethoscope />, label: "Tools",   matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
@@ -544,6 +571,12 @@ function AppShell() {
     <PlantDoctorProvider homeId={profile?.home_id || ""}>
       <Sentry.ErrorBoundary fallback={({ error }) => <ErrorPage error={error instanceof Error ? error : undefined} />}>
           <Toaster />
+          <a
+            href="#main-content"
+            className="sr-only focus:not-sr-only focus:fixed focus:top-4 focus:left-4 focus:z-[100] focus:px-4 focus:py-2.5 focus:bg-rhozly-primary focus:text-white focus:rounded-xl focus:font-bold focus:text-sm focus:shadow-lg"
+          >
+            Skip to main content
+          </a>
           <div className="min-h-screen bg-rhozly-bg text-rhozly-on-surface font-body flex flex-col relative selection:bg-rhozly-primary/20">
             <div className="fixed top-0 left-1/4 w-96 h-96 bg-rhozly-primary/5 rounded-full blur-3xl pointer-events-none" />
 
@@ -583,6 +616,7 @@ function AppShell() {
 
             <div className="flex flex-1 overflow-hidden relative z-10 w-full">
               <nav
+                aria-label="Primary navigation"
                 className={`hidden md:flex flex-col justify-between p-6 transition-all duration-300 border-r border-rhozly-primary/20 bg-rhozly-primary-container ${isNavCollapsed ? "w-28 items-center" : "w-72"}`}
               >
                 <div className="flex flex-col gap-2">
@@ -614,7 +648,7 @@ function AppShell() {
                 </div>
               </nav>
 
-              <main className="flex-1 relative w-full overflow-hidden">
+              <main id="main-content" aria-label="Main content" className="flex-1 relative w-full overflow-hidden">
                 {/* Full-bleed routes that must escape the padded PullToRefresh wrapper */}
                 <Routes>
                   <Route path="/sun-trajectory" element={
@@ -634,6 +668,9 @@ function AppShell() {
                 </Routes>
 
                 <PullToRefresh onRefresh={handleManualRefresh}>
+                  {isRefreshing && (
+                    <div className="h-0.5 bg-rhozly-primary animate-pulse w-full" />
+                  )}
                   <div className="p-4 md:p-8 pb-28 md:pb-8 min-h-full">
                     <Routes>
                       <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -785,18 +822,25 @@ function AppShell() {
                                     </div>
                                   </div>
                                 ) : dashboardView === "calendar" ? (
-                                  <div className="bg-rhozly-surface-lowest rounded-[2.5rem] border border-rhozly-outline/10 overflow-hidden shadow-sm">
+                                  <div className="bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/10 overflow-hidden shadow-sm">
                                     {profile?.home_id && (
                                       <TaskCalendar homeId={profile.home_id} />
                                     )}
                                   </div>
                                 ) : (
                                   <div className="space-y-6">
-                                    <WeatherForecast
-                                      weatherData={rawWeather}
-                                      alerts={alerts}
-                                      homeId={profile?.home_id ?? null}
-                                    />
+                                    {!dashboardLoaded && !rawWeather ? (
+                                      <div className="space-y-4">
+                                        <div className="rounded-3xl bg-rhozly-surface-low animate-pulse h-48" />
+                                        <div className="rounded-3xl bg-rhozly-surface-low animate-pulse h-32" />
+                                      </div>
+                                    ) : (
+                                      <WeatherForecast
+                                        weatherData={rawWeather}
+                                        alerts={alerts}
+                                        homeId={profile?.home_id ?? null}
+                                      />
+                                    )}
                                   </div>
                                 )}
                               </div>
@@ -805,9 +849,9 @@ function AppShell() {
                                 dashboardView !== "calendar" && (
                                   <div className="lg:col-span-5 xl:col-span-4 space-y-6">
                                     {quizCompleted === false && !quizPromptDismissed && (
-                                      <div className="bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-3xl p-5 shadow-md relative overflow-hidden">
+                                      <div className={`bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-3xl p-5 shadow-md relative overflow-hidden transition-all duration-300 ${quizPromptFading ? "opacity-0 scale-95 pointer-events-none" : "opacity-100 scale-100"}`}>
                                         <button
-                                          onClick={() => setQuizPromptDismissed(true)}
+                                          onClick={() => { setQuizPromptFading(true); setTimeout(() => { setQuizPromptDismissed(true); setQuizPromptFading(false); }, 300); toast.success("Reminder dismissed — find it any time in Garden Profile.", { duration: 2500 }); }}
                                           className="absolute top-3 right-3 text-white/60 hover:text-white transition"
                                           aria-label="Dismiss"
                                         >
@@ -854,7 +898,7 @@ function AppShell() {
                                         View Calendar
                                       </button>
                                     </div>
-                                    <div data-testid="dashboard-task-list" className="bg-rhozly-surface-lowest/80 rounded-[2.5rem] p-4 sm:p-6 border border-rhozly-outline/10 shadow-sm min-h-[400px]">
+                                    <div data-testid="dashboard-task-list" className="bg-rhozly-surface-lowest/80 rounded-3xl p-4 sm:p-6 border border-rhozly-outline/10 shadow-sm min-h-[400px]">
                                       {profile?.home_id && (
                                         <TaskList homeId={profile.home_id} />
                                       )}
@@ -1059,6 +1103,8 @@ function AppShell() {
                 />
 
                 <nav
+                  aria-label="Mobile navigation"
+                  aria-hidden={!isMobileMenuOpen}
                   className={`md:hidden fixed bottom-24 right-6 left-6 bg-rhozly-primary-container p-4 rounded-[2rem] shadow-2xl flex flex-col gap-2 z-50 transition-all duration-300 border border-rhozly-primary/20 ${isMobileMenuOpen ? "scale-100 opacity-100 translate-y-0" : "scale-90 opacity-0 translate-y-10 pointer-events-none origin-bottom-left"}`}
                 >
                   {navLinks.map((link) => (
@@ -1078,13 +1124,13 @@ function AppShell() {
                   <div className="flex justify-center gap-4 pt-1 pb-0.5">
                     <button
                       onClick={() => { setShowPrivacy(true); setIsMobileMenuOpen(false); }}
-                      className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors py-2 px-2"
+                      className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors min-h-[44px] px-3 flex items-center"
                     >
                       Privacy Policy
                     </button>
                     <button
                       onClick={() => { setShowCookies(true); setIsMobileMenuOpen(false); }}
-                      className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors py-2 px-2"
+                      className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors min-h-[44px] px-3 flex items-center"
                     >
                       Cookie Policy
                     </button>

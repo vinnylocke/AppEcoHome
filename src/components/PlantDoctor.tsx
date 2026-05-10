@@ -118,6 +118,9 @@ export default function PlantDoctor({
 
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [showPerenualSearch, setShowPerenualSearch] = useState(false);
+  const [inventoryError, setInventoryError] = useState(false);
+  const [inventoryRetryTick, setInventoryRetryTick] = useState(0);
+  const [sessionSaveError, setSessionSaveError] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
@@ -162,6 +165,7 @@ export default function PlantDoctor({
   useEffect(() => {
     const fetchInventory = async () => {
       if (!homeId) return;
+      setInventoryError(false);
 
       // inventory_items stores plant_name, area_name, location_name as denormalized
       // text columns — no FK joins needed or available.
@@ -172,7 +176,8 @@ export default function PlantDoctor({
         .eq("status", "Planted");
 
       if (error) {
-        Logger.error("Failed to fetch inventory", error, { homeId }, "Could not load your shed — please refresh and try again.");
+        Logger.error("Failed to fetch inventory", error, { homeId });
+        setInventoryError(true);
         return;
       }
       if (!data) return;
@@ -190,7 +195,7 @@ export default function PlantDoctor({
       setMyInventory(enriched);
     };
     fetchInventory();
-  }, [homeId]);
+  }, [homeId, inventoryRetryTick]);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -295,6 +300,7 @@ export default function PlantDoctor({
     base64: string,
   ) => {
     if (!userId || !result) return;
+    setSessionSaveError(false);
     try {
       const sessionId = crypto.randomUUID();
       const path = `${userId}/${sessionId}.jpg`;
@@ -317,8 +323,9 @@ export default function PlantDoctor({
         .select("id")
         .single();
       if (data) setCurrentSessionId(data.id);
-    } catch {
-      toast.error("Could not save session");
+    } catch (err) {
+      setSessionSaveError(true);
+      Logger.error("Failed to save doctor session", err, { action }, "Session could not be saved — results won't appear in History.");
     }
   };
 
@@ -333,7 +340,7 @@ export default function PlantDoctor({
         canvas.width = MAX_WIDTH;
         canvas.height = img.height * scaleSize;
         const ctx = canvas.getContext("2d");
-        if (!ctx) return reject("Could not get canvas context");
+        if (!ctx) return reject(new Error("Could not get canvas context"));
         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
         resolve(canvas.toDataURL("image/jpeg", 0.7).split(",")[1]);
       };
@@ -343,39 +350,53 @@ export default function PlantDoctor({
 
   const openAddToListSheet = async (items: SuggestedItem[]) => {
     try {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from("shopping_lists")
         .select("id, name, status, home_id, created_at, updated_at")
         .eq("home_id", homeId)
         .eq("status", "active")
         .order("created_at", { ascending: false });
+      if (error) throw error;
       setAddToListActiveLists(data ?? []);
-    } catch { setAddToListActiveLists([]); }
+    } catch {
+      setAddToListActiveLists([]);
+      toast.error("Could not load shopping lists.");
+    }
     setAddToListItems(items);
     setShowAddToList(true);
   };
 
   const handleAddToListConfirm = async (listId: string, items: SuggestedItem[]) => {
-    for (const item of items) {
-      await supabase.from("shopping_list_items").insert({
-        list_id: listId,
-        home_id: homeId,
-        item_type: item.item_type,
-        name: item.name,
-        is_checked: false,
-        category: item.category ?? null,
-        doctor_session_id: "plant-doctor",
-      });
+    try {
+      for (const item of items) {
+        const { error } = await supabase.from("shopping_list_items").insert({
+          list_id: listId,
+          home_id: homeId,
+          item_type: item.item_type,
+          name: item.name,
+          is_checked: false,
+          category: item.category ?? null,
+          doctor_session_id: "plant-doctor",
+        });
+        if (error) throw error;
+      }
+    } catch {
+      toast.error("Some items could not be added to the list.");
     }
   };
 
   const handleCreateAndAddToList = async (listName: string, items: SuggestedItem[]) => {
-    const { data: newList } = await supabase
-      .from("shopping_lists")
-      .insert({ home_id: homeId, name: listName })
-      .select()
-      .single();
-    if (newList) await handleAddToListConfirm(newList.id, items);
+    try {
+      const { data: newList, error } = await supabase
+        .from("shopping_lists")
+        .insert({ home_id: homeId, name: listName })
+        .select()
+        .single();
+      if (error) throw error;
+      if (newList) await handleAddToListConfirm(newList.id, items);
+    } catch {
+      toast.error("Could not create shopping list.");
+    }
   };
 
   const handleAiAction = async (action: "identify" | "diagnose" | "pest") => {
@@ -442,7 +463,7 @@ export default function PlantDoctor({
       setAiResult((prev) => ({ ...prev, diseaseInfo: data.diseaseInfo }));
       toast.success("Detailed report loaded.");
     } catch (err: any) {
-      Logger.error("Failed to fetch disease details", err, { diseaseName: selectedDisease, type }, err.message || "Failed to fetch details.");
+      Logger.error("Failed to fetch disease details", err, { diseaseName: selectedDisease, type }, "Could not load disease details — please try again.");
     } finally {
       setIsFetchingDetails(false);
     }
@@ -459,7 +480,7 @@ export default function PlantDoctor({
       setAiResult((prev) => ({ ...prev, pestInfo: data.pestInfo }));
       toast.success("Pest details loaded.");
     } catch (err: any) {
-      Logger.error("Failed to fetch pest details", err, { pestName: selectedPest }, "Failed to fetch pest details.");
+      Logger.error("Failed to fetch pest details", err, { pestName: selectedPest }, "Could not load pest details — please try again.");
     } finally {
       setIsFetchingPestDetails(false);
     }
@@ -584,7 +605,7 @@ export default function PlantDoctor({
         imageFile: saveToJournal ? selectedFile : null,
       });
 
-      toast.success("Treatment scheduled! Tasks have been added to your to-do list.");
+      toast.success("Approved — tasks added to your schedule.");
       setTreatmentApplied(true);
       setTimeout(() => {
         setTreatmentApplied(false);
@@ -606,7 +627,7 @@ export default function PlantDoctor({
   if (showManualAdd && aiResult?.plantData) {
     return (
       <div className="max-w-4xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4">
-        <div className="bg-white rounded-[2.5rem] p-6 shadow-sm border border-rhozly-outline/10 h-full overflow-y-auto">
+        <div className="bg-white rounded-3xl p-6 shadow-sm border border-rhozly-outline/10 h-full overflow-y-auto">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-black">
               Verify Details for {selectedPlantName}
@@ -652,13 +673,13 @@ export default function PlantDoctor({
         />
       )}
 
-      <div className="max-w-4xl mx-auto h-full flex flex-col relative animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="max-w-5xl mx-auto h-full flex flex-col relative animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="mb-4 px-2 flex items-end justify-between">
           <div>
-            <h2 className="text-2xl sm:text-3xl font-black font-display text-rhozly-on-surface tracking-tight flex items-center gap-3">
+            <h1 className="text-2xl sm:text-3xl font-black font-display text-rhozly-on-surface tracking-tight flex items-center gap-3">
               <Stethoscope className="w-8 h-8 text-rhozly-primary" />
-              Garden AI
-            </h2>
+              Plant Doctor
+            </h1>
             <p className="text-xs sm:text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
               AI-Powered Identification & Diagnosis
             </p>
@@ -669,7 +690,7 @@ export default function PlantDoctor({
                 key={tab}
                 data-testid={`doctor-tab-${tab}`}
                 onClick={() => setActiveTab(tab)}
-                className={`px-4 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${
+                className={`px-4 min-h-[44px] rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${
                   activeTab === tab
                     ? "bg-white shadow-sm text-rhozly-primary"
                     : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
@@ -682,7 +703,7 @@ export default function PlantDoctor({
         </div>
 
         {activeTab === "history" ? (
-          <div className="bg-rhozly-surface-lowest/80 backdrop-blur-md rounded-[2.5rem] p-6 md:p-8 border border-rhozly-outline/10 shadow-sm flex-1 overflow-y-auto">
+          <div className="bg-rhozly-surface-lowest/80 backdrop-blur-md rounded-3xl p-6 md:p-8 border border-rhozly-outline/10 shadow-sm flex-1 overflow-y-auto">
             <PlantDoctorHistory
               sessions={sessions}
               isLoading={historyLoading}
@@ -691,7 +712,43 @@ export default function PlantDoctor({
           </div>
         ) : null}
 
-        <div className={`bg-rhozly-surface-lowest/80 backdrop-blur-md rounded-[2.5rem] p-6 md:p-8 border border-rhozly-outline/10 shadow-sm flex-1 ${activeTab !== "analyse" ? "hidden" : ""}`}>
+        <div className={`bg-rhozly-surface-lowest/80 backdrop-blur-md rounded-3xl p-6 md:p-8 border border-rhozly-outline/10 shadow-sm flex-1 ${activeTab !== "analyse" ? "hidden" : ""}`}>
+          {/* Step progress */}
+          <div className="flex items-center gap-2 mb-6">
+            {[
+              { n: 1, label: "Upload" },
+              { n: 2, label: "Analyse" },
+              { n: 3, label: "Results" },
+            ].map((step, i) => {
+              const done = step.n === 1 ? !!imagePreview : step.n === 2 ? !!aiResult : !!aiResult;
+              const active = step.n === 1 ? !imagePreview : step.n === 2 ? !!imagePreview && !aiResult : !!aiResult;
+              return (
+                <React.Fragment key={step.n}>
+                  <div className="flex items-center gap-1.5">
+                    <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-colors ${active ? "bg-rhozly-primary text-white" : done ? "bg-rhozly-primary/20 text-rhozly-primary" : "bg-rhozly-surface-low text-rhozly-on-surface/30"}`}>
+                      {step.n}
+                    </span>
+                    <span className={`text-xs font-black uppercase tracking-widest transition-colors ${active ? "text-rhozly-primary" : done ? "text-rhozly-on-surface/50" : "text-rhozly-on-surface/25"}`}>
+                      {step.label}
+                    </span>
+                  </div>
+                  {i < 2 && <div className="flex-1 h-px bg-rhozly-outline/20" />}
+                </React.Fragment>
+              );
+            })}
+          </div>
+          {sessionSaveError && (
+            <div className="flex items-center justify-between px-4 py-3 mb-4 rounded-2xl bg-amber-50 border border-amber-200">
+              <p className="text-xs font-bold text-amber-700">Session not saved — results won't appear in History.</p>
+              <button
+                onClick={() => setSessionSaveError(false)}
+                className="ml-3 shrink-0 text-amber-500 hover:text-amber-700 transition-colors"
+                aria-label="Dismiss"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          )}
           {!imagePreview ? (
             <div data-testid="doctor-upload-zone" className="flex flex-col items-center justify-center p-8 sm:p-12 border-2 border-dashed border-rhozly-primary/30 rounded-3xl bg-rhozly-primary/5 hover:bg-rhozly-primary/10 transition-colors h-full min-h-[400px]">
               <div className="w-20 h-20 bg-white shadow-sm text-rhozly-primary rounded-full flex items-center justify-center mb-6">
@@ -720,21 +777,27 @@ export default function PlantDoctor({
               </div>
             </div>
           ) : (
-            <div className="space-y-6 animate-in zoom-in-95 duration-300">
-              <div className="relative rounded-[2rem] overflow-hidden border border-rhozly-outline/20 bg-rhozly-on-surface/5 flex justify-center max-h-[400px] shadow-inner">
-                <img
-                  src={imagePreview}
-                  alt="Plant preview"
-                  className="object-contain w-full h-full"
-                />
-                <button
-                  onClick={clearImage}
-                  disabled={isUIBusy}
-                  className="absolute top-4 right-4 w-11 h-11 bg-white/90 backdrop-blur-sm rounded-2xl text-rhozly-on-surface/60 hover:text-red-500 hover:bg-white flex items-center justify-center shadow-sm transition-colors disabled:opacity-50"
-                >
-                  <X className="w-5 h-5" />
-                </button>
+            <div className="animate-in zoom-in-95 duration-300 xl:grid xl:grid-cols-[2fr_3fr] xl:gap-6 xl:items-start">
+              {/* Left: image (sticky on xl) */}
+              <div className="mb-6 xl:mb-0 xl:sticky xl:top-4">
+                <div className="relative rounded-3xl overflow-hidden border border-rhozly-outline/20 bg-rhozly-on-surface/5 flex justify-center max-h-[400px] shadow-inner">
+                  <img
+                    src={imagePreview}
+                    alt="Plant preview"
+                    className="object-contain w-full h-full"
+                  />
+                  <button
+                    onClick={clearImage}
+                    disabled={isUIBusy}
+                    className="absolute top-4 right-4 w-12 h-12 bg-white/90 backdrop-blur-sm rounded-2xl text-rhozly-on-surface/60 hover:text-red-500 hover:bg-white flex items-center justify-center shadow-sm transition-colors disabled:opacity-50"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
+
+              {/* Right: analysis + results */}
+              <div className="space-y-6">
 
               {!aiEnabled ? (
                 <div data-testid="plant-doctor-ai-gate" className="bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 p-6 text-center">
@@ -747,12 +810,14 @@ export default function PlantDoctor({
                   </p>
                 </div>
               ) : (
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-2">Select analysis type</p>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                 <button
                   onClick={() => handleAiAction("identify")}
                   disabled={isUIBusy}
                   data-testid="doctor-btn-identify"
-                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "identify" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-white text-rhozly-primary border border-rhozly-primary/20 hover:bg-rhozly-primary/10 hover:border-rhozly-primary/40 disabled:opacity-50"}`}
+                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "identify" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-white text-rhozly-primary border border-rhozly-primary/20 hover:bg-rhozly-primary/10 hover:border-rhozly-primary/40 disabled:opacity-50"}`}
                 >
                   {isProcessing && activeAction === "identify" ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -766,7 +831,7 @@ export default function PlantDoctor({
                   onClick={() => handleAiAction("diagnose")}
                   disabled={isUIBusy}
                   data-testid="doctor-btn-diagnose"
-                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "diagnose" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-rhozly-primary text-white hover:bg-rhozly-primary-container disabled:opacity-50"}`}
+                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "diagnose" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-rhozly-primary text-white hover:bg-rhozly-primary-container disabled:opacity-50"}`}
                 >
                   {isProcessing && activeAction === "diagnose" ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -780,7 +845,7 @@ export default function PlantDoctor({
                   onClick={() => handleAiAction("pest")}
                   disabled={isUIBusy}
                   data-testid="doctor-btn-pest"
-                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "pest" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-rhozly-surface-low text-rhozly-primary border border-rhozly-outline/15 hover:bg-rhozly-primary/10 disabled:opacity-50"}`}
+                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "pest" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-rhozly-surface-low text-rhozly-primary border border-rhozly-outline/15 hover:bg-rhozly-primary/10 disabled:opacity-50"}`}
                 >
                   {isProcessing && activeAction === "pest" ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -790,6 +855,7 @@ export default function PlantDoctor({
                   <span>Identify</span>
                   <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Pest</span>
                 </button>
+              </div>
               </div>
               )}
 
@@ -840,13 +906,13 @@ export default function PlantDoctor({
                           Save {selectedPlantName}
                         </h3>
                         {confirmedValue ? (
-                          <span className="flex items-center gap-1 text-xs font-black text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                          <span className="flex items-center gap-1 text-xs font-black text-rhozly-primary bg-rhozly-primary/10 px-2 py-1 rounded-lg">
                             <CheckCircle2 size={12} /> Confirmed
                           </span>
                         ) : (
                           <button
                             onClick={() => setSelectedPlantName(null)}
-                            className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors"
+                            className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors min-h-[44px] px-2"
                           >
                             <ChevronLeft size={14} /> Change
                           </button>
@@ -886,7 +952,7 @@ export default function PlantDoctor({
                           {isGeneratingGuide ? (
                             <>
                               <Loader2 size={18} className="animate-spin" />{" "}
-                              Drafting...
+                              Generating...
                             </>
                           ) : (
                             <>
@@ -903,9 +969,9 @@ export default function PlantDoctor({
                               setConfirmedValue(selectedPlantName);
                               confirmSession(currentSessionId, selectedPlantName!);
                             }}
-                            className="w-full flex items-center justify-center gap-2 py-3.5 bg-green-500 text-white rounded-2xl font-black text-sm hover:bg-green-600 transition-colors"
+                            className="w-full flex items-center justify-center gap-2 py-3.5 bg-rhozly-primary text-white rounded-2xl font-black text-sm hover:bg-rhozly-primary/90 transition-colors"
                           >
-                            <CheckCircle2 size={16} /> Confirm this identification
+                            <CheckCircle2 size={16} /> Confirm identification
                           </button>
                         )}
                         <button
@@ -990,7 +1056,7 @@ export default function PlantDoctor({
                             </h3>
                           </div>
                           {confirmedValue ? (
-                            <span className="flex items-center gap-1 text-xs font-black text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                            <span className="flex items-center gap-1 text-xs font-black text-rhozly-primary bg-rhozly-primary/10 px-2 py-1 rounded-lg">
                               <CheckCircle2 size={12} /> Confirmed
                             </span>
                           ) : (
@@ -1001,7 +1067,7 @@ export default function PlantDoctor({
                                   prev ? { ...prev, diseaseInfo: undefined, remedial_schedules: undefined } : null,
                                 );
                               }}
-                              className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-on-surface transition-colors"
+                              className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-on-surface transition-colors min-h-[44px] px-2"
                             >
                               <ChevronLeft size={14} /> Change
                             </button>
@@ -1057,9 +1123,9 @@ export default function PlantDoctor({
                               setConfirmedValue(selectedDisease);
                               confirmSession(currentSessionId, selectedDisease!);
                             }}
-                            className="w-full flex items-center justify-center gap-2 py-3.5 mt-3 bg-green-500 text-white rounded-2xl font-black text-sm hover:bg-green-600 transition-colors"
+                            className="w-full flex items-center justify-center gap-2 py-3.5 mt-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm hover:bg-rhozly-primary/90 transition-colors"
                           >
-                            <CheckCircle2 size={16} /> Confirm this diagnosis
+                            <CheckCircle2 size={16} /> Confirm diagnosis
                           </button>
                         )}
                       </div>
@@ -1078,7 +1144,7 @@ export default function PlantDoctor({
                               <Activity size={12} /> {selectedDisease}
                             </p>
                             {confirmedValue ? (
-                              <span className="flex items-center gap-1 text-xs font-black text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                              <span className="flex items-center gap-1 text-xs font-black text-rhozly-primary bg-rhozly-primary/10 px-2 py-1 rounded-lg">
                                 <CheckCircle2 size={12} /> Confirmed
                               </span>
                             ) : (
@@ -1089,7 +1155,7 @@ export default function PlantDoctor({
                                     prev ? { ...prev, diseaseInfo: undefined, remedial_schedules: undefined } : null,
                                   );
                                 }}
-                                className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors"
+                                className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors min-h-[44px] px-2"
                               >
                                 <ChevronLeft size={14} /> Change condition
                               </button>
@@ -1131,10 +1197,21 @@ export default function PlantDoctor({
                                 setConfirmedValue(selectedDisease);
                                 confirmSession(currentSessionId, selectedDisease);
                               }}
-                              className="w-full flex items-center justify-center gap-2 py-3.5 bg-green-500 text-white rounded-2xl font-black text-sm hover:bg-green-600 transition-colors"
+                              className="w-full flex items-center justify-center gap-2 py-3.5 bg-rhozly-primary text-white rounded-2xl font-black text-sm hover:bg-rhozly-primary/90 transition-colors"
                             >
-                              <CheckCircle2 size={16} /> Confirm this diagnosis
+                              <CheckCircle2 size={16} /> Confirm diagnosis
                             </button>
+                          )}
+                          {inventoryError && (
+                            <div className="flex items-center justify-between px-4 py-3 rounded-2xl bg-red-50 border border-red-200">
+                              <p className="text-xs font-bold text-red-600">Could not load shed — patient picker unavailable.</p>
+                              <button
+                                onClick={() => setInventoryRetryTick(t => t + 1)}
+                                className="text-xs font-black text-rhozly-primary hover:underline ml-3 shrink-0"
+                              >
+                                Retry
+                              </button>
+                            </div>
                           )}
                           <label className="block text-xs font-black text-rhozly-primary/60 uppercase tracking-widest">
                             Select Patient to Treat
@@ -1182,13 +1259,13 @@ export default function PlantDoctor({
                             </div>
                           </div>
                           {confirmedValue ? (
-                            <span className="flex items-center gap-1 text-xs font-black text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                            <span className="flex items-center gap-1 text-xs font-black text-rhozly-primary bg-rhozly-primary/10 px-2 py-1 rounded-lg">
                               <CheckCircle2 size={12} /> Confirmed
                             </span>
                           ) : (
                             <button
                               onClick={() => setSelectedPest(null)}
-                              className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors"
+                              className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors min-h-[44px] px-2"
                             >
                               <ChevronLeft size={14} /> Change
                             </button>
@@ -1209,7 +1286,7 @@ export default function PlantDoctor({
                               setConfirmedValue(selectedPest);
                               confirmSession(currentSessionId, selectedPest!);
                             }}
-                            className="w-full mt-3 flex items-center justify-center gap-2 py-3.5 bg-green-500 text-white rounded-2xl font-black text-sm hover:bg-green-600 transition-colors"
+                            className="w-full mt-3 flex items-center justify-center gap-2 py-3.5 bg-rhozly-primary text-white rounded-2xl font-black text-sm hover:bg-rhozly-primary/90 transition-colors"
                           >
                             <CheckCircle2 size={16} /> Confirm identification
                           </button>
@@ -1240,7 +1317,7 @@ export default function PlantDoctor({
                             )}
                           </div>
                           {confirmedValue ? (
-                            <span className="flex items-center gap-1 text-xs font-black text-green-600 bg-green-50 px-2 py-1 rounded-lg shrink-0">
+                            <span className="flex items-center gap-1 text-xs font-black text-rhozly-primary bg-rhozly-primary/10 px-2 py-1 rounded-lg shrink-0">
                               <CheckCircle2 size={12} /> Confirmed
                             </span>
                           ) : (
@@ -1274,7 +1351,7 @@ export default function PlantDoctor({
                               setConfirmedValue(selectedPest);
                               confirmSession(currentSessionId, selectedPest!);
                             }}
-                            className="w-full mt-2 flex items-center justify-center gap-2 py-3.5 bg-green-500 text-white rounded-2xl font-black text-sm hover:bg-green-600 transition-colors"
+                            className="w-full mt-2 flex items-center justify-center gap-2 py-3.5 bg-rhozly-primary text-white rounded-2xl font-black text-sm hover:bg-rhozly-primary/90 transition-colors"
                           >
                             <CheckCircle2 size={16} /> Confirm identification
                           </button>
@@ -1292,7 +1369,7 @@ export default function PlantDoctor({
                             <Bug size={12} /> {selectedPest}
                           </p>
                           {confirmedValue ? (
-                            <span className="flex items-center gap-1 text-xs font-black text-green-600 bg-green-50 px-2 py-1 rounded-lg">
+                            <span className="flex items-center gap-1 text-xs font-black text-rhozly-primary bg-rhozly-primary/10 px-2 py-1 rounded-lg">
                               <CheckCircle2 size={12} /> Confirmed
                             </span>
                           ) : (
@@ -1303,7 +1380,7 @@ export default function PlantDoctor({
                                   prev ? { ...prev, pestInfo: undefined, remedial_schedules: undefined } : null,
                                 );
                               }}
-                              className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors"
+                              className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors min-h-[44px] px-2"
                             >
                               <ChevronLeft size={14} /> Change
                             </button>
@@ -1343,10 +1420,21 @@ export default function PlantDoctor({
                                 setConfirmedValue(selectedPest);
                                 confirmSession(currentSessionId, selectedPest!);
                               }}
-                              className="w-full flex items-center justify-center gap-2 py-3.5 bg-green-500 text-white rounded-2xl font-black text-sm hover:bg-green-600 transition-colors"
+                              className="w-full flex items-center justify-center gap-2 py-3.5 bg-rhozly-primary text-white rounded-2xl font-black text-sm hover:bg-rhozly-primary/90 transition-colors"
                             >
-                              <CheckCircle2 size={16} /> Confirm this identification
+                              <CheckCircle2 size={16} /> Confirm identification
                             </button>
+                          )}
+                          {inventoryError && (
+                            <div className="flex items-center justify-between px-4 py-3 rounded-2xl bg-red-50 border border-red-200">
+                              <p className="text-xs font-bold text-red-600">Could not load shed — patient picker unavailable.</p>
+                              <button
+                                onClick={() => setInventoryRetryTick(t => t + 1)}
+                                className="text-xs font-black text-rhozly-primary hover:underline ml-3 shrink-0"
+                              >
+                                Retry
+                              </button>
+                            </div>
                           )}
                           <label className="block text-xs font-black text-rhozly-primary/60 uppercase tracking-widest">
                             Select Patient
@@ -1387,7 +1475,7 @@ export default function PlantDoctor({
                           {aiResult.remedial_schedules.map((schedule, idx) => (
                             <div
                               key={idx}
-                              className="bg-white p-3 rounded-xl border border-rhozly-primary-container/10 flex items-start gap-3"
+                              className="bg-rhozly-surface-lowest p-3 rounded-xl border border-rhozly-primary-container/10 flex items-start gap-3"
                             >
                               <ClipboardList
                                 className="text-rhozly-tertiary shrink-0 mt-0.5"
@@ -1432,7 +1520,7 @@ export default function PlantDoctor({
                         {treatmentApplied ? (
                           <div className="w-full py-4 bg-rhozly-primary/10 border border-rhozly-primary/30 text-rhozly-primary rounded-2xl font-black shadow-sm flex items-center justify-center gap-2 animate-in zoom-in-95">
                             <CheckCircle2 size={20} />
-                            Treatment scheduled — tasks added to your list!
+                            Approved — tasks added to your schedule!
                           </div>
                         ) : (
                           <button
@@ -1508,7 +1596,7 @@ export default function PlantDoctor({
                                 setPlantSearch(item.plants?.common_name || "");
                                 setIsDropdownOpen(false);
                               }}
-                              className="w-full text-left px-4 py-3 hover:bg-rhozly-primary/5 rounded-xl text-sm font-bold text-rhozly-on-surface transition-colors"
+                              className="w-full text-left px-4 min-h-[44px] flex items-center hover:bg-rhozly-primary/5 rounded-xl text-sm font-bold text-rhozly-on-surface transition-colors"
                             >
                               {item.plants?.common_name}
                             </button>
@@ -1522,7 +1610,8 @@ export default function PlantDoctor({
                     )}
                 </div>
               )}
-            </div>
+              </div>{/* end right column */}
+            </div>{/* end xl grid */}
           )}
           <input
             type="file"

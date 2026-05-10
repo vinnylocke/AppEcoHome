@@ -11,10 +11,12 @@ export function useCachedShed(homeId: string) {
   // isInitialLoading is ONLY true if we have zero cached data.
   const [isInitialLoading, setIsInitialLoading] = useState(true);
   const [isBackgroundSyncing, setIsBackgroundSyncing] = useState(false);
+  const [isError, setIsError] = useState(false);
 
   const fetchShedData = useCallback(
     async (forceRefresh = false) => {
       if (!homeId) return;
+      setIsError(false);
 
       // 1. Instantly load from browser cache
       if (!forceRefresh) {
@@ -68,6 +70,7 @@ export function useCachedShed(homeId: string) {
         );
       } catch (err: any) {
         console.error("Shed sync error:", err);
+        setIsError(true);
       } finally {
         setIsInitialLoading(false);
         setIsBackgroundSyncing(false);
@@ -85,6 +88,6 @@ export function useCachedShed(homeId: string) {
   useHomeRealtime("plants", mutate);
   useHomeRealtime("inventory_items", mutate);
 
-  return { plants, locations, isInitialLoading, isBackgroundSyncing, mutate };
+  return { plants, setPlants, locations, isInitialLoading, isBackgroundSyncing, isError, mutate };
 
 }

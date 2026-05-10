@@ -52,12 +52,17 @@ export default function GardenProfile({
 }: Props) {
   const [tab, setTab] = useState<Tab>("quiz");
   const [quizDone, setQuizDone] = useState<boolean | null>(null);
+  const [quizError, setQuizError] = useState(false);
+  const [quizRetryTick, setQuizRetryTick] = useState(0);
   const [prefs, setPrefs] = useState<Pref[]>([]);
   const [prefsLoading, setPrefsLoading] = useState(true);
   const [showPrefs, setShowPrefs] = useState(false);
   const [resetting, setResetting] = useState(false);
   const [confirmingReset, setConfirmingReset] = useState(false);
   const [deletingPrefId, setDeletingPrefId] = useState<string | null>(null);
+  const [prefsError, setPrefsError] = useState(false);
+  const [prefsRetryTick, setPrefsRetryTick] = useState(0);
+  const [retakingQuiz, setRetakingQuiz] = useState(false);
 
   useEffect(() => {
     if (!homeId || !userId) return;
@@ -70,17 +75,18 @@ export default function GardenProfile({
       .maybeSingle()
       .then(({ data, error }) => {
         if (error) {
-          toast.error("Failed to load quiz status.");
-          setQuizDone(false);
+          setQuizError(true);
         } else {
+          setQuizError(false);
           setQuizDone(!!data);
         }
       });
-  }, [homeId, userId]);
+  }, [homeId, userId, quizRetryTick]);
 
   useEffect(() => {
     if (!homeId) return;
     setPrefsLoading(true);
+    setPrefsError(false);
     supabase
       .from("planner_preferences")
       .select("id, entity_type, entity_name, sentiment, source, recorded_at")
@@ -89,24 +95,28 @@ export default function GardenProfile({
       .order("recorded_at", { ascending: false })
       .then(({ data, error }) => {
         if (error) {
-          toast.error("Failed to load preferences.");
+          setPrefsError(true);
+        } else {
+          setPrefs(data || []);
+          if (prefsRetryTick > 0) toast.success("Preferences loaded.");
         }
-        setPrefs(data || []);
         setPrefsLoading(false);
       });
-  }, [homeId, userId]);
+  }, [homeId, userId, prefsRetryTick]);
 
   async function handleDeletePref(id: string) {
+    const removed = prefs.find((p) => p.id === id);
     setDeletingPrefId(id);
+    setPrefs((prev) => prev.filter((p) => p.id !== id));
     const { error } = await supabase
       .from("planner_preferences")
       .delete()
       .eq("id", id);
     setDeletingPrefId(null);
     if (error) {
+      if (removed) setPrefs((prev) => [removed, ...prev]);
       toast.error("Failed to remove preference.");
     } else {
-      setPrefs((prev) => prev.filter((p) => p.id !== id));
       toast.success("Preference removed.");
     }
   }
@@ -122,27 +132,43 @@ export default function GardenProfile({
     setConfirmingReset(false);
     setResetting(true);
     try {
-      await supabase
+      const { error: prefsErr } = await supabase
         .from("planner_preferences")
         .delete()
         .eq("home_id", homeId)
         .eq("user_id", userId);
+      if (prefsErr) throw prefsErr;
 
-      await supabase
+      const { error: quizErr } = await supabase
         .from("home_quiz_completions")
         .delete()
         .eq("home_id", homeId)
         .eq("user_id", userId);
+      if (quizErr) throw quizErr;
 
       setPrefs([]);
       setQuizDone(false);
       setTab("quiz");
       toast.success("Garden profile reset.");
     } catch (err) {
-      Logger.error("Failed to reset garden profile", err, {}, "Something went wrong.");
-      toast.error("Could not reset profile — please try again");
+      Logger.error("Failed to reset garden profile", err, {}, "Could not reset profile — please try again.");
     } finally {
       setResetting(false);
+    }
+  }
+
+  async function handleRetakeQuiz() {
+    setRetakingQuiz(true);
+    const { error } = await supabase
+      .from("home_quiz_completions")
+      .delete()
+      .eq("home_id", homeId)
+      .eq("user_id", userId);
+    setRetakingQuiz(false);
+    if (error) {
+      Logger.error("Failed to reset quiz", error, {}, "Could not reset quiz — please try again.");
+    } else {
+      setQuizDone(false);
     }
   }
 
@@ -150,22 +176,35 @@ export default function GardenProfile({
   const negatives = prefs.filter((p) => p.sentiment === "negative");
 
   return (
-    <div className="max-w-lg xl:max-w-2xl mx-auto flex flex-col gap-6 pb-16">
+    <div className="max-w-lg xl:max-w-5xl mx-auto pb-16">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 data-testid="profile-heading" className="text-2xl font-black text-rhozly-on-surface leading-tight">
+          <h1 data-testid="profile-heading" className="text-3xl font-black font-display text-rhozly-on-surface leading-tight">
             Garden Profile
           </h1>
           <p className="text-sm text-rhozly-on-surface/60 mt-0.5">
-            Train the AI to understand your taste
+            Train your recommendations
           </p>
+          {quizDone !== null && (
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              <span className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full ${quizDone ? "bg-rhozly-primary/10 text-rhozly-primary" : "bg-rhozly-outline/15 text-rhozly-on-surface/50"}`}>
+                <span className={`w-1.5 h-1.5 rounded-full ${quizDone ? "bg-rhozly-primary" : "bg-rhozly-on-surface/30"}`} />
+                Quiz {quizDone ? "done" : "pending"}
+              </span>
+              {prefs.length > 0 && (
+                <span className="inline-flex items-center text-[10px] font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-full uppercase tracking-widest">
+                  {prefs.length} {prefs.length === 1 ? "preference" : "preferences"} learned
+                </span>
+              )}
+            </div>
+          )}
         </div>
         {(quizDone || prefs.length > 0) && (
           <button
             onClick={handleReset}
             disabled={resetting}
-            className="flex items-center gap-1.5 text-xs font-medium min-h-[44px] px-4 rounded-full border border-rhozly-outline/30 text-rhozly-on-surface/50 hover:border-red-400 hover:text-red-500 transition"
+            className="flex items-center gap-1.5 text-xs font-medium min-h-[44px] px-4 rounded-full border border-rhozly-outline/30 text-rhozly-on-surface/50 hover:border-rhozly-error hover:text-rhozly-error transition"
           >
             {resetting ? (
               <Loader2 size={12} className="animate-spin" />
@@ -176,6 +215,11 @@ export default function GardenProfile({
           </button>
         )}
       </div>
+
+      {/* Responsive two-column layout on xl */}
+      <div className="flex flex-col gap-6 xl:grid xl:grid-cols-[1fr_320px] xl:gap-8 xl:items-start">
+      {/* Left column: tabs + content */}
+      <div className="flex flex-col gap-6">
 
       {/* Tabs */}
       <div className="flex rounded-2xl border border-rhozly-outline/20 bg-white overflow-hidden">
@@ -198,7 +242,7 @@ export default function GardenProfile({
             {icon}
             {label}
             {id === "quiz" && quizDone && (
-              <span className="w-2 h-2 rounded-full bg-emerald-400 ml-0.5" />
+              <span className="w-1.5 h-1.5 rounded-full bg-rhozly-primary ml-0.5" />
             )}
           </button>
         ))}
@@ -206,9 +250,19 @@ export default function GardenProfile({
 
       {/* Tab content */}
       {tab === "quiz" && (
-        quizDone === null ? (
+        quizDone === null && !quizError ? (
           <div className="flex justify-center py-12">
             <Loader2 size={24} className="animate-spin text-rhozly-primary" />
+          </div>
+        ) : quizError ? (
+          <div className="flex flex-col items-center gap-3 py-10 text-center">
+            <p className="text-sm font-bold text-rhozly-on-surface/60">Could not load quiz status.</p>
+            <button
+              onClick={() => { setQuizError(false); setQuizDone(null); setQuizRetryTick(t => t + 1); }}
+              className="text-xs font-black text-rhozly-primary hover:underline"
+            >
+              Retry
+            </button>
           </div>
         ) : quizDone ? (
           <div className="bg-rhozly-primary/10 border border-rhozly-primary/20 rounded-3xl p-6 text-center flex flex-col items-center gap-4">
@@ -220,15 +274,25 @@ export default function GardenProfile({
                 Quiz complete!
               </p>
               <p className="text-sm text-rhozly-on-surface/60 mt-1">
-                Your answers are shaping your recommendations. Retake it anytime by pressing "Reset all".
+                Your answers are shaping your recommendations.
               </p>
             </div>
-            <button
-              onClick={() => setTab("swipe")}
-              className="bg-rhozly-primary text-white font-bold px-6 py-3 rounded-full hover:opacity-90 transition"
-            >
-              Discover more plants →
-            </button>
+            <div className="flex flex-col items-center gap-2 w-full">
+              <button
+                onClick={() => setTab("swipe")}
+                className="bg-rhozly-primary text-white font-bold px-6 py-3 min-h-[44px] rounded-full hover:opacity-90 transition"
+              >
+                Discover more plants →
+              </button>
+              <button
+                onClick={handleRetakeQuiz}
+                disabled={retakingQuiz}
+                className="flex items-center gap-1.5 text-sm font-medium text-rhozly-on-surface/50 hover:text-rhozly-primary min-h-[44px] px-4 transition disabled:opacity-50"
+              >
+                {retakingQuiz ? <Loader2 size={13} className="animate-spin" /> : null}
+                Retake quiz
+              </button>
+            </div>
           </div>
         ) : (
           <HabitQuiz
@@ -236,7 +300,7 @@ export default function GardenProfile({
             userId={userId}
             onComplete={() => {
               setQuizDone(true);
-              // Refresh prefs after quiz
+              toast.success("Quiz complete! Your preferences have been saved.");
               supabase
                 .from("planner_preferences")
                 .select("id, entity_type, entity_name, sentiment, source, recorded_at")
@@ -260,28 +324,44 @@ export default function GardenProfile({
         />
       )}
 
-      {/* Preference summary — collapsible (always rendered once profile is loaded) */}
-      {!prefsLoading && (
-        <div className="border border-rhozly-outline/20 rounded-3xl bg-white overflow-hidden">
-          <button
-            onClick={() => setShowPrefs((v) => !v)}
-            className="w-full flex items-center justify-between px-5 py-4 text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-outline/5 transition"
-          >
-            <span className="flex items-center gap-2">
-              <Sparkles size={14} className="text-amber-500" />
-              Your garden preferences
-              <span className="text-xs font-normal text-rhozly-on-surface/50 ml-1">
-                ({prefs.length})
-              </span>
-            </span>
-            <ChevronDown
-              size={16}
-              className={`text-rhozly-on-surface/40 transition-transform ${showPrefs ? "rotate-180" : ""}`}
-            />
-          </button>
+      </div>{/* end left column */}
 
-          {showPrefs && (
-            <div className="px-5 pb-5 flex flex-col gap-4">
+      {/* Right column: Preference summary */}
+      <div className="xl:sticky xl:top-8">
+        {prefsLoading && (
+          <div className="border border-rhozly-outline/20 rounded-3xl bg-white overflow-hidden animate-pulse">
+            <div className="px-5 py-4 flex items-center justify-between">
+              <div className="h-4 w-36 bg-rhozly-surface-low rounded-full" />
+            </div>
+            <div className="px-5 pb-5 space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-8 bg-rhozly-surface-low rounded-xl" />
+              ))}
+            </div>
+          </div>
+        )}
+        {!prefsLoading && !prefsError && (
+          <div className="border border-rhozly-outline/20 rounded-3xl bg-white overflow-hidden">
+            <button
+              onClick={() => setShowPrefs((v) => !v)}
+              aria-expanded={showPrefs}
+              aria-controls="prefs-panel"
+              className="w-full flex items-center justify-between px-5 py-4 text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-outline/5 xl:hover:bg-transparent transition xl:cursor-default xl:pointer-events-none"
+            >
+              <span className="flex items-center gap-2">
+                <Sparkles size={14} className="text-amber-500" />
+                Your garden preferences
+                <span className="text-xs font-normal text-rhozly-on-surface/50 ml-1">
+                  ({prefs.length})
+                </span>
+              </span>
+              <ChevronDown
+                size={16}
+                className={`text-rhozly-on-surface/40 transition-transform xl:hidden ${showPrefs ? "rotate-180" : ""}`}
+              />
+            </button>
+
+            <div id="prefs-panel" className={`px-5 pb-5 flex flex-col gap-4 ${showPrefs ? "block" : "hidden"} xl:block`}>
               {positives.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-rhozly-primary uppercase tracking-widest mb-2">
@@ -301,7 +381,7 @@ export default function GardenProfile({
               )}
               {negatives.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-red-500 uppercase tracking-widest mb-2">
+                  <p className="text-xs font-semibold text-rhozly-error uppercase tracking-widest mb-2">
                     Dislikes
                   </p>
                   <div className="flex flex-col gap-1.5">
@@ -322,9 +402,22 @@ export default function GardenProfile({
                 </p>
               )}
             </div>
-          )}
-        </div>
-      )}
+          </div>
+        )}
+        {prefsError && (
+          <div className="border border-rhozly-outline/20 rounded-3xl bg-white p-5 flex items-center justify-between">
+            <p className="text-sm font-bold text-rhozly-on-surface/60">Could not load preferences.</p>
+            <button
+              onClick={() => setPrefsRetryTick((t) => t + 1)}
+              className="text-sm font-black text-rhozly-primary hover:underline shrink-0 ml-3"
+            >
+              Retry
+            </button>
+          </div>
+        )}
+      </div>{/* end right column */}
+
+      </div>{/* end grid wrapper */}
     </div>
   );
 }
@@ -349,7 +442,7 @@ function PrefRow({
       >
         {sourceLabel}
       </span>
-      <span className="text-xs text-rhozly-on-surface/50 capitalize">
+      <span className="text-xs text-rhozly-on-surface/70 capitalize">
         {pref.entity_type.replace(/_/g, " ")}
       </span>
       <span className="text-sm font-semibold text-rhozly-on-surface flex-1 truncate">
@@ -358,7 +451,7 @@ function PrefRow({
       <button
         onClick={onDelete}
         disabled={deleting}
-        className="p-3 -m-3 text-rhozly-on-surface/30 hover:text-red-400 transition flex-shrink-0 disabled:pointer-events-none"
+        className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/30 hover:text-rhozly-error transition flex-shrink-0 disabled:opacity-50"
         aria-label="Remove preference"
       >
         {deleting ? (

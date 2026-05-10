@@ -16,6 +16,7 @@
   --color-rhozly-tertiary: #ffdad8;
   --color-rhozly-on-surface: #1a1c1b;
   --color-rhozly-outline: rgba(26, 28, 27, 0.15);
+  --color-rhozly-error: #b91c1c;
 }
 
 html,
