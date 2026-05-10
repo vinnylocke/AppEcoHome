@@ -139,9 +139,10 @@
    Shepherd adds shepherd-has-active-tour to <body> when any tour is running.
    The tooltip is appended directly to <body> so it sits outside #root
    and stays sharp while everything inside #root blurs. */
-body.shepherd-has-active-tour #root {
-  filter: blur(6px) brightness(0.85);
+html.rhozly-tour-active #root {
+  filter: blur(8px) brightness(0.75);
   transition: filter 0.3s ease;
+  pointer-events: none;
 }
 
 #root {

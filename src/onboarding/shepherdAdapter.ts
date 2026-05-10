@@ -83,8 +83,12 @@ export function buildTour(
     });
   });
 
-  tour.on("complete", onComplete);
-  tour.on("cancel", onCancel);
+  const applyBlur = () => document.documentElement.classList.add("rhozly-tour-active");
+  const removeBlur = () => document.documentElement.classList.remove("rhozly-tour-active");
+
+  tour.on("start", applyBlur);
+  tour.on("complete", () => { removeBlur(); onComplete(); });
+  tour.on("cancel", () => { removeBlur(); onCancel(); });
 
   return tour;
 }
