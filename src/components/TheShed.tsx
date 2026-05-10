@@ -681,6 +681,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               <div className="ml-auto xl:ml-0">
                 {can("shed.add") && (
                   <button
+                    data-testid="shed-add-plant-btn"
                     onClick={() => setShowBulkSearch(true)}
                     aria-label="Add plant"
                     className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"

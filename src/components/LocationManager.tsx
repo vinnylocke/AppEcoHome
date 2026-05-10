@@ -283,6 +283,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
             <div className="flex flex-col sm:flex-row gap-4 mb-6">
               <input
                 autoFocus
+                data-testid="location-name-input"
                 placeholder="Location Name (e.g., Lounge, Back Garden)"
                 className="flex-1 px-6 py-4 rounded-2xl border-none outline-none font-medium shadow-sm"
                 value={newLoc.name}
@@ -306,6 +307,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                 Cancel
               </button>
               <button
+                data-testid="location-save-btn"
                 onClick={handleSaveNewLocation}
                 className="px-8 py-3 bg-rhozly-primary text-white rounded-2xl font-bold text-sm shadow-sm"
               >

@@ -518,6 +518,7 @@ export default function BulkSearchModal({
           >
             <button
               role="tab"
+              data-testid="bulk-search-tab-manual"
               aria-selected={activeTab === "manual"}
               onClick={() => { setActiveTab("manual"); setExpandedResultId(null); }}
               className={`flex-1 min-w-[80px] flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${activeTab === "manual" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}

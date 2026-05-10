@@ -127,6 +127,7 @@ export function buildTour(
       attachTo: step.attachTo.element && step.attachTo.on
         ? { element: step.attachTo.element, on: step.attachTo.on }
         : undefined,
+      advanceOn: step.advanceOn,
       buttons,
       when: {
         show() {

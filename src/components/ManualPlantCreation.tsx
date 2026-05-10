@@ -513,6 +513,7 @@ export default function ManualPlantCreation({
                 </div>
                 <input
                   id="common_name_input"
+                  data-testid="plant-common-name-input"
                   name="common_name"
                   value={formData.common_name}
                   onChange={handleInputChange}
@@ -870,6 +871,7 @@ export default function ManualPlantCreation({
             )}
             <button
               type="submit"
+              data-testid="plant-form-save-btn"
               disabled={isSaving || savedConfirm}
               className={`flex-[2] py-4 rounded-2xl font-black shadow-lg flex items-center justify-center gap-2 transition-all ${savedConfirm ? "bg-green-500 text-white" : "bg-rhozly-primary text-white"}`}
             >

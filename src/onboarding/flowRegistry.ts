@@ -359,6 +359,115 @@ export const flowRegistry: FlowDef[] = [
     ],
   },
 
+  // ─── INTERACTIVE GUIDED TASKS ───────────────────────────────────────────────
+
+  {
+    id: "add_manual_plant",
+    order: 4.5,
+    trigger: "manual-only",
+    route: "/shed",
+    title: "Add a Manual Plant",
+    description: "Step-by-step walkthrough: create a plant entry with just the details you know.",
+    category: "Garden",
+    estimated_minutes: 2,
+    steps: [
+      {
+        title: "Let's add your first plant",
+        body: "This guide will walk you through creating a manual plant entry — no subscription or internet database needed. Just the name and whatever care details you know.",
+        attachTo: { element: null, on: null },
+      },
+      {
+        title: "Tap Add",
+        body: "Tap the green Add button to open the plant panel.",
+        attachTo: { element: "[data-testid='shed-add-plant-btn']", on: "bottom" },
+        advanceOn: { selector: "[data-testid='shed-add-plant-btn']", event: "click" },
+      },
+      {
+        title: "Choose Manual entry",
+        body: "Select the Manual tab — this lets you create a plant with just the details you know, with no database required.",
+        attachTo: { element: "[data-testid='bulk-search-tab-manual']", on: "bottom" },
+        advanceOn: { selector: "[data-testid='bulk-search-tab-manual']", event: "click" },
+      },
+      {
+        title: "Name your plant",
+        body: "Type the common name — 'Tomato', 'Peace Lily', 'Fiddle Leaf Fig'. This is the name Rhozly will use across tasks, recommendations, and diagnoses. Tap Next when you've typed it.",
+        attachTo: { element: "[data-testid='plant-common-name-input']", on: "bottom" },
+      },
+      {
+        title: "Fill in what you know",
+        body: "Scroll down to see care fields — watering schedule, sunlight, cycle type, and more. Don't worry about completing every field; you can always edit the plant later. Tap Next when you're happy.",
+        attachTo: { element: null, on: null },
+      },
+      {
+        title: "Save your plant",
+        body: "Tap Save Plant and your entry will appear in the Shed immediately.",
+        attachTo: { element: "[data-testid='plant-form-save-btn']", on: "top" },
+        advanceOn: { selector: "[data-testid='plant-form-save-btn']", event: "click" },
+      },
+      {
+        title: "Your plant is in the Shed!",
+        body: "Well done — it's part of your library now. From here you can assign it to a garden bed, set up care automations in the Schedule, or run an AI diagnosis if something looks wrong.",
+        attachTo: { element: null, on: null },
+      },
+    ],
+  },
+
+  {
+    id: "add_location_and_area",
+    order: 4.6,
+    trigger: "manual-only",
+    route: "/management",
+    title: "Add a Location & Area",
+    description: "Guided walkthrough: create your first garden location and add an area inside it.",
+    category: "Getting Started",
+    estimated_minutes: 2,
+    steps: [
+      {
+        title: "Set up your garden space",
+        body: "A Location is any growing space you manage — a back garden, a balcony, a greenhouse. Each location holds one or more Areas (raised beds, pots, borders). Let's create your first one.",
+        attachTo: { element: null, on: null },
+      },
+      {
+        title: "Tap New Location",
+        body: "Tap 'New Location' to open the creation form.",
+        attachTo: { element: "[data-testid='location-add-btn']", on: "bottom" },
+        advanceOn: { selector: "[data-testid='location-add-btn']", event: "click" },
+      },
+      {
+        title: "Name your location",
+        body: "Give it a descriptive name — 'Back Garden', 'Kitchen Windowsill', 'Polytunnel'. Tap Next when you've typed it.",
+        attachTo: { element: "[data-testid='location-name-input']", on: "bottom" },
+      },
+      {
+        title: "Inside or outside?",
+        body: "Toggle whether this space is indoors or outdoors. This affects which plants Rhozly recommends and whether weather-based rules apply to tasks here.",
+        attachTo: { element: "[data-testid='location-name-input']", on: "bottom" },
+      },
+      {
+        title: "Save your location",
+        body: "Tap 'Save Location' to create it. It will appear in your list below.",
+        attachTo: { element: "[data-testid='location-save-btn']", on: "top" },
+        advanceOn: { selector: "[data-testid='location-save-btn']", event: "click" },
+      },
+      {
+        title: "Add an area",
+        body: "Find your new location in the list and tap 'Add Area' inside it. Areas are the specific spots within a location — a raised bed, a row of pots, a shady corner.",
+        attachTo: { element: "[data-testid='area-add-btn']", on: "top" },
+        advanceOn: { selector: "[data-testid='area-add-btn']", event: "click" },
+      },
+      {
+        title: "Name your area",
+        body: "A new area called 'New Area' has been created. Tap its name in the list to rename it — 'North Bed', 'Patio Pots', 'Herb Spiral'. The name saves automatically when you click or tap away.",
+        attachTo: { element: null, on: null },
+      },
+      {
+        title: "You're all set up!",
+        body: "Your location and area are live. Head to the Garden tab to add plants and assign them here. Once your plants are in, Rhozly will start generating care tasks and weather-aware automations automatically.",
+        attachTo: { element: null, on: null },
+      },
+    ],
+  },
+
   // ─── COMMUNITY ──────────────────────────────────────────────────────────────
 
   {

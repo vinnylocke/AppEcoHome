@@ -15,6 +15,10 @@ export interface StepDef {
     on: "bottom" | "top" | "left" | "right" | null;
   };
   image?: string;
+  advanceOn?: {
+    selector: string;
+    event: string;
+  };
 }
 
 export interface FlowDef {
