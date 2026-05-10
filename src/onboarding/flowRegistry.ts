@@ -5,6 +5,7 @@ export const flowRegistry: FlowDef[] = [
 
   {
     id: "global_welcome",
+    order: 1,
     trigger: "automatic",
     route: "global",
     title: "Welcome to Rhozly",
@@ -52,6 +53,7 @@ export const flowRegistry: FlowDef[] = [
 
   {
     id: "home_setup_tips",
+    order: 2,
     trigger: "automatic",
     route: "global",
     title: "Setting up your first home",
@@ -81,6 +83,7 @@ export const flowRegistry: FlowDef[] = [
 
   {
     id: "dashboard_tour",
+    order: 3,
     trigger: "automatic",
     route: "/dashboard",
     title: "The Home Dashboard",
@@ -122,6 +125,7 @@ export const flowRegistry: FlowDef[] = [
 
   {
     id: "garden_hub_tour",
+    order: 4,
     trigger: "automatic",
     route: "/shed",
     title: "The Garden Hub",
@@ -155,6 +159,7 @@ export const flowRegistry: FlowDef[] = [
 
   {
     id: "weather_insights_tour",
+    order: 5,
     trigger: "manual-only",
     route: "/dashboard",
     title: "Weather Insights & Forecast",
@@ -185,6 +190,7 @@ export const flowRegistry: FlowDef[] = [
 
   {
     id: "planner_tour",
+    order: 6,
     trigger: "automatic",
     route: "/planner",
     title: "The Landscape Planner",
@@ -218,6 +224,7 @@ export const flowRegistry: FlowDef[] = [
 
   {
     id: "task_schedule_tour",
+    order: 7,
     trigger: "automatic",
     route: "/schedule",
     title: "Automations & Task Schedule",
@@ -253,6 +260,7 @@ export const flowRegistry: FlowDef[] = [
 
   {
     id: "tools_hub_tour",
+    order: 8,
     trigger: "automatic",
     route: "/tools",
     title: "Tools Overview",
@@ -290,6 +298,7 @@ export const flowRegistry: FlowDef[] = [
 
   {
     id: "plant_doctor_tour",
+    order: 9,
     trigger: "automatic",
     route: "/doctor",
     title: "Garden AI — Identify & Diagnose",
@@ -323,6 +332,7 @@ export const flowRegistry: FlowDef[] = [
 
   {
     id: "visualiser_tour",
+    order: 10,
     trigger: "automatic",
     route: "/visualiser",
     title: "Plant Visualiser",
@@ -353,6 +363,7 @@ export const flowRegistry: FlowDef[] = [
 
   {
     id: "guides_tour",
+    order: 11,
     trigger: "automatic",
     route: "/guides",
     title: "Guides Library",
@@ -382,6 +393,7 @@ export const flowRegistry: FlowDef[] = [
 
   {
     id: "profile_quiz_tour",
+    order: 12,
     trigger: "automatic",
     route: "/profile",
     title: "Garden Profile Quiz",

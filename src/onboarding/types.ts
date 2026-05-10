@@ -19,6 +19,7 @@ export interface StepDef {
 
 export interface FlowDef {
   id: string;
+  order: number;
   trigger: TriggerMode;
   route: string;
   title: string;

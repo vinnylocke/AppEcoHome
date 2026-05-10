@@ -28,20 +28,32 @@ export function useAutoTrigger(
   const { pathname } = useLocation();
   const triggered = useRef(getTriggered());
 
+  // Keep a ref so the pathname effect always reads the latest state
+  // without taking onboardingState as a dependency. This prevents a
+  // completed flow from immediately firing the next one — flows only
+  // auto-trigger on route changes, giving the user natural breathing room.
+  const stateRef = useRef(onboardingState);
+  useEffect(() => {
+    stateRef.current = onboardingState;
+  }, [onboardingState]);
+
   useEffect(() => {
     if (!enabled) return;
 
     // Small delay so the route's components have time to mount
     const timer = setTimeout(() => {
-      const candidates = flowRegistry.filter(
-        (f) =>
-          f.trigger === "automatic" &&
-          (f.route === pathname || f.route === "global") &&
-          !onboardingState[f.id] &&
-          !triggered.current.has(f.id),
-      );
+      const state = stateRef.current;
 
-      // Fire only the first candidate (don't stack multiple tours)
+      const candidates = flowRegistry
+        .filter(
+          (f) =>
+            f.trigger === "automatic" &&
+            (f.route === pathname || f.route === "global") &&
+            !state[f.id] &&
+            !triggered.current.has(f.id),
+        )
+        .sort((a, b) => a.order - b.order);
+
       if (candidates.length > 0) {
         const flow = candidates[0];
         markTriggered(flow.id);
@@ -51,5 +63,8 @@ export function useAutoTrigger(
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [pathname, enabled, onboardingState, triggerFlow]);
+    // Intentionally omit onboardingState — we read it via stateRef so that
+    // completing a flow doesn't immediately retrigger this effect.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pathname, enabled, triggerFlow]);
 }
