@@ -187,7 +187,7 @@ export const WeatherAlertBanner = ({
   };
 
   return (
-    <div className="space-y-3">
+    <div data-testid="weather-alert-banner" className="space-y-3">
       {visibleAlerts.map((alert) => {
         const styles = styleMap[alert.severity] ?? styleMap.info;
 

@@ -148,7 +148,7 @@ export default function GardenProfile({
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-black text-rhozly-on-surface leading-tight">
+          <h1 data-testid="profile-heading" className="text-2xl font-black text-rhozly-on-surface leading-tight">
             Garden Profile
           </h1>
           <p className="text-sm text-rhozly-on-surface/60 mt-0.5">
@@ -181,6 +181,7 @@ export default function GardenProfile({
         ).map(({ id, icon, label }) => (
           <button
             key={id}
+            data-testid={`profile-tab-${id}`}
             onClick={() => setTab(id)}
             className={`flex-1 flex items-center justify-center gap-2 py-3 text-sm font-bold transition ${
               tab === id

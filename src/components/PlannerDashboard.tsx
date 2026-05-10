@@ -234,6 +234,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
         {can("plans.create") && (
           <button
             onClick={() => setShowNewPlanModal(true)}
+            data-testid="planner-new-plan-btn"
             className="px-6 py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:bg-rhozly-primary/90 transition-transform active:scale-95 flex items-center gap-2 w-full md:w-auto justify-center"
           >
             <Sparkles size={20} /> New Plan

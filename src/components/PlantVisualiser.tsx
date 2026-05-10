@@ -188,7 +188,7 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
         </div>
       ) : (
         /* Plant grid */
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div data-testid="visualiser-plant-grid" className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {displayed.map((plant: any) => {
             const isSelected = selected.has(String(plant.id));
             const src = SOURCE_BADGE[plant.source] ?? SOURCE_BADGE.manual;
@@ -350,6 +350,7 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
                   </>
                 ) : (
                   <button
+                    data-testid="visualiser-open-camera-btn"
                     onClick={handleContinueToSprites}
                     className="px-6 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm flex items-center gap-2 hover:scale-[1.02] transition-transform shadow-lg"
                   >

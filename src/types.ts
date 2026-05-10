@@ -8,6 +8,7 @@ export interface UserProfile {
   subscription_tier: "sprout" | "botanist" | "sage" | "evergreen" | null;
   notification_interval_hours: number;
   created_at: string;
+  onboarding_state: Record<string, "completed" | "dismissed">;
 }
 
 export interface Home {

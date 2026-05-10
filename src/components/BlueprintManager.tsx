@@ -290,7 +290,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
     <div className="w-full h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-700 pb-32">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
         <div>
-          <h2 className="text-4xl font-black font-display text-rhozly-on-surface">
+          <h2 data-testid="schedule-heading" className="text-4xl font-black font-display text-rhozly-on-surface">
             Automations
           </h2>
           <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">

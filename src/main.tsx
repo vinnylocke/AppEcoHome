@@ -2,6 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.tsx";
 import "./index.css";
+import "shepherd.js/dist/css/shepherd.css";
+import "./onboarding/shepherdTheme.css";
 import * as Sentry from "@sentry/react";
 
 import { registerSW } from "virtual:pwa-register";

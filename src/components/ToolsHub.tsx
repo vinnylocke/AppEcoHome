@@ -67,7 +67,7 @@ export default function ToolsHub() {
 
   return (
     <div className="px-4 md:px-8 py-6 max-w-2xl mx-auto">
-      <h1 className="text-2xl font-black text-rhozly-on-surface mb-1">Tools</h1>
+      <h1 data-testid="tools-heading" className="text-2xl font-black text-rhozly-on-surface mb-1">Tools</h1>
       <p className="text-sm text-rhozly-on-surface/50 font-semibold mb-6">
         Everything you need to grow smarter.
       </p>

@@ -70,6 +70,8 @@ import NavItem from "./components/NavItem";
 import UpdateBanner from "./components/UpdateBanner";
 import PrivacyPolicyModal from "./components/PrivacyPolicyModal";
 import CookiePolicyModal from "./components/CookiePolicyModal";
+import HelpCenter from "./onboarding/HelpCenter";
+import type { OnboardingState } from "./onboarding/types";
 import {
   getMidnightTonight,
   getCachedWeatherData,
@@ -154,6 +156,9 @@ function AppShell() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showCookies, setShowCookies] = useState(false);
+
+  // Onboarding state — kept in sync with profile.onboarding_state
+  const [onboardingState, setOnboardingState] = useState<OnboardingState>({});
 
   useEffect(() => {
     const handleDeepLink = async () => {
@@ -357,6 +362,9 @@ function AppShell() {
       }
     }
     setProfile(profileData);
+    if (profileData?.onboarding_state) {
+      setOnboardingState(profileData.onboarding_state);
+    }
   };
 
   const handleManualRefresh = async () => {
@@ -649,7 +657,7 @@ function AppShell() {
                                 />
 
                                 <div className="flex items-center justify-between px-1">
-                                  <div className="bg-rhozly-primary/5 p-1 rounded-2xl inline-flex">
+                                  <div data-testid="dashboard-view-switcher" className="bg-rhozly-primary/5 p-1 rounded-2xl inline-flex">
                                     {["locations", "calendar", "weather"].map(
                                       (v) => (
                                         <button
@@ -668,7 +676,7 @@ function AppShell() {
 
                                 {dashboardView === "locations" ? (
                                   <div className="space-y-5">
-                                    <div className="bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container text-white rounded-3xl p-5 shadow-md flex justify-between items-center">
+                                    <div data-testid="dashboard-weather-widget" className="bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container text-white rounded-3xl p-5 shadow-md flex justify-between items-center">
                                       <div className="flex items-center gap-4">
                                         <div className="bg-white/20 p-3 rounded-2xl">
                                           {weather?.Icon ? (
@@ -702,7 +710,7 @@ function AppShell() {
                                         Full Forecast
                                       </button>
                                     </div>
-                                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                                    <div data-testid="dashboard-location-grid" className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                       {locations.length > 0 ? (
                                         locations.map((loc: any, idx: number) => (
                                           <LocationTile
@@ -773,7 +781,9 @@ function AppShell() {
                                     )}
 
                                     {session?.user?.id && (
-                                      <AssistantCard userId={session.user.id} />
+                                      <div data-testid="dashboard-assistant-card">
+                                        <AssistantCard userId={session.user.id} />
+                                      </div>
                                     )}
 
                                     <div className="flex items-center justify-between px-1">
@@ -789,7 +799,7 @@ function AppShell() {
                                         View Calendar
                                       </button>
                                     </div>
-                                    <div className="bg-rhozly-surface-lowest/80 rounded-[2.5rem] p-4 sm:p-6 border border-rhozly-outline/10 shadow-sm min-h-[400px]">
+                                    <div data-testid="dashboard-task-list" className="bg-rhozly-surface-lowest/80 rounded-[2.5rem] p-4 sm:p-6 border border-rhozly-outline/10 shadow-sm min-h-[400px]">
                                       {profile?.home_id && (
                                         <TaskList homeId={profile.home_id} />
                                       )}
@@ -1026,6 +1036,11 @@ function AppShell() {
                 {profile?.home_id && (
                   <PlantDoctorChat homeId={profile.home_id} />
                 )}
+                <HelpCenter
+                  userId={session?.user?.id}
+                  onboardingState={onboardingState}
+                  onStateChange={setOnboardingState}
+                />
               </div>,
               document.body,
             )}
