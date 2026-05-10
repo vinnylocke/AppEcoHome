@@ -238,8 +238,17 @@ export default function PlantDoctor({
         setSickInventoryId(null);
         setSaveToJournal(true);
       }
-    } catch (error) {
-      console.log("User cancelled camera or it failed", error);
+    } catch (error: any) {
+      const msg: string = error?.message ?? "";
+      if (
+        msg.toLowerCase().includes("denied") ||
+        msg.toLowerCase().includes("permission") ||
+        msg.toLowerCase().includes("notallowed")
+      ) {
+        toast.error("Camera access denied — please enable it in your device settings");
+      } else {
+        toast.error("Camera unavailable — please try uploading a photo instead");
+      }
     }
   };
 
@@ -309,7 +318,7 @@ export default function PlantDoctor({
         .single();
       if (data) setCurrentSessionId(data.id);
     } catch {
-      // Non-fatal — history is a convenience feature
+      toast.error("Could not save session");
     }
   };
 
@@ -604,7 +613,7 @@ export default function PlantDoctor({
             </h2>
             <button
               onClick={() => setShowManualAdd(false)}
-              className="w-11 h-11 flex items-center justify-center hover:bg-rhozly-surface-low rounded-xl"
+              className="w-11 h-11 flex items-center justify-center hover:bg-rhozly-surface-low rounded-2xl"
             >
               <X size={24} />
             </button>
@@ -721,7 +730,7 @@ export default function PlantDoctor({
                 <button
                   onClick={clearImage}
                   disabled={isUIBusy}
-                  className="absolute top-4 right-4 w-11 h-11 bg-white/90 backdrop-blur-sm rounded-xl text-rhozly-on-surface/60 hover:text-red-500 hover:bg-white flex items-center justify-center shadow-sm transition-colors disabled:opacity-50"
+                  className="absolute top-4 right-4 w-11 h-11 bg-white/90 backdrop-blur-sm rounded-2xl text-rhozly-on-surface/60 hover:text-red-500 hover:bg-white flex items-center justify-center shadow-sm transition-colors disabled:opacity-50"
                 >
                   <X className="w-5 h-5" />
                 </button>
@@ -738,7 +747,7 @@ export default function PlantDoctor({
                   </p>
                 </div>
               ) : (
-              <div className="grid grid-cols-3 gap-2 sm:gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                 <button
                   onClick={() => handleAiAction("identify")}
                   disabled={isUIBusy}
@@ -771,7 +780,7 @@ export default function PlantDoctor({
                   onClick={() => handleAiAction("pest")}
                   disabled={isUIBusy}
                   data-testid="doctor-btn-pest"
-                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "pest" ? "bg-amber-500 text-white shadow-md scale-[1.02]" : "bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 disabled:opacity-50"}`}
+                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "pest" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-rhozly-surface-low text-rhozly-primary border border-rhozly-outline/15 hover:bg-rhozly-primary/10 disabled:opacity-50"}`}
                 >
                   {isProcessing && activeAction === "pest" ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -862,7 +871,7 @@ export default function PlantDoctor({
                           <button
                             onClick={() => setShowPerenualSearch(true)}
                             disabled={isUIBusy}
-                            className="flex-1 flex items-center justify-center gap-2 py-4 px-4 border rounded-xl font-black shadow-sm transition-colors disabled:opacity-50 bg-white border-rhozly-outline/20 text-rhozly-primary hover:bg-rhozly-primary/5"
+                            className="flex-1 flex items-center justify-center gap-2 py-4 px-4 border rounded-2xl font-black shadow-sm transition-colors disabled:opacity-50 bg-white border-rhozly-outline/20 text-rhozly-primary hover:bg-rhozly-primary/5"
                           >
                             <Database size={18} />
                             Search Global API
@@ -872,7 +881,7 @@ export default function PlantDoctor({
                         <button
                           onClick={generateManualCareGuide}
                           disabled={isUIBusy}
-                          className="flex-1 flex items-center justify-center gap-2 py-4 px-4 bg-rhozly-primary text-white rounded-xl font-black shadow-sm hover:bg-rhozly-primary-container transition-colors disabled:opacity-50"
+                          className="flex-1 flex items-center justify-center gap-2 py-4 px-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-sm hover:bg-rhozly-primary-container transition-colors disabled:opacity-50"
                         >
                           {isGeneratingGuide ? (
                             <>
@@ -894,7 +903,7 @@ export default function PlantDoctor({
                               setConfirmedValue(selectedPlantName);
                               confirmSession(currentSessionId, selectedPlantName!);
                             }}
-                            className="w-full flex items-center justify-center gap-2 py-3 bg-green-500 text-white rounded-xl font-black text-sm hover:bg-green-600 transition-colors"
+                            className="w-full flex items-center justify-center gap-2 py-3.5 bg-green-500 text-white rounded-2xl font-black text-sm hover:bg-green-600 transition-colors"
                           >
                             <CheckCircle2 size={16} /> Confirm this identification
                           </button>
@@ -902,7 +911,7 @@ export default function PlantDoctor({
                         <button
                           data-testid="doctor-add-plant-to-list"
                           onClick={() => openAddToListSheet([{ name: selectedPlantName, item_type: "plant" }])}
-                          className="w-full flex items-center justify-center gap-2 py-3 border border-rhozly-primary/20 rounded-xl font-black text-sm text-rhozly-primary hover:bg-rhozly-primary/5 transition-colors"
+                          className="w-full flex items-center justify-center gap-2 py-3.5 border border-rhozly-primary/20 rounded-2xl font-black text-sm text-rhozly-primary hover:bg-rhozly-primary/5 transition-colors"
                         >
                           <ShoppingCart size={16} /> Add to Shopping List
                         </button>
@@ -943,16 +952,16 @@ export default function PlantDoctor({
                     aiResult.possible_pests.length > 0 &&
                     !selectedPest &&
                     activeAction === "pest" && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
+                      <div className="bg-rhozly-surface-low border border-rhozly-outline/15 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
                         <h3 className="font-black text-rhozly-on-surface mb-4 flex items-center gap-2">
-                          <Bug size={20} className="text-amber-600" /> What do you see?
+                          <Bug size={20} className="text-rhozly-primary" /> What do you see?
                         </h3>
                         <div className="space-y-2">
                           {aiResult.possible_pests.map((name, i) => (
                             <button
                               key={i}
                               onClick={() => setSelectedPest(name)}
-                              className="w-full text-left p-4 bg-white rounded-2xl border border-amber-200 font-bold hover:border-amber-400 hover:bg-amber-50 transition-all text-rhozly-on-surface"
+                              className="w-full text-left p-4 bg-white rounded-2xl border border-rhozly-outline/15 font-bold hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-rhozly-on-surface"
                             >
                               {name}
                             </button>
@@ -1017,7 +1026,7 @@ export default function PlantDoctor({
                             <button
                               onClick={() => fetchDetailedInfo("api")}
                               disabled={isUIBusy}
-                              className="flex-1 flex items-center justify-center gap-2 py-4 border rounded-xl font-black shadow-sm transition-colors disabled:opacity-50 bg-white border-rhozly-primary-container/20 text-rhozly-primary hover:bg-rhozly-primary-container/10"
+                              className="flex-1 flex items-center justify-center gap-2 py-4 border rounded-2xl font-black shadow-sm transition-colors disabled:opacity-50 bg-white border-rhozly-primary-container/20 text-rhozly-primary hover:bg-rhozly-primary-container/10"
                             >
                               {isFetchingDetails ? (
                                 <Loader2 size={18} className="animate-spin" />
@@ -1031,7 +1040,7 @@ export default function PlantDoctor({
                           <button
                             onClick={() => fetchDetailedInfo("ai")}
                             disabled={isUIBusy}
-                            className="flex-1 flex items-center justify-center gap-2 py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-sm hover:bg-rhozly-primary-container transition-colors disabled:opacity-50"
+                            className="flex-1 flex items-center justify-center gap-2 py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-sm hover:bg-rhozly-primary-container transition-colors disabled:opacity-50"
                           >
                             {isFetchingDetails && !perenualEnabled ? (
                               <Loader2 size={18} className="animate-spin" />
@@ -1048,7 +1057,7 @@ export default function PlantDoctor({
                               setConfirmedValue(selectedDisease);
                               confirmSession(currentSessionId, selectedDisease!);
                             }}
-                            className="w-full flex items-center justify-center gap-2 py-3 mt-3 bg-green-500 text-white rounded-xl font-black text-sm hover:bg-green-600 transition-colors"
+                            className="w-full flex items-center justify-center gap-2 py-3.5 mt-3 bg-green-500 text-white rounded-2xl font-black text-sm hover:bg-green-600 transition-colors"
                           >
                             <CheckCircle2 size={16} /> Confirm this diagnosis
                           </button>
@@ -1088,7 +1097,7 @@ export default function PlantDoctor({
                           </div>
                         )}
                         {aiResult.diseaseInfo && (
-                          <div className="mb-6 space-y-4">
+                          <div className="mb-6 lg:grid lg:grid-cols-2 lg:gap-4 space-y-4 lg:space-y-0">
                             <div>
                               <h4 className="font-black text-sm text-rhozly-primary mb-1 uppercase tracking-widest flex items-center gap-2">
                                 {aiResult.diseaseInfo.source === "api" ? (
@@ -1122,7 +1131,7 @@ export default function PlantDoctor({
                                 setConfirmedValue(selectedDisease);
                                 confirmSession(currentSessionId, selectedDisease);
                               }}
-                              className="w-full flex items-center justify-center gap-2 py-3 bg-green-500 text-white rounded-xl font-black text-sm hover:bg-green-600 transition-colors"
+                              className="w-full flex items-center justify-center gap-2 py-3.5 bg-green-500 text-white rounded-2xl font-black text-sm hover:bg-green-600 transition-colors"
                             >
                               <CheckCircle2 size={16} /> Confirm this diagnosis
                             </button>
@@ -1140,7 +1149,7 @@ export default function PlantDoctor({
                           <button
                             onClick={generateTreatmentPlan}
                             disabled={!sickInventoryId || isGeneratingTreatment}
-                            className="w-full py-5 bg-rhozly-primary text-white rounded-xl font-black text-lg shadow-lg hover:bg-rhozly-primary-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="w-full py-5 bg-rhozly-primary text-white rounded-2xl font-black text-lg shadow-lg hover:bg-rhozly-primary-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                           >
                             {isGeneratingTreatment ? (
                               <>
@@ -1161,36 +1170,36 @@ export default function PlantDoctor({
                   {activeAction === "pest" &&
                     selectedPest &&
                     aiResult.is_pest === false && (
-                      <div className="bg-green-50 border border-green-200 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
+                      <div className="bg-rhozly-surface-low border border-rhozly-outline/15 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-3">
-                            <div className="w-10 h-10 bg-green-100 rounded-2xl flex items-center justify-center">
-                              <CheckCircle2 size={20} className="text-green-600" />
+                            <div className="w-10 h-10 bg-rhozly-tertiary/10 rounded-2xl flex items-center justify-center">
+                              <CheckCircle2 size={20} className="text-rhozly-tertiary" />
                             </div>
                             <div>
-                              <h3 className="font-black text-green-800">Beneficial Insect!</h3>
-                              <p className="text-xs font-bold text-green-600">{selectedPest}</p>
+                              <h3 className="font-black text-rhozly-on-surface">Beneficial Insect!</h3>
+                              <p className="text-xs font-bold text-rhozly-tertiary">{selectedPest}</p>
                             </div>
                           </div>
                           {confirmedValue ? (
-                            <span className="flex items-center gap-1 text-xs font-black text-green-600 bg-green-100 px-2 py-1 rounded-lg">
+                            <span className="flex items-center gap-1 text-xs font-black text-green-600 bg-green-50 px-2 py-1 rounded-lg">
                               <CheckCircle2 size={12} /> Confirmed
                             </span>
                           ) : (
                             <button
                               onClick={() => setSelectedPest(null)}
-                              className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-green-600 transition-colors"
+                              className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors"
                             >
                               <ChevronLeft size={14} /> Change
                             </button>
                           )}
                         </div>
                         {aiResult.notes && (
-                          <p className="text-sm font-medium text-green-700/80 leading-relaxed mb-3">
+                          <p className="text-sm font-medium text-rhozly-on-surface/70 leading-relaxed mb-3">
                             {aiResult.notes}
                           </p>
                         )}
-                        <p className="text-xs font-bold text-green-700 bg-green-100 rounded-xl p-3">
+                        <p className="text-xs font-bold text-rhozly-on-surface/70 bg-rhozly-tertiary/10 rounded-xl p-3">
                           This is a beneficial insect — great for your garden! No treatment needed. Consider encouraging more.
                         </p>
                         {currentSessionId && !confirmedValue && (
@@ -1200,7 +1209,7 @@ export default function PlantDoctor({
                               setConfirmedValue(selectedPest);
                               confirmSession(currentSessionId, selectedPest!);
                             }}
-                            className="w-full mt-3 flex items-center justify-center gap-2 py-3 bg-green-500 text-white rounded-xl font-black text-sm hover:bg-green-600 transition-colors"
+                            className="w-full mt-3 flex items-center justify-center gap-2 py-3.5 bg-green-500 text-white rounded-2xl font-black text-sm hover:bg-green-600 transition-colors"
                           >
                             <CheckCircle2 size={16} /> Confirm identification
                           </button>
@@ -1213,10 +1222,10 @@ export default function PlantDoctor({
                     aiResult.is_pest !== false &&
                     !aiResult.pestInfo &&
                     !aiResult.remedial_schedules && (
-                      <div className="bg-amber-50 border border-amber-200 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
+                      <div className="bg-rhozly-surface-low border border-rhozly-outline/15 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <Bug size={20} className="text-amber-600" />
+                            <Bug size={20} className="text-rhozly-primary" />
                             <h3 className="font-black text-lg text-rhozly-on-surface">{selectedPest}</h3>
                             {aiResult.pest_severity && (
                               <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
@@ -1249,7 +1258,7 @@ export default function PlantDoctor({
                         <button
                           onClick={fetchPestDetails}
                           disabled={isUIBusy}
-                          className="w-full flex items-center justify-center gap-2 py-4 bg-amber-500 text-white rounded-xl font-black shadow-sm hover:bg-amber-600 transition-colors disabled:opacity-50"
+                          className="w-full flex items-center justify-center gap-2 py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-sm hover:bg-rhozly-primary-container transition-colors disabled:opacity-50"
                         >
                           {isFetchingPestDetails ? (
                             <Loader2 size={18} className="animate-spin" />
@@ -1265,7 +1274,7 @@ export default function PlantDoctor({
                               setConfirmedValue(selectedPest);
                               confirmSession(currentSessionId, selectedPest!);
                             }}
-                            className="w-full mt-2 flex items-center justify-center gap-2 py-3 bg-green-500 text-white rounded-xl font-black text-sm hover:bg-green-600 transition-colors"
+                            className="w-full mt-2 flex items-center justify-center gap-2 py-3.5 bg-green-500 text-white rounded-2xl font-black text-sm hover:bg-green-600 transition-colors"
                           >
                             <CheckCircle2 size={16} /> Confirm identification
                           </button>
@@ -1279,7 +1288,7 @@ export default function PlantDoctor({
                     !aiResult.remedial_schedules && (
                       <div className="bg-white border border-rhozly-outline/10 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
                         <div className="flex items-center justify-between mb-4">
-                          <p className="text-xs font-black text-amber-600 uppercase tracking-widest flex items-center gap-1">
+                          <p className="text-xs font-black text-rhozly-primary uppercase tracking-widest flex items-center gap-1">
                             <Bug size={12} /> {selectedPest}
                           </p>
                           {confirmedValue ? (
@@ -1300,27 +1309,27 @@ export default function PlantDoctor({
                             </button>
                           )}
                         </div>
-                        <div className="mb-6 space-y-4">
+                        <div className="mb-6 lg:grid lg:grid-cols-2 lg:gap-4 space-y-4 lg:space-y-0">
                           <div>
-                            <h4 className="font-black text-sm text-amber-600 mb-1 uppercase tracking-widest flex items-center gap-2">
+                            <h4 className="font-black text-sm text-rhozly-primary mb-1 uppercase tracking-widest flex items-center gap-2">
                               <BrainCircuit size={14} /> About this pest
                             </h4>
                             <p className="text-sm text-rhozly-on-surface/80">{aiResult.pestInfo.description}</p>
                           </div>
                           <div>
-                            <h4 className="font-black text-sm text-amber-600 mb-1 uppercase tracking-widest flex items-center gap-2">
+                            <h4 className="font-black text-sm text-rhozly-primary mb-1 uppercase tracking-widest flex items-center gap-2">
                               <Leaf size={14} /> Affected plants
                             </h4>
                             <p className="text-sm text-rhozly-on-surface/80">{aiResult.pestInfo.affected_plants}</p>
                           </div>
                           <div>
-                            <h4 className="font-black text-sm text-amber-600 mb-1 uppercase tracking-widest flex items-center gap-2">
+                            <h4 className="font-black text-sm text-rhozly-primary mb-1 uppercase tracking-widest flex items-center gap-2">
                               <Stethoscope size={14} /> Treatment
                             </h4>
                             <p className="text-sm text-rhozly-on-surface/80">{aiResult.pestInfo.treatment}</p>
                           </div>
                           <div>
-                            <h4 className="font-black text-sm text-amber-600 mb-1 uppercase tracking-widest flex items-center gap-2">
+                            <h4 className="font-black text-sm text-rhozly-primary mb-1 uppercase tracking-widest flex items-center gap-2">
                               <ShieldCheck size={14} /> Prevention
                             </h4>
                             <p className="text-sm text-rhozly-on-surface/80">{aiResult.pestInfo.prevention}</p>
@@ -1334,13 +1343,13 @@ export default function PlantDoctor({
                                 setConfirmedValue(selectedPest);
                                 confirmSession(currentSessionId, selectedPest!);
                               }}
-                              className="w-full flex items-center justify-center gap-2 py-3 bg-green-500 text-white rounded-xl font-black text-sm hover:bg-green-600 transition-colors"
+                              className="w-full flex items-center justify-center gap-2 py-3.5 bg-green-500 text-white rounded-2xl font-black text-sm hover:bg-green-600 transition-colors"
                             >
                               <CheckCircle2 size={16} /> Confirm this identification
                             </button>
                           )}
-                          <label className="block text-xs font-black text-amber-600/80 uppercase tracking-widest">
-                            Select Affected Plant
+                          <label className="block text-xs font-black text-rhozly-primary/60 uppercase tracking-widest">
+                            Select Patient
                           </label>
                           <PlantInstancePicker
                             items={myInventory}
@@ -1351,7 +1360,7 @@ export default function PlantDoctor({
                           <button
                             onClick={generateTreatmentPlan}
                             disabled={!sickInventoryId || isGeneratingTreatment}
-                            className="w-full py-5 bg-amber-500 text-white rounded-xl font-black text-lg shadow-lg hover:bg-amber-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="w-full py-5 bg-rhozly-primary text-white rounded-2xl font-black text-lg shadow-lg hover:bg-rhozly-primary-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                           >
                             {isGeneratingTreatment ? (
                               <><Loader2 size={18} className="animate-spin" /> Drafting Plan...</>
@@ -1421,7 +1430,7 @@ export default function PlantDoctor({
                         </label>
 
                         {treatmentApplied ? (
-                          <div className="w-full py-4 bg-rhozly-primary/10 border border-rhozly-primary/30 text-rhozly-primary rounded-xl font-black shadow-sm flex items-center justify-center gap-2 animate-in zoom-in-95">
+                          <div className="w-full py-4 bg-rhozly-primary/10 border border-rhozly-primary/30 text-rhozly-primary rounded-2xl font-black shadow-sm flex items-center justify-center gap-2 animate-in zoom-in-95">
                             <CheckCircle2 size={20} />
                             Treatment scheduled — tasks added to your list!
                           </div>
@@ -1429,7 +1438,7 @@ export default function PlantDoctor({
                           <button
                             onClick={handleApplyTreatment}
                             disabled={isApplyingTreatment}
-                            className="w-full py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-md hover:bg-rhozly-primary-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                            className="w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-md hover:bg-rhozly-primary-container transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                           >
                             {isApplyingTreatment ? (
                               <>
@@ -1455,7 +1464,7 @@ export default function PlantDoctor({
                               }
                               if (items.length) openAddToListSheet(items);
                             }}
-                            className="w-full flex items-center justify-center gap-2 py-3 border border-rhozly-primary/20 rounded-xl font-black text-sm text-rhozly-primary hover:bg-rhozly-primary/5 transition-colors"
+                            className="w-full flex items-center justify-center gap-2 py-3.5 border border-rhozly-primary/20 rounded-2xl font-black text-sm text-rhozly-primary hover:bg-rhozly-primary/5 transition-colors"
                           >
                             <ShoppingCart size={16} /> Add treatments to Shopping List
                           </button>

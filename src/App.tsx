@@ -12,6 +12,8 @@ import {
   X,
   Map,
   Sparkles,
+  MapPin,
+  RefreshCw,
 } from "lucide-react";
 
 // 🚀 NATIVE IMPORT
@@ -151,6 +153,9 @@ function AppShell() {
   const [weather, setWeather] = useState<any>(null);
   const [rawWeather, setRawWeather] = useState<any>(null);
   const [alerts, setAlerts] = useState<any[]>([]);
+  const [dashboardError, setDashboardError] = useState(false);
+  const [dashboardLoaded, setDashboardLoaded] = useState(false);
+  const [isHomeLoading, setIsHomeLoading] = useState(false);
 
   // Mobile Nav State
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
@@ -264,6 +269,8 @@ function AppShell() {
   const fetchDashboardData = useCallback(async () => {
     if (!profile?.home_id) return;
 
+    setDashboardError(false);
+
     const cachedWeather = getCachedWeatherData(profile.home_id);
     const cachedLocs = getCachedLocations(profile.home_id);
 
@@ -279,9 +286,9 @@ function AppShell() {
       .from("homes")
       .select(
         `
-        *, 
-        weather_snapshots ( data ), 
-        locations ( 
+        *,
+        weather_snapshots ( data ),
+        locations (
           *,
           areas ( id ),
           inventory_items ( id, status )
@@ -293,6 +300,9 @@ function AppShell() {
 
     if (error) {
       Logger.error("Failed to fetch home data", error);
+      toast.error("Could not load dashboard data");
+      setDashboardError(true);
+      setDashboardLoaded(true);
       return;
     }
 
@@ -332,10 +342,12 @@ function AppShell() {
             );
           } catch (e) {
             Logger.error("Weather parse/cache failed", e);
+            toast.error("Could not load weather data");
           }
         }
       }
     }
+    setDashboardLoaded(true);
   }, [profile?.home_id]);
 
   const refreshProfile = async () => {
@@ -372,6 +384,7 @@ function AppShell() {
     sessionStorage.removeItem(`weather_cache_${profile.home_id}`);
     sessionStorage.removeItem(`locations_cache_${profile.home_id}`);
     await Promise.all([fetchDashboardData(), refreshProfile()]);
+    toast.success("Feed refreshed");
   };
 
   // Stable callbacks passed into the Realtime subscriber component (inside the provider).
@@ -387,10 +400,12 @@ function AppShell() {
   }, []);
 
   const handleSwitchHome = async (homeId: string) => {
+    setIsHomeLoading(true);
     setWeather(null);
     setRawWeather(null);
     setLocations([]);
     setAlerts([]);
+    setDashboardLoaded(false);
     try {
       const { error } = await supabase
         .from("user_profiles")
@@ -401,6 +416,8 @@ function AppShell() {
       setIsAddingHome(false);
     } catch (err: any) {
       Logger.error("Failed to switch home", err);
+    } finally {
+      setIsHomeLoading(false);
     }
   };
 
@@ -584,13 +601,13 @@ function AppShell() {
                 <div className="flex flex-col gap-1 mt-4">
                   <button
                     onClick={() => setShowPrivacy(true)}
-                    className="text-[10px] font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center"
+                    className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center py-2 px-1"
                   >
                     {isNavCollapsed ? "Privacy" : "Privacy Policy"}
                   </button>
                   <button
                     onClick={() => setShowCookies(true)}
-                    className="text-[10px] font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center"
+                    className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center py-2 px-1"
                   >
                     {isNavCollapsed ? "Cookies" : "Cookie Policy"}
                   </button>
@@ -665,7 +682,7 @@ function AppShell() {
                                           onClick={() =>
                                             navigate(v === "locations" ? "/dashboard" : `/dashboard?view=${v}`, { replace: true })
                                           }
-                                          className={`px-4 py-1.5 rounded-xl font-bold text-sm transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-primary/60 hover:text-rhozly-primary"}`}
+                                          className={`px-4 py-2 min-h-[44px] rounded-xl text-sm transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm font-bold" : "text-rhozly-on-surface/50 hover:text-rhozly-primary font-normal"}`}
                                         >
                                           {v.charAt(0).toUpperCase() + v.slice(1)}
                                         </button>
@@ -710,6 +727,21 @@ function AppShell() {
                                         Full Forecast
                                       </button>
                                     </div>
+                                    {dashboardError && (
+                                      <div className="col-span-full p-8 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/30 flex flex-col items-center gap-3">
+                                        <p className="font-bold text-sm text-rhozly-on-surface/60">
+                                          Could not load dashboard data.
+                                        </p>
+                                        <button
+                                          data-testid="dashboard-retry-button"
+                                          onClick={fetchDashboardData}
+                                          className="flex items-center gap-2 bg-rhozly-primary text-white text-xs font-black px-4 py-2 rounded-2xl hover:opacity-90 transition-opacity"
+                                        >
+                                          <RefreshCw size={14} />
+                                          Retry
+                                        </button>
+                                      </div>
+                                    )}
                                     <div data-testid="dashboard-location-grid" className="grid grid-cols-1 sm:grid-cols-2 gap-5">
                                       {locations.length > 0 ? (
                                         locations.map((loc: any, idx: number) => (
@@ -722,15 +754,38 @@ function AppShell() {
                                             }
                                           />
                                         ))
-                                      ) : (
-                                        <div className="col-span-full p-8 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/30 opacity-50">
-                                          No locations found.
+                                      ) : !dashboardLoaded && !dashboardError ? (
+                                        <>
+                                          <div className="rounded-3xl bg-rhozly-surface-low animate-pulse h-36" />
+                                          <div className="rounded-3xl bg-rhozly-surface-low animate-pulse h-36" />
+                                          <div className="rounded-3xl bg-rhozly-surface-low animate-pulse h-36" />
+                                        </>
+                                      ) : dashboardLoaded && !dashboardError ? (
+                                        <div className="col-span-full p-8 flex flex-col items-center gap-4 bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/30">
+                                          <div className="bg-rhozly-primary/10 p-4 rounded-3xl">
+                                            <MapPin className="w-8 h-8 text-rhozly-primary" />
+                                          </div>
+                                          <div className="text-center">
+                                            <p className="font-black text-sm text-rhozly-on-surface mb-1">
+                                              No locations yet
+                                            </p>
+                                            <p className="text-xs text-rhozly-on-surface/50">
+                                              Add your first garden location to get started.
+                                            </p>
+                                          </div>
+                                          <button
+                                            data-testid="dashboard-add-location-cta"
+                                            onClick={() => navigate("/management")}
+                                            className="bg-rhozly-primary text-white text-xs font-black px-5 py-2.5 rounded-2xl hover:opacity-90 transition-opacity"
+                                          >
+                                            Add Location
+                                          </button>
                                         </div>
-                                      )}
+                                      ) : null}
                                     </div>
                                   </div>
                                 ) : dashboardView === "calendar" ? (
-                                  <div className="bg-rhozly-surface-lowest rounded-[3rem] border border-rhozly-outline/10 overflow-hidden shadow-sm">
+                                  <div className="bg-rhozly-surface-lowest rounded-[2.5rem] border border-rhozly-outline/10 overflow-hidden shadow-sm">
                                     {profile?.home_id && (
                                       <TaskCalendar homeId={profile.home_id} />
                                     )}
@@ -982,6 +1037,16 @@ function AppShell() {
                   </div>
                 </PullToRefresh>
               </main>
+              {isHomeLoading && (
+                <div className="absolute inset-0 z-20 flex items-center justify-center bg-rhozly-bg/70 backdrop-blur-sm">
+                  <div className="flex flex-col items-center gap-3">
+                    <Loader2 className="animate-spin text-rhozly-primary" size={36} />
+                    <p className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/50">
+                      Switching home...
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
@@ -1013,13 +1078,13 @@ function AppShell() {
                   <div className="flex justify-center gap-4 pt-1 pb-0.5">
                     <button
                       onClick={() => { setShowPrivacy(true); setIsMobileMenuOpen(false); }}
-                      className="text-[10px] font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors"
+                      className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors py-2 px-2"
                     >
                       Privacy Policy
                     </button>
                     <button
                       onClick={() => { setShowCookies(true); setIsMobileMenuOpen(false); }}
-                      className="text-[10px] font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors"
+                      className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors py-2 px-2"
                     >
                       Cookie Policy
                     </button>

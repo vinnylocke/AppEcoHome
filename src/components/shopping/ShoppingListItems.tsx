@@ -32,14 +32,16 @@ export default function ShoppingListItems({ items, onToggle, onDelete }: Props) 
           data-testid={`shopping-item-${item.id}`}
           className="flex items-center gap-2.5 px-3 py-2 rounded-xl hover:bg-rhozly-surface/60 group transition-colors"
         >
-          <input
-            data-testid={`shopping-item-checkbox-${item.id}`}
-            type="checkbox"
-            checked={item.is_checked}
-            onChange={e => can("shopping.edit_items") && onToggle(item.id, e.target.checked)}
-            disabled={!can("shopping.edit_items")}
-            className="w-4 h-4 rounded accent-rhozly-primary shrink-0 cursor-pointer disabled:opacity-50 disabled:cursor-default"
-          />
+          <span className="p-1.5 -m-1.5 shrink-0 flex items-center justify-center">
+            <input
+              data-testid={`shopping-item-checkbox-${item.id}`}
+              type="checkbox"
+              checked={item.is_checked}
+              onChange={e => can("shopping.edit_items") && onToggle(item.id, e.target.checked)}
+              disabled={!can("shopping.edit_items")}
+              className="w-5 h-5 rounded accent-rhozly-primary cursor-pointer disabled:opacity-50 disabled:cursor-default"
+            />
+          </span>
 
           {/* Thumbnail / icon */}
           {item.item_type === "plant" && item.thumbnail_url ? (
@@ -92,7 +94,7 @@ export default function ShoppingListItems({ items, onToggle, onDelete }: Props) 
             <button
               data-testid={`shopping-item-delete-${item.id}`}
               onClick={() => onDelete(item.id)}
-              className="p-1 rounded-lg text-rhozly-on-surface/20 hover:text-red-400 transition-all shrink-0"
+              className="p-2 min-w-[36px] min-h-[36px] rounded-lg text-rhozly-on-surface/20 hover:text-red-400 transition-all shrink-0 flex items-center justify-center"
               title="Remove item"
             >
               <Trash2 size={13} />

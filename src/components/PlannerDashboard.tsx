@@ -31,6 +31,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
   const { can } = usePermissions();
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
   const [activeTab, setActiveTab] = useState<
     "Pending" | "Completed" | "Archived"
   >("Pending");
@@ -55,6 +56,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
 
   const fetchPlans = async () => {
     setLoading(true);
+    setFetchError(false);
     const { data, error } = await supabase
       .from("plans")
       .select("*")
@@ -62,6 +64,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
       .order("created_at", { ascending: false });
 
     if (error) {
+      setFetchError(true);
       Logger.error("Failed to load plans", error, {}, "Failed to load plans.");
     } else {
       setPlans(data || []);
@@ -258,7 +261,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
             role="tab"
             aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex-1 whitespace-nowrap px-4 py-2 rounded-xl text-sm font-black transition-all ${
+            className={`flex-1 whitespace-nowrap px-4 py-3 min-h-[44px] rounded-2xl text-sm font-black transition-all ${
               activeTab === tab.id
                 ? "bg-white text-rhozly-primary shadow-sm"
                 : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
@@ -274,17 +277,48 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
         <div className="flex-1 flex items-center justify-center">
           <Loader2 className="animate-spin text-rhozly-primary" size={40} />
         </div>
+      ) : fetchError ? (
+        <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8">
+          <AlertCircle size={40} className="text-red-400" />
+          <p className="text-lg font-black text-rhozly-on-surface">Failed to load plans</p>
+          <p className="text-sm font-bold text-rhozly-on-surface/50">Check your connection and try again.</p>
+          <button
+            onClick={fetchPlans}
+            className="px-6 py-3 min-h-[44px] bg-rhozly-primary text-white rounded-2xl font-black shadow-sm hover:bg-rhozly-primary/90 transition-colors active:scale-95"
+          >
+            Retry
+          </button>
+        </div>
       ) : filteredPlans.length === 0 ? (
         <div className="flex-1 bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-3xl p-12 text-center flex flex-col items-center justify-center opacity-70">
           <Map size={48} className="text-rhozly-on-surface/20 mb-4" />
-          <p className="text-xl font-black text-rhozly-on-surface">
-            No {activeTab} Plans
-          </p>
-          <p className="text-sm font-bold text-rhozly-on-surface/50 mt-2">
-            {activeTab === "Pending"
-              ? "Click 'New Plan' to let the AI design your next masterpiece."
-              : "Nothing to see here yet!"}
-          </p>
+          {plans.length === 0 ? (
+            <>
+              <p className="text-xl font-black text-rhozly-on-surface">
+                No plans yet
+              </p>
+              <p className="text-sm font-bold text-rhozly-on-surface/50 mt-2">
+                Create your first plan to get started.
+              </p>
+              {can("plans.create") && (
+                <button
+                  onClick={() => setShowNewPlanModal(true)}
+                  className="mt-6 px-6 py-3 min-h-[44px] bg-rhozly-primary text-white rounded-2xl font-black shadow-sm hover:bg-rhozly-primary/90 transition-colors active:scale-95 flex items-center gap-2"
+                >
+                  <Sparkles size={16} /> New Plan
+                </button>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="text-xl font-black text-rhozly-on-surface">
+                No {activeTab.toLowerCase()} plans
+              </p>
+              <p className="text-sm font-bold text-rhozly-on-surface/50 mt-2">
+                Switch to a different tab to see your other plans.
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <div data-testid="planner-plan-list" className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -292,7 +326,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
             <div
               key={plan.id}
               onClick={() => setSelectedPlan(plan)}
-              className="bg-white rounded-[2rem] border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group flex flex-col relative"
+              className="bg-white rounded-[2.5rem] border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group flex flex-col relative"
             >
               {/* Per-card inline feedback banner */}
               {cardStatus[plan.id] && (
@@ -330,7 +364,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
 
                 <div className="absolute top-4 left-4">
                   <span
-                    className={`px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-widest shadow-sm backdrop-blur-md ${
+                    className={`px-3 py-1.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-sm backdrop-blur-md ${
                       plan.status === "Draft"
                         ? "bg-white/90 text-blue-600"
                         : plan.status === "In Progress"

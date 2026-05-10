@@ -27,8 +27,10 @@ export default function ShoppingListCard({
   const [showMenu, setShowMenu] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(list.name);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const renameRef = useRef<HTMLInputElement>(null);
+  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const isCompleted = list.status === "completed";
   const itemCount = items?.length ?? 0;
@@ -47,6 +49,18 @@ export default function ShoppingListCard({
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, [showMenu]);
+
+  const handleDeleteClick = () => {
+    if (confirmingDelete) {
+      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
+      setConfirmingDelete(false);
+      setShowMenu(false);
+      onDelete();
+    } else {
+      setConfirmingDelete(true);
+      deleteTimerRef.current = setTimeout(() => setConfirmingDelete(false), 3000);
+    }
+  };
 
   const commitRename = () => {
     const trimmed = renameValue.trim();
@@ -103,7 +117,7 @@ export default function ShoppingListCard({
         <div className="relative shrink-0" ref={menuRef}>
           <button
             onClick={e => { e.stopPropagation(); setShowMenu(v => !v); }}
-            className="p-1.5 rounded-xl text-rhozly-on-surface/30 hover:text-rhozly-on-surface hover:bg-rhozly-surface transition-colors"
+            className="p-2 min-w-[36px] min-h-[36px] rounded-xl text-rhozly-on-surface/30 hover:text-rhozly-on-surface hover:bg-rhozly-surface transition-colors flex items-center justify-center"
           >
             <MoreHorizontal size={16} />
           </button>
@@ -140,10 +154,11 @@ export default function ShoppingListCard({
                   <div className="border-t border-rhozly-outline/10 my-1" />
                   <button
                     data-testid={`shopping-delete-list-${list.id}`}
-                    onClick={() => { onDelete(); setShowMenu(false); }}
+                    onClick={handleDeleteClick}
                     className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-bold text-red-500 hover:bg-red-50 transition-colors"
                   >
-                    <Trash2 size={13} /> Delete
+                    <Trash2 size={13} />
+                    {confirmingDelete ? "Tap again to delete" : "Delete"}
                   </button>
                 </>
               )}

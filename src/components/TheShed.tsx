@@ -23,6 +23,7 @@ import {
   CheckSquare2,
   Clock,
   AlertCircle,
+  RefreshCw,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -336,6 +337,128 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     );
     refreshShed(); // 🚀 BACKGROUND SYNC
     toast.success("Import complete");
+  };
+
+  const handleRetryItem = async (itemId: string) => {
+    const item = bulkQueue.find((q) => q.id === itemId);
+    if (!item) return;
+
+    setBulkQueue((prev) =>
+      prev.map((q) => (q.id === itemId ? { ...q, status: "processing", errorMsg: undefined } : q)),
+    );
+
+    try {
+      if (item.source === "api") {
+        let pId, details, defaultImage;
+        if (typeof item.data === "string") {
+          const searchRes = await PerenualService.searchPlants(item.data);
+          if (!searchRes || searchRes.length === 0)
+            throw new Error("No exact match found in API");
+          const topMatch = searchRes[0];
+          pId = String(topMatch.id);
+          defaultImage = topMatch.default_image;
+          details = await PerenualService.getPlantDetails(topMatch.id);
+        } else {
+          pId = String(item.data.id);
+          defaultImage = item.data.default_image;
+          details = await PerenualService.getPlantDetails(item.data.id);
+        }
+
+        const { data: existing } = await supabase
+          .from("plants")
+          .select("id")
+          .eq("home_id", homeId)
+          .eq("perenual_id", pId)
+          .maybeSingle();
+        if (existing) throw new Error("Already in Shed");
+
+        let imageUrl =
+          details.image_url ||
+          details.thumbnail_url ||
+          defaultImage?.original_url ||
+          defaultImage?.regular_url ||
+          defaultImage?.thumbnail ||
+          "";
+        if (imageUrl.includes("upgrade_access")) imageUrl = "";
+        if (imageUrl) {
+          const { data: proxyData, error: proxyError } =
+            await supabase.functions.invoke("image-proxy", {
+              body: { imageUrl, plantName: details.common_name },
+            });
+          if (!proxyError && proxyData?.publicUrl)
+            imageUrl = proxyData.publicUrl.includes("kong:8000")
+              ? proxyData.publicUrl.replace(
+                  "http://kong:8000",
+                  "http://127.0.0.1:54321",
+                )
+              : proxyData.publicUrl;
+        }
+
+        await savePlantToDB(
+          {
+            common_name: details.common_name,
+            scientific_name: details.scientific_name,
+            thumbnail_url: imageUrl,
+            source: "api",
+            perenual_id: pId,
+          },
+          details,
+        );
+      } else {
+        const cleanName =
+          typeof item.data === "string"
+            ? item.data.split("(")[0].trim()
+            : item.data.common_name;
+
+        const { data: existingAi } = await supabase
+          .from("plants")
+          .select("id")
+          .eq("home_id", homeId)
+          .ilike("common_name", cleanName)
+          .limit(1);
+        if (existingAi && existingAi.length > 0) {
+          throw new Error(`"${cleanName}" is already in your shed.`);
+        }
+
+        const aiData = await PlantDoctorService.generateCareGuide(cleanName);
+        if (!aiData) throw new Error("AI failed to generate data");
+
+        const extracted = aiData.plantData ? aiData.plantData : aiData;
+        if (!extracted.common_name) extracted.common_name = cleanName;
+
+        let imageUrl = extracted.thumbnail_url || "";
+        if (imageUrl.includes("kong:8000"))
+          imageUrl = imageUrl.replace(
+            "http://kong:8000",
+            "http://127.0.0.1:54321",
+          );
+        extracted.thumbnail_url = imageUrl;
+
+        await savePlantToDB(
+          { ...extracted, source: "ai", perenual_id: null },
+          extracted,
+        );
+      }
+
+      setBulkQueue((prev) =>
+        prev.map((q) => (q.id === itemId ? { ...q, status: "success" } : q)),
+      );
+      logEvent(EVENT.PLANT_ADDED, { plant_name: item.name, source: item.source });
+      refreshShed();
+    } catch (err: any) {
+      let errorMsg = err.message || "Failed";
+      if (
+        errorMsg.includes("Unexpected token") ||
+        errorMsg.includes("Please Upg")
+      ) {
+        errorMsg = "Perenual API limit reached (Premium required).";
+      }
+      setBulkQueue((prev) =>
+        prev.map((q) =>
+          q.id === itemId ? { ...q, status: "error", errorMsg } : q,
+        ),
+      );
+    }
   };
 
   useEffect(() => {
@@ -713,7 +836,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 <button
                   onClick={() => setSearchQuery("")}
                   aria-label="Clear search"
-                  className="absolute right-4 text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+                  className="absolute right-3 p-1.5 min-w-[36px] min-h-[36px] flex items-center justify-center text-rhozly-on-surface/40 hover:text-rhozly-on-surface rounded-lg transition-colors"
                 >
                   <X size={16} />
                 </button>
@@ -735,7 +858,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 value={filterSource}
                 onChange={(e) => setFilterSource(e.target.value as any)}
                 aria-label="Filter by source"
-                className="bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl px-4 py-3 text-sm font-bold outline-none cursor-pointer"
+                className="bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl px-4 py-2.5 min-h-[44px] text-sm font-bold outline-none cursor-pointer"
               >
                 <option value="all">All Sources</option>
                 <option value="manual">Manual</option>
@@ -746,7 +869,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 value={sortMode}
                 onChange={(e) => setSortMode(e.target.value as any)}
                 aria-label="Sort plants"
-                className="bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl px-4 py-3 text-sm font-bold outline-none cursor-pointer"
+                className="bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl px-4 py-2.5 min-h-[44px] text-sm font-bold outline-none cursor-pointer"
               >
                 <option value="alphabetical">A – Z</option>
                 <option value="preference">Best Match</option>
@@ -880,12 +1003,12 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                   )}
                   <div className="mt-auto pt-5 border-t border-rhozly-outline/10 flex items-center justify-between">
                     <div>
-                      <p className="text-[10px] font-black text-rhozly-on-surface/30 uppercase tracking-widest">
+                      <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">
                         In Home
                       </p>
-                      <p className="text-2xl font-black text-rhozly-primary">
+                      <span className="inline-flex items-center justify-center min-w-[2rem] px-2.5 py-0.5 rounded-full bg-rhozly-primary/15 text-rhozly-primary text-xl font-black">
                         {plant.instance_count}
-                      </p>
+                      </span>
                     </div>
                     <button
                       onClick={(e) => {
@@ -969,6 +1092,16 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                             )}
                           </div>
                         </div>
+                        {item.status === "error" && !isBulkProcessing && (
+                          <button
+                            onClick={() => handleRetryItem(item.id)}
+                            aria-label={`Retry importing ${item.name}`}
+                            className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-red-50 text-red-500 hover:bg-red-100 text-[10px] font-black uppercase tracking-widest transition-colors shrink-0"
+                          >
+                            <RefreshCw size={11} />
+                            Retry
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -1122,7 +1255,7 @@ function ConfirmModal({
         aria-modal="true"
         aria-labelledby="confirm-modal-title"
         aria-describedby="confirm-modal-description"
-        className="bg-white p-6 rounded-3xl w-full max-w-sm"
+        className="bg-white p-6 rounded-[2.5rem] w-full max-w-sm"
       >
         <h3 id="confirm-modal-title" className="font-black text-lg mb-2">
           {title}
@@ -1134,14 +1267,14 @@ function ConfirmModal({
           <button
             ref={cancelButtonRef}
             onClick={onClose}
-            className="flex-1 py-3 rounded-xl font-bold bg-gray-100 hover:bg-gray-200"
+            className="flex-1 py-3 rounded-2xl font-bold bg-gray-100 hover:bg-gray-200"
           >
             Cancel
           </button>
           <button
             onClick={onConfirm}
             disabled={isLoading}
-            className={`flex-1 py-3 rounded-xl font-bold text-white ${isDestructive ? "bg-red-500 hover:bg-red-600" : "bg-rhozly-primary"}`}
+            className={`flex-1 py-3 rounded-2xl font-bold text-white ${isDestructive ? "bg-red-500 hover:bg-red-600" : "bg-rhozly-primary"}`}
           >
             {isLoading ? (
               <Loader2 className="animate-spin mx-auto" size={18} />

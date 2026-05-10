@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { ShoppingCart, Plus, ChevronDown, ChevronRight, Loader2 } from "lucide-react";
+import toast from "react-hot-toast";
 import { usePermissions } from "../context/HomePermissionsContext";
 import { useShoppingLists } from "../hooks/useShoppingLists";
 import ShoppingListCard from "./shopping/ShoppingListCard";
@@ -42,7 +43,23 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
     setIsCreating(false);
     if (list) {
       setExpandedId(list.id);
+      toast.success("List created");
     }
+  };
+
+  const handleDeleteList = async (id: string) => {
+    await deleteList(id);
+    toast.success("List deleted");
+  };
+
+  const handleMarkComplete = async (id: string) => {
+    await markComplete(id);
+    toast.success("List completed!");
+  };
+
+  const handleAddItem = async (item: Parameters<typeof addItem>[0]) => {
+    await addItem(item);
+    toast.success("Item added");
   };
 
   const handleOpenAddItem = (listId: string) => {
@@ -51,7 +68,7 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
 
   return (
     <div className="h-full overflow-y-auto bg-rhozly-bg">
-      <div className="max-w-2xl mx-auto px-4 py-6 space-y-4">
+      <div className="max-w-5xl mx-auto px-4 py-6 space-y-4">
 
         {/* Page heading */}
         <div className="flex items-center justify-between">
@@ -101,7 +118,7 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
 
         {/* Active lists */}
         {!isLoading && activeLists.length > 0 && (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
             {activeLists.map(list => (
               <ShoppingListCard
                 key={list.id}
@@ -110,8 +127,8 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
                 isExpanded={expandedId === list.id}
                 onToggleExpand={() => handleToggleExpand(list.id)}
                 onRename={name => renameList(list.id, name)}
-                onDelete={() => deleteList(list.id)}
-                onMarkComplete={() => markComplete(list.id)}
+                onDelete={() => handleDeleteList(list.id)}
+                onMarkComplete={() => handleMarkComplete(list.id)}
                 onReopen={() => reopenList(list.id)}
                 onAddItem={() => handleOpenAddItem(list.id)}
                 onToggleItem={toggleItem}
@@ -134,7 +151,7 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
             </button>
 
             {showCompleted && (
-              <div className="space-y-3">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                 {completedLists.map(list => (
                   <ShoppingListCard
                     key={list.id}
@@ -143,8 +160,8 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
                     isExpanded={expandedId === list.id}
                     onToggleExpand={() => handleToggleExpand(list.id)}
                     onRename={name => renameList(list.id, name)}
-                    onDelete={() => deleteList(list.id)}
-                    onMarkComplete={() => markComplete(list.id)}
+                    onDelete={() => handleDeleteList(list.id)}
+                    onMarkComplete={() => handleMarkComplete(list.id)}
                     onReopen={() => reopenList(list.id)}
                     onAddItem={() => handleOpenAddItem(list.id)}
                     onToggleItem={toggleItem}
@@ -165,7 +182,7 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
           aiEnabled={aiEnabled}
           perenualEnabled={perenualEnabled}
           onClose={() => setAddItemListId(null)}
-          onItemAdded={addItem}
+          onItemAdded={handleAddItem}
         />
       )}
     </div>

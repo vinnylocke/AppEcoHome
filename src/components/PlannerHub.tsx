@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { Map, ShoppingCart } from "lucide-react";
 import PlannerDashboard from "./PlannerDashboard";
@@ -21,6 +21,18 @@ export default function PlannerHub({ homeId, aiEnabled = false, perenualEnabled 
   const [params, setParams] = useSearchParams();
   const activeTab: TabId = (params.get("tab") as TabId) ?? "planner";
 
+  const [contentKey, setContentKey] = useState<TabId>(activeTab);
+  const [opacity, setOpacity] = useState(1);
+
+  useEffect(() => {
+    setOpacity(0);
+    const t = setTimeout(() => {
+      setContentKey(activeTab);
+      setOpacity(1);
+    }, 80);
+    return () => clearTimeout(t);
+  }, [activeTab]);
+
   const switchTab = (id: TabId) => {
     if (id === "planner") {
       setParams({});
@@ -41,7 +53,7 @@ export default function PlannerHub({ homeId, aiEnabled = false, perenualEnabled 
                 key={tab.id}
                 data-testid={`planner-hub-tab-${tab.id}`}
                 onClick={() => switchTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-black uppercase tracking-widest transition-all border-b-2 -mb-px ${
+                className={`flex items-center gap-2 px-4 py-3 min-h-[44px] rounded-t-xl text-xs font-black uppercase tracking-widest transition-all border-b-2 -mb-px ${
                   isActive
                     ? "text-rhozly-primary border-rhozly-primary bg-rhozly-primary/5"
                     : "text-rhozly-on-surface/40 border-transparent hover:text-rhozly-on-surface/70 hover:bg-rhozly-surface-low"
@@ -57,12 +69,14 @@ export default function PlannerHub({ homeId, aiEnabled = false, perenualEnabled 
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
-        {activeTab === "planner" && (
-          <PlannerDashboard homeId={homeId} aiEnabled={aiEnabled} />
-        )}
-        {activeTab === "shopping" && (
-          <ShoppingLists homeId={homeId} aiEnabled={aiEnabled} perenualEnabled={perenualEnabled} />
-        )}
+        <div key={contentKey} style={{ opacity, transition: "opacity 0.15s ease" }} className="h-full">
+          {contentKey === "planner" && (
+            <PlannerDashboard homeId={homeId} aiEnabled={aiEnabled} />
+          )}
+          {contentKey === "shopping" && (
+            <ShoppingLists homeId={homeId} aiEnabled={aiEnabled} perenualEnabled={perenualEnabled} />
+          )}
+        </div>
       </div>
     </div>
   );

@@ -1,14 +1,16 @@
 import React, { useState, useMemo, useEffect } from "react";
 import {
   Search, ScanLine, ChevronRight, Loader2,
-  Database, Sparkles, Edit3, CheckCircle2, Sprout, X, Images,
+  Database, Sparkles, Edit3, CheckCircle2, Sprout, X, Images, AlertCircle,
 } from "lucide-react";
+import { toast } from "react-hot-toast";
 import SmartImage from "./SmartImage";
 import { useCachedShed } from "../hooks/useCachedShed";
 import SpriteWizardModal from "./SpriteWizardModal";
 import PlantCameraView from "./PlantCameraView";
 import CaptureGallery from "./CaptureGallery";
 import { supabase } from "../lib/supabase";
+import { Logger } from "../lib/errorHandler";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -28,7 +30,7 @@ const FALLBACK_IMAGE =
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId: string; aiEnabled?: boolean }) {
-  const { plants, isInitialLoading } = useCachedShed(homeId);
+  const { plants, isInitialLoading, isError: shedIsError } = useCachedShed(homeId) as any;
 
   const [search, setSearch] = useState("");
   const [filterSource, setFilterSource] = useState<SourceFilter>("all");
@@ -38,6 +40,8 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
   const [showCamera, setShowCamera] = useState(false);
   const [showGallery, setShowGallery] = useState(false);
   const [captureCount, setCaptureCount] = useState(0);
+  const [captureCountLoading, setCaptureCountLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   // Active (non-archived) plants only
   const active = useMemo(
@@ -68,11 +72,39 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
   const selectedPlants = active.filter((p: any) => selected.has(String(p.id)));
 
   useEffect(() => {
+    setCaptureCountLoading(true);
     supabase
       .from("visualiser_captures")
       .select("id", { count: "exact", head: true })
       .eq("home_id", homeId)
-      .then(({ count }) => setCaptureCount(count ?? 0));
+      .then(({ count, error }) => {
+        if (error) {
+          Logger.warn("PlantVisualiser: failed to fetch capture count", { error });
+        } else {
+          setCaptureCount(count ?? 0);
+        }
+        setCaptureCountLoading(false);
+      });
+  }, [homeId]);
+
+  useEffect(() => {
+    if (shedIsError && !isInitialLoading) {
+      setFetchError(true);
+    }
+  }, [shedIsError, isInitialLoading]);
+
+  useEffect(() => {
+    if (!homeId) return;
+    supabase
+      .from("plants")
+      .select("id", { count: "exact", head: true })
+      .eq("home_id", homeId)
+      .then(({ error }) => {
+        if (error) {
+          Logger.warn("PlantVisualiser: failed to fetch plants", { error });
+          setFetchError(true);
+        }
+      });
   }, [homeId]);
 
   const handleContinueToSprites = () => setShowWizard(true);
@@ -82,6 +114,7 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
   const handleWizardComplete = (sprites: Map<string, string>) => {
     setConfirmedSprites(sprites);
     setShowWizard(false);
+    toast.success("Plant sprites saved!");
   };
 
   const handleWizardClose = () => setShowWizard(false);
@@ -92,6 +125,20 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
     return (
       <div className="flex justify-center py-20">
         <Loader2 className="w-8 h-8 animate-spin text-rhozly-primary" />
+      </div>
+    );
+  }
+
+  // ── Error ──────────────────────────────────────────────────────────────────
+
+  if (!isInitialLoading && fetchError) {
+    return (
+      <div className="py-20 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/20">
+        <AlertCircle size={36} className="mx-auto mb-3 text-red-400" />
+        <p className="font-black text-rhozly-on-surface/60">Could not load plants</p>
+        <p className="text-xs font-bold text-rhozly-on-surface/30 mt-1">
+          Pull down to retry
+        </p>
       </div>
     );
   }
@@ -112,7 +159,11 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
           </p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          {captureCount > 0 && (
+          {captureCountLoading ? (
+            <div className="w-12 h-12 rounded-2xl bg-rhozly-surface-low border border-rhozly-outline/10 flex items-center justify-center">
+              <Loader2 size={18} className="animate-spin text-rhozly-on-surface/30" />
+            </div>
+          ) : captureCount > 0 ? (
             <button
               onClick={() => setShowGallery(true)}
               className="relative w-12 h-12 rounded-2xl bg-rhozly-surface-low border border-rhozly-outline/10 flex items-center justify-center hover:bg-rhozly-surface transition-colors"
@@ -123,9 +174,9 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
                 {captureCount > 99 ? "99+" : captureCount}
               </span>
             </button>
-          )}
+          ) : null}
           <div className="w-12 h-12 rounded-2xl bg-rhozly-primary/10 flex items-center justify-center">
-            <ScanLine size={22} className="text-rhozly-primary" />
+            <ScanLine size={22} className="text-rhozly-primary" aria-hidden="true" />
           </div>
         </div>
       </div>
@@ -145,12 +196,12 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
       </div>
 
       {/* Source filter */}
-      <div className="flex gap-1.5 bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/5 overflow-x-auto">
+      <div className="flex gap-1.5 bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/5 overflow-x-auto snap-x snap-mandatory">
         {(["all", "api", "ai", "manual"] as SourceFilter[]).map((s) => (
           <button
             key={s}
             onClick={() => setFilterSource(s)}
-            className={`flex-shrink-0 px-4 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all ${
+            className={`snap-start flex-shrink-0 px-4 py-2 rounded-xl text-xs font-black whitespace-nowrap transition-all ${
               filterSource === s
                 ? "bg-white text-rhozly-primary shadow-sm border border-rhozly-outline/10"
                 : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
@@ -232,13 +283,11 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
                   </div>
 
                   {/* Selected checkmark — top right */}
-                  {isSelected && (
-                    <div className="absolute top-4 right-4 animate-in zoom-in-50 duration-150">
-                      <div className="w-9 h-9 rounded-full bg-rhozly-primary shadow-lg flex items-center justify-center">
-                        <CheckCircle2 size={20} className="text-white" />
-                      </div>
+                  <div className={`absolute top-4 right-4 transition-transform duration-150 ${isSelected ? "scale-100" : "scale-0"}`}>
+                    <div className="w-9 h-9 rounded-full bg-rhozly-primary shadow-lg flex items-center justify-center">
+                      <CheckCircle2 size={20} className="text-white" />
                     </div>
-                  )}
+                  </div>
 
                   {/* Selection overlay tint */}
                   {isSelected && (
@@ -306,62 +355,74 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
       )}
 
       {/* Sticky cart bar */}
-      {selected.size > 0 && (
-        <div className="fixed bottom-0 left-0 right-0 z-40 p-4 pointer-events-none">
-          <div className="max-w-5xl mx-auto pointer-events-auto">
-            <div className="bg-rhozly-surface-lowest shadow-2xl border border-rhozly-outline/20 rounded-2xl p-4 flex items-center justify-between gap-4 animate-in slide-in-from-bottom-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-2">
-                  {selected.size} Plant{selected.size !== 1 ? "s" : ""} Selected
-                  {confirmedSprites && (
-                    <span className="ml-2 text-rhozly-primary">· sprites ready</span>
-                  )}
-                </p>
+      <div className="fixed bottom-0 left-0 right-0 z-40 p-4 pointer-events-none">
+        <div className="max-w-5xl mx-auto pointer-events-auto">
+          <div className="bg-rhozly-surface-lowest shadow-2xl border border-rhozly-outline/20 rounded-2xl p-4 flex items-center justify-between gap-4 animate-in slide-in-from-bottom-2">
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-2">
+                <span className="transition-all duration-150 tabular-nums">{selected.size}</span> Plant{selected.size !== 1 ? "s" : ""} Selected
+                {confirmedSprites && (
+                  <span className="ml-2 text-rhozly-primary">· sprites ready</span>
+                )}
+              </p>
+              {selected.size > 0 ? (
                 <div className="flex flex-wrap gap-1.5">
                   {selectedPlants.map((p: any) => (
                     <button
                       key={p.id}
                       onClick={() => toggle(String(p.id))}
-                      className="flex items-center gap-1.5 pl-3 pr-2 py-1.5 bg-rhozly-primary/10 border border-rhozly-primary/20 rounded-full text-xs font-black text-rhozly-primary hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-colors"
+                      className="flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 min-h-[44px] bg-rhozly-primary/10 border border-rhozly-primary/20 rounded-full text-xs font-black text-rhozly-primary hover:bg-red-50 hover:border-red-300 hover:text-red-500 transition-colors"
                       aria-label={`Remove ${p.common_name}`}
                     >
                       {p.common_name}
-                      <X size={11} strokeWidth={2.5} />
+                      <span className="p-1.5 min-w-[32px] min-h-[32px] flex items-center justify-center">
+                        <X size={14} strokeWidth={2.5} />
+                      </span>
                     </button>
                   ))}
                 </div>
-              </div>
+              ) : (
+                <p className="text-xs font-bold text-rhozly-on-surface/30">
+                  Select at least one plant to continue
+                </p>
+              )}
+            </div>
 
-              <div className="shrink-0 flex flex-col items-end gap-2">
-                {confirmedSprites ? (
-                  <>
-                    <button
-                      onClick={handleOpenVisualiser}
-                      className="px-6 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm flex items-center gap-2 hover:scale-[1.02] transition-transform shadow-lg"
-                    >
-                      Open Visualiser <ChevronRight size={16} />
-                    </button>
-                    <button
-                      onClick={handleContinueToSprites}
-                      className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors"
-                    >
-                      Re-do sprites
-                    </button>
-                  </>
-                ) : (
+            <div className="shrink-0 flex flex-col items-end gap-2">
+              {confirmedSprites && selected.size > 0 ? (
+                <>
                   <button
-                    data-testid="visualiser-open-camera-btn"
-                    onClick={handleContinueToSprites}
+                    onClick={handleOpenVisualiser}
                     className="px-6 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm flex items-center gap-2 hover:scale-[1.02] transition-transform shadow-lg"
                   >
-                    Continue to Sprites <ChevronRight size={16} />
+                    Open Visualiser <ChevronRight size={16} />
                   </button>
-                )}
-              </div>
+                  <button
+                    onClick={handleContinueToSprites}
+                    className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors"
+                  >
+                    Re-do sprites
+                  </button>
+                </>
+              ) : (
+                <button
+                  data-testid="visualiser-open-camera-btn"
+                  onClick={selected.size > 0 ? handleContinueToSprites : undefined}
+                  disabled={selected.size === 0}
+                  aria-disabled={selected.size === 0}
+                  className={`px-6 py-3 rounded-2xl font-black text-sm flex items-center gap-2 transition-all shadow-lg ${
+                    selected.size === 0
+                      ? "bg-rhozly-surface-low text-rhozly-on-surface/30 cursor-not-allowed shadow-none"
+                      : "bg-rhozly-primary text-white hover:scale-[1.02] cursor-pointer"
+                  }`}
+                >
+                  Continue to Sprites <ChevronRight size={16} />
+                </button>
+              )}
             </div>
           </div>
         </div>
-      )}
+      </div>
     </div>
   );
 }

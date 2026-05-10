@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Database, Bug } from "lucide-react";
 import TheShed from "./TheShed";
@@ -11,8 +11,8 @@ interface Props {
 }
 
 const TABS = [
-  { id: "shed",      label: "The Shed",  icon: <Database size={15} /> },
-  { id: "watchlist", label: "Watchlist", icon: <Bug size={15} /> },
+  { id: "shed",      label: "The Shed",  icon: <Database size={16} /> },
+  { id: "watchlist", label: "Watchlist", icon: <Bug size={16} /> },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -21,6 +21,20 @@ export default function GardenHub({ homeId, aiEnabled = false, perenualEnabled =
   const [params, setParams] = useSearchParams();
   const navigate = useNavigate();
   const activeTab: TabId = (params.get("tab") as TabId) ?? "shed";
+
+  const [visible, setVisible] = useState(true);
+  const prevTab = useRef(activeTab);
+
+  useEffect(() => {
+    if (prevTab.current !== activeTab) {
+      setVisible(false);
+      const t = setTimeout(() => {
+        setVisible(true);
+        prevTab.current = activeTab;
+      }, 80);
+      return () => clearTimeout(t);
+    }
+  }, [activeTab]);
 
   const switchTab = (id: TabId) => {
     if (id === "shed") {
@@ -42,10 +56,10 @@ export default function GardenHub({ homeId, aiEnabled = false, perenualEnabled =
                 key={tab.id}
                 data-testid={`garden-hub-tab-${tab.id}`}
                 onClick={() => switchTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl text-xs font-black uppercase tracking-widest transition-all border-b-2 -mb-px ${
+                className={`flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-t-xl text-[13px] uppercase tracking-widest transition-all border-b-2 -mb-px ${
                   isActive
-                    ? "text-rhozly-primary border-rhozly-primary bg-rhozly-primary/5"
-                    : "text-rhozly-on-surface/40 border-transparent hover:text-rhozly-on-surface/70 hover:bg-rhozly-surface-low"
+                    ? "font-bold text-rhozly-primary border-rhozly-primary bg-rhozly-primary/5"
+                    : "font-normal text-rhozly-on-surface/40 border-transparent hover:text-rhozly-on-surface/70 hover:bg-rhozly-surface-low"
                 }`}
               >
                 {tab.icon}
@@ -58,12 +72,14 @@ export default function GardenHub({ homeId, aiEnabled = false, perenualEnabled =
 
       {/* Content */}
       <div className="flex-1 overflow-auto">
-        {activeTab === "shed" && (
-          <TheShed homeId={homeId} aiEnabled={aiEnabled} perenualEnabled={perenualEnabled} />
-        )}
-        {activeTab === "watchlist" && (
-          <AilmentWatchlist homeId={homeId} aiEnabled={aiEnabled} />
-        )}
+        <div className={`transition-opacity duration-150 h-full ${visible ? "opacity-100" : "opacity-0"}`}>
+          {activeTab === "shed" && (
+            <TheShed homeId={homeId} aiEnabled={aiEnabled} perenualEnabled={perenualEnabled} />
+          )}
+          {activeTab === "watchlist" && (
+            <AilmentWatchlist homeId={homeId} aiEnabled={aiEnabled} />
+          )}
+        </div>
       </div>
     </div>
   );

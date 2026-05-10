@@ -38,7 +38,7 @@ const SOURCE_LABELS: Record<string, string> = {
 
 const SOURCE_COLOURS: Record<string, string> = {
   chat: "bg-rhozly-primary/10 text-rhozly-primary",
-  quiz: "bg-rhozly-secondary/10 text-rhozly-secondary",
+  quiz: "bg-rhozly-tertiary/10 text-rhozly-tertiary",
   swipe: "bg-rhozly-outline/20 text-rhozly-on-surface/70",
 };
 
@@ -56,6 +56,8 @@ export default function GardenProfile({
   const [prefsLoading, setPrefsLoading] = useState(true);
   const [showPrefs, setShowPrefs] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const [confirmingReset, setConfirmingReset] = useState(false);
+  const [deletingPrefId, setDeletingPrefId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!homeId || !userId) return;
@@ -95,10 +97,12 @@ export default function GardenProfile({
   }, [homeId, userId]);
 
   async function handleDeletePref(id: string) {
+    setDeletingPrefId(id);
     const { error } = await supabase
       .from("planner_preferences")
       .delete()
       .eq("id", id);
+    setDeletingPrefId(null);
     if (error) {
       toast.error("Failed to remove preference.");
     } else {
@@ -108,13 +112,14 @@ export default function GardenProfile({
   }
 
   async function handleReset() {
-    if (
-      !window.confirm(
-        "This will delete all your garden preferences and allow you to retake the quiz. Are you sure?",
-      )
-    )
+    if (!confirmingReset) {
+      setConfirmingReset(true);
+      toast("Tap again to confirm reset.", { icon: "⚠️", duration: 3000 });
+      setTimeout(() => setConfirmingReset(false), 3000);
       return;
+    }
 
+    setConfirmingReset(false);
     setResetting(true);
     try {
       await supabase
@@ -135,6 +140,7 @@ export default function GardenProfile({
       toast.success("Garden profile reset.");
     } catch (err) {
       Logger.error("Failed to reset garden profile", err, {}, "Something went wrong.");
+      toast.error("Could not reset profile — please try again");
     } finally {
       setResetting(false);
     }
@@ -144,7 +150,7 @@ export default function GardenProfile({
   const negatives = prefs.filter((p) => p.sentiment === "negative");
 
   return (
-    <div className="max-w-lg mx-auto flex flex-col gap-6 pb-16">
+    <div className="max-w-lg xl:max-w-2xl mx-auto flex flex-col gap-6 pb-16">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
@@ -159,14 +165,14 @@ export default function GardenProfile({
           <button
             onClick={handleReset}
             disabled={resetting}
-            className="flex items-center gap-1.5 text-xs text-rhozly-on-surface/50 hover:text-red-500 font-medium transition"
+            className="flex items-center gap-1.5 text-xs font-medium min-h-[44px] px-4 rounded-full border border-rhozly-outline/30 text-rhozly-on-surface/50 hover:border-red-400 hover:text-red-500 transition"
           >
             {resetting ? (
               <Loader2 size={12} className="animate-spin" />
             ) : (
               <RefreshCw size={12} />
             )}
-            Reset all
+            {confirmingReset ? "Tap again to confirm" : "Reset all"}
           </button>
         )}
       </div>
@@ -205,9 +211,9 @@ export default function GardenProfile({
             <Loader2 size={24} className="animate-spin text-rhozly-primary" />
           </div>
         ) : quizDone ? (
-          <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-6 text-center flex flex-col items-center gap-4">
-            <div className="w-14 h-14 rounded-full bg-emerald-100 flex items-center justify-center">
-              <Sparkles size={26} className="text-emerald-600" />
+          <div className="bg-rhozly-primary/10 border border-rhozly-primary/20 rounded-3xl p-6 text-center flex flex-col items-center gap-4">
+            <div className="w-14 h-14 rounded-full bg-rhozly-primary/10 flex items-center justify-center">
+              <Sparkles size={26} className="text-rhozly-primary" />
             </div>
             <div>
               <p className="font-black text-rhozly-on-surface text-lg">
@@ -278,7 +284,7 @@ export default function GardenProfile({
             <div className="px-5 pb-5 flex flex-col gap-4">
               {positives.length > 0 && (
                 <div>
-                  <p className="text-xs font-semibold text-emerald-600 uppercase tracking-widest mb-2">
+                  <p className="text-xs font-semibold text-rhozly-primary uppercase tracking-widest mb-2">
                     Likes
                   </p>
                   <div className="flex flex-col gap-1.5">
@@ -286,6 +292,7 @@ export default function GardenProfile({
                       <PrefRow
                         key={p.id}
                         pref={p}
+                        deleting={deletingPrefId === p.id}
                         onDelete={() => handleDeletePref(p.id)}
                       />
                     ))}
@@ -302,6 +309,7 @@ export default function GardenProfile({
                       <PrefRow
                         key={p.id}
                         pref={p}
+                        deleting={deletingPrefId === p.id}
                         onDelete={() => handleDeletePref(p.id)}
                       />
                     ))}
@@ -323,14 +331,16 @@ export default function GardenProfile({
 
 function PrefRow({
   pref,
+  deleting,
   onDelete,
 }: {
   pref: Pref;
+  deleting: boolean;
   onDelete: () => void;
 }) {
   const sourceLabel = SOURCE_LABELS[pref.source] ?? pref.source;
   const sourceColour =
-    SOURCE_COLOURS[pref.source] ?? "bg-gray-100 text-gray-600";
+    SOURCE_COLOURS[pref.source] ?? "bg-rhozly-surface-low text-rhozly-on-surface/60";
 
   return (
     <div className="flex items-center gap-2 py-1">
@@ -347,10 +357,15 @@ function PrefRow({
       </span>
       <button
         onClick={onDelete}
-        className="p-3 -m-3 text-rhozly-on-surface/30 hover:text-red-400 transition flex-shrink-0"
+        disabled={deleting}
+        className="p-3 -m-3 text-rhozly-on-surface/30 hover:text-red-400 transition flex-shrink-0 disabled:pointer-events-none"
         aria-label="Remove preference"
       >
-        <Trash2 size={16} />
+        {deleting ? (
+          <Loader2 size={16} className="animate-spin text-rhozly-on-surface/30" />
+        ) : (
+          <Trash2 size={16} />
+        )}
       </button>
     </div>
   );

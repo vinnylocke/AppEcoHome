@@ -56,6 +56,10 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
   const [itemToDelete, setItemToDelete] = useState<DeleteTarget | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  // Per-item saving state
+  const [savingLocationId, setSavingLocationId] = useState<string | null>(null);
+  const [savingAreaId, setSavingAreaId] = useState<string | null>(null);
+
   // 🧠 LIVE AI SYNC: Let the AI know the full layout of the home
   useEffect(() => {
     setPageContext({
@@ -138,11 +142,13 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
   // --- UPDATE LOGIC ---
   const handleUpdateLocationDB = async (loc: any) => {
     if (!loc.name.trim()) return;
+    setSavingLocationId(loc.id);
     const { error } = await supabase
       .from("locations")
       .update({ name: loc.name.trim() })
       .eq("id", loc.id);
 
+    setSavingLocationId(null);
     if (error) {
       Logger.error("Failed to rename location", error, {}, "Failed to rename location.");
       fetchHierarchy();
@@ -155,6 +161,19 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
   const handleUpdateAreaDB = async (area: any) => {
     if (!area.name.trim()) return;
 
+    const ph = area.medium_ph;
+    const lux = area.light_intensity_lux;
+
+    if (ph !== "" && ph !== null && ph !== undefined && (Number(ph) < 0 || Number(ph) > 14)) {
+      toast.error("pH must be between 0 and 14");
+      return;
+    }
+    if (lux !== "" && lux !== null && lux !== undefined && Number(lux) < 0) {
+      toast.error("Light level cannot be negative");
+      return;
+    }
+
+    setSavingAreaId(area.id);
     const { error } = await supabase
       .from("areas")
       .update({
@@ -168,6 +187,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
       })
       .eq("id", area.id);
 
+    setSavingAreaId(null);
     if (error) {
       Logger.error("Failed to update area", error, {}, "Failed to save area updates.");
       fetchHierarchy();
@@ -188,11 +208,13 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
   // --- ACTION BUTTON LOGIC ---
   const toggleEnvironment = async (loc: any) => {
     const newIsOutside = !loc.is_outside;
+    setSavingLocationId(loc.id);
     const { error } = await supabase
       .from("locations")
       .update({ is_outside: newIsOutside })
       .eq("id", loc.id);
 
+    setSavingLocationId(null);
     if (error) {
       Logger.error("Failed to toggle environment", error, {}, "Failed to update environment.");
       fetchHierarchy();
@@ -293,7 +315,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                 onClick={() =>
                   setNewLoc({ ...newLoc, is_outside: !newLoc.is_outside })
                 }
-                className={`px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-colors shadow-sm ${!newLoc.is_outside ? "bg-rhozly-primary-container/30 text-rhozly-primary" : "bg-rhozly-secondary-container/40 text-rhozly-secondary"}`}
+                className={`px-6 py-4 rounded-2xl font-bold flex items-center justify-center gap-2 transition-colors shadow-sm ${!newLoc.is_outside ? "bg-rhozly-primary-container/30 text-rhozly-primary" : "bg-rhozly-surface text-rhozly-on-surface/70"}`}
               >
                 {!newLoc.is_outside ? <Home size={20} /> : <Sun size={20} />}
                 {!newLoc.is_outside ? "Inside" : "Outside"}
@@ -317,6 +339,27 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
           </div>
         )}
 
+        {!isAddingLoc && locations.length === 0 && (
+          <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+            <div className="w-16 h-16 rounded-full bg-rhozly-primary/10 flex items-center justify-center">
+              <MapPin className="w-8 h-8 text-rhozly-primary" />
+            </div>
+            <div>
+              <h3 className="text-xl font-black text-rhozly-on-surface">No locations yet</h3>
+              <p className="text-sm font-medium text-rhozly-on-surface/50 mt-1">Add your first garden space to get started.</p>
+            </div>
+            {can("locations.create") && (
+              <button
+                data-testid="empty-state-add-location-btn"
+                onClick={() => setIsAddingLoc(true)}
+                className="flex items-center gap-2 px-6 py-3 bg-rhozly-primary text-white rounded-2xl text-sm font-bold hover:bg-rhozly-primary/90 transition-all shadow-md mt-2"
+              >
+                <Plus size={18} /> Add Location
+              </button>
+            )}
+          </div>
+        )}
+
         <div data-testid="location-list" className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {locations.map((loc) => (
             <div
@@ -324,26 +367,33 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
               className="bg-rhozly-surface-lowest rounded-3xl p-6 shadow-sm border border-rhozly-outline/20"
             >
               <div className="flex items-center justify-between gap-4 mb-6">
-                <input
-                  value={loc.name}
-                  readOnly={!can("locations.edit")}
-                  onChange={(e) =>
-                    setLocations(
-                      locations.map((l) =>
-                        l.id === loc.id ? { ...l, name: e.target.value } : l,
-                      ),
-                    )
-                  }
-                  onBlur={() => can("locations.edit") && handleUpdateLocationDB(loc)}
-                  className={`text-2xl font-black font-display text-rhozly-on-surface bg-transparent border-b-2 border-transparent focus:outline-none w-full transition-colors pb-1 ${can("locations.edit") ? "hover:border-rhozly-outline/30 focus:border-rhozly-primary" : "cursor-default"}`}
-                />
+                <div className="flex items-center gap-2 flex-1 min-w-0">
+                  <input
+                    value={loc.name}
+                    readOnly={!can("locations.edit")}
+                    onChange={(e) =>
+                      setLocations(
+                        locations.map((l) =>
+                          l.id === loc.id ? { ...l, name: e.target.value } : l,
+                        ),
+                      )
+                    }
+                    onBlur={() => can("locations.edit") && handleUpdateLocationDB(loc)}
+                    className={`text-2xl font-black font-display text-rhozly-on-surface bg-transparent border-b-2 border-transparent focus:outline-none w-full transition-colors pb-1 ${can("locations.edit") ? "hover:border-rhozly-outline/30 focus:border-rhozly-primary" : "cursor-default"}`}
+                  />
+                  {savingLocationId === loc.id && (
+                    <Loader2 size={16} className="animate-spin text-rhozly-primary shrink-0" />
+                  )}
+                </div>
                 <div className="flex items-center gap-2">
                   {can("locations.edit") && (
                     <button
                       onClick={() => toggleEnvironment(loc)}
-                      className={`min-w-[44px] min-h-[44px] px-4 py-2 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 ${!loc.is_outside ? "bg-rhozly-primary-container/30 text-rhozly-primary" : "bg-rhozly-secondary-container/40 text-rhozly-secondary"}`}
+                      disabled={savingLocationId === loc.id}
+                      aria-label={savingLocationId === loc.id ? "Saving…" : `Toggle environment: ${loc.is_outside ? "Outside" : "Inside"}`}
+                      className={`min-w-[44px] min-h-[44px] px-4 py-2 rounded-2xl text-xs font-bold flex items-center justify-center gap-2 ${!loc.is_outside ? "bg-rhozly-primary-container/30 text-rhozly-primary" : "bg-rhozly-surface text-rhozly-on-surface/70"} disabled:opacity-50`}
                     >
-                      {!loc.is_outside ? <Home size={16} /> : <Sun size={16} />}
+                      {savingLocationId === loc.id ? <Loader2 size={16} className="animate-spin" /> : (!loc.is_outside ? <Home size={16} /> : <Sun size={16} />)}
                     </button>
                   )}
                   {can("locations.delete") && (
@@ -352,7 +402,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                         setItemToDelete({ type: "location", id: loc.id })
                       }
                       aria-label={`Delete location: ${loc.name}`}
-                      className="min-w-[44px] min-h-[44px] p-2 text-rhozly-on-surface/40 hover:text-rhozly-error rounded-2xl flex items-center justify-center"
+                      className="min-w-[44px] min-h-[44px] p-2 text-rhozly-on-surface/40 hover:text-red-500 rounded-2xl flex items-center justify-center"
                     >
                       <Trash2 size={18} />
                     </button>
@@ -405,6 +455,9 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                         onBlur={() => can("areas.edit") && handleUpdateAreaDB(area)}
                         className={`flex-1 text-sm font-bold text-rhozly-on-surface bg-transparent focus:outline-none ${!can("areas.edit") ? "cursor-default" : ""}`}
                       />
+                      {savingAreaId === area.id && (
+                        <Loader2 size={14} className="animate-spin text-rhozly-primary shrink-0" />
+                      )}
                       <div className="flex gap-1 transition-opacity">
                         {can("areas.edit") && (
                           <button
@@ -424,7 +477,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                                 locationId: loc.id,
                               })
                             }
-                            className="min-w-[44px] min-h-[44px] p-2 text-rhozly-on-surface/30 hover:text-rhozly-error rounded-xl flex items-center justify-center"
+                            className="min-w-[44px] min-h-[44px] p-2 text-rhozly-on-surface/30 hover:text-red-500 rounded-xl flex items-center justify-center"
                           >
                             <Trash2 size={16} />
                           </button>
@@ -465,6 +518,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <p className="col-span-full text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-0">Growing Medium</p>
                     {/* 1. Growing Medium */}
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
@@ -518,6 +572,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                       </select>
                     </div>
 
+                    <p className="col-span-full text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-0 mt-4">Growth Conditions</p>
                     {/* 3. pH Level */}
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
@@ -526,6 +581,8 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                       <input
                         type="number"
                         step="0.1"
+                        min="0"
+                        max="14"
                         value={editingArea.medium_ph || ""}
                         onChange={(e) =>
                           setEditingArea({
@@ -545,6 +602,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                       </label>
                       <input
                         type="number"
+                        min="0"
                         value={editingArea.light_intensity_lux || ""}
                         onChange={(e) =>
                           setEditingArea({
@@ -615,8 +673,18 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                       Cancel
                     </button>
                     <button
-                      onClick={() => {
-                        handleUpdateAreaDB(editingArea);
+                      onClick={async () => {
+                        const ph = editingArea.medium_ph;
+                        const lux = editingArea.light_intensity_lux;
+                        if (ph !== "" && ph !== null && ph !== undefined && (Number(ph) < 0 || Number(ph) > 14)) {
+                          toast.error("pH must be between 0 and 14");
+                          return;
+                        }
+                        if (lux !== "" && lux !== null && lux !== undefined && Number(lux) < 0) {
+                          toast.error("Light level cannot be negative");
+                          return;
+                        }
+                        await handleUpdateAreaDB(editingArea);
                         setEditingArea(null);
                       }}
                       className="flex-[2] py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg flex items-center justify-center gap-2"

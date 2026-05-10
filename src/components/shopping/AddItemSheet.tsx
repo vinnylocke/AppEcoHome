@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { X, Leaf, Search, Loader2, ArrowLeft, Sparkles, Globe } from "lucide-react";
+import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
 import { PerenualService } from "../../lib/perenualService";
 import { Logger } from "../../lib/errorHandler";
@@ -77,6 +78,7 @@ export default function AddItemSheet({
       setPlantState("shed_results");
     } catch (err) {
       Logger.error("Shed plant search failed", err);
+      toast.error("Search failed — please try again");
       setPlantState("shed_results");
     }
   }, [homeId]);
@@ -102,6 +104,7 @@ export default function AddItemSheet({
       setPlantState("perenual_results");
     } catch (err) {
       Logger.error("Perenual search failed", err);
+      toast.error("Search failed — please try again");
       setPlantState("shed_results"); // fall back to showing shed results
     }
   };
@@ -120,6 +123,7 @@ export default function AddItemSheet({
       setPlantState("ai_results");
     } catch (err) {
       Logger.error("AI plant search failed", err);
+      toast.error("Search failed — please try again");
       setPlantState("shed_results");
     }
   };
@@ -212,6 +216,7 @@ export default function AddItemSheet({
       });
     } catch (err) {
       Logger.error("Failed to add plant to shed", err);
+      toast.error("Could not add to shed");
     }
     setAddingToShed(false);
     onClose();

@@ -47,6 +47,14 @@ export default function GuideList() {
 
   // Reading Mode
   const [activeGuide, setActiveGuide] = useState<any | null>(null);
+  const [readingVisible, setReadingVisible] = useState(false);
+
+  useEffect(() => {
+    if (activeGuide) {
+      setReadingVisible(false);
+      setTimeout(() => setReadingVisible(true), 20);
+    }
+  }, [activeGuide?.id]);
 
   // Refs for accessibility
   const dropdownTriggerRef = useRef<HTMLButtonElement>(null);
@@ -134,7 +142,15 @@ export default function GuideList() {
     const coverImage = getCoverImage(data);
 
     return (
-      <div className="max-w-3xl mx-auto pb-20 animate-in slide-in-from-right-8 duration-500">
+      <div
+        className="max-w-3xl mx-auto pb-20"
+        aria-live="polite"
+        style={{
+          opacity: readingVisible ? 1 : 0,
+          transform: readingVisible ? 'translateY(0)' : 'translateY(8px)',
+          transition: 'opacity 0.2s ease, transform 0.2s ease',
+        }}
+      >
         <button
           onClick={() => setActiveGuide(null)}
           className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-sm text-sm font-bold text-rhozly-on-surface hover:bg-gray-50 mb-6 transition-colors"
@@ -143,6 +159,12 @@ export default function GuideList() {
         </button>
 
         <div className="bg-white rounded-3xl p-6 md:p-10 shadow-sm border border-rhozly-outline/10 overflow-hidden">
+          <button
+            onClick={() => setActiveGuide(null)}
+            className="text-xs text-rhozly-primary font-bold mb-4 flex items-center gap-1 hover:underline"
+          >
+            <ArrowLeft size={12} /> Guides Library
+          </button>
           <div className="flex gap-3 mb-4">
             <span className="flex items-center gap-1 bg-amber-50 text-amber-700 text-[10px] font-black uppercase px-3 py-1.5 rounded-lg border border-amber-100">
               <BarChart size={12} /> {data.difficulty}
@@ -270,18 +292,24 @@ export default function GuideList() {
       <div className="flex gap-1 mb-8">
         {GUIDE_TABS.map((tab) => {
           const isActive = activeTab === tab.id;
+          const count = tab.id === "rhozly" && !isLoading ? filteredGuides.length : null;
           return (
             <button
               key={tab.id}
               data-testid={tab.testid}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-5 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition-all border-b-2 ${
+              className={`px-5 py-3 min-h-[44px] rounded-xl text-xs uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 ${
                 isActive
-                  ? "text-rhozly-primary border-rhozly-primary bg-rhozly-primary/5"
-                  : "text-rhozly-on-surface/40 border-transparent hover:text-rhozly-on-surface/70 hover:bg-rhozly-surface-low"
+                  ? "font-black text-rhozly-primary border-rhozly-primary bg-rhozly-surface-low"
+                  : "font-bold text-rhozly-on-surface/40 border-transparent hover:text-rhozly-on-surface/70 hover:bg-rhozly-surface-low"
               }`}
             >
               {tab.label}
+              {count !== null && (
+                <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-md ${isActive ? "bg-rhozly-primary/15 text-rhozly-primary" : "bg-rhozly-outline/10 text-rhozly-on-surface/40"}`}>
+                  {count}
+                </span>
+              )}
             </button>
           );
         })}
@@ -370,7 +398,7 @@ export default function GuideList() {
                     {labelSearchQuery && (
                       <button
                         onClick={() => setLabelSearchQuery("")}
-                        className="p-1 text-gray-400 hover:text-gray-600"
+                        className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-gray-600"
                       >
                         <X size={14} />
                       </button>
@@ -487,7 +515,7 @@ export default function GuideList() {
               <button
                 key={guide.id}
                 onClick={() => setActiveGuide(guide)}
-                className="group text-left bg-white rounded-2xl border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full hover:-translate-y-1"
+                className="group text-left bg-white rounded-2xl border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full hover:-translate-y-1 active:scale-[0.98] cursor-pointer"
               >
                 {cover ? (
                   <div className="h-48 overflow-hidden bg-gray-100">

@@ -1,10 +1,9 @@
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 import {
   Repeat,
   Plus,
   Trash2,
-  Loader2,
   CheckSquare,
   Sprout,
   Droplets,
@@ -38,6 +37,8 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
   const { can } = usePermissions();
   const [blueprints, setBlueprints] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
 
   // Builder Modal State
@@ -70,8 +71,9 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
     plants: [] as string[],
   });
 
-  const fetchBlueprints = async () => {
+  const fetchBlueprints = useCallback(async () => {
     setLoading(true);
+    setFetchError(false);
     try {
       const { data: bpData, error: bpError } = await supabase
         .from("task_blueprints")
@@ -154,19 +156,15 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
 
       setBlueprints(enrichedBlueprints);
     } catch (err: any) {
-      toast.error(
-        err?.message
-          ? `Failed to load automations: ${err.message}`
-          : "Failed to load automations. Please check your connection and try again.",
-      );
+      setFetchError(true);
     } finally {
       setLoading(false);
     }
-  };
+  }, [homeId, retryTick]);
 
   useEffect(() => {
     fetchBlueprints();
-  }, [homeId]);
+  }, [fetchBlueprints]);
 
   useHomeRealtime("task_blueprints", fetchBlueprints);
 
@@ -281,8 +279,51 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
 
   if (loading)
     return (
-      <div className="p-10 flex justify-center">
-        <Loader2 className="animate-spin text-rhozly-primary" size={32} />
+      <div className="w-full h-full flex flex-col p-4 md:p-8 pb-32">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
+          <div>
+            <div className="h-10 w-44 rounded-2xl bg-rhozly-surface-low animate-pulse mb-2" />
+            <div className="h-3 w-56 rounded-lg bg-rhozly-surface-low animate-pulse" />
+          </div>
+        </div>
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-4">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="bg-white rounded-3xl p-6 border border-rhozly-outline/10 shadow-sm flex flex-col gap-4 animate-pulse">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-2xl bg-rhozly-surface-low shrink-0" />
+                  <div className="flex flex-col gap-1.5">
+                    <div className="h-3 w-24 rounded-md bg-rhozly-surface-low" />
+                    <div className="h-5 w-36 rounded-lg bg-rhozly-surface-low" />
+                  </div>
+                </div>
+                <div className="w-10 h-10 rounded-xl bg-rhozly-surface-low shrink-0" />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <div className="h-3 w-full rounded-md bg-rhozly-surface-low" />
+                <div className="h-3 w-3/4 rounded-md bg-rhozly-surface-low" />
+              </div>
+              <div className="pt-4 border-t border-gray-50 flex gap-2 mt-auto">
+                <div className="h-5 w-20 rounded-md bg-rhozly-surface-low" />
+                <div className="h-5 w-24 rounded-md bg-rhozly-surface-low" />
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+
+  if (fetchError)
+    return (
+      <div className="p-10 flex flex-col items-center justify-center gap-4 text-center">
+        <p className="font-black text-lg text-rhozly-on-surface">Could not load automations</p>
+        <p className="text-sm font-bold text-rhozly-on-surface/50">Check your connection and try again.</p>
+        <button
+          onClick={() => setRetryTick((t) => t + 1)}
+          className="px-6 py-3 bg-rhozly-primary text-white rounded-2xl font-black shadow-sm hover:scale-105 transition-transform active:scale-95"
+        >
+          Retry
+        </button>
       </div>
     );
 
@@ -294,7 +335,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
             Automations
           </h2>
           <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-            Manage Recurring Automations
+            Recurring task automations
           </p>
         </div>
         {can("tasks.create_home") && (
@@ -353,7 +394,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
             <div className="bg-white p-5 rounded-3xl border border-rhozly-outline/10 shadow-sm animate-in fade-in slide-in-from-top-2">
               <div className="flex justify-between items-center mb-4">
                 <h4 className="text-sm font-black text-gray-800">
-                  Advanced Filters
+                  Filters
                 </h4>
                 {hasActiveFilters && (
                   <button
@@ -623,6 +664,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
           onSuccess={() => {
             setIsBuilding(false);
             setEditingBlueprint(null);
+            toast.success("Automation saved");
             fetchBlueprints();
           }}
         />
