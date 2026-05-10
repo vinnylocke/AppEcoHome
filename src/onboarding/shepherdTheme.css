@@ -2,10 +2,16 @@
 
 .shepherd-element {
   border-radius: 1.5rem !important;
-  box-shadow: 0 20px 60px -10px rgba(7, 87, 55, 0.18), 0 8px 24px -4px rgba(26, 28, 27, 0.12) !important;
-  border: 1px solid rgba(7, 87, 55, 0.12) !important;
+  box-shadow:
+    0 32px 80px -12px rgba(7, 87, 55, 0.25),
+    0 12px 32px -4px rgba(26, 28, 27, 0.18),
+    0 0 0 1px rgba(7, 87, 55, 0.10) !important;
+  border: none !important;
   max-width: 380px !important;
   font-family: 'Inter', sans-serif !important;
+  /* Stay sharp while the app blurs behind it */
+  filter: none !important;
+  z-index: 9999 !important;
 }
 
 .shepherd-content {
@@ -129,13 +135,17 @@
   background: #075737 !important;
 }
 
-/* Overlay */
-.shepherd-modal-overlay-container {
-  opacity: 1 !important;
+/* Blur the app behind the tooltip instead of a dark overlay.
+   Shepherd adds shepherd-has-active-tour to <body> when any tour is running.
+   The tooltip is appended directly to <body> so it sits outside #root
+   and stays sharp while everything inside #root blurs. */
+body.shepherd-has-active-tour #root {
+  filter: blur(2px);
+  transition: filter 0.3s ease;
 }
 
-.shepherd-overlay {
-  background: rgba(26, 28, 27, 0.5) !important;
+#root {
+  transition: filter 0.3s ease;
 }
 
 /* Mobile */

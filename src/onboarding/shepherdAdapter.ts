@@ -7,13 +7,11 @@ export function buildTour(
   onCancel: () => void,
 ): Shepherd.Tour {
   const tour = new Shepherd.Tour({
-    useModalOverlay: true,
+    useModalOverlay: false,
     defaultStepOptions: {
       cancelIcon: { enabled: true },
       scrollTo: { behavior: "smooth", block: "center" },
       classes: "rhozly-tour-step",
-      modalOverlayOpeningPadding: 8,
-      modalOverlayOpeningRadius: 12,
     },
   });
 
