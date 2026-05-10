@@ -45,12 +45,8 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
     );
   }, [query]);
 
-  const onPage = filtered.filter(
-    (f) => f.route === pathname || f.route === "global",
-  );
-  const allOthers = filtered.filter(
-    (f) => f.route !== pathname && f.route !== "global",
-  );
+  const onPage = filtered.filter((f) => f.route === pathname);
+  const allOthers = filtered.filter((f) => f.route !== pathname);
 
   // Group allOthers by category
   const grouped = useMemo(() => {
