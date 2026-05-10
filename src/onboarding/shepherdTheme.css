@@ -140,7 +140,7 @@
    The tooltip is appended directly to <body> so it sits outside #root
    and stays sharp while everything inside #root blurs. */
 body.shepherd-has-active-tour #root {
-  filter: blur(2px);
+  filter: blur(6px) brightness(0.85);
   transition: filter 0.3s ease;
 }
 
