@@ -1,70 +1,77 @@
 import Shepherd from "shepherd.js";
 import type { FlowDef } from "./types";
 
-const OVERLAY_ID = "rhozly-blur-overlay";
-const PAD = 14; // px padding around the highlighted element
+// Four panels that together cover everything EXCEPT the target spotlight.
+// Using separate divs instead of a single clip-path polygon avoids browser
+// inconsistencies where backdrop-filter + clip-path interact unexpectedly.
+const PANEL_IDS = [
+  "rhozly-blur-top",
+  "rhozly-blur-bottom",
+  "rhozly-blur-left",
+  "rhozly-blur-right",
+] as const;
 
-function createOverlay() {
-  if (document.getElementById(OVERLAY_ID)) return;
-  const el = document.createElement("div");
-  el.id = OVERLAY_ID;
-  Object.assign(el.style, {
-    position: "fixed",
-    inset: "0",
-    zIndex: "9990",
-    backdropFilter: "blur(4px) brightness(0.82)",
-    WebkitBackdropFilter: "blur(4px) brightness(0.82)",
-    transition: "clip-path 0.25s ease",
-    pointerEvents: "none",
+const PAD = 14;
+const BLUR = "blur(4px) brightness(0.82)";
+
+function createPanels() {
+  PANEL_IDS.forEach((id) => {
+    if (document.getElementById(id)) return;
+    const el = document.createElement("div");
+    el.id = id;
+    Object.assign(el.style, {
+      position: "fixed",
+      zIndex: "9990",
+      backdropFilter: BLUR,
+      WebkitBackdropFilter: BLUR,
+      pointerEvents: "none",
+      transition: "left 0.25s ease, top 0.25s ease, width 0.25s ease, height 0.25s ease",
+    });
+    document.body.appendChild(el);
   });
-  document.body.appendChild(el);
 }
 
-function removeOverlay() {
-  document.getElementById(OVERLAY_ID)?.remove();
+function removePanels() {
+  PANEL_IDS.forEach((id) => document.getElementById(id)?.remove());
 }
 
-function updateOverlayCutout(selector: string | null) {
-  const overlay = document.getElementById(OVERLAY_ID);
-  if (!overlay) return;
+function positionPanel(el: HTMLElement, x: number, y: number, w: number, h: number) {
+  el.style.display = w > 0 && h > 0 ? "block" : "none";
+  el.style.left = `${x}px`;
+  el.style.top = `${y}px`;
+  el.style.width = `${w}px`;
+  el.style.height = `${h}px`;
+}
 
-  if (!selector) {
-    overlay.style.clipPath = "none";
-    return;
-  }
+function updateSpotlight(selector: string | null) {
+  const panels = PANEL_IDS.map((id) => document.getElementById(id) as HTMLElement | null);
+  if (panels.some((p) => !p)) return;
+  const [top, bottom, left, right] = panels as HTMLElement[];
 
-  const targetEl = document.querySelector(selector);
-  if (!targetEl) {
-    overlay.style.clipPath = "none";
-    return;
-  }
-
-  const { left, top, right, bottom } = targetEl.getBoundingClientRect();
   const vw = window.innerWidth;
   const vh = window.innerHeight;
-  const x1 = Math.max(0, left - PAD);
-  const y1 = Math.max(0, top - PAD);
-  const x2 = Math.min(vw, right + PAD);
-  const y2 = Math.min(vh, bottom + PAD);
 
-  // A polygon that covers the whole viewport but has a rectangular hole
-  // cut out for the target. Uses the "bridge" technique — the outer path
-  // goes clockwise and the inner path counter-clockwise, so the interior
-  // of the inner path has zero winding and becomes transparent.
-  overlay.style.clipPath = [
-    `0px 0px`,
-    `${vw}px 0px`,
-    `${vw}px ${vh}px`,
-    `0px ${vh}px`,
-    `0px 0px`,
-    `${x1}px ${y1}px`,
-    `${x1}px ${y2}px`,
-    `${x2}px ${y2}px`,
-    `${x2}px ${y1}px`,
-    `${x1}px ${y1}px`,
-  ]
-    .map((p, i) => (i === 0 ? `polygon(${p}` : i === 9 ? `${p})` : p))
-    .join(", ");
+  const targetEl = selector ? document.querySelector(selector) : null;
+  const rect = targetEl?.getBoundingClientRect();
+
+  if (!rect || rect.width === 0) {
+    // No visible target — single top panel covers the full viewport
+    positionPanel(top, 0, 0, vw, vh);
+    positionPanel(bottom, 0, 0, 0, 0);
+    positionPanel(left, 0, 0, 0, 0);
+    positionPanel(right, 0, 0, 0, 0);
+    return;
+  }
+
+  const ex1 = Math.max(0, rect.left - PAD);
+  const ey1 = Math.max(0, rect.top - PAD);
+  const ex2 = Math.min(vw, rect.right + PAD);
+  const ey2 = Math.min(vh, rect.bottom + PAD);
+
+  positionPanel(top,    0,   0,       vw,        ey1);
+  positionPanel(bottom, 0,   ey2,     vw,        vh - ey2);
+  positionPanel(left,   0,   ey1,     ex1,       ey2 - ey1);
+  positionPanel(right,  ex2, ey1,     vw - ex2,  ey2 - ey1);
 }
 
 export function buildTour(
@@ -106,8 +113,11 @@ export function buildTour(
       });
     }
 
+    // For interactive steps, label the button "Skip →" so it's clear the
+    // intended action is clicking the highlighted element, not this button.
+    const nextLabel = isLast ? "Done ✓" : step.advanceOn ? "Skip →" : "Next →";
     buttons.push({
-      text: isLast ? "Done ✓" : "Next →",
+      text: nextLabel,
       action: isLast ? () => { tour.complete(); } : tour.next,
       classes: "shepherd-button-primary",
     });
@@ -120,6 +130,9 @@ export function buildTour(
       ? `<img src="${step.image}" alt="" class="shepherd-step-image" />`
       : "";
 
+    // Per-step cleanup ref for the native advanceOn listener
+    let advanceCleanup: (() => void) | null = null;
+
     tour.addStep({
       id: `${flowDef.id}-step-${index}`,
       title: step.title,
@@ -127,7 +140,6 @@ export function buildTour(
       attachTo: step.attachTo.element && step.attachTo.on
         ? { element: step.attachTo.element, on: step.attachTo.on }
         : undefined,
-      advanceOn: step.advanceOn,
       buttons,
       when: {
         show() {
@@ -142,16 +154,39 @@ export function buildTour(
             footer.prepend(dotsEl);
           }
 
-          // Cut a hole in the blur overlay for the target element
-          updateOverlayCutout(step.attachTo.element);
+          // Immediate spotlight update (works for elements already in the DOM)
+          updateSpotlight(step.attachTo.element);
+
+          // Delayed second pass handles elements that render asynchronously after
+          // the previous step's interaction (e.g. a modal sheet opening)
+          setTimeout(() => updateSpotlight(step.attachTo.element), 350);
+
+          // Manual advanceOn via native listener — avoids Shepherd's built-in
+          // advanceOn which can conflict with React's synthetic event handling.
+          if (step.advanceOn) {
+            const { selector, event } = step.advanceOn;
+            setTimeout(() => {
+              if (advanceCleanup) return; // already attached (guard against double show)
+              const target = document.querySelector(selector);
+              if (target) {
+                const handler = () => tour.next();
+                target.addEventListener(event, handler, { once: true });
+                advanceCleanup = () => target.removeEventListener(event, handler);
+              }
+            }, 150);
+          }
+        },
+        hide() {
+          advanceCleanup?.();
+          advanceCleanup = null;
         },
       },
     });
   });
 
-  tour.on("start", createOverlay);
-  tour.on("complete", () => { removeOverlay(); onComplete(); });
-  tour.on("cancel", () => { removeOverlay(); onCancel(); });
+  tour.on("start", createPanels);
+  tour.on("complete", () => { removePanels(); onComplete(); });
+  tour.on("cancel", () => { removePanels(); onCancel(); });
 
   return tour;
 }
