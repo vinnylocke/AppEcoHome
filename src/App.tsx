@@ -770,6 +770,7 @@ function AppShell() {
                       )}
                     </div>
                   } />
+                  <Route path="*" element={null} />
                 </Routes>
                 </Suspense>
 
