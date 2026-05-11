@@ -84,8 +84,8 @@ import { getLocalDateString } from "./lib/taskEngine";
 
 // Service worker update checks + background-time reload safety net.
 if ("serviceWorker" in navigator) {
-  // When the SW changes controller (new SW activated after user taps "Reload"
-  // in the UpdateBanner), reload the page so old JS doesn't run with the new SW.
+  // When the SW changes controller (new SW activated), reload so old JS
+  // doesn't run with the new SW's cache (mismatched chunk hashes = white screen).
   navigator.serviceWorker.addEventListener("controllerchange", () => {
     window.location.reload();
   });
@@ -100,9 +100,20 @@ if ("serviceWorker" in navigator) {
       } else if (document.visibilityState === "visible") {
         // Check for a new SW version each time the app comes to the foreground.
         registration.update();
-        // If the app was backgrounded for > 30 minutes, do a hard reload.
-        // This recovers from the OS killing the WebView process (common on iOS
-        // under memory pressure) which can leave the app in a broken state.
+
+        // If a new SW is already waiting (deployed while the app was in the
+        // background), activate it immediately. The user wasn't looking at the
+        // app so there is nothing to lose, and the controllerchange listener
+        // above will reload the page cleanly with the new SW's fresh cache —
+        // preventing the white screen caused by old JS loading new chunk hashes.
+        if (registration.waiting) {
+          registration.waiting.postMessage({ type: "SKIP_WAITING" });
+          return;
+        }
+
+        // Fallback: if the OS killed the WebView process (common on iOS under
+        // memory pressure) and there is no waiting SW to activate, a hard
+        // reload after 30 min in the background recovers any broken state.
         if (hiddenAt > 0 && Date.now() - hiddenAt > 30 * 60 * 1000) {
           window.location.reload();
         }
