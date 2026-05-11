@@ -39,9 +39,25 @@ Deno.serve(async (req) => {
     }
 
     let processedHomesCount = 0;
+    const ONE_HOUR_MS = 60 * 60 * 1000;
 
     for (const home of homes) {
       try {
+        // Idempotency guard: skip homes already synced within the last hour
+        // to prevent duplicate runs from cron retries or manual triggers.
+        const { data: existing } = await supabase
+          .from("weather_snapshots")
+          .select("updated_at")
+          .eq("home_id", home.id)
+          .single();
+        if (existing?.updated_at) {
+          const msSinceSync = Date.now() - new Date(existing.updated_at).getTime();
+          if (msSinceSync < ONE_HOUR_MS) {
+            console.log(`⏭️ Skipping home ${home.id} — synced ${Math.round(msSinceSync / 60000)}min ago`);
+            continue;
+          }
+        }
+
         let lat: number | undefined = home.lat ?? undefined;
         let lng: number | undefined = home.lng ?? undefined;
 
