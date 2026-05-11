@@ -79,8 +79,10 @@ export const LocationPage: React.FC<LocationPageProps> = ({
     return () => setPageContext(null);
   }, [location, areas, isOutside, focusedArea, setPageContext]);
 
-  const fetchAreas = async () => {
-    setLoading(true);
+  const AREAS_CACHE_TTL = 5 * 60 * 1000;
+
+  const fetchAreas = async (background = false) => {
+    if (!background) setLoading(true);
     try {
       const { data, error } = await supabase
         .from("areas")
@@ -90,15 +92,31 @@ export const LocationPage: React.FC<LocationPageProps> = ({
 
       if (error) throw error;
       setAreas(data || []);
+      sessionStorage.setItem(
+        `areas_cache_${location.id}`,
+        JSON.stringify({ areas: data || [], ts: Date.now() }),
+      );
     } catch (error: any) {
       Logger.error("Failed to load areas", error, { locationId: location.id });
-      toast.error("Could not load areas.");
+      if (!background) toast.error("Could not load areas.");
     } finally {
-      setLoading(false);
+      if (!background) setLoading(false);
     }
   };
 
   useEffect(() => {
+    const raw = sessionStorage.getItem(`areas_cache_${location.id}`);
+    if (raw) {
+      try {
+        const { areas: cached, ts } = JSON.parse(raw);
+        if (Date.now() - ts < AREAS_CACHE_TTL) {
+          setAreas(cached);
+          setLoading(false);
+          fetchAreas(true);
+          return;
+        }
+      } catch {}
+    }
     fetchAreas();
   }, [location.id]);
 

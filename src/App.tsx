@@ -306,7 +306,7 @@ function AppShell() {
         weather_snapshots ( data ),
         locations (
           *,
-          areas ( id ),
+          areas ( id, name ),
           inventory_items ( id, status )
         )
       `,
@@ -469,6 +469,22 @@ function AppShell() {
     sessionStorage.removeItem(`weather_cache_${profile.home_id}`);
     fetchDashboardData();
   }, [profile?.home_id, fetchDashboardData]);
+
+  // Lightweight refresh — only re-fetches inventory counts per location instead of the full home
+  const handleInventoryRealtime = useCallback(async () => {
+    if (!profile?.home_id) return;
+    const { data } = await supabase
+      .from("inventory_items")
+      .select("id, status, location_id")
+      .eq("home_id", profile.home_id);
+    if (!data) return;
+    setLocations((prev) =>
+      prev.map((loc) => ({
+        ...loc,
+        inventory_items: data.filter((i) => i.location_id === loc.id),
+      })),
+    );
+  }, [profile?.home_id]);
 
   const handleProfileRealtime = useCallback(() => {
     refreshProfile();
@@ -638,6 +654,7 @@ function AppShell() {
       <DashboardRealtimeSubscriber
         onDataRefresh={handleHomeDataRealtime}
         onProfileRefresh={handleProfileRealtime}
+        onInventoryChange={handleInventoryRealtime}
       />
     <PlantDoctorProvider homeId={profile?.home_id || ""}>
       <Sentry.ErrorBoundary fallback={({ error }) => <ErrorPage error={error instanceof Error ? error : undefined} />}>
@@ -915,7 +932,7 @@ function AppShell() {
                                 ) : dashboardView === "calendar" ? (
                                   <div className="bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/10 overflow-hidden shadow-sm">
                                     {profile?.home_id && (
-                                      <TaskCalendar homeId={profile.home_id} />
+                                      <TaskCalendar homeId={profile.home_id} preloadedLocations={locations} />
                                     )}
                                   </div>
                                 ) : (
@@ -1214,14 +1231,16 @@ function AppShell() {
 function DashboardRealtimeSubscriber({
   onDataRefresh,
   onProfileRefresh,
+  onInventoryChange,
 }: {
   onDataRefresh: () => void;
   onProfileRefresh: () => void;
+  onInventoryChange: () => void;
 }) {
   useHomeRealtime("locations", onDataRefresh);
   useHomeRealtime("areas", onDataRefresh);
   useHomeRealtime("weather_alerts", onDataRefresh);
-  useHomeRealtime("inventory_items", onDataRefresh);
+  useHomeRealtime("inventory_items", onInventoryChange);
   useHomeRealtime("weather_snapshots", onDataRefresh);
   useHomeRealtime("homes", onProfileRefresh);
   return null;

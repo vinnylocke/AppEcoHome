@@ -81,7 +81,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_home_area   ON public.inventory_items (
 ```
 **Estimated saving:** Smaller payloads on every profile refresh and area open.
 - [x] Narrow `user_profiles` select in `refreshProfile`
-- [ ] Narrow `inventory_items` select in `AreaDetails`
+- [x] Narrow `inventory_items` select in `AreaDetails`
 
 ---
 
@@ -115,7 +115,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_home_area   ON public.inventory_items (
 **Estimated saving:** 400–800 ms on cold start.
 - [x] Merge session + profile fetch into single parallel call
 - [x] Parallelise `home_members` fallback
-- [ ] Seed UI from `localStorage` on mount
+- [ ] Seed UI from `localStorage` on mount (deferred — stale-then-fresh pattern requires careful session handling)
 
 ---
 
@@ -125,7 +125,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_home_area   ON public.inventory_items (
 **Files:** `src/components/TaskCalendar.tsx`, `src/App.tsx`
 **Problem:** `TaskCalendar` independently fetches locations (with nested areas) and plans when it mounts — data the parent already has.
 **Fix:** Pass `locations` as a prop from `App.tsx`. Accept a `plans` prop or lazy-load plans only when the filter panel opens. Prevent double `TaskEngine` invocation by passing the already-fetched month tasks to the child `<TaskList>`.
-- [ ] Pass locations prop to `TaskCalendar`
+- [x] Pass locations prop to `TaskCalendar`
 - [ ] Add `preloadedTasks` prop to `TaskList` to skip fetch when data is provided
 
 ---
@@ -134,8 +134,8 @@ CREATE INDEX IF NOT EXISTS idx_inventory_home_area   ON public.inventory_items (
 **File:** `src/components/LocationPage.tsx`
 **Problem:** Every tap on a location tile re-fetches areas from Supabase and shows a spinner, even if the user was just on that location.
 **Fix:** Cache areas in `sessionStorage` keyed by `location_id` with a 5-minute TTL. Serve cached areas immediately on mount, refresh in background.
-- [ ] Add sessionStorage cache to `LocationPage` with 5-min TTL
-- [ ] Render immediately from cache, refresh behind the scenes
+- [x] Add sessionStorage cache to `LocationPage` with 5-min TTL
+- [x] Render immediately from cache, refresh behind the scenes
 
 ---
 
@@ -143,8 +143,8 @@ CREATE INDEX IF NOT EXISTS idx_inventory_home_area   ON public.inventory_items (
 **Files:** `src/App.tsx` (`DashboardRealtimeSubscriber`), `src/hooks/useCachedShed.ts`
 **Problem:** Any DB change (e.g. archiving a plant) triggers three simultaneous full re-fetches: dashboard, task list, and shed. The 500 ms debounce helps with bursts but doesn't eliminate the redundant queries.
 **Fix:** For the most common mutations (task completion, plant archiving, inventory updates) perform optimistic local state updates from the realtime payload rather than triggering a full re-fetch. Remove `inventory_items` from the dashboard realtime subscription (it only affects location tile plant counts, which can be updated surgically).
-- [ ] Remove `inventory_items` from dashboard realtime subscription
-- [ ] Update inventory state from realtime payload directly
+- [x] Remove `inventory_items` from dashboard realtime subscription
+- [x] Update inventory state from realtime payload directly
 - [ ] Explore surgical task state updates from realtime payload
 
 ---

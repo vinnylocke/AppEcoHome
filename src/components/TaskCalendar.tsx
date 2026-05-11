@@ -49,7 +49,13 @@ function taskDotColor(type: string, isSelected: boolean): string {
   return TASK_TYPE_DOT[type] ?? "bg-rhozly-primary";
 }
 
-export default function TaskCalendar({ homeId }: { homeId: string }) {
+export default function TaskCalendar({
+  homeId,
+  preloadedLocations,
+}: {
+  homeId: string;
+  preloadedLocations?: any[];
+}) {
   const { setPageContext, preferences } = usePlantDoctor();
 
   const [currentDate, setCurrentDate] = useState(new Date());
@@ -58,7 +64,7 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
   // 🚀 Tasks array now holds the fully calculated physical AND ghost tasks for the entire month!
   const [tasks, setTasks] = useState<Task[]>([]);
 
-  const [locations, setLocations] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>(preloadedLocations ?? []);
   const [plans, setPlans] = useState<any[]>([]);
 
   const [refreshKey, setRefreshKey] = useState(0);
@@ -139,11 +145,13 @@ export default function TaskCalendar({ homeId }: { homeId: string }) {
 
   useEffect(() => {
     const fetchFilters = async () => {
-      const { data: locData } = await supabase
-        .from("locations")
-        .select("id, name, areas(id, name)")
-        .eq("home_id", homeId);
-      if (locData) setLocations(locData);
+      if (!preloadedLocations) {
+        const { data: locData } = await supabase
+          .from("locations")
+          .select("id, name, areas(id, name)")
+          .eq("home_id", homeId);
+        if (locData) setLocations(locData);
+      }
 
       const { data: planData } = await supabase
         .from("plans")

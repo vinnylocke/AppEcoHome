@@ -115,7 +115,7 @@ export default function AreaDetails({
     try {
       const { data, error } = await supabase
         .from("inventory_items")
-        .select("*")
+        .select("id, home_id, plant_id, plant_name, status, growth_state, identifier, is_established, location_id, area_id, planted_at")
         .eq("home_id", homeId)
         .eq("area_id", area.id)
         .order("created_at", { ascending: false });
