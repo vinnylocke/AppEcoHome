@@ -13,7 +13,10 @@ export type PermissionKey =
   | 'layout.edit'
   | 'shopping.create_list' | 'shopping.add_items' | 'shopping.edit_items'
   | 'shopping.delete_items' | 'shopping.delete_list'
-  | 'members.manage';
+  | 'members.manage'
+  | 'integrations.view'
+  | 'integrations.control'
+  | 'integrations.manage';
 
 export type PermissionSet = Record<PermissionKey, boolean>;
 
@@ -31,6 +34,9 @@ const ALL_OFF: PermissionSet = {
   'shopping.create_list': false, 'shopping.add_items': false,
   'shopping.edit_items': false, 'shopping.delete_items': false, 'shopping.delete_list': false,
   'members.manage': false,
+  'integrations.view': false,
+  'integrations.control': false,
+  'integrations.manage': false,
 };
 
 const ALL_ON: PermissionSet = Object.fromEntries(
@@ -53,12 +59,14 @@ export const ROLE_DEFAULTS: Record<Role, PermissionSet> = {
     'layout.edit': true,
     'shopping.create_list': true, 'shopping.add_items': true,
     'shopping.edit_items': true, 'shopping.delete_items': true,
+    'integrations.view': true,
   },
   viewer: {
     ...ALL_OFF,
     'tasks.create_personal': true,
     'tasks.edit_own': true, 'tasks.delete_own': true,
     'tasks.view_home': true,
+    'integrations.view': true,
   },
 };
 

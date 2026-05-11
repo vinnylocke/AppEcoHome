@@ -1,0 +1,67 @@
+import React from "react";
+import { Droplets, Thermometer, Zap, Wifi, WifiOff } from "lucide-react";
+import type { Device } from "./IntegrationsPage";
+
+interface Props {
+  device: Device;
+  onClick: () => void;
+}
+
+export default function DeviceCard({ device, onClick }: Props) {
+  const isOnline =
+    device.last_seen_at
+      ? Date.now() - new Date(device.last_seen_at).getTime() < 60 * 60 * 1000 // within 1 hour
+      : false;
+
+  const isSoil = device.device_type === "soil_sensor";
+
+  return (
+    <button
+      onClick={onClick}
+      data-testid={`device-card-${device.id}`}
+      className="w-full text-left rounded-3xl bg-rhozly-surface-lowest border border-rhozly-outline/20 shadow-sm p-5 hover:shadow-md hover:border-rhozly-primary/20 transition-all duration-200 group"
+    >
+      {/* Top row */}
+      <div className="flex items-start justify-between mb-3">
+        <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isSoil ? "bg-amber-100" : "bg-blue-100"}`}>
+          {isSoil ? (
+            <Thermometer className="text-amber-600" size={20} />
+          ) : (
+            <Droplets className="text-blue-600" size={20} />
+          )}
+        </div>
+        <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl ${isOnline ? "bg-green-100 text-green-700" : "bg-rhozly-surface-low text-rhozly-on-surface-variant"}`}>
+          {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
+          {isOnline ? "Online" : "Offline"}
+        </div>
+      </div>
+
+      {/* Name */}
+      <p className="font-bold text-rhozly-on-surface text-base leading-tight mb-0.5 line-clamp-1 group-hover:text-rhozly-primary transition-colors">
+        {device.name}
+      </p>
+      <p className="text-xs text-rhozly-on-surface-variant capitalize mb-3">
+        {device.provider} · {isSoil ? "Soil Sensor" : "Water Valve"}
+      </p>
+
+      {/* Last seen */}
+      {device.last_seen_at ? (
+        <p className="text-xs text-rhozly-on-surface-variant">
+          Last reading {timeAgo(device.last_seen_at)}
+        </p>
+      ) : (
+        <p className="text-xs text-rhozly-on-surface-variant/60">No readings yet</p>
+      )}
+    </button>
+  );
+}
+
+function timeAgo(ts: string): string {
+  const ms = Date.now() - new Date(ts).getTime();
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m}m ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h}h ago`;
+  return `${Math.floor(h / 24)}d ago`;
+}

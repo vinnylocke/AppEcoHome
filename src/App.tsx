@@ -16,6 +16,7 @@ import {
   RefreshCw,
   AlertCircle,
   HelpCircle,
+  Plug,
 } from "lucide-react";
 
 // 🚀 NATIVE IMPORT
@@ -70,6 +71,7 @@ const HomeManagement      = lazy(() => import("./components/HomeManagement"));
 const GardenHub           = lazy(() => import("./components/GardenHub"));
 const PlannerHub          = lazy(() => import("./components/PlannerHub"));
 const ToolsHub            = lazy(() => import("./components/ToolsHub"));
+const IntegrationsPage    = lazy(() => import("./components/integrations/IntegrationsPage"));
 const GardenProfile       = lazy(() => import("./components/GardenProfile"));
 const GardenerProfile     = lazy(() => import("./components/GardenerProfile"));
 const LocationManager     = lazy(() => import("./components/LocationManager").then(m => ({ default: m.LocationManager })));
@@ -153,6 +155,7 @@ const TAB_URL: Record<string, string> = {
   home_management:  "/home-management",
   admin_guides:     "/admin/guides",
   tools:            "/tools",
+  integrations:     "/integrations",
 };
 
 function AppShell() {
@@ -651,7 +654,8 @@ function AppShell() {
     { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", "/"] },
     { id: "shed",      icon: <Database />, label: "Garden", matchPaths: ["/shed", "/watchlist"] },
     { id: "planner",   icon: <Map />, label: "Plan",    matchPaths: ["/planner", "/shopping"] },
-    { id: "tools",     icon: <Stethoscope />, label: "Tools",   matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
+    { id: "tools",        icon: <Stethoscope />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
+    { id: "integrations", icon: <Plug />,        label: "Integrations", matchPaths: ["/integrations"] },
   ];
 
   const canUsePortal = typeof document !== "undefined";
@@ -1061,6 +1065,14 @@ function AppShell() {
                         <div className="h-full overflow-auto animate-in fade-in duration-500">
                           <ToolsHub />
                         </div>
+                      } />
+
+                      <Route path="/integrations" element={
+                        profile?.home_id ? (
+                          <div className="h-full overflow-auto animate-in fade-in duration-500">
+                            <IntegrationsPage homeId={profile.home_id} />
+                          </div>
+                        ) : null
                       } />
 
                       <Route path="/visualiser" element={

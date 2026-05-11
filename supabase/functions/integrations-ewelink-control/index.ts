@@ -1,0 +1,195 @@
+/**
+ * integrations-ewelink-control
+ *
+ * Sends a turn_on or turn_off command to an eWeLink Zigbee valve.
+ * Supports both direct device (use_sub_device: false) and sub-device
+ * (use_sub_device: true) control patterns — determined by device.metadata.
+ *
+ * For turn_on: passes a countdown so the device self-enforces the timer.
+ * Also records the command in device_commands with auto_off_at.
+ *
+ * Request body:
+ *   { deviceId: string; command: "turn_on" | "turn_off"; durationSeconds?: number }
+ */
+
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { decryptCredentials } from "../_shared/integrations/encrypt.ts";
+import { insertReading } from "../_shared/integrations/readings.ts";
+import type { ValveReading } from "../_shared/integrations/providerTypes.ts";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const EWELINK_BASE = "https://eu-apia.coolkit.cc";
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
+  try {
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing authorization" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const db = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+    );
+
+    const userDb = createClient(
+      Deno.env.get("SUPABASE_URL")!,
+      Deno.env.get("SUPABASE_ANON_KEY")!,
+      { global: { headers: { Authorization: authHeader } } },
+    );
+
+    const { data: { user }, error: authError } = await userDb.auth.getUser();
+    if (authError || !user) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { deviceId, command, durationSeconds } = await req.json() as {
+      deviceId: string;
+      command: "turn_on" | "turn_off";
+      durationSeconds?: number;
+    };
+
+    if (!deviceId || !command) {
+      return new Response(JSON.stringify({ error: "deviceId and command are required" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── Load device + integration ───────────────────────────────────────────
+    const { data: device } = await db
+      .from("devices")
+      .select("id, home_id, metadata, integration_id")
+      .eq("id", deviceId)
+      .eq("device_type", "water_valve")
+      .single();
+
+    if (!device) {
+      return new Response(JSON.stringify({ error: "Device not found" }), {
+        status: 404, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Verify membership
+    const { data: membership } = await db
+      .from("home_members")
+      .select("user_id")
+      .eq("home_id", device.home_id)
+      .eq("user_id", user.id)
+      .single();
+
+    if (!membership) {
+      return new Response(JSON.stringify({ error: "Forbidden" }), {
+        status: 403, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const { data: integration } = await db
+      .from("integrations")
+      .select("credentials_encrypted")
+      .eq("id", device.integration_id)
+      .single();
+
+    if (!integration) throw new Error("Integration not found");
+
+    const { accessToken } = await decryptCredentials(integration.credentials_encrypted);
+    const appId = Deno.env.get("EWELINK_APP_ID") ?? "";
+
+    const meta = device.metadata as Record<string, unknown>;
+    const duration = durationSeconds ?? (meta.default_duration_seconds as number | undefined) ?? 1800;
+
+    // ── Build eWeLink API call ──────────────────────────────────────────────
+    const switchState = command === "turn_on" ? "on" : "off";
+
+    let apiPath: string;
+    let payload: Record<string, unknown>;
+
+    if (meta.use_sub_device) {
+      // Sub-device control via Zigbee Bridge Pro
+      apiPath = `/v2/device/thing/sub/status`;
+      payload = {
+        id: meta.parent_device_id,
+        params: {
+          switches: [
+            {
+              switch: switchState,
+              outlet: 0,
+              ...(command === "turn_on" ? { countdown: duration } : {}),
+            },
+          ],
+          subDevId: meta.sub_device_id,
+        },
+      };
+    } else {
+      // Direct device control
+      apiPath = `/v2/device/thing/status`;
+      payload = {
+        id: meta.direct_device_id,
+        params: {
+          switch: switchState,
+          ...(command === "turn_on" ? { countdown: duration } : {}),
+        },
+      };
+    }
+
+    const controlRes = await fetch(`${EWELINK_BASE}${apiPath}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        "X-CK-Appid": appId,
+      },
+      body: JSON.stringify(payload),
+    });
+
+    const controlJson = await controlRes.json();
+    const success = controlJson.error === 0;
+
+    // ── Persist command + reading ───────────────────────────────────────────
+    const now = new Date();
+    const autoOffAt = command === "turn_on" ? new Date(now.getTime() + duration * 1000) : null;
+
+    await db.from("device_commands").insert({
+      device_id: deviceId,
+      home_id: device.home_id,
+      issued_by: user.id,
+      command,
+      parameters: command === "turn_on" ? { duration_seconds: duration } : {},
+      auto_off_at: autoOffAt?.toISOString() ?? null,
+      status: success ? "success" : "failed",
+      error_message: success ? null : JSON.stringify(controlJson),
+      acknowledged_at: success ? now.toISOString() : null,
+    });
+
+    if (success) {
+      const reading: ValveReading = { state: command === "turn_on" ? "on" : "off" };
+      await insertReading({ db, deviceId, homeId: device.home_id, data: reading, recordedAt: now });
+    }
+
+    if (!success) {
+      return new Response(JSON.stringify({ error: `eWeLink error: ${controlJson.msg}` }), {
+        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ success: true, autoOffAt: autoOffAt?.toISOString() ?? null }), {
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  } catch (err) {
+    console.error("integrations-ewelink-control error:", err);
+    return new Response(JSON.stringify({ error: "Internal server error" }), {
+      status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
+  }
+});
