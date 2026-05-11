@@ -499,16 +499,24 @@ function AchievementCard({ def, unlocked, unlockedAt, progress }: {
 
 function StatsTab({ stats }: { stats: NonNullable<ReturnType<typeof useAchievements>["stats"]> }) {
   const metrics: { label: string; value: number | string; icon: string }[] = [
+    { label: "Current Streak", value: stats.streakDays === 0 ? "—" : `${stats.streakDays}d`, icon: "🔥" },
+    { label: "Longest Streak", value: stats.longestStreak === 0 ? "—" : `${stats.longestStreak}d`, icon: "🏅" },
     { label: "Plants Added", value: stats.plantAdded, icon: "🌿" },
     { label: "Tasks Completed", value: stats.taskCompleted, icon: "✅" },
     { label: "Pruning Tasks", value: stats.plantPruned, icon: "✂️" },
     { label: "Harvests", value: stats.plantHarvested, icon: "🍅" },
+    { label: "Yields Logged", value: stats.yieldRecorded, icon: "🍓" },
+    { label: "Journal Entries", value: stats.journalEntries, icon: "📓" },
+    { label: "Area Scans", value: stats.scansCompleted, icon: "🦅" },
     { label: "AI Identifications", value: stats.aiIdentify, icon: "🔍" },
     { label: "AI Diagnoses", value: stats.aiDiagnose, icon: "🩺" },
+    { label: "AI Chat Messages", value: stats.chatMessages, icon: "🤖" },
     { label: "Plans Completed", value: stats.planCompleted, icon: "📝" },
     { label: "Automations Created", value: stats.blueprintCreated, icon: "⚙️" },
     { label: "Ailments Logged", value: stats.ailmentAdded, icon: "👁️" },
     { label: "Ailments Resolved", value: stats.ailmentResolved, icon: "💚" },
+    { label: "Guides Published", value: stats.guidesPublished, icon: "📖" },
+    { label: "Comments Posted", value: stats.commentsPosted, icon: "💬" },
     { label: "Profile Complete", value: stats.profileComplete ? "Yes" : "No", icon: "🌟" },
   ];
 
@@ -616,6 +624,10 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
                     taskCompleted: 0, aiIdentify: 0, aiDiagnose: 0,
                     planCompleted: 0, blueprintCreated: 0,
                     ailmentAdded: 0, ailmentResolved: 0, profileComplete: false,
+                    journalEntries: 0, yieldRecorded: 0, scansCompleted: 0,
+                    guidesPublished: 0, commentsPosted: 0, chatMessages: 0,
+                    streakDays: 0, longestStreak: 0, blueprintCreatedFromEvents: 0,
+                    hasWinterTask: false, hasSpringPlanting: false,
                   }) : undefined}
                 />
               ))}

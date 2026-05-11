@@ -31,7 +31,7 @@ export function useAchievements(userId: string | null, homeId: string | null): A
         const [eventsRes, blueprintsRes, quizRes, existingRes] = await Promise.all([
           supabase
             .from("user_events")
-            .select("event_type, meta")
+            .select("event_type, meta, created_at")
             .eq("user_id", userId!),
           supabase
             .from("task_blueprints")
@@ -58,20 +58,67 @@ export function useAchievements(userId: string | null, homeId: string | null): A
         let plantAdded = 0, taskCompleted = 0, aiIdentify = 0, aiDiagnose = 0;
         let planCompleted = 0, ailmentAdded = 0, ailmentResolved = 0;
         let plantPruned = 0, plantHarvested = 0;
+        let journalEntries = 0, yieldRecorded = 0, scansCompleted = 0;
+        let guidesPublished = 0, commentsPosted = 0, chatMessages = 0;
+        let blueprintCreatedFromEvents = 0;
+        let hasWinterTask = false, hasSpringPlanting = false;
+        const activityDates = new Set<string>();
 
-        for (const e of events) {
-          switch (e.event_type) {
-            case "plant_added":       plantAdded++;      break;
-            case "task_completed":    taskCompleted++;
-              if (e.meta?.task_type === "prune")   plantPruned++;
-              if (e.meta?.task_type === "harvest") plantHarvested++;
-              break;
-            case "ai_identify":      aiIdentify++;      break;
-            case "ai_diagnose":      aiDiagnose++;      break;
-            case "plan_completed":   planCompleted++;   break;
-            case "ailment_added":    ailmentAdded++;    break;
-            case "ailment_archived": ailmentResolved++; break;
+        for (const e of events as any[]) {
+          // Track dates for streak computation
+          if (e.created_at) {
+            activityDates.add(e.created_at.slice(0, 10));
           }
+
+          const month = e.created_at ? new Date(e.created_at).getUTCMonth() + 1 : 0;
+
+          switch (e.event_type) {
+            case "plant_added":              plantAdded++;                          break;
+            case "task_completed":           taskCompleted++;
+              if (e.meta?.task_type === "Pruning")    plantPruned++;
+              if (e.meta?.task_type === "Harvesting") plantHarvested++;
+              if ([12, 1, 2].includes(month))         hasWinterTask = true;
+              break;
+            case "plant_instance_planted":
+              if ([3, 4, 5].includes(month)) hasSpringPlanting = true;
+              break;
+            case "ai_identify":              aiIdentify++;                          break;
+            case "ai_diagnose":              aiDiagnose++;                          break;
+            case "plan_completed":           planCompleted++;                       break;
+            case "ailment_added":            ailmentAdded++;                        break;
+            case "ailment_archived":         ailmentResolved++;                     break;
+            case "journal_entry_added":      journalEntries++;                      break;
+            case "yield_recorded":           yieldRecorded++;                       break;
+            case "area_scan_completed":      scansCompleted++;                      break;
+            case "guide_published":          guidesPublished++;                     break;
+            case "guide_commented":          commentsPosted++;                      break;
+            case "plant_doctor_chat_message": chatMessages++;                       break;
+            case "blueprint_created":        blueprintCreatedFromEvents++;          break;
+          }
+        }
+
+        // Compute gardening streak from sorted activity dates
+        const sortedDates = [...activityDates].sort();
+        let streakDays = 0, longestStreak = 0, currentRun = 0;
+        for (let i = 0; i < sortedDates.length; i++) {
+          if (i === 0) {
+            currentRun = 1;
+          } else {
+            const prev = new Date(sortedDates[i - 1]);
+            const curr = new Date(sortedDates[i]);
+            const diffDays = Math.round((curr.getTime() - prev.getTime()) / 86400000);
+            currentRun = diffDays === 1 ? currentRun + 1 : 1;
+          }
+          if (currentRun > longestStreak) longestStreak = currentRun;
+        }
+        // Current streak: walk backwards from today
+        const todayStr = new Date().toISOString().slice(0, 10);
+        let checkDate = todayStr;
+        while (activityDates.has(checkDate)) {
+          streakDays++;
+          const d = new Date(checkDate);
+          d.setUTCDate(d.getUTCDate() - 1);
+          checkDate = d.toISOString().slice(0, 10);
         }
 
         const computed: AchievementStats = {
@@ -86,6 +133,17 @@ export function useAchievements(userId: string | null, homeId: string | null): A
           ailmentAdded,
           ailmentResolved,
           profileComplete: !!quizRes.data,
+          journalEntries,
+          yieldRecorded,
+          scansCompleted,
+          guidesPublished,
+          commentsPosted,
+          chatMessages,
+          streakDays,
+          longestStreak,
+          blueprintCreatedFromEvents,
+          hasWinterTask,
+          hasSpringPlanting,
         };
 
         setStats(computed);

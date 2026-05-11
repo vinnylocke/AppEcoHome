@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Plus, Loader2, Trash2, Lock, Calendar, Sparkles } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { logEvent, EVENT } from "../events/registry";
 import {
   fetchYieldRecords,
   insertYieldRecord,
@@ -79,6 +80,7 @@ export default function YieldTab({
         notes: notes.trim() || null,
       });
       setRecords((prev) => [record, ...prev]);
+      logEvent(EVENT.YIELD_RECORDED, { instance_id: instanceId, value: parseFloat(value), unit: resolvedUnit });
       setValue("");
       setNotes("");
       toast.success("Yield logged.");

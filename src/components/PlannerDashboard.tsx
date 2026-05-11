@@ -150,7 +150,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
           .eq("id", plan.id);
         if (error) throw error;
         logEvent(
-          type === "archive" ? EVENT.PLAN_ARCHIVED : EVENT.PLAN_CREATED,
+          type === "archive" ? EVENT.PLAN_ARCHIVED : EVENT.PLAN_RESTORED,
           { plan_id: plan.id, plan_name: plan.name },
         );
         setCardFeedback(plan.id, "success");

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
+import { logEvent, EVENT } from "../events/registry";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -225,6 +226,7 @@ export default function PlantJournalTab({
 
       if (error) throw error;
 
+      logEvent(EVENT.JOURNAL_ENTRY_ADDED, { inventory_item_id: inventoryItemId, has_image: !!form.image_url, linked_task_id: form.task_id || null });
       toast.success("Journal entry saved!");
       setIsAdding(false);
       setForm({ subject: "", description: "", image_url: "", task_id: "" });

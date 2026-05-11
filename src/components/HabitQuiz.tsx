@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import { CheckCircle2, ChevronRight, Leaf } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
+import { logEvent, EVENT } from "../events/registry";
 
 interface QuizOption {
   label: string;
@@ -281,6 +282,7 @@ export default function HabitQuiz({ homeId, userId, onComplete }: Props) {
         .upsert({ home_id: homeId, user_id: userId }, { onConflict: "home_id,user_id" });
       if (compErr) throw compErr;
 
+      logEvent(EVENT.GARDEN_QUIZ_DONE, { home_id: homeId });
       setDone(true);
     } catch (err: any) {
       Logger.error("Failed to save habit quiz answers", err, {}, "Something went wrong saving your answers. Please try again.");

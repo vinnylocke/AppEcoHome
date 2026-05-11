@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
 import { supabase } from "../lib/supabase";
+import { logEvent, EVENT } from "../events/registry";
 import {
   Home,
   Sun,
@@ -134,6 +135,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
 
       if (error) throw error;
 
+      logEvent(EVENT.LOCATION_CREATED, { is_outside: newLoc.is_outside });
       setNewLoc({ name: "", is_outside: false });
       setIsAddingLoc(false);
       toast.success("Location created!");

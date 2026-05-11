@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { ShoppingCart, Plus, ChevronDown, ChevronRight, Loader2, AlertCircle } from "lucide-react";
 import toast from "react-hot-toast";
+import { logEvent, EVENT } from "../events/registry";
 import { usePermissions } from "../context/HomePermissionsContext";
 import { useShoppingLists } from "../hooks/useShoppingLists";
 import ShoppingListCard from "./shopping/ShoppingListCard";
@@ -42,6 +43,7 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
     const list = await createList("My List");
     setIsCreating(false);
     if (list) {
+      logEvent(EVENT.SHOPPING_LIST_CREATED, { list_id: list.id });
       setExpandedId(list.id);
       toast.success("List created");
     }
@@ -59,6 +61,7 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
 
   const handleAddItem = async (item: Parameters<typeof addItem>[0]) => {
     await addItem(item);
+    logEvent(EVENT.SHOPPING_ITEM_ADDED, { list_id: item.list_id, item_type: item.item_type });
     toast.success("Item added");
   };
 

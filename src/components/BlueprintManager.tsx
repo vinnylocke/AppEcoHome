@@ -19,6 +19,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import { logEvent, EVENT } from "../events/registry";
 import { usePermissions } from "../context/HomePermissionsContext";
 
 import AddTaskModal from "./AddTaskModal";
@@ -204,6 +205,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
           .delete()
           .eq("id", bp.id);
         if (error) throw error;
+        logEvent(EVENT.BLUEPRINT_DELETED, { blueprint_id: bp.id, title: bp.title });
         setBlueprints((prev) => prev.filter((b) => b.id !== bp.id));
         toast.success("Automation removed.");
       },

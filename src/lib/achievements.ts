@@ -10,6 +10,18 @@ export interface AchievementStats {
   ailmentAdded: number;
   ailmentResolved: number;
   profileComplete: boolean;
+  // Extended stats
+  journalEntries: number;
+  yieldRecorded: number;
+  scansCompleted: number;
+  guidesPublished: number;
+  commentsPosted: number;
+  chatMessages: number;
+  streakDays: number;
+  longestStreak: number;
+  blueprintCreatedFromEvents: number;
+  hasWinterTask: boolean;
+  hasSpringPlanting: boolean;
 }
 
 export interface AchievementProgress {
@@ -210,6 +222,193 @@ export const ACHIEVEMENTS: AchievementDef[] = [
     category: "explorer",
     icon: "🌟",
     check: (s) => s.profileComplete,
+  },
+  // ── New: Tasks (volume + streaks) ────────────────────────────
+  {
+    key: "task_250",
+    label: "Unstoppable",
+    description: "Completed 250 care tasks",
+    category: "tasks",
+    icon: "💎",
+    check: (s) => s.taskCompleted >= 250,
+    progress: (s) => ({ current: Math.min(s.taskCompleted, 250), total: 250 }),
+  },
+  {
+    key: "first_streak_7",
+    label: "Week Warrior",
+    description: "Gardened for 7 days in a row",
+    category: "tasks",
+    icon: "🔥",
+    check: (s) => s.longestStreak >= 7,
+    progress: (s) => ({ current: Math.min(s.longestStreak, 7), total: 7 }),
+  },
+  {
+    key: "first_streak_30",
+    label: "Month of Green",
+    description: "Gardened for 30 days in a row",
+    category: "tasks",
+    icon: "🌿",
+    check: (s) => s.longestStreak >= 30,
+    progress: (s) => ({ current: Math.min(s.longestStreak, 30), total: 30 }),
+  },
+  // ── New: Growing ─────────────────────────────────────────────
+  {
+    key: "plant_50",
+    label: "Plant Hoarder",
+    description: "Added 50 plants to your shed",
+    category: "growing",
+    icon: "🌴",
+    check: (s) => s.plantAdded >= 50,
+    progress: (s) => ({ current: Math.min(s.plantAdded, 50), total: 50 }),
+  },
+  {
+    key: "first_yield",
+    label: "First Fruit",
+    description: "Logged your first yield",
+    category: "growing",
+    icon: "🍓",
+    check: (s) => s.yieldRecorded >= 1,
+  },
+  {
+    key: "yield_10",
+    label: "Bountiful Garden",
+    description: "Logged 10 yields",
+    category: "growing",
+    icon: "🧺",
+    check: (s) => s.yieldRecorded >= 10,
+    progress: (s) => ({ current: Math.min(s.yieldRecorded, 10), total: 10 }),
+  },
+  {
+    key: "spring_planting",
+    label: "Spring Starter",
+    description: "Planted something in spring",
+    category: "growing",
+    icon: "🌸",
+    check: (s) => s.hasSpringPlanting,
+  },
+  // ── New: Health ───────────────────────────────────────────────
+  {
+    key: "ailment_5",
+    label: "Disease Detective",
+    description: "Logged 5 plant ailments",
+    category: "health",
+    icon: "🕵️",
+    check: (s) => s.ailmentAdded >= 5,
+    progress: (s) => ({ current: Math.min(s.ailmentAdded, 5), total: 5 }),
+  },
+  {
+    key: "ailments_resolved_5",
+    label: "Plant Medic",
+    description: "Resolved 5 plant ailments",
+    category: "health",
+    icon: "💉",
+    check: (s) => s.ailmentResolved >= 5,
+    progress: (s) => ({ current: Math.min(s.ailmentResolved, 5), total: 5 }),
+  },
+  // ── New: AI ───────────────────────────────────────────────────
+  {
+    key: "first_chat",
+    label: "AI Apprentice",
+    description: "Sent your first message to the Plant Doctor",
+    category: "ai",
+    icon: "🤖",
+    check: (s) => s.chatMessages >= 1,
+  },
+  {
+    key: "chat_25",
+    label: "AI Power User",
+    description: "Sent 25 messages to the Plant Doctor",
+    category: "ai",
+    icon: "🧬",
+    check: (s) => s.chatMessages >= 25,
+    progress: (s) => ({ current: Math.min(s.chatMessages, 25), total: 25 }),
+  },
+  // ── New: Planning ─────────────────────────────────────────────
+  {
+    key: "blueprint_5",
+    label: "Automation Master",
+    description: "Created 5 recurring task automations",
+    category: "planning",
+    icon: "⚡",
+    check: (s) => s.blueprintCreatedFromEvents >= 5,
+    progress: (s) => ({ current: Math.min(s.blueprintCreatedFromEvents, 5), total: 5 }),
+  },
+  {
+    key: "plan_10",
+    label: "Grand Strategist",
+    description: "Completed 10 garden plans",
+    category: "planning",
+    icon: "🗺️",
+    check: (s) => s.planCompleted >= 10,
+    progress: (s) => ({ current: Math.min(s.planCompleted, 10), total: 10 }),
+  },
+  // ── New: Explorer ─────────────────────────────────────────────
+  {
+    key: "first_journal",
+    label: "Keeping Notes",
+    description: "Added your first plant journal entry",
+    category: "explorer",
+    icon: "📓",
+    check: (s) => s.journalEntries >= 1,
+  },
+  {
+    key: "journal_10",
+    label: "Field Researcher",
+    description: "Added 10 plant journal entries",
+    category: "explorer",
+    icon: "🔬",
+    check: (s) => s.journalEntries >= 10,
+    progress: (s) => ({ current: Math.min(s.journalEntries, 10), total: 10 }),
+  },
+  {
+    key: "first_scan",
+    label: "Eagle Eye",
+    description: "Completed your first area scan",
+    category: "explorer",
+    icon: "🦅",
+    check: (s) => s.scansCompleted >= 1,
+  },
+  {
+    key: "scan_5",
+    label: "Area Inspector",
+    description: "Completed 5 area scans",
+    category: "explorer",
+    icon: "🔭",
+    check: (s) => s.scansCompleted >= 5,
+    progress: (s) => ({ current: Math.min(s.scansCompleted, 5), total: 5 }),
+  },
+  {
+    key: "first_guide",
+    label: "Knowledge Keeper",
+    description: "Published your first community guide",
+    category: "explorer",
+    icon: "📖",
+    check: (s) => s.guidesPublished >= 1,
+  },
+  {
+    key: "guide_3",
+    label: "Community Mentor",
+    description: "Published 3 community guides",
+    category: "explorer",
+    icon: "🏫",
+    check: (s) => s.guidesPublished >= 3,
+    progress: (s) => ({ current: Math.min(s.guidesPublished, 3), total: 3 }),
+  },
+  {
+    key: "first_comment",
+    label: "Garden Chatter",
+    description: "Left your first comment on a community guide",
+    category: "explorer",
+    icon: "💬",
+    check: (s) => s.commentsPosted >= 1,
+  },
+  {
+    key: "winter_gardener",
+    label: "Winter Warrior",
+    description: "Completed a care task in the depths of winter",
+    category: "explorer",
+    icon: "❄️",
+    check: (s) => s.hasWinterTask,
   },
 ];
 

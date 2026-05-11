@@ -573,11 +573,19 @@ export default function AddTaskModal({
         await supabase.from("task_dependencies").insert(payload);
       }
 
-      logEvent(EVENT.TASK_CREATED, {
-        task_type: form.type,
-        is_recurring: form.isRecurring,
-        inventory_item_ids: form.inventory_item_ids ?? [],
-      });
+      if (form.isRecurring) {
+        logEvent(EVENT.BLUEPRINT_CREATED, {
+          task_type: form.type,
+          frequency_days: form.frequency_days,
+          inventory_item_ids: form.inventory_item_ids ?? [],
+        });
+      } else {
+        logEvent(EVENT.TASK_CREATED, {
+          task_type: form.type,
+          is_recurring: false,
+          inventory_item_ids: form.inventory_item_ids ?? [],
+        });
+      }
       toast.success(
         isBlueprintMode
           ? "Automation created!"

@@ -25,6 +25,7 @@ export const EVENT = {
   AILMENT_LINKED:            "ailment_linked",
   // Planner
   PLAN_CREATED:              "plan_created",
+  PLAN_RESTORED:             "plan_restored",
   PLAN_COMPLETED:            "plan_completed",
   PLAN_ARCHIVED:             "plan_archived",
   PLAN_DELETED:              "plan_deleted",
@@ -40,6 +41,23 @@ export const EVENT = {
   // Plant Doctor AI
   AI_IDENTIFY:               "ai_identify",
   AI_DIAGNOSE:               "ai_diagnose",
+  PLANT_DOCTOR_CHAT_MESSAGE: "plant_doctor_chat_message",
+  // Blueprints (recurring tasks)
+  BLUEPRINT_CREATED:         "blueprint_created",
+  BLUEPRINT_DELETED:         "blueprint_deleted",
+  // Yield & journal
+  YIELD_RECORDED:            "yield_recorded",
+  JOURNAL_ENTRY_ADDED:       "journal_entry_added",
+  // Community guides
+  GUIDE_PUBLISHED:           "guide_published",
+  GUIDE_STARRED:             "guide_starred",
+  GUIDE_COMMENTED:           "guide_commented",
+  // Shopping
+  SHOPPING_LIST_CREATED:     "shopping_list_created",
+  SHOPPING_ITEM_ADDED:       "shopping_item_added",
+  // Locations / areas
+  LOCATION_CREATED:          "location_created",
+  AREA_CREATED:              "area_created",
 } as const;
 
 export type EventType = typeof EVENT[keyof typeof EVENT];

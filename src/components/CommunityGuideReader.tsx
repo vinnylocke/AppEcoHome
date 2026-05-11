@@ -27,6 +27,7 @@ import {
   deleteComment,
   type CommunityGuideComment,
 } from "../hooks/useCommunityGuides";
+import { logEvent, EVENT } from "../events/registry";
 
 interface Props {
   guideId: string;
@@ -97,6 +98,7 @@ export default function CommunityGuideReader({ guideId, currentUserId, onBack, o
     setStarCount(resolvedStarCount + (nowStarred ? 1 : -1));
     if (nowStarred) {
       await starGuide(guideId, currentUserId);
+      logEvent(EVENT.GUIDE_STARRED, { guide_id: guideId });
     } else {
       await unstarGuide(guideId, currentUserId);
     }
@@ -106,6 +108,7 @@ export default function CommunityGuideReader({ guideId, currentUserId, onBack, o
     if (!commentBody.trim() || !currentUserId) return;
     setSubmittingComment(true);
     await postComment(guideId, commentBody.trim(), currentUserId);
+    logEvent(EVENT.GUIDE_COMMENTED, { guide_id: guideId, is_reply: false });
     setCommentBody("");
     setSubmittingComment(false);
     refetch();
@@ -115,6 +118,7 @@ export default function CommunityGuideReader({ guideId, currentUserId, onBack, o
     if (!replyBody.trim() || !currentUserId) return;
     setSubmittingReply(true);
     await postComment(guideId, replyBody.trim(), currentUserId, parentId);
+    logEvent(EVENT.GUIDE_COMMENTED, { guide_id: guideId, is_reply: true });
     setReplyBody("");
     setReplyingTo(null);
     setSubmittingReply(false);

@@ -28,6 +28,7 @@ import {
   AlertTriangle,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { logEvent, EVENT } from "../events/registry";
 import { saveGuide, deleteGuide, type CommunityGuide, type GuidePayload } from "../hooks/useCommunityGuides";
 
 interface Props {
@@ -132,6 +133,9 @@ export default function CommunityGuideEditor({ guideId: propGuideId, initialData
     if (error) {
       alert("Failed to save: " + error);
       return;
+    }
+    if (!isDraft) {
+      logEvent(EVENT.GUIDE_PUBLISHED, { guide_id: guideId, title: title.trim(), label_count: labels.length });
     }
     onSaved(guideId);
   };

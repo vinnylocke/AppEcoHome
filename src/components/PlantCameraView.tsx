@@ -4,6 +4,7 @@ import { X, Camera, Trash2, AlertCircle, Loader2, Sparkles, CheckCircle2, Triang
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
+import { logEvent, EVENT } from "../events/registry";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -513,6 +514,7 @@ export default function PlantCameraView({ plants, sprites, homeId, aiEnabled = f
       if (dbErr) throw dbErr;
 
       toast.success("Captured! View in your gallery.");
+      logEvent(EVENT.VISUALISER_CAPTURE, { plant_count: plantIds.length });
       onCapture?.(path);
     } catch (err: any) {
       Logger.error("Plant camera capture failed", err, {}, "Capture failed. Please try again.");
@@ -592,6 +594,7 @@ export default function PlantCameraView({ plants, sprites, homeId, aiEnabled = f
         plants:  data.plants  ?? [],
         general: [...(data.general ?? []), ...overlaps],
       };
+      logEvent(EVENT.VISUALISER_ANALYSE, { plant_count: placedPlants.length, summary_length: result.summary.length });
       setAnalysisResult(result);
     } catch (err: any) {
       Logger.error("Plant camera analysis failed", err, {}, "Analysis failed. Please try again.");

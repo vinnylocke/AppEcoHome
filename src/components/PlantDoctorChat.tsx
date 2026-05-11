@@ -22,6 +22,7 @@ import { Capacitor } from "@capacitor/core";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
+import { logEvent, EVENT } from "../events/registry";
 import { getPlantWikiInfo } from "../lib/wikipedia";
 import toast from "react-hot-toast";
 import { PlantActionButtons } from "./PlantActionButtons";
@@ -357,6 +358,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
         imagePreviewUrl: imageSnapshot?.previewUrl,
       },
     ]);
+    logEvent(EVENT.PLANT_DOCTOR_CHAT_MESSAGE, { has_image: !!imageSnapshot });
     setInput("");
     setPendingImage(null);
     setIsLoading(true);
