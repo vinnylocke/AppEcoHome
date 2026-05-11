@@ -1,11 +1,48 @@
-import React from "react";
-import { AlertTriangle, Home } from "lucide-react";
+import React, { useState } from "react";
+import { AlertTriangle, Home, Send, CheckCircle, Loader2 } from "lucide-react";
 
 interface ErrorPageProps {
   error?: Error;
 }
 
+function collectDeviceInfo() {
+  return {
+    userAgent: navigator.userAgent,
+    platform: navigator.platform,
+    screenSize: `${screen.width}×${screen.height} (dpr ${window.devicePixelRatio ?? 1})`,
+    language: navigator.language,
+    onLine: navigator.onLine,
+    pageUrl: window.location.href,
+    timestamp: new Date().toISOString(),
+  };
+}
+
 export default function ErrorPage({ error }: ErrorPageProps) {
+  const [reportState, setReportState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+
+  const sendReport = async () => {
+    setReportState("sending");
+    try {
+      const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+      const res = await fetch(`${supabaseUrl}/functions/v1/report-error`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "apikey": anonKey,
+        },
+        body: JSON.stringify({
+          errorMessage: error?.message ?? "Unknown error",
+          errorStack: error?.stack ?? null,
+          ...collectDeviceInfo(),
+        }),
+      });
+      setReportState(res.ok ? "sent" : "failed");
+    } catch {
+      setReportState("failed");
+    }
+  };
+
   return (
     <div
       data-testid="error-page"
@@ -25,16 +62,39 @@ export default function ErrorPage({ error }: ErrorPageProps) {
           </p>
         </div>
 
-        <button
-          data-testid="error-page-go-home"
-          onClick={() => { window.location.href = "/dashboard"; }}
-          className="inline-flex items-center gap-2 px-6 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:opacity-90 active:scale-95 transition-all shadow-lg"
-        >
-          <Home size={16} />
-          Go to Dashboard
-        </button>
+        <div className="flex flex-col gap-3">
+          <button
+            data-testid="error-page-go-home"
+            onClick={() => { window.location.href = "/dashboard"; }}
+            className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm uppercase tracking-widest hover:opacity-90 active:scale-95 transition-all shadow-lg"
+          >
+            <Home size={16} />
+            Go to Dashboard
+          </button>
 
-        {import.meta.env.DEV && error && (
+          {reportState === "sent" ? (
+            <div className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-green-50 text-green-700 rounded-2xl font-black text-sm border border-green-200">
+              <CheckCircle size={16} />
+              Report sent — thank you
+            </div>
+          ) : (
+            <button
+              data-testid="error-page-send-report"
+              onClick={sendReport}
+              disabled={reportState === "sending" || !error}
+              className="inline-flex items-center justify-center gap-2 px-6 py-3 bg-white text-rhozly-on-surface/70 rounded-2xl font-black text-sm border border-rhozly-outline/30 hover:border-rhozly-primary/40 hover:text-rhozly-primary active:scale-95 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {reportState === "sending" ? (
+                <Loader2 size={16} className="animate-spin" />
+              ) : (
+                <Send size={16} />
+              )}
+              {reportState === "sending" ? "Sending…" : reportState === "failed" ? "Try again" : "Send error report"}
+            </button>
+          )}
+        </div>
+
+        {error && (
           <details className="text-left bg-rhozly-surface rounded-2xl p-4 border border-rhozly-outline/20">
             <summary className="text-xs font-black text-rhozly-on-surface/50 uppercase tracking-widest cursor-pointer">
               Technical details
