@@ -57,19 +57,19 @@ export default function IntegrationsPage({ homeId }: Props) {
   };
 
   return (
-    <div className="px-4 sm:px-6 py-6 max-w-5xl mx-auto">
+    <div className="px-4 md:px-8 py-6 w-full">
       {/* Header */}
-      <div className="flex items-center justify-between mb-6">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-2xl bg-rhozly-primary/10 flex items-center justify-center">
+      <div className="flex items-center justify-between mb-6 gap-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <div className="w-10 h-10 rounded-2xl bg-rhozly-primary/10 flex items-center justify-center shrink-0">
             <Plug className="text-rhozly-primary" size={20} />
           </div>
-          <div>
-            <h1 className="text-2xl font-black font-display text-rhozly-on-surface">Integrations</h1>
-            <p className="text-sm text-rhozly-on-surface-variant">Connected devices and sensors</p>
+          <div className="min-w-0">
+            <h1 className="text-2xl font-black font-display text-rhozly-on-surface truncate">Integrations</h1>
+            <p className="text-sm text-rhozly-on-surface-variant hidden sm:block">Connected devices and sensors</p>
           </div>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 shrink-0">
           <button
             onClick={load}
             data-testid="integrations-refresh"
@@ -80,10 +80,10 @@ export default function IntegrationsPage({ homeId }: Props) {
           <button
             onClick={() => setShowWizard(true)}
             data-testid="integrations-connect"
-            className="flex items-center gap-2 px-4 py-2.5 rounded-2xl bg-rhozly-primary text-white font-semibold text-sm hover:bg-rhozly-primary/90 transition-colors"
+            className="flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-2xl bg-rhozly-primary text-white font-semibold text-sm hover:bg-rhozly-primary/90 transition-colors"
           >
             <Plus size={18} />
-            Connect Device
+            <span className="hidden sm:inline">Connect Device</span>
           </button>
         </div>
       </div>
