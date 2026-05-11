@@ -728,7 +728,7 @@ export default function PlantDoctor({
                     <span className={`w-6 h-6 rounded-full flex items-center justify-center text-[10px] font-black transition-colors ${active ? "bg-rhozly-primary text-white" : done ? "bg-rhozly-primary/20 text-rhozly-primary" : "bg-rhozly-surface-low text-rhozly-on-surface/30"}`}>
                       {step.n}
                     </span>
-                    <span className={`text-xs font-black uppercase tracking-widest transition-colors ${active ? "text-rhozly-primary" : done ? "text-rhozly-on-surface/50" : "text-rhozly-on-surface/25"}`}>
+                    <span className={`hidden sm:inline text-xs font-black uppercase tracking-widest transition-colors ${active ? "text-rhozly-primary" : done ? "text-rhozly-on-surface/50" : "text-rhozly-on-surface/25"}`}>
                       {step.label}
                     </span>
                   </div>

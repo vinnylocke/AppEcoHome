@@ -419,7 +419,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                     <Loader2 size={16} className="animate-spin text-rhozly-primary shrink-0" />
                   )}
                 </div>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0">
                   {can("locations.edit") && (
                     <button
                       onClick={() => toggleEnvironment(loc)}
@@ -487,12 +487,12 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                           )
                         }
                         onBlur={() => can("areas.edit") && handleUpdateAreaDB(area)}
-                        className={`flex-1 text-sm font-bold text-rhozly-on-surface bg-transparent focus:outline-none ${!can("areas.edit") ? "cursor-default" : ""}`}
+                        className={`flex-1 min-w-0 text-sm font-bold text-rhozly-on-surface bg-transparent focus:outline-none ${!can("areas.edit") ? "cursor-default" : ""}`}
                       />
                       {savingAreaId === area.id && (
                         <Loader2 size={14} className="animate-spin text-rhozly-primary shrink-0" />
                       )}
-                      <div className="flex gap-1 transition-opacity">
+                      <div className="flex gap-1 shrink-0 transition-opacity">
                         {can("areas.edit") && (
                           <button
                             onClick={() => setEditingArea(area)}
