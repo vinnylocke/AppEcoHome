@@ -1610,8 +1610,8 @@ export default function PlantDoctor({
                     )}
                 </div>
               )}
-              </div>{/* end right column */}
-            </div>{/* end xl grid */}
+              </div>
+            </div>
           )}
           <input
             type="file"
