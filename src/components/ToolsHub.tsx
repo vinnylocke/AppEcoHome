@@ -66,7 +66,7 @@ export default function ToolsHub() {
   const navigate = useNavigate();
 
   return (
-    <div className="px-4 md:px-8 py-6 max-w-2xl xl:max-w-4xl mx-auto">
+    <div className="px-4 md:px-8 py-6">
       <h1 data-testid="tools-heading" className="text-2xl font-black text-rhozly-on-surface mb-1">Tools</h1>
       <p className="text-sm text-rhozly-on-surface/50 font-semibold mb-6">
         Everything you need to grow smarter.

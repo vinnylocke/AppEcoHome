@@ -552,7 +552,7 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
   ];
 
   return (
-    <div className="max-w-2xl mx-auto space-y-5">
+    <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
         <div className="w-14 h-14 rounded-full bg-rhozly-primary-container flex items-center justify-center shrink-0">

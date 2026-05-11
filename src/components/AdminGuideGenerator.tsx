@@ -88,7 +88,7 @@ export default function AdminGuideGenerator() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-8 flex flex-col lg:flex-row gap-8">
+    <div className="p-4 sm:p-8 flex flex-col lg:flex-row gap-8">
       {/* LEFT COLUMN: Controls */}
       <div className="flex-1 space-y-6">
         <div>

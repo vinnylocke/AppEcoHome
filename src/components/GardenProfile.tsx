@@ -176,7 +176,7 @@ export default function GardenProfile({
   const negatives = prefs.filter((p) => p.sentiment === "negative");
 
   return (
-    <div className="max-w-lg xl:max-w-5xl mx-auto pb-16">
+    <div className="pb-16">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div>

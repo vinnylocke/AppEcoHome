@@ -48,6 +48,7 @@ import PlantDoctorChat from "./components/PlantDoctorChat";
 import ErrorPage from "./components/ErrorPage";
 import { type TierId } from "./constants/tiers";
 import UserProfileDropdown from "./components/UserProfileDropdown";
+import GlobalQuickAdd from "./components/GlobalQuickAdd";
 import NavItem from "./components/NavItem";
 import UpdateBanner from "./components/UpdateBanner";
 import PrivacyPolicyModal from "./components/PrivacyPolicyModal";
@@ -701,13 +702,14 @@ function AppShell() {
                 <span className="uppercase tracking-wider text-xl hidden sm:block">
                   Rhozly
                 </span>
-                <div className="relative ml-2 md:ml-6">
+                <div className="relative ml-2 md:ml-6 flex items-center gap-2">
                   <HomeDropdown
                     currentHomeId={profile?.home_id || null}
                     onSelectHome={handleSwitchHome}
                     onAddNewHome={() => setIsAddingHome(true)}
                     onHomeListChanged={refreshProfile}
                   />
+                  <GlobalQuickAdd />
                 </div>
               </div>
               <UserProfileDropdown

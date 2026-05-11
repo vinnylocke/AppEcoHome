@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabase";
 import { usePermissions } from "../context/HomePermissionsContext";
@@ -19,6 +19,7 @@ import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { logEvent, EVENT } from "../events/registry";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
+import { useSearchParams } from "react-router-dom";
 import NewPlanForm from "./NewPlanForm";
 import PlanStaging from "./PlanStaging";
 
@@ -29,6 +30,8 @@ interface PlannerDashboardProps {
 
 export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerDashboardProps) {
   const { can } = usePermissions();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openHandled = useRef(false);
   const [plans, setPlans] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -53,6 +56,15 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
   const [cardStatus, setCardStatus] = useState<
     Record<string, "success" | "error">
   >({});
+
+  useEffect(() => {
+    if (openHandled.current) return;
+    if (searchParams.get("open") === "new-plan") {
+      openHandled.current = true;
+      setShowNewPlanModal(true);
+      setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("open"); return n; }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const fetchPlans = async () => {
     setLoading(true);
@@ -192,7 +204,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
   // but wrap it with a breadcrumb strip so the user retains wayfinding context.
   if (selectedPlan) {
     return (
-      <div className="max-w-6xl mx-auto h-full flex flex-col animate-in fade-in duration-300">
+      <div className="h-full flex flex-col animate-in fade-in duration-300">
         <div className="flex items-center gap-2 px-4 md:px-8 pt-4 md:pt-6 pb-2 shrink-0">
           <button
             onClick={() => {
@@ -223,7 +235,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
   }
 
   return (
-    <div className="max-w-6xl mx-auto h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-500">
+    <div className="h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
 import { supabase } from "../lib/supabase";
 import { logEvent, EVENT } from "../events/registry";
@@ -26,6 +26,7 @@ import toast from "react-hot-toast";
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { usePermissions } from "../context/HomePermissionsContext";
+import { useSearchParams } from "react-router-dom";
 
 interface Props {
   homeId: string;
@@ -42,6 +43,8 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
   // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
   const { can } = usePermissions();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openHandled = useRef(false);
 
   const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -61,6 +64,15 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
   // Per-item saving state
   const [savingLocationId, setSavingLocationId] = useState<string | null>(null);
   const [savingAreaId, setSavingAreaId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (openHandled.current) return;
+    if (searchParams.get("open") === "add-location") {
+      openHandled.current = true;
+      setIsAddingLoc(true);
+      setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("open"); return n; }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   // 🧠 LIVE AI SYNC: Let the AI know the full layout of the home
   useEffect(() => {
@@ -275,7 +287,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
 
   if (loading) {
     return (
-      <div className="max-w-7xl mx-auto w-full space-y-6 animate-pulse py-4">
+      <div className="w-full space-y-6 animate-pulse py-4">
         <div className="h-9 w-64 bg-rhozly-surface-low rounded-xl" />
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {[1, 2].map((i) => (
@@ -292,7 +304,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
 
   if (fetchError) {
     return (
-      <div className="py-20 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/20 max-w-7xl mx-auto">
+      <div className="py-20 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/20 w-full">
         <X size={32} className="mx-auto mb-3 text-red-400" />
         <p className="font-black text-rhozly-on-surface/50 mb-4">Could not load your locations.</p>
         <button
@@ -307,7 +319,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
 
   return (
     <>
-      <div className="max-w-7xl mx-auto w-full space-y-8 animate-in fade-in duration-500 relative">
+      <div className="w-full space-y-8 animate-in fade-in duration-500 relative">
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-black font-display text-rhozly-on-surface tracking-tight flex items-center gap-3">

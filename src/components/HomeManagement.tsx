@@ -373,7 +373,7 @@ export default function HomeManagement({
     COUNTRIES.find((c) => c.code === code)?.name ?? code ?? "—";
 
   return (
-    <div className="max-w-2xl mx-auto space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
+    <div className="space-y-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

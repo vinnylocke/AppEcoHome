@@ -68,7 +68,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   const { can } = usePermissions();
   const { setPageContext, preferences } = usePlantDoctor();
   const location = useLocation();
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
   const handledDeepLink = useRef("");
 
@@ -489,8 +489,12 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     } else if (location.pathname.includes("/shed/add/manual")) {
       handledDeepLink.current = currentUrl;
       setShowBulkSearch(true);
+    } else if (searchParams.get("open") === "add-plant") {
+      handledDeepLink.current = currentUrl;
+      setShowBulkSearch(true);
+      setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("open"); return n; }, { replace: true });
     }
-  }, [location.pathname, location.search, searchParams]);
+  }, [location.pathname, location.search, searchParams, setSearchParams]);
 
   const handleCloseModals = () => {
     setShowBulkSearch(false);
@@ -768,7 +772,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
 
   if (loading)
     return (
-      <div className="max-w-7xl mx-auto h-full flex flex-col p-4 md:p-8">
+      <div className="h-full flex flex-col p-4 md:p-8">
         <div className="flex items-center gap-4 mb-10">
           <div className="h-10 w-48 bg-rhozly-surface-low rounded-xl animate-pulse" />
         </div>
@@ -795,7 +799,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
 
   return (
     <>
-      <div className="max-w-7xl mx-auto h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-700 relative">
+      <div className="h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-700 relative">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-10">
           <div>
             <div className="flex items-center gap-4">

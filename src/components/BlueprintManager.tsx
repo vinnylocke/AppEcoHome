@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 import {
   Repeat,
@@ -21,6 +21,7 @@ import {
 import toast from "react-hot-toast";
 import { logEvent, EVENT } from "../events/registry";
 import { usePermissions } from "../context/HomePermissionsContext";
+import { useSearchParams } from "react-router-dom";
 
 import AddTaskModal from "./AddTaskModal";
 import { ConfirmModal } from "./ConfirmModal";
@@ -36,6 +37,8 @@ interface BlueprintManagerProps {
 export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
   const { preferences } = usePlantDoctor();
   const { can } = usePermissions();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openHandled = useRef(false);
   const [blueprints, setBlueprints] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -71,6 +74,15 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
     plans: [] as { id: string; name: string }[],
     plants: [] as string[],
   });
+
+  useEffect(() => {
+    if (openHandled.current) return;
+    if (searchParams.get("open") === "add-task") {
+      openHandled.current = true;
+      setIsBuilding(true);
+      setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("open"); return n; }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
 
   const fetchBlueprints = useCallback(async () => {
     setLoading(true);

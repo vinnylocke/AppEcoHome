@@ -626,7 +626,7 @@ export default function PlantDoctor({
 
   if (showManualAdd && aiResult?.plantData) {
     return (
-      <div className="max-w-4xl mx-auto h-full animate-in fade-in slide-in-from-bottom-4">
+      <div className="h-full animate-in fade-in slide-in-from-bottom-4">
         <div className="bg-white rounded-3xl p-6 shadow-sm border border-rhozly-outline/10 h-full overflow-y-auto">
           <div className="flex justify-between items-center mb-6">
             <h2 className="text-2xl font-black">
@@ -673,7 +673,7 @@ export default function PlantDoctor({
         />
       )}
 
-      <div className="max-w-5xl mx-auto h-full flex flex-col relative animate-in fade-in slide-in-from-bottom-4 duration-500">
+      <div className="h-full flex flex-col relative animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="mb-4 px-2 flex items-end justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black font-display text-rhozly-on-surface tracking-tight flex items-center gap-3">

@@ -21,11 +21,13 @@ import CommunityGuideEditor from "./CommunityGuideEditor";
 
 interface Props {
   currentUserId: string | null;
+  autoOpenNew?: boolean;
+  onAutoOpenConsumed?: () => void;
 }
 
 type Sort = "latest" | "starred";
 
-export default function CommunityGuidesTab({ currentUserId }: Props) {
+export default function CommunityGuidesTab({ currentUserId, autoOpenNew, onAutoOpenConsumed }: Props) {
   const [sort, setSort] = useState<Sort>("latest");
   const [selectedLabel, setSelectedLabel] = useState<string>("All");
   const [search, setSearch] = useState("");
@@ -41,6 +43,14 @@ export default function CommunityGuidesTab({ currentUserId }: Props) {
 
   useEffect(() => {
     fetchDistinctLabels().then((labels) => setAllLabels(["All", ...labels]));
+  }, []);
+
+  useEffect(() => {
+    if (autoOpenNew) {
+      setEditGuide("new");
+      onAutoOpenConsumed?.();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const dropdownLabels = useMemo(
@@ -88,7 +98,7 @@ export default function CommunityGuidesTab({ currentUserId }: Props) {
   }
 
   return (
-    <div className="max-w-5xl mx-auto pb-32 animate-in fade-in duration-500">
+    <div className="pb-32 animate-in fade-in duration-500">
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>

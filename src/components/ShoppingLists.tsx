@@ -71,7 +71,7 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
 
   return (
     <div className="h-full overflow-y-auto bg-rhozly-bg">
-      <div className="max-w-5xl 2xl:max-w-7xl mx-auto px-4 py-6 space-y-4">
+      <div className="px-4 py-6 space-y-4">
 
         {/* Page heading */}
         <div className="flex items-center justify-between">

@@ -370,7 +370,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     : [];
 
   return (
-    <div className="max-w-2xl mx-auto flex flex-col p-6 animate-in fade-in duration-500">
+    <div className="flex flex-col p-6 animate-in fade-in duration-500">
       <canvas ref={canvasRef} className="hidden" />
 
       <div className="flex justify-between items-start mb-6">

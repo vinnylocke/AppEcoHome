@@ -316,7 +316,7 @@ export default function HabitQuiz({ homeId, userId, onComplete }: Props) {
   }
 
   return (
-    <div className="flex flex-col gap-6 max-w-lg mx-auto">
+    <div className="flex flex-col gap-6 max-w-2xl mx-auto">
       {/* Progress */}
       <div
         className="flex items-center gap-2"

@@ -45,7 +45,7 @@ export default function PlannerHub({ homeId, aiEnabled = false, perenualEnabled 
     <div className="h-full flex flex-col">
       {/* Tab bar */}
       <div className="sticky top-0 z-10 bg-rhozly-bg/95 backdrop-blur-sm border-b border-rhozly-outline/10 px-4 md:px-8 pt-4">
-        <div role="tablist" aria-label="Planner sections" className="flex gap-1 max-w-7xl mx-auto">
+        <div role="tablist" aria-label="Planner sections" className="flex gap-1">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             return (

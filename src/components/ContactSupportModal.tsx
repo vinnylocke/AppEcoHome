@@ -41,7 +41,7 @@ export default function ContactSupportModal({ defaultName, defaultEmail, onClose
     >
       <div
         data-testid="contact-support-modal"
-        className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
+        className="w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
       >
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-rhozly-outline/10">

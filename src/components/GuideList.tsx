@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { useSearchParams } from "react-router-dom";
 import { toast } from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 import {
@@ -25,7 +26,11 @@ const GUIDE_TABS = [
 type GuideTabId = (typeof GUIDE_TABS)[number]["id"];
 
 export default function GuideList() {
-  const [activeTab, setActiveTab] = useState<GuideTabId>("rhozly");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [activeTab, setActiveTab] = useState<GuideTabId>(
+    (searchParams.get("tab") as GuideTabId) === "community" ? "community" : "rhozly"
+  );
+  const autoOpenNew = searchParams.get("open") === "new-guide" && activeTab === "community";
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -170,7 +175,7 @@ export default function GuideList() {
 
     if (readingLoading) {
       return (
-        <div className="max-w-3xl mx-auto pb-20 animate-pulse">
+        <div className="max-w-4xl mx-auto pb-20 animate-pulse">
           <div className="h-10 w-40 bg-rhozly-surface-low rounded-xl mb-6" />
           <div className="h-64 bg-rhozly-surface-low rounded-3xl mb-6" />
           <div className="space-y-3">
@@ -185,7 +190,7 @@ export default function GuideList() {
     return (
       <div
         ref={readViewRef}
-        className="max-w-3xl mx-auto pb-20"
+        className="max-w-4xl mx-auto pb-20"
         aria-live="polite"
         style={{
           opacity: readingVisible ? 1 : 0,
@@ -342,7 +347,7 @@ export default function GuideList() {
 
   // --- LIBRARY DIRECTORY VIEW ---
   return (
-    <div className="max-w-5xl mx-auto pb-32 animate-in fade-in duration-500">
+    <div className="pb-32 animate-in fade-in duration-500">
       {/* Tab bar */}
       <div className="flex gap-1 mb-8">
         {GUIDE_TABS.map((tab) => {
@@ -372,7 +377,13 @@ export default function GuideList() {
 
       {/* Community tab */}
       {activeTab === "community" && (
-        <CommunityGuidesTab currentUserId={currentUserId} />
+        <CommunityGuidesTab
+          currentUserId={currentUserId}
+          autoOpenNew={autoOpenNew}
+          onAutoOpenConsumed={() =>
+            setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("open"); n.delete("tab"); return n; }, { replace: true })
+          }
+        />
       )}
 
       {/* Rhozly guides tab */}

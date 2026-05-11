@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   Plus, Search, Loader2, Bug, Leaf, Biohazard, X, Sparkles,
@@ -15,6 +15,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { logEvent, EVENT } from "../events/registry";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
 import { usePermissions } from "../context/HomePermissionsContext";
+import { useSearchParams } from "react-router-dom";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1446,6 +1447,8 @@ export type AilmentFilter = "all" | AilmentType;
 
 export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId: string; aiEnabled?: boolean }) {
   const { can } = usePermissions();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const openHandled = useRef(false);
   const [ailments, setAilments] = useState<Ailment[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -1455,6 +1458,15 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
   const [search, setSearch] = useState("");
   const [showAdd, setShowAdd] = useState(false);
   const [selectedAilment, setSelectedAilment] = useState<Ailment | null>(null);
+
+  useEffect(() => {
+    if (openHandled.current) return;
+    if (searchParams.get("open") === "add-ailment") {
+      openHandled.current = true;
+      setShowAdd(true);
+      setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("open"); return n; }, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
     type: "delete" | "archive" | "unarchive";
