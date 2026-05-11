@@ -46,7 +46,7 @@ export default function HelpCenter({ userId, onboardingState, onStateChange, ope
           )}
 
           <div
-            className={`fixed top-0 right-0 bottom-0 z-50 w-80 max-w-full shadow-2xl transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}
+            className={`fixed top-0 right-0 bottom-0 z-50 w-[420px] max-w-full shadow-2xl transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}
           >
             <HelpCenterDrawer
               onboardingState={onboardingState}
