@@ -111,7 +111,7 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
   };
 
   return (
-    <div className="flex flex-col h-full bg-rhozly-bg max-w-sm xl:max-w-lg w-full">
+    <div className="flex flex-col h-full w-full bg-rhozly-bg">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-rhozly-outline/10 shrink-0 bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container">
         <div className="flex items-center gap-3">
