@@ -106,7 +106,10 @@ if ("serviceWorker" in navigator) {
         // app so there is nothing to lose, and the controllerchange listener
         // above will reload the page cleanly with the new SW's fresh cache —
         // preventing the white screen caused by old JS loading new chunk hashes.
-        if (registration.waiting) {
+        // Guard: hiddenAt > 0 ensures we were actually backgrounded first —
+        // without this, visibilitychange fires on initial page load and triggers
+        // an immediate SKIP_WAITING → reload → loop → white screen on mobile.
+        if (hiddenAt > 0 && registration.waiting) {
           registration.waiting.postMessage({ type: "SKIP_WAITING" });
           return;
         }
