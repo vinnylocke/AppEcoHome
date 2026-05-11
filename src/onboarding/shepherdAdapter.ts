@@ -79,12 +79,45 @@ export function buildTour(
   onComplete: () => void,
   onCancel: () => void,
 ): Shepherd.Tour {
+  const isMobile = window.innerWidth < 640;
+
   const tour = new Shepherd.Tour({
     useModalOverlay: false,
     defaultStepOptions: {
       cancelIcon: { enabled: true },
-      scrollTo: { behavior: "smooth", block: "center" },
+      // On mobile don't scroll — the popup should stay within the visible viewport
+      scrollTo: isMobile ? false : { behavior: "smooth", block: "center" },
       classes: "rhozly-tour-step",
+      floatingUIOptions: {
+        middleware: [],
+      },
+      popperOptions: {
+        modifiers: [
+          {
+            name: "preventOverflow",
+            options: {
+              boundary: "viewport",
+              padding: 16,
+              altAxis: true,
+              tether: false,
+            },
+          },
+          {
+            name: "flip",
+            options: {
+              boundary: "viewport",
+              padding: 16,
+              fallbackPlacements: ["top", "bottom", "left", "right"],
+            },
+          },
+          {
+            name: "offset",
+            options: {
+              offset: [0, 12],
+            },
+          },
+        ],
+      },
     },
   });
 

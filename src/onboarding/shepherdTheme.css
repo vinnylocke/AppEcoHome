@@ -135,10 +135,24 @@
   background: #075737 !important;
 }
 
-/* Mobile */
-@media (max-width: 480px) {
+/* Mobile — keep popup within the visible viewport */
+@media (max-width: 640px) {
   .shepherd-element {
+    /* Width fills most of the screen with equal margins */
     max-width: calc(100vw - 2rem) !important;
-    margin: 0 1rem !important;
+    /* Never taller than the viewport */
+    max-height: calc(100dvh - 5rem) !important;
+  }
+
+  .shepherd-content {
+    /* Allow internal scroll if content is taller than the clamped element */
+    max-height: calc(100dvh - 5rem) !important;
+    overflow-y: auto !important;
+  }
+
+  /* Steps that have no target are centred by Shepherd — nudge them down
+     from the very top so they don't clip under status bars */
+  .shepherd-element:not([data-popper-placement]) {
+    margin-top: 4rem !important;
   }
 }
