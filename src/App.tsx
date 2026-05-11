@@ -713,6 +713,7 @@ function AppShell() {
               <UserProfileDropdown
                 displayName={profile?.display_name ?? null}
                 email={session?.user?.email ?? null}
+                subscriptionTier={profile?.subscription_tier ?? null}
                 isAdmin={profile?.is_admin ?? false}
               />
             </header>

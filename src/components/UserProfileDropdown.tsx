@@ -15,9 +15,19 @@ import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
 import ContactSupportModal from "./ContactSupportModal";
 
+type SubscriptionTier = "sprout" | "botanist" | "sage" | "evergreen" | null;
+
+const TIER_LABEL: Record<NonNullable<SubscriptionTier>, string> = {
+  sprout:    "Sprout",
+  botanist:  "Botanist",
+  sage:      "Sage",
+  evergreen: "Evergreen",
+};
+
 interface Props {
   displayName: string | null;
   email: string | null;
+  subscriptionTier?: SubscriptionTier;
   isAdmin?: boolean;
 }
 
@@ -52,7 +62,8 @@ function SectionLabel({ label }: { label: string }) {
   );
 }
 
-export default function UserProfileDropdown({ displayName, email, isAdmin }: Props) {
+export default function UserProfileDropdown({ displayName, email, subscriptionTier, isAdmin }: Props) {
+  const tierLabel = subscriptionTier ? TIER_LABEL[subscriptionTier] : "Free";
   const [open, setOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -91,9 +102,9 @@ export default function UserProfileDropdown({ displayName, email, isAdmin }: Pro
       data-testid="user-profile-trigger"
     >
       <div className="text-right hidden sm:block text-white">
-        <p className="text-sm font-bold">{displayName || "Guest"}</p>
+        <p className="text-sm font-bold">{displayName || tierLabel}</p>
         <p className="text-[10px] uppercase tracking-widest text-white/60 font-semibold">
-          Master Gardener
+          {tierLabel}
         </p>
       </div>
       <div className="w-11 h-11 rounded-full bg-white/20 p-[2px] backdrop-blur-sm">
@@ -112,7 +123,7 @@ export default function UserProfileDropdown({ displayName, email, isAdmin }: Pro
             {/* Name + email header */}
             <div className="px-4 py-3 border-b border-rhozly-outline/10">
               <p className="text-sm font-black text-rhozly-on-surface truncate">
-                {displayName || "Guest"}
+                {displayName || tierLabel}
               </p>
               {email && (
                 <p className="text-xs text-rhozly-on-surface/40 font-bold truncate">{email}</p>
