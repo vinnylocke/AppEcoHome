@@ -83,6 +83,7 @@ import {
   getCachedLocations,
   setLocationCache,
 } from "./lib/clientCache";
+import { getLocalDateString } from "./lib/taskEngine";
 
 // Service worker update checks + background-time reload safety net.
 if ("serviceWorker" in navigator) {
@@ -160,6 +161,7 @@ function AppShell() {
   const [dashboardLoaded, setDashboardLoaded] = useState(false);
   const [isHomeLoading, setIsHomeLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [locationTaskCounts, setLocationTaskCounts] = useState<Record<string, number>>({});
 
   // Mobile Nav State
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -330,14 +332,62 @@ function AppShell() {
 
         const locationIds = data.locations.map((l: any) => l.id);
         if (locationIds.length > 0) {
-          const { data: alertData } = await supabase
-            .from("weather_alerts")
-            .select("*")
-            .in("location_id", locationIds)
-            .eq("is_active", true)
-            .order("starts_at", { ascending: true });
+          const todayStr = getLocalDateString(new Date());
 
-          setAlerts(alertData || []);
+          // Fetch alerts, today's physical tasks, and blueprints in parallel
+          const [alertResult, todayTasksResult, bpResult] = await Promise.all([
+            supabase
+              .from("weather_alerts")
+              .select("*")
+              .in("location_id", locationIds)
+              .eq("is_active", true)
+              .order("starts_at", { ascending: true }),
+            supabase
+              .from("tasks")
+              .select("id, blueprint_id, location_id")
+              .in("location_id", locationIds)
+              .eq("due_date", todayStr)
+              .neq("status", "Skipped")
+              .neq("status", "Completed"),
+            supabase
+              .from("task_blueprints")
+              .select("id, location_id, start_date, created_at, end_date, frequency_days")
+              .in("location_id", locationIds)
+              .eq("is_recurring", true),
+          ]);
+
+          setAlerts(alertResult.data || []);
+
+          // Compute today's task count per location (physical + ghosts)
+          const todayMs = new Date(todayStr).getTime();
+          const counts: Record<string, number> = {};
+          locationIds.forEach((id: string) => { counts[id] = 0; });
+
+          const existingByLocation: Record<string, Set<string>> = {};
+          (todayTasksResult.data || []).forEach((t: any) => {
+            if (t.location_id) {
+              counts[t.location_id] = (counts[t.location_id] || 0) + 1;
+              if (t.blueprint_id) {
+                if (!existingByLocation[t.location_id]) existingByLocation[t.location_id] = new Set();
+                existingByLocation[t.location_id].add(t.blueprint_id);
+              }
+            }
+          });
+
+          (bpResult.data || []).forEach((bp: any) => {
+            if (!bp.location_id || !bp.frequency_days) return;
+            const anchorStr = (bp.start_date || bp.created_at || new Date().toISOString()).split("T")[0];
+            const anchorMs = new Date(anchorStr).getTime();
+            if (todayMs < anchorMs) return;
+            if (bp.end_date && todayMs > new Date(bp.end_date).getTime()) return;
+            const diffDays = Math.round((todayMs - anchorMs) / (1000 * 60 * 60 * 24));
+            const existing = existingByLocation[bp.location_id];
+            if (diffDays % bp.frequency_days === 0 && (!existing || !existing.has(bp.id))) {
+              counts[bp.location_id] = (counts[bp.location_id] || 0) + 1;
+            }
+          });
+
+          setLocationTaskCounts(counts);
         }
       }
 
@@ -371,7 +421,7 @@ function AppShell() {
     if (!session?.user) return;
     const { data: profileData, error } = await supabase
       .from("user_profiles")
-      .select("*")
+      .select("uid, home_id, display_name, subscription_tier, ai_enabled, enable_perenual, is_admin, onboarding_state")
       .eq("uid", session.user.id)
       .single();
     if (error) throw error;
@@ -506,13 +556,11 @@ function AppShell() {
     fetchDashboardData();
   }, [fetchDashboardData]);
 
-  // Refresh dashboard data whenever the user navigates to /dashboard so the
-  // location tiles always reflect the latest state (e.g. after adding/deleting
-  // an area in Location Management).
+  // Refresh dashboard data whenever the user navigates to /dashboard.
+  // Realtime subscriptions handle live updates; no need to bust the cache on every visit.
   useEffect(() => {
     if (routerLocation.pathname !== "/dashboard") return;
     if (!profile?.home_id) return;
-    sessionStorage.removeItem(`locations_cache_${profile.home_id}`);
     fetchDashboardData();
   }, [routerLocation.pathname, profile?.home_id, fetchDashboardData]);
 
@@ -816,6 +864,7 @@ function AppShell() {
                                             key={loc.id}
                                             site={loc}
                                             index={idx}
+                                            tasksCount={locationTaskCounts[loc.id] ?? null}
                                             onClick={() =>
                                               navigate(`/dashboard?locationId=${loc.id}`)
                                             }

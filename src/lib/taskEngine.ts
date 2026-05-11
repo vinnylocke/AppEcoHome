@@ -21,7 +21,7 @@ export const TaskEngine = {
     includeOverdue?: boolean;
     todayStr: string;
   }) => {
-    // 1. Fetch Physical Tasks (NO array joins)
+    // Round 1 — fetch all three independent sources in parallel
     let tasksQuery = supabase
       .from("tasks")
       .select("*, locations(name, is_outside), areas(name), plans(name)")
@@ -33,28 +33,29 @@ export const TaskEngine = {
     }
     tasksQuery = tasksQuery.lte("due_date", endDateStr);
 
-    const { data: physicalTasks, error: tError } = await tasksQuery;
+    const [
+      { data: physicalTasks, error: tError },
+      { data: blueprints, error: bpError },
+      { data: skippedTombstones },
+    ] = await Promise.all([
+      tasksQuery,
+      supabase
+        .from("task_blueprints")
+        .select("*, locations(name, is_outside), areas(name), plans(name)")
+        .eq("home_id", homeId)
+        .eq("is_recurring", true),
+      supabase
+        .from("tasks")
+        .select("blueprint_id, due_date")
+        .eq("home_id", homeId)
+        .eq("status", "Skipped")
+        .gte("due_date", startDateStr)
+        .lte("due_date", endDateStr)
+        .not("blueprint_id", "is", null),
+    ]);
+
     if (tError) throw tError;
-
-    // 2. Fetch Blueprints (NO array joins)
-    const { data: blueprints, error: bpError } = await supabase
-      .from("task_blueprints")
-      .select("*, locations(name, is_outside), areas(name), plans(name)")
-      .eq("home_id", homeId)
-      .eq("is_recurring", true);
-
     if (bpError) throw bpError;
-
-    // 2b. Fetch Skipped tombstones in the window — excluded from rawTasks but needed
-    //     to suppress ghost re-generation at dates the user already postponed past.
-    const { data: skippedTombstones } = await supabase
-      .from("tasks")
-      .select("blueprint_id, due_date")
-      .eq("home_id", homeId)
-      .eq("status", "Skipped")
-      .gte("due_date", startDateStr)
-      .lte("due_date", endDateStr)
-      .not("blueprint_id", "is", null);
 
     const tombstoneSet = new Set(
       (skippedTombstones ?? []).map(
@@ -62,31 +63,22 @@ export const TaskEngine = {
       ),
     );
 
-    // 3. Filter and Extract Unique IDs
-    // 🚀 NEW LOGIC: Filter out historically completed tasks
+    // Filter historical completed tasks out of the window
     const rawTasks = (physicalTasks || []).filter((task) => {
-      // Rule 1: Keep all non-completed tasks (they are pending or overdue)
       if (task.status !== "Completed") return true;
-
-      // Rule 2: If Completed, was it due in the date range we are currently looking at?
       const isDueInWindow =
         task.due_date >= startDateStr && task.due_date <= endDateStr;
-
-      // Rule 3: Was it actually *marked* as completed in this date range?
-      // (We split at "T" to just grab the YYYY-MM-DD from the Supabase timestamp)
       const timestamp = task.updated_at || task.created_at || task.due_date;
       const completedDateStr = timestamp.split("T")[0];
       const isCompletedInWindow =
         completedDateStr >= startDateStr && completedDateStr <= endDateStr;
-
-      // Only keep the completed task if it passes Rule 2 or Rule 3
       return isDueInWindow || isCompletedInWindow;
     });
 
     const bps = blueprints || [];
 
+    // Collect unique inventory item IDs needed for Round 2
     const allItemIds = new Set<string>();
-
     rawTasks.forEach((t) => {
       if (t.inventory_item_ids)
         t.inventory_item_ids.forEach((id: string) => allItemIds.add(id));
@@ -95,27 +87,57 @@ export const TaskEngine = {
       if (bp.inventory_item_ids)
         bp.inventory_item_ids.forEach((id: string) => allItemIds.add(id));
     });
-
     const uniqueItemIds = Array.from(allItemIds);
+    const physicalIds = rawTasks.map((t) => t.id);
+
+    // Round 2 — fetch inventory items and task dependencies in parallel
+    const [invResult, depsResult] = await Promise.all([
+      uniqueItemIds.length > 0
+        ? supabase
+            .from("inventory_items")
+            .select(
+              "id, plant_name, identifier, location_name, area_name, plants(thumbnail_url, cycle)",
+            )
+            .in("id", uniqueItemIds)
+        : Promise.resolve({ data: [] as any[], error: null }),
+      physicalIds.length > 0
+        ? supabase
+            .from("task_dependencies")
+            .select("task_id, depends_on_task_id")
+            .in("task_id", physicalIds)
+        : Promise.resolve({ data: [] as any[], error: null }),
+    ]);
+
+    if (invResult.error) throw invResult.error;
+
     const inventoryDict: Record<string, any> = {};
+    invResult.data?.forEach((item) => {
+      inventoryDict[item.id] = item;
+    });
 
-    // 4. Fetch the Inventory Items separately and build a dictionary
-    if (uniqueItemIds.length > 0) {
-      const { data: invItems, error: invError } = await supabase
-        .from("inventory_items")
-        .select(
-          "id, plant_name, identifier, location_name, area_name, plants(thumbnail_url, cycle)",
-        )
-        .in("id", uniqueItemIds);
+    // Round 3 — pending parents (sequential on deps; skipped when no deps)
+    const deps = depsResult.data ?? [];
+    const blockedTaskIds = new Set<string>();
 
-      if (invError) throw invError;
+    if (deps.length > 0) {
+      const parentIds = deps.map((d) => d.depends_on_task_id);
+      const { data: pendingParents } = await supabase
+        .from("tasks")
+        .select("id")
+        .in("id", parentIds)
+        .eq("status", "Pending");
 
-      invItems?.forEach((item) => {
-        inventoryDict[item.id] = item;
-      });
+      if (pendingParents && pendingParents.length > 0) {
+        const pendingParentSet = new Set(pendingParents.map((p) => p.id));
+        deps.forEach((d) => {
+          if (pendingParentSet.has(d.depends_on_task_id)) {
+            blockedTaskIds.add(d.task_id);
+          }
+        });
+      }
     }
 
-    // 5. Generate Ghost Tasks from Blueprints
+    // Generate ghost tasks from blueprints (pure JS — no DB calls)
     const ghosts: any[] = [];
     bps.forEach((bp) => {
       if (!bp.frequency_days || !bp.start_date) return;
@@ -124,7 +146,6 @@ export const TaskEngine = {
       let currentGhostDate = new Date(bp.start_date);
       const targetEndDate = new Date(endDateStr);
 
-      // Fast forward to our current window
       const windowStart = new Date(startDateStr);
       if (currentGhostDate < windowStart) {
         const diffTime = Math.abs(
@@ -140,10 +161,8 @@ export const TaskEngine = {
       while (currentGhostDate <= targetEndDate) {
         const ghostDateStr = getLocalDateString(currentGhostDate);
 
-        // Stop if blueprint has an end date and we passed it
         if (bp.end_date && ghostDateStr > bp.end_date) break;
 
-        // Ensure we don't duplicate a task that was already materialized or tombstoned
         const alreadyExists =
           rawTasks.some(
             (t) => t.blueprint_id === bp.id && t.due_date === ghostDateStr,
@@ -178,38 +197,8 @@ export const TaskEngine = {
       }
     });
 
-    // 6. Fetch Blocked Dependencies
-    const allFinalTasks = [...rawTasks, ...ghosts];
-    const physicalIds = rawTasks.map((t) => t.id);
-    const blockedTaskIds = new Set<string>();
-
-    if (physicalIds.length > 0) {
-      const { data: deps } = await supabase
-        .from("task_dependencies")
-        .select("task_id, depends_on_task_id")
-        .in("task_id", physicalIds);
-
-      if (deps && deps.length > 0) {
-        const parentIds = deps.map((d) => d.depends_on_task_id);
-        const { data: pendingParents } = await supabase
-          .from("tasks")
-          .select("id")
-          .in("id", parentIds)
-          .eq("status", "Pending");
-
-        if (pendingParents && pendingParents.length > 0) {
-          const pendingParentSet = new Set(pendingParents.map((p) => p.id));
-          deps.forEach((d) => {
-            if (pendingParentSet.has(d.depends_on_task_id)) {
-              blockedTaskIds.add(d.task_id);
-            }
-          });
-        }
-      }
-    }
-
     return {
-      tasks: allFinalTasks,
+      tasks: [...rawTasks, ...ghosts],
       inventoryDict,
       blockedTaskIds,
     };

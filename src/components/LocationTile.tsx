@@ -1,5 +1,4 @@
-import React, { useState, useEffect } from "react";
-import { supabase } from "../lib/supabase";
+import React, { useEffect } from "react";
 import {
   MapPin,
   CheckSquare,
@@ -12,29 +11,23 @@ import {
 } from "lucide-react";
 
 import { usePlantDoctor } from "../context/PlantDoctorContext";
-import { getLocalDateString } from "../lib/dateUtils";
 
 interface LocationTileProps {
   site: any;
   index: number;
+  tasksCount: number | null;
   onClick: () => void;
 }
-
 
 export default function LocationTile({
   site,
   index,
+  tasksCount,
   onClick,
 }: LocationTileProps) {
-  // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
 
-  // Alternating styles for that premium editorial look
   const isAlternate = index % 2 !== 0;
-
-  // 🚀 Local state for our smart task calculation
-  const [tasksCount, setTasksCount] = useState<number | null>(null);
-  const [taskFetchError, setTaskFetchError] = useState(false);
 
   // 🚀 Calculate exact counts from the nested data
   const areasCount = site.areas?.length || 0;
@@ -77,67 +70,6 @@ export default function LocationTile({
     setPageContext,
   ]);
 
-  // 🚀 MINI GHOST ENGINE: Calculates Today's Tasks for this specific location
-  useEffect(() => {
-    const fetchLocationTaskCount = async () => {
-      const todayStr = getLocalDateString(new Date());
-      const targetDateMs = new Date(todayStr).getTime();
-
-      try {
-        // 1. Get physical pending tasks for this location today
-        const { data: physicalTasks } = await supabase
-          .from("tasks")
-          .select("id, blueprint_id")
-          .eq("location_id", site.id)
-          .eq("due_date", todayStr)
-          .neq("status", "Skipped")
-          .neq("status", "Completed"); // Don't count finished tasks
-
-        // 2. Get recurring blueprints for this location
-        const { data: blueprints } = await supabase
-          .from("task_blueprints")
-          .select("id, start_date, created_at, end_date, frequency_days")
-          .eq("location_id", site.id)
-          .eq("is_recurring", true);
-
-        let count = physicalTasks?.length || 0;
-        const existingBlueprints = new Set(
-          physicalTasks?.map((t) => t.blueprint_id).filter(Boolean),
-        );
-
-        // 3. Count the ghosts
-        (blueprints || []).forEach((bp) => {
-          const safeDateString =
-            bp.start_date || bp.created_at || new Date().toISOString();
-          const anchorDateStr = safeDateString.split("T")[0];
-          const anchorDateMs = new Date(anchorDateStr).getTime();
-
-          if (targetDateMs < anchorDateMs) return;
-          if (bp.end_date && targetDateMs > new Date(bp.end_date).getTime())
-            return;
-
-          const diffDays = Math.round(
-            (targetDateMs - anchorDateMs) / (1000 * 60 * 60 * 24),
-          );
-
-          if (
-            diffDays % bp.frequency_days === 0 &&
-            !existingBlueprints.has(bp.id)
-          ) {
-            count++; // Add a ghost task to the count!
-          }
-        });
-
-        setTasksCount(count);
-      } catch (err) {
-        console.error("Failed to count tasks for location", err);
-        setTaskFetchError(true);
-        setTasksCount(0);
-      }
-    };
-
-    fetchLocationTaskCount();
-  }, [site.id]);
 
   return (
     <div
