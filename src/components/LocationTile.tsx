@@ -7,7 +7,6 @@ import {
   Database,
   Loader2,
   ChevronRight,
-  AlertCircle,
 } from "lucide-react";
 
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -167,17 +166,11 @@ export default function LocationTile({
             </span>
             <div className="flex items-center gap-2 text-rhozly-tertiary">
               <div className="w-8 h-8 rounded-full bg-rhozly-tertiary/10 flex items-center justify-center">
-                {taskFetchError ? (
-                  <AlertCircle className="w-4 h-4 text-rhozly-error" />
-                ) : (
-                  <CheckSquare className="w-4 h-4" />
-                )}
+                <CheckSquare className="w-4 h-4" />
               </div>
               <span className="font-display font-black text-xl">
                 {tasksCount === null ? (
                   <Loader2 className="w-4 h-4 animate-spin opacity-50" />
-                ) : taskFetchError ? (
-                  <span className="text-rhozly-error text-sm font-bold">!</span>
                 ) : (
                   tasksCount
                 )}
