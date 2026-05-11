@@ -26,6 +26,7 @@ const TIER_LABEL: Record<NonNullable<SubscriptionTier>, string> = {
 
 interface Props {
   displayName: string | null;
+  firstName?: string | null;
   email: string | null;
   subscriptionTier?: SubscriptionTier;
   isAdmin?: boolean;
@@ -62,8 +63,9 @@ function SectionLabel({ label }: { label: string }) {
   );
 }
 
-export default function UserProfileDropdown({ displayName, email, subscriptionTier, isAdmin }: Props) {
+export default function UserProfileDropdown({ displayName, firstName, email, subscriptionTier, isAdmin }: Props) {
   const tierLabel = subscriptionTier ? TIER_LABEL[subscriptionTier] : "Free";
+  const nameLabel = displayName || firstName || email?.split("@")[0] || tierLabel;
   const [open, setOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -102,7 +104,7 @@ export default function UserProfileDropdown({ displayName, email, subscriptionTi
       data-testid="user-profile-trigger"
     >
       <div className="text-right hidden sm:block text-white">
-        <p className="text-sm font-bold">{displayName || tierLabel}</p>
+        <p className="text-sm font-bold">{nameLabel}</p>
         <p className="text-[10px] uppercase tracking-widest text-white/60 font-semibold">
           {tierLabel}
         </p>
@@ -123,7 +125,7 @@ export default function UserProfileDropdown({ displayName, email, subscriptionTi
             {/* Name + email header */}
             <div className="px-4 py-3 border-b border-rhozly-outline/10">
               <p className="text-sm font-black text-rhozly-on-surface truncate">
-                {displayName || tierLabel}
+                {nameLabel}
               </p>
               {email && (
                 <p className="text-xs text-rhozly-on-surface/40 font-bold truncate">{email}</p>

@@ -435,7 +435,7 @@ function AppShell() {
     const [profileResult, membershipsResult] = await Promise.all([
       supabase
         .from("user_profiles")
-        .select("uid, home_id, display_name, subscription_tier, ai_enabled, enable_perenual, is_admin, onboarding_state")
+        .select("uid, home_id, display_name, first_name, last_name, subscription_tier, ai_enabled, enable_perenual, is_admin, onboarding_state")
         .eq("uid", userId)
         .single(),
       supabase
@@ -712,6 +712,7 @@ function AppShell() {
               </div>
               <UserProfileDropdown
                 displayName={profile?.display_name ?? null}
+                firstName={profile?.first_name ?? null}
                 email={session?.user?.email ?? null}
                 subscriptionTier={profile?.subscription_tier ?? null}
                 isAdmin={profile?.is_admin ?? false}
