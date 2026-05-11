@@ -990,7 +990,7 @@ export default function TaskList({
                     }
                   }
                 }}
-                className={`p-5 rounded-3xl border shadow-sm flex items-center justify-between group relative transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 ${cardStyle}`}
+                className={`p-5 rounded-3xl border shadow-sm flex flex-wrap items-center justify-between gap-y-3 group relative transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 ${cardStyle}`}
               >
                 {isBlocked && !isCompleted && !isBulkEditing && (
                   <div className="absolute -top-2 -right-2 z-10 text-[9px] font-black uppercase text-gray-500 bg-gray-200 px-3 py-1 rounded-full shadow-sm flex items-center gap-1 border border-gray-300">
@@ -998,7 +998,7 @@ export default function TaskList({
                   </div>
                 )}
 
-                <div className="flex items-center gap-4 w-full">
+                <div className="flex items-center gap-4 flex-1 min-w-0">
                   {!isBulkEditing && (
                     <button
                       onClick={(e) => toggleTaskCompletion(task, e)}
@@ -1058,7 +1058,7 @@ export default function TaskList({
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-center gap-2 mt-3 sm:mt-0 sm:ml-4 shrink-0">
+                <div className="flex flex-row items-center gap-2 sm:ml-4 shrink-0 ml-auto">
                   {!isBulkEditing && !isCompleted && (
                     <div className="flex items-center gap-1 bg-gray-50 border border-gray-100 rounded-xl p-0.5">
                       {(task.created_by === currentUserId ? can("tasks.delete_own") : can("tasks.delete_any")) && (
