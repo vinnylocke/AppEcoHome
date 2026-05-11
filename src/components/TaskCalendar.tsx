@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -68,6 +68,9 @@ export default function TaskCalendar({
   const [plans, setPlans] = useState<any[]>([]);
 
   const [refreshKey, setRefreshKey] = useState(0);
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false);
+  const [inventoryDict, setInventoryDict] = useState<Record<string, any>>({});
+  const [blockedTaskIds, setBlockedTaskIds] = useState<Set<string>>(new Set());
   const [isAddingTask, setIsAddingTask] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -98,6 +101,11 @@ export default function TaskCalendar({
       });
     },
     [tasks, selectedTypes, selectedLoc, selectedArea, selectedPlan],
+  );
+
+  const agendaTasks = useMemo(
+    () => getTasksForDate(selectedDate),
+    [getTasksForDate, selectedDate],
   );
 
   useEffect(() => {
@@ -195,6 +203,10 @@ export default function TaskCalendar({
       });
 
       setTasks(result.tasks);
+      setInventoryDict(result.inventoryDict);
+      setBlockedTaskIds(result.blockedTaskIds);
+      setHasLoadedOnce(true);
+      setRefreshKey((k) => k + 1);
     } catch (err: any) {
       Logger.error("Failed to load calendar tasks", err);
       setFetchError(true);
@@ -529,8 +541,8 @@ export default function TaskCalendar({
           </div>
         </div>
 
-        <div className="flex-1 bg-rhozly-surface-lowest rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col min-h-[500px]">
-          <div className="flex justify-between items-center mb-8">
+        <div className="flex-1 bg-rhozly-surface-lowest rounded-[3rem] p-4 sm:p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col lg:min-h-[500px]">
+          <div className="flex justify-between items-center mb-4 sm:mb-8">
             <div>
               <h3 className="text-2xl font-black">Agenda</h3>
               <p className="text-sm font-bold text-rhozly-primary mt-1">
@@ -549,18 +561,27 @@ export default function TaskCalendar({
             </button>
           </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar pr-2 relative">
-            <TaskList
-              key={`agenda-${selectedDate.toISOString()}-${refreshKey}`}
-              homeId={homeId}
-              targetDate={selectedDate}
-              showOverdue={isSameDay(selectedDate, new Date())}
-              onTaskUpdated={fetchTasksAndBlueprints}
-              locationId={selectedLoc}
-              areaId={selectedArea === "all" ? undefined : selectedArea}
-              planId={selectedPlan === "all" ? undefined : selectedPlan}
-              selectedTypes={selectedTypes}
-            />
+          <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pr-1 sm:pr-2 relative">
+            {!hasLoadedOnce ? (
+              <div className="flex justify-center pt-12">
+                <Loader2 size={28} className="animate-spin text-rhozly-primary/40" />
+              </div>
+            ) : (
+              <TaskList
+                key={`agenda-${selectedDate.toISOString()}-${refreshKey}`}
+                homeId={homeId}
+                targetDate={selectedDate}
+                showOverdue={isSameDay(selectedDate, new Date())}
+                onTaskUpdated={fetchTasksAndBlueprints}
+                locationId={selectedLoc}
+                areaId={selectedArea === "all" ? undefined : selectedArea}
+                planId={selectedPlan === "all" ? undefined : selectedPlan}
+                selectedTypes={selectedTypes}
+                preloadedTasks={agendaTasks}
+                preloadedInventoryDict={inventoryDict}
+                preloadedBlockedTaskIds={blockedTaskIds}
+              />
+            )}
           </div>
         </div>
       </div>

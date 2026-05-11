@@ -47,6 +47,9 @@ interface TaskListProps {
   locationId?: string;
   selectedTypes?: string[];
   showOverdue?: boolean;
+  preloadedTasks?: any[];
+  preloadedInventoryDict?: Record<string, any>;
+  preloadedBlockedTaskIds?: Set<string>;
 }
 
 
@@ -60,6 +63,9 @@ export default function TaskList({
   locationId,
   selectedTypes,
   showOverdue,
+  preloadedTasks,
+  preloadedInventoryDict,
+  preloadedBlockedTaskIds,
 }: TaskListProps) {
   const navigate = useNavigate();
   const { preferences } = usePlantDoctor();
@@ -182,8 +188,22 @@ export default function TaskList({
   );
 
   useEffect(() => {
+    if (preloadedTasks === undefined) return;
+    const sorted = [...preloadedTasks].sort((a, b) => {
+      if (a.status === "Completed" && b.status !== "Completed") return 1;
+      if (a.status !== "Completed" && b.status === "Completed") return -1;
+      return a.due_date.localeCompare(b.due_date);
+    });
+    setTasks(sorted);
+    if (preloadedInventoryDict !== undefined) setInventoryDict(preloadedInventoryDict);
+    if (preloadedBlockedTaskIds !== undefined) setBlockedTaskIds(preloadedBlockedTaskIds);
+    setLoading(false);
+  }, [preloadedTasks, preloadedInventoryDict, preloadedBlockedTaskIds]);
+
+  useEffect(() => {
+    if (preloadedTasks !== undefined) return;
     fetchTasksAndGhosts();
-  }, [fetchTasksAndGhosts]);
+  }, [fetchTasksAndGhosts, preloadedTasks]);
 
   const fetchTasksAndGhostsSilent = useCallback(() => fetchTasksAndGhosts(true), [fetchTasksAndGhosts]);
   useHomeRealtime("tasks", fetchTasksAndGhostsSilent);
@@ -838,13 +858,13 @@ export default function TaskList({
             <div className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/5">
               <button
                 onClick={() => setViewTab("pending")}
-                className={`flex-1 px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === "pending" ? "bg-white text-rhozly-primary shadow-sm border border-rhozly-primary/10" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+                className={`flex-1 px-3 sm:px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === "pending" ? "bg-white text-rhozly-primary shadow-sm border border-rhozly-primary/10" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
               >
                 Pending ({pendingCount})
               </button>
               <button
                 onClick={() => setViewTab("completed")}
-                className={`flex-1 px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === "completed" ? "bg-white text-green-600 shadow-sm border border-green-100" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+                className={`flex-1 px-3 sm:px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === "completed" ? "bg-white text-green-600 shadow-sm border border-green-100" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
               >
                 Completed ({completedCount})
               </button>
