@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { useNavigate } from "react-router-dom";
 import {
   Sun,
   Camera,
@@ -26,6 +27,7 @@ interface LightSensorProps {
 }
 
 export default function LightSensor({ homeId }: LightSensorProps) {
+  const navigate = useNavigate();
   // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
 
@@ -53,6 +55,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
   const [selectedLocationId, setSelectedLocationId] = useState<string>("");
   const [selectedAreaId, setSelectedAreaId] = useState<string>("");
   const [isSaving, setIsSaving] = useState(false);
+  const [lastSaved, setLastSaved] = useState<{ lux: number; area: string } | null>(null);
   const [nativeSensorUnavailable, setNativeSensorUnavailable] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -99,24 +102,27 @@ export default function LightSensor({ homeId }: LightSensorProps) {
   };
 
   const [locationsLoading, setLocationsLoading] = useState(true);
+  const [locationsFetchError, setLocationsFetchError] = useState(false);
+  const [locationsRetryTick, setLocationsRetryTick] = useState(0);
 
   useEffect(() => {
     if (!homeId || homeId === "undefined") return;
     const fetchAreas = async () => {
       setLocationsLoading(true);
+      setLocationsFetchError(false);
       const { data, error } = await supabase
         .from("locations")
         .select(`id, name, areas ( id, name, light_intensity_lux )`)
         .eq("home_id", homeId);
       if (error) {
-        toast.error("Could not load your garden areas");
+        setLocationsFetchError(true);
       } else if (data) {
         setLocations(data);
       }
       setLocationsLoading(false);
     };
     fetchAreas();
-  }, [homeId]);
+  }, [homeId, locationsRetryTick]);
 
   const getLightCategory = (luxValue: number) => {
     if (luxValue < 500)
@@ -264,8 +270,8 @@ export default function LightSensor({ homeId }: LightSensorProps) {
       await applyExposureConstraints();
       setIsScanning(true);
       processingLoop();
-    } catch (err) {
-      toast.error("Camera Access Denied");
+    } catch (err: any) {
+      toast.error(err?.message ? `Camera error: ${err.message}` : "Camera access denied — check your browser permissions");
     }
   };
 
@@ -288,13 +294,16 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         await NativeLightSensor.start({ updateInterval: 500 });
         setIsScanning(true);
         processingLoop(true);
+        toast.success("Sensor active", { duration: 1500 });
         return;
       }
       if (!isManualMode || manualMethod === "Native Sensor") {
         setNativeSensorUnavailable(true);
+        toast("Native sensor unavailable — switching to camera", { icon: "📷", duration: 2500 });
       }
-    } catch (e) {
+    } catch (e: any) {
       setNativeSensorUnavailable(true);
+      toast("Native sensor unavailable — switching to camera", { icon: "📷", duration: 2500 });
     }
     await startCameraFallback();
   };
@@ -309,10 +318,11 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     if (streamRef.current)
       streamRef.current.getTracks().forEach((t) => t.stop());
     setIsScanning(false);
+    toast("Scanning paused", { icon: "⏸", duration: 1500 });
   };
 
   const handleSaveToArea = async () => {
-    if (!lux || lux === 0) return toast.error("No reading to save — start the meter first");
+    if (!lux || lux === 0) return toast.error("No reading to save — start scanning first");
     if (!selectedAreaId) return toast.error("Select an area!");
     setIsSaving(true);
     try {
@@ -329,7 +339,9 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         .update({ light_intensity_lux: lux })
         .eq("id", selectedAreaId);
       if (updateErr) throw updateErr;
+      const areaName = availableAreas.find((a: any) => a.id === selectedAreaId)?.name ?? "area";
       toast.success(`Saved ${lux.toLocaleString()} lx!`);
+      setLastSaved({ lux, area: areaName });
       setLocations((prev) =>
         prev.map((loc) => ({
           ...loc,
@@ -339,8 +351,8 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         })),
       );
       startScanning();
-    } catch (e) {
-      toast.error("Save failed.");
+    } catch (e: any) {
+      toast.error(e?.message ? `Save failed: ${e.message}` : "Save failed — check your connection and try again.");
     } finally {
       setIsSaving(false);
     }
@@ -387,12 +399,12 @@ export default function LightSensor({ homeId }: LightSensorProps) {
       </div>
 
       {showCalibration && method === "Pixel Analysis" && (
-        <div className="mb-6 p-5 bg-white rounded-3xl border border-rhozly-outline/10 shadow-lg animate-in slide-in-from-top-4 space-y-6">
+        <div className="mb-6 p-5 bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/10 shadow-lg animate-in slide-in-from-top-4 space-y-6">
           <div>
             <div className="flex justify-between items-center mb-2">
               <span className="text-[10px] font-black uppercase tracking-widest flex items-center gap-1 text-rhozly-on-surface/60">
                 <Zap size={12} className="text-amber-500 fill-amber-500" />{" "}
-                Sensor Gain (Exposure)
+                Light Sensitivity
               </span>
               <span className="text-xs font-bold text-rhozly-primary">
                 {exposureLevel > 0 ? `+${exposureLevel}` : exposureLevel} EV
@@ -405,7 +417,8 @@ export default function LightSensor({ homeId }: LightSensorProps) {
               step="0.1"
               value={exposureLevel}
               onChange={(e) => setExposureLevel(parseFloat(e.target.value))}
-              className="w-full accent-rhozly-primary"
+              aria-label={`Light sensitivity: ${exposureLevel > 0 ? "+" : ""}${exposureLevel} EV`}
+              className="w-full h-6 accent-rhozly-primary cursor-pointer"
             />
           </div>
 
@@ -425,7 +438,8 @@ export default function LightSensor({ homeId }: LightSensorProps) {
               step="0.01"
               value={calibrationFactor}
               onChange={(e) => setCalibrationFactor(parseFloat(e.target.value))}
-              className="w-full accent-rhozly-primary"
+              aria-label={`Final calibration: ${calibrationFactor.toFixed(2)}x multiplier`}
+              className="w-full h-6 accent-rhozly-primary cursor-pointer"
             />
           </div>
         </div>
@@ -436,7 +450,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
           onClick={() => setIsManualMode(false)}
           className={`flex-1 min-h-[44px] py-2 rounded-xl text-[10px] font-black uppercase transition-all ${!isManualMode ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40"}`}
         >
-          Auto Logic
+          Auto Mode
         </button>
         <button
           onClick={() => setIsManualMode(true)}
@@ -481,9 +495,11 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col items-center justify-center py-6">
+      <div className="xl:grid xl:grid-cols-[1fr_380px] xl:gap-10 xl:items-start">
+      <div className="flex-1 flex flex-col items-center justify-center py-6 xl:py-12">
+        <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-4">Current Reading</p>
         <div
-          className={`relative w-64 h-64 rounded-full flex flex-col items-center justify-center border-[12px] shadow-2xl transition-all duration-700 overflow-hidden ${method === "Pixel Analysis" && isScanning ? "border-rhozly-outline/20" : category.border} ${category.bg}`}
+          className={`relative w-64 h-64 xl:w-80 xl:h-80 rounded-full flex flex-col items-center justify-center border-[12px] shadow-2xl transition-all duration-700 overflow-hidden ${method === "Pixel Analysis" && isScanning ? "border-rhozly-outline/20" : category.border} ${category.bg}`}
         >
           <video
             ref={videoRef}
@@ -498,11 +514,16 @@ export default function LightSensor({ homeId }: LightSensorProps) {
           {isScanning && method === "Pixel Analysis" && (
             <div className="absolute inset-0 bg-black/20" />
           )}
-          <div className="relative z-10 flex flex-col items-center">
+          <div
+            role="status"
+            aria-live="polite"
+            aria-label={isScanning ? `Light level: ${lux.toLocaleString()} lux, ${category.label}` : "Sensor paused"}
+            className="relative z-10 flex flex-col items-center"
+          >
             {isScanning ? (
               <>
                 <span
-                  className={`text-6xl font-black font-display tracking-tighter transition-colors duration-700 ${method === "Pixel Analysis" ? "text-white" : category.color}`}
+                  className={`text-6xl xl:text-7xl font-black font-display tracking-tighter transition-colors duration-700 ${method === "Pixel Analysis" ? "text-white" : category.color}`}
                 >
                   {lux.toLocaleString()}
                 </span>
@@ -536,9 +557,9 @@ export default function LightSensor({ homeId }: LightSensorProps) {
           </div>
         </div>
 
-        <div className="mt-14 flex items-center gap-2 bg-white px-4 py-2 rounded-xl border border-rhozly-outline/10 shadow-sm">
+        <div className="mt-14 flex items-center gap-2 bg-rhozly-surface-lowest px-4 py-2 rounded-xl border border-rhozly-outline/10 shadow-sm">
           <div
-            className={`w-2 h-2 rounded-full animate-pulse ${method === "Native Sensor" ? "bg-green-500" : "bg-amber-500"}`}
+            className={`w-2 h-2 rounded-full animate-pulse ${method === "Native Sensor" ? "bg-rhozly-primary" : "bg-rhozly-primary/50"}`}
           />
           <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/60">
             Active: {method}
@@ -546,7 +567,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         </div>
       </div>
 
-      <div className="space-y-4 mt-auto">
+      <div className="space-y-4 xl:mt-6">
         <div
           className="p-4 rounded-2xl flex gap-3 border shadow-sm bg-rhozly-surface-low text-rhozly-on-surface border-rhozly-outline/20"
         >
@@ -568,7 +589,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
                 <>
                   Point your{" "}
                   <strong className="text-rhozly-primary">rear camera</strong>{" "}
-                  directly at the light source. Adjust "Sensor Gain" if the room
+                  directly at the light source. Adjust "Light Sensitivity" if the room
                   looks too dark.
                 </>
               )}
@@ -586,12 +607,32 @@ export default function LightSensor({ homeId }: LightSensorProps) {
                   Loading areas...
                 </p>
               </div>
-            ) : !locationsLoading && locations.length === 0 ? (
-              <div className="flex items-center gap-3 py-2 mb-4">
-                <MapPin size={18} className="shrink-0 text-rhozly-on-surface/40" />
+            ) : locationsFetchError ? (
+              <div className="flex items-center justify-between gap-3 py-2 mb-4">
                 <p className="text-xs font-bold text-rhozly-on-surface/60">
-                  No areas set up yet — add one in Location Manager
+                  Could not load areas.
                 </p>
+                <button
+                  onClick={() => setLocationsRetryTick((t) => t + 1)}
+                  className="text-xs font-black text-rhozly-primary hover:underline shrink-0"
+                >
+                  Retry
+                </button>
+              </div>
+            ) : !locationsLoading && locations.length === 0 ? (
+              <div className="flex items-center justify-between gap-3 py-2 mb-4">
+                <div className="flex items-center gap-2">
+                  <MapPin size={18} className="shrink-0 text-rhozly-on-surface/40" />
+                  <p className="text-xs font-bold text-rhozly-on-surface/60">
+                    No areas set up yet
+                  </p>
+                </div>
+                <button
+                  onClick={() => navigate("/management")}
+                  className="text-xs font-black text-rhozly-primary hover:underline shrink-0 min-h-[44px] px-2 flex items-center"
+                >
+                  Go to Locations →
+                </button>
               </div>
             ) : (
             <div className="flex flex-col gap-2 mb-4">
@@ -610,6 +651,12 @@ export default function LightSensor({ homeId }: LightSensorProps) {
                   </option>
                 ))}
               </select>
+              {selectedLocationId && availableAreas.length === 0 ? (
+                <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-rhozly-surface-low border border-rhozly-outline/10 text-xs font-bold text-rhozly-on-surface/50">
+                  <MapPin size={14} />
+                  No garden areas in this location — <button onClick={() => navigate("/management")} className="text-rhozly-primary hover:underline ml-1">add one</button>
+                </div>
+              ) : (
               <select
                 value={selectedAreaId}
                 onChange={(e) => setSelectedAreaId(e.target.value)}
@@ -626,6 +673,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
                   </option>
                 ))}
               </select>
+              )}
             </div>
             )}
             <div className="flex gap-2">
@@ -649,6 +697,12 @@ export default function LightSensor({ homeId }: LightSensorProps) {
                 )}
               </button>
             </div>
+          {lastSaved && (
+            <div className="mt-3 flex items-center gap-2 text-xs font-bold text-rhozly-primary/80">
+              <Save size={12} />
+              <span>Last saved: {lastSaved.lux.toLocaleString()} lx → {lastSaved.area}</span>
+            </div>
+          )}
           </div>
         ) : (
           <button
@@ -658,6 +712,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
             <Circle size={20} fill="white" className="animate-pulse" /> Stop Scanning
           </button>
         )}
+      </div>
       </div>
     </div>
   );

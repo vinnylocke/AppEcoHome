@@ -45,12 +45,14 @@ export default function PlannerHub({ homeId, aiEnabled = false, perenualEnabled 
     <div className="h-full flex flex-col">
       {/* Tab bar */}
       <div className="sticky top-0 z-10 bg-rhozly-bg/95 backdrop-blur-sm border-b border-rhozly-outline/10 px-4 md:px-8 pt-4">
-        <div className="flex gap-1 max-w-7xl mx-auto">
+        <div role="tablist" aria-label="Planner sections" className="flex gap-1 max-w-7xl mx-auto">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
+                role="tab"
+                aria-selected={isActive}
                 data-testid={`planner-hub-tab-${tab.id}`}
                 onClick={() => switchTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-3 min-h-[44px] rounded-t-xl text-xs font-black uppercase tracking-widest transition-all border-b-2 -mb-px ${
@@ -68,7 +70,10 @@ export default function PlannerHub({ homeId, aiEnabled = false, perenualEnabled 
       </div>
 
       {/* Content */}
-      <div className="flex-1 overflow-auto">
+      <div className="flex-1 overflow-auto relative">
+        {opacity < 1 && (
+          <div className="absolute inset-x-0 top-0 h-1 bg-rhozly-primary/20 animate-pulse z-10" />
+        )}
         <div key={contentKey} style={{ opacity, transition: "opacity 0.15s ease" }} className="h-full">
           {contentKey === "planner" && (
             <PlannerDashboard homeId={homeId} aiEnabled={aiEnabled} />

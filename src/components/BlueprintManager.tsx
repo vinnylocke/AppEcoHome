@@ -223,7 +223,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
       case "Planting":
         return <Shovel size={16} className="text-amber-700" />;
       default:
-        return <CheckSquare size={16} className="text-gray-500" />;
+        return <CheckSquare size={16} className="text-rhozly-on-surface/50" />;
     }
   };
 
@@ -303,7 +303,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                 <div className="h-3 w-full rounded-md bg-rhozly-surface-low" />
                 <div className="h-3 w-3/4 rounded-md bg-rhozly-surface-low" />
               </div>
-              <div className="pt-4 border-t border-gray-50 flex gap-2 mt-auto">
+              <div className="pt-4 border-t border-rhozly-outline/10 flex gap-2 mt-auto">
                 <div className="h-5 w-20 rounded-md bg-rhozly-surface-low" />
                 <div className="h-5 w-24 rounded-md bg-rhozly-surface-low" />
               </div>
@@ -331,9 +331,14 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
     <div className="w-full h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-700 pb-32">
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
         <div>
-          <h2 data-testid="schedule-heading" className="text-4xl font-black font-display text-rhozly-on-surface">
+          <h1 data-testid="schedule-heading" className="text-4xl font-black font-display text-rhozly-on-surface flex items-center gap-3">
             Automations
-          </h2>
+            {blueprints.length > 0 && (
+              <span className="text-base font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
+                {blueprints.length}
+              </span>
+            )}
+          </h1>
           <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
             Recurring task automations
           </p>
@@ -355,7 +360,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
           <div className="flex gap-2">
             <div className="relative flex-1">
               <Search
-                className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"
+                className="absolute left-4 top-1/2 -translate-y-1/2 text-rhozly-on-surface/40"
                 size={20}
               />
               <input
@@ -363,13 +368,14 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search automations..."
+                aria-label="Search automations"
                 className="w-full pl-12 pr-4 py-3.5 bg-white border border-rhozly-outline/10 rounded-2xl font-bold shadow-sm outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary/20 transition-all"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery("")}
                   aria-label="Clear search"
-                  className="absolute right-2 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 text-rhozly-on-surface/40 hover:text-rhozly-on-surface/70 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl"
                 >
                   <X size={16} />
                 </button>
@@ -377,7 +383,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
             </div>
             <button
               onClick={() => setIsFilterOpen(!isFilterOpen)}
-              className={`px-5 py-3.5 rounded-2xl font-black shadow-sm transition-all flex items-center justify-center gap-2 border ${isFilterOpen || hasActiveFilters ? "bg-rhozly-primary text-white border-rhozly-primary" : "bg-white text-gray-600 border-rhozly-outline/10 hover:bg-gray-50"}`}
+              className={`px-5 py-3.5 rounded-2xl font-black shadow-sm transition-all flex items-center justify-center gap-2 border ${isFilterOpen || hasActiveFilters ? "bg-rhozly-primary text-white border-rhozly-primary" : "bg-white text-rhozly-on-surface/60 border-rhozly-outline/10 hover:bg-rhozly-surface-low"}`}
             >
               <Filter size={18} />
               <span className="hidden sm:inline">Filters</span>
@@ -407,7 +413,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Task Type
                   </label>
                   <select
@@ -424,7 +430,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Location
                   </label>
                   <select
@@ -442,7 +448,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Area
                   </label>
                   <select
@@ -461,7 +467,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Plan
                   </label>
                   <select
@@ -479,7 +485,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                   </select>
                 </div>
                 <div className="space-y-1.5">
-                  <label className="text-[10px] font-black uppercase tracking-widest text-gray-400 ml-1">
+                  <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 ml-1">
                     Plant
                   </label>
                   <select
@@ -509,7 +515,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
             <Repeat size={64} className="text-rhozly-primary/30 relative" strokeWidth={2} />
           </div>
           <p className="font-black text-2xl text-rhozly-on-surface mb-2">
-            No Automations Running
+            No automations yet
           </p>
           <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6 max-w-md">
             Create custom schedules or use the AI Planner to generate them automatically.
@@ -593,13 +599,13 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
 
               <div className="flex-1 mb-4">
                 {bp.description && (
-                  <p className="text-xs font-bold text-gray-500 line-clamp-2">
+                  <p className="text-xs font-bold text-rhozly-on-surface/50 line-clamp-2">
                     {bp.description}
                   </p>
                 )}
               </div>
 
-              <div className="pt-4 border-t border-gray-50 flex flex-wrap gap-2 mt-auto">
+              <div className="pt-4 border-t border-rhozly-outline/10 flex flex-wrap gap-2 mt-auto">
                 <div
                   className={`text-[10px] font-bold flex items-center gap-1 px-2 py-1 rounded-md ${bp.inventory_item_ids?.length > 0 ? "bg-emerald-50 text-emerald-700" : "bg-rhozly-surface-low text-rhozly-on-surface/60"}`}
                 >

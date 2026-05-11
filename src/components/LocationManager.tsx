@@ -44,6 +44,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
 
   const [locations, setLocations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
 
   // Add Location State
   const [isAddingLoc, setIsAddingLoc] = useState(false);
@@ -92,13 +93,17 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
 
   const fetchHierarchy = async () => {
     setLoading(true);
+    setFetchError(false);
     const { data, error } = await supabase
       .from("locations")
       .select("*, areas(*)")
       .eq("home_id", homeId)
       .order("created_at", { ascending: true });
 
-    if (!error && data) {
+    if (error) {
+      Logger.error("Failed to load locations", error);
+      setFetchError(true);
+    } else if (data) {
       const sortedData = data.map((loc) => ({
         ...loc,
         areas: loc.areas.sort((a: any, b: any) => a.id - b.id),
@@ -268,8 +273,32 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center py-20">
-        <Loader2 className="animate-spin text-rhozly-primary w-8 h-8" />
+      <div className="max-w-7xl mx-auto w-full space-y-6 animate-pulse py-4">
+        <div className="h-9 w-64 bg-rhozly-surface-low rounded-xl" />
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {[1, 2].map((i) => (
+            <div key={i} className="bg-white rounded-3xl border border-rhozly-outline/10 p-6 space-y-4">
+              <div className="h-6 w-1/2 bg-rhozly-surface-low rounded-full" />
+              <div className="h-4 w-full bg-rhozly-surface-low rounded-full" />
+              <div className="h-4 w-3/4 bg-rhozly-surface-low rounded-full" />
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  }
+
+  if (fetchError) {
+    return (
+      <div className="py-20 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/20 max-w-7xl mx-auto">
+        <X size={32} className="mx-auto mb-3 text-red-400" />
+        <p className="font-black text-rhozly-on-surface/50 mb-4">Could not load your locations.</p>
+        <button
+          onClick={fetchHierarchy}
+          className="px-5 py-2.5 bg-rhozly-primary text-white rounded-2xl text-sm font-black hover:scale-[1.02] transition-transform"
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -279,9 +308,14 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
       <div className="max-w-7xl mx-auto w-full space-y-8 animate-in fade-in duration-500 relative">
         <div className="flex justify-between items-center">
           <div>
-            <h2 className="text-3xl font-black font-display text-rhozly-on-surface tracking-tight">
-              Location Management
-            </h2>
+            <h1 className="text-3xl font-black font-display text-rhozly-on-surface tracking-tight flex items-center gap-3">
+              My Locations
+              {locations.length > 0 && (
+                <span className="text-base font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
+                  {locations.length}
+                </span>
+              )}
+            </h1>
             <p className="text-sm font-bold text-rhozly-on-surface/50 mt-1">
               Organize your spaces and growing areas.
             </p>
@@ -462,10 +496,12 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                         {can("areas.edit") && (
                           <button
                             onClick={() => setEditingArea(area)}
-                            className="min-w-[44px] min-h-[44px] p-2 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-xl flex items-center justify-center"
+                            className="flex items-center gap-1 min-h-[44px] px-2 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-xl"
+                            aria-label="Advanced Metrics"
                             title="Advanced Metrics"
                           >
-                            <Settings2 size={16} />
+                            <Settings2 size={14} />
+                            <span className="text-[10px] font-black uppercase tracking-wider hidden sm:block">Metrics</span>
                           </button>
                         )}
                         {can("areas.delete") && (

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useRef } from "react";
+import { toast } from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 import {
   Search,
@@ -48,13 +49,39 @@ export default function GuideList() {
   // Reading Mode
   const [activeGuide, setActiveGuide] = useState<any | null>(null);
   const [readingVisible, setReadingVisible] = useState(false);
+  const [readingLoading, setReadingLoading] = useState(false);
 
   useEffect(() => {
     if (activeGuide) {
+      setReadingLoading(true);
       setReadingVisible(false);
-      setTimeout(() => setReadingVisible(true), 20);
+      setTimeout(() => {
+        setReadingLoading(false);
+        setReadingVisible(true);
+      }, 120);
     }
   }, [activeGuide?.id]);
+
+  // Reading section progress via nearest scrollable ancestor
+  const [readProgress, setReadProgress] = useState(0);
+  const readViewRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!activeGuide) { setReadProgress(0); return; }
+    let scrollEl: HTMLElement | null = readViewRef.current?.parentElement ?? null;
+    while (scrollEl && scrollEl !== document.body) {
+      const ov = window.getComputedStyle(scrollEl).overflowY;
+      if (ov === "auto" || ov === "scroll") break;
+      scrollEl = scrollEl.parentElement;
+    }
+    if (!scrollEl) return;
+    const onScroll = () => {
+      const scrollable = scrollEl!.scrollHeight - scrollEl!.clientHeight;
+      setReadProgress(scrollable > 0 ? Math.round((scrollEl!.scrollTop / scrollable) * 100) : 100);
+    };
+    scrollEl.addEventListener("scroll", onScroll, { passive: true });
+    return () => scrollEl!.removeEventListener("scroll", onScroll);
+  }, [activeGuide]);
 
   // Refs for accessibility
   const dropdownTriggerRef = useRef<HTMLButtonElement>(null);
@@ -141,8 +168,23 @@ export default function GuideList() {
     const data = activeGuide.data;
     const coverImage = getCoverImage(data);
 
+    if (readingLoading) {
+      return (
+        <div className="max-w-3xl mx-auto pb-20 animate-pulse">
+          <div className="h-10 w-40 bg-rhozly-surface-low rounded-xl mb-6" />
+          <div className="h-64 bg-rhozly-surface-low rounded-3xl mb-6" />
+          <div className="space-y-3">
+            <div className="h-8 w-3/4 bg-rhozly-surface-low rounded-full" />
+            <div className="h-4 w-full bg-rhozly-surface-low rounded-full" />
+            <div className="h-4 w-5/6 bg-rhozly-surface-low rounded-full" />
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div
+        ref={readViewRef}
         className="max-w-3xl mx-auto pb-20"
         aria-live="polite"
         style={{
@@ -151,9 +193,22 @@ export default function GuideList() {
           transition: 'opacity 0.2s ease, transform 0.2s ease',
         }}
       >
+        {/* Reading progress bar */}
+        <div className="h-1 bg-rhozly-surface-low rounded-full mb-6 overflow-hidden">
+          <div
+            className="h-full bg-rhozly-primary rounded-full transition-all duration-300"
+            style={{ width: `${readProgress}%` }}
+            role="progressbar"
+            aria-valuenow={readProgress}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-label="Reading progress"
+          />
+        </div>
+
         <button
           onClick={() => setActiveGuide(null)}
-          className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-sm text-sm font-bold text-rhozly-on-surface hover:bg-gray-50 mb-6 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-sm text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low mb-6 transition-colors"
         >
           <ArrowLeft size={16} /> Back to Library
         </button>
@@ -347,23 +402,32 @@ export default function GuideList() {
 
         {/* 🚀 THE NEW SEARCHABLE DROPDOWN */}
         <div className="relative md:min-w-[220px] shrink-0">
-          <button
-            ref={dropdownTriggerRef}
-            onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-            aria-expanded={isDropdownOpen}
-            className={`w-full h-full flex items-center justify-between px-5 py-3 rounded-xl md:rounded-full transition-colors border ${isDropdownOpen ? "bg-white border-rhozly-primary/30 shadow-sm" : "bg-rhozly-surface-lowest border-transparent hover:bg-rhozly-outline/5"}`}
-          >
-            <div className="flex items-center gap-2 overflow-hidden">
-              <Tag size={16} className="text-rhozly-primary shrink-0" />
-              <span className="text-sm font-bold text-rhozly-on-surface truncate">
+          <div className={`w-full h-full flex items-center rounded-xl md:rounded-full transition-colors border ${isDropdownOpen ? "bg-white border-rhozly-primary/30 shadow-sm" : selectedLabel !== "All" ? "bg-rhozly-primary/10 border-rhozly-primary/20" : "bg-rhozly-surface-lowest border-transparent hover:bg-rhozly-outline/5"}`}>
+            <button
+              ref={dropdownTriggerRef}
+              onClick={() => setIsDropdownOpen(!isDropdownOpen)}
+              aria-expanded={isDropdownOpen}
+              className="flex-1 flex items-center gap-2 px-5 py-3 overflow-hidden min-h-[44px]"
+            >
+              <Tag size={16} className={`shrink-0 ${selectedLabel !== "All" ? "text-rhozly-primary" : "text-rhozly-primary"}`} />
+              <span className={`text-sm font-bold truncate ${selectedLabel !== "All" ? "text-rhozly-primary" : "text-rhozly-on-surface"}`}>
                 {selectedLabel === "All" ? "All Tags" : selectedLabel}
               </span>
-            </div>
-            <ChevronDown
-              size={16}
-              className={`text-rhozly-on-surface/50 shrink-0 transition-transform duration-200 ${isDropdownOpen ? "rotate-180 text-rhozly-primary" : ""}`}
-            />
-          </button>
+              <ChevronDown
+                size={16}
+                className={`text-rhozly-on-surface/50 shrink-0 transition-transform duration-200 ml-auto ${isDropdownOpen ? "rotate-180 text-rhozly-primary" : ""}`}
+              />
+            </button>
+            {selectedLabel !== "All" && (
+              <button
+                onClick={() => setSelectedLabel("All")}
+                aria-label="Clear tag filter"
+                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-primary/60 hover:text-rhozly-primary transition-colors"
+              >
+                <X size={14} />
+              </button>
+            )}
+          </div>
 
           {isDropdownOpen && (
             <>
@@ -398,7 +462,7 @@ export default function GuideList() {
                     {labelSearchQuery && (
                       <button
                         onClick={() => setLabelSearchQuery("")}
-                        className="p-2 min-w-[36px] min-h-[36px] flex items-center justify-center text-gray-400 hover:text-gray-600"
+                        className="p-2 min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/40 hover:text-rhozly-on-surface/70"
                       >
                         <X size={14} />
                       </button>
@@ -514,7 +578,7 @@ export default function GuideList() {
             return (
               <button
                 key={guide.id}
-                onClick={() => setActiveGuide(guide)}
+                onClick={() => { setActiveGuide(guide); toast.success("Opening guide…", { duration: 800 }); }}
                 className="group text-left bg-white rounded-2xl border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full hover:-translate-y-1 active:scale-[0.98] cursor-pointer"
               >
                 {cover ? (
@@ -548,20 +612,25 @@ export default function GuideList() {
                     {guide.data.subtitle}
                   </p>
 
-                  <div className="mt-auto pt-4 flex gap-1 flex-wrap border-t border-rhozly-outline/5">
-                    {guide.labels?.slice(0, 3).map((l: string) => (
-                      <span
-                        key={l}
-                        className="text-xs font-black text-rhozly-primary/60 uppercase"
-                      >
-                        #{l}
-                      </span>
-                    ))}
-                    {guide.labels?.length > 3 && (
-                      <span className="text-xs font-black text-rhozly-on-surface/30 uppercase">
-                        +{guide.labels.length - 3}
-                      </span>
-                    )}
+                  <div className="mt-auto pt-4 flex items-center justify-between gap-2 border-t border-rhozly-outline/5">
+                    <div className="flex gap-1 flex-wrap min-w-0">
+                      {guide.labels?.slice(0, 2).map((l: string) => (
+                        <span
+                          key={l}
+                          className="text-xs font-black text-rhozly-primary/60 uppercase truncate"
+                        >
+                          #{l}
+                        </span>
+                      ))}
+                      {guide.labels?.length > 2 && (
+                        <span className="text-xs font-black text-rhozly-on-surface/30 uppercase">
+                          +{guide.labels.length - 2}
+                        </span>
+                      )}
+                    </div>
+                    <span className="text-xs font-black text-rhozly-primary shrink-0 group-hover:underline">
+                      Read →
+                    </span>
                   </div>
                 </div>
               </button>

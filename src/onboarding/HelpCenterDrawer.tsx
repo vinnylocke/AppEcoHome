@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { CheckCircle2, Clock, Circle, X, Search, ChevronRight, Loader2 } from "lucide-react";
+import { toast } from "react-hot-toast";
 import { flowRegistry } from "./flowRegistry";
 import type { FlowCategory, OnboardingState } from "./types";
 
@@ -72,6 +73,7 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
     const handleClick = () => {
       setIsStarting(true);
       onStartFlow(flowId);
+      toast.success("Guide starting…", { duration: 1500 });
       setTimeout(() => { onClose(); }, 100);
     };
     return (
@@ -100,7 +102,7 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
   };
 
   return (
-    <div className="flex flex-col h-full bg-rhozly-bg max-w-sm xl:max-w-md w-full">
+    <div className="flex flex-col h-full bg-rhozly-bg max-w-sm xl:max-w-lg w-full">
       {/* Header */}
       <div className="flex items-center justify-between px-5 py-4 border-b border-rhozly-outline/10 shrink-0 bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container">
         <div>
@@ -130,7 +132,7 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
           {query && (
             <button
               onClick={() => setQuery("")}
-              className="absolute right-2 top-1/2 -translate-y-1/2 p-1 rounded-full hover:bg-rhozly-outline/20 transition-colors"
+              className="absolute right-1.5 top-1/2 -translate-y-1/2 p-2 min-w-[36px] min-h-[36px] flex items-center justify-center rounded-full hover:bg-rhozly-outline/20 transition-colors"
               aria-label="Clear search"
             >
               <X size={12} className="text-rhozly-on-surface/40" />

@@ -8,6 +8,8 @@ interface UseShoppingListsReturn {
   lists: ShoppingList[];
   items: Record<string, ShoppingListItem[]>; // keyed by list_id
   isLoading: boolean;
+  fetchError: boolean;
+  refetch: () => void;
   createList: (name: string) => Promise<ShoppingList | null>;
   renameList: (id: string, name: string) => Promise<void>;
   deleteList: (id: string) => Promise<void>;
@@ -23,8 +25,12 @@ export function useShoppingLists(homeId: string): UseShoppingListsReturn {
   const [lists, setLists] = useState<ShoppingList[]>([]);
   const [items, setItems] = useState<Record<string, ShoppingListItem[]>>({});
   const [isLoading, setIsLoading] = useState(true);
+  const [fetchError, setFetchError] = useState(false);
+  const [retryTick, setRetryTick] = useState(0);
 
   const fetchLists = useCallback(async () => {
+    setIsLoading(true);
+    setFetchError(false);
     try {
       const { data, error } = await supabase
         .from("shopping_lists")
@@ -35,10 +41,11 @@ export function useShoppingLists(homeId: string): UseShoppingListsReturn {
       setLists(data ?? []);
     } catch (err) {
       Logger.error("Failed to fetch shopping lists", err);
+      setFetchError(true);
     } finally {
       setIsLoading(false);
     }
-  }, [homeId]);
+  }, [homeId, retryTick]);
 
   useEffect(() => {
     fetchLists();
@@ -187,7 +194,8 @@ export function useShoppingLists(homeId: string): UseShoppingListsReturn {
   }, []);
 
   return {
-    lists, items, isLoading,
+    lists, items, isLoading, fetchError,
+    refetch: () => setRetryTick((t) => t + 1),
     createList, renameList, deleteList, markComplete, reopenList,
     fetchItems, addItem, toggleItem, deleteItem,
   };

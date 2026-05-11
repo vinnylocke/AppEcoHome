@@ -229,6 +229,11 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
         <div>
           <h1 className="text-3xl sm:text-4xl font-black font-display text-rhozly-on-surface flex items-center gap-3">
             <Map className="text-rhozly-primary" size={32} /> Landscape Planner
+            {plans.filter((p) => p.status !== "archived").length > 0 && (
+              <span className="text-base font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
+                {plans.filter((p) => p.status !== "archived").length}
+              </span>
+            )}
           </h1>
           <p className="text-sm font-bold text-rhozly-on-surface/50 uppercase tracking-widest mt-1">
             AI-Assisted Plan Management
@@ -274,8 +279,17 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
 
       {/* Grid */}
       {loading ? (
-        <div className="flex-1 flex items-center justify-center">
-          <Loader2 className="animate-spin text-rhozly-primary" size={40} />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="bg-white rounded-[2.5rem] border border-rhozly-outline/10 overflow-hidden animate-pulse">
+              <div className="h-40 bg-rhozly-surface-low" />
+              <div className="p-6 space-y-3">
+                <div className="h-6 w-2/3 bg-rhozly-surface-low rounded-full" />
+                <div className="h-3 w-full bg-rhozly-surface-low rounded-full" />
+                <div className="h-3 w-4/5 bg-rhozly-surface-low rounded-full" />
+              </div>
+            </div>
+          ))}
         </div>
       ) : fetchError ? (
         <div className="flex-1 flex flex-col items-center justify-center gap-4 text-center p-8">
@@ -366,12 +380,12 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                   <span
                     className={`px-3 py-1.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-sm backdrop-blur-md ${
                       plan.status === "Draft"
-                        ? "bg-white/90 text-blue-600"
+                        ? "bg-white/90 text-rhozly-primary"
                         : plan.status === "In Progress"
-                          ? "bg-blue-500/90 text-white"
+                          ? "bg-rhozly-primary/90 text-white"
                           : plan.status === "Completed"
-                            ? "bg-green-500/90 text-white"
-                            : "bg-gray-800/90 text-white"
+                            ? "bg-emerald-500/90 text-white"
+                            : "bg-rhozly-on-surface/80 text-white"
                     }`}
                   >
                     {plan.status}
@@ -385,7 +399,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                         e.stopPropagation();
                         setOpenMenuId(openMenuId === plan.id ? null : plan.id);
                       }}
-                      className="min-w-[44px] min-h-[44px] bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-gray-600 shadow-sm hover:bg-white transition-colors"
+                      className="min-w-[44px] min-h-[44px] bg-white/90 backdrop-blur-md rounded-full flex items-center justify-center text-rhozly-on-surface/60 shadow-sm hover:bg-white transition-colors"
                       aria-label="Plan options"
                     >
                       <MoreVertical size={16} />
@@ -407,7 +421,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                               });
                               setOpenMenuId(null);
                             }}
-                            className="w-full px-4 py-3 text-left text-sm font-bold text-gray-700 hover:bg-gray-50 flex items-center gap-2"
+                            className="w-full px-4 py-3 text-left text-sm font-bold text-rhozly-on-surface/70 hover:bg-rhozly-surface-low flex items-center gap-2"
                           >
                             <Archive size={14} /> Archive Plan
                           </button>
@@ -422,7 +436,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                               });
                               setOpenMenuId(null);
                             }}
-                            className="w-full px-4 py-3 text-left text-sm font-bold text-blue-600 hover:bg-blue-50 flex items-center gap-2"
+                            className="w-full px-4 py-3 text-left text-sm font-bold text-rhozly-primary hover:bg-rhozly-primary/5 flex items-center gap-2"
                           >
                             <ArchiveRestore size={14} /> Restore Plan
                           </button>
@@ -499,7 +513,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                   onClick={(e) => e.stopPropagation()}
                 >
                   <div
-                    className={`w-16 h-16 rounded-full flex items-center justify-center mb-6 shrink-0 ${confirmState.type === "delete" ? "bg-red-50 text-red-500" : "bg-blue-50 text-blue-500"}`}
+                    className={`w-16 h-16 rounded-full flex items-center justify-center mb-6 shrink-0 ${confirmState.type === "delete" ? "bg-red-50 text-red-500" : "bg-rhozly-primary/10 text-rhozly-primary"}`}
                   >
                     {confirmState.type === "delete" ? (
                       <Trash2 size={32} />
@@ -518,7 +532,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                         : "Restore Plan"}
                   </h3>
 
-                  <p className="text-sm font-bold text-gray-500 mb-6 leading-relaxed shrink-0">
+                  <p className="text-sm font-bold text-rhozly-on-surface/50 mb-6 leading-relaxed shrink-0">
                     {confirmState.type === "delete" ? (
                       <>
                         Are you sure you want to delete{" "}
@@ -575,14 +589,14 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                         setConfirmState({ ...confirmState, isOpen: false })
                       }
                       disabled={isProcessingAction}
-                      className="flex-1 py-4 rounded-2xl font-black bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                      className="flex-1 py-4 rounded-2xl font-black bg-rhozly-surface-low text-rhozly-on-surface/60 hover:bg-rhozly-surface transition-colors"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={executeConfirmedAction}
                       disabled={isProcessingAction}
-                      className={`flex-1 py-4 rounded-2xl font-black text-white shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${confirmState.type === "delete" ? "bg-red-500 hover:bg-red-600" : "bg-blue-500 hover:bg-blue-600"}`}
+                      className={`flex-1 py-4 rounded-2xl font-black text-white shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 ${confirmState.type === "delete" ? "bg-red-500 hover:bg-red-600" : "bg-rhozly-primary hover:bg-rhozly-primary/90"}`}
                     >
                       {isProcessingAction ? (
                         <Loader2 className="animate-spin mx-auto" size={20} />

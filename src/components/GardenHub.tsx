@@ -48,12 +48,14 @@ export default function GardenHub({ homeId, aiEnabled = false, perenualEnabled =
     <div className="h-full flex flex-col">
       {/* Tab bar */}
       <div className="sticky top-0 z-10 bg-rhozly-bg/95 backdrop-blur-sm border-b border-rhozly-outline/10 px-4 md:px-8 pt-4">
-        <div className="flex gap-1 max-w-7xl mx-auto">
+        <div role="tablist" aria-label="Garden sections" className="flex gap-1 max-w-7xl mx-auto">
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
               <button
                 key={tab.id}
+                role="tab"
+                aria-selected={isActive}
                 data-testid={`garden-hub-tab-${tab.id}`}
                 onClick={() => switchTab(tab.id)}
                 className={`flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-t-xl text-[13px] uppercase tracking-widest transition-all border-b-2 -mb-px ${
