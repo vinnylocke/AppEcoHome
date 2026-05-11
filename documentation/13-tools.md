@@ -1,0 +1,161 @@
+# Tools
+
+The **Tools** hub (sidebar → Tools, or `/tools`) is the gateway to Rhozly's advanced features. It shows a grid of tool cards — tap any to open that feature.
+
+> 📸 Screenshot: The Tools hub showing six tool cards in a grid with icons and descriptions
+
+---
+
+## Available Tools
+
+| Tool | Icon colour | What it does |
+|------|------------|--------------|
+| **Garden AI** | Emerald | Plant identification + disease diagnosis |
+| **Plant Visualiser** | Sky blue | Preview plants in your space using your camera |
+| **Light Sensor** | Amber | Measure light levels for area profiling |
+| **Sun Tracker** | Orange | AR view of the sun's path and shadow zones |
+| **Guides** | Rose | Step-by-step care guides |
+
+**Garden AI** is covered fully in [Plant Doctor](./08-plant-doctor.md).
+**Guides** is covered fully in [Guides](./12-guides.md).
+
+---
+
+## Plant Visualiser
+
+The **Plant Visualiser** lets you preview how plants will look in your physical garden space using your device camera and AI-generated plant sprites.
+
+Access: Tools → Plant Visualiser (or `/visualiser`).
+
+> 📸 Screenshot: The Plant Visualiser home screen showing a grid of plant options to select from
+
+### Step 1: Select Plants
+
+Browse your plant library and select the plants you want to visualise:
+- Search by name (common or scientific)
+- Filter by source (All / Manual / API / AI)
+- Tap plant cards to select them (selected cards show a tick)
+- Select as many as you want
+
+Tap **Continue to Sprites** when you've chosen your plants.
+
+### Step 2: Generate Sprites
+
+> 📸 Screenshot: The Sprite Wizard showing a plant card with a generated 2D sprite image on the right
+
+Rhozly's AI generates a custom **2D sprite image** for each selected plant — a stylised illustration suited to overlaying on a camera view.
+
+- Each plant gets its own sprite
+- Tap **Regenerate** if you're not happy with the generated sprite
+- Tap **Accept** to move on
+
+When all sprites are ready, tap **Open Camera View**.
+
+### Step 3: Camera Overlay
+
+> 📸 Screenshot: The live camera view with two plant sprites dragged and positioned in different spots of a garden photo
+
+The camera view shows your live camera feed with plant sprites overlaid.
+
+| Action | How |
+|--------|-----|
+| **Add a plant** | Tap any plant sprite from the panel on the right |
+| **Move a plant** | Drag the sprite to reposition it |
+| **Resize** | Pinch/spread to scale the sprite |
+| **Remove** | Tap the sprite → tap the × remove button |
+
+### Saving a Capture
+
+Tap the **📷 Capture** button to save a snapshot of the current view with all sprites in place.
+
+> 📸 Screenshot: The capture preview with a save/discard prompt
+
+The capture is saved to your account's **Capture Gallery**.
+
+### Capture Gallery
+
+Tap the **Gallery** button (top-right, shows a count badge) to browse all your saved captures.
+
+> 📸 Screenshot: The Capture Gallery showing a grid of saved snapshots
+
+Each capture shows the date, location, and which plants were visualised. Tap any capture to view it full-screen. Tap **Delete** to remove it.
+
+---
+
+## Light Sensor
+
+The **Light Sensor** measures the actual light level (in **lux**) at any point in your garden. Use this to populate area data for more accurate plant recommendations.
+
+Access: Tools → Light Sensor (or `/lightsensor`).
+
+> 📸 Screenshot: The Light Sensor screen showing a large lux readout, a light category label, and the area assignment controls at the bottom
+
+### Measuring Light
+
+Hold your device where you want to measure — the sensor reads light in real time.
+
+**Two measuring methods:**
+1. **Native Sensor** — uses your device's built-in ambient light sensor (most accurate; available on Android and some iPhones)
+2. **Pixel Analysis** — uses the camera to estimate light from image brightness (fallback for devices without a native sensor)
+
+Rhozly automatically uses the native sensor if available, and falls back to pixel analysis otherwise. You can manually switch between methods with the toggle.
+
+### Light Categories
+
+| Lux range | Category | Example |
+|-----------|----------|---------|
+| < 500 | **Deep Shade** | Under dense tree canopy, north-facing interior |
+| 500 – 2,500 | **Low Light** | Shaded corner, bright interior room |
+| 2,500 – 10,000 | **Bright Indirect** | Near a window, dappled shade |
+| 10,000 – 20,000 | **Partial Sun** | Morning sun, east-facing position |
+| > 20,000 | **Direct Sun** | Open south-facing position at midday |
+
+The display colour changes to reflect the category (grey → blue → green → amber → orange).
+
+### Calibration
+
+If readings seem off, use the calibration controls:
+
+> 📸 Screenshot: The calibration panel showing the calibration factor slider (0.5x – 2.0x)
+
+- **Calibration factor** — a multiplier (0.1× to 2.0×) applied to the raw reading. Increase this if readings seem too low; decrease if too high.
+- **Exposure compensation** — adjusts camera exposure for pixel analysis mode.
+
+Calibration settings are saved locally to your device.
+
+### Saving to an Area
+
+Once you have a stable reading, save it directly to an area's profile:
+
+> 📸 Screenshot: The save-to-area controls showing Location and Area dropdowns and a Save Reading button
+
+1. Select the **Location** and **Area** from the dropdowns.
+2. Tap **Save Reading**.
+3. The lux value is saved to that area's `light_intensity_lux` field.
+4. A confirmation shows "Saved to [Area name]: X lux".
+
+The saved lux value is then used by Rhozly's AI for plant recommendations and care advice for that area.
+
+---
+
+## Sun Tracker
+
+The **Sun Tracker** is an augmented reality tool that shows you the sun's path across the sky and where shadows will fall in your garden at different times of day.
+
+Access: Tools → Sun Tracker (or `/sun-trajectory`).
+
+> 📸 Screenshot: The Sun Tracker AR view showing the camera feed with a yellow arc overlaid representing the sun's trajectory
+
+### How to Use It
+
+1. Open the Sun Tracker.
+2. Point your device camera at the sky or the part of the garden you want to analyse.
+3. An **arc** is overlaid showing the sun's path from sunrise to sunset for today.
+4. Move the **time slider** to see where the sun will be at different times — and where the shadow zones will fall.
+
+### Use Cases
+
+- Find the **sunniest spot** for sun-loving plants (tomatoes, peppers, most fruits)
+- Identify **shaded areas** for shade-tolerant plants (hostas, ferns, some herbs)
+- Plan **structure placement** (raised beds, trellises, polytunnels) to avoid self-shading
+- Understand **seasonal variation** — the sun's path changes significantly between summer and winter
