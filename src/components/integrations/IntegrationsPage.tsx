@@ -65,24 +65,24 @@ export default function IntegrationsPage({ homeId }: Props) {
             <Plug className="text-rhozly-primary" size={20} />
           </div>
           <div className="min-w-0">
-            <h1 className="text-2xl font-black font-display text-rhozly-on-surface truncate">Integrations</h1>
-            <p className="text-sm text-rhozly-on-surface-variant hidden sm:block">Connected devices and sensors</p>
+            <h1 className="text-lg sm:text-2xl font-black font-display text-rhozly-on-surface leading-tight">Integrations</h1>
+            <p className="text-xs sm:text-sm text-rhozly-on-surface-variant">Connected devices and sensors</p>
           </div>
         </div>
         <div className="flex gap-2 shrink-0">
           <button
             onClick={load}
             data-testid="integrations-refresh"
-            className="p-2.5 rounded-2xl bg-rhozly-surface text-rhozly-on-surface-variant hover:bg-rhozly-surface-low transition-colors"
+            className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-rhozly-surface text-rhozly-on-surface-variant hover:bg-rhozly-surface-low transition-colors"
           >
-            <RefreshCw size={18} />
+            <RefreshCw size={16} className="sm:w-[18px] sm:h-[18px]" />
           </button>
           <button
             onClick={() => setShowWizard(true)}
             data-testid="integrations-connect"
-            className="flex items-center gap-2 px-3 sm:px-4 py-2.5 rounded-2xl bg-rhozly-primary text-white font-semibold text-sm hover:bg-rhozly-primary/90 transition-colors"
+            className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-rhozly-primary text-white font-semibold text-xs sm:text-sm hover:bg-rhozly-primary/90 transition-colors"
           >
-            <Plus size={18} />
+            <Plus size={16} className="sm:w-[18px] sm:h-[18px]" />
             <span className="hidden sm:inline">Connect Device</span>
           </button>
         </div>
