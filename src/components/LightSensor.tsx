@@ -370,7 +370,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     : [];
 
   return (
-    <div className="max-w-2xl mx-auto h-full flex flex-col p-6 animate-in fade-in duration-500 overflow-y-auto custom-scrollbar pb-32">
+    <div className="max-w-2xl mx-auto flex flex-col p-6 animate-in fade-in duration-500">
       <canvas ref={canvasRef} className="hidden" />
 
       <div className="flex justify-between items-start mb-6">
@@ -495,8 +495,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         </div>
       )}
 
-      <div className="xl:grid xl:grid-cols-[1fr_380px] xl:gap-10 xl:items-start">
-      <div className="flex-1 flex flex-col items-center justify-center py-6 xl:py-12">
+      <div className="flex flex-col items-center py-6">
         <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-4">Current Reading</p>
         <div
           className={`relative w-64 h-64 xl:w-80 xl:h-80 rounded-full flex flex-col items-center justify-center border-[12px] shadow-2xl transition-all duration-700 overflow-hidden ${method === "Pixel Analysis" && isScanning ? "border-rhozly-outline/20" : category.border} ${category.bg}`}
@@ -567,7 +566,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         </div>
       </div>
 
-      <div className="space-y-4 xl:mt-6">
+      <div className="w-full space-y-4 mt-4">
         <div
           className="p-4 rounded-2xl flex gap-3 border shadow-sm bg-rhozly-surface-low text-rhozly-on-surface border-rhozly-outline/20"
         >
@@ -712,7 +711,6 @@ export default function LightSensor({ homeId }: LightSensorProps) {
             <Circle size={20} fill="white" className="animate-pulse" /> Stop Scanning
           </button>
         )}
-      </div>
       </div>
     </div>
   );
