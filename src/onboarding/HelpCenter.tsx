@@ -1,6 +1,5 @@
 import React, { useCallback, useState } from "react";
 import { createPortal } from "react-dom";
-import { HelpCircle } from "lucide-react";
 import { useAutoTrigger } from "./useAutoTrigger";
 import { useOnboardingFlow } from "./useOnboardingFlow";
 import HelpCenterDrawer from "./HelpCenterDrawer";
@@ -10,24 +9,22 @@ interface Props {
   userId: string | undefined;
   onboardingState: OnboardingState;
   onStateChange: (state: OnboardingState) => void;
+  open: boolean;
+  onClose: () => void;
 }
 
-export default function HelpCenter({ userId, onboardingState, onStateChange }: Props) {
-  const [drawerOpen, setDrawerOpen] = useState(false);
+export default function HelpCenter({ userId, onboardingState, onStateChange, open, onClose }: Props) {
   const [activeFlowId, setActiveFlowId] = useState<string | null>(null);
 
-  // Build a stable flow launcher that works for any flowId
   const launchFlow = useCallback(
     (flowId: string) => setActiveFlowId(flowId),
     [],
   );
 
-  // Auto-trigger hook — fires automatic flows on route change
   useAutoTrigger(onboardingState, launchFlow, !!userId);
 
   return (
     <>
-      {/* Active flow runner — mounts/unmounts per flow */}
       {activeFlowId && (
         <ActiveFlowRunner
           key={activeFlowId}
@@ -41,30 +38,19 @@ export default function HelpCenter({ userId, onboardingState, onStateChange }: P
 
       {createPortal(
         <>
-          {/* FAB */}
-          <button
-            onClick={() => setDrawerOpen(true)}
-            aria-label="Open help center"
-            className="fixed bottom-20 right-6 md:bottom-6 md:right-24 z-40 w-12 h-12 rounded-full bg-rhozly-primary text-white shadow-lg flex items-center justify-center hover:bg-rhozly-primary/90 transition-all hover:scale-105 active:scale-95"
-          >
-            <HelpCircle size={22} />
-          </button>
-
-          {/* Backdrop */}
-          {drawerOpen && (
+          {open && (
             <div
               className="fixed inset-0 z-50 bg-rhozly-on-surface/30 backdrop-blur-sm"
-              onClick={() => setDrawerOpen(false)}
+              onClick={onClose}
             />
           )}
 
-          {/* Drawer */}
           <div
-            className={`fixed top-0 right-0 bottom-0 z-50 w-80 max-w-full shadow-2xl transition-transform duration-300 ${drawerOpen ? "translate-x-0" : "translate-x-full"}`}
+            className={`fixed top-0 right-0 bottom-0 z-50 w-80 max-w-full shadow-2xl transition-transform duration-300 ${open ? "translate-x-0" : "translate-x-full"}`}
           >
             <HelpCenterDrawer
               onboardingState={onboardingState}
-              onClose={() => setDrawerOpen(false)}
+              onClose={onClose}
               onStartFlow={launchFlow}
             />
           </div>

@@ -15,6 +15,7 @@ import {
   MapPin,
   RefreshCw,
   AlertCircle,
+  HelpCircle,
 } from "lucide-react";
 
 // 🚀 NATIVE IMPORT
@@ -161,7 +162,9 @@ function AppShell() {
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Mobile Nav State
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
+  const [helpCenterOpen, setHelpCenterOpen] = useState(false);
+  const [isMdBreakpoint, setIsMdBreakpoint] = useState(() => window.matchMedia("(min-width: 768px)").matches);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showCookies, setShowCookies] = useState(false);
 
@@ -266,6 +269,16 @@ function AppShell() {
       .maybeSingle()
       .then(({ data }) => setQuizCompleted(!!data));
   }, [profile?.home_id, session?.user?.id]);
+  useEffect(() => {
+    const mq = window.matchMedia("(min-width: 768px)");
+    const handler = (e: MediaQueryListEvent) => {
+      setIsMdBreakpoint(e.matches);
+      if (e.matches) setIsMobileSidebarOpen(false);
+    };
+    mq.addEventListener("change", handler);
+    return () => mq.removeEventListener("change", handler);
+  }, []);
+
   useEffect(() => {
     localStorage.setItem("rhozly_nav", isNavCollapsed.toString());
   }, [isNavCollapsed]);
@@ -560,6 +573,7 @@ function AppShell() {
   ];
 
   const canUsePortal = typeof document !== "undefined";
+  const sidebarIsCollapsed = isMdBreakpoint ? isNavCollapsed : !isMobileSidebarOpen;
 
   return (
     <HomePermissionsProvider homeId={profile?.home_id} userId={session?.user?.id}>
@@ -577,14 +591,15 @@ function AppShell() {
           >
             Skip to main content
           </a>
-          <div className="min-h-screen bg-rhozly-bg text-rhozly-on-surface font-body flex flex-col relative selection:bg-rhozly-primary/20">
+          <div className="h-screen bg-rhozly-bg text-rhozly-on-surface font-body flex flex-col relative selection:bg-rhozly-primary/20">
             <div className="fixed top-0 left-1/4 w-96 h-96 bg-rhozly-primary/5 rounded-full blur-3xl pointer-events-none" />
 
             <header className="sticky top-0 z-30 bg-rhozly-primary border-b border-rhozly-primary-container px-4 md:px-8 py-4 flex justify-between items-center shadow-md">
               <div className="flex items-center gap-3 font-display font-black text-2xl tracking-tight text-white">
                 <button
-                  onClick={() => setIsNavCollapsed(!isNavCollapsed)}
-                  className="hidden md:flex hover:bg-white/20 p-2 rounded-xl transition-colors items-center justify-center mr-1"
+                  onClick={() => isMdBreakpoint ? setIsNavCollapsed(!isNavCollapsed) : setIsMobileSidebarOpen(!isMobileSidebarOpen)}
+                  className="flex hover:bg-white/20 p-2 rounded-xl transition-colors items-center justify-center mr-1 min-h-[44px] min-w-[44px]"
+                  aria-label="Toggle navigation"
                 >
                   <Menu className="w-6 h-6" />
                 </button>
@@ -617,34 +632,49 @@ function AppShell() {
             <div className="flex flex-1 overflow-hidden relative z-10 w-full">
               <nav
                 aria-label="Primary navigation"
-                className={`hidden md:flex flex-col justify-between p-6 transition-all duration-300 border-r border-rhozly-primary/20 bg-rhozly-primary-container ${isNavCollapsed ? "w-28 items-center" : "w-72"}`}
+                className={`flex flex-col justify-between transition-all duration-300 border-r border-rhozly-primary/20 bg-rhozly-primary-container shrink-0 h-full overflow-hidden
+                  ${sidebarIsCollapsed ? "w-20 items-center p-3" : "w-72 p-6"}
+                `}
               >
-                <div className="flex flex-col gap-2">
+                <div className="flex flex-col gap-2 overflow-y-auto flex-1 min-h-0">
                   {navLinks.map((link) => (
                     <NavItem
                       key={link.id}
                       icon={link.icon}
                       label={link.label}
                       active={link.matchPaths.some(p => routerLocation.pathname === p || routerLocation.pathname.startsWith(p + "/"))}
-                      onClick={() => navigate(TAB_URL[link.id])}
-                      isCollapsed={isNavCollapsed}
-                      isMobile={false}
+                      onClick={() => {
+                        navigate(TAB_URL[link.id]);
+                        if (!isMdBreakpoint) setIsMobileSidebarOpen(false);
+                      }}
+                      isCollapsed={sidebarIsCollapsed}
+                      isMobile={!isMdBreakpoint}
                     />
                   ))}
                 </div>
-                <div className="flex flex-col gap-1 mt-4">
-                  <button
-                    onClick={() => setShowPrivacy(true)}
-                    className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center py-2 px-1"
-                  >
-                    {isNavCollapsed ? "Privacy" : "Privacy Policy"}
-                  </button>
-                  <button
-                    onClick={() => setShowCookies(true)}
-                    className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center py-2 px-1"
-                  >
-                    {isNavCollapsed ? "Cookies" : "Cookie Policy"}
-                  </button>
+                <div className="flex flex-col gap-1 mt-4 shrink-0">
+                  <NavItem
+                    icon={<HelpCircle />}
+                    label="Help Center"
+                    active={false}
+                    onClick={() => setHelpCenterOpen(true)}
+                    isCollapsed={sidebarIsCollapsed}
+                    isMobile={!isMdBreakpoint}
+                  />
+                  <div className={`flex flex-col gap-1 mt-1 ${!isMdBreakpoint && sidebarIsCollapsed ? "hidden" : ""}`}>
+                    <button
+                      onClick={() => setShowPrivacy(true)}
+                      className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center py-2 px-1"
+                    >
+                      {sidebarIsCollapsed ? "Privacy" : "Privacy Policy"}
+                    </button>
+                    <button
+                      onClick={() => setShowCookies(true)}
+                      className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors text-center py-2 px-1"
+                    >
+                      {sidebarIsCollapsed ? "Cookies" : "Cookie Policy"}
+                    </button>
+                  </div>
                 </div>
               </nav>
 
@@ -1097,53 +1127,6 @@ function AppShell() {
           {canUsePortal &&
             createPortal(
               <div className="font-body text-rhozly-on-surface antialiased">
-                <div
-                  className={`md:hidden fixed inset-0 z-40 bg-rhozly-bg/80 backdrop-blur-sm transition-opacity duration-300 ${isMobileMenuOpen ? "opacity-100" : "opacity-0 pointer-events-none"}`}
-                  onClick={() => setIsMobileMenuOpen(false)}
-                />
-
-                <nav
-                  aria-label="Mobile navigation"
-                  aria-hidden={!isMobileMenuOpen}
-                  className={`md:hidden fixed bottom-24 right-6 left-6 bg-rhozly-primary-container p-4 rounded-[2rem] shadow-2xl flex flex-col gap-2 z-50 transition-all duration-300 border border-rhozly-primary/20 ${isMobileMenuOpen ? "scale-100 opacity-100 translate-y-0" : "scale-90 opacity-0 translate-y-10 pointer-events-none origin-bottom-left"}`}
-                >
-                  {navLinks.map((link) => (
-                    <NavItem
-                      key={link.id}
-                      icon={link.icon}
-                      label={link.label}
-                      active={link.matchPaths.some(p => routerLocation.pathname === p || routerLocation.pathname.startsWith(p + "/"))}
-                      onClick={() => {
-                        navigate(TAB_URL[link.id]);
-                        setIsMobileMenuOpen(false);
-                      }}
-                      isCollapsed={false}
-                      isMobile={true}
-                    />
-                  ))}
-                  <div className="flex justify-center gap-4 pt-1 pb-0.5">
-                    <button
-                      onClick={() => { setShowPrivacy(true); setIsMobileMenuOpen(false); }}
-                      className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors min-h-[44px] px-3 flex items-center"
-                    >
-                      Privacy Policy
-                    </button>
-                    <button
-                      onClick={() => { setShowCookies(true); setIsMobileMenuOpen(false); }}
-                      className="text-xs font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors min-h-[44px] px-3 flex items-center"
-                    >
-                      Cookie Policy
-                    </button>
-                  </div>
-                </nav>
-
-                <button
-                  onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                  className={`md:hidden fixed bottom-6 left-6 w-14 h-14 rounded-full flex items-center justify-center shadow-2xl z-50 transition-all duration-300 ${isMobileMenuOpen ? "bg-white text-rhozly-primary" : "bg-rhozly-primary text-white"}`}
-                >
-                  {isMobileMenuOpen ? <X size={24} /> : <Menu size={24} />}
-                </button>
-
                 {profile?.home_id && (
                   <PlantDoctorChat homeId={profile.home_id} />
                 )}
@@ -1151,6 +1134,8 @@ function AppShell() {
                   userId={session?.user?.id}
                   onboardingState={onboardingState}
                   onStateChange={setOnboardingState}
+                  open={helpCenterOpen}
+                  onClose={() => setHelpCenterOpen(false)}
                 />
               </div>,
               document.body,
