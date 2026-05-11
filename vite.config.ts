@@ -6,6 +6,15 @@ export default defineConfig({
   optimizeDeps: {
     exclude: ["@imgly/background-removal", "onnxruntime-web"],
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          "three": ["three"],
+        },
+      },
+    },
+  },
   server: {
     headers: {
       "Cross-Origin-Opener-Policy": "same-origin",

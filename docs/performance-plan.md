@@ -24,8 +24,8 @@ Audited: 2026-05-11. Prioritised by Impact / Effort. Work through in order — t
 **Problem:** Physical tasks, blueprints, and tombstones are fetched sequentially with `await`. On a 300 ms connection this is 900 ms of dead time before the task list can render.
 **Fix:** Wrap the three opening fetches in `Promise.all`. Similarly parallelise the dependency check queries.
 **Estimated saving:** 600–900 ms per TaskList render.
-- [ ] Wrap tasks + blueprints + tombstones fetch in `Promise.all`
-- [ ] Parallelise dependency check sub-queries
+- [x] Wrap tasks + blueprints + tombstones fetch in `Promise.all`
+- [x] Parallelise dependency check sub-queries
 
 ---
 
@@ -42,8 +42,8 @@ CREATE INDEX IF NOT EXISTS idx_task_blueprints_loc   ON public.task_blueprints (
 CREATE INDEX IF NOT EXISTS idx_inventory_home_area   ON public.inventory_items (home_id, area_id);
 ```
 **Estimated saving:** 300–800 ms at scale; prevents degradation as data grows.
-- [ ] Write and apply migration locally
-- [ ] Push migration to Supabase live (requires explicit confirmation)
+- [x] Write and apply migration locally
+- [x] Push migration to Supabase live
 
 ---
 
@@ -52,9 +52,9 @@ CREATE INDEX IF NOT EXISTS idx_inventory_home_area   ON public.inventory_items (
 **Problem:** Each `LocationTile` fires 2 independent Supabase queries for task counts. 3 tiles = 6 extra round trips after the dashboard loads.
 **Fix:** Delete `fetchLocationTaskCount` from `LocationTile`. Extend `fetchDashboardData` in `App.tsx` to include a `tasks(id, status, due_date)` join per location, then pass the pre-aggregated count as a prop.
 **Estimated saving:** Eliminates 2 round trips per tile.
-- [ ] Remove per-tile fetch from `LocationTile`
-- [ ] Extend dashboard query to include task counts
-- [ ] Pass count as prop to each tile
+- [x] Remove per-tile fetch from `LocationTile`
+- [x] Extend dashboard query to include task counts
+- [x] Pass count as prop to each tile
 
 ---
 
@@ -63,8 +63,8 @@ CREATE INDEX IF NOT EXISTS idx_inventory_home_area   ON public.inventory_items (
 **Problem:** Navigating back to the dashboard wipes both `sessionStorage` caches and triggers a full re-fetch — even if the user was just there 2 seconds ago.
 **Fix:** Remove the `sessionStorage.removeItem` calls from the `/dashboard` navigation `useEffect`. The existing TTL-based cache in `clientCache.ts` already handles staleness; realtime subscriptions handle live updates.
 **Estimated saving:** Instant tile render on back-navigation (eliminates spinner on return).
-- [ ] Remove `sessionStorage.removeItem` calls from dashboard nav effect
-- [ ] Verify realtime subscriptions still handle live data updates
+- [x] Remove `sessionStorage.removeItem` calls from dashboard nav effect
+- [x] Verify realtime subscriptions still handle live data updates
 
 ---
 
@@ -80,7 +80,7 @@ CREATE INDEX IF NOT EXISTS idx_inventory_home_area   ON public.inventory_items (
 .select("id, name, quantity, unit, status, plant_id, area_id, image_url, notes")
 ```
 **Estimated saving:** Smaller payloads on every profile refresh and area open.
-- [ ] Narrow `user_profiles` select in `refreshProfile`
+- [x] Narrow `user_profiles` select in `refreshProfile`
 - [ ] Narrow `inventory_items` select in `AreaDetails`
 
 ---
@@ -94,14 +94,14 @@ CREATE INDEX IF NOT EXISTS idx_inventory_home_area   ON public.inventory_items (
 1. Convert to `React.lazy` + `Suspense` for all route-level components except Dashboard, TheShed, and TaskList (these are core and likely needed quickly).
 2. Add `manualChunks` in `vite.config.ts` to split Three.js into its own chunk.
 **Estimated saving:** 500 ms – 1.5 s on initial JS parse, especially on mobile.
-- [ ] Convert `PlantDoctor` to `lazy()`
-- [ ] Convert `PlantVisualiser` to `lazy()`
-- [ ] Convert `SunTrajectoryAR` to `lazy()`
-- [ ] Convert `GardenLayoutList` + `GardenLayoutEditor` to `lazy()`
-- [ ] Convert `BlueprintManager` to `lazy()`
-- [ ] Convert `GuideList` to `lazy()`
-- [ ] Wrap `<Routes>` in `<Suspense>`
-- [ ] Add Three.js `manualChunks` to `vite.config.ts`
+- [x] Convert `PlantDoctor` to `lazy()`
+- [x] Convert `PlantVisualiser` to `lazy()`
+- [x] Convert `SunTrajectoryAR` to `lazy()`
+- [x] Convert `GardenLayoutList` + `GardenLayoutEditor` to `lazy()`
+- [x] Convert `BlueprintManager` to `lazy()`
+- [x] Convert `GuideList` to `lazy()`
+- [x] Wrap `<Routes>` in `<Suspense>`
+- [x] Add Three.js `manualChunks` to `vite.config.ts`
 
 ---
 
@@ -113,8 +113,8 @@ CREATE INDEX IF NOT EXISTS idx_inventory_home_area   ON public.inventory_items (
 2. Inside `refreshProfile`, run the `home_members` fallback in parallel with the primary profile query.
 3. Seed profile from `localStorage` before the async chain resolves so the user sees stale-then-fresh instead of blank-then-content.
 **Estimated saving:** 400–800 ms on cold start.
-- [ ] Merge session + profile fetch into single parallel call
-- [ ] Parallelise `home_members` fallback
+- [x] Merge session + profile fetch into single parallel call
+- [x] Parallelise `home_members` fallback
 - [ ] Seed UI from `localStorage` on mount
 
 ---

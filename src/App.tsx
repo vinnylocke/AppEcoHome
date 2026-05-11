@@ -1,5 +1,5 @@
 import { Toaster, toast } from "react-hot-toast";
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "./lib/supabase";
 import {
@@ -24,13 +24,10 @@ import { App as CapApp } from "@capacitor/app";
 // 🚀 ROUTER
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 
-import AdminGuideGenerator from "./components/AdminGuideGenerator";
-
-// Components
+// Components — always needed on first render (keep eager)
 import LocationTile from "./components/LocationTile";
 import { HomeDropdown } from "./components/HomeDropdown";
 import { LocationPage } from "./components/LocationPage";
-import { LocationManager } from "./components/LocationManager";
 import { Auth } from "./components/Auth";
 import { HomeSetup } from "./components/HomeSetup";
 import type { UserProfile } from "./types";
@@ -41,14 +38,6 @@ import { WeatherAlertBanner } from "./components/WeatherAlertBanner";
 import TheShed from "./components/TheShed";
 import TaskCalendar from "./components/TaskCalendar";
 import TaskList from "./components/TaskList";
-import PlantDoctor from "./components/PlantDoctor";
-import LightSensor from "./components/LightSensor";
-import SunTrajectoryAR from "./components/SunTrajectoryAR";
-import GuideList from "./components/GuideList";
-
-// 🚀 NEW: Import the Blueprint Manager
-import BlueprintManager from "./components/BlueprintManager";
-
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import PullToRefresh from "./components/PullToRefresh";
 import { PlantDoctorProvider } from "./context/PlantDoctorContext";
@@ -57,18 +46,7 @@ import { HomePermissionsProvider } from "./context/HomePermissionsContext";
 import { useHomeRealtime } from "./hooks/useHomeRealtime";
 import PlantDoctorChat from "./components/PlantDoctorChat";
 import ErrorPage from "./components/ErrorPage";
-import GardenProfile from "./components/GardenProfile";
-import GardenerProfile from "./components/GardenerProfile";
-import TierSelection from "./components/TierSelection";
 import { type TierId } from "./constants/tiers";
-import AssistantCard from "./components/AssistantCard";
-import PlantVisualiser from "./components/PlantVisualiser";
-import GardenLayoutList from "./components/GardenLayoutList";
-import GardenLayoutEditor from "./components/GardenLayoutEditor";
-import HomeManagement from "./components/HomeManagement";
-import GardenHub from "./components/GardenHub";
-import PlannerHub from "./components/PlannerHub";
-import ToolsHub from "./components/ToolsHub";
 import UserProfileDropdown from "./components/UserProfileDropdown";
 import NavItem from "./components/NavItem";
 import UpdateBanner from "./components/UpdateBanner";
@@ -76,6 +54,25 @@ import PrivacyPolicyModal from "./components/PrivacyPolicyModal";
 import CookiePolicyModal from "./components/CookiePolicyModal";
 import HelpCenter from "./onboarding/HelpCenter";
 import type { OnboardingState } from "./onboarding/types";
+
+// Heavy route components — lazy loaded so they don't bloat the initial bundle
+const AdminGuideGenerator = lazy(() => import("./components/AdminGuideGenerator"));
+const PlantDoctor         = lazy(() => import("./components/PlantDoctor"));
+const LightSensor         = lazy(() => import("./components/LightSensor"));
+const SunTrajectoryAR     = lazy(() => import("./components/SunTrajectoryAR"));
+const GuideList           = lazy(() => import("./components/GuideList"));
+const BlueprintManager    = lazy(() => import("./components/BlueprintManager"));
+const PlantVisualiser     = lazy(() => import("./components/PlantVisualiser"));
+const GardenLayoutList    = lazy(() => import("./components/GardenLayoutList"));
+const GardenLayoutEditor  = lazy(() => import("./components/GardenLayoutEditor"));
+const HomeManagement      = lazy(() => import("./components/HomeManagement"));
+const GardenHub           = lazy(() => import("./components/GardenHub"));
+const PlannerHub          = lazy(() => import("./components/PlannerHub"));
+const ToolsHub            = lazy(() => import("./components/ToolsHub"));
+const GardenProfile       = lazy(() => import("./components/GardenProfile"));
+const GardenerProfile     = lazy(() => import("./components/GardenerProfile"));
+const LocationManager     = lazy(() => import("./components/LocationManager").then(m => ({ default: m.LocationManager })));
+const AssistantCard       = lazy(() => import("./components/AssistantCard"));
 import {
   getMidnightTonight,
   getCachedWeatherData,
@@ -417,33 +414,42 @@ function AppShell() {
     setDashboardLoaded(true);
   }, [profile?.home_id]);
 
-  const refreshProfile = async () => {
-    if (!session?.user) return;
-    const { data: profileData, error } = await supabase
-      .from("user_profiles")
-      .select("uid, home_id, display_name, subscription_tier, ai_enabled, enable_perenual, is_admin, onboarding_state")
-      .eq("uid", session.user.id)
-      .single();
-    if (error) throw error;
-    if (profileData && !profileData.home_id) {
-      const { data: otherMemberships } = await supabase
+  // Fetches profile for a given userId. Accepts userId directly so it can be
+  // called inline after getSession() without waiting for a React re-render cycle.
+  // Speculatively fetches home_members in parallel so the fallback path is free.
+  const loadProfile = async (userId: string) => {
+    const [profileResult, membershipsResult] = await Promise.all([
+      supabase
+        .from("user_profiles")
+        .select("uid, home_id, display_name, subscription_tier, ai_enabled, enable_perenual, is_admin, onboarding_state")
+        .eq("uid", userId)
+        .single(),
+      supabase
         .from("home_members")
         .select("home_id")
-        .eq("user_id", session.user.id)
-        .limit(1);
-      if (otherMemberships && otherMemberships.length > 0) {
-        const fallbackId = otherMemberships[0].home_id;
-        await supabase
-          .from("user_profiles")
-          .update({ home_id: fallbackId })
-          .eq("uid", session.user.id);
-        profileData.home_id = fallbackId;
-      }
+        .eq("user_id", userId)
+        .limit(1),
+    ]);
+    const { data: profileData, error } = profileResult;
+    if (error) throw error;
+    if (profileData && !profileData.home_id && membershipsResult.data?.length) {
+      const fallbackId = membershipsResult.data[0].home_id;
+      await supabase
+        .from("user_profiles")
+        .update({ home_id: fallbackId })
+        .eq("uid", userId);
+      profileData.home_id = fallbackId;
     }
     setProfile(profileData);
     if (profileData?.onboarding_state) {
       setOnboardingState(profileData.onboarding_state);
     }
+  };
+
+  // Convenience wrapper used by realtime callbacks and manual refresh
+  const refreshProfile = () => {
+    if (!session?.user) return Promise.resolve();
+    return loadProfile(session.user.id);
   };
 
   const handleManualRefresh = async () => {
@@ -507,50 +513,47 @@ function AppShell() {
   }, [rawWeather]);
 
   useEffect(() => {
-    // Safety bail: if auth resolution never completes (offline, SW update race,
-    // expired token refresh hang) unblock the UI after 8 s so the screen
-    // doesn't stay blank/spinning forever.
+    // Single initialisation effect — gets session and starts profile fetch in
+    // one chain, eliminating the React re-render cycle between the two steps.
     const bail = setTimeout(() => setLoading(false), 8_000);
+    setProfileLoadError(false);
 
     supabase.auth.getSession()
-      .then(({ data: { session } }) => {
+      .then(async ({ data: { session } }) => {
         clearTimeout(bail);
         setSession(session);
-        if (!session) setLoading(false);
+        if (!session) {
+          setLoading(false);
+          return;
+        }
+        // Start profile fetch immediately — no extra effect cycle needed
+        try {
+          await loadProfile(session.user.id);
+        } catch (err) {
+          Logger.error("Profile load failed on cold start", err);
+          setProfileLoadError(true);
+        } finally {
+          setLoading(false);
+        }
       })
       .catch(() => {
         clearTimeout(bail);
         setLoading(false);
       });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) =>
-      setSession(session),
-    );
+    // Handle subsequent auth events (sign in, sign out, token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+      if (session) loadProfile(session.user.id).catch(() => {});
+      else setProfile(null);
+    });
+
     return () => {
       clearTimeout(bail);
       subscription.unsubscribe();
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  useEffect(() => {
-    if (!session?.user) return;
-    // Safety bail: if the profile query hangs (slow network after cold open),
-    // unblock the UI so the user isn't stuck on a loading spinner.
-    const bail = setTimeout(() => setLoading(false), 8_000);
-    setProfileLoadError(false);
-    refreshProfile()
-      .catch(err => {
-        Logger.error("Profile load failed on cold start", err);
-        setProfileLoadError(true);
-      })
-      .finally(() => {
-        clearTimeout(bail);
-        setLoading(false);
-      });
-    return () => clearTimeout(bail);
-  }, [session]);
 
   useEffect(() => {
     fetchDashboardData();
@@ -622,6 +625,12 @@ function AppShell() {
 
   const canUsePortal = typeof document !== "undefined";
   const sidebarIsCollapsed = isMdBreakpoint ? isNavCollapsed : !isMobileSidebarOpen;
+
+  const RouteFallback = (
+    <div className="flex items-center justify-center h-40">
+      <Loader2 className="animate-spin text-rhozly-primary" size={28} />
+    </div>
+  );
 
   return (
     <HomePermissionsProvider homeId={profile?.home_id} userId={session?.user?.id}>
@@ -728,6 +737,7 @@ function AppShell() {
 
               <main id="main-content" aria-label="Main content" className="flex-1 relative w-full overflow-hidden">
                 {/* Full-bleed routes that must escape the padded PullToRefresh wrapper */}
+                <Suspense fallback={null}>
                 <Routes>
                   <Route path="/sun-trajectory" element={
                     <div className="absolute inset-0 z-20 animate-in fade-in duration-500">
@@ -744,12 +754,14 @@ function AppShell() {
                     </div>
                   } />
                 </Routes>
+                </Suspense>
 
                 <PullToRefresh onRefresh={handleManualRefresh}>
                   {isRefreshing && (
                     <div className="h-0.5 bg-rhozly-primary animate-pulse w-full" />
                   )}
                   <div className="p-4 md:p-8 pb-28 md:pb-8 min-h-full">
+                    <Suspense fallback={RouteFallback}>
                     <Routes>
                       <Route path="/" element={<Navigate to="/dashboard" replace />} />
 
@@ -1157,6 +1169,7 @@ function AppShell() {
 
                       <Route path="*" element={<Navigate to="/dashboard" replace />} />
                     </Routes>
+                    </Suspense>
                   </div>
                 </PullToRefresh>
               </main>
