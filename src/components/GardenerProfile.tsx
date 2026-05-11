@@ -171,12 +171,12 @@ function AccountTab({ userId, displayName, email, subscriptionTier, onDisplayNam
             onChange={(e) => setNameValue(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && saveName()}
             placeholder="Your name"
-            className="flex-1 text-sm font-bold text-rhozly-on-surface bg-rhozly-surface rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-rhozly-primary"
+            className="flex-1 min-w-0 text-sm font-bold text-rhozly-on-surface bg-rhozly-surface rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-rhozly-primary"
           />
           <button
             onClick={saveName}
             disabled={isSavingName || !nameValue.trim() || nameValue.trim() === displayName}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-rhozly-primary text-white text-xs font-black disabled:opacity-50 transition-opacity"
+            className="shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-rhozly-primary text-white text-xs font-black disabled:opacity-50 transition-opacity"
           >
             {isSavingName ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
             Save
@@ -198,12 +198,12 @@ function AccountTab({ userId, displayName, email, subscriptionTier, onDisplayNam
             onChange={(e) => setNewEmail(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && saveEmail()}
             placeholder="New email address"
-            className="flex-1 text-sm font-bold text-rhozly-on-surface bg-rhozly-surface rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-rhozly-primary"
+            className="flex-1 min-w-0 text-sm font-bold text-rhozly-on-surface bg-rhozly-surface rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-rhozly-primary"
           />
           <button
             onClick={saveEmail}
             disabled={isSavingEmail || !newEmail.trim()}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-rhozly-primary text-white text-xs font-black disabled:opacity-50 transition-opacity"
+            className="shrink-0 flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-rhozly-primary text-white text-xs font-black disabled:opacity-50 transition-opacity"
           >
             {isSavingEmail ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
             Save

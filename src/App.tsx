@@ -881,7 +881,7 @@ function AppShell() {
                                     {quizCompleted === false && !quizPromptDismissed && (
                                       <div className={`bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-3xl p-5 shadow-md relative overflow-hidden transition-all duration-300 ${quizPromptFading ? "opacity-0 scale-95 pointer-events-none" : "opacity-100 scale-100"}`}>
                                         <button
-                                          onClick={() => { setQuizPromptFading(true); setTimeout(() => { setQuizPromptDismissed(true); setQuizPromptFading(false); }, 300); toast.success("Reminder dismissed — find it any time in Garden Profile.", { duration: 2500 }); }}
+                                          onClick={() => { setQuizPromptFading(true); setTimeout(() => { setQuizPromptDismissed(true); setQuizPromptFading(false); }, 300); toast.success("Reminder dismissed — find it any time in Home Profile.", { duration: 2500 }); }}
                                           className="absolute top-3 right-3 text-white/60 hover:text-white transition"
                                           aria-label="Dismiss"
                                         >
@@ -893,7 +893,7 @@ function AppShell() {
                                           </div>
                                           <div className="flex-1 min-w-0">
                                             <p className="font-black text-sm leading-tight mb-1">
-                                              Set up your Garden Profile
+                                              Set up your Home Profile
                                             </p>
                                             <p className="text-xs text-white/80 leading-snug mb-3">
                                               Answer a few quick questions so the AI can personalise your recommendations.

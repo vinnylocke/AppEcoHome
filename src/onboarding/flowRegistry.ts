@@ -509,14 +509,14 @@ export const flowRegistry: FlowDef[] = [
     order: 12,
     trigger: "automatic",
     route: "/profile",
-    title: "Garden Profile Quiz",
+    title: "Home Profile Quiz",
     description: "What the quiz does and how it shapes your AI recommendations.",
     category: "Getting Started",
     estimated_minutes: 1,
     steps: [
       {
         title: "Train your AI",
-        body: "The Garden Profile is how Rhozly learns your taste. Answer a few quick questions about your growing style and the plants you like, and the AI will personalise every recommendation, plan, and care suggestion to suit you.",
+        body: "The Home Profile is how Rhozly learns your taste. Answer a few quick questions about your growing style and the plants you like, and the AI will personalise every recommendation, plan, and care suggestion to suit you.",
         attachTo: { element: "[data-testid='profile-heading']", on: "bottom" },
       },
       {

@@ -72,8 +72,8 @@ export default function UserProfileDropdown({ displayName, email, isAdmin }: Pro
   };
 
   const profileItems: DropdownItem[] = [
-    { testId: "user-profile-garden-profile", icon: <Sprout size={15} />, label: "Garden Profile", path: "/profile" },
     { testId: "nav-gardener-profile", icon: <Medal size={15} />, label: "Gardener's Profile", path: "/gardener" },
+    { testId: "user-profile-garden-profile", icon: <Sprout size={15} />, label: "Home Profile", path: "/profile" },
   ];
 
   const managementItems: DropdownItem[] = [
