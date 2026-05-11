@@ -203,7 +203,7 @@ export default function AreaLuxReadings({ areaId, homeId, onLatestChanged }: Pro
       {/* Add Reading form */}
       <div data-testid="area-lux-add-form" className="bg-rhozly-surface-low rounded-2xl p-4 space-y-3">
         <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">Add Reading</p>
-        <div className="grid grid-cols-2 gap-3">
+        <div className="flex flex-col gap-3">
           <div>
             <label className="text-[10px] font-bold text-rhozly-on-surface/40 block mb-1">Lux Value</label>
             <input
@@ -259,7 +259,7 @@ export default function AreaLuxReadings({ areaId, homeId, onLatestChanged }: Pro
                 data-testid="area-lux-reading-item"
                 className="bg-white rounded-xl px-3 py-2.5 border border-rhozly-primary/30 space-y-2"
               >
-                <div className="grid grid-cols-2 gap-2">
+                <div className="flex flex-col gap-2">
                   <div>
                     <label className="text-[9px] font-bold text-rhozly-on-surface/40 block mb-0.5">Lux</label>
                     <input
