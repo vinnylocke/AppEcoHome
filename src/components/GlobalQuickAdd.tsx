@@ -4,7 +4,13 @@ import { useNavigate } from "react-router-dom";
 
 const ITEMS = [
   {
-    label: "Create Task",
+    label: "Add Task",
+    icon: <CheckSquare size={16} />,
+    url: "/dashboard?view=calendar&open=add-task",
+    testId: "quick-add-add-task",
+  },
+  {
+    label: "Add Task Automation",
     icon: <CheckSquare size={16} />,
     url: "/schedule?open=add-task",
     testId: "quick-add-create-task",

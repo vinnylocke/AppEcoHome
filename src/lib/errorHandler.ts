@@ -22,6 +22,9 @@ export const Logger = {
       console.error(`🚨 [ERROR]: ${devMessage}`, error || "");
     }
 
+    // AbortError from Supabase auth lock contention is non-fatal — ignore silently
+    if (error instanceof Error && error.name === "AbortError") return;
+
     // 2. Send the exact technical details to Sentry silently
     Sentry.withScope((scope) => {
       if (context) scope.setExtras(context);

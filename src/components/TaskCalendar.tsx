@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import {
   ChevronLeft,
   ChevronRight,
@@ -72,6 +73,14 @@ export default function TaskCalendar({
   const [inventoryDict, setInventoryDict] = useState<Record<string, any>>({});
   const [blockedTaskIds, setBlockedTaskIds] = useState<Set<string>>(new Set());
   const [isAddingTask, setIsAddingTask] = useState(false);
+
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("open") === "add-task") {
+      setIsAddingTask(true);
+      setSearchParams((prev) => { prev.delete("open"); return prev; }, { replace: true });
+    }
+  }, []);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [fetchError, setFetchError] = useState(false);
@@ -208,6 +217,7 @@ export default function TaskCalendar({
       setHasLoadedOnce(true);
       setRefreshKey((k) => k + 1);
     } catch (err: any) {
+      if (err?.name === "AbortError") return;
       Logger.error("Failed to load calendar tasks", err);
       setFetchError(true);
       toast.error("Could not load your schedule. Please try again.");

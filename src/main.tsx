@@ -62,6 +62,13 @@ Sentry.init({
     Sentry.replayIntegration(),
   ],
 
+  beforeSend(event, hint) {
+    const err = hint?.originalException;
+    if (err instanceof Error && err.name === "AbortError") return null;
+    if (typeof err === "string" && err.includes("AbortError")) return null;
+    return event;
+  },
+
   // Performance Monitoring
   tracesSampleRate: 1.0,
 
