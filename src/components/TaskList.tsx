@@ -990,7 +990,7 @@ export default function TaskList({
                     }
                   }
                 }}
-                className={`p-5 rounded-3xl border shadow-sm flex flex-wrap items-center justify-between gap-y-3 group relative transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 ${cardStyle}`}
+                className={`p-3 sm:p-5 rounded-2xl sm:rounded-3xl border shadow-sm group relative transition-all cursor-pointer focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 ${cardStyle}`}
               >
                 {isBlocked && !isCompleted && !isBulkEditing && (
                   <div className="absolute -top-2 -right-2 z-10 text-[9px] font-black uppercase text-gray-500 bg-gray-200 px-3 py-1 rounded-full shadow-sm flex items-center gap-1 border border-gray-300">
@@ -998,103 +998,127 @@ export default function TaskList({
                   </div>
                 )}
 
-                <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="flex items-start gap-3">
+                  {/* Complete toggle / bulk checkbox */}
                   {!isBulkEditing && (
                     <button
                       onClick={(e) => toggleTaskCompletion(task, e)}
-                      disabled={
-                        isUpdatingTask === task.id ||
-                        (isBlocked && !isCompleted)
-                      }
+                      disabled={isUpdatingTask === task.id || (isBlocked && !isCompleted)}
                       aria-label={`Mark task "${task.title}" as ${isCompleted ? "incomplete" : "complete"}`}
-                      className={`w-10 h-10 shrink-0 rounded-2xl flex items-center justify-center border-2 transition-all active:scale-90 ${isUpdatingTask === task.id ? "border-rhozly-primary/30" : isCompleted ? "bg-green-500 border-green-500 text-white" : isBlocked ? "border-gray-300 text-gray-400 bg-gray-200" : "border-rhozly-outline/20 hover:border-rhozly-primary text-transparent hover:text-rhozly-primary/30"}`}
+                      className={`w-8 h-8 sm:w-10 sm:h-10 shrink-0 mt-0.5 rounded-xl sm:rounded-2xl flex items-center justify-center border-2 transition-all active:scale-90 ${isUpdatingTask === task.id ? "border-rhozly-primary/30" : isCompleted ? "bg-green-500 border-green-500 text-white" : isBlocked ? "border-gray-300 text-gray-400 bg-gray-200" : "border-rhozly-outline/20 hover:border-rhozly-primary text-transparent hover:text-rhozly-primary/30"}`}
                     >
                       {isUpdatingTask === task.id ? (
-                        <Loader2
-                          size={18}
-                          className="animate-spin text-rhozly-primary"
-                        />
+                        <Loader2 size={15} className="animate-spin text-rhozly-primary" />
                       ) : isBlocked && !isCompleted ? (
-                        <Lock size={16} className="currentColor" />
+                        <Lock size={13} className="currentColor" />
                       ) : (
-                        <CheckSquare size={18} className="currentColor" />
+                        <CheckSquare size={15} className="currentColor" />
                       )}
                     </button>
                   )}
+
+                  {/* Content */}
                   <div className="flex-1 min-w-0">
-                    <span
-                      className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md flex items-center gap-1 w-fit mb-1.5 ${isCompleted ? "bg-gray-200 text-gray-500" : "text-rhozly-primary bg-rhozly-primary/10"}`}
-                    >
-                      {getTaskIcon(task.type)} {task.type}
-                    </span>
-                    <h4
-                      className={`font-black text-sm md:text-base leading-tight truncate ${isCompleted ? "line-through text-gray-500" : ""}`}
-                    >
+                    {/* Type badge row — thumbnail sits here on mobile */}
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md flex items-center gap-1 w-fit ${isCompleted ? "bg-gray-200 text-gray-500" : "text-rhozly-primary bg-rhozly-primary/10"}`}>
+                        {getTaskIcon(task.type)} {task.type}
+                      </span>
+                      {thumbnail && (
+                        <img
+                          src={thumbnail}
+                          className={`w-9 h-9 rounded-xl object-cover border border-rhozly-outline/10 sm:hidden shrink-0 ${isCompleted ? "grayscale opacity-50" : ""}`}
+                          alt="plant"
+                        />
+                      )}
+                    </div>
+
+                    {/* Title — wraps instead of truncating */}
+                    <h4 className={`font-black text-sm leading-snug line-clamp-2 ${isCompleted ? "line-through text-gray-500" : ""}`}>
                       {task.title}
                     </h4>
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {plantName && (
-                        <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700">
-                          <Leaf size={10} /> {plantName}{" "}
-                          {count > 1 && `(x${count})`}
-                        </div>
-                      )}
-                      {task.areas?.name && (
-                        <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-rhozly-primary-container text-rhozly-primary">
-                          <Grid size={10} /> {task.areas.name}
-                        </div>
-                      )}
-                      {planName && (
-                        <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700">
-                          <FolderKanban size={10} /> {planName}
-                        </div>
-                      )}
-                      {task.auto_completed_reason && (
-                        <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 text-sky-600" title={task.auto_completed_reason}>
-                          <CloudRain size={10} /> Auto-watered
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
 
-                <div className="flex flex-row items-center gap-2 sm:ml-4 shrink-0 ml-auto">
-                  {!isBulkEditing && !isCompleted && (
-                    <div className="flex items-center gap-1 bg-gray-50 border border-gray-100 rounded-xl p-0.5">
-                      {(task.created_by === currentUserId ? can("tasks.delete_own") : can("tasks.delete_any")) && (
+                    {/* Chips */}
+                    {(plantName || task.areas?.name || planName || task.auto_completed_reason) && (
+                      <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {plantName && (
+                          <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700">
+                            <Leaf size={10} /> {plantName}{count > 1 && ` (x${count})`}
+                          </div>
+                        )}
+                        {task.areas?.name && (
+                          <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-rhozly-primary-container text-rhozly-primary">
+                            <Grid size={10} /> {task.areas.name}
+                          </div>
+                        )}
+                        {planName && (
+                          <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 text-purple-700">
+                            <FolderKanban size={10} /> {planName}
+                          </div>
+                        )}
+                        {task.auto_completed_reason && (
+                          <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-sky-50 text-sky-600" title={task.auto_completed_reason}>
+                            <CloudRain size={10} /> Auto-watered
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Mobile action buttons — below chips, hidden on desktop */}
+                    {!isBulkEditing && !isCompleted && (
+                      <div className="flex items-center gap-0.5 mt-2 sm:hidden" onClick={(e) => e.stopPropagation()}>
+                        {(task.created_by === currentUserId ? can("tasks.delete_own") : can("tasks.delete_any")) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setTaskToDelete(task); }}
+                            className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-black text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors"
+                            aria-label={`Remove task: ${task.title}`}
+                          >
+                            <Trash2 size={12} /> Remove
+                          </button>
+                        )}
                         <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setTaskToDelete(task);
-                          }}
-                          className="p-3 min-w-[44px] min-h-[44px] sm:p-2 sm:min-w-0 sm:min-h-0 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"
-                          aria-label={`Remove task: ${task.title}`}
-                          title="Remove Task"
+                          onClick={(e) => { e.stopPropagation(); setSelectedTask(task); setIsPostponing(true); }}
+                          className="flex items-center gap-1 px-2.5 py-1.5 text-[11px] font-black text-gray-400 hover:text-blue-500 hover:bg-blue-50 rounded-lg transition-colors"
+                          aria-label={`Postpone task: ${task.title}`}
                         >
-                          <Trash2 size={16} />
+                          <CalendarClock size={12} /> Postpone
                         </button>
-                      )}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedTask(task);
-                          setIsPostponing(true);
-                        }}
-                        className="p-3 min-w-[44px] min-h-[44px] sm:p-2 sm:min-w-0 sm:min-h-0 flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-white rounded-lg transition-colors"
-                        aria-label={`Postpone task: ${task.title}`}
-                        title="Postpone Task"
-                      >
-                        <CalendarClock size={16} />
-                      </button>
-                    </div>
-                  )}
-                  {thumbnail && (
-                    <img
-                      src={thumbnail}
-                      className={`w-14 h-14 rounded-[1rem] object-cover border border-rhozly-outline/10 hidden sm:block shrink-0 ml-2 ${isCompleted ? "grayscale opacity-50" : ""}`}
-                      alt="plant"
-                    />
-                  )}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Desktop: icon action buttons + thumbnail */}
+                  <div className="hidden sm:flex items-center gap-2 shrink-0 ml-2">
+                    {!isBulkEditing && !isCompleted && (
+                      <div className="flex items-center gap-1 bg-gray-50 border border-gray-100 rounded-xl p-0.5">
+                        {(task.created_by === currentUserId ? can("tasks.delete_own") : can("tasks.delete_any")) && (
+                          <button
+                            onClick={(e) => { e.stopPropagation(); setTaskToDelete(task); }}
+                            className="p-2 flex items-center justify-center text-gray-400 hover:text-red-500 hover:bg-white rounded-lg transition-colors"
+                            aria-label={`Remove task: ${task.title}`}
+                            title="Remove Task"
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        )}
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setSelectedTask(task); setIsPostponing(true); }}
+                          className="p-2 flex items-center justify-center text-gray-400 hover:text-blue-500 hover:bg-white rounded-lg transition-colors"
+                          aria-label={`Postpone task: ${task.title}`}
+                          title="Postpone Task"
+                        >
+                          <CalendarClock size={16} />
+                        </button>
+                      </div>
+                    )}
+                    {thumbnail && (
+                      <img
+                        src={thumbnail}
+                        className={`w-14 h-14 rounded-[1rem] object-cover border border-rhozly-outline/10 shrink-0 ${isCompleted ? "grayscale opacity-50" : ""}`}
+                        alt="plant"
+                      />
+                    )}
+                  </div>
                 </div>
               </div>
             );
