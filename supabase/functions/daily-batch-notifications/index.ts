@@ -67,9 +67,18 @@ serve(async (req) => {
     }
 
     // 4. Create a notification for EVERY person in the home
+    //    Skip users who already received a daily_batch notification today.
+    const { data: todayBatch } = await supabase
+      .from("notifications")
+      .select("user_id")
+      .eq("type", "daily_batch")
+      .gte("created_at", today + "T00:00:00Z");
+    const alreadySent = new Set((todayBatch ?? []).map((n: any) => n.user_id));
+
     const notificationsToInsert = [];
 
     for (const member of homeMembers) {
+      if (alreadySent.has(member.user_id)) continue;
       const homeTasks = tasksByHome[member.home_id];
       if (!homeTasks || homeTasks.length === 0) continue;
 

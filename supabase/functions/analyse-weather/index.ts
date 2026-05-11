@@ -192,20 +192,31 @@ Deno.serve(async (req) => {
       }
     }
 
-    // --- Execute: notifications (dedup by title within this run) ---
+    // --- Execute: notifications (dedup within run AND across runs for today) ---
 
     if (notifications.length > 0) {
+      // Fetch notification types already inserted for this home today so we
+      // don't re-insert the same weather alert on consecutive daily syncs.
+      const { data: todayNotifs } = await supabase
+        .from("notifications")
+        .select("type")
+        .eq("home_id", homeId)
+        .gte("created_at", today + "T00:00:00Z");
+      const todayTypes = new Set((todayNotifs ?? []).map((n: any) => n.type));
+
       const seen = new Set<string>();
       const deduped = notifications.filter((n) => {
         const key = `${n.type}:${n.title}`;
-        if (seen.has(key)) return false;
+        if (seen.has(key) || todayTypes.has(n.type)) return false;
         seen.add(key);
         return true;
       });
 
-      await supabase.from("notifications").insert(
-        deduped.map((n) => ({ home_id: homeId, ...n })),
-      );
+      if (deduped.length > 0) {
+        await supabase.from("notifications").insert(
+          deduped.map((n) => ({ home_id: homeId, ...n })),
+        );
+      }
     }
 
     log(FN, "complete", {
