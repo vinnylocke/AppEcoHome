@@ -22,6 +22,7 @@ import { Logger } from "../lib/errorHandler";
 import { ConfirmModal } from "./ConfirmModal";
 import { COUNTRIES } from "../constants/countries";
 import { resolvePermissions, ROLE_DEFAULTS, type Role, type PermissionKey } from "../lib/permissions";
+import { fetchUsdaZone } from "../lib/hardinessZone";
 
 const ALL_TIMEZONES: string[] = (() => {
   try { return (Intl as any).supportedValuesOf("timeZone") as string[]; }
@@ -90,6 +91,9 @@ interface HomeWithRole {
   role: "owner" | "member";
   country: string | null;
   timezone: string | null;
+  lat: number | null;
+  lng: number | null;
+  hardiness_zone: number | null;
   members: HomeMember[];
 }
 
@@ -129,6 +133,7 @@ export default function HomeManagement({
   const [modal, setModal] = useState<ModalState>({ open: false });
   const [isProcessing, setIsProcessing] = useState(false);
   const [openConfigMemberId, setOpenConfigMemberId] = useState<string | null>(null);
+  const [recalculatingZones, setRecalculatingZones] = useState<Set<string>>(new Set());
 
   // Per-home editing state: homeId → form or null (not editing)
   const [editingForms, setEditingForms] = useState<Record<string, EditForm | null>>({});
@@ -140,7 +145,7 @@ export default function HomeManagement({
     try {
       const { data: memberRows, error } = await supabase
         .from("home_members")
-        .select("role, homes ( id, name, address, country, timezone )")
+        .select("role, homes ( id, name, address, country, timezone, lat, lng, hardiness_zone )")
         .eq("user_id", userId);
       if (error || !memberRows) { setLoading(false); return; }
 
@@ -186,6 +191,36 @@ export default function HomeManagement({
   }, [userId]);
 
   useEffect(() => { fetchHomes(); }, [fetchHomes]);
+
+  const recalculateZone = useCallback(async (home: HomeWithRole) => {
+    if (!home.lat || !home.lng) return;
+    setRecalculatingZones((prev) => new Set([...prev, home.id]));
+    try {
+      const zone = await fetchUsdaZone(home.lat, home.lng);
+      await supabase.from("homes").update({ hardiness_zone: zone }).eq("id", home.id);
+      setHomes((prev) =>
+        prev.map((h) => (h.id === home.id ? { ...h, hardiness_zone: zone } : h)),
+      );
+    } catch {
+      // silently fail — zone stays null and user can retry via button
+    } finally {
+      setRecalculatingZones((prev) => {
+        const s = new Set(prev);
+        s.delete(home.id);
+        return s;
+      });
+    }
+  }, []);
+
+  // Auto-calculate zone for any home that has lat/lng but no zone yet
+  useEffect(() => {
+    if (homes.length === 0) return;
+    homes.forEach((home) => {
+      if (home.hardiness_zone == null && home.lat && home.lng) {
+        recalculateZone(home);
+      }
+    });
+  }, [homes.length]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const copyId = (id: string) => {
     navigator.clipboard.writeText(id);
@@ -563,6 +598,59 @@ export default function HomeManagement({
                           {home.timezone?.replace(/_/g, " ") || "—"}
                         </div>
                       )}
+                    </div>
+
+                    {/* USDA Hardiness Zone — always read-only, derived from lat/lng */}
+                    <div className="sm:col-span-2">
+                      <label className={labelClass}>USDA Hardiness Zone</label>
+                      <div className="flex items-center gap-2">
+                        {recalculatingZones.has(home.id) ? (
+                          <div className={readonlyClass + " flex items-center gap-2"}>
+                            <Loader2 size={13} className="animate-spin text-rhozly-primary/60 shrink-0" />
+                            <span className="text-rhozly-on-surface/40">Calculating…</span>
+                          </div>
+                        ) : home.hardiness_zone != null ? (
+                          <div
+                            data-testid={`home-mgmt-hardiness-zone-${home.id}`}
+                            className="flex items-center gap-3 w-full px-3 py-2 bg-rhozly-primary/5 border border-rhozly-primary/20 rounded-xl"
+                          >
+                            <span className="text-xl font-black text-rhozly-primary leading-none">
+                              {home.hardiness_zone}
+                            </span>
+                            <div>
+                              <p className="text-xs font-black text-rhozly-on-surface">
+                                Zone {home.hardiness_zone}
+                              </p>
+                              <p className="text-[10px] font-bold text-rhozly-on-surface/50">
+                                Based on 10-year average annual minimum temperature
+                              </p>
+                            </div>
+                            <button
+                              data-testid={`home-mgmt-recalc-zone-${home.id}`}
+                              onClick={() => recalculateZone(home)}
+                              title="Recalculate zone"
+                              className="ml-auto p-1.5 rounded-lg hover:bg-rhozly-primary/10 text-rhozly-on-surface/30 hover:text-rhozly-primary transition-colors"
+                            >
+                              <Loader2 size={13} />
+                            </button>
+                          </div>
+                        ) : (
+                          <div className={readonlyClass + " flex items-center justify-between"}>
+                            <span className="text-rhozly-on-surface/40">
+                              {home.lat && home.lng ? "Calculating…" : "Location not geocoded yet"}
+                            </span>
+                            {home.lat && home.lng && (
+                              <button
+                                data-testid={`home-mgmt-recalc-zone-${home.id}`}
+                                onClick={() => recalculateZone(home)}
+                                className="text-[10px] font-black uppercase tracking-widest text-rhozly-primary hover:text-rhozly-primary/70 transition-colors ml-2"
+                              >
+                                Calculate
+                              </button>
+                            )}
+                          </div>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>

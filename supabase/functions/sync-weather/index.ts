@@ -1,4 +1,5 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { fetchUsdaHardinessZone } from "../_shared/climateZones.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -23,7 +24,7 @@ Deno.serve(async (req) => {
     } catch (e) {}
     const targetHomeId = body.home_id;
 
-    let query = supabase.from("homes").select("id, address, lat, lng");
+    let query = supabase.from("homes").select("id, address, lat, lng, hardiness_zone");
     if (targetHomeId) {
       console.log(`🎯 Targeted sync triggered for home: ${targetHomeId}`);
       query = query.eq("id", targetHomeId);
@@ -104,6 +105,17 @@ Deno.serve(async (req) => {
           }
         } else {
           console.log(`📍 Using stored coordinates lat=${lat}, lng=${lng} for home ${home.id}`);
+        }
+
+        // Derive USDA hardiness zone once — skip if already stored
+        if (!home.hardiness_zone) {
+          try {
+            const zone = await fetchUsdaHardinessZone(lat, lng);
+            await supabase.from("homes").update({ hardiness_zone: zone }).eq("id", home.id);
+            console.log(`🌡 USDA Hardiness Zone ${zone} saved for home ${home.id}`);
+          } catch (zoneErr) {
+            console.warn(`⚠️ Could not derive USDA zone for home ${home.id}:`, zoneErr);
+          }
         }
 
         console.log(`⛅ Fetching weather for Lat: ${lat}, Lng: ${lng}...`);
