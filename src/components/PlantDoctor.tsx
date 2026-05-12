@@ -115,6 +115,7 @@ export default function PlantDoctor({
   const [addToListActiveLists, setAddToListActiveLists] = useState<ShoppingList[]>([]);
 
   const [saveToJournal, setSaveToJournal] = useState(true);
+  const [deviceLocation, setDeviceLocation] = useState<{ lat: number; lng: number } | null>(null);
 
   const [showManualAdd, setShowManualAdd] = useState(false);
   const [showPerenualSearch, setShowPerenualSearch] = useState(false);
@@ -196,6 +197,15 @@ export default function PlantDoctor({
     };
     fetchInventory();
   }, [homeId, inventoryRetryTick]);
+
+  useEffect(() => {
+    if (!navigator.geolocation) return;
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setDeviceLocation({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+      () => {},
+      { timeout: 5000, maximumAge: 300_000 },
+    );
+  }, []);
 
   useEffect(() => {
     const handleClickOutside = (e: MouseEvent) => {
@@ -427,6 +437,8 @@ export default function PlantDoctor({
         targetPlant: action === "diagnose" ? (sickPlantName ?? undefined) : undefined,
         inventoryItemId: action === "diagnose" ? (sickInventoryId ?? undefined) : undefined,
         areaId: action === "diagnose" ? (sickItem?.area_id ?? undefined) : undefined,
+        deviceLat: deviceLocation?.lat,
+        deviceLng: deviceLocation?.lng,
       });
 
       setAiResult(data);

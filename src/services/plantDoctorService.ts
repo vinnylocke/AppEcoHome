@@ -49,6 +49,8 @@ export const PlantDoctorService = {
     targetPlant?: string;
     inventoryItemId?: string;
     areaId?: string;
+    deviceLat?: number;
+    deviceLng?: number;
   }): Promise<VisionResult> {
     return invoke(params);
   },

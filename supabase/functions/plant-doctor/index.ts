@@ -266,6 +266,7 @@ serve(async (req) => {
       action, homeId, targetPlant, plantSearch, areaData, isOutside,
       currentPlants, imageBase64, mimeType, diagnosisContext,
       diseaseName, pestName, notes, inventoryItemId, areaId,
+      deviceLat, deviceLng,
     } = body;
 
     log(FN, "request_received", {
@@ -273,6 +274,7 @@ serve(async (req) => {
       diseaseName: diseaseName ?? null, hasImage: !!imageBase64,
       hasDiagnosisContext: !!diagnosisContext, hasAreaData: !!areaData,
       currentPlantsCount: currentPlants?.length ?? 0,
+      hasDeviceLocation: !!(deviceLat && deviceLng),
     });
 
     // ── Non-LLM actions — exempt from AI gate ──────────────────────────────
@@ -328,11 +330,13 @@ serve(async (req) => {
     log(FN, "prefs_loaded", { homeId: homeId ?? null, count: userPrefs.length });
 
     // Load location context once for all LLM actions.
+    // Device GPS coords take priority over home address — covers travel/holiday use.
     let hemisphere: "Northern" | "Southern" = "Northern";
     let currentMonth = new Date().toLocaleString("en-GB", { month: "long" });
     let currentMonthNum = new Date().getMonth() + 1;
-    let country = "";
     let locationLine = "";
+
+    const hasDeviceCoords = typeof deviceLat === "number" && typeof deviceLng === "number";
 
     if (homeId) {
       const { data: home } = await supabase
@@ -341,20 +345,34 @@ serve(async (req) => {
         .eq("id", homeId)
         .maybeSingle();
       if (home) {
-        hemisphere = (home.lat ?? 0) >= 0 ? "Northern" : "Southern";
+        const effectiveLat = hasDeviceCoords ? deviceLat : (home.lat ?? 0);
+        hemisphere = effectiveLat >= 0 ? "Northern" : "Southern";
         currentMonth = new Date().toLocaleString("en-GB", {
           month: "long",
           timeZone: home.timezone ?? "UTC",
         });
         currentMonthNum = new Date(new Date().toLocaleString("en-US", { timeZone: home.timezone ?? "UTC" })).getMonth() + 1;
-        country = home.country ?? "";
         const season = getSeason(hemisphere, currentMonthNum);
-        locationLine = [
-          country ? `Country: ${country}` : "",
-          `Hemisphere: ${hemisphere}`,
-          `Current month: ${currentMonth} (${season})`,
-        ].filter(Boolean).join(" | ");
+        if (hasDeviceCoords) {
+          const latStr = `${Math.abs(deviceLat).toFixed(1)}°${deviceLat >= 0 ? "N" : "S"}`;
+          const lngStr = `${Math.abs(deviceLng).toFixed(1)}°${deviceLng >= 0 ? "E" : "W"}`;
+          locationLine = `Hemisphere: ${hemisphere} | Current month: ${currentMonth} (${season}) | Device location: ${latStr}, ${lngStr}`;
+        } else {
+          const country = home.country ?? "";
+          locationLine = [
+            country ? `Country: ${country}` : "",
+            `Hemisphere: ${hemisphere}`,
+            `Current month: ${currentMonth} (${season})`,
+          ].filter(Boolean).join(" | ");
+        }
       }
+    } else if (hasDeviceCoords) {
+      hemisphere = deviceLat! >= 0 ? "Northern" : "Southern";
+      currentMonthNum = new Date().getMonth() + 1;
+      const season = getSeason(hemisphere, currentMonthNum);
+      const latStr = `${Math.abs(deviceLat!).toFixed(1)}°${deviceLat! >= 0 ? "N" : "S"}`;
+      const lngStr = `${Math.abs(deviceLng!).toFixed(1)}°${deviceLng! >= 0 ? "E" : "W"}`;
+      locationLine = `Hemisphere: ${hemisphere} | Current month: ${currentMonth} (${season}) | Device location: ${latStr}, ${lngStr}`;
     }
 
     // ── action: search_plants_text ─────────────────────────────────────────
