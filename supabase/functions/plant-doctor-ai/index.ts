@@ -11,6 +11,7 @@ import { callGeminiCascade } from "../_shared/gemini.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
+import { getFallback } from "../_shared/fallbacks.ts";
 
 const FN = "plant-doctor-ai";
 
@@ -275,9 +276,9 @@ serve(async (req) => {
     );
   } catch (err: any) {
     logError(FN, "error", { error: err.message });
-    return new Response(JSON.stringify({ error: err.message }), {
+    return new Response(JSON.stringify(getFallback("plant_doctor_chat")), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 400,
+      status: 200,
     });
   }
 });

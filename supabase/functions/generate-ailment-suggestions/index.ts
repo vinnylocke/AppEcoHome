@@ -5,6 +5,7 @@ import { callGeminiCascade } from "../_shared/gemini.ts";
 import { guardAiByUser } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
+import { getFallback } from "../_shared/fallbacks.ts";
 
 const FN = "generate-ailment-suggestions";
 
@@ -170,8 +171,8 @@ ${extraContext ? `\nADDITIONAL CONTEXT:\n${extraContext}` : ""}
   } catch (err: any) {
     logError(FN, "error", { error: err.message });
     return new Response(
-      JSON.stringify({ error: err.message }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 400 },
+      JSON.stringify(getFallback("ailment_suggestions")),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
     );
   }
 });

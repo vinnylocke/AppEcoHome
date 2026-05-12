@@ -5,6 +5,7 @@ import { guardAiByUser } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { log, error as logError } from "../_shared/logger.ts";
 import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
+import { getFallback } from "../_shared/fallbacks.ts";
 
 const FN = "search-plants-ai";
 
@@ -136,8 +137,8 @@ Keep names precise and recognisable. Avoid duplicates.`;
   } catch (err) {
     logError(FN, err);
     return new Response(
-      JSON.stringify({ error: err instanceof Error ? err.message : "Unknown error" }),
-      { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      JSON.stringify(getFallback("search_plants_ai")),
+      { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
 });

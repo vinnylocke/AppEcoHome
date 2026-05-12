@@ -5,6 +5,7 @@ import { callGeminiCascade } from "../_shared/gemini.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
+import { getFallback } from "../_shared/fallbacks.ts";
 
 const FN = "generate-guide";
 
@@ -157,9 +158,9 @@ serve(async (req) => {
     );
   } catch (error: any) {
     logError(FN, "error", { error: error.message });
-    return new Response(JSON.stringify({ error: error.message }), {
+    return new Response(JSON.stringify(getFallback("generate_guide")), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-      status: 400,
+      status: 200,
     });
   }
 });

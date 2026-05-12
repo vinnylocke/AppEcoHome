@@ -8,6 +8,7 @@ import { logAiUsage } from "../_shared/aiUsage.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
+import { getFallback } from "../_shared/fallbacks.ts";
 
 const FN = "plant-doctor";
 
@@ -248,6 +249,7 @@ serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
 
+  let action: string | undefined;
   try {
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     const perenualKey = Deno.env.get("PERENUAL_API_KEY");
@@ -264,11 +266,12 @@ serve(async (req) => {
 
     const body = await req.json();
     const {
-      action, homeId, targetPlant, plantSearch, areaData, isOutside,
+      action: _action, homeId, targetPlant, plantSearch, areaData, isOutside,
       currentPlants, imageBase64, mimeType, diagnosisContext,
       diseaseName, pestName, notes, inventoryItemId, areaId,
       deviceLat, deviceLng,
     } = body;
+    action = _action;
 
     log(FN, "request_received", {
       action, homeId: homeId ?? null, targetPlant: targetPlant ?? null,
@@ -771,7 +774,14 @@ ${locationLine ? `Gardener location: ${locationLine}. Tailor treatment and preve
 
     throw new Error(`Unknown action: ${action}`);
   } catch (err: any) {
-    logError(FN, "error", { error: err.message });
+    logError(FN, "error", { error: err.message, action: action ?? "unknown" });
+    const fallback = action ? getFallback(action) : null;
+    if (fallback) {
+      return new Response(JSON.stringify(fallback), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
     return new Response(JSON.stringify({ error: err.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,
