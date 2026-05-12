@@ -31,6 +31,7 @@ import ManualPlantCreation from "./ManualPlantCreation";
 import PlantEditModal from "./PlantEditModal";
 import PlantAssignmentModal from "./PlantAssignmentModal";
 import BulkSearchModal from "./BulkSearchModal";
+import PlantSourcePicker from "./PlantSourcePicker";
 import { PerenualService } from "../lib/perenualService";
 import { useLocation, useSearchParams, useNavigate } from "react-router-dom";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -104,6 +105,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   const [showBulkSearch, setShowBulkSearch] = useState(false);
   const [initialSearchTerm, setInitialSearchTerm] = useState("");
   const [initialCartItems, setInitialCartItems] = useState<any[]>([]);
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [sourcePickerPlants, setSourcePickerPlants] = useState<string[]>([]);
 
   const [bulkQueue, setBulkQueue] = useState<QueueItem[]>([]);
   const [isBulkProcessing, setIsBulkProcessing] = useState(false);
@@ -477,14 +480,10 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
 
   useEffect(() => {
     if (location.state && location.state.autoImport) {
-      const { autoImport, source } = location.state;
+      const { autoImport } = location.state;
       window.history.replaceState({}, document.title, location.pathname);
-      const queueItems = autoImport.map((name: string) => ({
-        type: source,
-        data: name,
-      }));
-      setInitialCartItems(queueItems);
-      setShowBulkSearch(true);
+      setSourcePickerPlants(Array.isArray(autoImport) ? autoImport : [autoImport]);
+      setShowSourcePicker(true);
     }
   }, [location.state, location.pathname]);
 
@@ -509,8 +508,10 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
 
   const handleCloseModals = () => {
     setShowBulkSearch(false);
+    setShowSourcePicker(false);
     setInitialSearchTerm("");
     setInitialCartItems([]);
+    setSourcePickerPlants([]);
     handledDeepLink.current = "";
     navigate(location.state?.returnTo ?? "/dashboard", { replace: true });
   };
@@ -1216,6 +1217,20 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 isAssigning={actionLoading}
                 homeId={homeId}
                 aiEnabled={aiEnabled}
+              />
+            )}
+            {showSourcePicker && sourcePickerPlants.length > 0 && (
+              <PlantSourcePicker
+                plants={sourcePickerPlants}
+                isPremium={perenualEnabled}
+                isAiEnabled={aiEnabled}
+                onClose={handleCloseModals}
+                onConfirm={(items) => {
+                  setShowSourcePicker(false);
+                  setSourcePickerPlants([]);
+                  setInitialCartItems(items);
+                  setShowBulkSearch(true);
+                }}
               />
             )}
             {showBulkSearch && (

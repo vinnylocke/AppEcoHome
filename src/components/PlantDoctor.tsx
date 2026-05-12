@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
+import { useNavigate, useLocation } from "react-router-dom";
 import {
   getHemisphere,
   normalizePeriods,
@@ -14,9 +15,9 @@ import {
   ChevronDown,
   ChevronLeft,
   Lock,
-  Edit3,
   CheckCircle2,
   ClipboardList,
+  ListPlus,
   Syringe,
   CalendarPlus,
   Globe,
@@ -30,8 +31,6 @@ import { supabase } from "../lib/supabase";
 import { EVENT, logEvent } from "../events/registry";
 import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
-import ManualPlantCreation from "./ManualPlantCreation";
-import PlantSearchModal from "./PlantSearchModal";
 import DiagnosisImageGallery from "./DiagnosisImageGallery";
 import PlantInstancePicker from "./PlantInstancePicker";
 import AddToListSheet, { type SuggestedItem } from "./shopping/AddToListSheet";
@@ -66,6 +65,8 @@ export default function PlantDoctor({
   onTasksAdded,
 }: PlantDoctorProps) {
   const { setPageContext } = usePlantDoctor();
+  const navigate = useNavigate();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState<"analyse" | "history">("analyse");
   const [currentSessionId, setCurrentSessionId] = useState<string | null>(null);
   const [confirmedValue, setConfirmedValue] = useState<string | null>(null);
@@ -76,7 +77,6 @@ export default function PlantDoctor({
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   const [isProcessing, setIsProcessing] = useState(false);
-  const [isGeneratingGuide, setIsGeneratingGuide] = useState(false);
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   const [isGeneratingTreatment, setIsGeneratingTreatment] = useState(false);
   const [activeAction, setActiveAction] = useState<
@@ -104,8 +104,6 @@ export default function PlantDoctor({
   const [saveToJournal, setSaveToJournal] = useState(true);
   const [deviceLocation, setDeviceLocation] = useState<{ lat: number; lng: number } | null>(null);
 
-  const [showManualAdd, setShowManualAdd] = useState(false);
-  const [showPerenualSearch, setShowPerenualSearch] = useState(false);
   const [inventoryError, setInventoryError] = useState(false);
   const [inventoryRetryTick, setInventoryRetryTick] = useState(0);
   const [sessionSaveError, setSessionSaveError] = useState(false);
@@ -493,21 +491,6 @@ export default function PlantDoctor({
     }
   };
 
-  const generateManualCareGuide = async () => {
-    if (!selectedPlantName) return;
-    setIsGeneratingGuide(true);
-    try {
-      const data = await PlantDoctorService.generateCareGuide(selectedPlantName, homeId);
-
-      setAiResult((prev) => ({ ...prev, plantData: data.plantData }));
-      setShowManualAdd(true);
-    } catch (error: any) {
-      Logger.error("Failed to generate care guide", error, { plantName: selectedPlantName, homeId }, "Failed to generate care guide automatically.");
-    } finally {
-      setIsGeneratingGuide(false);
-    }
-  };
-
   const generateTreatmentPlan = async () => {
     if (!sickInventoryId) return toast.error("Please select a patient first.");
     const selectedItem = myInventory.find(
@@ -539,57 +522,6 @@ export default function PlantDoctor({
       Logger.error("Failed to generate treatment plan", error, { homeId, sickInventoryId, selectedDisease }, "Failed to generate treatment plan.");
     } finally {
       setIsGeneratingTreatment(false);
-    }
-  };
-
-  const handleSaveManualPlant = async (plantData: any) => {
-    setIsProcessing(true);
-    try {
-      const manualId =
-        Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
-      const skeleton = {
-        ...plantData,
-        id: manualId,
-        home_id: homeId,
-        source: "manual",
-      };
-
-      const { data: savedPlant, error: saveError } = await supabase
-        .from("plants")
-        .insert([skeleton])
-        .select()
-        .single();
-      if (saveError) throw saveError;
-
-      const { data: homeData } = await supabase
-        .from("homes")
-        .select("country, timezone")
-        .eq("id", homeId)
-        .single();
-
-      const hemisphere = getHemisphere(homeData?.country, homeData?.timezone);
-
-      const newSchedules = buildAutoSeasonalSchedules({
-        plantId: savedPlant.id,
-        homeId,
-        hemisphere,
-        harvestPeriods: normalizePeriods(plantData.harvest_season),
-        pruningPeriods: normalizePeriods(plantData.pruning_month),
-        wateringMinDays: plantData.watering_min_days || 3,
-        wateringMaxDays: plantData.watering_max_days || 14,
-      });
-
-      if (newSchedules.length > 0) {
-        await supabase.from("plant_schedules").insert(newSchedules);
-      }
-
-      toast.success("Plant added to your shed with automations!");
-      setShowManualAdd(false);
-      clearImage();
-    } catch (error: any) {
-      Logger.error("Failed to save manual plant", error, { homeId }, "Failed to save plant.");
-    } finally {
-      setIsProcessing(false);
     }
   };
 
@@ -631,35 +563,8 @@ export default function PlantDoctor({
     p.plants?.common_name?.toLowerCase().includes(plantSearch.toLowerCase()),
   );
 
-  if (showManualAdd && aiResult?.plantData) {
-    return (
-      <div className="h-full animate-in fade-in slide-in-from-bottom-4">
-        <div className="bg-white rounded-3xl p-6 shadow-sm border border-rhozly-outline/10 h-full overflow-y-auto">
-          <div className="flex justify-between items-center mb-6">
-            <h2 className="text-2xl font-black">
-              Verify Details for {selectedPlantName}
-            </h2>
-            <button
-              onClick={() => setShowManualAdd(false)}
-              className="w-11 h-11 flex items-center justify-center hover:bg-rhozly-surface-low rounded-2xl"
-            >
-              <X size={24} />
-            </button>
-          </div>
-          <ManualPlantCreation
-            initialData={aiResult.plantData}
-            onSave={handleSaveManualPlant}
-            onCancel={() => setShowManualAdd(false)}
-            isSaving={isProcessing}
-          />
-        </div>
-      </div>
-    );
-  }
-
   const isUIBusy =
     isProcessing ||
-    isGeneratingGuide ||
     isFetchingDetails ||
     isFetchingPestDetails ||
     isGeneratingTreatment ||
@@ -667,20 +572,6 @@ export default function PlantDoctor({
 
   return (
     <>
-      {showPerenualSearch && selectedPlantName && (
-        <PlantSearchModal
-          homeId={homeId}
-          isPremium={isPremium}
-          initialSearchTerm={selectedPlantName}
-          initialScientificName={selectedPlantScientific ?? undefined}
-          onClose={() => setShowPerenualSearch(false)}
-          onSuccess={() => {
-            setShowPerenualSearch(false);
-            clearImage();
-          }}
-        />
-      )}
-
       <div className="h-full flex flex-col relative animate-in fade-in slide-in-from-bottom-4 duration-500">
         <div className="mb-4 px-2 flex items-end justify-between">
           <div>
@@ -943,43 +834,19 @@ export default function PlantDoctor({
                         query={`${selectedPlantName} plant`}
                         label={selectedPlantName}
                       />
-                      <div className="flex flex-col sm:flex-row gap-3 mt-4">
-                        {!perenualEnabled ? (
-                          <div data-testid="perenual-search-gate" className="flex-1 bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 p-4 flex items-center justify-center gap-3">
-                            <div className="w-8 h-8 bg-rhozly-on-surface/5 rounded-xl flex items-center justify-center shrink-0">
-                              <Lock size={16} className="text-rhozly-on-surface/30" />
-                            </div>
-                            <div className="text-left">
-                              <p className="font-black text-rhozly-on-surface text-sm">Perenual Access Required</p>
-                              <p className="text-xs font-bold text-rhozly-on-surface/50">Enable Perenual in profile settings.</p>
-                            </div>
-                          </div>
-                        ) : (
-                          <button
-                            onClick={() => setShowPerenualSearch(true)}
-                            disabled={isUIBusy}
-                            className="flex-1 flex items-center justify-center gap-2 py-4 px-4 border rounded-2xl font-black shadow-sm transition-colors disabled:opacity-50 bg-white border-rhozly-outline/20 text-rhozly-primary hover:bg-rhozly-primary/5"
-                          >
-                            <IconPlantDB size={18} />
-                            Search Global API
-                          </button>
-                        )}
-
+                      <div className="mt-4">
                         <button
-                          onClick={generateManualCareGuide}
+                          data-testid="doctor-add-to-shed"
+                          onClick={() => navigate("/shed", {
+                            state: {
+                              autoImport: [selectedPlantName],
+                              returnTo: location.pathname + location.search,
+                            },
+                          })}
                           disabled={isUIBusy}
-                          className="flex-1 flex items-center justify-center gap-2 py-4 px-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-sm hover:bg-rhozly-primary-container transition-colors disabled:opacity-50"
+                          className="w-full flex items-center justify-center gap-2 py-4 px-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-sm hover:bg-rhozly-primary-container transition-colors disabled:opacity-50"
                         >
-                          {isGeneratingGuide ? (
-                            <>
-                              <Loader2 size={18} className="animate-spin" />{" "}
-                              Generating...
-                            </>
-                          ) : (
-                            <>
-                              <Edit3 size={18} /> AI Auto-Fill Form
-                            </>
-                          )}
+                          <ListPlus size={18} /> Add to Shed
                         </button>
                       </div>
                       <div className="border-t border-rhozly-outline/10 pt-3 mt-1 space-y-2">

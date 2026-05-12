@@ -474,19 +474,17 @@ export default function PlanStaging({
     }
   };
 
-  const handleOpenSearchModal = (sourceType: "api" | "ai") => {
+  const handleOpenSearchModal = () => {
     if (selectedForProcurement.length === 0)
       return toast.error(
         "Please check the boxes next to the plants you want to procure.",
       );
     saveStagingState({ plant_mapping: plantMapping });
-    const queueItems = selectedForProcurement.map((idx) => ({
-      type: sourceType,
-      data: localBlueprint.plant_manifest[idx].common_name,
-    }));
-
+    const plantNames = selectedForProcurement.map(
+      (idx) => localBlueprint.plant_manifest[idx].common_name,
+    );
     navigate("/shed", {
-      state: { autoImport: queueItems.map((q) => q.data), source: sourceType, returnTo: location.pathname + location.search },
+      state: { autoImport: plantNames, returnTo: location.pathname + location.search },
     });
   };
 
@@ -1124,18 +1122,12 @@ export default function PlanStaging({
                   </div>
                 )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-4 border-t border-gray-100">
+                <div className="pt-4 border-t border-gray-100">
                   <button
-                    onClick={() => handleOpenSearchModal("api")}
-                    className="min-h-[44px] px-4 py-3 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white font-black text-sm rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
+                    onClick={() => handleOpenSearchModal()}
+                    className="w-full min-h-[44px] px-4 py-3 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white font-black text-sm rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                   >
-                    <Sparkles size={16} /> Procure via Perenual
-                  </button>
-                  <button
-                    onClick={() => handleOpenSearchModal("ai")}
-                    className="min-h-[44px] px-4 py-3 bg-rhozly-primary-container hover:bg-rhozly-primary text-white font-black text-sm rounded-xl transition-all active:scale-95 flex items-center justify-center gap-2 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
-                  >
-                    <Sparkles size={16} /> Procure via AI
+                    <Sparkles size={16} /> Add to Shed
                   </button>
                 </div>
 

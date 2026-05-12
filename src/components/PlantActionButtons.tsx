@@ -1,10 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Check, Loader2 } from "lucide-react";
-import { IconAI, IconPlantDB } from "../constants/icons";
+import { Check, ListPlus } from "lucide-react";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
-import toast from "react-hot-toast";
-import { Logger } from "../lib/errorHandler";
 
 interface PlantActionProps {
   plant?: { name: string; search_query: string };
@@ -24,7 +21,6 @@ export const PlantActionButtons = ({
   const plantList = plants || (plant ? [plant] : []);
 
   const [selectedRecs, setSelectedRecs] = useState<string[]>([]);
-  const [isImporting, setIsImporting] = useState(false);
 
   const toggleSelection = (query: string) => {
     setSelectedRecs((prev) =>
@@ -32,21 +28,15 @@ export const PlantActionButtons = ({
     );
   };
 
-  const handleBulkImport = async (source: "ai" | "api") => {
-    setIsImporting(true);
-    try {
-      setIsOpen(false);
-      toast.success(
-        source === "ai"
-          ? "Generating with AI…"
-          : "Looking up in Plant Database…",
-      );
-      navigate("/shed", { state: { autoImport: selectedRecs, source, returnTo: location.pathname + location.search } });
-    } catch (err) {
-      Logger.error("Plant import to shed failed", err, {}, "Something went wrong. Please try again.");
-    } finally {
-      setIsImporting(false);
-    }
+  const handleAddToShed = () => {
+    if (selectedRecs.length === 0) return;
+    setIsOpen(false);
+    navigate("/shed", {
+      state: {
+        autoImport: selectedRecs,
+        returnTo: location.pathname + location.search,
+      },
+    });
   };
 
   if (plantList.length === 0) return null;
@@ -91,32 +81,12 @@ export const PlantActionButtons = ({
       </div>
 
       {selectedRecs.length > 0 && (
-        <div className="flex flex-col gap-2 pt-2 border-t border-rhozly-outline">
-          <button
-            onClick={() => handleBulkImport("ai")}
-            disabled={isImporting}
-            className="w-full py-3 bg-rhozly-primary hover:bg-rhozly-primary-container disabled:opacity-60 text-white rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition-transform active:scale-95"
-          >
-            {isImporting ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <IconAI size={16} />
-            )}{" "}
-            Generate with AI ({selectedRecs.length})
-          </button>
-          <button
-            onClick={() => handleBulkImport("api")}
-            disabled={isImporting}
-            className="w-full py-3 bg-white border-2 border-rhozly-primary text-rhozly-primary hover:bg-rhozly-surface-low disabled:opacity-60 rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition-transform active:scale-95"
-          >
-            {isImporting ? (
-              <Loader2 size={16} className="animate-spin" />
-            ) : (
-              <IconPlantDB size={16} />
-            )}{" "}
-            Match via Plant Database ({selectedRecs.length})
-          </button>
-        </div>
+        <button
+          onClick={handleAddToShed}
+          className="w-full py-3 bg-rhozly-primary hover:bg-rhozly-primary-container text-white rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition-transform active:scale-95"
+        >
+          <ListPlus size={16} /> Add {selectedRecs.length} to Shed
+        </button>
       )}
     </div>
   );
