@@ -50,6 +50,7 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 import {
   PlantDoctorService,
   type DiseaseInfo,
+  type VisionResult,
 } from "../services/plantDoctorService";
 
 interface PlantDoctorProps {
@@ -92,14 +93,7 @@ export default function PlantDoctor({
   const [plantSearch, setPlantSearch] = useState("");
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
-  const [aiResult, setAiResult] = useState<{
-    notes?: string;
-    possible_names?: string[];
-    possible_diseases?: string[] | null;
-    diseaseInfo?: DiseaseInfo;
-    plantData?: any;
-    remedial_schedules?: any[];
-  } | null>(null);
+  const [aiResult, setAiResult] = useState<VisionResult | null>(null);
 
   const [selectedPlantName, setSelectedPlantName] = useState<string | null>(
     null,
@@ -136,8 +130,8 @@ export default function PlantDoctor({
         results: aiResult
           ? {
               notes: aiResult.notes,
-              suggestedPlants: aiResult.possible_names,
-              suggestedDiseases: aiResult.possible_diseases,
+              suggestedPlants: aiResult.possible_names?.map((n) => n.name),
+              suggestedDiseases: aiResult.possible_diseases?.map((d) => d.name),
               currentDiagnosis: aiResult.diseaseInfo,
             }
           : null,
@@ -444,11 +438,11 @@ export default function PlantDoctor({
       setAiResult(data);
       saveSession(action, data, base64Data); // fire-and-forget
       if (action === "identify") {
-        logEvent(EVENT.AI_IDENTIFY, { plant_name: data?.possible_names?.[0] ?? null });
+        logEvent(EVENT.AI_IDENTIFY, { plant_name: data?.possible_names?.[0]?.name ?? null });
       } else if (action === "diagnose") {
-        logEvent(EVENT.AI_DIAGNOSE, { diagnosis: data?.possible_diseases?.[0] ?? null });
+        logEvent(EVENT.AI_DIAGNOSE, { diagnosis: data?.possible_diseases?.[0]?.name ?? null });
       } else {
-        logEvent(EVENT.AI_IDENTIFY, { pest_name: data?.possible_pests?.[0] ?? null });
+        logEvent(EVENT.AI_IDENTIFY, { pest_name: data?.possible_pests?.[0]?.name ?? null });
       }
       toast.success(action === "diagnose" ? "Diagnosis complete!" : "Identification complete!");
     } catch (error: any) {
@@ -901,13 +895,16 @@ export default function PlantDoctor({
                           Which of these looks correct?
                         </h3>
                         <div className="space-y-2">
-                          {aiResult.possible_names.map((name, i) => (
+                          {aiResult.possible_names.map((item, i) => (
                             <button
                               key={i}
-                              onClick={() => setSelectedPlantName(name)}
-                              className="w-full text-left p-4 bg-white rounded-2xl border border-rhozly-outline/10 font-bold hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-rhozly-on-surface"
+                              onClick={() => setSelectedPlantName(item.name)}
+                              className="w-full text-left p-4 bg-white rounded-2xl border border-rhozly-outline/10 font-bold hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-rhozly-on-surface flex items-center justify-between gap-3"
                             >
-                              {name}
+                              <span>{item.name}</span>
+                              <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${item.confidence >= 80 ? "bg-emerald-50 text-emerald-700" : item.confidence >= 60 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
+                                {item.confidence}%
+                              </span>
                             </button>
                           ))}
                         </div>
@@ -1009,13 +1006,16 @@ export default function PlantDoctor({
                           <Activity size={20} /> Which condition fits best?
                         </h3>
                         <div className="space-y-2">
-                          {aiResult.possible_diseases.map((name, i) => (
+                          {aiResult.possible_diseases.map((item, i) => (
                             <button
                               key={i}
-                              onClick={() => setSelectedDisease(name)}
-                              className="w-full text-left p-4 bg-white rounded-2xl border border-rhozly-primary-container/20 font-bold hover:border-rhozly-primary-container/50 hover:bg-rhozly-primary-container/10 transition-all text-rhozly-on-surface"
+                              onClick={() => setSelectedDisease(item.name)}
+                              className="w-full text-left p-4 bg-white rounded-2xl border border-rhozly-primary-container/20 font-bold hover:border-rhozly-primary-container/50 hover:bg-rhozly-primary-container/10 transition-all text-rhozly-on-surface flex items-center justify-between gap-3"
                             >
-                              {name}
+                              <span>{item.name}</span>
+                              <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${item.confidence >= 80 ? "bg-emerald-50 text-emerald-700" : item.confidence >= 60 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
+                                {item.confidence}%
+                              </span>
                             </button>
                           ))}
                         </div>
@@ -1038,13 +1038,16 @@ export default function PlantDoctor({
                           <Bug size={20} className="text-rhozly-primary" /> What do you see?
                         </h3>
                         <div className="space-y-2">
-                          {aiResult.possible_pests.map((name, i) => (
+                          {aiResult.possible_pests.map((item, i) => (
                             <button
                               key={i}
-                              onClick={() => setSelectedPest(name)}
-                              className="w-full text-left p-4 bg-white rounded-2xl border border-rhozly-outline/15 font-bold hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-rhozly-on-surface"
+                              onClick={() => setSelectedPest(item.name)}
+                              className="w-full text-left p-4 bg-white rounded-2xl border border-rhozly-outline/15 font-bold hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-rhozly-on-surface flex items-center justify-between gap-3"
                             >
-                              {name}
+                              <span>{item.name}</span>
+                              <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${item.confidence >= 80 ? "bg-emerald-50 text-emerald-700" : item.confidence >= 60 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
+                                {item.confidence}%
+                              </span>
                             </button>
                           ))}
                         </div>

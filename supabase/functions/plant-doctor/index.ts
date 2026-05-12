@@ -91,8 +91,18 @@ const RECOMMEND_PLANTS_SCHEMA = {
 const IDENTIFY_VISION_SCHEMA = {
   type: "OBJECT",
   properties: {
-    notes:          { type: "STRING" },
-    possible_names: { type: "ARRAY", items: { type: "STRING" } },
+    notes: { type: "STRING" },
+    possible_names: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          name:       { type: "STRING",  description: "Common name of the plant" },
+          confidence: { type: "INTEGER", description: "0–100 confidence score based on visible features" },
+        },
+        required: ["name", "confidence"],
+      },
+    },
   },
   required: ["notes", "possible_names"],
 };
@@ -100,8 +110,19 @@ const IDENTIFY_VISION_SCHEMA = {
 const DIAGNOSE_SCHEMA = {
   type: "OBJECT",
   properties: {
-    notes:                 { type: "STRING" },
-    possible_diseases:     { type: "ARRAY", nullable: true, items: { type: "STRING" } },
+    notes:    { type: "STRING" },
+    possible_diseases: {
+      type: "ARRAY",
+      nullable: true,
+      items: {
+        type: "OBJECT",
+        properties: {
+          name:       { type: "STRING",  description: "Common name of the condition (e.g. 'Late Blight')" },
+          confidence: { type: "INTEGER", description: "0–100 confidence based on visible symptoms and context" },
+        },
+        required: ["name", "confidence"],
+      },
+    },
     possible_names:        { type: "STRING", nullable: true },
     severity:              { type: "STRING", nullable: true, description: "One of: Healthy, Low, Medium, High" },
     environmental_factors: { type: "ARRAY", nullable: true, items: { type: "STRING" } },
@@ -151,10 +172,20 @@ const REMEDIAL_PLAN_SCHEMA = {
 const IDENTIFY_PEST_SCHEMA = {
   type: "OBJECT",
   properties: {
-    notes:          { type: "STRING" },
-    possible_pests: { type: "ARRAY", items: { type: "STRING" } },
-    is_pest:        { type: "BOOLEAN" },
-    pest_severity:  { type: "STRING", nullable: true },
+    notes: { type: "STRING" },
+    possible_pests: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          name:       { type: "STRING",  description: "Common name of the insect or pest" },
+          confidence: { type: "INTEGER", description: "0–100 confidence based on visible features" },
+        },
+        required: ["name", "confidence"],
+      },
+    },
+    is_pest:       { type: "BOOLEAN" },
+    pest_severity: { type: "STRING", nullable: true },
   },
   required: ["notes", "possible_pests", "is_pest"],
 };
@@ -511,7 +542,7 @@ Use specific common names (e.g. "French Marigold" not "Marigold").`;
 ${plantSearch ? `The user thinks it might be a "${plantSearch}". Confirm if this is correct.` : ""}
 ${locationLine ? `The gardener is located: ${locationLine}. Prioritise plants native to or commonly grown in this region.` : ""}
 
-Return the top 3 most likely common names and a brief observation.`;
+Return the top 3 most likely identifications in possible_names, each with a confidence score (0–100) based on how well the visible leaf shape, colour, texture, and growth habit match. A score of 90+ means you are highly certain; 50–70 means a plausible match with ambiguity; below 40 means a speculative guess. Also return a brief observation in notes.`;
 
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN,
@@ -520,7 +551,7 @@ Return the top 3 most likely common names and a brief observation.`;
       );
       const parsed = JSON.parse(rawText);
       await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "identify_vision", usage });
-      log(FN, "result", { action, possibleNames: parsed.possible_names ?? [] });
+      log(FN, "result", { action, possibleNames: (parsed.possible_names ?? []).map((n: any) => `${n.name} (${n.confidence}%)`) });
       return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -643,7 +674,7 @@ Examine the image carefully for visible signs of pests, disease, nutrient defici
 Use the environmental context above (growing medium, pH, drainage, recent care, weather, companion plants) to refine your diagnosis — they are key clues.
 Provide a precise, personalised diagnosis and actionable advice.
 
-For possible_diseases: return an array of up to 3 specific common names (e.g. "Late Blight", NOT "Late Blight (Phytophthora infestans)").
+For possible_diseases: return an array of up to 3 objects, each with a 'name' (specific common name, e.g. "Late Blight" — no scientific name in brackets) and a 'confidence' score (0–100) reflecting how well the visible symptoms match. 90+ = textbook presentation; 60–80 = likely match; below 50 = speculative.
 If the plant appears healthy or the issue is purely environmental (e.g. underwatering), return an empty array for possible_diseases.
 Set severity: "Healthy" if no issues, "Low" for minor cosmetic damage, "Medium" for moderate damage requiring action, "High" for serious threat to plant survival.
 Set environmental_factors: list any environmental conditions from the context above that are likely contributing to the issue.
@@ -738,7 +769,7 @@ Determine whether it is a garden pest or a beneficial insect.
 - is_pest = true if harmful (aphids, spider mites, whitefly, vine weevil, caterpillars, mealybugs, scale insects, thrips, fungus gnats, slugs, cutworms, etc.)
 - is_pest = false if beneficial (honeybee, bumblebee, ladybird, lacewing, hoverfly, ground beetle, earthworm, parasitic wasp, etc.)
 - pest_severity: null if not a pest. Low = cosmetic. Medium = can damage crops. High = serious infestation threat.
-- possible_pests: top 3 most likely identifications regardless of is_pest. Simple common names only, no scientific names.`;
+- possible_pests: top 3 most likely identifications regardless of is_pest. Each entry must have a 'name' (simple common name, no scientific names) and 'confidence' (0–100) based on visible body shape, colour, size, and markings. 90+ = clear match; 60–80 = probable; below 50 = speculative.`;
 
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN,
@@ -747,7 +778,7 @@ Determine whether it is a garden pest or a beneficial insect.
       );
       const parsed = JSON.parse(rawText);
       await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "identify_pest", usage });
-      log(FN, "result", { action, possiblePests: parsed.possible_pests ?? [], isPest: parsed.is_pest });
+      log(FN, "result", { action, possiblePests: (parsed.possible_pests ?? []).map((p: any) => `${p.name} (${p.confidence}%)`), isPest: parsed.is_pest });
       return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

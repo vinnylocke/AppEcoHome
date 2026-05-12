@@ -14,14 +14,19 @@ export interface PestInfo {
   source: string;
 }
 
+export interface IdentificationCandidate {
+  name: string;
+  confidence: number;
+}
+
 export interface VisionResult {
   notes?: string;
-  possible_names?: string[];
-  possible_diseases?: string[] | null;
+  possible_names?: IdentificationCandidate[];
+  possible_diseases?: IdentificationCandidate[] | null;
   diseaseInfo?: DiseaseInfo;
   plantData?: any;
   remedial_schedules?: any[];
-  possible_pests?: string[];
+  possible_pests?: IdentificationCandidate[];
   is_pest?: boolean;
   pest_severity?: "Low" | "Medium" | "High" | null;
   pestInfo?: PestInfo;
