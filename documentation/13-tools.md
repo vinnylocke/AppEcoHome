@@ -11,6 +11,7 @@ The **Tools** hub (sidebar → Tools, or `/tools`) is the gateway to Rhozly's ad
 | Tool | Icon colour | What it does |
 |------|------------|--------------|
 | **Garden AI** | Emerald | Plant identification + disease diagnosis |
+| **Garden Layout** | Violet | Design and visualise your garden in 2D and 3D |
 | **Plant Visualiser** | Sky blue | Preview plants in your space using your camera |
 | **Light Sensor** | Amber | Measure light levels for area profiling |
 | **Sun Tracker** | Orange | AR view of the sun's path and shadow zones |
@@ -39,15 +40,20 @@ Browse your plant library and select the plants you want to visualise:
 
 Tap **Continue to Sprites** when you've chosen your plants.
 
-### Step 2: Generate Sprites
+### Step 2: Choose Sprites
 
-> 📸 Screenshot: The Sprite Wizard showing a plant card with a generated 2D sprite image on the right
+> 📸 Screenshot: The Sprite Wizard showing a plant card with sprite source options on the right
 
-Rhozly's AI generates a custom **2D sprite image** for each selected plant — a stylised illustration suited to overlaying on a camera view.
+For each selected plant you choose how to create its 2D sprite — a cut-out image overlaid on the camera view. There are three ways to get a sprite:
 
-- Each plant gets its own sprite
-- Tap **Regenerate** if you're not happy with the generated sprite
-- Tap **Accept** to move on
+| Option | How it works |
+|--------|-------------|
+| **Pick from sources** | Search for an image from Unsplash, Perenual, or your plant's existing photos. Rhozly automatically removes the background so the plant is cut out cleanly. |
+| **Default template** | Use a built-in silhouette sprite for the plant type — no image needed. |
+| **Upload your own** | Take or import a photo from your device. Background removal is applied automatically. |
+
+- Tap **Accept** once you're happy with the sprite for that plant
+- Work through each plant in turn
 
 When all sprites are ready, tap **Open Camera View**.
 

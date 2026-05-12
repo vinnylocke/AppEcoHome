@@ -97,7 +97,7 @@ export const DOCS: DocEntry[] = [
   {
     id: "tools",
     title: "Tools",
-    description: "Plant Visualiser, Light Sensor, and Sun Tracker.",
+    description: "Garden Layout, Plant Visualiser, Light Sensor, and Sun Tracker.",
     content: tools,
   },
   {
