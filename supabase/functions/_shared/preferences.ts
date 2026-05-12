@@ -44,6 +44,10 @@ export async function loadPreferences(
   supabase: any,
   opts: { homeId?: string; userId?: string },
 ): Promise<Preference[]> {
+  // Guard: if neither identity is provided there is no safe WHERE clause.
+  // Return empty rather than accidentally querying the entire table.
+  if (!opts.userId && !opts.homeId) return [];
+
   let query = supabase
     .from("planner_preferences")
     .select("entity_type, entity_name, sentiment, reason, recorded_at")
@@ -51,7 +55,7 @@ export async function loadPreferences(
 
   if (opts.userId) {
     query = query.eq("user_id", opts.userId);
-  } else if (opts.homeId) {
+  } else {
     query = query.eq("home_id", opts.homeId);
   }
 
