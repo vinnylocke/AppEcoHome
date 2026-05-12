@@ -57,6 +57,57 @@ async function findPlantTitle(name: string): Promise<string | null> {
   return null;
 }
 
+export interface WikiImageResult {
+  title: string;
+  thumbUrl: string; // 300 px wide — safe to store as thumbnail_url
+  fullUrl: string;
+}
+
+/**
+ * Searches Wikimedia Commons for photos of the given plant name.
+ * Returns up to 12 JPEG/PNG/WebP results, sorted by relevance.
+ * The thumbUrl is a 300px-wide version — appropriate for plant card thumbnails.
+ */
+export async function searchWikimediaImages(plantName: string): Promise<WikiImageResult[]> {
+  const clean = plantName.split("(")[0].trim();
+  if (!clean) return [];
+
+  const params = new URLSearchParams({
+    action: "query",
+    generator: "search",
+    gsrnamespace: "6",       // File: namespace
+    gsrsearch: clean,
+    prop: "imageinfo",
+    iiprop: "url|mime",
+    iiurlwidth: "300",
+    format: "json",
+    gsrlimit: "15",
+    origin: "*",
+  });
+
+  try {
+    const res = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`);
+    if (!res.ok) return [];
+    const data = await res.json();
+    if (!data.query?.pages) return [];
+
+    return (Object.values(data.query.pages) as any[])
+      .filter((p) => {
+        const info = p.imageinfo?.[0];
+        if (!info?.thumburl || !info?.url) return false;
+        const mime: string = info.mime ?? "";
+        return mime === "image/jpeg" || mime === "image/png" || mime === "image/webp";
+      })
+      .map((p) => ({
+        title: (p.title as string).replace("File:", ""),
+        thumbUrl: p.imageinfo[0].thumburl as string,
+        fullUrl: p.imageinfo[0].url as string,
+      }));
+  } catch {
+    return [];
+  }
+}
+
 export async function getPlantWikiInfo(plantName: string) {
   if (!plantName) return null;
   const cleanName = plantName.split("(")[0].trim();

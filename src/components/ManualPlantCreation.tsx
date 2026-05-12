@@ -18,8 +18,10 @@ import {
   Sun,
   X,
   Tag,
+  Globe,
 } from "lucide-react";
 import toast from "react-hot-toast";
+import WikiImagePicker from "./WikiImagePicker";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -94,6 +96,7 @@ export default function ManualPlantCreation({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [uploading, setUploading] = useState(false);
   const [savedConfirm, setSavedConfirm] = useState(false);
+  const [showWikiPicker, setShowWikiPicker] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropdownContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -496,7 +499,30 @@ export default function ManualPlantCreation({
                   accept="image/*"
                   className="hidden"
                 />
+                {!isReadOnly && (
+                  <button
+                    type="button"
+                    data-testid="wiki-image-search-btn"
+                    onClick={() => setShowWikiPicker(true)}
+                    className="flex items-center gap-1.5 text-[11px] font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors"
+                  >
+                    <Globe size={13} />
+                    Search Wikipedia
+                  </button>
+                )}
               </div>
+
+              {showWikiPicker && (
+                <WikiImagePicker
+                  plantName={formData.common_name || "plant"}
+                  onSelect={(url) => {
+                    setFormData((prev) => ({ ...prev, thumbnail_url: url }));
+                    setShowWikiPicker(false);
+                    toast.success("Image set from Wikipedia!");
+                  }}
+                  onClose={() => setShowWikiPicker(false)}
+                />
+              )}
 
               <div className="space-y-2">
                 <div className="flex justify-between items-end px-1">
