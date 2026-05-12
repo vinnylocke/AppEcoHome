@@ -5,6 +5,7 @@ import { User, Trophy, BarChart2, Save, Loader2, Lock, Trash2, AlertTriangle, X,
 import { TIERS, type TierId } from "../constants/tiers";
 import { useAchievements } from "../hooks/useAchievements";
 import { ACHIEVEMENTS } from "../lib/achievements";
+import AIUsagePanel from "./AIUsagePanel";
 
 interface Props {
   userId: string;
@@ -20,8 +21,9 @@ type Tab = "account" | "achievements" | "stats";
 
 // ─── Account Tab ────────────────────────────────────────────────────────────
 
-function AccountTab({ userId, displayName, email, subscriptionTier, onDisplayNameChange, onTierChange }: {
+function AccountTab({ userId, homeId, displayName, email, subscriptionTier, onDisplayNameChange, onTierChange }: {
   userId: string;
+  homeId: string;
   displayName: string | null;
   email: string | null;
   subscriptionTier: TierId | null;
@@ -367,6 +369,9 @@ function AccountTab({ userId, displayName, email, subscriptionTier, onDisplayNam
         );
       })()}
 
+      {/* AI Usage */}
+      <AIUsagePanel homeId={homeId} userId={userId} />
+
       {/* Danger Zone */}
       <section className="bg-white rounded-2xl border border-red-200 p-4 space-y-3">
         <h3 className="text-xs font-black uppercase tracking-widest text-red-500">Danger Zone</h3>
@@ -597,6 +602,7 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
       {tab === "account" && (
         <AccountTab
           userId={userId}
+          homeId={homeId}
           displayName={displayName}
           email={email}
           subscriptionTier={subscriptionTier}

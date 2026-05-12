@@ -2,7 +2,6 @@ import React, { useState, useEffect } from "react";
 import { supabase } from "../lib/supabase";
 import HabitQuiz from "./HabitQuiz";
 import PlantSwipeDeck from "./PlantSwipeDeck";
-import AIUsagePanel from "./AIUsagePanel";
 import {
   ClipboardList,
   Trash2,
@@ -326,10 +325,8 @@ export default function GardenProfile({
 
       </div>{/* end left column */}
 
-      {/* Right column: AI usage + Preference summary */}
+      {/* Right column: Preference summary */}
       <div className="xl:sticky xl:top-8 flex flex-col gap-4">
-        <AIUsagePanel homeId={homeId} userId={userId} />
-
         {prefsLoading && (
           <div className="border border-rhozly-outline/20 rounded-3xl bg-white overflow-hidden animate-pulse">
             <div className="px-5 py-4 flex items-center justify-between">
