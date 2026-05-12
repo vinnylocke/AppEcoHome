@@ -50,6 +50,7 @@ const CYCLE_OPTIONS = [
 
 const PROPAGATION_OPTIONS = [
   "Seed",
+  "Bulb",
   "Cuttings",
   "Division",
   "Layering",

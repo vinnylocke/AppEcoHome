@@ -208,7 +208,7 @@ IMPORTANT EXAMPLES:
 - Tomato: needs warm soil (>15°C). If frost risk still exists in the forecast, delay or recommend indoor sowing first.
 - Hardy annuals: can often be sown now if conditions allow — check the forecast carefully.
 
-Evaluate 'Seed' generously if it is biologically possible.
+Evaluate 'Seed' generously if it is biologically possible. Evaluate 'Bulb' for any plant that grows from bulbs, corms, rhizomes, or tubers (e.g. alliums, tulips, dahlias, irises, gladioli) — this is often the primary method and should be recommended with precise planting depth and spacing advice.
 
 Return ONLY a JSON object with this exact structure:
 {

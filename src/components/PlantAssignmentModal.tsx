@@ -44,6 +44,7 @@ const GROWTH_STATES = [
 
 const PROPAGATION_OPTIONS = [
   "Seed",
+  "Bulb",
   "Cuttings",
   "Division",
   "Layering",

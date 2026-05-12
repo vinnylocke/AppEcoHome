@@ -122,6 +122,8 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
+  const lastAssistantRef = useRef<HTMLDivElement>(null);
+  const scrollToNewMsgRef = useRef(false);
   const keyCounter = useRef(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nextKey = () => `k${++keyCounter.current}`;
@@ -272,10 +274,23 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     loadHistory();
   }, [homeId]);
 
-  // Scroll to bottom on new messages or open
+  // Scroll to bottom when chat opens
   useEffect(() => {
-    endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isOpen]);
+    if (isOpen) endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [isOpen]);
+
+  // On new messages: scroll to TOP of AI reply so the user sees it from the start;
+  // for user messages and history loads, scroll to bottom as usual.
+  useEffect(() => {
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (scrollToNewMsgRef.current && last.role === "assistant" && lastAssistantRef.current) {
+      lastAssistantRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+      scrollToNewMsgRef.current = false;
+    } else {
+      endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [messages]);
 
   const handleStartFresh = () => {
     setMessages([
@@ -381,6 +396,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       const data = await callAI(historyForAI, imageSnapshot);
 
       const assistantKey = nextKey();
+      scrollToNewMsgRef.current = true;
       setMessages((prev) => [
         ...prev,
         {
@@ -436,6 +452,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       const data = await callAI(historyForAI);
 
       const assistantKey = nextKey();
+      scrollToNewMsgRef.current = true;
       setMessages((prev) => [
         ...prev,
         {
@@ -568,6 +585,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                   return (
                     <div
                       key={msgKey}
+                      ref={idx === lastAssistantIdx && msg.role === "assistant" ? lastAssistantRef : undefined}
                       className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
                     >
                       <div
