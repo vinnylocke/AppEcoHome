@@ -106,9 +106,9 @@ export const PlantDoctorService = {
     plantSearch: string,
     options?: {
       searchFilters?: {
-        cycle?: string;
-        watering?: string;
-        sunlight?: string;
+        cycle?: string[];
+        watering?: string[];
+        sunlight?: string[];
         edible?: 0 | 1;
         poisonous?: 0 | 1;
         indoor?: 0 | 1;

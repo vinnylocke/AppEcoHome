@@ -420,10 +420,10 @@ serve(async (req) => {
       const exclude: string[] = excludeNames ?? [];
 
       const filterLines: string[] = [];
-      if (hasQuery)                         filterLines.push(`- Name matches: "${plantSearch.trim()}"`);
-      if (filters.cycle)                    filterLines.push(`- Life cycle: ${filters.cycle}`);
-      if (filters.watering)                 filterLines.push(`- Watering needs: ${filters.watering}`);
-      if (filters.sunlight)                 filterLines.push(`- Sunlight: ${filters.sunlight.replace(/-/g, " ")}`);
+      if (hasQuery)                                            filterLines.push(`- Name matches: "${plantSearch.trim()}"`);
+      if (filters.cycle?.length)                              filterLines.push(`- Life cycle must be one of: ${filters.cycle.join(", ")}`);
+      if (filters.watering?.length)                          filterLines.push(`- Watering needs must be one of: ${filters.watering.join(", ")}`);
+      if (filters.sunlight?.length)                          filterLines.push(`- Sunlight must be one of: ${filters.sunlight.map((s: string) => s.replace(/-/g, " ")).join(", ")}`);
       if (filters.edible === 1)             filterLines.push("- Must be edible / has edible parts");
       else if (filters.edible === 0)        filterLines.push("- Must NOT be edible");
       if (filters.poisonous === 1)          filterLines.push("- Must be toxic / poisonous to pets or humans");

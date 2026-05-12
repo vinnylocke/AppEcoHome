@@ -24,9 +24,9 @@ import { PlantDoctorService } from "../services/plantDoctorService";
 import ManualPlantCreation from "./ManualPlantCreation";
 
 interface PlantSearchFilters {
-  cycle?: string;
-  watering?: string;
-  sunlight?: string;
+  cycle?: string[];
+  watering?: string[];
+  sunlight?: string[];
   edible?: 0 | 1;
   poisonous?: 0 | 1;
   indoor?: 0 | 1;
@@ -68,12 +68,22 @@ const SUNLIGHT_OPTIONS = [
 
 function countActiveFilters(f: PlantSearchFilters): number {
   return [
-    f.cycle, f.watering, f.sunlight,
-    f.edible !== undefined ? f.edible : undefined,
-    f.poisonous !== undefined ? f.poisonous : undefined,
-    f.indoor !== undefined ? f.indoor : undefined,
+    f.cycle?.length ? 1 : undefined,
+    f.watering?.length ? 1 : undefined,
+    f.sunlight?.length ? 1 : undefined,
+    f.edible !== undefined ? 1 : undefined,
+    f.poisonous !== undefined ? 1 : undefined,
+    f.indoor !== undefined ? 1 : undefined,
     f.hardinessMin !== undefined || f.hardinessMax !== undefined ? 1 : undefined,
   ].filter((v) => v !== undefined).length;
+}
+
+function toggleChip(arr: string[] | undefined, value: string): string[] | undefined {
+  const current = arr ?? [];
+  const next = current.includes(value)
+    ? current.filter((v) => v !== value)
+    : [...current, value];
+  return next.length > 0 ? next : undefined;
 }
 
 export default function BulkSearchModal({
@@ -709,75 +719,74 @@ export default function BulkSearchModal({
                   data-testid="bulk-search-filter-panel"
                   className="bg-rhozly-surface-low rounded-2xl p-4 space-y-4 animate-in slide-in-from-top-2"
                 >
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
-                    {/* Cycle */}
-                    <div className="flex flex-col gap-1">
+                  <div className="space-y-3">
+                    {/* Cycle chips */}
+                    <div className="flex flex-col gap-1.5">
                       <label className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/50">
                         Life Cycle
                       </label>
-                      <select
-                        data-testid="filter-cycle"
-                        value={filters.cycle || ""}
-                        onChange={(e) =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            cycle: e.target.value || undefined,
-                          }))
-                        }
-                        className="py-2 px-3 rounded-xl bg-white border border-rhozly-outline/20 text-xs font-bold outline-none focus:border-rhozly-primary"
-                      >
-                        <option value="">Any</option>
-                        {CYCLE_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
+                      <div className="flex flex-wrap gap-1.5" data-testid="filter-cycle">
+                        {CYCLE_OPTIONS.map((o) => {
+                          const active = filters.cycle?.includes(o.value);
+                          return (
+                            <button
+                              key={o.value}
+                              type="button"
+                              onClick={() => setFilters((prev) => ({ ...prev, cycle: toggleChip(prev.cycle, o.value) }))}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-colors ${active ? "bg-rhozly-primary text-white border-rhozly-primary" : "bg-white text-rhozly-on-surface/60 border-rhozly-outline/20 hover:border-rhozly-primary/40"}`}
+                            >
+                              {o.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
-                    {/* Watering */}
-                    <div className="flex flex-col gap-1">
+                    {/* Watering chips */}
+                    <div className="flex flex-col gap-1.5">
                       <label className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/50">
                         Watering
                       </label>
-                      <select
-                        data-testid="filter-watering"
-                        value={filters.watering || ""}
-                        onChange={(e) =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            watering: e.target.value || undefined,
-                          }))
-                        }
-                        className="py-2 px-3 rounded-xl bg-white border border-rhozly-outline/20 text-xs font-bold outline-none focus:border-rhozly-primary"
-                      >
-                        <option value="">Any</option>
-                        {WATERING_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
+                      <div className="flex flex-wrap gap-1.5" data-testid="filter-watering">
+                        {WATERING_OPTIONS.map((o) => {
+                          const active = filters.watering?.includes(o.value);
+                          return (
+                            <button
+                              key={o.value}
+                              type="button"
+                              onClick={() => setFilters((prev) => ({ ...prev, watering: toggleChip(prev.watering, o.value) }))}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-colors ${active ? "bg-rhozly-primary text-white border-rhozly-primary" : "bg-white text-rhozly-on-surface/60 border-rhozly-outline/20 hover:border-rhozly-primary/40"}`}
+                            >
+                              {o.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
 
-                    {/* Sunlight */}
-                    <div className="flex flex-col gap-1">
+                    {/* Sunlight chips */}
+                    <div className="flex flex-col gap-1.5">
                       <label className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/50">
                         Sunlight
                       </label>
-                      <select
-                        data-testid="filter-sunlight"
-                        value={filters.sunlight || ""}
-                        onChange={(e) =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            sunlight: e.target.value || undefined,
-                          }))
-                        }
-                        className="py-2 px-3 rounded-xl bg-white border border-rhozly-outline/20 text-xs font-bold outline-none focus:border-rhozly-primary"
-                      >
-                        <option value="">Any</option>
-                        {SUNLIGHT_OPTIONS.map((o) => (
-                          <option key={o.value} value={o.value}>{o.label}</option>
-                        ))}
-                      </select>
+                      <div className="flex flex-wrap gap-1.5" data-testid="filter-sunlight">
+                        {SUNLIGHT_OPTIONS.map((o) => {
+                          const active = filters.sunlight?.includes(o.value);
+                          return (
+                            <button
+                              key={o.value}
+                              type="button"
+                              onClick={() => setFilters((prev) => ({ ...prev, sunlight: toggleChip(prev.sunlight, o.value) }))}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-black border transition-colors ${active ? "bg-rhozly-primary text-white border-rhozly-primary" : "bg-white text-rhozly-on-surface/60 border-rhozly-outline/20 hover:border-rhozly-primary/40"}`}
+                            >
+                              {o.label}
+                            </button>
+                          );
+                        })}
+                      </div>
                     </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 pt-1">
 
                     {/* Hardiness zone range */}
                     <div className="flex flex-col gap-1 col-span-2 sm:col-span-3">
@@ -869,6 +878,7 @@ export default function BulkSearchModal({
                         {triStateLabel(filters.indoor, "Yes", "Outdoor only")}
                       </button>
                     </div>
+                  </div>
                   </div>
 
                   {/* Clear filters */}

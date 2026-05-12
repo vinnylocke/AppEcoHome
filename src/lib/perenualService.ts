@@ -54,12 +54,14 @@ const uniqueArray = (arr: any[]) => Array.from(new Set(arr || []));
 
 export const PerenualService = {
   // 1. Live Search (Always hits the API)
+  // cycle/watering/sunlight accept arrays; multiple values fan out into parallel
+  // calls and results are merged + deduplicated by plant id.
   searchPlants: async (
     query: string,
     filters?: {
-      cycle?: string;
-      watering?: string;
-      sunlight?: string;
+      cycle?: string[];
+      watering?: string[];
+      sunlight?: string[];
       edible?: 0 | 1;
       poisonous?: 0 | 1;
       indoor?: 0 | 1;
@@ -67,27 +69,58 @@ export const PerenualService = {
       hardinessMax?: number;
     },
   ) => {
-    try {
-      const params = new URLSearchParams({ key: PERENUAL_API_KEY });
-      if (query.trim()) params.set("q", query.trim());
-      if (filters?.cycle)                        params.set("cycle", filters.cycle);
-      if (filters?.watering)                     params.set("watering", filters.watering);
-      if (filters?.sunlight)                     params.set("sunlight", filters.sunlight);
-      if (filters?.edible !== undefined)         params.set("edible", String(filters.edible));
-      if (filters?.poisonous !== undefined)      params.set("poisonous", String(filters.poisonous));
-      if (filters?.indoor !== undefined)         params.set("indoor", String(filters.indoor));
+    const buildParams = (cycle?: string, watering?: string, sunlight?: string) => {
+      const p = new URLSearchParams({ key: PERENUAL_API_KEY });
+      if (query.trim())                            p.set("q", query.trim());
+      if (cycle)                                   p.set("cycle", cycle);
+      if (watering)                                p.set("watering", watering);
+      if (sunlight)                                p.set("sunlight", sunlight);
+      if (filters?.edible !== undefined)           p.set("edible", String(filters.edible));
+      if (filters?.poisonous !== undefined)        p.set("poisonous", String(filters.poisonous));
+      if (filters?.indoor !== undefined)           p.set("indoor", String(filters.indoor));
       if (filters?.hardinessMin !== undefined || filters?.hardinessMax !== undefined) {
         const min = filters.hardinessMin ?? 1;
         const max = filters.hardinessMax ?? 13;
-        params.set("hardiness", min === max ? String(min) : `${min}-${max}`);
+        p.set("hardiness", min === max ? String(min) : `${min}-${max}`);
+      }
+      return p;
+    };
+
+    const fetchOne = async (params: URLSearchParams) => {
+      console.log(`🔎 [SEARCH] Perenual API: ${params.toString()}`);
+      const res = await fetch(`https://perenual.com/api/v2/species-list?${params.toString()}`);
+      const data = await res.json();
+      return (data.data || []) as any[];
+    };
+
+    try {
+      // Expand multi-value filters into a flat list of [cycle,watering,sunlight] combos.
+      // Each combo becomes one API call; results are merged and deduped by plant id.
+      const cycles   = filters?.cycle?.length   ? filters.cycle   : [undefined];
+      const waterings = filters?.watering?.length ? filters.watering : [undefined];
+      const sunlights = filters?.sunlight?.length ? filters.sunlight : [undefined];
+
+      const calls: Promise<any[]>[] = [];
+      for (const c of cycles) {
+        for (const w of waterings) {
+          for (const s of sunlights) {
+            calls.push(fetchOne(buildParams(c, w, s)));
+          }
+        }
       }
 
-      console.log(`🔎 [SEARCH] Perenual API: ${params.toString()}`);
-      const response = await fetch(
-        `https://perenual.com/api/v2/species-list?${params.toString()}`,
-      );
-      const data = await response.json();
-      return data.data || [];
+      const batches = await Promise.all(calls);
+      const seen = new Set<number>();
+      const merged: any[] = [];
+      for (const batch of batches) {
+        for (const plant of batch) {
+          if (!seen.has(plant.id)) {
+            seen.add(plant.id);
+            merged.push(plant);
+          }
+        }
+      }
+      return merged;
     } catch (error) {
       Logger.error("Perenual Search Failed", error);
       throw error;
