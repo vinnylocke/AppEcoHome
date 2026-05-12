@@ -542,7 +542,11 @@ Use specific common names (e.g. "French Marigold" not "Marigold").`;
 ${plantSearch ? `The user thinks it might be a "${plantSearch}". Confirm if this is correct.` : ""}
 ${locationLine ? `The gardener is located: ${locationLine}. Prioritise plants native to or commonly grown in this region.` : ""}
 
-Return the top 3 most likely identifications in possible_names, each with a confidence score (0–100) based on how well the visible leaf shape, colour, texture, and growth habit match. A score of 90+ means you are highly certain; 50–70 means a plausible match with ambiguity; below 40 means a speculative guess. Also return a brief observation in notes.`;
+Return the top 3 most likely identifications in possible_names, each with a confidence score (0–100) based on how well the visible leaf shape, colour, texture, and growth habit match. A score of 90+ means you are highly certain; 50–70 means a plausible match with ambiguity; below 40 means a speculative guess.
+
+IMPORTANT: Each name in possible_names must be the plant's well-known COMMON name (e.g. "Peace Lily", "Swiss Cheese Plant", "Snake Plant") — NOT the scientific/Latin name. Common names are what most gardeners search for and what the plant database recognises most reliably. If only one name is widely known, use that; avoid Latin binomials.
+
+Also return a brief observation in notes.`;
 
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN,

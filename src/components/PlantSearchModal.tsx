@@ -25,6 +25,7 @@ interface Props {
   onClose: () => void;
   onSuccess: (newPlant?: any) => void;
   initialSearchTerm?: string;
+  nameType?: "common" | "scientific";
 }
 
 export default function PlantSearchModal({
@@ -33,10 +34,12 @@ export default function PlantSearchModal({
   onClose,
   onSuccess,
   initialSearchTerm,
+  nameType,
 }: Props) {
   const { setPageContext, preferences } = usePlantDoctor();
 
   const [query, setQuery] = useState(initialSearchTerm || "");
+  const [searchMode, setSearchMode] = useState<"common" | "scientific">(nameType ?? "common");
   const [results, setResults] = useState<any[]>([]);
 
   const rankedResults = useMemo(() => {
@@ -163,6 +166,12 @@ export default function PlantSearchModal({
       performSearch(initialSearchTerm);
     }
   }, [initialSearchTerm, isPremium]);
+
+  const switchMode = (next: "common" | "scientific") => {
+    setSearchMode(next);
+    setHasSearched(false);
+    setResults([]);
+  };
 
   const handlePreviewPlant = async (searchResultPlant: any) => {
     setIsFetchingPreview(true);
@@ -441,11 +450,11 @@ export default function PlantSearchModal({
                 <input
                   ref={searchInputRef}
                   type="text"
-                  placeholder="Search by common or scientific name..."
+                  placeholder={searchMode === "scientific" ? "Search by scientific name, e.g. Monstera deliciosa..." : "Search by common name, e.g. Swiss Cheese Plant..."}
                   value={query}
                   onChange={(e) => setQuery(e.target.value)}
                   onKeyDown={handleResultsKeyDown}
-                  aria-label="Search for plants by common or scientific name"
+                  aria-label={`Search for plants by ${searchMode} name`}
                   className="w-full pl-6 pr-14 py-4 bg-rhozly-surface-low rounded-2xl font-bold border border-transparent focus:border-rhozly-primary outline-none"
                 />
                 <button
@@ -456,6 +465,25 @@ export default function PlantSearchModal({
                   <Search size={20} />
                 </button>
               </form>
+              <div className="flex items-center gap-2 mt-3">
+                <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">Search by:</span>
+                <button
+                  type="button"
+                  data-testid="search-mode-common"
+                  onClick={() => switchMode("common")}
+                  className={`px-3 py-1 rounded-full text-[11px] font-black transition-colors ${searchMode === "common" ? "bg-rhozly-primary text-white" : "bg-rhozly-surface-low text-rhozly-on-surface/50 hover:text-rhozly-on-surface"}`}
+                >
+                  Common Name
+                </button>
+                <button
+                  type="button"
+                  data-testid="search-mode-scientific"
+                  onClick={() => switchMode("scientific")}
+                  className={`px-3 py-1 rounded-full text-[11px] font-black transition-colors ${searchMode === "scientific" ? "bg-rhozly-primary text-white" : "bg-rhozly-surface-low text-rhozly-on-surface/50 hover:text-rhozly-on-surface"}`}
+                >
+                  Scientific Name
+                </button>
+              </div>
             </div>
 
             <div className="flex-1 overflow-y-auto p-4 sm:p-8 pt-0 custom-scrollbar space-y-4">
@@ -542,38 +570,32 @@ export default function PlantSearchModal({
                   );
                 })
               ) : hasSearched ? (
-                <div className="h-full flex flex-col items-center justify-center text-center opacity-60 px-4">
+                <div className="h-full flex flex-col items-center justify-center text-center px-4">
                   <Search
                     size={48}
-                    className="mb-4 text-rhozly-on-surface/50"
+                    className="mb-4 text-rhozly-on-surface/30"
                   />
                   <p className="font-black text-lg mb-2">No Results Found</p>
-                  <p className="text-sm font-bold text-rhozly-on-surface/70 mb-4">
-                    We couldn't find any plants matching "{query}"
+                  <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6">
+                    No plants matched "{query}"
                   </p>
-                  <div className="text-left bg-rhozly-surface-low/50 border border-rhozly-outline/10 rounded-2xl p-4 max-w-md w-full">
-                    <p className="font-black text-xs uppercase tracking-widest text-rhozly-on-surface/40 mb-3">
-                      Search Tips
-                    </p>
-                    <ul className="space-y-2">
-                      <li className="flex items-start gap-2 text-xs font-bold text-rhozly-on-surface/70">
-                        <span className="shrink-0 w-4 h-4 rounded-full bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center font-black text-[10px]">1</span>
-                        Try common names — e.g., "rose" or "tomato"
-                      </li>
-                      <li className="flex items-start gap-2 text-xs font-bold text-rhozly-on-surface/70">
-                        <span className="shrink-0 w-4 h-4 rounded-full bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center font-black text-[10px]">2</span>
-                        Use scientific names — e.g., "rosa" or "solanum"
-                      </li>
-                      <li className="flex items-start gap-2 text-xs font-bold text-rhozly-on-surface/70">
-                        <span className="shrink-0 w-4 h-4 rounded-full bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center font-black text-[10px]">3</span>
-                        Double-check your spelling
-                      </li>
-                      <li className="flex items-start gap-2 text-xs font-bold text-rhozly-on-surface/70">
-                        <span className="shrink-0 w-4 h-4 rounded-full bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center font-black text-[10px]">4</span>
-                        Try broader terms — e.g., "fern" instead of a specific species
-                      </li>
-                    </ul>
-                  </div>
+                  <button
+                    type="button"
+                    data-testid="try-other-name-type"
+                    onClick={() => {
+                      const next = searchMode === "common" ? "scientific" : "common";
+                      setSearchMode(next);
+                      performSearch(query);
+                    }}
+                    className="w-full max-w-xs py-3 px-6 bg-rhozly-primary/10 text-rhozly-primary font-black text-sm rounded-2xl hover:bg-rhozly-primary hover:text-white transition-all active:scale-95 mb-4"
+                  >
+                    Try {searchMode === "common" ? "Scientific" : "Common"} Name Search
+                  </button>
+                  <p className="text-xs font-bold text-rhozly-on-surface/40">
+                    {searchMode === "common"
+                      ? "Switch to scientific name — e.g. \"Monstera deliciosa\" instead of \"Swiss Cheese Plant\""
+                      : "Switch to common name — e.g. \"peace lily\" instead of \"Spathiphyllum wallisii\""}
+                  </p>
                 </div>
               ) : (
                 <div className="h-full flex flex-col items-center justify-center text-center opacity-40">

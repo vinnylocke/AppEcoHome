@@ -38,6 +38,7 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantSearchModal from "./PlantSearchModal";
+import { detectNameType } from "../lib/nameDetection";
 import DiagnosisImageGallery from "./DiagnosisImageGallery";
 import PlantInstancePicker from "./PlantInstancePicker";
 import AddToListSheet, { type SuggestedItem } from "./shopping/AddToListSheet";
@@ -674,6 +675,7 @@ export default function PlantDoctor({
           homeId={homeId}
           isPremium={isPremium}
           initialSearchTerm={selectedPlantName}
+          nameType={detectNameType(selectedPlantName)}
           onClose={() => setShowPerenualSearch(false)}
           onSuccess={() => {
             setShowPerenualSearch(false);
