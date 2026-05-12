@@ -16,6 +16,7 @@ export interface PestInfo {
 
 export interface IdentificationCandidate {
   name: string;
+  scientific_name?: string;
   confidence: number;
 }
 

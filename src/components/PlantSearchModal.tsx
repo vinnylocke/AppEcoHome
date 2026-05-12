@@ -25,7 +25,7 @@ interface Props {
   onClose: () => void;
   onSuccess: (newPlant?: any) => void;
   initialSearchTerm?: string;
-  nameType?: "common" | "scientific";
+  initialScientificName?: string;
 }
 
 export default function PlantSearchModal({
@@ -34,12 +34,12 @@ export default function PlantSearchModal({
   onClose,
   onSuccess,
   initialSearchTerm,
-  nameType,
+  initialScientificName,
 }: Props) {
   const { setPageContext, preferences } = usePlantDoctor();
 
   const [query, setQuery] = useState(initialSearchTerm || "");
-  const [searchMode, setSearchMode] = useState<"common" | "scientific">(nameType ?? "common");
+  const [searchMode, setSearchMode] = useState<"common" | "scientific">("common");
   const [results, setResults] = useState<any[]>([]);
 
   const rankedResults = useMemo(() => {
@@ -169,8 +169,11 @@ export default function PlantSearchModal({
 
   const switchMode = (next: "common" | "scientific") => {
     setSearchMode(next);
-    setHasSearched(false);
-    setResults([]);
+    const nextQuery = next === "scientific"
+      ? (initialScientificName || query)
+      : (initialSearchTerm || query);
+    setQuery(nextQuery);
+    performSearch(nextQuery);
   };
 
   const handlePreviewPlant = async (searchResultPlant: any) => {
@@ -582,11 +585,7 @@ export default function PlantSearchModal({
                   <button
                     type="button"
                     data-testid="try-other-name-type"
-                    onClick={() => {
-                      const next = searchMode === "common" ? "scientific" : "common";
-                      setSearchMode(next);
-                      performSearch(query);
-                    }}
+                    onClick={() => switchMode(searchMode === "common" ? "scientific" : "common")}
                     className="w-full max-w-xs py-3 px-6 bg-rhozly-primary/10 text-rhozly-primary font-black text-sm rounded-2xl hover:bg-rhozly-primary hover:text-white transition-all active:scale-95 mb-4"
                   >
                     Try {searchMode === "common" ? "Scientific" : "Common"} Name Search

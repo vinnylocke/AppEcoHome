@@ -97,10 +97,11 @@ const IDENTIFY_VISION_SCHEMA = {
       items: {
         type: "OBJECT",
         properties: {
-          name:       { type: "STRING",  description: "Common name of the plant" },
-          confidence: { type: "INTEGER", description: "0–100 confidence score based on visible features" },
+          name:            { type: "STRING",  description: "Well-known common name of the plant (e.g. 'Peace Lily')" },
+          scientific_name: { type: "STRING",  description: "Latin binomial scientific name (e.g. 'Spathiphyllum wallisii')" },
+          confidence:      { type: "INTEGER", description: "0–100 confidence score based on visible features" },
         },
-        required: ["name", "confidence"],
+        required: ["name", "scientific_name", "confidence"],
       },
     },
   },
@@ -542,9 +543,10 @@ Use specific common names (e.g. "French Marigold" not "Marigold").`;
 ${plantSearch ? `The user thinks it might be a "${plantSearch}". Confirm if this is correct.` : ""}
 ${locationLine ? `The gardener is located: ${locationLine}. Prioritise plants native to or commonly grown in this region.` : ""}
 
-Return the top 3 most likely identifications in possible_names, each with a confidence score (0–100) based on how well the visible leaf shape, colour, texture, and growth habit match. A score of 90+ means you are highly certain; 50–70 means a plausible match with ambiguity; below 40 means a speculative guess.
-
-IMPORTANT: Each name in possible_names must be the plant's well-known COMMON name (e.g. "Peace Lily", "Swiss Cheese Plant", "Snake Plant") — NOT the scientific/Latin name. Common names are what most gardeners search for and what the plant database recognises most reliably. If only one name is widely known, use that; avoid Latin binomials.
+Return the top 3 most likely identifications in possible_names. For each candidate provide:
+- name: the plant's well-known common name (e.g. "Peace Lily", "Swiss Cheese Plant") — what most gardeners call it
+- scientific_name: the Latin binomial (e.g. "Spathiphyllum wallisii", "Monstera deliciosa")
+- confidence: 0–100 score based on visible leaf shape, colour, texture, and growth habit; 90+ = highly certain, 50–70 = plausible with ambiguity, below 40 = speculative
 
 Also return a brief observation in notes.`;
 

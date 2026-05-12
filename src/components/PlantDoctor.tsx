@@ -38,7 +38,6 @@ import { Camera, CameraResultType, CameraSource } from "@capacitor/camera";
 
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantSearchModal from "./PlantSearchModal";
-import { detectNameType } from "../lib/nameDetection";
 import DiagnosisImageGallery from "./DiagnosisImageGallery";
 import PlantInstancePicker from "./PlantInstancePicker";
 import AddToListSheet, { type SuggestedItem } from "./shopping/AddToListSheet";
@@ -96,9 +95,8 @@ export default function PlantDoctor({
 
   const [aiResult, setAiResult] = useState<VisionResult | null>(null);
 
-  const [selectedPlantName, setSelectedPlantName] = useState<string | null>(
-    null,
-  );
+  const [selectedPlantName, setSelectedPlantName] = useState<string | null>(null);
+  const [selectedPlantScientific, setSelectedPlantScientific] = useState<string | null>(null);
   const [selectedDisease, setSelectedDisease] = useState<string | null>(null);
   const [selectedPest, setSelectedPest] = useState<string | null>(null);
   const [isFetchingPestDetails, setIsFetchingPestDetails] = useState(false);
@@ -244,6 +242,7 @@ export default function PlantDoctor({
         setSelectedFile(file);
         setAiResult(null);
         setSelectedPlantName(null);
+        setSelectedPlantScientific(null);
         setSelectedDisease(null);
         setSickInventoryId(null);
         setSaveToJournal(true);
@@ -275,6 +274,7 @@ export default function PlantDoctor({
       setSelectedFile(file);
       setAiResult(null);
       setSelectedPlantName(null);
+      setSelectedPlantScientific(null);
       setSelectedDisease(null);
       setSickInventoryId(null);
       setSaveToJournal(true);
@@ -290,6 +290,7 @@ export default function PlantDoctor({
     setActiveAction(null);
     setAiResult(null);
     setSelectedPlantName(null);
+    setSelectedPlantScientific(null);
     setSelectedDisease(null);
     setSelectedPest(null);
     setSickInventoryId(null);
@@ -412,6 +413,7 @@ export default function PlantDoctor({
     setActiveAction(action);
     setAiResult(null);
     setSelectedPlantName(null);
+    setSelectedPlantScientific(null);
     setSelectedDisease(null);
     setSelectedPest(null);
     setSickInventoryId(null);
@@ -675,7 +677,7 @@ export default function PlantDoctor({
           homeId={homeId}
           isPremium={isPremium}
           initialSearchTerm={selectedPlantName}
-          nameType={detectNameType(selectedPlantName)}
+          initialScientificName={selectedPlantScientific ?? undefined}
           onClose={() => setShowPerenualSearch(false)}
           onSuccess={() => {
             setShowPerenualSearch(false);
@@ -900,13 +902,23 @@ export default function PlantDoctor({
                           {aiResult.possible_names.map((item, i) => (
                             <button
                               key={i}
-                              onClick={() => setSelectedPlantName(item.name)}
-                              className="w-full text-left p-4 bg-white rounded-2xl border border-rhozly-outline/10 font-bold hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-rhozly-on-surface flex items-center justify-between gap-3"
+                              onClick={() => {
+                                setSelectedPlantName(item.name);
+                                setSelectedPlantScientific(item.scientific_name ?? null);
+                              }}
+                              className="w-full text-left p-4 bg-white rounded-2xl border border-rhozly-outline/10 font-bold hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-rhozly-on-surface"
                             >
-                              <span>{item.name}</span>
-                              <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${item.confidence >= 80 ? "bg-emerald-50 text-emerald-700" : item.confidence >= 60 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
-                                {item.confidence}%
-                              </span>
+                              <div className="flex items-center justify-between gap-3">
+                                <div>
+                                  <div>{item.name}</div>
+                                  {item.scientific_name && (
+                                    <div className="text-xs font-medium text-rhozly-on-surface/40 italic mt-0.5">{item.scientific_name}</div>
+                                  )}
+                                </div>
+                                <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${item.confidence >= 80 ? "bg-emerald-50 text-emerald-700" : item.confidence >= 60 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
+                                  {item.confidence}%
+                                </span>
+                              </div>
                             </button>
                           ))}
                         </div>
@@ -925,7 +937,7 @@ export default function PlantDoctor({
                           </span>
                         ) : (
                           <button
-                            onClick={() => setSelectedPlantName(null)}
+                            onClick={() => { setSelectedPlantName(null); setSelectedPlantScientific(null); }}
                             className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors min-h-[44px] px-2"
                           >
                             <ChevronLeft size={14} /> Change
