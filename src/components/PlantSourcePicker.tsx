@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { X, Loader2, ListPlus, Leaf } from "lucide-react";
+import { X, Loader2, ListPlus, Leaf, Info, ChevronUp } from "lucide-react";
 import { IconPlantDB, IconAI } from "../constants/icons";
 import { PerenualService } from "../lib/perenualService";
 import { PlantDoctorService } from "../services/plantDoctorService";
@@ -11,6 +11,8 @@ interface PlantResult {
 }
 
 type Selection = { type: "api" | "ai"; data: any };
+
+type PreviewEntry = { loading: boolean; images?: string[]; desc?: string };
 
 interface Props {
   plants: string[];
@@ -33,6 +35,54 @@ export default function PlantSourcePicker({
     ),
   );
   const [selections, setSelections] = useState<Record<string, Selection | null>>({});
+  const [previewCache, setPreviewCache] = useState<Record<string, PreviewEntry>>({});
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+
+  // Fetch Wikipedia summary + image for an AI match string
+  const fetchPreview = async (match: string) => {
+    setPreviewCache((prev) => {
+      if (prev[match]) return prev;
+      return { ...prev, [match]: { loading: true } };
+    });
+
+    const wikiMatch = match.match(/\(([^)]+)\)/);
+    const scientificName = wikiMatch ? wikiMatch[1] : null;
+    const commonName = match.split("(")[0].trim();
+    const primary = scientificName || commonName;
+
+    const fetchWiki = async (term: string) => {
+      try {
+        const res = await fetch(
+          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(term)}`,
+        );
+        if (!res.ok) return null;
+        const data = await res.json();
+        if (data.type === "disambiguation" || !data.extract) return null;
+        return data;
+      } catch {
+        return null;
+      }
+    };
+
+    let data =
+      (await fetchWiki(primary)) ??
+      (scientificName ? await fetchWiki(commonName) : null) ??
+      (await fetchWiki(`${commonName} plant`));
+
+    if (!data && commonName.includes(" ")) {
+      const base = commonName.split(" ").pop()!;
+      data = (await fetchWiki(base)) ?? (await fetchWiki(`${base} plant`));
+    }
+
+    setPreviewCache((prev) => ({
+      ...prev,
+      [match]: {
+        loading: false,
+        images: data ? [data.thumbnail?.source ?? data.originalimage?.source].filter(Boolean) : [],
+        desc: data?.extract || "No encyclopedia entry found.",
+      },
+    }));
+  };
 
   useEffect(() => {
     plants.forEach(async (name) => {
@@ -50,6 +100,9 @@ export default function PlantSourcePicker({
       ]);
 
       setResults((prev) => ({ ...prev, [name]: { ai, api, loading: false } }));
+
+      // Auto-fetch previews for all AI results
+      ai.forEach((match) => fetchPreview(match));
 
       // Auto-select best available result — AI first, then Perenual
       const auto: Selection | null =
@@ -74,6 +127,11 @@ export default function PlantSourcePicker({
     if (!cur || cur.type !== s.type) return false;
     if (s.type === "ai") return cur.data === s.data;
     return String(cur.data?.id) === String(s.data?.id);
+  };
+
+  const toggleExpand = (id: string) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+    if (!previewCache[id]) fetchPreview(id);
   };
 
   const selectedItems = Object.values(selections).filter(Boolean) as Selection[];
@@ -119,17 +177,16 @@ export default function PlantSourcePicker({
                     <Leaf size={14} className="text-rhozly-primary" />
                     <span className="font-black text-sm text-rhozly-on-surface">{name}</span>
                   </div>
-                  {r?.loading && (
+                  {r?.loading ? (
                     <div className="flex items-center gap-1.5 text-rhozly-on-surface/40">
                       <Loader2 size={12} className="animate-spin" />
                       <span className="text-[10px] font-bold">Searching…</span>
                     </div>
-                  )}
-                  {!r?.loading && selections[name] && (
+                  ) : selections[name] ? (
                     <span className="text-[8px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary/10 px-2 py-0.5 rounded-full">
                       Selected
                     </span>
-                  )}
+                  ) : null}
                 </div>
 
                 {r?.loading ? (
@@ -154,25 +211,91 @@ export default function PlantSourcePicker({
                           {r.ai.map((match) => {
                             const sel: Selection = { type: "ai", data: match };
                             const active = isSelected(name, sel);
+                            const preview = previewCache[match];
+                            const thumb = preview?.images?.[0];
+                            const isExpanded = expandedId === match;
+
                             return (
-                              <button
+                              <div
                                 key={match}
-                                onClick={() => select(name, sel)}
-                                className={`w-full flex items-center gap-3 p-2.5 rounded-xl border text-left transition-all ${active ? "border-amber-400 bg-amber-50" : "border-transparent hover:border-amber-200 hover:bg-amber-50/40"}`}
+                                className={`rounded-xl border overflow-hidden transition-all ${active ? "border-amber-400" : "border-transparent hover:border-amber-200"}`}
                               >
-                                <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${active ? "border-amber-500 bg-amber-500" : "border-rhozly-outline"}`}>
-                                  {active && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                <div
+                                  className={`flex items-center gap-3 p-2.5 ${active ? "bg-amber-50" : "hover:bg-amber-50/40"}`}
+                                >
+                                  {/* Radio */}
+                                  <button
+                                    onClick={() => select(name, sel)}
+                                    className="shrink-0"
+                                    aria-label="Select"
+                                  >
+                                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${active ? "border-amber-500 bg-amber-500" : "border-rhozly-outline"}`}>
+                                      {active && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                    </div>
+                                  </button>
+
+                                  {/* Thumbnail */}
+                                  <button
+                                    onClick={() => select(name, sel)}
+                                    className="w-10 h-10 rounded-lg bg-amber-500/10 shrink-0 overflow-hidden flex items-center justify-center"
+                                  >
+                                    {thumb ? (
+                                      <img src={thumb} alt={match} className="w-full h-full object-cover" />
+                                    ) : preview?.loading ? (
+                                      <Loader2 size={12} className="animate-spin text-amber-400" />
+                                    ) : (
+                                      <IconAI size={14} className="text-amber-500" />
+                                    )}
+                                  </button>
+
+                                  {/* Name */}
+                                  <button
+                                    onClick={() => select(name, sel)}
+                                    className="flex-1 min-w-0 text-left"
+                                  >
+                                    <span className="text-xs font-bold text-rhozly-on-surface leading-tight block truncate">
+                                      {match}
+                                    </span>
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-amber-500 bg-amber-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">
+                                      AI
+                                    </span>
+                                  </button>
+
+                                  {/* Info toggle */}
+                                  <button
+                                    onClick={() => toggleExpand(match)}
+                                    className="p-2 rounded-lg hover:bg-amber-100 text-amber-600 transition-colors shrink-0"
+                                    aria-label="Show details"
+                                  >
+                                    {isExpanded ? <ChevronUp size={16} /> : <Info size={16} />}
+                                  </button>
                                 </div>
-                                <div className="w-8 h-8 rounded-lg bg-amber-500/10 shrink-0 flex items-center justify-center">
-                                  <IconAI size={14} className="text-amber-500" />
-                                </div>
-                                <span className="text-xs font-bold text-rhozly-on-surface leading-tight flex-1 min-w-0 truncate">
-                                  {match}
-                                </span>
-                                <span className="text-[8px] font-black uppercase tracking-widest text-amber-500 bg-amber-100 px-1.5 py-0.5 rounded-full shrink-0">
-                                  AI
-                                </span>
-                              </button>
+
+                                {/* Expanded preview */}
+                                {isExpanded && (
+                                  <div className="p-3 bg-amber-50/60 border-t border-amber-100 animate-in slide-in-from-top-2">
+                                    {preview?.loading ? (
+                                      <div className="flex items-center gap-2 text-amber-600/60 py-2">
+                                        <Loader2 size={14} className="animate-spin" />
+                                        <span className="text-xs font-bold">Loading…</span>
+                                      </div>
+                                    ) : (
+                                      <div className="flex gap-3 items-start">
+                                        {thumb && (
+                                          <img
+                                            src={thumb}
+                                            alt={match}
+                                            className="w-20 h-20 rounded-xl object-cover shadow-sm shrink-0"
+                                          />
+                                        )}
+                                        <p className="text-xs font-semibold text-rhozly-on-surface/80 leading-relaxed">
+                                          {preview?.desc ?? "No description available."}
+                                        </p>
+                                      </div>
+                                    )}
+                                  </div>
+                                )}
+                              </div>
                             );
                           })}
                         </div>
@@ -203,7 +326,7 @@ export default function PlantSourcePicker({
                                 <div className={`w-4 h-4 rounded-full border-2 shrink-0 flex items-center justify-center transition-colors ${active ? "border-rhozly-primary bg-rhozly-primary" : "border-rhozly-outline"}`}>
                                   {active && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
                                 </div>
-                                <div className="w-8 h-8 rounded-lg bg-rhozly-primary/5 shrink-0 overflow-hidden flex items-center justify-center">
+                                <div className="w-10 h-10 rounded-lg bg-rhozly-primary/5 shrink-0 overflow-hidden flex items-center justify-center">
                                   {thumb ? (
                                     <img src={thumb} alt={plant.common_name} className="w-full h-full object-cover" />
                                   ) : (
@@ -219,10 +342,10 @@ export default function PlantSourcePicker({
                                       {plant.scientific_name[0]}
                                     </span>
                                   )}
+                                  <span className="text-[8px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary/10 px-1.5 py-0.5 rounded-full inline-block mt-0.5">
+                                    DB
+                                  </span>
                                 </div>
-                                <span className="text-[8px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary/10 px-1.5 py-0.5 rounded-full shrink-0">
-                                  DB
-                                </span>
                               </button>
                             );
                           })}
