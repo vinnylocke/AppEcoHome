@@ -7,6 +7,7 @@ import { guardAiByHome, guardPerenualByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
+import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
 
 const FN = "plant-doctor";
 
@@ -397,6 +398,15 @@ Each match should be "Common Name (Scientific Name)" format.`;
     if (action === "generate_care_guide") {
       if (!targetPlant) throw new Error("No target plant provided.");
       const cleanName = targetPlant.split("(")[0].trim();
+      const careKey = cacheKey("care_guide", cleanName, hemisphere);
+
+      const cached = await getCached<{ plantData: any }>(supabase, careKey);
+      if (cached) {
+        log(FN, "result", { action, plant: cleanName, fromCache: true });
+        return new Response(JSON.stringify(cached), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
 
       const prompt = `Generate a comprehensive botanical care guide for "${cleanName}".
 ${locationLine ? `Location context: ${locationLine}. Ensure seasonal advice (pruning months, flowering season, harvest season) reflects this hemisphere and location.` : ""}
@@ -416,9 +426,10 @@ Return all fields accurately. For pruning_month, use the abbreviated month names
         if (permanentUrl) parsedData.plantData.thumbnail_url = permanentUrl;
       }
 
+      await setCached(supabase, careKey, FN, parsedData, 30);
       await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "generate_care_guide", usage });
       log(FN, "result", {
-        action, plant: cleanName,
+        action, plant: cleanName, fromCache: false,
         plantType: parsedData.plantData?.plant_type,
         cycle: parsedData.plantData?.cycle,
         hasWikiImage: !!parsedData.plantData?.thumbnail_url,

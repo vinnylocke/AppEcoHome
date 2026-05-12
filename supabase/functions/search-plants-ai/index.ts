@@ -4,6 +4,7 @@ import { callGeminiCascade } from "../_shared/gemini.ts";
 import { guardAiByUser } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { log, error as logError } from "../_shared/logger.ts";
+import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
 
 const FN = "search-plants-ai";
 
@@ -63,6 +64,7 @@ serve(async (req) => {
 
     // Load location context so results are regionally relevant
     let locationLine = "";
+    let hemisphere = "Northern";
     if (userId) {
       const { data: home } = await supabase
         .from("homes")
@@ -71,7 +73,7 @@ serve(async (req) => {
         .maybeSingle();
 
       if (home) {
-        const hemisphere = (home.lat ?? 0) >= 0 ? "Northern" : "Southern";
+        hemisphere = (home.lat ?? 0) >= 0 ? "Northern" : "Southern";
         const month = new Date().toLocaleString("en-GB", {
           month: "long",
           timeZone: home.timezone ?? "UTC",
@@ -80,6 +82,15 @@ serve(async (req) => {
           ? `The gardener is in ${home.country} (${hemisphere} Hemisphere, ${month}). Favour plants suited to their climate and season.`
           : `The gardener is in the ${hemisphere} Hemisphere (${month}). Favour seasonally appropriate plants.`;
       }
+    }
+
+    const searchKey = cacheKey("search_plants", query, hemisphere);
+    const cached = await getCached<{ plants: Array<{ name: string; description: string }> }>(supabase, searchKey);
+    if (cached) {
+      log(FN, "success", { count: cached.plants?.length ?? 0, fromCache: true });
+      return new Response(JSON.stringify(cached), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     const prompt = `You are a knowledgeable horticulturalist helping a gardener find plants to buy.
@@ -116,7 +127,8 @@ Keep names precise and recognisable. Avoid duplicates.`;
       parsed = { plants: [] };
     }
 
-    log(FN, "success", { count: parsed.plants?.length ?? 0 });
+    await setCached(supabase, searchKey, FN, { plants: parsed.plants ?? [] }, 7);
+    log(FN, "success", { count: parsed.plants?.length ?? 0, fromCache: false });
 
     return new Response(JSON.stringify({ plants: parsed.plants ?? [] }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

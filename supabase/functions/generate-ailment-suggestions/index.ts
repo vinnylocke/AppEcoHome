@@ -4,6 +4,7 @@ import { log, error as logError } from "../_shared/logger.ts";
 import { callGeminiCascade } from "../_shared/gemini.ts";
 import { guardAiByUser } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
+import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
 
 const FN = "generate-ailment-suggestions";
 
@@ -89,7 +90,20 @@ serve(async (req) => {
       if (guardErr) return guardErr;
     }
 
-    log(FN, "request_received", { query });
+    log(FN, "request_received", { query, hasExtraContext: !!extraContext });
+
+    // Only cache generic queries — extraContext is user-specific so skip caching when present.
+    const ailmentKey = !extraContext ? cacheKey("ailments", query) : null;
+    if (ailmentKey) {
+      const cached = await getCached<{ results: any[] }>(supabase, ailmentKey);
+      if (cached) {
+        log(FN, "result", { query, count: cached.results?.length ?? 0, fromCache: true });
+        return new Response(
+          JSON.stringify(cached),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },
+        );
+      }
+    }
 
     const systemPrompt = `
 You are a horticulture and plant pathology expert helping gardeners build a watchlist of threats to their garden.
@@ -145,8 +159,9 @@ ${extraContext ? `\nADDITIONAL CONTEXT:\n${extraContext}` : ""}
       remedy_steps:     stampIds(ailment.remedy_steps),
     }));
 
+    if (ailmentKey) await setCached(supabase, ailmentKey, FN, { results }, 14);
     await logAiUsage(supabase, { userId, functionName: FN, action: "ailment_suggestions", usage });
-    log(FN, "result", { query, count: results.length });
+    log(FN, "result", { query, count: results.length, fromCache: false });
 
     return new Response(
       JSON.stringify({ results }),

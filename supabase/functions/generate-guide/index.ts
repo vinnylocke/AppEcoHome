@@ -4,6 +4,7 @@ import { log, error as logError } from "../_shared/logger.ts";
 import { callGeminiCascade } from "../_shared/gemini.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
+import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
 
 const FN = "generate-guide";
 
@@ -36,6 +37,16 @@ serve(async (req) => {
 
     const rateLimitErr = await enforceRateLimit(supabase, authResult.user.id, FN);
     if (rateLimitErr) return rateLimitErr;
+
+    const guideKey = cacheKey("guide", topic, difficulty, target_audience);
+    const cached = await getCached<{ guide_data: any; labels: string[] }>(supabase, guideKey);
+    if (cached) {
+      log(FN, "result", { topic, fromCache: true });
+      return new Response(JSON.stringify(cached), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+        status: 200,
+      });
+    }
 
     // UPDATED PROMPT: Added 'list' type and forced step-by-step breakdown
     const systemPrompt = `
@@ -133,8 +144,12 @@ serve(async (req) => {
 
     await Promise.all(imagePromises);
 
+    const responsePayload = { guide_data: guideData, labels: rawJson.labels };
+    await setCached(supabase, guideKey, FN, responsePayload, 7);
+    log(FN, "result", { topic, fromCache: false, sectionsCount: guideData.sections?.length ?? 0 });
+
     return new Response(
-      JSON.stringify({ guide_data: guideData, labels: rawJson.labels }),
+      JSON.stringify(responsePayload),
       {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
         status: 200,
