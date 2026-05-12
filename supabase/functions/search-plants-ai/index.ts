@@ -61,29 +61,52 @@ serve(async (req) => {
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
     if (!geminiApiKey) throw new Error("Missing GEMINI_API_KEY");
 
-    const prompt = `
-You are a knowledgeable horticulturalist helping a gardener find plants to buy.
+    // Load location context so results are regionally relevant
+    let locationLine = "";
+    if (userId) {
+      const { data: home } = await supabase
+        .from("homes")
+        .select("country, lat, lng, timezone")
+        .eq("user_id", userId)
+        .maybeSingle();
+
+      if (home) {
+        const hemisphere = (home.lat ?? 0) >= 0 ? "Northern" : "Southern";
+        const month = new Date().toLocaleString("en-GB", {
+          month: "long",
+          timeZone: home.timezone ?? "UTC",
+        });
+        locationLine = home.country
+          ? `The gardener is in ${home.country} (${hemisphere} Hemisphere, ${month}). Favour plants suited to their climate and season.`
+          : `The gardener is in the ${hemisphere} Hemisphere (${month}). Favour seasonally appropriate plants.`;
+      }
+    }
+
+    const prompt = `You are a knowledgeable horticulturalist helping a gardener find plants to buy.
 
 The gardener searched for: "${query}"
-
+${locationLine ? `\n${locationLine}\n` : ""}
 Return up to 8 plant names that closely match or relate to this search query.
 Include the most likely exact match first, then related varieties or companions.
 Each entry needs:
 - name: the common English plant name (e.g. "Cherry Tomato", "English Lavender")
 - description: one sentence — what it is and why a gardener would want it
 
-Keep names precise and recognisable. Avoid duplicates.
-`;
+Keep names precise and recognisable. Avoid duplicates.`;
 
     const { text: rawText, usage } = await callGeminiCascade(
       geminiApiKey,
-      prompt,
-      RESPONSE_SCHEMA,
-      { model: "gemini-1.5-flash", temperature: 0.3 },
+      FN,
+      [{ role: "user", parts: [{ text: prompt }] }],
+      { temperature: 0.3, responseSchema: RESPONSE_SCHEMA, maxOutputTokens: 800 },
     );
 
     if (userId) {
-      await logAiUsage(supabase, userId, FN, usage ?? {});
+      await logAiUsage(supabase, {
+        userId,
+        functionName: FN,
+        usage,
+      });
     }
 
     let parsed: { plants: Array<{ name: string; description: string }> };
