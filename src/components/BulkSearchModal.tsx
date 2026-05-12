@@ -4,7 +4,6 @@ import {
   Search,
   Loader2,
   Lock,
-  ChevronDown,
   ChevronUp,
   Info,
   CheckSquare2,
@@ -16,7 +15,6 @@ import {
 } from "lucide-react";
 import { IconPlantDB, IconAI } from "../constants/icons";
 import { PerenualService } from "../lib/perenualService";
-import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { PlantDoctorService } from "../services/plantDoctorService";
@@ -25,6 +23,7 @@ import ManualPlantCreation from "./ManualPlantCreation";
 interface Props {
   homeId: string;
   isPremium: boolean;
+  isAiEnabled: boolean;
   onClose: () => void;
   onProceedToBulkAdd: (selectedPlants: any[]) => void;
   initialSearchTerm?: string;
@@ -35,6 +34,7 @@ interface Props {
 export default function BulkSearchModal({
   homeId,
   isPremium,
+  isAiEnabled,
   onClose,
   onProceedToBulkAdd,
   initialSearchTerm,
@@ -44,7 +44,7 @@ export default function BulkSearchModal({
   const { setPageContext } = usePlantDoctor();
 
   const [step, setStep] = useState<"search" | "review">("search");
-  const [activeTab, setActiveTab] = useState<"api" | "ai" | "manual">("api");
+  const [activeTab, setActiveTab] = useState<"search" | "manual">("search");
   const [query, setQuery] = useState(initialSearchTerm || "");
   const [isSearching, setIsSearching] = useState(false);
   const [searchError, setSearchError] = useState<string>("");
@@ -65,6 +65,9 @@ export default function BulkSearchModal({
 
   const triggerRef = useRef<HTMLElement | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  const hasAnySource = isAiEnabled || isPremium;
+  const hasResults = aiResults.length > 0 || apiResults.length > 0;
 
   useEffect(() => {
     if (initialCartItems && initialCartItems.length > 0) {
@@ -88,20 +91,18 @@ export default function BulkSearchModal({
           ? "Reviewing Bulk Import Selection"
           : "Bulk Searching Plants",
       searchContext: {
-        activeTab,
         currentQuery: query,
         selectedCount: selectedPlantsMap.size,
+        sourcesEnabled: { ai: isAiEnabled, perenual: isPremium },
       },
     });
     return () => setPageContext(null);
-  }, [activeTab, query, selectedPlantsMap.size, step, setPageContext]);
+  }, [query, selectedPlantsMap.size, step, isAiEnabled, isPremium, setPageContext]);
 
   // Focus trap and return focus on close
   useEffect(() => {
-    // Store the previously focused element
     triggerRef.current = document.activeElement as HTMLElement;
 
-    // Focus the modal
     if (modalRef.current) {
       modalRef.current.focus();
     }
@@ -128,14 +129,12 @@ export default function BulkSearchModal({
 
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      // Return focus to trigger element
       if (triggerRef.current) {
         triggerRef.current.focus();
       }
     };
   }, []);
 
-  // 🚀 SMARTER WIKIPEDIA FETCHER
   const fetchPreviewData = async (
     identifier: string,
     isAi: boolean,
@@ -173,22 +172,11 @@ export default function BulkSearchModal({
       }
     };
 
-    // 1. Try Primary Term
     let data = await fetchWiki(primarySearchTerm);
-
-    // 2. Fallback to Common Name
-    if (!data && scientificName) {
-      data = await fetchWiki(commonName);
-    }
-
-    // 3. Fallback: Append " plant" (Fixes issues like "Marigold" or "Basil")
-    if (!data) {
-      data = await fetchWiki(`${commonName} plant`);
-    }
-
-    // 🚀 4. DEEP FALLBACK: Base Plant Type (Fixes "Curly Parsley" -> "Parsley")
+    if (!data && scientificName) data = await fetchWiki(commonName);
+    if (!data) data = await fetchWiki(`${commonName} plant`);
     if (!data && commonName.includes(" ")) {
-      const basePlant = commonName.split(" ").pop(); // Grabs the last word
+      const basePlant = commonName.split(" ").pop();
       if (basePlant) {
         data = await fetchWiki(basePlant);
         if (!data) data = await fetchWiki(`${basePlant} plant`);
@@ -211,11 +199,12 @@ export default function BulkSearchModal({
     }));
   };
 
+  // Auto-load previews for AI results as soon as they arrive
   useEffect(() => {
-    if (activeTab === "ai" && aiResults.length > 0) {
+    if (aiResults.length > 0) {
       aiResults.forEach((match) => fetchPreviewData(match, true));
     }
-  }, [aiResults, activeTab]);
+  }, [aiResults]);
 
   useEffect(() => {
     if (step === "review") {
@@ -237,32 +226,34 @@ export default function BulkSearchModal({
     setIsSearching(true);
     setSearchError("");
     setExpandedResultId(null);
+    setAiResults([]);
+    setApiResults([]);
 
-    try {
-      if (activeTab === "api") {
-        const data = await PerenualService.searchPlants(query);
-        setApiResults(data || []);
-      } else {
-        const data = await PlantDoctorService.searchPlantsText(query);
-        setAiResults(data.matches || []);
-      }
-    } catch (err: any) {
-      const errorMsg = err.message || "";
-      let displayError = "";
-      if (
-        errorMsg.includes("Unexpected token") ||
-        errorMsg.includes("Please Upg")
-      ) {
-        displayError = "Perenual API limit reached. Try using the AI Generator instead.";
-        toast.error(displayError);
-      } else {
-        displayError = "Search failed. Please try again.";
-        toast.error(displayError);
-      }
-      setSearchError(displayError);
-    } finally {
-      setIsSearching(false);
+    const searches: Promise<void>[] = [];
+
+    if (isAiEnabled) {
+      searches.push(
+        PlantDoctorService.searchPlantsText(query)
+          .then((data) => setAiResults(data.matches || []))
+          .catch(() => {}),
+      );
     }
+
+    if (isPremium) {
+      searches.push(
+        PerenualService.searchPlants(query)
+          .then((data) => setApiResults(data || []))
+          .catch((err) => {
+            const msg = (err.message || "") as string;
+            if (msg.includes("Unexpected token") || msg.includes("Please Upg")) {
+              toast.error("Perenual API limit reached.");
+            }
+          }),
+      );
+    }
+
+    await Promise.all(searches);
+    setIsSearching(false);
   };
 
   const handleExpandResult = (
@@ -362,7 +353,6 @@ export default function BulkSearchModal({
             {Array.from(selectedPlantsMap.entries()).map(([id, item]) => {
               const isApi = item.type === "api";
 
-              // 🚀 FIX: Safely parse names regardless of whether it's an object or auto-imported string
               const name =
                 typeof item.data === "string"
                   ? isApi
@@ -414,7 +404,7 @@ export default function BulkSearchModal({
                         <span
                           className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md mt-1 inline-block ${isApi ? "bg-rhozly-primary/10 text-rhozly-primary" : "bg-amber-100 text-amber-600"}`}
                         >
-                          {isApi ? "Perenual API" : "AI Generator"}
+                          {isApi ? "Perenual" : "AI"}
                         </span>
                       </div>
                     </div>
@@ -510,6 +500,7 @@ export default function BulkSearchModal({
           </button>
         </div>
 
+        {/* Tab bar — Search vs Manual */}
         <div className="px-8 shrink-0">
           <div
             role="tablist"
@@ -517,28 +508,21 @@ export default function BulkSearchModal({
           >
             <button
               role="tab"
+              data-testid="bulk-search-tab-search"
+              aria-selected={activeTab === "search"}
+              onClick={() => { setActiveTab("search"); setExpandedResultId(null); }}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${activeTab === "search" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+            >
+              <Search size={14} /> Search
+            </button>
+            <button
+              role="tab"
               data-testid="bulk-search-tab-manual"
               aria-selected={activeTab === "manual"}
               onClick={() => { setActiveTab("manual"); setExpandedResultId(null); }}
-              className={`flex-1 min-w-[80px] flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${activeTab === "manual" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${activeTab === "manual" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
             >
               <Edit3 size={14} /> Manual
-            </button>
-            <button
-              role="tab"
-              aria-selected={activeTab === "api"}
-              onClick={() => { setActiveTab("api"); setExpandedResultId(null); }}
-              className={`flex-1 min-w-[80px] flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${activeTab === "api" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-            >
-              <IconPlantDB size={14} /> Perenual
-            </button>
-            <button
-              role="tab"
-              aria-selected={activeTab === "ai"}
-              onClick={() => { setActiveTab("ai"); setExpandedResultId(null); }}
-              className={`flex-1 min-w-[80px] flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${activeTab === "ai" ? "bg-white text-amber-500 shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-            >
-              <IconAI size={14} /> AI
             </button>
           </div>
         </div>
@@ -550,14 +534,18 @@ export default function BulkSearchModal({
               onCancel={onClose}
             />
           </div>
-        ) : !isPremium ? (
-          <div data-testid="bulk-search-perenual-gate" className="flex-1 flex flex-col items-center justify-center p-8 text-center">
+        ) : !hasAnySource ? (
+          /* Neither AI nor Perenual is enabled */
+          <div
+            data-testid="bulk-search-no-sources"
+            className="flex-1 flex flex-col items-center justify-center p-8 text-center"
+          >
             <div className="w-20 h-20 bg-amber-100 rounded-full flex items-center justify-center mb-6 text-amber-600">
               <Lock size={32} />
             </div>
-            <h3 className="text-2xl font-black mb-2">Premium Required</h3>
+            <h3 className="text-2xl font-black mb-2">No Sources Enabled</h3>
             <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6 max-w-xs">
-              Upgrade to import from the Perenual database or use AI plant suggestions.
+              Enable the Perenual database or AI in your account settings to search for plants.
             </p>
             <button
               onClick={() => setActiveTab("manual")}
@@ -568,232 +556,263 @@ export default function BulkSearchModal({
           </div>
         ) : (
           <>
-        <div className="p-8 pb-4 shrink-0">
-          <form onSubmit={performSearch} className="relative">
-            <div className="relative flex items-center">
-              <input
-                id="bulk-search-input"
-                type="text"
-                placeholder={
-                  activeTab === "api"
-                    ? "Search real plants..."
-                    : "Ask AI for any plant..."
-                }
-                value={query}
-                onChange={(e) => {
-                  setQuery(e.target.value);
-                  if (searchError) setSearchError("");
-                }}
-                aria-describedby="search-helper-text"
-                aria-invalid={!!searchError}
-                className={`w-full pl-6 pr-14 py-4 rounded-2xl font-bold border outline-none shadow-sm transition-colors ${searchError ? "border-red-500" : activeTab === "api" ? "bg-rhozly-surface-low focus:border-rhozly-primary border-transparent" : "bg-white focus:border-amber-500 border-rhozly-outline/10"}`}
-              />
-              <button
-                type="submit"
-                disabled={isSearching || !query.trim()}
-                aria-label="Search"
-                className={`absolute right-2 p-2 text-white rounded-xl hover:scale-105 transition-transform disabled:opacity-50 ${activeTab === "api" ? "bg-rhozly-primary" : "bg-amber-500"}`}
-              >
-                <Search size={20} />
-              </button>
+            {/* Search input */}
+            <div className="p-8 pb-4 shrink-0">
+              <form onSubmit={performSearch} className="relative">
+                <div className="relative flex items-center">
+                  <input
+                    id="bulk-search-input"
+                    data-testid="bulk-search-input"
+                    type="text"
+                    placeholder={
+                      isAiEnabled && isPremium
+                        ? "Search plants (AI + Perenual)…"
+                        : isAiEnabled
+                          ? "Ask AI for any plant…"
+                          : "Search the Perenual database…"
+                    }
+                    value={query}
+                    onChange={(e) => {
+                      setQuery(e.target.value);
+                      if (searchError) setSearchError("");
+                    }}
+                    aria-describedby="search-helper-text"
+                    aria-invalid={!!searchError}
+                    className={`w-full pl-6 pr-14 py-4 rounded-2xl font-bold border outline-none shadow-sm transition-colors bg-rhozly-surface-low focus:border-rhozly-primary ${searchError ? "border-red-500" : "border-transparent"}`}
+                  />
+                  <button
+                    type="submit"
+                    disabled={isSearching || !query.trim()}
+                    aria-label="Search"
+                    className="absolute right-2 p-2 bg-rhozly-primary text-white rounded-xl hover:scale-105 transition-transform disabled:opacity-50"
+                  >
+                    <Search size={20} />
+                  </button>
+                </div>
+                <p
+                  id="search-helper-text"
+                  className="text-xs text-rhozly-on-surface/50 font-medium mt-2 px-2"
+                >
+                  {isAiEnabled && isPremium
+                    ? "Returns AI suggestions followed by Perenual database matches"
+                    : isAiEnabled
+                      ? "AI-generated plant suggestions"
+                      : "Searches the Perenual plant database"}
+                </p>
+                {searchError && (
+                  <p
+                    className="text-xs text-red-500 font-bold mt-2 px-2 animate-in slide-in-from-top-1"
+                    role="alert"
+                  >
+                    {searchError}
+                  </p>
+                )}
+              </form>
             </div>
-            <p
-              id="search-helper-text"
-              className="text-xs text-rhozly-on-surface/50 font-medium mt-2 px-2"
-            >
-              {activeTab === "api"
-                ? "Search the Perenual plant database"
-                : "Use AI to generate plant suggestions"}
-            </p>
-            {searchError && (
-              <p
-                className="text-xs text-red-500 font-bold mt-2 px-2 animate-in slide-in-from-top-1"
-                role="alert"
-              >
-                {searchError}
-              </p>
+
+            {/* Results */}
+            <div className="flex-1 overflow-y-auto p-8 pt-0 custom-scrollbar space-y-3">
+              {isSearching ? (
+                <div className="space-y-3">
+                  {[1, 2, 3, 4].map((i) => (
+                    <div
+                      key={i}
+                      className="w-full bg-white border border-rhozly-outline/10 rounded-2xl p-3 flex items-center gap-3 animate-pulse"
+                    >
+                      <div className="w-6 h-6 bg-rhozly-surface-low rounded-lg shrink-0" />
+                      <div className="w-12 h-12 bg-rhozly-surface-low rounded-xl shrink-0" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 bg-rhozly-surface-low rounded w-3/4" />
+                        <div className="h-3 bg-rhozly-surface-low rounded w-1/2" />
+                      </div>
+                      <div className="w-8 h-8 bg-rhozly-surface-low rounded-xl shrink-0" />
+                    </div>
+                  ))}
+                  <div className="flex flex-col items-center justify-center py-4 opacity-50">
+                    <Loader2 className="animate-spin mb-2 text-rhozly-primary" size={24} />
+                    <p className="font-bold text-xs">Searching…</p>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* AI results — shown first */}
+                  {aiResults.length > 0 && (
+                    <>
+                      {isPremium && (
+                        <p className="text-[10px] font-black uppercase tracking-widest text-amber-500/70 px-1 pt-1">
+                          AI Suggestions
+                        </p>
+                      )}
+                      {aiResults.map((match: string, i) => {
+                        const isSelected = selectedPlantsMap.has(match);
+                        const cachedThumb = previewCache[match]?.images?.[0];
+
+                        return (
+                          <div
+                            key={`ai-${i}`}
+                            className={`w-full bg-white border rounded-2xl transition-all overflow-hidden flex flex-col shadow-sm ${isSelected ? "border-amber-500 ring-1 ring-amber-500/30" : "border-rhozly-outline/10 hover:border-amber-500/40"}`}
+                          >
+                            <div className="flex items-center p-3 gap-3">
+                              <button
+                                onClick={() =>
+                                  toggleSelection(match, { type: "ai", data: match })
+                                }
+                                aria-label={isSelected ? "Remove from selection" : "Add to selection"}
+                                className={`shrink-0 transition-colors ${isSelected ? "text-amber-500" : "text-rhozly-on-surface/20 hover:text-amber-500/50"}`}
+                              >
+                                {isSelected ? <CheckSquare2 size={24} /> : <Square size={24} />}
+                              </button>
+
+                              <div className="w-12 h-12 rounded-xl bg-amber-500/5 overflow-hidden shrink-0 flex items-center justify-center text-amber-500/40">
+                                {cachedThumb ? (
+                                  <img
+                                    src={cachedThumb}
+                                    alt={match}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : previewCache[match]?.loading ? (
+                                  <Loader2 size={16} className="animate-spin" />
+                                ) : (
+                                  <IconAI size={20} />
+                                )}
+                              </div>
+
+                              <div className="flex-1 min-w-0">
+                                <span className="font-bold text-rhozly-on-surface truncate block">
+                                  {match}
+                                </span>
+                                <span className="text-[8px] font-black uppercase tracking-widest text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
+                                  AI
+                                </span>
+                              </div>
+                              <button
+                                onClick={() => handleExpandResult(match, true)}
+                                className="p-3 hover:bg-amber-100 rounded-xl text-amber-600 transition-colors"
+                              >
+                                {expandedResultId === match ? (
+                                  <ChevronUp size={18} />
+                                ) : (
+                                  <Info size={18} />
+                                )}
+                              </button>
+                            </div>
+                            {expandedResultId === match && renderAccordionContent(match)}
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {/* Perenual results — shown after AI */}
+                  {apiResults.length > 0 && (
+                    <>
+                      {isAiEnabled && (
+                        <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-primary/70 px-1 pt-1">
+                          Perenual Database
+                        </p>
+                      )}
+                      {apiResults.map((plant: any) => {
+                        const isSelected = selectedPlantsMap.has(String(plant.id));
+                        return (
+                          <div
+                            key={`api-${plant.id}`}
+                            className={`w-full bg-white border rounded-2xl transition-all overflow-hidden flex flex-col shadow-sm ${isSelected ? "border-rhozly-primary ring-1 ring-rhozly-primary/30" : "border-rhozly-outline/10 hover:border-rhozly-primary/30"}`}
+                          >
+                            <div className="flex items-center p-3 gap-3">
+                              <button
+                                onClick={() =>
+                                  toggleSelection(String(plant.id), {
+                                    type: "api",
+                                    data: plant,
+                                  })
+                                }
+                                aria-label={isSelected ? "Remove from selection" : "Add to selection"}
+                                className={`shrink-0 transition-colors ${isSelected ? "text-rhozly-primary" : "text-rhozly-on-surface/20 hover:text-rhozly-primary/50"}`}
+                              >
+                                {isSelected ? <CheckSquare2 size={24} /> : <Square size={24} />}
+                              </button>
+                              <div className="w-12 h-12 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0">
+                                {plant.default_image?.thumbnail &&
+                                !plant.default_image?.thumbnail.includes("upgrade_access") ? (
+                                  <img
+                                    src={plant.default_image.thumbnail}
+                                    alt={plant.common_name}
+                                    className="w-full h-full object-cover"
+                                  />
+                                ) : (
+                                  <div className="w-full h-full flex items-center justify-center text-rhozly-on-surface/20">
+                                    <IconPlantDB size={16} />
+                                  </div>
+                                )}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <h4 className="font-black text-rhozly-on-surface truncate">
+                                  {plant.common_name}
+                                </h4>
+                                <p className="text-[10px] font-bold text-rhozly-on-surface/50 italic truncate">
+                                  {plant.scientific_name?.[0]}
+                                </p>
+                                <span className="text-[8px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary/10 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
+                                  Perenual
+                                </span>
+                              </div>
+                              <button
+                                onClick={() =>
+                                  handleExpandResult(
+                                    String(plant.id),
+                                    false,
+                                    plant.common_name,
+                                  )
+                                }
+                                className="p-3 hover:bg-rhozly-primary/10 rounded-xl text-rhozly-primary transition-colors"
+                              >
+                                {expandedResultId === String(plant.id) ? (
+                                  <ChevronUp size={18} />
+                                ) : (
+                                  <Info size={18} />
+                                )}
+                              </button>
+                            </div>
+                            {expandedResultId === String(plant.id) &&
+                              renderAccordionContent(String(plant.id))}
+                          </div>
+                        );
+                      })}
+                    </>
+                  )}
+
+                  {/* Empty state after a search returned nothing */}
+                  {!isSearching && query.trim() && !hasResults && apiResults.length === 0 && aiResults.length === 0 && (
+                    <div className="flex flex-col items-center justify-center py-20 text-center gap-2 opacity-50">
+                      <Search size={32} />
+                      <p className="font-black text-sm">No results found</p>
+                      <p className="text-xs font-bold">Try a different search term</p>
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+
+            {selectedPlantsMap.size > 0 && (
+              <div className="shrink-0 p-6 bg-white border-t border-rhozly-outline/10 md:absolute md:bottom-0 md:left-0 md:right-0 md:bg-gradient-to-t md:from-white md:via-white md:to-transparent md:border-t-0 animate-in slide-in-from-bottom-8">
+                <div className="bg-rhozly-surface-lowest shadow-2xl border border-rhozly-outline/20 rounded-2xl p-4 flex flex-col md:flex-row items-center gap-4 md:justify-between">
+                  <div className="px-2 text-center md:text-left">
+                    <p className="text-sm font-black text-rhozly-on-surface">
+                      {selectedPlantsMap.size} Plants Selected
+                    </p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-rhozly-on-surface/40">
+                      Ready to review
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setStep("review")}
+                    className="w-full md:w-auto px-8 py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:scale-105 transition-transform flex items-center justify-center gap-2"
+                  >
+                    <ListPlus size={20} /> Review & Add
+                  </button>
+                </div>
+              </div>
             )}
-          </form>
-        </div>
-
-        <div className="flex-1 overflow-y-auto p-8 pt-0 custom-scrollbar space-y-3">
-          {isSearching ? (
-            <div className="space-y-3">
-              {[1, 2, 3, 4].map((i) => (
-                <div
-                  key={i}
-                  className="w-full bg-white border border-rhozly-outline/10 rounded-2xl p-3 flex items-center gap-3 animate-pulse"
-                >
-                  <div className="w-6 h-6 bg-rhozly-surface-low rounded-lg shrink-0" />
-                  <div className="w-12 h-12 bg-rhozly-surface-low rounded-xl shrink-0" />
-                  <div className="flex-1 space-y-2">
-                    <div className="h-4 bg-rhozly-surface-low rounded w-3/4" />
-                    <div className="h-3 bg-rhozly-surface-low rounded w-1/2" />
-                  </div>
-                  <div className="w-8 h-8 bg-rhozly-surface-low rounded-xl shrink-0" />
-                </div>
-              ))}
-              <div className="flex flex-col items-center justify-center py-4 opacity-50">
-                <Loader2
-                  className={`animate-spin mb-2 ${activeTab === "ai" ? "text-amber-500" : "text-rhozly-primary"}`}
-                  size={24}
-                />
-                <p className="font-bold text-xs">Searching...</p>
-              </div>
-            </div>
-          ) : activeTab === "api" ? (
-            apiResults.map((plant: any) => {
-              const isSelected = selectedPlantsMap.has(String(plant.id));
-              return (
-                <div
-                  key={plant.id}
-                  className={`w-full bg-white border rounded-2xl transition-all overflow-hidden flex flex-col shadow-sm ${isSelected ? "border-rhozly-primary ring-1 ring-rhozly-primary/30" : "border-rhozly-outline/10 hover:border-rhozly-primary/30"}`}
-                >
-                  <div className="flex items-center p-3 gap-3">
-                    <button
-                      onClick={() =>
-                        toggleSelection(String(plant.id), {
-                          type: "api",
-                          data: plant,
-                        })
-                      }
-                      aria-label={isSelected ? "Remove from selection" : "Add to selection"}
-                      className={`shrink-0 transition-colors ${isSelected ? "text-rhozly-primary" : "text-rhozly-on-surface/20 hover:text-rhozly-primary/50"}`}
-                    >
-                      {isSelected ? (
-                        <CheckSquare2 size={24} />
-                      ) : (
-                        <Square size={24} />
-                      )}
-                    </button>
-                    <div className="w-12 h-12 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0">
-                      {plant.default_image?.thumbnail &&
-                      !plant.default_image?.thumbnail.includes(
-                        "upgrade_access",
-                      ) ? (
-                        <img
-                          src={plant.default_image.thumbnail}
-                          alt={plant.common_name}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex items-center justify-center text-rhozly-on-surface/20">
-                          <IconPlantDB size={16} />
-                        </div>
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-black text-rhozly-on-surface truncate">
-                        {plant.common_name}
-                      </h4>
-                      <p className="text-[10px] font-bold text-rhozly-on-surface/50 italic truncate">
-                        {plant.scientific_name?.[0]}
-                      </p>
-                    </div>
-                    <button
-                      onClick={() =>
-                        handleExpandResult(
-                          String(plant.id),
-                          false,
-                          plant.common_name,
-                        )
-                      }
-                      className="p-3 hover:bg-rhozly-primary/10 rounded-xl text-rhozly-primary transition-colors"
-                    >
-                      {expandedResultId === String(plant.id) ? (
-                        <ChevronUp size={18} />
-                      ) : (
-                        <Info size={18} />
-                      )}
-                    </button>
-                  </div>
-                  {expandedResultId === String(plant.id) &&
-                    renderAccordionContent(String(plant.id))}
-                </div>
-              );
-            })
-          ) : (
-            aiResults.map((match: string, i) => {
-              const isSelected = selectedPlantsMap.has(match);
-              const cachedThumb = previewCache[match]?.images?.[0];
-
-              return (
-                <div
-                  key={i}
-                  className={`w-full bg-white border rounded-2xl transition-all overflow-hidden flex flex-col shadow-sm ${isSelected ? "border-amber-500 ring-1 ring-amber-500/30" : "border-rhozly-outline/10 hover:border-amber-500/40"}`}
-                >
-                  <div className="flex items-center p-3 gap-3">
-                    <button
-                      onClick={() =>
-                        toggleSelection(match, { type: "ai", data: match })
-                      }
-                      aria-label={isSelected ? "Remove from selection" : "Add to selection"}
-                      className={`shrink-0 transition-colors ${isSelected ? "text-amber-500" : "text-rhozly-on-surface/20 hover:text-amber-500/50"}`}
-                    >
-                      {isSelected ? (
-                        <CheckSquare2 size={24} />
-                      ) : (
-                        <Square size={24} />
-                      )}
-                    </button>
-
-                    <div className="w-12 h-12 rounded-xl bg-amber-500/5 overflow-hidden shrink-0 flex items-center justify-center text-amber-500/40">
-                      {cachedThumb ? (
-                        <img
-                          src={cachedThumb}
-                          alt={match}
-                          className="w-full h-full object-cover"
-                        />
-                      ) : previewCache[match]?.loading ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : (
-                        <IconAI size={20} />
-                      )}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <span className="font-bold text-rhozly-on-surface truncate block">
-                        {match}
-                      </span>
-                    </div>
-                    <button
-                      onClick={() => handleExpandResult(match, true)}
-                      className="p-3 hover:bg-amber-100 rounded-xl text-amber-600 transition-colors"
-                    >
-                      {expandedResultId === match ? (
-                        <ChevronUp size={18} />
-                      ) : (
-                        <Info size={18} />
-                      )}
-                    </button>
-                  </div>
-                  {expandedResultId === match && renderAccordionContent(match)}
-                </div>
-              );
-            })
-          )}
-        </div>
-
-        {selectedPlantsMap.size > 0 && (
-          <div className="shrink-0 p-6 bg-white border-t border-rhozly-outline/10 md:absolute md:bottom-0 md:left-0 md:right-0 md:bg-gradient-to-t md:from-white md:via-white md:to-transparent md:border-t-0 animate-in slide-in-from-bottom-8">
-            <div className="bg-rhozly-surface-lowest shadow-2xl border border-rhozly-outline/20 rounded-2xl p-4 flex flex-col md:flex-row items-center gap-4 md:justify-between">
-              <div className="px-2 text-center md:text-left">
-                <p className="text-sm font-black text-rhozly-on-surface">
-                  {selectedPlantsMap.size} Plants Selected
-                </p>
-                <p className="text-[10px] font-bold uppercase tracking-widest text-rhozly-on-surface/40">
-                  Ready to review
-                </p>
-              </div>
-              <button
-                onClick={() => setStep("review")}
-                className={`w-full md:w-auto px-8 py-4 text-white rounded-2xl font-black shadow-lg hover:scale-105 transition-transform flex items-center justify-center gap-2 ${activeTab === "ai" ? "bg-amber-500" : "bg-rhozly-primary"}`}
-              >
-                <ListPlus size={20} /> Review & Add
-              </button>
-            </div>
-          </div>
-        )}
           </>
         )}
       </div>

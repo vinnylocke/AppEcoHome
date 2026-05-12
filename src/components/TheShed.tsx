@@ -1222,6 +1222,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               <BulkSearchModal
                 homeId={homeId}
                 isPremium={perenualEnabled}
+                isAiEnabled={aiEnabled}
                 initialSearchTerm={initialSearchTerm}
                 initialCartItems={initialCartItems}
                 onClose={handleCloseModals}
