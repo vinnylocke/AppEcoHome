@@ -830,7 +830,7 @@ export default function PlantDoctor({
                   onClick={() => handleAiAction("identify")}
                   disabled={isUIBusy}
                   data-testid="doctor-btn-identify"
-                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "identify" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-white text-rhozly-primary border border-rhozly-primary/20 hover:bg-rhozly-primary/10 hover:border-rhozly-primary/40 disabled:opacity-50"}`}
+                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "identify" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 disabled:opacity-50"}`}
                 >
                   {isProcessing && activeAction === "identify" ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -844,7 +844,7 @@ export default function PlantDoctor({
                   onClick={() => handleAiAction("diagnose")}
                   disabled={isUIBusy}
                   data-testid="doctor-btn-diagnose"
-                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "diagnose" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-rhozly-primary text-white hover:bg-rhozly-primary-container disabled:opacity-50"}`}
+                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "diagnose" ? "bg-amber-500 text-white shadow-md scale-[1.02]" : "bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 disabled:opacity-50"}`}
                 >
                   {isProcessing && activeAction === "diagnose" ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
@@ -858,7 +858,7 @@ export default function PlantDoctor({
                   onClick={() => handleAiAction("pest")}
                   disabled={isUIBusy}
                   data-testid="doctor-btn-pest"
-                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "pest" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-rhozly-surface-low text-rhozly-primary border border-rhozly-outline/15 hover:bg-rhozly-primary/10 disabled:opacity-50"}`}
+                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "pest" ? "bg-rose-600 text-white shadow-md scale-[1.02]" : "bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 disabled:opacity-50"}`}
                 >
                   {isProcessing && activeAction === "pest" ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
