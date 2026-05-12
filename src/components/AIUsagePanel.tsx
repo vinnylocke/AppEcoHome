@@ -36,41 +36,44 @@ export default function AIUsagePanel({ homeId, userId }: Props) {
     if (!homeId || !userId) return;
 
     const load = async () => {
-      const now = new Date();
-      const todayStart = new Date(now);
-      todayStart.setHours(0, 0, 0, 0);
-      const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+      try {
+        const now = new Date();
+        const todayStart = new Date(now);
+        todayStart.setHours(0, 0, 0, 0);
+        const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
 
-      const [profileRes, usageRes, overridesRes] = await Promise.all([
-        supabase
-          .from("user_profiles")
-          .select("subscription_tier")
-          .eq("uid", userId)
-          .maybeSingle(),
-        supabase
-          .from("ai_usage_log")
-          .select("estimated_cost_usd, created_at")
-          .eq("home_id", homeId)
-          .gte("created_at", monthStart.toISOString()),
-        supabase
-          .from("user_rate_limit_overrides")
-          .select("function_name, max_per_hour, note")
-          .eq("user_id", userId),
-      ]);
+        const [profileRes, usageRes, overridesRes] = await Promise.all([
+          supabase
+            .from("user_profiles")
+            .select("subscription_tier")
+            .eq("uid", userId)
+            .maybeSingle(),
+          supabase
+            .from("ai_usage_log")
+            .select("estimated_cost_usd, created_at")
+            .eq("home_id", homeId)
+            .gte("created_at", monthStart.toISOString()),
+          supabase
+            .from("user_rate_limit_overrides")
+            .select("function_name, max_per_hour, note")
+            .eq("user_id", userId),
+        ]);
 
-      if (profileRes.data?.subscription_tier) {
-        setTier(profileRes.data.subscription_tier as TierId);
+        if (profileRes.data?.subscription_tier) {
+          setTier(profileRes.data.subscription_tier as TierId);
+        }
+
+        if (usageRes.data) {
+          const rows = usageRes.data as { estimated_cost_usd: number; created_at: string }[];
+          setMonthCalls(rows.length);
+          setTodayCalls(rows.filter((r) => new Date(r.created_at) >= todayStart).length);
+          setMonthCost(rows.reduce((s, r) => s + (r.estimated_cost_usd ?? 0), 0));
+        }
+
+        if (overridesRes.data) setOverrides(overridesRes.data as Override[]);
+      } finally {
+        setLoading(false);
       }
-
-      if (usageRes.data) {
-        const rows = usageRes.data as { estimated_cost_usd: number; created_at: string }[];
-        setMonthCalls(rows.length);
-        setTodayCalls(rows.filter((r) => new Date(r.created_at) >= todayStart).length);
-        setMonthCost(rows.reduce((s, r) => s + (r.estimated_cost_usd ?? 0), 0));
-      }
-
-      if (overridesRes.data) setOverrides(overridesRes.data as Override[]);
-      setLoading(false);
     };
 
     load();
