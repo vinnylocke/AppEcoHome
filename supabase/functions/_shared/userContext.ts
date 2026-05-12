@@ -14,6 +14,7 @@
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { loadPreferences, formatPreferencesBlock } from "./preferences.ts";
 import type { Preference } from "./preferences.ts";
+import { deriveClimate, frostDatesForHome } from "./climateZones.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -82,6 +83,10 @@ export interface UserContext {
   currentSeason: Season;
   currentMonth: string;
   isoDate: string;
+  // Climate
+  climateZone: string | null;
+  frostFirstDate: string | null;
+  frostLastDate: string | null;
   // Garden
   areas: UserContextArea[];
   inventory: UserContextInventoryItem[];
@@ -140,7 +145,7 @@ export async function buildUserContext(
 
   // ── Parallel fetches ───────────────────────────────────────────────────────
 
-  const [profileResult, homeResult, areasResult, inventoryResult, tasksResult, quizResult, weatherResult, behaviourResult] =
+  const [profileResult, homeResult, areasResult, inventoryResult, tasksResult, quizResult, weatherResult, behaviourSummaryResult, behaviourLiveResult] =
     await Promise.all([
       // Profile
       userId
@@ -153,7 +158,7 @@ export async function buildUserContext(
       // Home / location
       homeId
         ? db.from("homes")
-            .select("country, timezone, lat, lng")
+            .select("country, timezone, lat, lng, climate_zone, frost_first_date, frost_last_date")
             .eq("id", homeId)
             .maybeSingle()
         : Promise.resolve({ data: null }),
@@ -205,10 +210,18 @@ export async function buildUserContext(
             .maybeSingle()
         : Promise.resolve({ data: null }),
 
-      // Behaviour: task events in last 30 days
+      // Behaviour: pre-computed nightly summary (preferred — ~100ms faster than live scan)
+      userId && !skip.has("behaviour")
+        ? db.from("user_behaviour_summary")
+            .select("tasks_completed, tasks_postponed, tasks_skipped, postpone_rate, top_task_types, computed_at")
+            .eq("user_id", userId)
+            .maybeSingle()
+        : Promise.resolve({ data: null }),
+
+      // Behaviour: live fallback (used when summary is missing or stale > 25h)
       userId && !skip.has("behaviour")
         ? db.from("user_events")
-            .select("event_type, meta, created_at")
+            .select("event_type, meta")
             .eq("user_id", userId)
             .gte("created_at", new Date(Date.now() - 30 * 864e5).toISOString())
             .order("created_at", { ascending: false })
@@ -234,6 +247,15 @@ export async function buildUserContext(
   const monthNum = localNow.getMonth() + 1;
   const currentMonth = localNow.toLocaleString("en-GB", { month: "long" });
   const currentSeason = getSeason(hemisphere, monthNum);
+
+  // Climate zone: use DB column if backfilled, otherwise derive on-the-fly from lat.
+  const climateZone: string | null = home?.climate_zone ??
+    (lat !== null ? deriveClimate(lat).zone : null);
+  const frostDates = lat !== null
+    ? frostDatesForHome(lat, now.getFullYear())
+    : { frostFirstDate: null, frostLastDate: null };
+  const frostFirstDate: string | null = home?.frost_first_date ?? frostDates.frostFirstDate;
+  const frostLastDate: string | null  = home?.frost_last_date  ?? frostDates.frostLastDate;
 
   // ── Profile ────────────────────────────────────────────────────────────────
   const profile = profileResult.data;
@@ -272,23 +294,49 @@ export async function buildUserContext(
   }));
 
   // ── Behaviour ─────────────────────────────────────────────────────────────
-  const rawEvents: any[] = (behaviourResult.data ?? []) as any[];
-  const completedCount = rawEvents.filter((e) => e.event_type === "TASK_COMPLETED").length;
-  const postponedCount = rawEvents.filter((e) => e.event_type === "TASK_POSTPONED").length;
-  const skippedCount = rawEvents.filter((e) => e.event_type === "TASK_SKIPPED").length;
-  const totalActioned = completedCount + postponedCount + skippedCount;
-  const postponeRate = totalActioned > 0 ? Math.round((postponedCount / totalActioned) * 100) / 100 : 0;
+  // Use the pre-computed nightly summary when it exists and was computed within 25 hours.
+  // Fall back to a live scan of user_events when the summary is absent or stale.
+  const MAX_SUMMARY_AGE_MS = 25 * 3_600_000;
+  const summaryRow = behaviourSummaryResult.data as any;
+  const summaryAge = summaryRow?.computed_at
+    ? Date.now() - new Date(summaryRow.computed_at).getTime()
+    : Infinity;
+  const useSummary = summaryRow && summaryAge < MAX_SUMMARY_AGE_MS;
 
-  // Top task types from completed events
-  const typeCounts: Record<string, number> = {};
-  for (const e of rawEvents.filter((e) => e.event_type === "TASK_COMPLETED")) {
-    const t = e.meta?.task_type as string | undefined;
-    if (t) typeCounts[t] = (typeCounts[t] ?? 0) + 1;
+  let completedCount: number;
+  let postponedCount: number;
+  let skippedCount: number;
+  let postponeRate: number;
+  let topTaskTypes: string[];
+  let recentEventCount: number;
+
+  if (useSummary) {
+    completedCount  = summaryRow.tasks_completed  ?? 0;
+    postponedCount  = summaryRow.tasks_postponed  ?? 0;
+    skippedCount    = summaryRow.tasks_skipped    ?? 0;
+    postponeRate    = Number(summaryRow.postpone_rate ?? 0);
+    topTaskTypes    = summaryRow.top_task_types   ?? [];
+    recentEventCount = completedCount + postponedCount + skippedCount;
+  } else {
+    // Live aggregation fallback
+    const rawEvents: any[] = (behaviourLiveResult.data ?? []) as any[];
+    completedCount  = rawEvents.filter((e) => e.event_type === "TASK_COMPLETED").length;
+    postponedCount  = rawEvents.filter((e) => e.event_type === "TASK_POSTPONED").length;
+    skippedCount    = rawEvents.filter((e) => e.event_type === "TASK_SKIPPED").length;
+    const totalActioned = completedCount + postponedCount + skippedCount;
+    postponeRate = totalActioned > 0 ? Math.round((postponedCount / totalActioned) * 10_000) / 10_000 : 0;
+
+    const typeCounts: Record<string, number> = {};
+    for (const e of rawEvents.filter((e) => e.event_type === "TASK_COMPLETED")) {
+      const t = e.meta?.task_type as string | undefined;
+      if (t) typeCounts[t] = (typeCounts[t] ?? 0) + 1;
+    }
+    topTaskTypes = Object.entries(typeCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(([type]) => type);
+    recentEventCount = rawEvents.length;
   }
-  const topTaskTypes = Object.entries(typeCounts)
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 3)
-    .map(([type]) => type);
 
   const behaviour: UserContextBehaviour = {
     completedCount,
@@ -296,7 +344,7 @@ export async function buildUserContext(
     skippedCount,
     postponeRate,
     topTaskTypes,
-    recentEventCount: rawEvents.length,
+    recentEventCount,
   };
 
   // ── Weather ────────────────────────────────────────────────────────────────
@@ -359,6 +407,9 @@ export async function buildUserContext(
     currentSeason,
     currentMonth,
     isoDate,
+    climateZone,
+    frostFirstDate,
+    frostLastDate,
     areas: rawAreas,
     inventory,
     upcomingTasks,
@@ -397,7 +448,14 @@ export function renderContextBlock(
         if (ctx.country) parts.push(`Country: ${ctx.country}`);
         parts.push(`Hemisphere: ${ctx.hemisphere}`);
         parts.push(`Season: ${ctx.currentSeason} (${ctx.currentMonth} ${ctx.isoDate.slice(0, 4)})`);
+        if (ctx.climateZone) parts.push(`Climate: ${ctx.climateZone.replace("_", " ")}`);
         lines.push(parts.join(" | "));
+        if (ctx.frostFirstDate || ctx.frostLastDate) {
+          const frostParts: string[] = [];
+          if (ctx.frostFirstDate) frostParts.push(`first frost ~${ctx.frostFirstDate}`);
+          if (ctx.frostLastDate)  frostParts.push(`last frost ~${ctx.frostLastDate}`);
+          lines.push(`Frost window: ${frostParts.join(", ")}`);
+        }
         break;
       }
 

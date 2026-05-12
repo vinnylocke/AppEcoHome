@@ -12,6 +12,8 @@ import { callGeminiCascade } from "../_shared/gemini.ts";
 import { guardAiByUser } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
+import { deriveClimate, frostDatesForHome } from "../_shared/climateZones.ts";
+import { getSeason } from "../_shared/userContext.ts";
 
 const FN = "generate-landscape-plan";
 
@@ -196,8 +198,47 @@ serve(async (req) => {
       feedback: isRegeneration ? formData.feedback : undefined,
     });
 
-    // --- PERSONAL MEMORY: load most-recent preference per entity for this user ---
-    const latestPreferences = await loadPreferences(supabase, { userId: userId ?? undefined });
+    // --- LOCATION / SEASON CONTEXT ---
+    const [homeResult, areasResult, inventoryResult, prefsResult] = await Promise.all([
+      supabase.from("homes")
+        .select("country, timezone, lat, lng, climate_zone, frost_first_date, frost_last_date")
+        .eq("id", homeId)
+        .maybeSingle(),
+      supabase.from("areas")
+        .select("id, name, sunlight, locations!inner(home_id)")
+        .eq("locations.home_id", homeId),
+      supabase.from("inventory_items")
+        .select("plant_name, status, area_id")
+        .eq("home_id", homeId),
+      loadPreferences(supabase, { userId: userId ?? undefined }),
+    ]);
+
+    const home = homeResult.data;
+    const areas = areasResult.data;
+    const inventory = inventoryResult.data;
+    const latestPreferences = prefsResult;
+
+    // Derive seasonal context
+    const homeLat = home?.lat ?? 0;
+    const hemisphere = homeLat >= 0 ? "Northern" : "Southern";
+    const tz = home?.timezone ?? "UTC";
+    const localNow = new Date(new Date().toLocaleString("en-US", { timeZone: tz }));
+    const monthNum = localNow.getMonth() + 1;
+    const currentMonth = localNow.toLocaleString("en-GB", { month: "long" });
+    const currentSeason = getSeason(hemisphere as "Northern" | "Southern", monthNum);
+    const climateZone = home?.climate_zone ?? deriveClimate(homeLat).zone;
+    const frostDates = home?.lat != null ? frostDatesForHome(home.lat, localNow.getFullYear()) : null;
+    const frostFirstDate = home?.frost_first_date ?? frostDates?.frostFirstDate ?? null;
+    const frostLastDate  = home?.frost_last_date  ?? frostDates?.frostLastDate  ?? null;
+
+    const locationBlock = [
+      `Location: ${home?.country ?? "Unknown"} | Hemisphere: ${hemisphere}`,
+      `Current season: ${currentSeason} (${currentMonth} ${localNow.getFullYear()})`,
+      `Climate zone: ${climateZone.replace("_", " ")}`,
+      frostFirstDate ? `Frost window: first frost ~${frostFirstDate}, last frost ~${frostLastDate}` : null,
+    ].filter(Boolean).join("\n");
+
+    // --- PERSONAL MEMORY ---
     const positives = latestPreferences.filter((p) => p.sentiment === "positive");
     const negatives = latestPreferences.filter((p) => p.sentiment === "negative");
 
@@ -212,19 +253,11 @@ serve(async (req) => {
       ? formatPreferencesBlock(latestPreferences, "rich")
       : "";
 
-    // --- GARDEN CONTEXT ---
-    const { data: areas } = await supabase
-      .from("areas")
-      .select("id, name, sunlight, locations!inner(home_id)")
-      .eq("locations.home_id", homeId);
-
-    const { data: inventory } = await supabase
-      .from("inventory_items")
-      .select("plant_name, status, area_id")
-      .eq("home_id", homeId);
-
     log(FN, "context_loaded", {
       homeId,
+      hemisphere,
+      currentSeason,
+      climateZone,
       areasCount: (areas || []).length,
       areas: (areas || []).map((a: any) => a.name),
       inventoryCount: (inventory || []).length,
@@ -234,6 +267,8 @@ serve(async (req) => {
     // --- SYSTEM PROMPT ---
     const systemPrompt = `
       You are the Rhozly Master Landscape Architect. Output a strict, professional, and highly detailed project execution plan.
+
+      ${locationBlock}
 
       ${personalMemoryBlock}
 
@@ -370,12 +405,15 @@ serve(async (req) => {
       console.error("Error generating cover image:", imgError);
     }
 
-    // --- PREFERENCE EXTRACTION (regen only) ---
-    // Extract structured preferences from the user's free-text feedback and persist
-    // them so future plans automatically reflect their evolving tastes.
-    if (isRegeneration && formData.feedback) {
+    // --- PREFERENCE EXTRACTION ---
+    // Extract structured preferences from the user's free-text input and persist them
+    // so future plans automatically reflect their evolving tastes.
+    // On the first pass: mine the initial description for preferences (e.g., "I love roses").
+    // On regenerations: mine the rejection feedback instead.
+    const textToMine = isRegeneration ? formData.feedback : formData.description;
+    if (textToMine) {
       try {
-        const extracted = await extractPreferencesFromFeedback(geminiApiKey, formData.feedback);
+        const extracted = await extractPreferencesFromFeedback(geminiApiKey, textToMine);
 
         log(FN, "preferences_extracted", {
           count: extracted.length,
