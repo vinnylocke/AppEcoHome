@@ -6,24 +6,19 @@ import {
   Trash2,
   MapPin,
   Loader2,
-  Database,
-  Sprout,
   Settings2,
   Plus,
-  Sparkles,
   History,
   Check,
   Archive,
   ArchiveRestore,
-  Wheat,
   ChevronDown,
   ChevronUp,
   ListChecks,
   CheckSquare,
   Edit3,
-  Bug,
-  ScanLine,
 } from "lucide-react";
+import { IconPlantDB, IconGrowth, IconAI, IconHarvest, IconScan, IconPest } from "../constants/icons";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -387,7 +382,7 @@ export default function AreaDetails({
               className="p-2 sm:p-3 text-rhozly-primary hover:bg-rhozly-primary/10 rounded-2xl transition-all border border-rhozly-primary/10 bg-white shadow-sm"
               title="Scan Area"
             >
-              <ScanLine className="w-5 h-5 sm:w-6 sm:h-6" />
+              <IconScan className="w-5 h-5 sm:w-6 sm:h-6" />
             </button>
             <button
               onClick={getPlantRecommendations}
@@ -397,7 +392,7 @@ export default function AreaDetails({
               {isGettingRecs ? (
                 <Loader2 className="w-5 h-5 sm:w-6 sm:h-6 animate-spin" />
               ) : (
-                <Sparkles className="w-5 h-5 sm:w-6 sm:h-6" />
+                <IconAI className="w-5 h-5 sm:w-6 sm:h-6" />
               )}
             </button>
             <button
@@ -420,7 +415,7 @@ export default function AreaDetails({
             <div className="flex items-center justify-between mb-2">
               <div>
                 <h4 className="font-black text-lg text-rhozly-primary flex items-center gap-2">
-                  <Sparkles size={20} /> Companion Recommendations
+                  <IconAI size={20} /> Companion Recommendations
                 </h4>
                 <p className="text-xs font-bold text-rhozly-primary/60 mt-1">
                   Select multiple plants to import directly to your Shed.
@@ -466,7 +461,7 @@ export default function AreaDetails({
                           </p>
                           {prefScore > 0 && (
                             <span className="inline-flex items-center gap-1 mt-1 text-[9px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                              <Sparkles size={8} /> Matches your taste
+                              <IconAI size={8} /> Matches your taste
                             </span>
                           )}
                         </div>
@@ -493,7 +488,7 @@ export default function AreaDetails({
                   }
                   className="flex-1 py-4 bg-rhozly-primary text-white rounded-xl font-black shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
                 >
-                  <Sparkles size={18} /> Add with AI Care Plans ({selectedRecs.length})
+                  <IconAI size={18} /> Add with AI Care Plans ({selectedRecs.length})
                 </button>
                 <button
                   onClick={() =>
@@ -503,7 +498,7 @@ export default function AreaDetails({
                   }
                   className="flex-1 py-4 bg-white border-2 border-rhozly-primary text-rhozly-primary rounded-xl font-black shadow-lg flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform"
                 >
-                  <Database size={18} /> Add from Plant Database ({selectedRecs.length})
+                  <IconPlantDB size={18} /> Add from Plant Database ({selectedRecs.length})
                 </button>
               </div>
             )}
@@ -569,7 +564,7 @@ export default function AreaDetails({
                     >
                       <div className="flex items-center gap-4">
                         <div className="bg-rhozly-primary/5 text-rhozly-primary p-3 rounded-2xl shrink-0">
-                          <Sprout className="w-6 h-6" />
+                          <IconGrowth className="w-6 h-6" />
                         </div>
                         <div>
                           <h4 className="font-black text-lg text-rhozly-on-surface leading-tight">
@@ -635,7 +630,7 @@ export default function AreaDetails({
                                     className="min-w-[44px] min-h-[44px] flex items-center justify-center text-orange-500/70 hover:text-orange-600 hover:bg-orange-50 rounded-xl transition-colors"
                                     title="Link Ailment"
                                   >
-                                    <Bug className="w-4 h-4" />
+                                    <IconPest className="w-4 h-4" />
                                   </button>
                                   <button
                                     onClick={(e) => {

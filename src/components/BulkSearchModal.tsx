@@ -3,11 +3,9 @@ import {
   X,
   Search,
   Loader2,
-  Database,
   Lock,
   ChevronDown,
   ChevronUp,
-  Sparkles,
   Info,
   CheckSquare2,
   Square,
@@ -16,6 +14,7 @@ import {
   Trash2,
   Edit3,
 } from "lucide-react";
+import { IconPlantDB, IconAI } from "../constants/icons";
 import { PerenualService } from "../lib/perenualService";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
@@ -400,9 +399,9 @@ export default function BulkSearchModal({
                             className="w-full h-full object-cover"
                           />
                         ) : isApi ? (
-                          <Database size={20} />
+                          <IconPlantDB size={20} />
                         ) : (
-                          <Sparkles size={20} />
+                          <IconAI size={20} />
                         )}
                       </div>
                       <div>
@@ -531,7 +530,7 @@ export default function BulkSearchModal({
               onClick={() => { setActiveTab("api"); setExpandedResultId(null); }}
               className={`flex-1 min-w-[80px] flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${activeTab === "api" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
             >
-              <Database size={14} /> Perenual
+              <IconPlantDB size={14} /> Perenual
             </button>
             <button
               role="tab"
@@ -539,7 +538,7 @@ export default function BulkSearchModal({
               onClick={() => { setActiveTab("ai"); setExpandedResultId(null); }}
               className={`flex-1 min-w-[80px] flex items-center justify-center gap-1.5 py-3 rounded-xl text-xs font-black transition-all ${activeTab === "ai" ? "bg-white text-amber-500 shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
             >
-              <Sparkles size={14} /> AI
+              <IconAI size={14} /> AI
             </button>
           </div>
         </div>
@@ -679,7 +678,7 @@ export default function BulkSearchModal({
                         />
                       ) : (
                         <div className="w-full h-full flex items-center justify-center text-rhozly-on-surface/20">
-                          <Database size={16} />
+                          <IconPlantDB size={16} />
                         </div>
                       )}
                     </div>
@@ -748,7 +747,7 @@ export default function BulkSearchModal({
                       ) : previewCache[match]?.loading ? (
                         <Loader2 size={16} className="animate-spin" />
                       ) : (
-                        <Sparkles size={20} />
+                        <IconAI size={20} />
                       )}
                     </div>
 

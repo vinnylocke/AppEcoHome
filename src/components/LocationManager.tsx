@@ -12,12 +12,9 @@ import {
   X,
   Loader2,
   Settings2,
-  FlaskConical,
   Zap,
-  Layers,
-  Droplets,
-  Beaker,
 } from "lucide-react";
+import { IconSoilMedium, IconSoilPH, IconWatering, IconNutrients } from "../constants/icons";
 import type { Location, Area } from "../types";
 import { ConfirmModal } from "./ConfirmModal";
 import { Logger } from "../lib/errorHandler";
@@ -572,7 +569,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                     {/* 1. Growing Medium */}
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                        <Layers size={14} /> Growing Medium
+                        <IconSoilMedium size={14} /> Growing Medium
                       </label>
                       <select
                         value={editingArea.growing_medium || ""}
@@ -626,7 +623,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                     {/* 3. pH Level */}
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                        <FlaskConical size={14} /> Medium pH (0.0 - 14.0)
+                        <IconSoilPH size={14} /> Medium pH (0.0 - 14.0)
                       </label>
                       <input
                         type="number"
@@ -668,7 +665,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                     {/* 5. Water Movement */}
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                        <Droplets size={14} /> Water Movement
+                        <IconWatering size={14} /> Water Movement
                       </label>
                       <select
                         value={editingArea.water_movement || ""}
@@ -693,7 +690,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                     {/* 6. Nutrient Source */}
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                        <Beaker size={14} /> Nutrient Source
+                        <IconNutrients size={14} /> Nutrient Source
                       </label>
                       <select
                         value={editingArea.nutrient_source || ""}

@@ -4,17 +4,16 @@ import {
   X,
   MapPin,
   Hash,
-  Sprout,
   Calendar,
   Check,
   Loader2,
   Info,
   Navigation,
-  Sparkles,
   BrainCircuit,
   CloudSun,
   Lock,
 } from "lucide-react";
+import { IconGrowth, IconAI } from "../constants/icons";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
@@ -484,7 +483,7 @@ export default function PlantAssignmentModal({
                         </>
                       ) : (
                         <>
-                          <Sparkles size={20} /> Generate Schedule
+                          <IconAI size={20} /> Generate Schedule
                         </>
                       )}
                     </button>
@@ -643,7 +642,7 @@ export default function PlantAssignmentModal({
 
                 <div className="space-y-3">
                   <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                    <Sprout size={14} /> Current Growth State
+                    <IconGrowth size={14} /> Current Growth State
                   </label>
                   <select
                     value={formData.growthState}

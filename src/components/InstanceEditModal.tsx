@@ -12,13 +12,9 @@ import {
   Info,
   Check,
   Loader2,
-  Sprout,
-  Leaf,
-  LibraryBig,
-  Wheat,
-  Sun,
   BarChart2,
 } from "lucide-react";
+import { IconGrowth, IconPlant, IconPlantDB, IconHarvest, IconLight } from "../constants/icons";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -294,7 +290,7 @@ export default function InstanceEditModal({
             onClick={() => setActiveTab("care_guide")}
             className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "care_guide" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
-            <Leaf size={14} /> Care Guide
+            <IconPlant size={14} /> Care Guide
           </button>
 
           <button
@@ -317,7 +313,7 @@ export default function InstanceEditModal({
             onClick={() => setActiveTab("guides")}
             className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "guides" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
-            <LibraryBig size={14} /> Guides
+            <IconPlantDB size={14} /> Guides
           </button>
 
           <button
@@ -325,7 +321,7 @@ export default function InstanceEditModal({
             onClick={() => setActiveTab("yield")}
             className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "yield" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
-            <Wheat size={14} /> Yield
+            <IconHarvest size={14} /> Yield
           </button>
 
           <button
@@ -333,7 +329,7 @@ export default function InstanceEditModal({
             onClick={() => setActiveTab("light")}
             className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "light" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
-            <Sun size={14} /> Light
+            <IconLight size={14} /> Light
           </button>
 
           <button
@@ -480,7 +476,7 @@ export default function InstanceEditModal({
                 </div>
                 <div className="space-y-3">
                   <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                    <Sprout size={14} /> Current Growth State
+                    <IconGrowth size={14} /> Current Growth State
                   </label>
                   <select
                     value={editForm.growth_state}

@@ -3,14 +3,13 @@ import { supabase } from "../lib/supabase";
 import HabitQuiz from "./HabitQuiz";
 import PlantSwipeDeck from "./PlantSwipeDeck";
 import {
-  Sparkles,
   ClipboardList,
-  Heart,
   Trash2,
   RefreshCw,
   Loader2,
   ChevronDown,
 } from "lucide-react";
+import { IconAI, IconDiscover } from "../constants/icons";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 
@@ -226,7 +225,7 @@ export default function GardenProfile({
         {(
           [
             { id: "quiz", icon: <ClipboardList size={15} />, label: "Garden Quiz" },
-            { id: "swipe", icon: <Heart size={15} />, label: "Discover Plants" },
+            { id: "swipe", icon: <IconDiscover size={15} />, label: "Discover Plants" },
           ] as const
         ).map(({ id, icon, label }) => (
           <button
@@ -267,7 +266,7 @@ export default function GardenProfile({
         ) : quizDone ? (
           <div className="bg-rhozly-primary/10 border border-rhozly-primary/20 rounded-3xl p-6 text-center flex flex-col items-center gap-4">
             <div className="w-14 h-14 rounded-full bg-rhozly-primary/10 flex items-center justify-center">
-              <Sparkles size={26} className="text-rhozly-primary" />
+              <IconAI size={26} className="text-rhozly-primary" />
             </div>
             <div>
               <p className="font-black text-rhozly-on-surface text-lg">
@@ -349,7 +348,7 @@ export default function GardenProfile({
               className="w-full flex items-center justify-between px-5 py-4 text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-outline/5 xl:hover:bg-transparent transition xl:cursor-default xl:pointer-events-none"
             >
               <span className="flex items-center gap-2">
-                <Sparkles size={14} className="text-amber-500" />
+                <IconAI size={14} className="text-amber-500" />
                 Your garden preferences
                 <span className="text-xs font-normal text-rhozly-on-surface/50 ml-1">
                   ({prefs.length})

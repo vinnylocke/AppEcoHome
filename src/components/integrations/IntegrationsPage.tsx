@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
-import { Plug, Plus, RefreshCw, AlertCircle } from "lucide-react";
+import { Plus, RefreshCw, AlertCircle } from "lucide-react";
+import { IconIntegrations } from "../../constants/icons";
 import DeviceCard from "./DeviceCard";
 import ConnectDeviceWizard from "./ConnectDeviceWizard";
 import DeviceDetailModal from "./DeviceDetailModal";
@@ -62,7 +63,7 @@ export default function IntegrationsPage({ homeId }: Props) {
       <div className="flex items-center justify-between mb-6 gap-3">
         <div className="flex items-center gap-3 min-w-0">
           <div className="w-10 h-10 rounded-2xl bg-rhozly-primary/10 flex items-center justify-center shrink-0">
-            <Plug className="text-rhozly-primary" size={20} />
+            <IconIntegrations className="text-rhozly-primary" size={20} />
           </div>
           <div className="min-w-0">
             <h1 className="text-lg sm:text-2xl font-black font-display text-rhozly-on-surface leading-tight">Integrations</h1>
@@ -135,7 +136,7 @@ function EmptyState({ onConnect }: { onConnect: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center text-center py-20 px-6">
       <div className="w-16 h-16 rounded-3xl bg-rhozly-primary/10 flex items-center justify-center mb-4">
-        <Plug className="text-rhozly-primary" size={28} />
+        <IconIntegrations className="text-rhozly-primary" size={28} />
       </div>
       <h2 className="text-xl font-bold text-rhozly-on-surface mb-2">No devices connected</h2>
       <p className="text-sm text-rhozly-on-surface-variant max-w-xs mb-6">

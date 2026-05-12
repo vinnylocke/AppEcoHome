@@ -6,17 +6,16 @@ import {
   Loader2,
   Bot,
   User,
-  Leaf,
   ThumbsUp,
   ThumbsDown,
   RefreshCw,
-  Sprout,
   ChevronDown,
   ChevronUp,
   Trash2,
   Camera,
   ImagePlus,
 } from "lucide-react";
+import { IconGrowth, IconPlant } from "../constants/icons";
 import { Camera as CapCamera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { Capacitor } from "@capacitor/core";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -79,7 +78,7 @@ function ChatPlantCard({
           />
         ) : (
           <div className="w-10 h-10 rounded-lg bg-rhozly-surface border border-rhozly-outline/20 flex items-center justify-center shrink-0">
-            <Sprout size={16} className="text-rhozly-primary" />
+            <IconGrowth size={16} className="text-rhozly-primary" />
           </div>
         )}
         <div className="flex-1 min-w-0">
@@ -577,7 +576,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                         {msg.role === "user" ? (
                           <User size={14} />
                         ) : (
-                          <Leaf size={14} />
+                          <IconPlant size={14} />
                         )}
                       </div>
 
@@ -597,7 +596,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                           !!msg.preferences_captured &&
                           msg.preferences_captured > 0 && (
                             <div className="flex items-center gap-1 text-[10px] text-rhozly-primary font-semibold opacity-70">
-                              <Leaf size={10} />
+                              <IconPlant size={10} />
                               {msg.preferences_captured === 1
                                 ? "Preference noted"
                                 : `${msg.preferences_captured} preferences noted`}
@@ -675,7 +674,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                 {isLoading && (
                   <div className="flex gap-3">
                     <div className="w-8 h-8 rounded-full bg-rhozly-surface-low text-rhozly-primary flex items-center justify-center shrink-0">
-                      <Leaf size={14} />
+                      <IconPlant size={14} />
                     </div>
                     <div className="p-3 bg-white border border-rhozly-primary/30 rounded-2xl rounded-tl-sm shadow-sm flex items-center gap-2">
                       <Loader2

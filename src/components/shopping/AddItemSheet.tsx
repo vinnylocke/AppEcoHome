@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { X, Leaf, Search, Loader2, ArrowLeft, Sparkles, Globe } from "lucide-react";
+import { X, Search, Loader2, ArrowLeft, Globe } from "lucide-react";
+import { IconPlant, IconAI } from "../../constants/icons";
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
 import { PerenualService } from "../../lib/perenualService";
@@ -288,7 +289,7 @@ export default function AddItemSheet({
               {plantState === "shed_offer" && shedOfferPlant && (
                 <div className="text-center py-4 space-y-4">
                   <div className="w-14 h-14 rounded-3xl bg-emerald-50 flex items-center justify-center mx-auto">
-                    <Leaf size={24} className="text-emerald-500" />
+                    <IconPlant size={24} className="text-emerald-500" />
                   </div>
                   <div>
                     <p className="font-black text-rhozly-on-surface">Added to list!</p>
@@ -403,7 +404,7 @@ export default function AddItemSheet({
                             {shedResults.map((p, i) => (
                               <li key={p.id} className="flex items-center gap-2.5 px-3 py-2 rounded-2xl hover:bg-rhozly-surface transition-colors">
                                 <div className="w-7 h-7 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                                  <Leaf size={13} className="text-emerald-500" />
+                                  <IconPlant size={13} className="text-emerald-500" />
                                 </div>
                                 <span className="flex-1 text-xs font-bold text-rhozly-on-surface truncate">
                                   {p.nickname ?? p.plant_name}
@@ -450,7 +451,7 @@ export default function AddItemSheet({
                             onClick={handleSearchAI}
                             className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl border border-violet-200 text-xs font-black text-violet-600 hover:bg-violet-50 transition-colors"
                           >
-                            <Sparkles size={13} /> Search via AI
+                            <IconAI size={13} /> Search via AI
                           </button>
                         )}
                       </div>
@@ -498,7 +499,7 @@ export default function AddItemSheet({
                                 <img src={r.default_image.thumbnail} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
                               ) : (
                                 <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                                  <Leaf size={14} className="text-emerald-500" />
+                                  <IconPlant size={14} className="text-emerald-500" />
                                 </div>
                               )}
                               <div className="min-w-0 flex-1">
@@ -544,7 +545,7 @@ export default function AddItemSheet({
                               className="flex items-center gap-2.5 px-3 py-2 rounded-2xl hover:bg-violet-50 transition-colors"
                             >
                               <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
-                                <Sparkles size={14} className="text-violet-500" />
+                                <IconAI size={14} className="text-violet-500" />
                               </div>
                               <div className="min-w-0 flex-1">
                                 <p className="text-xs font-black text-rhozly-on-surface truncate">{r.name}</p>

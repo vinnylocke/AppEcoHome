@@ -4,8 +4,6 @@ import { supabase } from "../lib/supabase";
 import { usePermissions } from "../context/HomePermissionsContext";
 import {
   Loader2,
-  Sparkles,
-  Map,
   MoreVertical,
   Archive,
   Trash2,
@@ -20,6 +18,7 @@ import { Logger } from "../lib/errorHandler";
 import { logEvent, EVENT } from "../events/registry";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
 import { useSearchParams } from "react-router-dom";
+import { IconAI, IconPlanner } from "../constants/icons";
 import NewPlanForm from "./NewPlanForm";
 import PlanStaging from "./PlanStaging";
 
@@ -240,7 +239,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl sm:text-4xl font-black font-display text-rhozly-on-surface flex items-center gap-3">
-            <Map className="text-rhozly-primary" size={32} /> Landscape Planner
+            <IconPlanner className="text-rhozly-primary" size={32} /> Landscape Planner
             {plans.filter((p) => p.status !== "archived").length > 0 && (
               <span className="text-base font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
                 {plans.filter((p) => p.status !== "archived").length}
@@ -257,7 +256,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
             data-testid="planner-new-plan-btn"
             className="px-6 py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:bg-rhozly-primary/90 transition-transform active:scale-95 flex items-center gap-2 w-full md:w-auto justify-center"
           >
-            <Sparkles size={20} /> New Plan
+            <IconAI size={20} /> New Plan
           </button>
         )}
       </div>
@@ -317,7 +316,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
         </div>
       ) : filteredPlans.length === 0 ? (
         <div className="flex-1 bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-3xl p-12 text-center flex flex-col items-center justify-center opacity-70">
-          <Map size={48} className="text-rhozly-on-surface/20 mb-4" />
+          <IconPlanner size={48} className="text-rhozly-on-surface/20 mb-4" />
           {plans.length === 0 ? (
             <>
               <p className="text-xl font-black text-rhozly-on-surface">
@@ -331,7 +330,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                   onClick={() => setShowNewPlanModal(true)}
                   className="mt-6 px-6 py-3 min-h-[44px] bg-rhozly-primary text-white rounded-2xl font-black shadow-sm hover:bg-rhozly-primary/90 transition-colors active:scale-95 flex items-center gap-2"
                 >
-                  <Sparkles size={16} /> New Plan
+                  <IconAI size={16} /> New Plan
                 </button>
               )}
             </>
@@ -384,7 +383,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                   />
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-rhozly-on-surface/20">
-                    <Map size={40} />
+                    <IconPlanner size={40} />
                   </div>
                 )}
 

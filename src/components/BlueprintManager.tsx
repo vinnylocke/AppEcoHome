@@ -5,19 +5,16 @@ import {
   Plus,
   Trash2,
   CheckSquare,
-  Sprout,
   Droplets,
-  Scissors,
   Shovel,
-  Wheat,
   Grid,
   MapPin,
   FolderKanban,
   Search,
   Filter,
   X,
-  Sparkles,
 } from "lucide-react";
+import { IconGrowth, IconPrune, IconHarvest, IconAI } from "../constants/icons";
 import toast from "react-hot-toast";
 import { logEvent, EVENT } from "../events/registry";
 import { usePermissions } from "../context/HomePermissionsContext";
@@ -229,11 +226,11 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
       case "Watering":
         return <Droplets size={16} className="text-blue-500" />;
       case "Maintenance":
-        return <Scissors size={16} className="text-orange-500" />;
+        return <IconPrune size={16} className="text-orange-500" />;
       case "Pruning":
-        return <Scissors size={16} className="text-lime-600" />;
+        return <IconPrune size={16} className="text-lime-600" />;
       case "Harvesting":
-        return <Wheat size={16} className="text-yellow-500" />;
+        return <IconHarvest size={16} className="text-yellow-500" />;
       case "Planting":
         return <Shovel size={16} className="text-amber-700" />;
       default:
@@ -624,7 +621,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                   className={`text-[10px] font-bold flex items-center gap-1 px-2 py-1 rounded-md ${bp.inventory_item_ids?.length > 0 ? "bg-emerald-50 text-emerald-700" : "bg-rhozly-surface-low text-rhozly-on-surface/60"}`}
                 >
                   {bp.inventory_item_ids?.length > 0 ? (
-                    <Sprout size={12} />
+                    <IconGrowth size={12} />
                   ) : (
                     <Grid size={12} />
                   )}
@@ -632,7 +629,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                 </div>
                 {scorePlantByPreferences(bp.basePlantName || "", "", preferences) > 0 && (
                   <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-1 rounded-md bg-emerald-50 text-emerald-600">
-                    <Sparkles size={10} /> Preference match
+                    <IconAI size={10} /> Preference match
                   </div>
                 )}
                 {(bp.locations?.name || bp.areas?.name) && (

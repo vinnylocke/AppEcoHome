@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
 import {
-  X, Bug, Leaf, Biohazard, Loader2, AlertTriangle, CheckCircle2, Search,
+  X, Biohazard, Loader2, AlertTriangle, CheckCircle2, Search,
 } from "lucide-react";
+import { IconPest, IconPlant } from "../constants/icons";
 import { toast } from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 import { AutomationEngine } from "../lib/automationEngine";
@@ -10,8 +11,8 @@ import { getLocalDateString } from "../lib/taskEngine";
 import type { Ailment, AilmentType } from "./AilmentWatchlist";
 
 const TYPE_META: Record<AilmentType, { label: string; icon: React.ReactNode; colour: string }> = {
-  invasive_plant: { label: "Invasive Plant", icon: <Leaf size={12} />, colour: "bg-orange-100 text-orange-700" },
-  pest:           { label: "Pest",           icon: <Bug size={12} />,       colour: "bg-red-100 text-red-700" },
+  invasive_plant: { label: "Invasive Plant", icon: <IconPlant size={12} />, colour: "bg-orange-100 text-orange-700" },
+  pest:           { label: "Pest",           icon: <IconPest size={12} />,       colour: "bg-red-100 text-red-700" },
   disease:        { label: "Disease",        icon: <Biohazard size={12} />, colour: "bg-purple-100 text-purple-700" },
 };
 

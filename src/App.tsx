@@ -7,17 +7,13 @@ import {
   Menu,
   Home,
   Loader2,
-  Database,
-  Stethoscope,
   X,
-  Map,
-  Sparkles,
   MapPin,
   RefreshCw,
   AlertCircle,
   HelpCircle,
-  Plug,
 } from "lucide-react";
+import { IconShed, IconPlanner, IconDoctor, IconAI, IconIntegrations } from "./constants/icons";
 
 // 🚀 NATIVE IMPORT
 import { App as CapApp } from "@capacitor/app";
@@ -652,10 +648,10 @@ function AppShell() {
 
   const navLinks = [
     { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", "/"] },
-    { id: "shed",      icon: <Database />, label: "Garden", matchPaths: ["/shed", "/watchlist"] },
-    { id: "planner",   icon: <Map />, label: "Plan",    matchPaths: ["/planner", "/shopping"] },
-    { id: "tools",        icon: <Stethoscope />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
-    { id: "integrations", icon: <Plug />,        label: "Integrations", matchPaths: ["/integrations"] },
+    { id: "shed",      icon: <IconShed />, label: "Garden", matchPaths: ["/shed", "/watchlist"] },
+    { id: "planner",   icon: <IconPlanner />, label: "Plan",    matchPaths: ["/planner", "/shopping"] },
+    { id: "tools",        icon: <IconDoctor />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
+    { id: "integrations", icon: <IconIntegrations />,        label: "Integrations", matchPaths: ["/integrations"] },
   ];
 
   const canUsePortal = typeof document !== "undefined";
@@ -990,7 +986,7 @@ function AppShell() {
                                         </button>
                                         <div className="flex items-start gap-4">
                                           <div className="bg-white/20 p-3 rounded-2xl flex-shrink-0">
-                                            <Sparkles size={22} className="text-white" />
+                                            <IconAI size={22} className="text-white" />
                                           </div>
                                           <div className="flex-1 min-w-0">
                                             <p className="font-black text-sm leading-tight mb-1">

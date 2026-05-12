@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { Database, Bug } from "lucide-react";
+import { IconShed, IconAilment } from "../constants/icons";
 import TheShed from "./TheShed";
 import AilmentWatchlist from "./AilmentWatchlist";
 
@@ -11,8 +11,8 @@ interface Props {
 }
 
 const TABS = [
-  { id: "shed",      label: "The Shed",  icon: <Database size={16} /> },
-  { id: "watchlist", label: "Watchlist", icon: <Bug size={16} /> },
+  { id: "shed",      label: "The Shed",  icon: <IconShed size={16} /> },
+  { id: "watchlist", label: "Watchlist", icon: <IconAilment size={16} /> },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];

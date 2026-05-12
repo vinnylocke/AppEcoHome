@@ -1,5 +1,6 @@
 import React from "react";
-import { Thermometer, Droplets, Zap, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { Zap, TrendingUp, TrendingDown, Minus } from "lucide-react";
+import { IconTemperature, IconWatering } from "../../constants/icons";
 
 export interface SoilReading {
   soil_temp: number;
@@ -25,7 +26,7 @@ export default function SoilReadingsPanel({ current, previous }: Props) {
     {
       label: "Soil Temp",
       value: `${current.soil_temp.toFixed(1)}°C`,
-      icon: Thermometer,
+      icon: IconTemperature,
       iconClass: "text-orange-500",
       bgClass: "bg-orange-50",
       delta: previous ? current.soil_temp - previous.soil_temp : null,
@@ -33,7 +34,7 @@ export default function SoilReadingsPanel({ current, previous }: Props) {
     {
       label: "Moisture",
       value: `${current.soil_moisture.toFixed(1)}%`,
-      icon: Droplets,
+      icon: IconWatering,
       iconClass: "text-blue-500",
       bgClass: "bg-blue-50",
       delta: previous ? current.soil_moisture - previous.soil_moisture : null,

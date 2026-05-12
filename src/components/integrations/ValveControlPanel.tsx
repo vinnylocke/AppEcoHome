@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
-import { Droplets, Power, RotateCcw, Timer, Loader2 } from "lucide-react";
+import { Power, RotateCcw, Timer, Loader2 } from "lucide-react";
+import { IconWatering } from "../../constants/icons";
 
 interface Props {
   deviceId: string;
@@ -85,7 +86,7 @@ export default function ValveControlPanel({ deviceId, homeId, defaultDurationSec
     <div className="rounded-3xl border border-rhozly-outline/20 bg-rhozly-surface-lowest p-5">
       <div className="flex items-center gap-3 mb-5">
         <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isOn ? "bg-blue-100" : "bg-rhozly-surface-low"}`}>
-          <Droplets className={isOn ? "text-blue-600" : "text-rhozly-on-surface-variant"} size={20} />
+          <IconWatering className={isOn ? "text-blue-600" : "text-rhozly-on-surface-variant"} size={20} />
         </div>
         <div className="flex-1">
           <p className="font-bold text-rhozly-on-surface">Water Valve</p>

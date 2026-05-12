@@ -1,5 +1,6 @@
 import React from "react";
-import { Droplets, Thermometer, Zap, Wifi, WifiOff } from "lucide-react";
+import { Zap, Wifi, WifiOff } from "lucide-react";
+import { IconWatering, IconTemperature } from "../../constants/icons";
 import type { Device } from "./IntegrationsPage";
 
 interface Props {
@@ -25,9 +26,9 @@ export default function DeviceCard({ device, onClick }: Props) {
       <div className="flex items-start justify-between mb-3">
         <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isSoil ? "bg-amber-100" : "bg-blue-100"}`}>
           {isSoil ? (
-            <Thermometer className="text-amber-600" size={20} />
+            <IconTemperature className="text-amber-600" size={20} />
           ) : (
-            <Droplets className="text-blue-600" size={20} />
+            <IconWatering className="text-blue-600" size={20} />
           )}
         </div>
         <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl ${isOnline ? "bg-green-100 text-green-700" : "bg-rhozly-surface-low text-rhozly-on-surface-variant"}`}>

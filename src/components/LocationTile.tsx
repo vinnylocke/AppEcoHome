@@ -3,11 +3,10 @@ import {
   MapPin,
   CheckSquare,
   AlertTriangle,
-  Sprout,
-  Database,
   Loader2,
   ChevronRight,
 } from "lucide-react";
+import { IconGrowth, IconPlantDB } from "../constants/icons";
 
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 
@@ -132,7 +131,7 @@ export default function LocationTile({
             </span>
             <div className="flex items-center gap-2 text-rhozly-primary">
               <div className="w-8 h-8 rounded-full bg-rhozly-primary/10 flex items-center justify-center">
-                <Sprout className="w-4 h-4" />
+                <IconGrowth className="w-4 h-4" />
               </div>
               <span className="font-display font-black text-xl">
                 {plantedCount}
@@ -149,7 +148,7 @@ export default function LocationTile({
             </span>
             <div className="flex items-center gap-2 text-rhozly-secondary">
               <div className="w-8 h-8 rounded-full bg-rhozly-secondary/10 flex items-center justify-center">
-                <Database className="w-4 h-4" />
+                <IconPlantDB className="w-4 h-4" />
               </div>
               <span className="font-display font-black text-xl">
                 {unplantedCount}

@@ -1,5 +1,6 @@
 import React from "react";
-import { Thermometer, Droplets, CheckSquare, Square } from "lucide-react";
+import { CheckSquare, Square } from "lucide-react";
+import { IconTemperature, IconWatering } from "../../../constants/icons";
 import type { WizardState } from "../ConnectDeviceWizard";
 
 interface Props {
@@ -65,7 +66,7 @@ export default function Step4Discovery({ state, update, onNext }: Props) {
                 }`}
               >
                 <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${isSoil ? "bg-amber-100" : "bg-blue-100"}`}>
-                  {isSoil ? <Thermometer className="text-amber-600" size={18} /> : <Droplets className="text-blue-600" size={18} />}
+                  {isSoil ? <IconTemperature className="text-amber-600" size={18} /> : <IconWatering className="text-blue-600" size={18} />}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-semibold text-rhozly-on-surface text-sm">{d.name}</p>

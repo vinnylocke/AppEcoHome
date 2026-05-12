@@ -10,13 +10,10 @@ import {
   X,
   Search,
   Activity,
-  Stethoscope,
   Loader2,
   ChevronDown,
   ChevronLeft,
-  Sparkles,
   Lock,
-  Database,
   Edit3,
   CheckCircle2,
   ClipboardList,
@@ -24,12 +21,9 @@ import {
   CalendarPlus,
   Globe,
   BrainCircuit,
-  BookOpen,
-  ShoppingCart,
-  Bug,
   ShieldCheck,
-  Leaf,
 } from "lucide-react";
+import { IconDoctor, IconPlantDB, IconPest, IconAI, IconPlant, IconGuides, IconShopping } from "../constants/icons";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
@@ -691,7 +685,7 @@ export default function PlantDoctor({
         <div className="mb-4 px-2 flex items-end justify-between">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black font-display text-rhozly-on-surface tracking-tight flex items-center gap-3">
-              <Stethoscope className="w-8 h-8 text-rhozly-primary" />
+              <IconDoctor className="w-8 h-8 text-rhozly-primary" />
               Plant Doctor
             </h1>
             <p className="text-xs sm:text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
@@ -864,7 +858,7 @@ export default function PlantDoctor({
                   {isProcessing && activeAction === "pest" ? (
                     <Loader2 className="w-5 h-5 animate-spin" />
                   ) : (
-                    <Bug className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                    <IconPest className="w-5 h-5 group-hover:scale-110 transition-transform" />
                   )}
                   <span>Identify</span>
                   <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Pest</span>
@@ -877,7 +871,7 @@ export default function PlantDoctor({
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
                   <div className="bg-white border border-rhozly-primary/20 rounded-3xl p-6 shadow-sm">
                     <div className="flex items-center gap-2 mb-3">
-                      <Sparkles className="w-5 h-5 text-rhozly-primary" />
+                      <IconAI className="w-5 h-5 text-rhozly-primary" />
                       <h3 className="font-black text-lg text-rhozly-on-surface">
                         Doctor's Notes
                       </h3>
@@ -966,7 +960,7 @@ export default function PlantDoctor({
                             disabled={isUIBusy}
                             className="flex-1 flex items-center justify-center gap-2 py-4 px-4 border rounded-2xl font-black shadow-sm transition-colors disabled:opacity-50 bg-white border-rhozly-outline/20 text-rhozly-primary hover:bg-rhozly-primary/5"
                           >
-                            <Database size={18} />
+                            <IconPlantDB size={18} />
                             Search Global API
                           </button>
                         )}
@@ -1006,7 +1000,7 @@ export default function PlantDoctor({
                           onClick={() => openAddToListSheet([{ name: selectedPlantName, item_type: "plant" }])}
                           className="w-full flex items-center justify-center gap-2 py-3.5 border border-rhozly-primary/20 rounded-2xl font-black text-sm text-rhozly-primary hover:bg-rhozly-primary/5 transition-colors"
                         >
-                          <ShoppingCart size={16} /> Add to Shopping List
+                          <IconShopping size={16} /> Add to Shopping List
                         </button>
                       </div>
                     </div>
@@ -1050,7 +1044,7 @@ export default function PlantDoctor({
                     activeAction === "pest" && (
                       <div className="bg-rhozly-surface-low border border-rhozly-outline/15 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
                         <h3 className="font-black text-rhozly-on-surface mb-4 flex items-center gap-2">
-                          <Bug size={20} className="text-rhozly-primary" /> What do you see?
+                          <IconPest size={20} className="text-rhozly-primary" /> What do you see?
                         </h3>
                         <div className="space-y-2">
                           {aiResult.possible_pests.map((item, i) => (
@@ -1213,7 +1207,7 @@ export default function PlantDoctor({
                             </div>
                             <div>
                               <h4 className="font-black text-sm text-rhozly-primary mb-1 uppercase tracking-widest flex items-center gap-2">
-                                <Stethoscope size={14} /> Recommended Solution
+                                <IconDoctor size={14} /> Recommended Solution
                               </h4>
                               <p className="text-sm text-rhozly-on-surface/80">
                                 {aiResult.diseaseInfo.solution}
@@ -1335,7 +1329,7 @@ export default function PlantDoctor({
                       <div className="bg-rhozly-surface-low border border-rhozly-outline/15 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
                         <div className="flex items-center justify-between mb-3">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <Bug size={20} className="text-rhozly-primary" />
+                            <IconPest size={20} className="text-rhozly-primary" />
                             <h3 className="font-black text-lg text-rhozly-on-surface">{selectedPest}</h3>
                             {aiResult.pest_severity && (
                               <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
@@ -1399,7 +1393,7 @@ export default function PlantDoctor({
                       <div className="bg-white border border-rhozly-outline/10 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
                         <div className="flex items-center justify-between mb-4">
                           <p className="text-xs font-black text-rhozly-primary uppercase tracking-widest flex items-center gap-1">
-                            <Bug size={12} /> {selectedPest}
+                            <IconPest size={12} /> {selectedPest}
                           </p>
                           {confirmedValue ? (
                             <span className="flex items-center gap-1 text-xs font-black text-rhozly-primary bg-rhozly-primary/10 px-2 py-1 rounded-lg">
@@ -1428,13 +1422,13 @@ export default function PlantDoctor({
                           </div>
                           <div>
                             <h4 className="font-black text-sm text-rhozly-primary mb-1 uppercase tracking-widest flex items-center gap-2">
-                              <Leaf size={14} /> Affected plants
+                              <IconPlant size={14} /> Affected plants
                             </h4>
                             <p className="text-sm text-rhozly-on-surface/80">{aiResult.pestInfo.affected_plants}</p>
                           </div>
                           <div>
                             <h4 className="font-black text-sm text-rhozly-primary mb-1 uppercase tracking-widest flex items-center gap-2">
-                              <Stethoscope size={14} /> Treatment
+                              <IconDoctor size={14} /> Treatment
                             </h4>
                             <p className="text-sm text-rhozly-on-surface/80">{aiResult.pestInfo.treatment}</p>
                           </div>
@@ -1540,7 +1534,7 @@ export default function PlantDoctor({
                           />
                           <div>
                             <p className="font-black text-sm flex items-center gap-1">
-                              <BookOpen size={14} className="text-rhozly-tertiary" />{" "}
+                              <IconGuides size={14} className="text-rhozly-tertiary" />{" "}
                               Add to Plant Journal?
                             </p>
                             <p className="text-[10px] font-bold text-rhozly-on-surface/50 mt-0.5">
@@ -1587,7 +1581,7 @@ export default function PlantDoctor({
                             }}
                             className="w-full flex items-center justify-center gap-2 py-3.5 border border-rhozly-primary/20 rounded-2xl font-black text-sm text-rhozly-primary hover:bg-rhozly-primary/5 transition-colors"
                           >
-                            <ShoppingCart size={16} /> Add treatments to Shopping List
+                            <IconShopping size={16} /> Add treatments to Shopping List
                           </button>
                         </div>
                       </div>

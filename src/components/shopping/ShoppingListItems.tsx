@@ -1,5 +1,6 @@
 import React from "react";
-import { Trash2, Leaf } from "lucide-react";
+import { Trash2 } from "lucide-react";
+import { IconPlant } from "../../constants/icons";
 import type { ShoppingListItem } from "../../types/shopping";
 import { usePermissions } from "../../context/HomePermissionsContext";
 
@@ -52,7 +53,7 @@ export default function ShoppingListItems({ items, onToggle, onDelete }: Props) 
             />
           ) : item.item_type === "plant" ? (
             <div className="w-7 h-7 rounded-lg bg-emerald-100 flex items-center justify-center shrink-0">
-              <Leaf size={13} className="text-emerald-500" />
+              <IconPlant size={13} className="text-emerald-500" />
             </div>
           ) : (
             <div

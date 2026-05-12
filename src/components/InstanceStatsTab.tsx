@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Calendar, Wheat, Scissors, CheckSquare, Bug, Loader2 } from "lucide-react";
+import { Calendar, CheckSquare, Loader2 } from "lucide-react";
+import { IconHarvest, IconPrune, IconPest } from "../constants/icons";
 import { supabase } from "../lib/supabase";
 import { fetchYieldRecords } from "../services/yieldService";
 import type { YieldRecord } from "../types";
@@ -120,7 +121,7 @@ export default function InstanceStatsTab({ instance }: Props) {
 
       {/* Yield History */}
       <div data-testid="stats-yield-section" className={statCard}>
-        <h3 className={sectionLabel}><Wheat size={12} /> Yield History</h3>
+        <h3 className={sectionLabel}><IconHarvest size={12} /> Yield History</h3>
         {yieldRecords.length === 0 ? (
           <p className={emptyText}>No harvests recorded yet</p>
         ) : (
@@ -157,7 +158,7 @@ export default function InstanceStatsTab({ instance }: Props) {
 
       {/* Pruning */}
       <div data-testid="stats-prune-section" className={statCard}>
-        <h3 className={sectionLabel}><Scissors size={12} /> Pruning</h3>
+        <h3 className={sectionLabel}><IconPrune size={12} /> Pruning</h3>
         {pruneTasks.length === 0 ? (
           <p className={emptyText}>No pruning recorded yet</p>
         ) : (
@@ -205,7 +206,7 @@ export default function InstanceStatsTab({ instance }: Props) {
 
       {/* Issues / Pests / Diseases */}
       <div data-testid="stats-issues-section" className={statCard}>
-        <h3 className={sectionLabel}><Bug size={12} /> Active Issues</h3>
+        <h3 className={sectionLabel}><IconPest size={12} /> Active Issues</h3>
         {ailments.length === 0 ? (
           <p data-testid="stats-issues-none" className={emptyText}>No active issues</p>
         ) : (

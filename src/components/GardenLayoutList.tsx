@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { Plus, LayoutTemplate, Pencil, Trash2, ChevronRight, Loader2, Wand2, SquareDashed, ArrowLeft } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronRight, Loader2, Wand2, SquareDashed, ArrowLeft } from "lucide-react";
+import { IconLayout } from "../constants/icons";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
@@ -342,7 +343,7 @@ export default function GardenLayoutList({ homeId }: Props) {
         ) : layouts.length === 0 ? (
           <div className="text-center pt-16 space-y-3">
             <div className="w-16 h-16 bg-rhozly-surface rounded-3xl flex items-center justify-center mx-auto">
-              <LayoutTemplate size={28} className="text-rhozly-on-surface/20" />
+              <IconLayout size={28} className="text-rhozly-on-surface/20" />
             </div>
             <p className="font-black text-rhozly-on-surface text-sm">No layouts yet</p>
             <p className="text-xs font-bold text-rhozly-on-surface/50">Create a layout to start mapping your garden</p>
@@ -378,7 +379,7 @@ export default function GardenLayoutList({ homeId }: Props) {
               ) : (
                 <div className="flex items-center gap-3 p-4">
                   <div className="w-10 h-10 bg-rhozly-primary/10 rounded-2xl flex items-center justify-center shrink-0">
-                    <LayoutTemplate size={18} className="text-rhozly-primary" />
+                    <IconLayout size={18} className="text-rhozly-primary" />
                   </div>
                   <button onClick={() => navigate(`/garden-layout/${layout.id}`)} className="flex-1 text-left min-w-0">
                     <p className="font-black text-rhozly-on-surface text-sm truncate">{layout.name}</p>

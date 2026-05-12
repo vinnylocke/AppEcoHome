@@ -2,10 +2,11 @@ import React, { useState, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   X, Camera, Upload, Loader2, CheckCircle2, AlertTriangle, AlertCircle,
-  Leaf, Bug, Droplets, Wind, Sun, Sprout, ChevronDown, ChevronUp,
-  Check, Minus, Edit3, Trash2, Sparkles, ScanLine, RefreshCw,
+  Droplets, Wind, ChevronDown, ChevronUp,
+  Check, Minus, Edit3, Trash2, RefreshCw,
   Biohazard, FlaskConical, Clock, CalendarDays, RotateCcw, ArrowRight, Lock,
 } from "lucide-react";
+import { IconPlant, IconPest, IconGrowth, IconScan, IconAI, IconLight } from "../constants/icons";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -338,7 +339,7 @@ export default function AreaScanModal({
         <div className="flex items-center justify-between p-6 border-b border-rhozly-outline/10">
           <div className="flex items-center gap-3">
             <div className="bg-rhozly-primary/10 p-2 rounded-xl">
-              <ScanLine className="w-5 h-5 text-rhozly-primary" />
+              <IconScanclassName="w-5 h-5 text-rhozly-primary" />
             </div>
             <div>
               <h2 className="font-black text-xl font-display text-rhozly-on-surface">
@@ -428,7 +429,7 @@ export default function AreaScanModal({
                     onClick={handleRunScan}
                     className="flex-1 py-3 rounded-2xl bg-rhozly-primary text-white font-black text-sm hover:bg-rhozly-primary/90 transition-all flex items-center justify-center gap-2"
                   >
-                    <ScanLine size={16} />
+                    <IconScansize={16} />
                     Scan Now
                   </button>
                 </div>
@@ -457,7 +458,7 @@ export default function AreaScanModal({
                     onClick={handleRunScan}
                     className="w-full py-3 rounded-2xl bg-rhozly-primary text-white font-black text-sm hover:bg-rhozly-primary/90 transition-all flex items-center justify-center gap-2"
                   >
-                    <ScanLine size={16} />
+                    <IconScansize={16} />
                     Start Scan
                   </button>
                 </div>
@@ -470,7 +471,7 @@ export default function AreaScanModal({
             <div className="py-16 flex flex-col items-center gap-6">
               <div className="relative">
                 <div className="w-20 h-20 rounded-full bg-rhozly-primary/10 flex items-center justify-center">
-                  <ScanLine className="w-10 h-10 text-rhozly-primary animate-pulse" />
+                  <IconScanclassName="w-10 h-10 text-rhozly-primary animate-pulse" />
                 </div>
                 <Loader2 className="w-6 h-6 text-rhozly-primary animate-spin absolute -bottom-1 -right-1" />
               </div>
@@ -501,7 +502,7 @@ export default function AreaScanModal({
                 </div>
                 {analysis.capacity && (
                   <div className="flex items-center gap-2 text-xs text-rhozly-on-surface/40 font-bold">
-                    <Sprout size={12} />
+                    <IconGrowth size={12} />
                     {analysis.capacity.current_count} visible plants · estimated max {analysis.capacity.estimated_max}
                   </div>
                 )}
@@ -518,7 +519,7 @@ export default function AreaScanModal({
               {/* Plants */}
               {analysis.plants.length > 0 && (
                 <ResultSection
-                  icon={<Leaf size={16} />}
+                  icon={<IconPlant size={16} />}
                   title={`Plants (${analysis.plants.length})`}
                   sectionKey="plants"
                   collapsed={collapsed}
@@ -645,7 +646,7 @@ export default function AreaScanModal({
               {/* Pests & Diseases */}
               {analysis.pests_diseases.length > 0 && (
                 <ResultSection
-                  icon={<Bug size={16} />}
+                  icon={<IconPest size={16} />}
                   title={`Pests & Diseases (${analysis.pests_diseases.length})`}
                   sectionKey="pests"
                   collapsed={collapsed}
@@ -657,7 +658,7 @@ export default function AreaScanModal({
                       <div key={i} className={`rounded-2xl p-4 border ${SEVERITY_COLOURS[pest.severity]} space-y-2`}>
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2">
-                            {pest.type === "pest" ? <Bug size={16} /> : <Biohazard size={16} />}
+                            {pest.type === "pest" ? <IconPest size={16} /> : <Biohazard size={16} />}
                             <p className="font-black text-sm">{pest.name}</p>
                           </div>
                           <span className="text-xs font-black uppercase">{pest.severity}</span>
@@ -686,7 +687,7 @@ export default function AreaScanModal({
               {/* Companions */}
               {analysis.companions.length > 0 && (
                 <ResultSection
-                  icon={<Sparkles size={16} />}
+                  icon={<IconAI size={16} />}
                   title="Companion Plants"
                   sectionKey="companions"
                   collapsed={collapsed}

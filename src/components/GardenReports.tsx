@@ -1,19 +1,17 @@
 import React, { useState } from "react";
 import {
   CheckCircle2,
-  Leaf,
-  Scissors,
   ShoppingBasket,
   Cloud,
   ChevronLeft,
   ChevronRight,
   Loader2,
-  Sparkles,
   BarChart3,
   TrendingUp,
   TrendingDown,
   Minus,
 } from "lucide-react";
+import { IconPlant, IconPrune, IconAI } from "../constants/icons";
 import { useGardenReport } from "../hooks/useGardenReport";
 import type { MonthStats, MonthlyReport, YearlyReport } from "../hooks/useGardenReport";
 import type { TaskCategory } from "../constants/taskCategories";
@@ -404,7 +402,7 @@ function MonthlyReview({
           <div className="grid grid-cols-3 gap-3" data-testid="reports-stat-grid">
             <StatCard
               testId="reports-stat-plants"
-              icon={<Leaf size={18} />}
+              icon={<IconPlant size={18} />}
               label="New Plants"
               value={report.newPlants}
               delta={report.delta?.newPlants}
@@ -412,7 +410,7 @@ function MonthlyReview({
             />
             <StatCard
               testId="reports-stat-pruned"
-              icon={<Scissors size={18} />}
+              icon={<IconPrune size={18} />}
               label="Pruned"
               value={report.pruned}
               delta={report.delta?.pruned}
@@ -527,7 +525,7 @@ function YearlyReview({
           {report.highlights.length > 0 && (
             <div className="space-y-2" data-testid="reports-yearly-highlights">
               <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 flex items-center gap-1.5">
-                <Sparkles size={11} />
+                <IconAI size={11} />
                 Highlights
               </p>
               {report.highlights.map((h, i) => (

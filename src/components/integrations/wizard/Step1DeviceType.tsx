@@ -1,5 +1,5 @@
 import React from "react";
-import { Thermometer, Droplets } from "lucide-react";
+import { IconTemperature, IconWatering } from "../../../constants/icons";
 import type { WizardState } from "../ConnectDeviceWizard";
 
 interface Props {
@@ -13,7 +13,7 @@ const TYPES = [
     id: "soil_sensor" as const,
     label: "Soil Sensor",
     description: "Monitor soil temperature, moisture, and conductivity",
-    icon: Thermometer,
+    icon: IconTemperature,
     iconClass: "text-amber-600",
     bgClass: "bg-amber-100",
   },
@@ -21,7 +21,7 @@ const TYPES = [
     id: "water_valve" as const,
     label: "Water Valve",
     description: "Remote-controlled irrigation valve with auto-off safety timer",
-    icon: Droplets,
+    icon: IconWatering,
     iconClass: "text-blue-600",
     bgClass: "bg-blue-100",
   },

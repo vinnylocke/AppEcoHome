@@ -4,12 +4,11 @@ import {
   X,
   Search,
   Loader2,
-  Database,
   Lock,
   Plus,
   ChevronLeft,
-  Sparkles,
 } from "lucide-react";
+import { IconPlantDB, IconAI } from "../constants/icons";
 import { PerenualService } from "../lib/perenualService";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
@@ -384,7 +383,7 @@ export default function PlantSearchModal({
         <div className="p-4 sm:p-8 pb-4 shrink-0 flex justify-between items-start border-b border-rhozly-outline/10">
           <div>
             <h3 className="text-3xl font-black flex items-center gap-3">
-              <Database className="text-rhozly-primary" /> Global Plant Search
+              <IconPlantDB className="text-rhozly-primary" /> Global Plant Search
             </h3>
             <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
               Powered by Perenual API
@@ -538,7 +537,7 @@ export default function PlantSearchModal({
                             />
                           ) : (
                             <div className="w-full h-full flex items-center justify-center text-rhozly-on-surface/20">
-                              <Database size={24} />
+                              <IconPlantDB size={24} />
                             </div>
                           )}
                           <MultiImageGallery
@@ -558,7 +557,7 @@ export default function PlantSearchModal({
                           </p>
                           {prefScore > 0 && (
                             <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                              <Sparkles size={9} /> Matches your preference
+                              <IconAI size={9} /> Matches your preference
                             </span>
                           )}
                         </div>

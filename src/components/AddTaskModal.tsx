@@ -8,11 +8,9 @@ import {
   Check,
   Link as LinkIcon,
   Search,
-  Sparkles,
   Droplets,
-  Scissors,
-  Wheat,
 } from "lucide-react";
+import { IconAI, IconPrune, IconHarvest } from "../constants/icons";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
@@ -826,7 +824,7 @@ export default function AddTaskModal({
               <div className="sm:col-span-2 animate-in fade-in slide-in-from-top-2">
                 {scorePlantByPreferences(form.selected_species, "", preferences) > 0 && (
                   <div className="flex items-center gap-2 mb-3 text-[11px] font-black text-emerald-700 bg-emerald-50 border border-emerald-100 px-3 py-2 rounded-xl">
-                    <Sparkles size={12} /> You like {form.selected_species} — consider a recurring care schedule.
+                    <IconAI size={12} /> You like {form.selected_species} — consider a recurring care schedule.
                   </div>
                 )}
                 <p className="text-[10px] font-black uppercase text-rhozly-on-surface/40 mb-2 ml-1">
@@ -836,10 +834,10 @@ export default function AddTaskModal({
                   {(() => {
                     const TYPE_META: Record<string, { label: string; icon: React.ReactNode; color: string }> = {
                       Watering:    { label: "Water",    icon: <Droplets size={12} />, color: "bg-rhozly-primary/10 text-rhozly-primary border-rhozly-primary/20 hover:bg-rhozly-primary/20" },
-                      Maintenance: { label: "Maintain", icon: <Scissors size={12} />, color: "bg-rhozly-surface-low text-rhozly-on-surface/70 border-rhozly-outline/20 hover:bg-rhozly-surface-low/80" },
-                      Pruning:     { label: "Prune",    icon: <Scissors size={12} className="text-lime-600" />, color: "bg-lime-50 text-lime-700 border-lime-200 hover:bg-lime-100" },
-                      Harvesting:  { label: "Harvest",  icon: <Wheat size={12} />,    color: "bg-rhozly-surface-low text-rhozly-on-surface/70 border-rhozly-outline/20 hover:bg-rhozly-surface-low/80" },
-                      Planting:    { label: "Plant",    icon: <Sparkles size={12} />, color: "bg-rhozly-primary/10 text-rhozly-primary border-rhozly-primary/20 hover:bg-rhozly-primary/20" },
+                      Maintenance: { label: "Maintain", icon: <IconPrune size={12} />, color: "bg-rhozly-surface-low text-rhozly-on-surface/70 border-rhozly-outline/20 hover:bg-rhozly-surface-low/80" },
+                      Pruning:     { label: "Prune",    icon: <IconPrune size={12} className="text-lime-600" />, color: "bg-lime-50 text-lime-700 border-lime-200 hover:bg-lime-100" },
+                      Harvesting:  { label: "Harvest",  icon: <IconHarvest size={12} />,    color: "bg-rhozly-surface-low text-rhozly-on-surface/70 border-rhozly-outline/20 hover:bg-rhozly-surface-low/80" },
+                      Planting:    { label: "Plant",    icon: <IconAI size={12} />, color: "bg-rhozly-primary/10 text-rhozly-primary border-rhozly-primary/20 hover:bg-rhozly-primary/20" },
                     };
 
                     const presets = smartPresets.length > 0

@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
-  Plus, Search, Loader2, Bug, Leaf, Biohazard, X, Sparkles,
-  Database, Edit3, Trash2, ChevronRight, ChevronUp, ChevronLeft, AlertTriangle,
+  Plus, Search, Loader2, Biohazard, X,
+  Edit3, Trash2, ChevronRight, ChevronUp, ChevronLeft, AlertTriangle,
   CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock,
 } from "lucide-react";
+import { IconPest, IconPlant, IconPlantDB, IconAI } from "../constants/icons";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
@@ -63,8 +64,8 @@ export interface Ailment {
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 const TYPE_META: Record<AilmentType, { label: string; icon: React.ReactNode; colour: string }> = {
-  invasive_plant: { label: "Invasive Plant", icon: <Leaf size={14} />, colour: "bg-orange-100 text-orange-700" },
-  pest:           { label: "Pest",           icon: <Bug size={14} />,       colour: "bg-red-100 text-red-700" },
+  invasive_plant: { label: "Invasive Plant", icon: <IconPlant size={14} />, colour: "bg-orange-100 text-orange-700" },
+  pest:           { label: "Pest",           icon: <IconPest size={14} />,       colour: "bg-red-100 text-red-700" },
   disease:        { label: "Disease",        icon: <Biohazard size={14} />, colour: "bg-purple-100 text-purple-700" },
 };
 
@@ -799,8 +800,8 @@ function AddAilmentModal({
                 }`}
               >
                 {m === "manual" && <Edit3 size={12} />}
-                {m === "perenual" && <Database size={12} />}
-                {m === "ai" && <Sparkles size={12} />}
+                {m === "perenual" && <IconPlantDB size={12} />}
+                {m === "ai" && <IconAI size={12} />}
                 {m === "manual" ? "Manual" : m === "perenual" ? "Perenual" : "AI"}
               </button>
             ))}
@@ -863,7 +864,7 @@ function AddAilmentModal({
                 return (
                   <div key={r.cartId} className="bg-rhozly-surface-lowest border border-rhozly-outline/10 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
                     <div className="w-12 h-12 rounded-xl bg-rhozly-surface-low overflow-hidden shrink-0 flex items-center justify-center text-amber-300">
-                      <Sparkles size={20} />
+                      <IconAI size={20} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="font-black text-sm text-rhozly-on-surface truncate">{r.data.name}</p>
@@ -952,7 +953,7 @@ function AddAilmentModal({
                                 {thumbnail ? (
                                   <img src={thumbnail} alt={r.common_name} className="w-full h-full object-cover" />
                                 ) : (
-                                  <Bug size={16} />
+                                  <IconPest size={16} />
                                 )}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -1020,7 +1021,7 @@ function AddAilmentModal({
                       className="min-w-[52px] min-h-[52px] px-5 rounded-2xl bg-amber-500 text-white font-black text-sm flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform disabled:opacity-60"
                       aria-label="Search with AI"
                     >
-                      {aiSearchLoading ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
+                      {aiSearchLoading ? <Loader2 size={16} className="animate-spin" /> : <IconAI size={16} />}
                     </button>
                   </div>
                   )}
@@ -1067,7 +1068,7 @@ function AddAilmentModal({
                                 ) : preview?.loading ? (
                                   <Loader2 size={16} className="animate-spin text-amber-400" />
                                 ) : (
-                                  <Sparkles size={18} />
+                                  <IconAI size={18} />
                                 )}
                               </div>
                               <div className="flex-1 min-w-0">
@@ -1094,7 +1095,7 @@ function AddAilmentModal({
                                     <img src={preview.image} alt={r.data.name} className="w-20 h-20 rounded-xl object-cover shadow-sm shrink-0" />
                                   ) : !preview?.loading ? (
                                     <div className="w-20 h-20 rounded-xl bg-rhozly-surface-low flex items-center justify-center shrink-0 text-rhozly-on-surface/20 border border-rhozly-outline/10">
-                                      <Sparkles size={18} />
+                                      <IconAI size={18} />
                                     </div>
                                   ) : null}
                                   <p className="text-xs font-semibold text-rhozly-on-surface/70 leading-relaxed">{r.data.description}</p>
@@ -1316,8 +1317,8 @@ function AddAilmentModal({
 // ─── Source badge helpers ─────────────────────────────────────────────────────
 
 const SOURCE_META: Record<string, { icon: React.ReactNode; label: string; colour: string }> = {
-  perenual: { icon: <Database size={10} />, label: "Perenual", colour: "text-rhozly-primary" },
-  ai:       { icon: <Sparkles size={10} />, label: "AI",       colour: "text-amber-500" },
+  perenual: { icon: <IconPlantDB size={10} />, label: "Perenual", colour: "text-rhozly-primary" },
+  ai:       { icon: <IconAI size={10} />, label: "AI",       colour: "text-amber-500" },
   manual:   { icon: <Edit3 size={10} />,    label: "Manual",   colour: "text-rhozly-on-surface/60" },
 };
 
@@ -1376,8 +1377,8 @@ function AilmentCard({
         ) : (
           <div className={`w-full h-full flex items-center justify-center ${TYPE_BG[ailment.type]}`}>
             <span className={TYPE_ICON_COLOUR[ailment.type]}>
-              {ailment.type === "pest" ? <Bug size={72} /> :
-               ailment.type === "disease" ? <Biohazard size={72} /> : <Leaf size={72} />}
+              {ailment.type === "pest" ? <IconPest size={72} /> :
+               ailment.type === "disease" ? <Biohazard size={72} /> : <IconPlant size={72} />}
             </span>
           </div>
         )}
@@ -1597,8 +1598,8 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
         <div className="flex gap-1.5 bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/5 overflow-x-auto flex-1">
           {([
             { id: "all", label: "All" },
-            { id: "invasive_plant", label: "Invasive", icon: <Leaf size={12} /> },
-            { id: "pest", label: "Pests", icon: <Bug size={12} /> },
+            { id: "invasive_plant", label: "Invasive", icon: <IconPlant size={12} /> },
+            { id: "pest", label: "Pests", icon: <IconPest size={12} /> },
             { id: "disease", label: "Diseases", icon: <Biohazard size={12} /> },
           ] as { id: AilmentFilter; label: string; icon?: React.ReactNode }[]).map((f) => (
             <button

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Plus, CheckSquare, Leaf, Map, MapPin, Bug, BookOpen } from "lucide-react";
+import { Plus, CheckSquare, MapPin } from "lucide-react";
+import { IconPlant, IconPlanner, IconAilment, IconGuides } from "../constants/icons";
 import { useNavigate } from "react-router-dom";
 
 const ITEMS = [
@@ -17,13 +18,13 @@ const ITEMS = [
   },
   {
     label: "Add Plant",
-    icon: <Leaf size={16} />,
+    icon: <IconPlant size={16} />,
     url: "/shed?open=add-plant",
     testId: "quick-add-add-plant",
   },
   {
     label: "Create Plan",
-    icon: <Map size={16} />,
+    icon: <IconPlanner size={16} />,
     url: "/planner?open=new-plan",
     testId: "quick-add-create-plan",
   },
@@ -35,13 +36,13 @@ const ITEMS = [
   },
   {
     label: "Log Ailment",
-    icon: <Bug size={16} />,
+    icon: <IconAilment size={16} />,
     url: "/shed?tab=watchlist&open=add-ailment",
     testId: "quick-add-log-ailment",
   },
   {
     label: "Create Guide",
-    icon: <BookOpen size={16} />,
+    icon: <IconGuides size={16} />,
     url: "/guides?tab=community&open=new-guide",
     testId: "quick-add-create-guide",
   },

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useCallback } from "react";
-import { Beaker, Droplets, FlaskConical, Layers, Zap, CheckCircle } from "lucide-react";
+import { Droplets, Zap, CheckCircle } from "lucide-react";
+import { IconSoilMedium, IconSoilPH, IconNutrients } from "../constants/icons";
 
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import AreaLuxReadings from "./AreaLuxReadings";
@@ -101,7 +102,7 @@ export default function AreaAdvancedFields({
         {/* 1. Growing Medium */}
         <div className="space-y-2">
           <label className={labelClass}>
-            <Layers size={14} /> Growing Medium
+            <IconSoilMedium size={14} /> Growing Medium
           </label>
           <div className="relative">
             <select
@@ -164,7 +165,7 @@ export default function AreaAdvancedFields({
         {/* 3. pH Level */}
         <div className="space-y-2">
           <label className={labelClass}>
-            <FlaskConical size={14} /> Medium pH
+            <IconSoilPH size={14} /> Medium pH
           </label>
           <div className="relative">
             <input
@@ -236,7 +237,7 @@ export default function AreaAdvancedFields({
         {/* 6. Nutrient Source */}
         <div className="space-y-2">
           <label className={labelClass}>
-            <Beaker size={14} /> Nutrient Source
+            <IconNutrients size={14} /> Nutrient Source
           </label>
           <div className="relative">
             <select

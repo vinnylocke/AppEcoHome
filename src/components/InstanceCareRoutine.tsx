@@ -4,17 +4,15 @@ import {
   Loader2,
   Calendar,
   Droplets,
-  Scissors,
   Activity,
   Edit3,
   Save,
   X,
   Plus,
-  Leaf,
   Trash2,
   CheckCircle2,
-  Sprout,
 } from "lucide-react";
+import { IconPrune, IconPlant, IconGrowth } from "../constants/icons";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { ConfirmModal } from "./ConfirmModal";
@@ -143,11 +141,11 @@ export default function InstanceCareRoutine({
       case "Watering":
         return <Droplets size={16} className="text-rhozly-primary" />;
       case "Maintenance":
-        return <Scissors size={16} className="text-rhozly-secondary" />;
+        return <IconPrune size={16} className="text-rhozly-secondary" />;
       case "Pruning":
-        return <Scissors size={16} className="text-lime-600" />;
+        return <IconPrune size={16} className="text-lime-600" />;
       case "Harvesting":
-        return <Leaf size={16} className="text-rhozly-tertiary" />;
+        return <IconPlant size={16} className="text-rhozly-tertiary" />;
       default:
         return <Activity size={16} className="text-rhozly-primary" />;
     }
@@ -533,7 +531,7 @@ export default function InstanceCareRoutine({
           <div className="relative inline-block mb-4">
             <div className="absolute inset-0 bg-rhozly-primary/10 rounded-full blur-xl"></div>
             <div className="relative bg-white p-4 rounded-full shadow-sm">
-              <Sprout
+              <IconGrowth
                 size={40}
                 className="text-rhozly-primary"
                 strokeWidth={2}

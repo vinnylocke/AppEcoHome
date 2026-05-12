@@ -1,6 +1,7 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { Stethoscope, LayoutTemplate, ScanLine, Sun, Sunrise, BookOpen, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
+import { IconDoctor, IconLayout, IconScan, IconLight, IconSunTracker, IconGuides } from "../constants/icons";
 
 interface Tool {
   id: string;
@@ -14,7 +15,7 @@ interface Tool {
 const TOOLS: Tool[] = [
   {
     id: "garden-ai",
-    icon: <Stethoscope size={22} />,
+    icon: <IconDoctor size={22} />,
     label: "Garden AI",
     description: "Identify plants, diagnose problems, and get AI-powered care advice.",
     path: "/doctor",
@@ -22,7 +23,7 @@ const TOOLS: Tool[] = [
   },
   {
     id: "garden-layout",
-    icon: <LayoutTemplate size={22} />,
+    icon: <IconLayout size={22} />,
     label: "Garden Layout",
     description: "Design and visualise your garden in 2D and 3D.",
     path: "/garden-layout",
@@ -30,7 +31,7 @@ const TOOLS: Tool[] = [
   },
   {
     id: "plant-visualiser",
-    icon: <ScanLine size={22} />,
+    icon: <IconScan size={22} />,
     label: "Plant Visualiser",
     description: "Preview how plants look in your space using your camera.",
     path: "/visualiser",
@@ -38,7 +39,7 @@ const TOOLS: Tool[] = [
   },
   {
     id: "light-sensor",
-    icon: <Sun size={22} />,
+    icon: <IconLight size={22} />,
     label: "Light Sensor",
     description: "Measure light levels to find the perfect spot for each plant.",
     path: "/lightsensor",
@@ -46,7 +47,7 @@ const TOOLS: Tool[] = [
   },
   {
     id: "sun-tracker",
-    icon: <Sunrise size={22} />,
+    icon: <IconSunTracker size={22} />,
     label: "Sun Tracker",
     description: "Point your camera at the sky to see the sun's path and garden shadow zones.",
     path: "/sun-trajectory",
@@ -54,7 +55,7 @@ const TOOLS: Tool[] = [
   },
   {
     id: "guides",
-    icon: <BookOpen size={22} />,
+    icon: <IconGuides size={22} />,
     label: "Guides",
     description: "Step-by-step care guides written for all gardening levels.",
     path: "/guides",

@@ -8,8 +8,8 @@ import {
   Loader2,
   ImageOff,
   Clock,
-  Bug,
 } from "lucide-react";
+import { IconPest } from "../constants/icons";
 import type { PlantDoctorSession, SessionCandidate } from "../hooks/usePlantDoctorSessions";
 
 interface Props {
@@ -86,7 +86,7 @@ function SessionCard({ session }: { session: PlantDoctorSession }) {
                     : "bg-amber-100 text-amber-700"
                 }`}
               >
-                {isIdentify ? <Search size={9} /> : isPest ? <Bug size={9} /> : <Activity size={9} />}
+                {isIdentify ? <Search size={9} /> : isPest ? <IconPest size={9} /> : <Activity size={9} />}
                 {isIdentify ? "Identify" : isPest ? "Pest" : "Diagnose"}
               </span>
               <span className="text-[10px] font-bold text-rhozly-on-surface/40 flex items-center gap-1">

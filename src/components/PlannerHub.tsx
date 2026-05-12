@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
-import { Map, ShoppingCart } from "lucide-react";
+import { IconPlanner, IconShopping } from "../constants/icons";
 import PlannerDashboard from "./PlannerDashboard";
 import ShoppingLists from "./ShoppingLists";
 
@@ -11,8 +11,8 @@ interface Props {
 }
 
 const TABS = [
-  { id: "planner",  label: "Planner",  icon: <Map size={15} /> },
-  { id: "shopping", label: "Shopping", icon: <ShoppingCart size={15} /> },
+  { id: "planner",  label: "Planner",  icon: <IconPlanner size={15} /> },
+  { id: "shopping", label: "Shopping", icon: <IconShopping size={15} /> },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];

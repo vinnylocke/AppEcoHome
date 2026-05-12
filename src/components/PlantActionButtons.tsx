@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Check, Sparkles, Database, Loader2 } from "lucide-react";
+import { Check, Loader2 } from "lucide-react";
+import { IconAI, IconPlantDB } from "../constants/icons";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -99,7 +100,7 @@ export const PlantActionButtons = ({
             {isImporting ? (
               <Loader2 size={16} className="animate-spin" />
             ) : (
-              <Sparkles size={16} />
+              <IconAI size={16} />
             )}{" "}
             Generate with AI ({selectedRecs.length})
           </button>
@@ -111,7 +112,7 @@ export const PlantActionButtons = ({
             {isImporting ? (
               <Loader2 size={16} className="animate-spin" />
             ) : (
-              <Database size={16} />
+              <IconPlantDB size={16} />
             )}{" "}
             Match via Plant Database ({selectedRecs.length})
           </button>
