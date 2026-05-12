@@ -191,7 +191,7 @@ export default function PlantAssignmentModal({
             plantName: plant.common_name,
             areaDetails: selectedAreaObj,
             address: homeData.address,
-            availableMethods: plant.propagation?.length > 0 ? plant.propagation : PROPAGATION_OPTIONS,
+            availableMethods: [...new Set([...(plant.propagation ?? []), ...PROPAGATION_OPTIONS])],
             homeId,
             priorSchedule,
           },

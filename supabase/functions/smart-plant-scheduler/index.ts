@@ -210,14 +210,16 @@ IMPORTANT EXAMPLES:
 
 Evaluate 'Seed' generously if it is biologically possible. Evaluate 'Bulb' for any plant that grows from bulbs, corms, rhizomes, or tubers (e.g. alliums, tulips, dahlias, irises, gladioli) — this is often the primary method and should be recommended with precise planting depth and spacing advice.
 
+CRITICAL RULE: Generate EXACTLY ONE schedule entry per method. Each entry must cover ONLY that one method — never combine Division and Bulb into the same entry, never combine Seed and Cutting, etc. If both 'Division' and 'Bulb' are available methods, return two completely separate entries with their own distinct phases and reasoning.
+
 Return ONLY a JSON object with this exact structure:
 {
   "personalized_assessment": "A brief paragraph explaining what planting season was identified for each method, whether now is the right time, and why — referencing the climate data and forecast.",
   "schedules": [
     {
-      "method": "Must be one of the provided available methods.",
+      "method": "Must be exactly one of the provided available methods — one entry per method.",
       "is_viable": true,
-      "reasoning": "Why this method works for this plant and area, and which season is optimal.",
+      "reasoning": "Why THIS specific method works for this plant and area, and which season is optimal. Do not mention other methods here.",
       "phases": [
         {
           "phase_name": "Name of the task (e.g. 'Sow Seeds Indoors', 'Transplant Outdoors', 'Plant Bulbs')",
