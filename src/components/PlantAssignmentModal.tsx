@@ -568,7 +568,7 @@ export default function PlantAssignmentModal({
                                 {schedule.phases.length} Tasks
                               </span>
                             </div>
-                            <p className="text-[10px] font-bold text-rhozly-on-surface/60 line-clamp-2 leading-relaxed mb-3">
+                            <p className="text-[10px] font-bold text-rhozly-on-surface/60 leading-relaxed mb-3">
                               {schedule.reasoning}
                             </p>
 
