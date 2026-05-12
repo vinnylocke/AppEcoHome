@@ -12,6 +12,9 @@ import {
   ChevronLeft,
   Trash2,
   Edit3,
+  SlidersHorizontal,
+  ChevronDown,
+  RefreshCw,
 } from "lucide-react";
 import { IconPlantDB, IconAI } from "../constants/icons";
 import { PerenualService } from "../lib/perenualService";
@@ -19,6 +22,16 @@ import toast from "react-hot-toast";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { PlantDoctorService } from "../services/plantDoctorService";
 import ManualPlantCreation from "./ManualPlantCreation";
+
+interface PlantSearchFilters {
+  cycle?: string;
+  watering?: string;
+  sunlight?: string;
+  edible?: 0 | 1;
+  poisonous?: 0 | 1;
+  indoor?: 0 | 1;
+  hardiness?: number;
+}
 
 interface Props {
   homeId: string;
@@ -29,6 +42,37 @@ interface Props {
   initialSearchTerm?: string;
   initialCartItems?: { type: "api" | "ai"; data: any }[];
   onManualSave?: (plantData: any) => void;
+}
+
+const CYCLE_OPTIONS = [
+  { value: "perennial", label: "Perennial" },
+  { value: "annual", label: "Annual" },
+  { value: "biennial", label: "Biennial" },
+  { value: "biannual", label: "Biannual" },
+];
+
+const WATERING_OPTIONS = [
+  { value: "frequent", label: "Frequent" },
+  { value: "average", label: "Average" },
+  { value: "minimum", label: "Minimum" },
+  { value: "none", label: "None" },
+];
+
+const SUNLIGHT_OPTIONS = [
+  { value: "full_sun", label: "Full Sun" },
+  { value: "sun-part_shade", label: "Sun / Part Shade" },
+  { value: "part_shade", label: "Part Shade" },
+  { value: "full_shade", label: "Full Shade" },
+];
+
+function countActiveFilters(f: PlantSearchFilters): number {
+  return [
+    f.cycle, f.watering, f.sunlight,
+    f.edible !== undefined ? f.edible : undefined,
+    f.poisonous !== undefined ? f.poisonous : undefined,
+    f.indoor !== undefined ? f.indoor : undefined,
+    f.hardiness,
+  ].filter((v) => v !== undefined).length;
 }
 
 export default function BulkSearchModal({
@@ -47,10 +91,15 @@ export default function BulkSearchModal({
   const [activeTab, setActiveTab] = useState<"search" | "manual">("search");
   const [query, setQuery] = useState(initialSearchTerm || "");
   const [isSearching, setIsSearching] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchError, setSearchError] = useState<string>("");
 
   const [apiResults, setApiResults] = useState<any[]>([]);
   const [aiResults, setAiResults] = useState<string[]>([]);
+  const [canShowMoreAi, setCanShowMoreAi] = useState(false);
+
+  const [filters, setFilters] = useState<PlantSearchFilters>({});
+  const [showFilters, setShowFilters] = useState(false);
 
   const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
   const [previewCache, setPreviewCache] = useState<
@@ -68,6 +117,17 @@ export default function BulkSearchModal({
 
   const hasAnySource = isAiEnabled || isPremium;
   const hasResults = aiResults.length > 0 || apiResults.length > 0;
+  const activeFilterCount = countActiveFilters(filters);
+  const hasSearchCriteria = query.trim().length > 0 || activeFilterCount > 0;
+
+  // De-duplicate AI results against Perenual names (case-insensitive common name match)
+  const perenualNames = new Set(
+    apiResults.map((p) => p.common_name?.toLowerCase().trim()),
+  );
+  const deduplicatedAiResults = aiResults.filter((match) => {
+    const commonName = match.split("(")[0].trim().toLowerCase();
+    return !perenualNames.has(commonName);
+  });
 
   useEffect(() => {
     if (initialCartItems && initialCartItems.length > 0) {
@@ -102,19 +162,15 @@ export default function BulkSearchModal({
   // Focus trap and return focus on close
   useEffect(() => {
     triggerRef.current = document.activeElement as HTMLElement;
-
-    if (modalRef.current) {
-      modalRef.current.focus();
-    }
+    if (modalRef.current) modalRef.current.focus();
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === "Tab" && modalRef.current) {
         const focusableElements = modalRef.current.querySelectorAll<HTMLElement>(
-          'button:not([disabled]), input:not([disabled]), [tabindex]:not([tabindex="-1"])'
+          'button:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])',
         );
         const firstElement = focusableElements[0];
         const lastElement = focusableElements[focusableElements.length - 1];
-
         if (e.shiftKey && document.activeElement === firstElement) {
           e.preventDefault();
           lastElement?.focus();
@@ -126,12 +182,9 @@ export default function BulkSearchModal({
     };
 
     document.addEventListener("keydown", handleKeyDown);
-
     return () => {
       document.removeEventListener("keydown", handleKeyDown);
-      if (triggerRef.current) {
-        triggerRef.current.focus();
-      }
+      if (triggerRef.current) triggerRef.current.focus();
     };
   }, []);
 
@@ -218,8 +271,8 @@ export default function BulkSearchModal({
 
   const performSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!query.trim()) {
-      setSearchError("Please enter a search term");
+    if (!hasSearchCriteria) {
+      setSearchError("Enter a plant name or select at least one filter");
       return;
     }
 
@@ -228,20 +281,27 @@ export default function BulkSearchModal({
     setExpandedResultId(null);
     setAiResults([]);
     setApiResults([]);
+    setCanShowMoreAi(false);
 
     const searches: Promise<void>[] = [];
 
     if (isAiEnabled) {
       searches.push(
-        PlantDoctorService.searchPlantsText(query)
-          .then((data) => setAiResults(data.matches || []))
+        PlantDoctorService.searchPlantsText(query, {
+          searchFilters: activeFilterCount > 0 ? filters : undefined,
+        })
+          .then((data) => {
+            const matches = data.matches || [];
+            setAiResults(matches);
+            setCanShowMoreAi(matches.length >= 10);
+          })
           .catch(() => {}),
       );
     }
 
     if (isPremium) {
       searches.push(
-        PerenualService.searchPlants(query)
+        PerenualService.searchPlants(query, activeFilterCount > 0 ? filters : undefined)
           .then((data) => setApiResults(data || []))
           .catch((err) => {
             const msg = (err.message || "") as string;
@@ -254,6 +314,26 @@ export default function BulkSearchModal({
 
     await Promise.all(searches);
     setIsSearching(false);
+  };
+
+  const handleShowMoreAi = async () => {
+    setIsLoadingMore(true);
+    const exclude = [
+      ...aiResults,
+      ...apiResults.map((p) => p.common_name).filter(Boolean),
+    ];
+    try {
+      const data = await PlantDoctorService.searchPlantsText(query, {
+        searchFilters: activeFilterCount > 0 ? filters : undefined,
+        excludeNames: exclude,
+      });
+      const more = data.matches || [];
+      setAiResults((prev) => [...prev, ...more]);
+      setCanShowMoreAi(more.length >= 10);
+    } catch {
+      toast.error("Could not load more AI suggestions.");
+    }
+    setIsLoadingMore(false);
   };
 
   const handleExpandResult = (
@@ -274,14 +354,36 @@ export default function BulkSearchModal({
   const toggleSelection = (id: string, plantData: any) => {
     setSelectedPlantsMap((prev) => {
       const newMap = new Map(prev);
-      if (newMap.has(id)) {
-        newMap.delete(id);
-      } else {
-        newMap.set(id, plantData);
-      }
+      if (newMap.has(id)) newMap.delete(id);
+      else newMap.set(id, plantData);
       return newMap;
     });
   };
+
+  const setTriState = (
+    field: "edible" | "poisonous" | "indoor",
+    current: 0 | 1 | undefined,
+  ) => {
+    // cycles: undefined → 1 → 0 → undefined
+    const next =
+      current === undefined ? 1 : current === 1 ? 0 : undefined;
+    setFilters((prev) => {
+      const updated = { ...prev };
+      if (next === undefined) delete updated[field];
+      else updated[field] = next as 0 | 1;
+      return updated;
+    });
+  };
+
+  const triStateLabel = (val: 0 | 1 | undefined, trueLabel: string, falseLabel: string) =>
+    val === 1 ? trueLabel : val === 0 ? falseLabel : "Any";
+
+  const triStateClass = (val: 0 | 1 | undefined) =>
+    val === 1
+      ? "bg-green-100 text-green-700 border-green-300"
+      : val === 0
+        ? "bg-red-100 text-red-700 border-red-300"
+        : "bg-rhozly-surface-low text-rhozly-on-surface/60 border-transparent";
 
   const renderAccordionContent = (id: string) => {
     const cache = previewCache[id];
@@ -291,8 +393,7 @@ export default function BulkSearchModal({
       <div className="p-4 bg-amber-50/50 border-t border-rhozly-outline/5 text-sm flex flex-col gap-4 animate-in slide-in-from-top-2">
         {cache.loading ? (
           <div className="flex items-center gap-2 text-amber-600/60 justify-center py-4">
-            <Loader2 size={16} className="animate-spin" /> Fetching preview
-            data...
+            <Loader2 size={16} className="animate-spin" /> Fetching preview data...
           </div>
         ) : (
           <div className="flex gap-4 items-start">
@@ -314,7 +415,7 @@ export default function BulkSearchModal({
     );
   };
 
-  // REVIEW CART UI
+  // ── REVIEW CART ───────────────────────────────────────────────────────────
   if (step === "review") {
     return (
       <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
@@ -352,21 +453,18 @@ export default function BulkSearchModal({
           <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-3">
             {Array.from(selectedPlantsMap.entries()).map(([id, item]) => {
               const isApi = item.type === "api";
-
               const name =
                 typeof item.data === "string"
                   ? isApi
                     ? item.data
                     : item.data.split("(")[0].trim()
                   : item.data.common_name;
-
               const subName =
                 typeof item.data === "string"
                   ? isApi
                     ? ""
                     : item.data.match(/\(([^)]+)\)/)?.[1]
                   : item.data.scientific_name?.[0];
-
               const thumbnail =
                 isApi &&
                 item.data.default_image?.thumbnail &&
@@ -383,11 +481,7 @@ export default function BulkSearchModal({
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0 flex items-center justify-center text-rhozly-primary/40">
                         {thumbnail ? (
-                          <img
-                            src={thumbnail}
-                            alt={name}
-                            className="w-full h-full object-cover"
-                          />
+                          <img src={thumbnail} alt={name} className="w-full h-full object-cover" />
                         ) : isApi ? (
                           <IconPlantDB size={20} />
                         ) : (
@@ -395,9 +489,7 @@ export default function BulkSearchModal({
                         )}
                       </div>
                       <div>
-                        <h4 className="font-black text-rhozly-on-surface leading-tight">
-                          {name}
-                        </h4>
+                        <h4 className="font-black text-rhozly-on-surface leading-tight">{name}</h4>
                         <p className="text-[10px] font-bold text-rhozly-on-surface/50 italic">
                           {subName || "Ready for processing"}
                         </p>
@@ -408,25 +500,17 @@ export default function BulkSearchModal({
                         </span>
                       </div>
                     </div>
-
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => handleExpandResult(id, !isApi, name)}
                         className="p-3 hover:bg-rhozly-surface-low rounded-xl text-rhozly-on-surface/60 hover:text-rhozly-primary transition-colors"
                       >
-                        {expandedResultId === id ? (
-                          <ChevronUp size={18} />
-                        ) : (
-                          <Info size={18} />
-                        )}
+                        {expandedResultId === id ? <ChevronUp size={18} /> : <Info size={18} />}
                       </button>
                       {pendingRemoveId === id ? (
                         <div className="flex items-center gap-1">
                           <button
-                            onClick={() => {
-                              toggleSelection(id, item);
-                              setPendingRemoveId(null);
-                            }}
+                            onClick={() => { toggleSelection(id, item); setPendingRemoveId(null); }}
                             aria-label="Confirm remove from selection"
                             className="px-3 py-2 bg-red-500 text-white rounded-xl text-xs font-black hover:bg-red-600 transition-colors"
                           >
@@ -451,7 +535,6 @@ export default function BulkSearchModal({
                       )}
                     </div>
                   </div>
-
                   {expandedResultId === id && renderAccordionContent(id)}
                 </div>
               );
@@ -460,9 +543,7 @@ export default function BulkSearchModal({
 
           <div className="p-6 border-t border-rhozly-outline/10 bg-white shrink-0">
             <button
-              onClick={() =>
-                onProceedToBulkAdd(Array.from(selectedPlantsMap.values()))
-              }
+              onClick={() => onProceedToBulkAdd(Array.from(selectedPlantsMap.values()))}
               disabled={selectedPlantsMap.size === 0}
               className="w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-xl hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100"
             >
@@ -474,7 +555,7 @@ export default function BulkSearchModal({
     );
   }
 
-  // SEARCH UI
+  // ── SEARCH UI ─────────────────────────────────────────────────────────────
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
       <div
@@ -500,12 +581,9 @@ export default function BulkSearchModal({
           </button>
         </div>
 
-        {/* Tab bar — Search vs Manual */}
+        {/* Tab bar */}
         <div className="px-8 shrink-0">
-          <div
-            role="tablist"
-            className="flex bg-rhozly-surface-low p-1 rounded-2xl gap-1"
-          >
+          <div role="tablist" className="flex bg-rhozly-surface-low p-1 rounded-2xl gap-1">
             <button
               role="tab"
               data-testid="bulk-search-tab-search"
@@ -535,7 +613,6 @@ export default function BulkSearchModal({
             />
           </div>
         ) : !hasAnySource ? (
-          /* Neither AI nor Perenual is enabled */
           <div
             data-testid="bulk-search-no-sources"
             className="flex-1 flex flex-col items-center justify-center p-8 text-center"
@@ -556,62 +633,240 @@ export default function BulkSearchModal({
           </div>
         ) : (
           <>
-            {/* Search input */}
-            <div className="p-8 pb-4 shrink-0">
-              <form onSubmit={performSearch} className="relative">
-                <div className="relative flex items-center">
-                  <input
-                    id="bulk-search-input"
-                    data-testid="bulk-search-input"
-                    type="text"
-                    placeholder={
-                      isAiEnabled && isPremium
-                        ? "Search plants (AI + Perenual)…"
-                        : isAiEnabled
-                          ? "Ask AI for any plant…"
-                          : "Search the Perenual database…"
-                    }
-                    value={query}
-                    onChange={(e) => {
-                      setQuery(e.target.value);
-                      if (searchError) setSearchError("");
-                    }}
-                    aria-describedby="search-helper-text"
-                    aria-invalid={!!searchError}
-                    className={`w-full pl-6 pr-14 py-4 rounded-2xl font-bold border outline-none shadow-sm transition-colors bg-rhozly-surface-low focus:border-rhozly-primary ${searchError ? "border-red-500" : "border-transparent"}`}
-                  />
+            {/* Search input + filters toggle */}
+            <div className="px-8 pt-4 pb-0 shrink-0 space-y-3">
+              <form onSubmit={performSearch}>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <input
+                      id="bulk-search-input"
+                      data-testid="bulk-search-input"
+                      type="text"
+                      placeholder={
+                        isAiEnabled && isPremium
+                          ? "Plant name (optional if filters set)…"
+                          : isAiEnabled
+                            ? "Ask AI for any plant…"
+                            : "Search the Perenual database…"
+                      }
+                      value={query}
+                      onChange={(e) => {
+                        setQuery(e.target.value);
+                        if (searchError) setSearchError("");
+                      }}
+                      aria-describedby="search-helper-text"
+                      aria-invalid={!!searchError}
+                      className={`w-full pl-6 pr-4 py-4 rounded-2xl font-bold border outline-none shadow-sm transition-colors bg-rhozly-surface-low focus:border-rhozly-primary ${searchError ? "border-red-500" : "border-transparent"}`}
+                    />
+                  </div>
+
+                  {/* Filters toggle button */}
+                  <button
+                    type="button"
+                    data-testid="bulk-search-filters-toggle"
+                    onClick={() => setShowFilters((v) => !v)}
+                    className={`relative flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-xs border transition-colors ${showFilters ? "bg-rhozly-primary text-white border-rhozly-primary" : "bg-rhozly-surface-low text-rhozly-on-surface/70 border-transparent hover:border-rhozly-primary/30"}`}
+                  >
+                    <SlidersHorizontal size={16} />
+                    <span className="hidden sm:inline">Filters</span>
+                    {activeFilterCount > 0 && (
+                      <span className="absolute -top-1.5 -right-1.5 w-5 h-5 bg-rhozly-primary text-white rounded-full text-[9px] font-black flex items-center justify-center border-2 border-rhozly-surface-lowest">
+                        {activeFilterCount}
+                      </span>
+                    )}
+                    <ChevronDown
+                      size={14}
+                      className={`transition-transform ${showFilters ? "rotate-180" : ""}`}
+                    />
+                  </button>
+
+                  {/* Search button */}
                   <button
                     type="submit"
-                    disabled={isSearching || !query.trim()}
+                    disabled={isSearching || !hasSearchCriteria}
                     aria-label="Search"
-                    className="absolute right-2 p-2 bg-rhozly-primary text-white rounded-xl hover:scale-105 transition-transform disabled:opacity-50"
+                    className="px-5 py-3 bg-rhozly-primary text-white rounded-2xl hover:scale-105 transition-transform disabled:opacity-50 flex items-center gap-2 font-black text-xs"
                   >
-                    <Search size={20} />
+                    {isSearching ? <Loader2 size={18} className="animate-spin" /> : <Search size={18} />}
+                    <span className="hidden sm:inline">Search</span>
                   </button>
                 </div>
-                <p
-                  id="search-helper-text"
-                  className="text-xs text-rhozly-on-surface/50 font-medium mt-2 px-2"
-                >
-                  {isAiEnabled && isPremium
-                    ? "Returns AI suggestions followed by Perenual database matches"
-                    : isAiEnabled
-                      ? "AI-generated plant suggestions"
-                      : "Searches the Perenual plant database"}
-                </p>
+
                 {searchError && (
-                  <p
-                    className="text-xs text-red-500 font-bold mt-2 px-2 animate-in slide-in-from-top-1"
-                    role="alert"
-                  >
+                  <p className="text-xs text-red-500 font-bold mt-2 px-2 animate-in slide-in-from-top-1" role="alert">
                     {searchError}
                   </p>
                 )}
               </form>
+
+              {/* Filter panel */}
+              {showFilters && (
+                <div
+                  data-testid="bulk-search-filter-panel"
+                  className="bg-rhozly-surface-low rounded-2xl p-4 space-y-4 animate-in slide-in-from-top-2"
+                >
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
+                    {/* Cycle */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/50">
+                        Life Cycle
+                      </label>
+                      <select
+                        data-testid="filter-cycle"
+                        value={filters.cycle || ""}
+                        onChange={(e) =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            cycle: e.target.value || undefined,
+                          }))
+                        }
+                        className="py-2 px-3 rounded-xl bg-white border border-rhozly-outline/20 text-xs font-bold outline-none focus:border-rhozly-primary"
+                      >
+                        <option value="">Any</option>
+                        {CYCLE_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Watering */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/50">
+                        Watering
+                      </label>
+                      <select
+                        data-testid="filter-watering"
+                        value={filters.watering || ""}
+                        onChange={(e) =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            watering: e.target.value || undefined,
+                          }))
+                        }
+                        className="py-2 px-3 rounded-xl bg-white border border-rhozly-outline/20 text-xs font-bold outline-none focus:border-rhozly-primary"
+                      >
+                        <option value="">Any</option>
+                        {WATERING_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Sunlight */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/50">
+                        Sunlight
+                      </label>
+                      <select
+                        data-testid="filter-sunlight"
+                        value={filters.sunlight || ""}
+                        onChange={(e) =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            sunlight: e.target.value || undefined,
+                          }))
+                        }
+                        className="py-2 px-3 rounded-xl bg-white border border-rhozly-outline/20 text-xs font-bold outline-none focus:border-rhozly-primary"
+                      >
+                        <option value="">Any</option>
+                        {SUNLIGHT_OPTIONS.map((o) => (
+                          <option key={o.value} value={o.value}>{o.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    {/* Hardiness zone */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/50">
+                        Hardiness Zone (1–13)
+                      </label>
+                      <input
+                        data-testid="filter-hardiness"
+                        type="number"
+                        min={1}
+                        max={13}
+                        placeholder="Any"
+                        value={filters.hardiness ?? ""}
+                        onChange={(e) =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            hardiness: e.target.value ? parseInt(e.target.value) : undefined,
+                          }))
+                        }
+                        className="py-2 px-3 rounded-xl bg-white border border-rhozly-outline/20 text-xs font-bold outline-none focus:border-rhozly-primary"
+                      />
+                    </div>
+
+                    {/* Edible toggle */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/50">
+                        Edible
+                      </label>
+                      <button
+                        data-testid="filter-edible"
+                        type="button"
+                        onClick={() => setTriState("edible", filters.edible)}
+                        className={`py-2 px-3 rounded-xl border text-xs font-black transition-colors text-left ${triStateClass(filters.edible)}`}
+                      >
+                        {triStateLabel(filters.edible, "Yes", "No")}
+                      </button>
+                    </div>
+
+                    {/* Poisonous toggle */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/50">
+                        Poisonous
+                      </label>
+                      <button
+                        data-testid="filter-poisonous"
+                        type="button"
+                        onClick={() => setTriState("poisonous", filters.poisonous)}
+                        className={`py-2 px-3 rounded-xl border text-xs font-black transition-colors text-left ${triStateClass(filters.poisonous)}`}
+                      >
+                        {triStateLabel(filters.poisonous, "Yes", "No")}
+                      </button>
+                    </div>
+
+                    {/* Indoor toggle */}
+                    <div className="flex flex-col gap-1">
+                      <label className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/50">
+                        Indoor
+                      </label>
+                      <button
+                        data-testid="filter-indoor"
+                        type="button"
+                        onClick={() => setTriState("indoor", filters.indoor)}
+                        className={`py-2 px-3 rounded-xl border text-xs font-black transition-colors text-left ${triStateClass(filters.indoor)}`}
+                      >
+                        {triStateLabel(filters.indoor, "Yes", "Outdoor only")}
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Clear filters */}
+                  {activeFilterCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => setFilters({})}
+                      className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors"
+                    >
+                      Clear all filters
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <p id="search-helper-text" className="text-xs text-rhozly-on-surface/50 font-medium px-1">
+                {isAiEnabled && isPremium
+                  ? "AI suggestions shown first, then Perenual matches"
+                  : isAiEnabled
+                    ? "AI-generated plant suggestions"
+                    : "Searches the Perenual plant database"}
+              </p>
             </div>
 
             {/* Results */}
-            <div className="flex-1 overflow-y-auto p-8 pt-0 custom-scrollbar space-y-3">
+            <div className="flex-1 overflow-y-auto px-8 py-4 custom-scrollbar space-y-3">
               {isSearching ? (
                 <div className="space-y-3">
                   {[1, 2, 3, 4].map((i) => (
@@ -635,15 +890,15 @@ export default function BulkSearchModal({
                 </div>
               ) : (
                 <>
-                  {/* AI results — shown first */}
-                  {aiResults.length > 0 && (
+                  {/* AI results — shown first, de-duplicated against Perenual */}
+                  {deduplicatedAiResults.length > 0 && (
                     <>
                       {isPremium && (
                         <p className="text-[10px] font-black uppercase tracking-widest text-amber-500/70 px-1 pt-1">
                           AI Suggestions
                         </p>
                       )}
-                      {aiResults.map((match: string, i) => {
+                      {deduplicatedAiResults.map((match: string, i) => {
                         const isSelected = selectedPlantsMap.has(match);
                         const cachedThumb = previewCache[match]?.images?.[0];
 
@@ -654,9 +909,7 @@ export default function BulkSearchModal({
                           >
                             <div className="flex items-center p-3 gap-3">
                               <button
-                                onClick={() =>
-                                  toggleSelection(match, { type: "ai", data: match })
-                                }
+                                onClick={() => toggleSelection(match, { type: "ai", data: match })}
                                 aria-label={isSelected ? "Remove from selection" : "Add to selection"}
                                 className={`shrink-0 transition-colors ${isSelected ? "text-amber-500" : "text-rhozly-on-surface/20 hover:text-amber-500/50"}`}
                               >
@@ -665,11 +918,7 @@ export default function BulkSearchModal({
 
                               <div className="w-12 h-12 rounded-xl bg-amber-500/5 overflow-hidden shrink-0 flex items-center justify-center text-amber-500/40">
                                 {cachedThumb ? (
-                                  <img
-                                    src={cachedThumb}
-                                    alt={match}
-                                    className="w-full h-full object-cover"
-                                  />
+                                  <img src={cachedThumb} alt={match} className="w-full h-full object-cover" />
                                 ) : previewCache[match]?.loading ? (
                                   <Loader2 size={16} className="animate-spin" />
                                 ) : (
@@ -678,9 +927,7 @@ export default function BulkSearchModal({
                               </div>
 
                               <div className="flex-1 min-w-0">
-                                <span className="font-bold text-rhozly-on-surface truncate block">
-                                  {match}
-                                </span>
+                                <span className="font-bold text-rhozly-on-surface truncate block">{match}</span>
                                 <span className="text-[8px] font-black uppercase tracking-widest text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
                                   AI
                                 </span>
@@ -689,21 +936,33 @@ export default function BulkSearchModal({
                                 onClick={() => handleExpandResult(match, true)}
                                 className="p-3 hover:bg-amber-100 rounded-xl text-amber-600 transition-colors"
                               >
-                                {expandedResultId === match ? (
-                                  <ChevronUp size={18} />
-                                ) : (
-                                  <Info size={18} />
-                                )}
+                                {expandedResultId === match ? <ChevronUp size={18} /> : <Info size={18} />}
                               </button>
                             </div>
                             {expandedResultId === match && renderAccordionContent(match)}
                           </div>
                         );
                       })}
+
+                      {/* Show more AI button */}
+                      {canShowMoreAi && isAiEnabled && (
+                        <button
+                          data-testid="bulk-search-show-more-ai"
+                          onClick={handleShowMoreAi}
+                          disabled={isLoadingMore}
+                          className="w-full py-3 border-2 border-dashed border-amber-300 text-amber-600 rounded-2xl font-black text-xs hover:bg-amber-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                        >
+                          {isLoadingMore ? (
+                            <><Loader2 size={14} className="animate-spin" /> Loading more AI suggestions…</>
+                          ) : (
+                            <><RefreshCw size={14} /> Show more AI suggestions</>
+                          )}
+                        </button>
+                      )}
                     </>
                   )}
 
-                  {/* Perenual results — shown after AI */}
+                  {/* Perenual results */}
                   {apiResults.length > 0 && (
                     <>
                       {isAiEnabled && (
@@ -721,10 +980,7 @@ export default function BulkSearchModal({
                             <div className="flex items-center p-3 gap-3">
                               <button
                                 onClick={() =>
-                                  toggleSelection(String(plant.id), {
-                                    type: "api",
-                                    data: plant,
-                                  })
+                                  toggleSelection(String(plant.id), { type: "api", data: plant })
                                 }
                                 aria-label={isSelected ? "Remove from selection" : "Add to selection"}
                                 className={`shrink-0 transition-colors ${isSelected ? "text-rhozly-primary" : "text-rhozly-on-surface/20 hover:text-rhozly-primary/50"}`}
@@ -746,9 +1002,7 @@ export default function BulkSearchModal({
                                 )}
                               </div>
                               <div className="flex-1 min-w-0">
-                                <h4 className="font-black text-rhozly-on-surface truncate">
-                                  {plant.common_name}
-                                </h4>
+                                <h4 className="font-black text-rhozly-on-surface truncate">{plant.common_name}</h4>
                                 <p className="text-[10px] font-bold text-rhozly-on-surface/50 italic truncate">
                                   {plant.scientific_name?.[0]}
                                 </p>
@@ -757,36 +1011,34 @@ export default function BulkSearchModal({
                                 </span>
                               </div>
                               <button
-                                onClick={() =>
-                                  handleExpandResult(
-                                    String(plant.id),
-                                    false,
-                                    plant.common_name,
-                                  )
-                                }
+                                onClick={() => handleExpandResult(String(plant.id), false, plant.common_name)}
                                 className="p-3 hover:bg-rhozly-primary/10 rounded-xl text-rhozly-primary transition-colors"
                               >
-                                {expandedResultId === String(plant.id) ? (
-                                  <ChevronUp size={18} />
-                                ) : (
-                                  <Info size={18} />
-                                )}
+                                {expandedResultId === String(plant.id) ? <ChevronUp size={18} /> : <Info size={18} />}
                               </button>
                             </div>
-                            {expandedResultId === String(plant.id) &&
-                              renderAccordionContent(String(plant.id))}
+                            {expandedResultId === String(plant.id) && renderAccordionContent(String(plant.id))}
                           </div>
                         );
                       })}
                     </>
                   )}
 
-                  {/* Empty state after a search returned nothing */}
-                  {!isSearching && query.trim() && !hasResults && apiResults.length === 0 && aiResults.length === 0 && (
+                  {/* Empty state */}
+                  {!isSearching && hasSearchCriteria && !hasResults && (
                     <div className="flex flex-col items-center justify-center py-20 text-center gap-2 opacity-50">
                       <Search size={32} />
                       <p className="font-black text-sm">No results found</p>
-                      <p className="text-xs font-bold">Try a different search term</p>
+                      <p className="text-xs font-bold">Try a different name or adjust the filters</p>
+                    </div>
+                  )}
+
+                  {/* Initial prompt state */}
+                  {!isSearching && !hasSearchCriteria && !hasResults && (
+                    <div className="flex flex-col items-center justify-center py-20 text-center gap-2 opacity-40">
+                      <SlidersHorizontal size={32} />
+                      <p className="font-black text-sm">Search by name, filters, or both</p>
+                      <p className="text-xs font-bold">Use the Filters button to narrow by watering, sunlight, and more</p>
                     </div>
                   )}
                 </>
@@ -797,12 +1049,8 @@ export default function BulkSearchModal({
               <div className="shrink-0 p-6 bg-white border-t border-rhozly-outline/10 md:absolute md:bottom-0 md:left-0 md:right-0 md:bg-gradient-to-t md:from-white md:via-white md:to-transparent md:border-t-0 animate-in slide-in-from-bottom-8">
                 <div className="bg-rhozly-surface-lowest shadow-2xl border border-rhozly-outline/20 rounded-2xl p-4 flex flex-col md:flex-row items-center gap-4 md:justify-between">
                   <div className="px-2 text-center md:text-left">
-                    <p className="text-sm font-black text-rhozly-on-surface">
-                      {selectedPlantsMap.size} Plants Selected
-                    </p>
-                    <p className="text-[10px] font-bold uppercase tracking-widest text-rhozly-on-surface/40">
-                      Ready to review
-                    </p>
+                    <p className="text-sm font-black text-rhozly-on-surface">{selectedPlantsMap.size} Plants Selected</p>
+                    <p className="text-[10px] font-bold uppercase tracking-widest text-rhozly-on-surface/40">Ready to review</p>
                   </div>
                   <button
                     onClick={() => setStep("review")}

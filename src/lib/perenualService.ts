@@ -54,13 +54,32 @@ const uniqueArray = (arr: any[]) => Array.from(new Set(arr || []));
 
 export const PerenualService = {
   // 1. Live Search (Always hits the API)
-  searchPlants: async (query: string) => {
+  searchPlants: async (
+    query: string,
+    filters?: {
+      cycle?: string;
+      watering?: string;
+      sunlight?: string;
+      edible?: 0 | 1;
+      poisonous?: 0 | 1;
+      indoor?: 0 | 1;
+      hardiness?: number;
+    },
+  ) => {
     try {
-      console.log(
-        `🔎 [SEARCH] Hitting live Perenual API for query: "${query}"`,
-      );
+      const params = new URLSearchParams({ key: PERENUAL_API_KEY });
+      if (query.trim()) params.set("q", query.trim());
+      if (filters?.cycle)                        params.set("cycle", filters.cycle);
+      if (filters?.watering)                     params.set("watering", filters.watering);
+      if (filters?.sunlight)                     params.set("sunlight", filters.sunlight);
+      if (filters?.edible !== undefined)         params.set("edible", String(filters.edible));
+      if (filters?.poisonous !== undefined)      params.set("poisonous", String(filters.poisonous));
+      if (filters?.indoor !== undefined)         params.set("indoor", String(filters.indoor));
+      if (filters?.hardiness !== undefined)      params.set("hardiness", String(filters.hardiness));
+
+      console.log(`🔎 [SEARCH] Perenual API: ${params.toString()}`);
       const response = await fetch(
-        `https://perenual.com/api/v2/species-list?key=${PERENUAL_API_KEY}&q=${query}`,
+        `https://perenual.com/api/v2/species-list?${params.toString()}`,
       );
       const data = await response.json();
       return data.data || [];

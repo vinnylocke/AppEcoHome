@@ -302,6 +302,7 @@ serve(async (req) => {
       currentPlants, imageBase64, mimeType, diagnosisContext,
       diseaseName, pestName, notes, inventoryItemId, areaId,
       deviceLat, deviceLng,
+      searchFilters, excludeNames,
     } = body;
     action = _action;
 
@@ -414,15 +415,39 @@ serve(async (req) => {
     // ── action: search_plants_text ─────────────────────────────────────────
 
     if (action === "search_plants_text") {
-      const prompt = `Return the top 5 plant matches for the search: "${plantSearch}".
-Each match should be "Common Name (Scientific Name)" format.`;
+      const hasQuery = plantSearch && plantSearch.trim().length > 0;
+      const filters = searchFilters ?? {};
+      const exclude: string[] = excludeNames ?? [];
+
+      const filterLines: string[] = [];
+      if (hasQuery)                         filterLines.push(`- Name matches: "${plantSearch.trim()}"`);
+      if (filters.cycle)                    filterLines.push(`- Life cycle: ${filters.cycle}`);
+      if (filters.watering)                 filterLines.push(`- Watering needs: ${filters.watering}`);
+      if (filters.sunlight)                 filterLines.push(`- Sunlight: ${filters.sunlight.replace(/-/g, " ")}`);
+      if (filters.edible === 1)             filterLines.push("- Must be edible / has edible parts");
+      else if (filters.edible === 0)        filterLines.push("- Must NOT be edible");
+      if (filters.poisonous === 1)          filterLines.push("- Must be toxic / poisonous to pets or humans");
+      else if (filters.poisonous === 0)     filterLines.push("- Must NOT be toxic or poisonous");
+      if (filters.indoor === 1)             filterLines.push("- Must be suitable for indoor growing");
+      else if (filters.indoor === 0)        filterLines.push("- Outdoor plants only");
+      if (filters.hardiness)                filterLines.push(`- Must be hardy in USDA hardiness zone ${filters.hardiness}`);
+      if (exclude.length > 0)              filterLines.push(`- Do NOT include any of these already-shown plants: ${exclude.join(", ")}`);
+
+      const criteriaBlock = filterLines.length > 0
+        ? `\nCriteria — the plant MUST satisfy ALL of the following:\n${filterLines.join("\n")}`
+        : "";
+
+      const prompt = `Return exactly 10 real plant species that best match the following request.${criteriaBlock}
+
+Each match must be a real plant species. Format each as "Common Name (Scientific Name)".`;
+
       const { text, usage } = await callGeminiCascade(
         apiKey, FN, toMessages([prompt]),
         { responseSchema: SEARCH_PLANTS_SCHEMA, logContext: { action } },
       );
       const parsed = JSON.parse(text);
       await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "search_plants_text", usage });
-      log(FN, "result", { action, matchesCount: parsed.matches?.length ?? 0, query: plantSearch });
+      log(FN, "result", { action, matchesCount: parsed.matches?.length ?? 0, query: plantSearch ?? null });
       return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });

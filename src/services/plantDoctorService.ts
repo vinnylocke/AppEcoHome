@@ -102,8 +102,27 @@ export const PlantDoctorService = {
     return invoke({ action: "recommend_plants", ...params });
   },
 
-  searchPlantsText(plantSearch: string): Promise<{ matches: any[] }> {
-    return invoke({ action: "search_plants_text", plantSearch });
+  searchPlantsText(
+    plantSearch: string,
+    options?: {
+      searchFilters?: {
+        cycle?: string;
+        watering?: string;
+        sunlight?: string;
+        edible?: 0 | 1;
+        poisonous?: 0 | 1;
+        indoor?: 0 | 1;
+        hardiness?: number;
+      };
+      excludeNames?: string[];
+    },
+  ): Promise<{ matches: any[] }> {
+    return invoke({
+      action: "search_plants_text",
+      plantSearch,
+      searchFilters: options?.searchFilters,
+      excludeNames: options?.excludeNames,
+    });
   },
 
   async applyTreatmentPlan(params: {
