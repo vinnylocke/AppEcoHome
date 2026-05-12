@@ -14,6 +14,32 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// Aggregate a year of daily weather into 12 monthly averages.
+// Returns entries sorted chronologically — oldest month first.
+function aggregateToMonthly(
+  times: string[],
+  meanTemps: number[],
+  precipSums: number[],
+): { month: string; avgTempC: number; totalRainMm: number }[] {
+  const buckets: Record<string, { tempSum: number; rainSum: number; count: number }> = {};
+
+  for (let i = 0; i < times.length; i++) {
+    const month = times[i].substring(0, 7); // "YYYY-MM"
+    if (!buckets[month]) buckets[month] = { tempSum: 0, rainSum: 0, count: 0 };
+    buckets[month].tempSum += meanTemps[i] ?? 0;
+    buckets[month].rainSum += precipSums[i] ?? 0;
+    buckets[month].count++;
+  }
+
+  return Object.entries(buckets)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .map(([month, { tempSum, rainSum, count }]) => ({
+      month,
+      avgTempC: Math.round((tempSum / count) * 10) / 10,
+      totalRainMm: Math.round(rainSum),
+    }));
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -47,9 +73,8 @@ serve(async (req) => {
     // =================================================================
     // GEOCODING LOGIC (Open-Meteo + Postcodes.io Fallback)
     // =================================================================
-    let lat, lng;
+    let lat: number | undefined, lng: number | undefined;
 
-    // --- GEOCODER 1: OPEN-METEO (Great for Cities) ---
     const meteoRes = await fetch(
       `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(address)}&count=1&format=json`,
     );
@@ -59,15 +84,12 @@ serve(async (req) => {
       lat = meteoData.results[0].latitude;
       lng = meteoData.results[0].longitude;
       log(FN, "geocode_success", { source: "open-meteo", name: meteoData.results[0].name, lat, lng });
-    }
-    // --- GEOCODER 2: POSTCODES.IO FALLBACK (Great for UK Postcodes) ---
-    else {
+    } else {
       warn(FN, "geocode_fallback", { address, reason: "open-meteo returned no results" });
       const cleanPostcode = address.replace(/\s+/g, "");
       const pcRes = await fetch(
         `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`,
       );
-
       if (pcRes.status === 200) {
         const pcData = await pcRes.json();
         lat = pcData.result.latitude;
@@ -76,7 +98,6 @@ serve(async (req) => {
       }
     }
 
-    // --- DID WE FIND COORDINATES? ---
     if (lat === undefined || lng === undefined) {
       throw new Error(
         `Could not find GPS coordinates for the address/postcode: ${address}`,
@@ -85,9 +106,31 @@ serve(async (req) => {
 
     const hemisphere = lat >= 0 ? "Northern Hemisphere" : "Southern Hemisphere";
 
-    // Load user preferences in parallel with the weather fetch
-    const [weatherRes, existingPrefs] = await Promise.all([
-      fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max&timezone=auto&forecast_days=14`),
+    // =================================================================
+    // WEATHER + PREFERENCES (parallel)
+    // Archive API: last 12 months daily → aggregated to monthly averages.
+    // Free, no key required. Yesterday is the latest available date.
+    // =================================================================
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    const oneYearAgo = new Date(today);
+    oneYearAgo.setFullYear(today.getFullYear() - 1);
+
+    const fmt = (d: Date) => d.toISOString().substring(0, 10);
+    const archiveUrl =
+      `https://archive-api.open-meteo.com/v1/archive?latitude=${lat}&longitude=${lng}` +
+      `&start_date=${fmt(oneYearAgo)}&end_date=${fmt(yesterday)}` +
+      `&daily=temperature_2m_mean,precipitation_sum&timezone=auto`;
+
+    const forecastUrl =
+      `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}` +
+      `&daily=temperature_2m_max,temperature_2m_min,precipitation_sum,precipitation_probability_max` +
+      `&timezone=auto&forecast_days=14`;
+
+    const [forecastRes, archiveRes, existingPrefs] = await Promise.all([
+      fetch(forecastUrl),
+      fetch(archiveUrl),
       homeId
         ? loadPreferences(supabase, userId ? { userId } : { homeId })
         : Promise.resolve([]),
@@ -99,66 +142,107 @@ serve(async (req) => {
       prefsSummary: existingPrefs.map((p) => `${p.sentiment}:${p.entity_name}`),
     });
 
-    const prefsBlock = formatPreferencesBlock(existingPrefs, "simple");
-
-    // =================================================================
-    // WEATHER PARSE (fetched above in parallel with preferences)
-    // =================================================================
-    const weatherData = await weatherRes.json();
-
-    const dailyForecasts = weatherData.daily.time.map(
-      (date: string, index: number) => ({
+    // 14-day forecast — used for precise date selection when planting is imminent
+    const forecastData = await forecastRes.json();
+    const dailyForecasts = forecastData.daily.time.map(
+      (date: string, i: number) => ({
         date,
-        maxTempC: weatherData.daily.temperature_2m_max[index],
-        minTempC: weatherData.daily.temperature_2m_min[index],
-        rainProb: weatherData.daily.precipitation_probability_max[index],
+        maxTempC: forecastData.daily.temperature_2m_max[i],
+        minTempC: forecastData.daily.temperature_2m_min[i],
+        rainProb: forecastData.daily.precipitation_probability_max[i],
       }),
     );
 
+    // Monthly climate profile — used for seasonal reasoning
+    let monthlyClimate: { month: string; avgTempC: number; totalRainMm: number }[] = [];
+    try {
+      const archiveData = await archiveRes.json();
+      monthlyClimate = aggregateToMonthly(
+        archiveData.daily.time,
+        archiveData.daily.temperature_2m_mean,
+        archiveData.daily.precipitation_sum,
+      );
+      log(FN, "climate_profile_loaded", { months: monthlyClimate.length });
+    } catch {
+      warn(FN, "climate_profile_failed", { reason: "archive API unavailable — falling back to forecast only" });
+    }
+
+    const prefsBlock = formatPreferencesBlock(existingPrefs, "simple");
+    const todayIso = fmt(today);
+
     // =================================================================
-    // 🧠 AI PROMPT & GEMINI FETCH
+    // AI PROMPT
     // =================================================================
     const systemPrompt = `You are an expert horticulturist and garden planner.
-    You will be provided with:
-    1. A plant name
-    2. The target garden area details (including environment, light, soil, etc.)
-    3. A 14-day local weather forecast (Celsius)
-    4. A list of available propagation methods
 
-    LOCATION CONTEXT: The user is in the ${hemisphere}. All seasonal advice (spring, summer, autumn/fall, winter) MUST be calibrated to this hemisphere.
+LOCATION CONTEXT: The user is in the ${hemisphere}. All seasonal advice MUST be calibrated to this hemisphere.
 
-    USER'S KNOWN PREFERENCES (honour these when giving advice — if they dislike something, never recommend it):
-    ${prefsBlock}
+USER'S KNOWN PREFERENCES (honour these — if they dislike something, never recommend it):
+${prefsBlock}
 
-    Determine the optimal planting strategy for EVERY viable propagation method. Please evaluate 'Seed' generously if it is biologically possible.
+You will be given:
+1. A plant name and target area details
+2. A 12-month climate profile (monthly average temperature and rainfall) for the user's location
+3. A 14-day detailed weather forecast
+4. Available propagation methods
+5. Today's date: ${todayIso}
 
-    Return ONLY a JSON object with this exact structure:
+YOUR TASK — follow these steps for EVERY available propagation method:
+
+STEP 1 — DETERMINE THE OPTIMAL PLANTING SEASON
+Using the plant's biological requirements and the monthly climate profile, identify the ideal month(s) to begin each propagation method. Consider frost risk, soil temperature, day length, and rainfall patterns. Do NOT default to "now" — reason carefully about what the plant actually needs.
+
+STEP 2 — CHECK IF NOW IS THE RIGHT TIME
+Compare today's date (${todayIso}) against the optimal season you identified in Step 1.
+- If the optimal window begins within the next 14 days: the user should plant soon.
+- If the optimal window is more than 14 days away: the user should wait and plan ahead.
+
+STEP 3a — IF PLANTING IS IMMINENT (optimal window within 14 days)
+Pick the specific best date from the 14-day forecast for each phase. Prefer days with warmer temperatures and lower rain probability for outdoor phases. Use the forecast dates precisely.
+
+STEP 3b — IF PLANTING SHOULD WAIT (optimal window is later in the year)
+Calculate the estimated start date based on the monthly climate profile — e.g. if September is optimal, return "YYYY-09-15". Do NOT schedule phases in the current 14-day window just to seem helpful. It is better to give the correct future date.
+
+IMPORTANT EXAMPLES:
+- Allium (garlic/onion): typically planted in autumn. If it is currently spring or summer, schedule for late September or October.
+- Tomato: needs warm soil (>15°C). If frost risk still exists in the forecast, delay or recommend indoor sowing first.
+- Hardy annuals: can often be sown now if conditions allow — check the forecast carefully.
+
+Evaluate 'Seed' generously if it is biologically possible.
+
+Return ONLY a JSON object with this exact structure:
+{
+  "personalized_assessment": "A brief paragraph explaining what planting season was identified for each method, whether now is the right time, and why — referencing the climate data and forecast.",
+  "schedules": [
     {
-      "personalized_assessment": "Write a brief, encouraging paragraph confirming you have considered their specific area details, the upcoming weather forecast, and their personal preferences.",
-      "schedules": [
+      "method": "Must be one of the provided available methods.",
+      "is_viable": true,
+      "reasoning": "Why this method works for this plant and area, and which season is optimal.",
+      "phases": [
         {
-          "method": "Must be one of the provided available methods.",
-          "is_viable": true,
-          "reasoning": "Why this method works for this specific plant and area.",
-          "phases": [
-            {
-              "phase_name": "Name of the distinct task (e.g., 'Sow Seeds Indoors', 'Germination', 'Transplant Outdoors', 'Direct Sow')",
-              "recommended_date": "YYYY-MM-DD (Choose the best specific date from the 14-day forecast for THIS specific phase. If it needs to be done later than 14 days, estimate the best future date based on seasonal norms for the ${hemisphere})",
-              "steps": ["Step 1...", "Include highly specific advice based on the area details, like using a frost cover if outdoors, or soil amendments."]
-            }
-          ]
+          "phase_name": "Name of the task (e.g. 'Sow Seeds Indoors', 'Transplant Outdoors', 'Plant Bulbs')",
+          "recommended_date": "YYYY-MM-DD",
+          "steps": ["Specific, actionable step referencing area conditions, soil type, frost risk, etc."]
         }
       ]
-    }`;
+    }
+  ]
+}`;
 
     const priorScheduleText = priorSchedule
-      ? `\nPrior Schedule (previously generated for this plant/area — refine or improve upon it based on the latest forecast): ${JSON.stringify(priorSchedule)}`
+      ? `\nPrior Schedule (previously generated — refine based on the latest data): ${JSON.stringify(priorSchedule)}`
       : "";
+
+    const climateBlock = monthlyClimate.length > 0
+      ? `12-Month Climate Profile (${fmt(oneYearAgo)} to ${fmt(yesterday)}): ${JSON.stringify(monthlyClimate)}`
+      : "12-Month Climate Profile: unavailable — use your knowledge of the hemisphere and plant requirements.";
 
     const userMessage = `Plant: ${plantName}
 Area Details: ${JSON.stringify(areaDetails || "General Garden")}
 Available Methods: ${JSON.stringify(availableMethods)}
-14-Day Forecast: ${JSON.stringify(dailyForecasts)}${priorScheduleText}`;
+Today's Date: ${todayIso}
+${climateBlock}
+14-Day Forecast (precise dates for imminent planting): ${JSON.stringify(dailyForecasts)}${priorScheduleText}`;
 
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey)
@@ -188,6 +272,7 @@ Available Methods: ${JSON.stringify(availableMethods)}
       userId,
       schedulesCount: smartSchedule.schedules?.length ?? 0,
       methods: smartSchedule.schedules?.map((s: any) => s.method),
+      climateMonths: monthlyClimate.length,
     });
 
     return new Response(JSON.stringify(smartSchedule), {
