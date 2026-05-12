@@ -16,41 +16,181 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// HELPER: Upload external image to Supabase Storage
-async function fetchAndUploadImage(
-  url: string,
-  plantName: string,
-  supabase: any,
-) {
+// ── Response schemas ────────────────────────────────────────────────────────
+
+const SEARCH_PLANTS_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    matches: { type: "ARRAY", items: { type: "STRING" } },
+  },
+  required: ["matches"],
+};
+
+const CARE_GUIDE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    plantData: {
+      type: "OBJECT",
+      properties: {
+        common_name:       { type: "STRING" },
+        scientific_name:   { type: "ARRAY", items: { type: "STRING" } },
+        description:       { type: "STRING" },
+        plant_type:        { type: "STRING" },
+        cycle:             { type: "STRING" },
+        care_level:        { type: "STRING" },
+        growth_rate:       { type: "STRING" },
+        maintenance:       { type: "STRING" },
+        watering_min_days: { type: "NUMBER" },
+        watering_max_days: { type: "NUMBER" },
+        sunlight:          { type: "ARRAY", items: { type: "STRING" } },
+        flowering_season:  { type: "ARRAY", items: { type: "STRING" } },
+        harvest_season:    { type: "ARRAY", items: { type: "STRING" } },
+        pruning_month:     { type: "ARRAY", items: { type: "STRING" } },
+        propagation:       { type: "ARRAY", items: { type: "STRING" } },
+        attracts:          { type: "ARRAY", items: { type: "STRING" } },
+        is_toxic_pets:     { type: "BOOLEAN" },
+        is_toxic_humans:   { type: "BOOLEAN" },
+        indoor:            { type: "BOOLEAN" },
+        is_edible:         { type: "BOOLEAN" },
+        drought_tolerant:  { type: "BOOLEAN" },
+        tropical:          { type: "BOOLEAN" },
+        medicinal:         { type: "BOOLEAN" },
+        cuisine:           { type: "BOOLEAN" },
+      },
+      required: [
+        "common_name", "scientific_name", "description", "plant_type",
+        "cycle", "care_level", "watering_min_days", "watering_max_days", "sunlight",
+      ],
+    },
+  },
+  required: ["plantData"],
+};
+
+const RECOMMEND_PLANTS_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    recommendations: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          name:            { type: "STRING" },
+          scientific_name: { type: "STRING" },
+          reason:          { type: "STRING" },
+          difficulty:      { type: "STRING" },
+        },
+        required: ["name", "scientific_name", "reason", "difficulty"],
+      },
+    },
+  },
+  required: ["recommendations"],
+};
+
+const IDENTIFY_VISION_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    notes:          { type: "STRING" },
+    possible_names: { type: "ARRAY", items: { type: "STRING" } },
+  },
+  required: ["notes", "possible_names"],
+};
+
+const DIAGNOSE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    notes:             { type: "STRING" },
+    possible_diseases: { type: "ARRAY", nullable: true, items: { type: "STRING" } },
+    possible_names:    { type: "STRING", nullable: true },
+  },
+  required: ["notes"],
+};
+
+const DISEASE_INFO_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    diseaseInfo: {
+      type: "OBJECT",
+      properties: {
+        description: { type: "STRING" },
+        solution:    { type: "STRING" },
+        source:      { type: "STRING" },
+      },
+      required: ["description", "solution", "source"],
+    },
+  },
+  required: ["diseaseInfo"],
+};
+
+const REMEDIAL_PLAN_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    remedial_schedules: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          title:           { type: "STRING" },
+          description:     { type: "STRING" },
+          task_type:       { type: "STRING" },
+          is_recurring:    { type: "BOOLEAN" },
+          frequency_days:  { type: "NUMBER", nullable: true },
+          end_offset_days: { type: "NUMBER", nullable: true },
+        },
+        required: ["title", "description", "task_type", "is_recurring"],
+      },
+    },
+  },
+  required: ["remedial_schedules"],
+};
+
+const IDENTIFY_PEST_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    notes:          { type: "STRING" },
+    possible_pests: { type: "ARRAY", items: { type: "STRING" } },
+    is_pest:        { type: "BOOLEAN" },
+    pest_severity:  { type: "STRING", nullable: true },
+  },
+  required: ["notes", "possible_pests", "is_pest"],
+};
+
+const PEST_INFO_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    pestInfo: {
+      type: "OBJECT",
+      properties: {
+        description:     { type: "STRING" },
+        affected_plants: { type: "STRING" },
+        treatment:       { type: "STRING" },
+        prevention:      { type: "STRING" },
+        source:          { type: "STRING" },
+      },
+      required: ["description", "affected_plants", "treatment", "prevention", "source"],
+    },
+  },
+  required: ["pestInfo"],
+};
+
+// ── Image helpers ───────────────────────────────────────────────────────────
+
+async function fetchAndUploadImage(url: string, plantName: string, supabase: any) {
   try {
     const response = await fetch(url);
     if (!response.ok) return null;
-
     const blob = await response.blob();
     const fileExt = url.split(".").pop()?.split("?")[0] || "jpg";
     const safeName = plantName.toLowerCase().replace(/[^a-z0-9]/g, "_");
     const fileName = `ai-generated/${safeName}_${Date.now()}.${fileExt}`;
-
-    const { error } = await supabase.storage
-      .from("plant-images")
-      .upload(fileName, blob, {
-        contentType: blob.type,
-        upsert: true,
-      });
-
+    const { error } = await supabase.storage.from("plant-images").upload(fileName, blob, {
+      contentType: blob.type,
+      upsert: true,
+    });
     if (error) throw error;
-
-    let {
-      data: { publicUrl },
-    } = supabase.storage.from("plant-images").getPublicUrl(fileName);
-
+    let { data: { publicUrl } } = supabase.storage.from("plant-images").getPublicUrl(fileName);
     if (publicUrl.includes("kong:8000")) {
-      publicUrl = publicUrl.replace(
-        "http://kong:8000",
-        "http://127.0.0.1:54321",
-      );
+      publicUrl = publicUrl.replace("http://kong:8000", "http://127.0.0.1:54321");
     }
-
     return publicUrl;
   } catch (err: any) {
     warn(FN, "image_upload_failed", { error: err.message, url });
@@ -58,7 +198,6 @@ async function fetchAndUploadImage(
   }
 }
 
-// HELPER: Get Image URL from Wikipedia (DEEP FALLBACK)
 async function getWikiImage(plantName: string) {
   const fetchWiki = async (term: string) => {
     try {
@@ -74,29 +213,32 @@ async function getWikiImage(plantName: string) {
       return null;
     }
   };
-
   const cleanName = plantName.split("(")[0].trim();
-
   let data = await fetchWiki(cleanName);
-
-  if (!data) {
-    data = await fetchWiki(`${cleanName} plant`);
-  }
-
+  if (!data) data = await fetchWiki(`${cleanName} plant`);
   if (!data && cleanName.includes(" ")) {
-    const basePlant = cleanName.split(" ").pop();
-    if (basePlant) {
-      data = await fetchWiki(basePlant);
-      if (!data) data = await fetchWiki(`${basePlant} plant`);
+    const base = cleanName.split(" ").pop();
+    if (base) {
+      data = await fetchWiki(base);
+      if (!data) data = await fetchWiki(`${base} plant`);
     }
   }
-
-  if (data) {
-    return data.originalimage?.source || data.thumbnail?.source || null;
-  }
-  return null;
+  return data ? (data.originalimage?.source || data.thumbnail?.source || null) : null;
 }
 
+// ── Helpers ─────────────────────────────────────────────────────────────────
+
+function getSeason(hemisphere: "Northern" | "Southern", month: number): string {
+  const north = month >= 3 && month <= 5 ? "Spring"
+    : month >= 6 && month <= 8 ? "Summer"
+    : month >= 9 && month <= 11 ? "Autumn"
+    : "Winter";
+  if (hemisphere === "Northern") return north;
+  const map: Record<string, string> = { Spring: "Autumn", Summer: "Winter", Autumn: "Spring", Winter: "Summer" };
+  return map[north];
+}
+
+// ── Main handler ─────────────────────────────────────────────────────────────
 
 serve(async (req) => {
   if (req.method === "OPTIONS")
@@ -118,97 +260,54 @@ serve(async (req) => {
 
     const body = await req.json();
     const {
-      action,
-      homeId,
-      targetPlant,
-      plantSearch,
-      areaData,
-      isOutside,
-      currentPlants,
-      imageBase64,
-      mimeType,
-      diagnosisContext,
-      diseaseName,
-      pestName,
-      notes,
+      action, homeId, targetPlant, plantSearch, areaData, isOutside,
+      currentPlants, imageBase64, mimeType, diagnosisContext,
+      diseaseName, pestName, notes,
     } = body;
 
     log(FN, "request_received", {
-      action,
-      homeId: homeId ?? null,
-      targetPlant: targetPlant ?? null,
-      diseaseName: diseaseName ?? null,
-      hasImage: !!imageBase64,
-      hasDiagnosisContext: !!diagnosisContext,
-      hasAreaData: !!areaData,
+      action, homeId: homeId ?? null, targetPlant: targetPlant ?? null,
+      diseaseName: diseaseName ?? null, hasImage: !!imageBase64,
+      hasDiagnosisContext: !!diagnosisContext, hasAreaData: !!areaData,
       currentPlantsCount: currentPlants?.length ?? 0,
     });
 
-    // -------------------------------------------------------------
-    // 1. NON-LLM ACTIONS (API FETCHES) — exempt from AI gate
-    // -------------------------------------------------------------
-    if (action === "fetch_perenual_disease") {
-      if (!perenualKey)
-        throw new Error(
-          "PERENUAL_API_KEY is missing in edge function environment.",
-        );
-      if (!diseaseName) throw new Error("Disease name is required.");
+    // ── Non-LLM actions — exempt from AI gate ──────────────────────────────
 
+    if (action === "fetch_perenual_disease") {
+      if (!perenualKey) throw new Error("PERENUAL_API_KEY is missing in edge function environment.");
+      if (!diseaseName) throw new Error("Disease name is required.");
       if (homeId) {
         const guardErr = await guardPerenualByHome(supabase, homeId);
         if (guardErr) return guardErr;
       }
-
       log(FN, "perenual_lookup", { diseaseName });
       const res = await fetch(
         `https://perenual.com/api/pest-disease-list?key=${perenualKey}&q=${encodeURIComponent(diseaseName)}`,
       );
       const data = await res.json();
-
-      if (data && data.data && data.data.length > 0) {
+      if (data?.data?.length > 0) {
         const item = data.data[0];
-
-        let solutionStr = "";
-        if (Array.isArray(item.solution)) {
-          solutionStr = item.solution
-            .map((s: any) => s.description || JSON.stringify(s))
-            .join(" ");
-        } else {
-          solutionStr =
-            item.solution || "No specific solution provided by API.";
-        }
-
-        let descStr = "";
-        if (Array.isArray(item.description)) {
-          descStr = item.description
-            .map((d: any) => d.description || JSON.stringify(d))
-            .join(" ");
-        } else {
-          descStr = item.description || "No description provided by API.";
-        }
-
+        const solutionStr = Array.isArray(item.solution)
+          ? item.solution.map((s: any) => s.description || JSON.stringify(s)).join(" ")
+          : item.solution || "No specific solution provided by API.";
+        const descStr = Array.isArray(item.description)
+          ? item.description.map((d: any) => d.description || JSON.stringify(d)).join(" ")
+          : item.description || "No description provided by API.";
         log(FN, "result", { action, found: true, diseaseName });
         return new Response(
-          JSON.stringify({
-            diseaseInfo: {
-              description: descStr,
-              solution: solutionStr,
-              source: "api",
-            },
-          }),
+          JSON.stringify({ diseaseInfo: { description: descStr, solution: solutionStr, source: "api" } }),
           { headers: { ...corsHeaders, "Content-Type": "application/json" } },
         );
-      } else {
-        log(FN, "result", { action, found: false, diseaseName });
-        return new Response(JSON.stringify({ notFound: true }), {
-          headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
       }
+      log(FN, "result", { action, found: false, diseaseName });
+      return new Response(JSON.stringify({ notFound: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
-    // -------------------------------------------------------------
-    // 2. LLM ACTIONS — guard AI tier + rate limit
-    // -------------------------------------------------------------
+    // ── LLM actions — guard AI tier + rate limit ───────────────────────────
+
     const rateLimitErr = await enforceRateLimit(supabase, callerUserId, FN);
     if (rateLimitErr) return rateLimitErr;
 
@@ -217,102 +316,100 @@ serve(async (req) => {
       if (guardErr) return guardErr;
     }
 
-    // Load user preferences once for all personalised actions.
-    const userPrefs = homeId
-      ? await loadPreferences(supabase, { homeId })
-      : [];
+    // Load user preferences — prefer userId for cross-home consistency.
+    const userPrefs = await loadPreferences(supabase, { userId: callerUserId });
     const prefsBlock = userPrefs.length > 0
       ? `\nUSER PREFERENCES (always honour these — never recommend anything the user dislikes):\n${formatPreferencesBlock(userPrefs, "simple")}\n`
       : "";
 
     log(FN, "prefs_loaded", { homeId: homeId ?? null, count: userPrefs.length });
 
+    // Load location context once for all LLM actions.
+    let hemisphere: "Northern" | "Southern" = "Northern";
+    let currentMonth = new Date().toLocaleString("en-GB", { month: "long" });
+    let currentMonthNum = new Date().getMonth() + 1;
+    let country = "";
+    let locationLine = "";
+
+    if (homeId) {
+      const { data: home } = await supabase
+        .from("homes")
+        .select("country, lat, lng, timezone")
+        .eq("id", homeId)
+        .maybeSingle();
+      if (home) {
+        hemisphere = (home.lat ?? 0) >= 0 ? "Northern" : "Southern";
+        currentMonth = new Date().toLocaleString("en-GB", {
+          month: "long",
+          timeZone: home.timezone ?? "UTC",
+        });
+        currentMonthNum = new Date(new Date().toLocaleString("en-US", { timeZone: home.timezone ?? "UTC" })).getMonth() + 1;
+        country = home.country ?? "";
+        const season = getSeason(hemisphere, currentMonthNum);
+        locationLine = [
+          country ? `Country: ${country}` : "",
+          `Hemisphere: ${hemisphere}`,
+          `Current month: ${currentMonth} (${season})`,
+        ].filter(Boolean).join(" | ");
+      }
+    }
+
+    // ── action: search_plants_text ─────────────────────────────────────────
+
     if (action === "search_plants_text") {
-      const prompt = `User searching: "${plantSearch}". Return top 5 matches as JSON: {"matches": ["Common Name (Scientific Name)"]}`;
-      const { text, usage } = await callGeminiCascade(apiKey, FN, toMessages([prompt]), { logContext: { action } });
-      const cleanJson = text
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
-      const parsed = JSON.parse(cleanJson);
+      const prompt = `Return the top 5 plant matches for the search: "${plantSearch}".
+Each match should be "Common Name (Scientific Name)" format.`;
+      const { text, usage } = await callGeminiCascade(
+        apiKey, FN, toMessages([prompt]),
+        { responseSchema: SEARCH_PLANTS_SCHEMA, logContext: { action } },
+      );
+      const parsed = JSON.parse(text);
       await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "search_plants_text", usage });
       log(FN, "result", { action, matchesCount: parsed.matches?.length ?? 0, query: plantSearch });
-      return new Response(cleanJson, {
+      return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // ── action: generate_care_guide ────────────────────────────────────────
 
     if (action === "generate_care_guide") {
       if (!targetPlant) throw new Error("No target plant provided.");
       const cleanName = targetPlant.split("(")[0].trim();
 
       const prompt = `Generate a comprehensive botanical care guide for "${cleanName}".
-      Respond ONLY in valid JSON format.
-      Schema:
-      {
-        "plantData": {
-          "common_name": "${cleanName}",
-          "scientific_name": ["String"],
-          "description": "String (1 paragraph)",
-          "plant_type": "Houseplant | Shrub | Tree | Vegetable | Flower",
-          "cycle": "Perennial | Annual | Biannual",
-          "care_level": "Beginner | Intermediate | Expert",
-          "growth_rate": "Slow | Medium | Fast",
-          "maintenance": "Low | Average | High",
-          "watering_min_days": Number,
-          "watering_max_days": Number,
-          "sunlight": ["full sun", "part sun", "part shade", "filtered shade", "full shade"],
-          "flowering_season": ["Spring", "Summer", "Autumn", "Winter"],
-          "harvest_season": ["Spring", "Summer", "Autumn", "Winter"],
-          "pruning_month": ["Jan", "Feb", etc],
-          "propagation": ["Seed", "Cuttings", "Division", "Layering", "Grafting"],
-          "attracts": ["Bees", "Butterflies", etc],
-          "is_toxic_pets": Boolean,
-          "is_toxic_humans": Boolean,
-          "indoor": Boolean,
-          "is_edible": Boolean,
-          "drought_tolerant": Boolean,
-          "tropical": Boolean,
-          "medicinal": Boolean,
-          "cuisine": Boolean
-        }
-      }`;
+${locationLine ? `Location context: ${locationLine}. Ensure seasonal advice (pruning months, flowering season, harvest season) reflects this hemisphere and location.` : ""}
 
-      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages([prompt]), { logContext: { action } });
-      let aiText = rawText
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
-      let parsedData = JSON.parse(aiText);
+Return all fields accurately. For pruning_month, use the abbreviated month names appropriate for the ${hemisphere} Hemisphere.`;
 
+      const { text: rawText, usage } = await callGeminiCascade(
+        apiKey, FN, toMessages([prompt]),
+        { responseSchema: CARE_GUIDE_SCHEMA, temperature: 0.2, logContext: { action } },
+      );
+      let parsedData = JSON.parse(rawText);
       if (!parsedData.plantData) parsedData = { plantData: parsedData };
 
       const wikiImageUrl = await getWikiImage(cleanName);
       if (wikiImageUrl) {
-        const permanentUrl = await fetchAndUploadImage(
-          wikiImageUrl,
-          cleanName,
-          supabase,
-        );
+        const permanentUrl = await fetchAndUploadImage(wikiImageUrl, cleanName, supabase);
         if (permanentUrl) parsedData.plantData.thumbnail_url = permanentUrl;
       }
 
       await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "generate_care_guide", usage });
       log(FN, "result", {
-        action,
-        plant: cleanName,
+        action, plant: cleanName,
         plantType: parsedData.plantData?.plant_type,
         cycle: parsedData.plantData?.cycle,
         hasWikiImage: !!parsedData.plantData?.thumbnail_url,
       });
-
       return new Response(JSON.stringify(parsedData), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // ── action: recommend_plants ───────────────────────────────────────────
+
     if (action === "recommend_plants") {
-      // Fetch lux reading history for this area (if an id is available on areaData)
       let luxRecommendCtx = areaData?.light_intensity_lux
         ? `Peak Light (Lux): ${areaData.light_intensity_lux}`
         : "Peak Light (Lux): Unknown";
@@ -331,49 +428,33 @@ serve(async (req) => {
         }
       }
 
-      const prompt = `
-        You are an expert master gardener. I need plant recommendations for a specific growing area.
-        ${prefsBlock}
-        ENVIRONMENTAL METRICS:
-        - Location: ${isOutside ? "Outside" : "Inside"}
-        - Area Name: ${areaData?.name || "Unnamed Area"}
-        - Growing Medium: ${areaData?.growing_medium || "Unknown"}
-        - Medium Texture: ${areaData?.medium_texture || "Unknown"}
-        - pH Level: ${areaData?.medium_ph || "Unknown"}
-        - ${luxRecommendCtx}
-        - Water Movement: ${areaData?.water_movement || "Unknown"}
-        - Nutrient Source: ${areaData?.nutrient_source || "Unknown"}
+      const prompt = `You are an expert master gardener. Recommend 5 plants for a specific growing area.
+${locationLine ? `\nGardener location: ${locationLine}. Only recommend plants suitable for their climate and current season.\n` : ""}
+${prefsBlock}
+ENVIRONMENTAL METRICS:
+- Location: ${isOutside ? "Outside" : "Inside"}
+- Area Name: ${areaData?.name || "Unnamed Area"}
+- Growing Medium: ${areaData?.growing_medium || "Unknown"}
+- Medium Texture: ${areaData?.medium_texture || "Unknown"}
+- pH Level: ${areaData?.medium_ph || "Unknown"}
+- ${luxRecommendCtx}
+- Water Movement: ${areaData?.water_movement || "Unknown"}
+- Nutrient Source: ${areaData?.nutrient_source || "Unknown"}
 
-        CURRENTLY PLANTED HERE: ${currentPlants && currentPlants.length > 0 ? currentPlants.join(", ") : "Nothing yet"}
+CURRENTLY PLANTED HERE: ${currentPlants?.length > 0 ? currentPlants.join(", ") : "Nothing yet"}
 
-        Based strictly on these metrics and the user's preferences above, recommend 5 plants that would thrive here.
-        NEVER recommend anything the user dislikes or that conflicts with their preferences.
-        If there are existing plants, you MUST prioritize companion plants.
+Based strictly on these metrics and the gardener's preferences, recommend 5 plants that would thrive here.
+NEVER recommend anything the user dislikes. If there are existing plants, prioritise companions.
+Use specific common names (e.g. "French Marigold" not "Marigold").`;
 
-        Respond ONLY with a valid JSON object in the exact format below:
-        {
-          "recommendations": [
-            {
-              "name": "Highly Specific Common Name (e.g., 'French Marigold' or 'Sweet Basil', NOT just 'Marigold' or 'Basil' to ensure database matches)",
-              "scientific_name": "Scientific Name",
-              "reason": "1-2 short sentences explaining why it fits the environment AND how it pairs with existing plants.",
-              "difficulty": "Beginner | Intermediate | Advanced"
-            }
-          ]
-        }
-      `;
-
-      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages([prompt]), { logContext: { action } });
-      let aiText = rawText
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
-      const parsedData = JSON.parse(aiText);
+      const { text: rawText, usage } = await callGeminiCascade(
+        apiKey, FN, toMessages([prompt]),
+        { responseSchema: RECOMMEND_PLANTS_SCHEMA, logContext: { action } },
+      );
+      const parsedData = JSON.parse(rawText);
       await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "recommend_plants", usage });
       log(FN, "result", {
-        action,
-        homeId: homeId ?? null,
-        area: areaData?.name,
+        action, homeId: homeId ?? null, area: areaData?.name,
         environment: isOutside ? "outside" : "inside",
         currentPlantsCount: currentPlants?.length ?? 0,
         userPrefsCount: userPrefs.length,
@@ -385,153 +466,112 @@ serve(async (req) => {
       });
     }
 
+    // ── action: identify_vision ────────────────────────────────────────────
+
     if (action === "identify_vision") {
       if (!imageBase64) throw new Error("No image data provided.");
-      const cleanBase64 = imageBase64.replace(
-        /^data:image\/(png|jpeg|jpg|webp);base64,/,
-        "",
+      const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+
+      const promptText = `Identify the plant in this image.
+${plantSearch ? `The user thinks it might be a "${plantSearch}". Confirm if this is correct.` : ""}
+${locationLine ? `The gardener is located: ${locationLine}. Prioritise plants native to or commonly grown in this region.` : ""}
+
+Return the top 3 most likely common names and a brief observation.`;
+
+      const { text: rawText, usage } = await callGeminiCascade(
+        apiKey, FN,
+        toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
+        { responseSchema: IDENTIFY_VISION_SCHEMA, logContext: { action } },
       );
-
-      const promptText = `
-        Identify the plant in this image.
-        ${plantSearch ? `The user thinks it might be a "${plantSearch}". Confirm if this is correct.` : ""}
-
-        You MUST respond ONLY in valid JSON format. Return the top 3 most likely common names.
-        {
-          "notes": "A brief 1-2 sentence observation.",
-          "possible_names": ["Most Likely Name", "Alternative 1", "Alternative 2"]
-        }
-      `;
-      const contents = [
-        promptText,
-        {
-          inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" },
-        },
-      ];
-
-      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages(contents), { logContext: { action } });
-      let aiText = rawText
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
-      const parsed = JSON.parse(aiText);
+      const parsed = JSON.parse(rawText);
       await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "identify_vision", usage });
       log(FN, "result", { action, possibleNames: parsed.possible_names ?? [] });
-      return new Response(aiText, {
+      return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // ── action: diagnose ───────────────────────────────────────────────────
+
     if (action === "diagnose") {
       if (!imageBase64) throw new Error("No image data provided.");
-      const cleanBase64 = imageBase64.replace(
-        /^data:image\/(png|jpeg|jpg|webp);base64,/,
-        "",
-      );
+      const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
 
       const plantContext = targetPlant
         ? `This plant is a "${targetPlant}". Use this to improve your diagnosis accuracy.`
         : "The plant species is unknown — identify any visual clues from the image.";
 
-      const promptText = `
-        ${plantContext}
-        Examine the image carefully for visible signs of pests, disease, nutrient deficiencies, or environmental stress (under/over-watering, sunburn, root rot, etc.).
-        Provide a precise diagnosis and actionable advice.
-        You MUST respond ONLY in valid JSON using this exact schema:
-        {
-          "notes": "Your diagnosis and advice here.",
-          "possible_diseases": ["Disease Name 1", "Disease Name 2", "Disease Name 3"] (Array of top 3 most likely specific pests or diseases. CRITICAL: Provide ONLY the simple common name. DO NOT include scientific names, Latin names, or brackets. Example GOOD: "Late Blight". Example BAD: "Late Blight (Phytophthora infestans)". If healthy or purely environmental like 'underwatering', return null),
-          "possible_names": null
-        }
-      `;
-      const contents = [
-        promptText,
-        {
-          inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" },
-        },
-      ];
+      const promptText = `${plantContext}
+${locationLine ? `Gardener location: ${locationLine}. Factor in regional climate when assessing likely causes (e.g. high humidity → fungal, dry climate → spider mites).` : ""}
 
-      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages(contents), { logContext: { action } });
-      let aiText = rawText
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
-      const parsed = JSON.parse(aiText);
+Examine the image carefully for visible signs of pests, disease, nutrient deficiencies, or environmental stress (under/over-watering, sunburn, root rot, etc.).
+Provide a precise diagnosis and actionable advice.
+
+For possible_diseases: return an array of up to 3 specific common names (e.g. "Late Blight", NOT "Late Blight (Phytophthora infestans)").
+If the plant appears healthy or the issue is purely environmental (e.g. underwatering), return an empty array for possible_diseases.
+Set possible_names to null always.`;
+
+      const { text: rawText, usage } = await callGeminiCascade(
+        apiKey, FN,
+        toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
+        { responseSchema: DIAGNOSE_SCHEMA, logContext: { action } },
+      );
+      const parsed = JSON.parse(rawText);
       await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "diagnose", usage });
       log(FN, "result", {
         action,
         possibleDiseases: parsed.possible_diseases ?? null,
-        healthy: parsed.possible_diseases === null,
+        healthy: !parsed.possible_diseases?.length,
       });
-      return new Response(aiText, {
+      return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // ── action: get_ai_disease_info ────────────────────────────────────────
 
     if (action === "get_ai_disease_info") {
-      const promptText = `
-        Provide a detailed botanical description and step-by-step remedial solution for the plant disease/pest: "${diseaseName}".
-        Use this context from the initial diagnosis: "${notes}"
+      const promptText = `Provide a detailed botanical description and step-by-step remedial solution for the plant disease/pest: "${diseaseName}".
+${notes ? `Context from the initial diagnosis: "${notes}"` : ""}
+${locationLine ? `Gardener location: ${locationLine}. Tailor treatment options to what is available/appropriate for their region.` : ""}`;
 
-        You MUST respond ONLY in valid JSON format using this exact schema. Do not use markdown blocks.
-        {
-          "diseaseInfo": {
-            "description": "String (Detailed 1-2 paragraph description of the pest/disease and its symptoms)",
-            "solution": "String (Detailed step-by-step treatment plan)",
-            "source": "ai"
-          }
-        }
-      `;
-      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages([promptText]), { logContext: { action } });
-      let aiText = rawText
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
+      const { text: rawText, usage } = await callGeminiCascade(
+        apiKey, FN, toMessages([promptText]),
+        { responseSchema: DISEASE_INFO_SCHEMA, logContext: { action } },
+      );
       await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "get_ai_disease_info", usage });
       log(FN, "result", { action, diseaseName, hasNotes: !!notes });
-      return new Response(aiText, {
+      return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // ── action: generate_remedial_plan ─────────────────────────────────────
 
     if (action === "generate_remedial_plan") {
       if (!diagnosisContext) throw new Error("No diagnosis context provided.");
 
-      const promptText = `
-        Based on the following diagnosis for the plant "${targetPlant || "the plant"}": "${diagnosisContext}"
-        Create a complete remedial care plan containing 1 to 4 specific tasks to help the plant recover.
-        ${prefsBlock}
-        CRITICAL INSTRUCTIONS - YOU MUST OBEY THESE RULES:
-        1. ONE-OFF TASKS: Immediate triage (pruning, isolating), environmental changes (improving air circulation, moving the plant), and habit changes (adjusting watering routines) MUST be one-off tasks with "is_recurring": false and "frequency_days": null.
-        2. NO DUPLICATE WATERING: Do NOT create recurring 'Watering' tasks. If the plant needs a different watering routine, create a SINGLE one-off 'Maintenance' task instructing the user to update their baseline watering schedule.
-        3. RECURRING TREATMENTS: Only use "is_recurring": true for active, ongoing medical treatments (e.g., applying fungicide, spraying neem oil).
-        4. MAXIMUM DURATION: For recurring treatments, "end_offset_days" MUST be short. Use 14 or 21 days maximum. Never exceed 21 days.
-        5. TASK TYPES: Use ONLY the "Maintenance" task_type for all medical tasks (pruning, spraying, adjusting environment).
+      const promptText = `Based on the following diagnosis for the plant "${targetPlant || "the plant"}": "${diagnosisContext}"
 
-        You MUST respond ONLY in valid JSON using this exact schema. Do not use markdown blocks.
-        {
-          "remedial_schedules": [
-            {
-              "title": "String (e.g., Prune Infected Leaves, Adjust Watering Routine, Apply Fungicide)",
-              "description": "String (Brief, actionable instruction)",
-              "task_type": "String (MUST be 'Maintenance')",
-              "is_recurring": Boolean,
-              "frequency_days": Number (e.g., 7 for weekly, or null if one-off),
-              "end_offset_days": Number (e.g., 14 or 21. Use 0 or null for one-off tasks)
-            }
-          ]
-        }
-      `;
-      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages([promptText]), { logContext: { action } });
-      let aiText = rawText
-        .replace(/```json/gi, "")
-        .replace(/```/g, "")
-        .trim();
-      const parsed = JSON.parse(aiText);
+Create a complete remedial care plan containing 1 to 4 specific tasks to help the plant recover.
+${prefsBlock}
+${locationLine ? `Gardener location: ${locationLine}. Time any spray or treatment tasks to avoid periods of rain or extreme heat common in this region in ${currentMonth}.` : ""}
+
+CRITICAL RULES:
+1. ONE-OFF TASKS: Immediate triage (pruning, isolating), environmental changes, and habit changes MUST be one-off tasks with is_recurring: false and frequency_days: null.
+2. NO DUPLICATE WATERING: Do NOT create recurring Watering tasks. If watering routine needs changing, create a single one-off Maintenance task.
+3. RECURRING TREATMENTS: Only use is_recurring: true for active ongoing treatments (e.g., applying fungicide, spraying neem oil).
+4. MAXIMUM DURATION: For recurring treatments, end_offset_days MUST be 14 or 21 days maximum.
+5. TASK TYPES: Use ONLY "Maintenance" for all medical tasks.`;
+
+      const { text: rawText, usage } = await callGeminiCascade(
+        apiKey, FN, toMessages([promptText]),
+        { responseSchema: REMEDIAL_PLAN_SCHEMA, logContext: { action } },
+      );
+      const parsed = JSON.parse(rawText);
       await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "generate_remedial_plan", usage });
       log(FN, "result", {
-        action,
-        targetPlant,
+        action, targetPlant,
         tasksCount: parsed.remedial_schedules?.length ?? 0,
         tasks: (parsed.remedial_schedules ?? []).map((t: any) => ({
           title: t.title,
@@ -539,73 +579,54 @@ serve(async (req) => {
           frequencyDays: t.frequency_days ?? null,
         })),
       });
-      return new Response(aiText, {
+      return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    // ── action: identify_pest ──────────────────────────────────────────────
 
     if (action === "identify_pest") {
       if (!imageBase64) throw new Error("No image data provided.");
-      const cleanBase64 = imageBase64.replace(
-        /^data:image\/(png|jpeg|jpg|webp);base64,/,
-        "",
+      const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+
+      const promptText = `Analyze this image and identify the insect or creature visible.
+${locationLine ? `Gardener location: ${locationLine}. Consider regionally prevalent pests for this climate.` : ""}
+
+Determine whether it is a garden pest or a beneficial insect.
+- is_pest = true if harmful (aphids, spider mites, whitefly, vine weevil, caterpillars, mealybugs, scale insects, thrips, fungus gnats, slugs, cutworms, etc.)
+- is_pest = false if beneficial (honeybee, bumblebee, ladybird, lacewing, hoverfly, ground beetle, earthworm, parasitic wasp, etc.)
+- pest_severity: null if not a pest. Low = cosmetic. Medium = can damage crops. High = serious infestation threat.
+- possible_pests: top 3 most likely identifications regardless of is_pest. Simple common names only, no scientific names.`;
+
+      const { text: rawText, usage } = await callGeminiCascade(
+        apiKey, FN,
+        toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
+        { responseSchema: IDENTIFY_PEST_SCHEMA, logContext: { action } },
       );
-
-      const promptText = `
-        Analyze this image and identify the insect or creature visible.
-        Determine whether it is a garden pest or a beneficial insect.
-
-        Return ONLY valid JSON using this exact schema:
-        {
-          "notes": "A brief 1-2 sentence observation about what you see.",
-          "possible_pests": ["Most Likely Common Name", "Alternative 1", "Alternative 2"],
-          "is_pest": true or false,
-          "pest_severity": "Low" or "Medium" or "High" or null
-        }
-
-        is_pest = true if the insect is harmful to plants (aphids, spider mites, whitefly, vine weevil, caterpillars, mealybugs, scale insects, thrips, fungus gnats, slugs, cutworms, etc.).
-        is_pest = false if beneficial (honeybee, bumblebee, ladybird/ladybug, lacewing, hoverfly, ground beetle, earthworm, parasitic wasp, etc.).
-        pest_severity: null if not a pest. Low = cosmetic damage only. Medium = can damage crops or plants. High = serious infestation threat.
-        possible_pests should always contain the top 3 most likely identifications regardless of is_pest status.
-        CRITICAL: Provide ONLY the simple common name. Do NOT include scientific names or Latin names in brackets.
-      `;
-      const contents = [
-        promptText,
-        { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } },
-      ];
-
-      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages(contents), { logContext: { action } });
-      let aiText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
-      const parsed = JSON.parse(aiText);
+      const parsed = JSON.parse(rawText);
       await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "identify_pest", usage });
       log(FN, "result", { action, possiblePests: parsed.possible_pests ?? [], isPest: parsed.is_pest });
-      return new Response(aiText, {
+      return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // ── action: get_ai_pest_info ───────────────────────────────────────────
+
     if (action === "get_ai_pest_info") {
       if (!pestName) throw new Error("Pest name is required.");
-      const promptText = `
-        Provide detailed information about the garden pest or insect: "${pestName}".
-        ${notes ? `Context from initial identification: "${notes}"` : ""}
+      const promptText = `Provide detailed information about the garden pest or insect: "${pestName}".
+${notes ? `Context from initial identification: "${notes}"` : ""}
+${locationLine ? `Gardener location: ${locationLine}. Tailor treatment and prevention advice to their region and current season.` : ""}`;
 
-        Return ONLY valid JSON using this exact schema. Do not use markdown blocks.
-        {
-          "pestInfo": {
-            "description": "2-3 sentence description of the insect, its appearance, and how it damages plants.",
-            "affected_plants": "Which plants and crops are most vulnerable to this pest.",
-            "treatment": "Step-by-step treatment to eliminate or control the pest.",
-            "prevention": "How to prevent future infestations or encourage beneficial alternatives.",
-            "source": "ai"
-          }
-        }
-      `;
-      const { text: rawText, usage } = await callGeminiCascade(apiKey, FN, toMessages([promptText]), { logContext: { action } });
-      let aiText = rawText.replace(/```json/gi, "").replace(/```/g, "").trim();
+      const { text: rawText, usage } = await callGeminiCascade(
+        apiKey, FN, toMessages([promptText]),
+        { responseSchema: PEST_INFO_SCHEMA, logContext: { action } },
+      );
       await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "get_ai_pest_info", usage });
       log(FN, "result", { action, pestName });
-      return new Response(aiText, {
+      return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
