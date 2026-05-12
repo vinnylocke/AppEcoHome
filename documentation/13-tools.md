@@ -70,6 +70,30 @@ The camera view shows your live camera feed with plant sprites overlaid.
 | **Resize** | Pinch/spread to scale the sprite |
 | **Remove** | Tap the sprite → tap the × remove button |
 
+### AI Placement Analysis
+
+> 📸 Screenshot: The camera view with the amber sparkle button visible in the top controls, and the analysis sheet sliding up from the bottom
+
+Once you have plants positioned in the camera view, tap the **✦ sparkle button** (amber, top-right) to run an AI analysis of the scene.
+
+Rhozly captures the current camera frame — including the placed sprites and the real environment behind them — and sends it to the AI along with each plant's sunlight and watering requirements. The AI then assesses whether the environment looks suitable for each plant.
+
+Results appear in a panel at the bottom of the screen:
+
+| Result type | What it means |
+|-------------|--------------|
+| ✅ **Good** | The environment looks suitable for this plant |
+| ⚠️ **Warning** | Possible concern — e.g. too much direct sun, or too shady |
+| ❌ **Issue** | The environment appears unsuitable for this plant's needs |
+
+A short **summary** of the overall scene is shown above the per-plant results. Any **general notes** (such as plants that are overlapping and may compete for space) appear below.
+
+> AI analysis requires the **AI tier**. The sparkle button shows a lock icon if your plan does not include it.
+
+Dismiss the results panel by tapping **×** — you can re-run the analysis at any time after repositioning your plants.
+
+---
+
 ### Saving a Capture
 
 Tap the **📷 Capture** button to save a snapshot of the current view with all sprites in place.
