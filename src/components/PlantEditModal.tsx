@@ -151,19 +151,19 @@ export default function PlantEditModal({
         </span>
 
         {/* Tab Navigation */}
-        <div className="px-8 flex gap-2 border-b-2 border-rhozly-outline/20 bg-rhozly-surface-low/50 shrink-0 shadow-sm">
+        <div className="flex gap-1 sm:gap-2 border-b-2 border-rhozly-outline/20 bg-rhozly-surface-low/50 shrink-0 shadow-sm overflow-x-auto px-2 sm:px-8 scrollbar-none">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               data-testid={`plant-modal-tab-${tab.id}`}
               onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-6 py-5 text-xs font-black uppercase tracking-widest transition-all border-b-4 ${
+              className={`shrink-0 flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-4 sm:py-5 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border-b-4 ${
                 activeTab === tab.id
                   ? "border-rhozly-primary text-rhozly-primary"
                   : "border-transparent text-rhozly-on-surface/30 hover:text-rhozly-on-surface"
               }`}
             >
-              <tab.icon size={16} />
+              <tab.icon size={14} className="sm:w-4 sm:h-4" />
               {tab.label}
             </button>
           ))}
