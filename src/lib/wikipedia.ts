@@ -61,22 +61,25 @@ export interface WikiImageResult {
   title: string;
   thumbUrl: string; // 300 px wide — safe to store as thumbnail_url
   fullUrl: string;
+  source: "wikimedia" | "pixabay";
 }
 
-/**
- * Searches Wikimedia Commons for photos of the given plant name.
- * Returns up to 12 JPEG/PNG/WebP results, sorted by relevance.
- * The thumbUrl is a 300px-wide version — appropriate for plant card thumbnails.
- */
-export async function searchWikimediaImages(plantName: string): Promise<WikiImageResult[]> {
-  const clean = plantName.split("(")[0].trim();
-  if (!clean) return [];
+// Strips leading cultivar/variety words so "Graham Thomas Honeysuckle"
+// becomes "Honeysuckle" and "Royal Gala Apple" becomes "Gala Apple".
+// Single-word and two-word names are returned unchanged.
+function simplifyPlantName(name: string): string | null {
+  const words = name.trim().split(/\s+/);
+  if (words.length <= 2) return null; // already short enough
+  // Try the last two words first (e.g. "Gala Apple"), then just the last word
+  return words.slice(-2).join(" ");
+}
 
+async function fetchWikimediaImages(query: string): Promise<WikiImageResult[]> {
   const params = new URLSearchParams({
     action: "query",
     generator: "search",
-    gsrnamespace: "6",       // File: namespace
-    gsrsearch: clean,
+    gsrnamespace: "6",
+    gsrsearch: query,
     prop: "imageinfo",
     iiprop: "url|mime",
     iiurlwidth: "300",
@@ -85,24 +88,83 @@ export async function searchWikimediaImages(plantName: string): Promise<WikiImag
     origin: "*",
   });
 
+  const res = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`);
+  if (!res.ok) return [];
+  const data = await res.json();
+  if (!data.query?.pages) return [];
+
+  return (Object.values(data.query.pages) as any[])
+    .filter((p) => {
+      const info = p.imageinfo?.[0];
+      if (!info?.thumburl || !info?.url) return false;
+      const mime: string = info.mime ?? "";
+      return mime === "image/jpeg" || mime === "image/png" || mime === "image/webp";
+    })
+    .map((p) => ({
+      title: (p.title as string).replace("File:", ""),
+      thumbUrl: p.imageinfo[0].thumburl as string,
+      fullUrl: p.imageinfo[0].url as string,
+      source: "wikimedia" as const,
+    }));
+}
+
+/**
+ * Searches Wikimedia Commons for photos of the given plant name.
+ * If the full cultivar name returns nothing, automatically retries with
+ * a simplified name (last 1–2 words) to handle cultivar names like
+ * "Graham Thomas Honeysuckle" → "Honeysuckle".
+ */
+export async function searchWikimediaImages(plantName: string): Promise<WikiImageResult[]> {
+  const clean = plantName.split("(")[0].trim();
+  if (!clean) return [];
+
   try {
-    const res = await fetch(`https://commons.wikimedia.org/w/api.php?${params}`);
+    const results = await fetchWikimediaImages(clean);
+    if (results.length > 0) return results;
+
+    // Cultivar fallback — try simplified name
+    const simplified = simplifyPlantName(clean);
+    if (!simplified) return [];
+
+    const fallback = await fetchWikimediaImages(simplified);
+    if (fallback.length > 0) return fallback;
+
+    // Final fallback — just the last word
+    const lastWord = clean.split(/\s+/).pop()!;
+    if (lastWord === simplified) return [];
+    return await fetchWikimediaImages(lastWord);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Searches Pixabay for plant photos. Requires VITE_PIXABAY_API_KEY.
+ * Pixabay License — no attribution required.
+ * Uses the simplified (species-level) name + "plant" for best results.
+ */
+export async function searchPixabayImages(plantName: string): Promise<WikiImageResult[]> {
+  const key = import.meta.env.VITE_PIXABAY_API_KEY;
+  if (!key) return [];
+
+  const clean = plantName.split("(")[0].trim();
+  const words = clean.split(/\s+/);
+  // Use last 1–2 words so "Graham Thomas Honeysuckle" searches "honeysuckle plant"
+  const searchTerm = words.length > 2 ? words.slice(-2).join(" ") : clean;
+
+  try {
+    const res = await fetch(
+      `https://pixabay.com/api/?key=${key}&q=${encodeURIComponent(searchTerm + " plant")}&image_type=photo&per_page=12&safesearch=true&orientation=vertical`,
+    );
     if (!res.ok) return [];
     const data = await res.json();
-    if (!data.query?.pages) return [];
 
-    return (Object.values(data.query.pages) as any[])
-      .filter((p) => {
-        const info = p.imageinfo?.[0];
-        if (!info?.thumburl || !info?.url) return false;
-        const mime: string = info.mime ?? "";
-        return mime === "image/jpeg" || mime === "image/png" || mime === "image/webp";
-      })
-      .map((p) => ({
-        title: (p.title as string).replace("File:", ""),
-        thumbUrl: p.imageinfo[0].thumburl as string,
-        fullUrl: p.imageinfo[0].url as string,
-      }));
+    return (data.hits ?? []).map((h: any) => ({
+      title: h.tags ?? searchTerm,
+      thumbUrl: h.webformatURL as string,   // ~640px — good quality for thumbnails
+      fullUrl: h.webformatURL as string,
+      source: "pixabay" as const,
+    }));
   } catch {
     return [];
   }

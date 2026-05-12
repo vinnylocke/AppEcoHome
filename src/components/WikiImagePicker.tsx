@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { Loader2, X, Check, Globe } from "lucide-react";
-import { searchWikimediaImages } from "../lib/wikipedia";
+import { Loader2, X, Check, ImageIcon } from "lucide-react";
+import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
 import type { WikiImageResult } from "../lib/wikipedia";
 
 interface WikiImagePickerProps {
@@ -22,18 +22,18 @@ export default function WikiImagePicker({ plantName, onSelect, onClose }: WikiIm
     setImages([]);
     setSelected(null);
 
-    searchWikimediaImages(plantName)
-      .then((results) => {
-        if (cancelled) return;
-        setImages(results);
-        if (results.length === 0) setError("No images found — try a different name.");
-      })
-      .catch(() => {
-        if (!cancelled) setError("Couldn't reach Wikipedia. Check your connection.");
-      })
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
+    // Run Wikimedia Commons and Pixabay in parallel; combine results
+    Promise.all([
+      searchWikimediaImages(plantName).catch(() => [] as WikiImageResult[]),
+      searchPixabayImages(plantName).catch(() => [] as WikiImageResult[]),
+    ]).then(([wiki, pixabay]) => {
+      if (cancelled) return;
+      const combined = [...wiki, ...pixabay];
+      setImages(combined);
+      if (combined.length === 0) setError("No images found. Try uploading a photo from your device.");
+    }).finally(() => {
+      if (!cancelled) setLoading(false);
+    });
 
     return () => { cancelled = true; };
   }, [plantName]);
@@ -48,11 +48,11 @@ export default function WikiImagePicker({ plantName, onSelect, onClose }: WikiIm
         {/* Header */}
         <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0 border-b border-rhozly-outline/10">
           <div className="flex items-center gap-2">
-            <Globe size={16} className="text-rhozly-primary" />
+            <ImageIcon size={16} className="text-rhozly-primary" />
             <div>
-              <h3 className="text-sm font-black text-rhozly-on-surface">Wikipedia Images</h3>
+              <h3 className="text-sm font-black text-rhozly-on-surface">Find a Photo</h3>
               <p className="text-[10px] font-bold text-rhozly-on-surface/40">
-                Results for "{plantName}"
+                Searching for "{plantName}"
               </p>
             </div>
           </div>
@@ -70,13 +70,13 @@ export default function WikiImagePicker({ plantName, onSelect, onClose }: WikiIm
           {loading && (
             <div className="flex flex-col items-center justify-center py-20 gap-3">
               <Loader2 size={28} className="animate-spin text-rhozly-primary" />
-              <p className="text-xs font-bold text-rhozly-on-surface/40">Searching Wikimedia…</p>
+              <p className="text-xs font-bold text-rhozly-on-surface/40">Searching…</p>
             </div>
           )}
 
           {error && !loading && (
             <div className="flex flex-col items-center justify-center py-20 gap-2 text-center px-8">
-              <Globe size={32} className="text-rhozly-on-surface/20" />
+              <ImageIcon size={32} className="text-rhozly-on-surface/20" />
               <p className="text-sm font-black text-rhozly-on-surface/40">{error}</p>
             </div>
           )}
@@ -87,11 +87,11 @@ export default function WikiImagePicker({ plantName, onSelect, onClose }: WikiIm
                 Tap to select · {images.length} results
               </p>
               <div className="grid grid-cols-3 gap-2">
-                {images.map((img) => {
+                {images.map((img, i) => {
                   const isSelected = selected === img.thumbUrl;
                   return (
                     <button
-                      key={img.thumbUrl}
+                      key={`${img.source}-${i}`}
                       data-testid="wiki-image-option"
                       onClick={() => setSelected(img.thumbUrl)}
                       className={`relative aspect-square rounded-2xl overflow-hidden border-2 transition-all focus:outline-none focus:ring-2 focus:ring-rhozly-primary/40 ${
@@ -106,6 +106,12 @@ export default function WikiImagePicker({ plantName, onSelect, onClose }: WikiIm
                         className="w-full h-full object-cover bg-rhozly-surface-low"
                         loading="lazy"
                       />
+
+                      {/* Source badge */}
+                      <span className="absolute bottom-1 left-1 text-[8px] font-black bg-black/40 text-white/80 px-1.5 py-0.5 rounded-full uppercase tracking-wide">
+                        {img.source === "pixabay" ? "Pixabay" : "Wiki"}
+                      </span>
+
                       {isSelected && (
                         <div className="absolute inset-0 bg-rhozly-primary/20 flex items-center justify-center">
                           <div className="bg-rhozly-primary rounded-full p-1.5 shadow-lg">
@@ -117,16 +123,13 @@ export default function WikiImagePicker({ plantName, onSelect, onClose }: WikiIm
                   );
                 })}
               </div>
-              <p className="text-[9px] font-bold text-rhozly-on-surface/25 text-center mt-4">
-                Images from Wikimedia Commons · CC licensed
-              </p>
             </>
           )}
         </div>
 
-        {/* Footer — only shown when something is selected */}
-        {selected && (
-          <div className="px-4 pb-6 pt-3 shrink-0 border-t border-rhozly-outline/10">
+        {/* Footer — confirm or close */}
+        <div className="px-4 pb-6 pt-3 shrink-0 border-t border-rhozly-outline/10">
+          {selected ? (
             <button
               data-testid="wiki-picker-confirm"
               onClick={() => onSelect(selected)}
@@ -134,8 +137,15 @@ export default function WikiImagePicker({ plantName, onSelect, onClose }: WikiIm
             >
               Use This Image
             </button>
-          </div>
-        )}
+          ) : (
+            <button
+              onClick={onClose}
+              className="w-full py-4 bg-rhozly-surface-low text-rhozly-on-surface/50 rounded-2xl font-black text-sm hover:bg-rhozly-surface transition-all"
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
