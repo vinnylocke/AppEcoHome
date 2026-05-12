@@ -11,6 +11,7 @@ import {
 import { callGeminiCascade } from "../_shared/gemini.ts";
 import { guardAiByUser } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
+import { enforceRateLimit } from "../_shared/rateLimit.ts";
 
 const FN = "generate-landscape-plan";
 
@@ -182,6 +183,9 @@ serve(async (req) => {
     if (userId) {
       const guardErr = await guardAiByUser(supabase, userId);
       if (guardErr) return guardErr;
+
+      const rateLimitErr = await enforceRateLimit(supabase, userId, FN);
+      if (rateLimitErr) return rateLimitErr;
     }
 
     log(FN, "request_received", {

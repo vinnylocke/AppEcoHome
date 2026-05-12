@@ -10,6 +10,7 @@ import {
 import { callGeminiCascade } from "../_shared/gemini.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
+import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
 import { getFallback } from "../_shared/fallbacks.ts";
 
@@ -99,6 +100,11 @@ serve(async (req) => {
 
     const guardErr = await guardAiByHome(supabase, homeId);
     if (guardErr) return guardErr;
+
+    if (userId) {
+      const rateLimitErr = await enforceRateLimit(supabase, userId, FN);
+      if (rateLimitErr) return rateLimitErr;
+    }
 
     log(FN, "request_received", {
       homeId,
