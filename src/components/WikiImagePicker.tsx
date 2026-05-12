@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { Loader2, X, Check, Globe } from "lucide-react";
-import { searchWikimediaImages, WikiImageResult } from "../lib/wikipedia";
+import { searchWikimediaImages } from "../lib/wikipedia";
+import type { WikiImageResult } from "../lib/wikipedia";
 
 interface WikiImagePickerProps {
   plantName: string;
