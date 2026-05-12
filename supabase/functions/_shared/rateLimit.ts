@@ -18,6 +18,7 @@ const TIER_LIMITS: Record<string, Record<string, number>> = {
   "generate-guide":          { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
   "identify-plant":          { sprout: 0, botanist: 10, sage: 25, evergreen: 50 },
   "contact-support":         { sprout: 2, botanist: 5,  sage: 10, evergreen: 20 },
+  "app-help":                { sprout: 20, botanist: 30, sage: 40, evergreen: 60 },
 };
 const DEFAULT_TIER_LIMITS: Record<string, number> = {
   sprout: 0, botanist: 10, sage: 20, evergreen: 40,

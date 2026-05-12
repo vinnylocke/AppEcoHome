@@ -17,19 +17,22 @@ import {
   RefreshCw,
 } from "lucide-react";
 import CommunityGuidesTab from "./CommunityGuidesTab";
+import AppHelpSearch from "./AppHelpSearch";
 
 const GUIDE_TABS = [
   { id: "rhozly",    label: "Rhozly Guides",   testid: "guides-tab-rhozly" },
   { id: "community", label: "Community Guides", testid: "guides-tab-community" },
+  { id: "help",      label: "App Help",         testid: "guides-tab-help" },
 ] as const;
 
 type GuideTabId = (typeof GUIDE_TABS)[number]["id"];
 
 export default function GuideList() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [activeTab, setActiveTab] = useState<GuideTabId>(
-    (searchParams.get("tab") as GuideTabId) === "community" ? "community" : "rhozly"
-  );
+  const [activeTab, setActiveTab] = useState<GuideTabId>(() => {
+    const t = searchParams.get("tab") as GuideTabId;
+    return t === "community" || t === "help" ? t : "rhozly";
+  });
   const autoOpenNew = searchParams.get("open") === "new-guide" && activeTab === "community";
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
 
@@ -374,6 +377,9 @@ export default function GuideList() {
           );
         })}
       </div>
+
+      {/* App Help tab */}
+      {activeTab === "help" && <AppHelpSearch />}
 
       {/* Community tab */}
       {activeTab === "community" && (
