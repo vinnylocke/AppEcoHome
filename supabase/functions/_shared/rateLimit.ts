@@ -31,6 +31,19 @@ async function resolveMax(
 ): Promise<number> {
   if (override !== undefined) return override;
 
+  // Per-user override takes priority over tier default.
+  const { data: overrideRow } = await db
+    .from("user_rate_limit_overrides")
+    .select("max_per_hour")
+    .eq("user_id", userId)
+    .eq("function_name", fnName)
+    .maybeSingle();
+
+  if (overrideRow !== null) {
+    log("_shared/rateLimit", "user_override_applied", { userId, fnName, max: overrideRow.max_per_hour });
+    return overrideRow.max_per_hour;
+  }
+
   const { data } = await db
     .from("user_profiles")
     .select("subscription_tier")
