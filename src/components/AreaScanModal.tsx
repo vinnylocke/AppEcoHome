@@ -339,7 +339,7 @@ export default function AreaScanModal({
         <div className="flex items-center justify-between p-6 border-b border-rhozly-outline/10">
           <div className="flex items-center gap-3">
             <div className="bg-rhozly-primary/10 p-2 rounded-xl">
-              <IconScanclassName="w-5 h-5 text-rhozly-primary" />
+              <IconScan className="w-5 h-5 text-rhozly-primary" />
             </div>
             <div>
               <h2 className="font-black text-xl font-display text-rhozly-on-surface">
@@ -429,7 +429,7 @@ export default function AreaScanModal({
                     onClick={handleRunScan}
                     className="flex-1 py-3 rounded-2xl bg-rhozly-primary text-white font-black text-sm hover:bg-rhozly-primary/90 transition-all flex items-center justify-center gap-2"
                   >
-                    <IconScansize={16} />
+                    <IconScan size={16} />
                     Scan Now
                   </button>
                 </div>
@@ -458,7 +458,7 @@ export default function AreaScanModal({
                     onClick={handleRunScan}
                     className="w-full py-3 rounded-2xl bg-rhozly-primary text-white font-black text-sm hover:bg-rhozly-primary/90 transition-all flex items-center justify-center gap-2"
                   >
-                    <IconScansize={16} />
+                    <IconScan size={16} />
                     Start Scan
                   </button>
                 </div>
@@ -471,7 +471,7 @@ export default function AreaScanModal({
             <div className="py-16 flex flex-col items-center gap-6">
               <div className="relative">
                 <div className="w-20 h-20 rounded-full bg-rhozly-primary/10 flex items-center justify-center">
-                  <IconScanclassName="w-10 h-10 text-rhozly-primary animate-pulse" />
+                  <IconScan className="w-10 h-10 text-rhozly-primary animate-pulse" />
                 </div>
                 <Loader2 className="w-6 h-6 text-rhozly-primary animate-spin absolute -bottom-1 -right-1" />
               </div>
