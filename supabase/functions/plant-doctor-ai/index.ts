@@ -2,8 +2,6 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import {
-  loadPreferences,
-  formatPreferencesBlock,
   filterNewPreferences,
   savePreferences,
   ENTITY_TYPES,
@@ -12,6 +10,7 @@ import {
 import { callGeminiCascade } from "../_shared/gemini.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
+import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
 
 const FN = "plant-doctor-ai";
 
@@ -107,73 +106,64 @@ serve(async (req) => {
       hasContext: !!currentContext,
     });
 
-    const sevenDaysFromNow = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0];
+    // Build full user context in one parallelised call.
+    const ctx = await buildUserContext(supabase, { userId, homeId });
+    const existingPrefs = ctx.preferences;
 
-    // Garden context (shared for the whole home) and preferences (personal) in parallel.
-    const [areasRes, inventoryRes, tasksRes, existingPrefs] = await Promise.all([
-      supabase.from("areas").select("name, sunlight, location_id").eq("home_id", homeId),
-      supabase.from("inventory_items").select("plant_name, status, growth_state, area_id, areas(name, sunlight)").eq("home_id", homeId),
-      supabase.from("tasks").select("title, due_date, type").eq("home_id", homeId).eq("status", "Pending").lte("due_date", sevenDaysFromNow).order("due_date", { ascending: true }),
-      loadPreferences(supabase, userId ? { userId } : { homeId }),
-    ]);
-
-    const areas = areasRes.data || [];
-    const inventory = inventoryRes.data || [];
-    const upcomingTasks = tasksRes.data || [];
-
-    // Group plants by area for a richer context block
-    const plantsByArea: Record<string, { areaName: string; sunlight: string; plants: string[] }> = {};
+    // Compact inventory block grouped by area (richer than the generic garden section).
+    const plantsByArea: Record<string, { areaName: string; sunlight: string | null; plants: string[] }> = {};
     const unassignedPlants: string[] = [];
-    for (const item of inventory) {
-      const areaName = (item.areas as any)?.name;
-      const sunlight = (item.areas as any)?.sunlight;
-      const label = `${item.plant_name} (${item.status}${item.growth_state ? `, ${item.growth_state}` : ""})`;
-      if (areaName) {
-        const key = item.area_id;
-        if (!plantsByArea[key]) plantsByArea[key] = { areaName, sunlight: sunlight ?? "unknown", plants: [] };
-        plantsByArea[key].plants.push(label);
+    for (const item of ctx.inventory) {
+      const label = `${item.plantName}${item.nickname ? ` (${item.nickname})` : ""}${item.growthState ? ` [${item.growthState}]` : ""}`;
+      if (item.areaId && item.areaName) {
+        if (!plantsByArea[item.areaId]) {
+          const area = ctx.areas.find((a) => a.id === item.areaId);
+          plantsByArea[item.areaId] = { areaName: item.areaName, sunlight: area?.sunlight ?? null, plants: [] };
+        }
+        plantsByArea[item.areaId].plants.push(label);
       } else {
         unassignedPlants.push(label);
       }
     }
     const inventoryContext = [
       ...Object.values(plantsByArea).map(
-        (g) => `${g.areaName} (${g.sunlight}): ${g.plants.join(", ")}`,
+        (g) => `${g.areaName}${g.sunlight ? ` (${g.sunlight})` : ""}: ${g.plants.join(", ")}`,
       ),
       ...(unassignedPlants.length > 0 ? [`Unassigned: ${unassignedPlants.join(", ")}`] : []),
-    ].join("\n") || "No plants recorded yet.";
+    ].join("\n") || "No plants currently planted.";
 
     log(FN, "context_loaded", {
-      homeId,
-      userId,
-      areasCount: areas.length,
-      inventoryCount: inventory.length,
-      areasWithPlants: Object.keys(plantsByArea).length,
-      unassignedCount: unassignedPlants.length,
-      upcomingTasksCount: upcomingTasks.length,
+      homeId, userId,
+      areasCount: ctx.areas.length,
+      inventoryCount: ctx.inventory.length,
+      upcomingTasksCount: ctx.upcomingTasks.length,
       prefsCount: existingPrefs.length,
-      prefsSummary: existingPrefs.map((p) => `${p.sentiment}:${p.entity_name}`),
+      hemisphere: ctx.hemisphere,
+      season: ctx.currentSeason,
+      hasWeather: !!ctx.weather,
     });
 
-    const prefsText = formatPreferencesBlock(existingPrefs, "simple");
+    const contextBlock = renderContextBlock(ctx, ["identity", "location", "weather", "behaviour"]);
 
     const systemPrompt = `
       You are the Rhozly Plant Doctor, an expert, empathetic, and highly knowledgeable botanist and garden planner.
       YOUR PRIME DIRECTIVE: You MUST ONLY answer questions related to plants, gardening, landscaping, botany, and agriculture.
       If the user asks about anything else, politely refuse.
 
-      USER'S CURRENT GARDEN AREAS: ${JSON.stringify(areas)}
-      USER'S CURRENT PLANTS (grouped by area with growth state):
+      ${contextBlock}
+
+      USER'S CURRENT PLANTS (grouped by area):
       ${inventoryContext}
       UPCOMING TASKS (next 7 days, pending):
-      ${upcomingTasks.length > 0 ? upcomingTasks.map((t: any) => `• [${t.type}] ${t.title} — due ${t.due_date}`).join("\n") : "None scheduled."}
+      ${ctx.upcomingTasks.length > 0 ? ctx.upcomingTasks.map((t) => `• [${t.type}] ${t.title} — due ${t.dueDate}${t.areaName ? ` (${t.areaName})` : ""}`).join("\n") : "None scheduled."}
       CURRENT SCREEN CONTEXT: ${currentContext ? JSON.stringify(currentContext) : "Dashboard/General"}
 
       USER'S KNOWN PREFERENCES (use these to personalise every response):
-      ${prefsText}
+      ${renderContextBlock(ctx, ["preferences"]).replace("── GARDENER CONTEXT ──\n", "").replace("\n── END CONTEXT ──", "")}
 
-      Provide highly personalised advice formatted in markdown.
+      Provide highly personalised advice formatted in markdown. Address the user by first name if known.
       Always honour the user's known preferences — if they dislike something, never recommend it.
+      Tailor seasonal advice to the user's hemisphere and current season (${ctx.currentSeason}, ${ctx.currentMonth}).
       If you recommend a specific plant they do NOT already own, include it in 'suggested_plants'.
 
       TASK GENERATION RULES:
