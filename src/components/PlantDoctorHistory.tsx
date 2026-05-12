@@ -10,7 +10,7 @@ import {
   Clock,
   Bug,
 } from "lucide-react";
-import type { PlantDoctorSession } from "../hooks/usePlantDoctorSessions";
+import type { PlantDoctorSession, SessionCandidate } from "../hooks/usePlantDoctorSessions";
 
 interface Props {
   sessions: PlantDoctorSession[];
@@ -19,11 +19,26 @@ interface Props {
 }
 
 function formatDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-GB", {
+  return new Date(iso).toLocaleString("en-GB", {
     day: "numeric",
     month: "short",
     year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
   });
+}
+
+// Handles both old plain-string candidates and new {name, scientific_name, confidence} objects
+function candidateName(c: SessionCandidate): string {
+  return typeof c === "string" ? c : c.name;
+}
+
+function candidateConfidence(c: SessionCandidate): number | null {
+  return typeof c === "string" ? null : (c.confidence ?? null);
+}
+
+function candidateScientific(c: SessionCandidate): string | null {
+  return typeof c === "string" ? null : (c.scientific_name ?? null);
 }
 
 function SessionCard({ session }: { session: PlantDoctorSession }) {
@@ -89,7 +104,7 @@ function SessionCard({ session }: { session: PlantDoctorSession }) {
               </div>
             ) : candidates.length > 0 ? (
               <p className="text-xs font-bold text-rhozly-on-surface/50 truncate">
-                {candidates.slice(0, 2).join(", ")}
+                {candidates.slice(0, 2).map(candidateName).join(", ")}
                 {candidates.length > 2 && ` +${candidates.length - 2} more`}
               </p>
             ) : (
@@ -132,21 +147,43 @@ function SessionCard({ session }: { session: PlantDoctorSession }) {
                 {isIdentify ? "Possible Plants" : isPest ? "Possible Insects / Pests" : "Possible Conditions"}
               </p>
               <div className="space-y-1.5">
-                {candidates.map((c, i) => (
-                  <div
-                    key={i}
-                    className={`flex items-center gap-2 px-3 py-2 rounded-xl text-sm font-bold ${
-                      c === session.confirmed_value
-                        ? "bg-green-50 border border-green-200 text-green-800"
-                        : "bg-rhozly-surface-low text-rhozly-on-surface/60"
-                    }`}
-                  >
-                    {c === session.confirmed_value && (
-                      <CheckCircle2 size={13} className="text-green-600 shrink-0" />
-                    )}
-                    {c}
-                  </div>
-                ))}
+                {candidates.map((c, i) => {
+                  const name = candidateName(c);
+                  const confidence = candidateConfidence(c);
+                  const scientific = candidateScientific(c);
+                  const isConfirmed = name === session.confirmed_value;
+                  return (
+                    <div
+                      key={i}
+                      className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-sm font-bold ${
+                        isConfirmed
+                          ? "bg-green-50 border border-green-200 text-green-800"
+                          : "bg-rhozly-surface-low text-rhozly-on-surface/60"
+                      }`}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        {isConfirmed && (
+                          <CheckCircle2 size={13} className="text-green-600 shrink-0" />
+                        )}
+                        <div className="min-w-0">
+                          <div className="truncate">{name}</div>
+                          {scientific && (
+                            <div className="text-[10px] font-medium italic opacity-60 truncate">{scientific}</div>
+                          )}
+                        </div>
+                      </div>
+                      {confidence !== null && (
+                        <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${
+                          confidence >= 80 ? "bg-emerald-100 text-emerald-700"
+                          : confidence >= 60 ? "bg-amber-100 text-amber-700"
+                          : "bg-red-100 text-red-700"
+                        }`}>
+                          {confidence}%
+                        </span>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}

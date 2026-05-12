@@ -1,6 +1,10 @@
 import { useState, useCallback } from "react";
 import { supabase } from "../lib/supabase";
 
+// Candidates stored before confidence scores were added were plain strings;
+// newer entries are objects. Both formats must be handled.
+export type SessionCandidate = string | { name: string; scientific_name?: string; confidence?: number };
+
 export interface PlantDoctorSession {
   id: string;
   user_id: string;
@@ -9,9 +13,9 @@ export interface PlantDoctorSession {
   image_path: string | null;
   results: {
     notes?: string;
-    possible_names?: string[];
-    possible_diseases?: string[] | null;
-    possible_pests?: string[];
+    possible_names?: SessionCandidate[];
+    possible_diseases?: SessionCandidate[] | null;
+    possible_pests?: SessionCandidate[];
     is_pest?: boolean;
     pest_severity?: string | null;
   };

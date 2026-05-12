@@ -324,6 +324,7 @@ export default function PlantDoctor({
             notes: result.notes,
             possible_names: result.possible_names,
             possible_diseases: result.possible_diseases,
+            possible_pests: result.possible_pests,
           },
         })
         .select("id")
