@@ -430,7 +430,15 @@ serve(async (req) => {
       else if (filters.poisonous === 0)     filterLines.push("- Must NOT be toxic or poisonous");
       if (filters.indoor === 1)             filterLines.push("- Must be suitable for indoor growing");
       else if (filters.indoor === 0)        filterLines.push("- Outdoor plants only");
-      if (filters.hardiness)                filterLines.push(`- Must be hardy in USDA hardiness zone ${filters.hardiness}`);
+      if (filters.hardinessMin !== undefined || filters.hardinessMax !== undefined) {
+        const min = filters.hardinessMin;
+        const max = filters.hardinessMax;
+        if (min !== undefined && max !== undefined && min !== max) {
+          filterLines.push(`- Hardy across USDA hardiness zones ${min}–${max} (must survive zone ${min} winters)`);
+        } else {
+          filterLines.push(`- Hardy in USDA hardiness zone ${min ?? max}`);
+        }
+      }
       if (exclude.length > 0)              filterLines.push(`- Do NOT include any of these already-shown plants: ${exclude.join(", ")}`);
 
       const criteriaBlock = filterLines.length > 0

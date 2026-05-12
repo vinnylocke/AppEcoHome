@@ -30,7 +30,8 @@ interface PlantSearchFilters {
   edible?: 0 | 1;
   poisonous?: 0 | 1;
   indoor?: 0 | 1;
-  hardiness?: number;
+  hardinessMin?: number;
+  hardinessMax?: number;
 }
 
 interface Props {
@@ -71,7 +72,7 @@ function countActiveFilters(f: PlantSearchFilters): number {
     f.edible !== undefined ? f.edible : undefined,
     f.poisonous !== undefined ? f.poisonous : undefined,
     f.indoor !== undefined ? f.indoor : undefined,
-    f.hardiness,
+    f.hardinessMin !== undefined || f.hardinessMax !== undefined ? 1 : undefined,
   ].filter((v) => v !== undefined).length;
 }
 
@@ -775,26 +776,50 @@ export default function BulkSearchModal({
                       </select>
                     </div>
 
-                    {/* Hardiness zone */}
-                    <div className="flex flex-col gap-1">
+                    {/* Hardiness zone range */}
+                    <div className="flex flex-col gap-1 col-span-2 sm:col-span-3">
                       <label className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/50">
-                        Hardiness Zone (1–13)
+                        USDA Hardiness Zone
                       </label>
-                      <input
-                        data-testid="filter-hardiness"
-                        type="number"
-                        min={1}
-                        max={13}
-                        placeholder="Any"
-                        value={filters.hardiness ?? ""}
-                        onChange={(e) =>
-                          setFilters((prev) => ({
-                            ...prev,
-                            hardiness: e.target.value ? parseInt(e.target.value) : undefined,
-                          }))
-                        }
-                        className="py-2 px-3 rounded-xl bg-white border border-rhozly-outline/20 text-xs font-bold outline-none focus:border-rhozly-primary"
-                      />
+                      <div className="flex items-center gap-2">
+                        <select
+                          data-testid="filter-hardiness-min"
+                          value={filters.hardinessMin ?? ""}
+                          onChange={(e) =>
+                            setFilters((prev) => ({
+                              ...prev,
+                              hardinessMin: e.target.value ? parseInt(e.target.value) : undefined,
+                            }))
+                          }
+                          className="flex-1 py-2 px-3 rounded-xl bg-white border border-rhozly-outline/20 text-xs font-bold outline-none focus:border-rhozly-primary"
+                        >
+                          <option value="">From (any)</option>
+                          {Array.from({ length: 13 }, (_, i) => i + 1).map((z) => (
+                            <option key={z} value={z} disabled={filters.hardinessMax !== undefined && z > filters.hardinessMax}>
+                              Zone {z}
+                            </option>
+                          ))}
+                        </select>
+                        <span className="text-xs font-black text-rhozly-on-surface/40">to</span>
+                        <select
+                          data-testid="filter-hardiness-max"
+                          value={filters.hardinessMax ?? ""}
+                          onChange={(e) =>
+                            setFilters((prev) => ({
+                              ...prev,
+                              hardinessMax: e.target.value ? parseInt(e.target.value) : undefined,
+                            }))
+                          }
+                          className="flex-1 py-2 px-3 rounded-xl bg-white border border-rhozly-outline/20 text-xs font-bold outline-none focus:border-rhozly-primary"
+                        >
+                          <option value="">To (any)</option>
+                          {Array.from({ length: 13 }, (_, i) => i + 1).map((z) => (
+                            <option key={z} value={z} disabled={filters.hardinessMin !== undefined && z < filters.hardinessMin}>
+                              Zone {z}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
                     </div>
 
                     {/* Edible toggle */}

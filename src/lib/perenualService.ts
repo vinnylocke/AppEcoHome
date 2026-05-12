@@ -63,7 +63,8 @@ export const PerenualService = {
       edible?: 0 | 1;
       poisonous?: 0 | 1;
       indoor?: 0 | 1;
-      hardiness?: number;
+      hardinessMin?: number;
+      hardinessMax?: number;
     },
   ) => {
     try {
@@ -75,7 +76,11 @@ export const PerenualService = {
       if (filters?.edible !== undefined)         params.set("edible", String(filters.edible));
       if (filters?.poisonous !== undefined)      params.set("poisonous", String(filters.poisonous));
       if (filters?.indoor !== undefined)         params.set("indoor", String(filters.indoor));
-      if (filters?.hardiness !== undefined)      params.set("hardiness", String(filters.hardiness));
+      if (filters?.hardinessMin !== undefined || filters?.hardinessMax !== undefined) {
+        const min = filters.hardinessMin ?? 1;
+        const max = filters.hardinessMax ?? 13;
+        params.set("hardiness", min === max ? String(min) : `${min}-${max}`);
+      }
 
       console.log(`🔎 [SEARCH] Perenual API: ${params.toString()}`);
       const response = await fetch(

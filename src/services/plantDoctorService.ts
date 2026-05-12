@@ -112,7 +112,8 @@ export const PlantDoctorService = {
         edible?: 0 | 1;
         poisonous?: 0 | 1;
         indoor?: 0 | 1;
-        hardiness?: number;
+        hardinessMin?: number;
+        hardinessMax?: number;
       };
       excludeNames?: string[];
     },
