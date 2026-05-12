@@ -513,7 +513,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     setInitialCartItems([]);
     setSourcePickerPlants([]);
     handledDeepLink.current = "";
-    navigate(location.state?.returnTo ?? "/dashboard", { replace: true });
+    if (location.state?.returnTo) {
+      navigate(location.state.returnTo, { replace: true });
+    }
   };
 
   const executeArchiveToggle = async () => {

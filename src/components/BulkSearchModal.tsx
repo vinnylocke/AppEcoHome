@@ -94,6 +94,7 @@ export default function BulkSearchModal({
   const [isSearching, setIsSearching] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchError, setSearchError] = useState<string>("");
+  const [hasSearched, setHasSearched] = useState(false);
 
   const [apiResults, setApiResults] = useState<any[]>([]);
   const [aiResults, setAiResults] = useState<string[]>([]);
@@ -283,6 +284,7 @@ export default function BulkSearchModal({
     setAiResults([]);
     setApiResults([]);
     setCanShowMoreAi(false);
+    setHasSearched(false);
 
     const searches: Promise<void>[] = [];
 
@@ -315,6 +317,7 @@ export default function BulkSearchModal({
 
     await Promise.all(searches);
     setIsSearching(false);
+    setHasSearched(true);
   };
 
   const handleShowMoreAi = async () => {
@@ -969,19 +972,31 @@ export default function BulkSearchModal({
                         );
                       })}
 
-                      {/* Show more AI button */}
-                      {canShowMoreAi && isAiEnabled && (
+                      {/* Show more / end-of-results indicator */}
+                      {isAiEnabled && hasSearched && !isLoadingMore && (
+                        canShowMoreAi ? (
+                          <button
+                            data-testid="bulk-search-show-more-ai"
+                            onClick={handleShowMoreAi}
+                            className="w-full py-3 border-2 border-dashed border-amber-300 text-amber-600 rounded-2xl font-black text-xs hover:bg-amber-50 transition-colors flex items-center justify-center gap-2"
+                          >
+                            <RefreshCw size={14} /> Show more AI suggestions
+                          </button>
+                        ) : deduplicatedAiResults.length > 0 ? (
+                          <p
+                            data-testid="bulk-search-ai-exhausted"
+                            className="text-center text-[10px] font-black uppercase tracking-widest text-amber-400/70 py-1"
+                          >
+                            All AI suggestions shown
+                          </p>
+                        ) : null
+                      )}
+                      {isAiEnabled && isLoadingMore && (
                         <button
-                          data-testid="bulk-search-show-more-ai"
-                          onClick={handleShowMoreAi}
-                          disabled={isLoadingMore}
-                          className="w-full py-3 border-2 border-dashed border-amber-300 text-amber-600 rounded-2xl font-black text-xs hover:bg-amber-50 transition-colors flex items-center justify-center gap-2 disabled:opacity-60"
+                          disabled
+                          className="w-full py-3 border-2 border-dashed border-amber-300 text-amber-600 rounded-2xl font-black text-xs flex items-center justify-center gap-2 opacity-60"
                         >
-                          {isLoadingMore ? (
-                            <><Loader2 size={14} className="animate-spin" /> Loading more AI suggestions…</>
-                          ) : (
-                            <><RefreshCw size={14} /> Show more AI suggestions</>
-                          )}
+                          <Loader2 size={14} className="animate-spin" /> Loading more AI suggestions…
                         </button>
                       )}
                     </>
