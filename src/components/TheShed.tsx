@@ -42,6 +42,15 @@ import { PlantDoctorService } from "../services/plantDoctorService";
 import { logEvent, EVENT } from "../events/registry";
 import { derivePlantLabels } from "../lib/plantLabels";
 import { usePermissions } from "../context/HomePermissionsContext";
+import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
+
+async function fetchFirstAvailableImage(plantName: string): Promise<string> {
+  const [wiki, pixabay] = await Promise.all([
+    searchWikimediaImages(plantName).catch(() => []),
+    searchPixabayImages(plantName).catch(() => []),
+  ]);
+  return wiki[0]?.thumbUrl || pixabay[0]?.thumbUrl || "";
+}
 
 interface Plant {
   id: number;
@@ -306,6 +315,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               "http://kong:8000",
               "http://127.0.0.1:54321",
             );
+          if (!imageUrl) imageUrl = await fetchFirstAvailableImage(cleanName);
           extracted.thumbnail_url = imageUrl;
 
           await savePlantToDB(
@@ -435,6 +445,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             "http://kong:8000",
             "http://127.0.0.1:54321",
           );
+        if (!imageUrl) imageUrl = await fetchFirstAvailableImage(cleanName);
         extracted.thumbnail_url = imageUrl;
 
         await savePlantToDB(
@@ -597,10 +608,10 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       const { error } = await supabase
         .from("plants")
         .update(cleanPayload)
-        .eq("id", cleanPayload.id);
+        .eq("id", editingPlant!.id);
       if (error) throw error;
       toast.success(`${cleanPayload.common_name} updated!`);
-      setEditingPlant(updatedData);
+      setEditingPlant((prev: any) => ({ ...prev, ...updatedData }));
       refreshShed(); // 🚀 BACKGROUND SYNC
     } catch (err: any) {
       Logger.error("Failed to update plant in shed", err, {}, `Update failed: ${err.message}`);
