@@ -417,6 +417,7 @@ export default function PlantDoctor({
         ? myInventory.find((i) => i.id === sickInventoryId)?.plants?.common_name
         : undefined;
       const apiAction = action === "identify" ? "identify_vision" : action === "diagnose" ? "diagnose" : "identify_pest";
+      const sickItem = sickInventoryId ? myInventory.find((i) => i.id === sickInventoryId) : null;
       const data = await PlantDoctorService.analyzeImage({
         homeId,
         imageBase64: base64Data,
@@ -424,6 +425,8 @@ export default function PlantDoctor({
         action: apiAction,
         plantSearch: action !== "pest" ? plantSearch : undefined,
         targetPlant: action === "diagnose" ? (sickPlantName ?? undefined) : undefined,
+        inventoryItemId: action === "diagnose" ? (sickInventoryId ?? undefined) : undefined,
+        areaId: action === "diagnose" ? (sickItem?.area_id ?? undefined) : undefined,
       });
 
       setAiResult(data);

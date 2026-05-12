@@ -98,9 +98,12 @@ const IDENTIFY_VISION_SCHEMA = {
 const DIAGNOSE_SCHEMA = {
   type: "OBJECT",
   properties: {
-    notes:             { type: "STRING" },
-    possible_diseases: { type: "ARRAY", nullable: true, items: { type: "STRING" } },
-    possible_names:    { type: "STRING", nullable: true },
+    notes:                 { type: "STRING" },
+    possible_diseases:     { type: "ARRAY", nullable: true, items: { type: "STRING" } },
+    possible_names:        { type: "STRING", nullable: true },
+    severity:              { type: "STRING", nullable: true, description: "One of: Healthy, Low, Medium, High" },
+    environmental_factors: { type: "ARRAY", nullable: true, items: { type: "STRING" } },
+    immediate_actions:     { type: "ARRAY", nullable: true, items: { type: "STRING" } },
   },
   required: ["notes"],
 };
@@ -262,7 +265,7 @@ serve(async (req) => {
     const {
       action, homeId, targetPlant, plantSearch, areaData, isOutside,
       currentPlants, imageBase64, mimeType, diagnosisContext,
-      diseaseName, pestName, notes,
+      diseaseName, pestName, notes, inventoryItemId, areaId,
     } = body;
 
     log(FN, "request_received", {
@@ -497,18 +500,122 @@ Return the top 3 most likely common names and a brief observation.`;
       if (!imageBase64) throw new Error("No image data provided.");
       const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
 
+      // ── Environmental enrichment (parallel, only when IDs provided) ────────
+      let envBlock = "";
+      if (inventoryItemId || areaId) {
+        const fourteenDaysAgo = new Date(Date.now() - 14 * 864e5).toISOString().split("T")[0];
+
+        const [tasksRes, areaRes, luxRes, companionRes, weatherRes] = await Promise.all([
+          inventoryItemId
+            ? supabase.from("tasks")
+                .select("type, title, status, due_date")
+                .contains("inventory_item_ids", [inventoryItemId])
+                .gte("due_date", fourteenDaysAgo)
+                .order("due_date", { ascending: false })
+                .limit(10)
+            : Promise.resolve({ data: [] }),
+
+          areaId
+            ? supabase.from("areas")
+                .select("name, is_outside, sunlight, growing_medium, medium_ph, medium_texture, water_movement, nutrient_source")
+                .eq("id", areaId)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+
+          areaId
+            ? supabase.from("area_lux_readings")
+                .select("lux_value")
+                .eq("area_id", areaId)
+                .order("recorded_at", { ascending: false })
+                .limit(5)
+            : Promise.resolve({ data: [] }),
+
+          areaId && inventoryItemId
+            ? supabase.from("inventory_items")
+                .select("plant_name")
+                .eq("area_id", areaId)
+                .neq("id", inventoryItemId)
+                .eq("status", "Planted")
+                .limit(10)
+            : Promise.resolve({ data: [] }),
+
+          homeId
+            ? supabase.from("weather_snapshots")
+                .select("data")
+                .eq("home_id", homeId)
+                .maybeSingle()
+            : Promise.resolve({ data: null }),
+        ]);
+
+        const lines: string[] = [];
+
+        const area = areaRes.data;
+        if (area) {
+          lines.push(`GROWING ENVIRONMENT:`);
+          lines.push(`  Area: ${area.name} (${area.is_outside ? "Outdoor" : "Indoor"})`);
+          if (area.sunlight) lines.push(`  Sunlight: ${area.sunlight}`);
+          if (area.growing_medium) lines.push(`  Growing medium: ${area.growing_medium}`);
+          if (area.medium_ph) lines.push(`  Soil pH: ${area.medium_ph}`);
+          if (area.medium_texture) lines.push(`  Texture: ${area.medium_texture}`);
+          if (area.water_movement) lines.push(`  Drainage: ${area.water_movement}`);
+          if (area.nutrient_source) lines.push(`  Nutrients: ${area.nutrient_source}`);
+        }
+
+        const luxRows = (luxRes.data ?? []) as any[];
+        if (luxRows.length > 0) {
+          const avgLux = Math.round(luxRows.reduce((s: number, r: any) => s + r.lux_value, 0) / luxRows.length);
+          lines.push(`  Light (recent avg): ${avgLux.toLocaleString()} lux`);
+        }
+
+        const companions = (companionRes.data ?? []) as any[];
+        if (companions.length > 0) {
+          lines.push(`COMPANION PLANTS IN SAME AREA: ${companions.map((c: any) => c.plant_name).join(", ")}`);
+        }
+
+        const recentTasks = (tasksRes.data ?? []) as any[];
+        if (recentTasks.length > 0) {
+          lines.push(`RECENT CARE (last 14 days):`);
+          for (const t of recentTasks) {
+            lines.push(`  • [${t.status}] ${t.type}: ${t.title} (due ${t.due_date})`);
+          }
+        } else if (inventoryItemId) {
+          lines.push(`RECENT CARE: No tasks logged for this plant in the last 14 days.`);
+        }
+
+        const weatherData = weatherRes.data?.data;
+        if (weatherData) {
+          const current = weatherData.current ?? weatherData.currently ?? null;
+          if (current) {
+            const tempC = current.temperature_2m ?? current.temp ?? null;
+            const humidity = current.relative_humidity_2m ?? current.humidity ?? null;
+            const condition = current.weather_description ?? current.condition ?? null;
+            const parts: string[] = [];
+            if (tempC != null) parts.push(`${Math.round(tempC)}°C`);
+            if (humidity != null) parts.push(`${humidity}% humidity`);
+            if (condition) parts.push(condition);
+            if (parts.length > 0) lines.push(`CURRENT WEATHER: ${parts.join(", ")}`);
+          }
+        }
+
+        if (lines.length > 0) envBlock = "\n\n" + lines.join("\n");
+      }
+
       const plantContext = targetPlant
         ? `This plant is a "${targetPlant}". Use this to improve your diagnosis accuracy.`
         : "The plant species is unknown — identify any visual clues from the image.";
 
       const promptText = `${plantContext}
-${locationLine ? `Gardener location: ${locationLine}. Factor in regional climate when assessing likely causes (e.g. high humidity → fungal, dry climate → spider mites).` : ""}
+${locationLine ? `Gardener location: ${locationLine}. Factor in regional climate when assessing likely causes (e.g. high humidity → fungal, dry climate → spider mites).` : ""}${envBlock}
 
 Examine the image carefully for visible signs of pests, disease, nutrient deficiencies, or environmental stress (under/over-watering, sunburn, root rot, etc.).
-Provide a precise diagnosis and actionable advice.
+Use the environmental context above (growing medium, pH, drainage, recent care, weather, companion plants) to refine your diagnosis — they are key clues.
+Provide a precise, personalised diagnosis and actionable advice.
 
 For possible_diseases: return an array of up to 3 specific common names (e.g. "Late Blight", NOT "Late Blight (Phytophthora infestans)").
 If the plant appears healthy or the issue is purely environmental (e.g. underwatering), return an empty array for possible_diseases.
+Set severity: "Healthy" if no issues, "Low" for minor cosmetic damage, "Medium" for moderate damage requiring action, "High" for serious threat to plant survival.
+Set environmental_factors: list any environmental conditions from the context above that are likely contributing to the issue.
+Set immediate_actions: top 3 most urgent steps the gardener should take today.
 Set possible_names to null always.`;
 
       const { text: rawText, usage } = await callGeminiCascade(
@@ -520,8 +627,10 @@ Set possible_names to null always.`;
       await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "diagnose", usage });
       log(FN, "result", {
         action,
+        severity: parsed.severity ?? null,
         possibleDiseases: parsed.possible_diseases ?? null,
         healthy: !parsed.possible_diseases?.length,
+        hasEnvContext: !!envBlock,
       });
       return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

@@ -25,6 +25,9 @@ export interface VisionResult {
   is_pest?: boolean;
   pest_severity?: "Low" | "Medium" | "High" | null;
   pestInfo?: PestInfo;
+  severity?: "Low" | "Medium" | "High" | "Healthy" | null;
+  environmental_factors?: string[] | null;
+  immediate_actions?: string[] | null;
 }
 
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
@@ -44,6 +47,8 @@ export const PlantDoctorService = {
     action: "identify_vision" | "diagnose" | "identify_pest";
     plantSearch?: string;
     targetPlant?: string;
+    inventoryItemId?: string;
+    areaId?: string;
   }): Promise<VisionResult> {
     return invoke(params);
   },
