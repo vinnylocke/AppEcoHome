@@ -1,16 +1,19 @@
 import React, { useState, useEffect } from "react";
-import { X, Loader2, ListPlus, Leaf, Info, ChevronUp } from "lucide-react";
+import { X, Loader2, ListPlus, Leaf, Info, ChevronUp, AlertCircle } from "lucide-react";
 import { IconPlantDB, IconAI } from "../constants/icons";
 import { PerenualService } from "../lib/perenualService";
+import { VerdantlyService } from "../lib/verdantlyService";
 import { PlantDoctorService } from "../services/plantDoctorService";
 
 interface PlantResult {
   ai: string[];
   api: any[];
+  verdantly: any[];
+  verdantlyFailed?: boolean;
   loading: boolean;
 }
 
-type Selection = { type: "api" | "ai"; data: any };
+type Selection = { type: "api" | "ai" | "verdantly"; data: any };
 
 type PreviewEntry = { loading: boolean; images?: string[]; desc?: string };
 
@@ -18,7 +21,7 @@ interface Props {
   plants: string[];
   isPremium: boolean;
   isAiEnabled: boolean;
-  onConfirm: (items: { type: "api" | "ai"; data: any }[]) => void;
+  onConfirm: (items: { type: "api" | "ai" | "verdantly"; data: any }[]) => void;
   onClose: () => void;
 }
 
@@ -31,7 +34,7 @@ export default function PlantSourcePicker({
 }: Props) {
   const [results, setResults] = useState<Record<string, PlantResult>>(() =>
     Object.fromEntries(
-      plants.map((p) => [p, { ai: [], api: [], loading: true }]),
+      plants.map((p) => [p, { ai: [], api: [], verdantly: [], loading: true }]),
     ),
   );
   const [selections, setSelections] = useState<Record<string, Selection | null>>({});
@@ -90,35 +93,53 @@ export default function PlantSourcePicker({
 
   useEffect(() => {
     plants.forEach(async (name) => {
-      const [ai, api] = await Promise.all([
+      const [ai, api, verdantlyResult] = await Promise.all([
         isAiEnabled
           ? PlantDoctorService.searchPlantsText(name)
-              .then((d) => (d.matches || []).slice(0, 3))
-              .catch(() => [] as string[])
+              .then((d) => {
+                const matches = (d.matches || []).slice(0, 3);
+                // Plant was AI-suggested by the planner — always surface at least the name itself
+                return matches.length > 0 ? matches : [name];
+              })
+              .catch(() => [name] as string[])
           : ([] as string[]),
         isPremium
           ? PerenualService.searchPlants(name)
               .then((d) => (d || []).slice(0, 3))
               .catch(() => [] as any[])
           : ([] as any[]),
+        VerdantlyService.searchPlants(name)
+          .then((d) => ({ results: (d.results || []).slice(0, 3), failed: false }))
+          .catch(() => ({ results: [] as any[], failed: true })),
       ]);
 
-      setResults((prev) => ({ ...prev, [name]: { ai, api, loading: false } }));
+      setResults((prev) => ({
+        ...prev,
+        [name]: {
+          ai,
+          api,
+          verdantly: verdantlyResult.results,
+          verdantlyFailed: verdantlyResult.failed,
+          loading: false,
+        },
+      }));
 
-      // Auto-fetch previews for all AI results
+      // Auto-fetch previews for AI results
       ai.forEach((match) => {
         const sci = match.match(/\(([^)]+)\)/)?.[1];
         const common = match.split("(")[0].trim();
         fetchPreview(match, common, sci);
       });
 
-      // Auto-select best available result — AI first, then Perenual
+      // Auto-select: AI first, then Verdantly, then Perenual
       const auto: Selection | null =
         ai.length > 0
           ? { type: "ai", data: ai[0] }
-          : api.length > 0
-            ? { type: "api", data: api[0] }
-            : null;
+          : verdantlyResult.results.length > 0
+            ? { type: "verdantly", data: verdantlyResult.results[0] }
+            : api.length > 0
+              ? { type: "api", data: api[0] }
+              : null;
 
       if (auto) {
         setSelections((prev) => ({ ...prev, [name]: auto }));
@@ -134,6 +155,7 @@ export default function PlantSourcePicker({
     const cur = selections[plantName];
     if (!cur || cur.type !== s.type) return false;
     if (s.type === "ai") return cur.data === s.data;
+    if (s.type === "verdantly") return (cur.data?.verdantly_id ?? cur.data?.id) === (s.data?.verdantly_id ?? s.data?.id);
     return String(cur.data?.id) === String(s.data?.id);
   };
 
@@ -204,7 +226,7 @@ export default function PlantSourcePicker({
         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-4">
           {plants.map((name) => {
             const r = results[name];
-            const hasResults = r && (r.ai.length > 0 || r.api.length > 0);
+            const hasResults = r && (r.ai.length > 0 || r.api.length > 0 || r.verdantly.length > 0);
 
             return (
               <div
@@ -232,7 +254,7 @@ export default function PlantSourcePicker({
                 {r?.loading ? (
                   <div className="p-6 flex items-center justify-center gap-2 text-rhozly-on-surface/30">
                     <Loader2 size={18} className="animate-spin" />
-                    <span className="text-xs font-bold">Searching AI and Perenual…</span>
+                    <span className="text-xs font-bold">Searching databases…</span>
                   </div>
                 ) : !hasResults ? (
                   <div className="p-4 text-center text-xs font-bold text-rhozly-on-surface/40">
@@ -297,11 +319,75 @@ export default function PlantSourcePicker({
                       </div>
                     )}
 
+                    {/* Verdantly results */}
+                    {r.verdantly.length > 0 && (
+                      <div>
+                        <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600/80 mb-1.5 px-1">
+                          Verdantly Database
+                        </p>
+                        <div className="space-y-1.5">
+                          {r.verdantly.map((plant: any) => {
+                            const verdantlyKey = `verdantly-${plant.verdantly_id ?? plant.id}`;
+                            const sel: Selection = { type: "verdantly", data: plant };
+                            const active = isSelected(name, sel);
+                            const isExpandedItem = expandedId === verdantlyKey;
+                            const thumb = plant.thumbnail_url ?? null;
+                            const sciName = plant.scientific_name?.[0] ?? null;
+
+                            return (
+                              <div
+                                key={verdantlyKey}
+                                className={`rounded-xl border overflow-hidden transition-all ${active ? "border-emerald-500" : "border-transparent hover:border-emerald-200"}`}
+                              >
+                                <div className={`flex items-center gap-3 p-2.5 ${active ? "bg-emerald-50" : "hover:bg-emerald-50/40"}`}>
+                                  <button onClick={() => select(name, sel)} className="shrink-0" aria-label="Select">
+                                    <div className={`w-4 h-4 rounded-full border-2 flex items-center justify-center transition-colors ${active ? "border-emerald-500 bg-emerald-500" : "border-rhozly-outline"}`}>
+                                      {active && <div className="w-1.5 h-1.5 rounded-full bg-white" />}
+                                    </div>
+                                  </button>
+                                  <button onClick={() => select(name, sel)} className="w-10 h-10 rounded-lg bg-emerald-500/10 shrink-0 overflow-hidden flex items-center justify-center">
+                                    {thumb ? (
+                                      <img src={thumb} alt={plant.common_name} className="w-full h-full object-cover" />
+                                    ) : (
+                                      <IconPlantDB size={14} className="text-emerald-500/60" />
+                                    )}
+                                  </button>
+                                  <button onClick={() => select(name, sel)} className="flex-1 min-w-0 text-left">
+                                    <span className="text-xs font-bold text-rhozly-on-surface block truncate leading-tight">{plant.common_name}</span>
+                                    {sciName && (
+                                      <span className="text-[9px] italic text-rhozly-on-surface/50 block truncate">{sciName}</span>
+                                    )}
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">Verdantly</span>
+                                  </button>
+                                  <button
+                                    onClick={() => toggleExpand(verdantlyKey, plant.common_name, sciName ?? undefined)}
+                                    className="p-2 rounded-lg hover:bg-emerald-100 text-emerald-600 transition-colors shrink-0"
+                                    aria-label="Show details"
+                                  >
+                                    {isExpandedItem ? <ChevronUp size={16} /> : <Info size={16} />}
+                                  </button>
+                                </div>
+                                {isExpandedItem && renderAccordion(verdantlyKey)}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Verdantly unavailable notice */}
+                    {r.verdantlyFailed && r.verdantly.length === 0 && (
+                      <div className="flex items-center gap-1.5 px-1 py-0.5">
+                        <AlertCircle size={10} className="text-rhozly-on-surface/25 shrink-0" />
+                        <span className="text-[9px] font-bold text-rhozly-on-surface/25">Verdantly database unavailable</span>
+                      </div>
+                    )}
+
                     {/* Perenual results */}
                     {isPremium && r.api.length > 0 && (
                       <div>
                         <p className="text-[9px] font-black uppercase tracking-widest text-rhozly-primary/80 mb-1.5 px-1">
-                          Perenual Database
+                          API
                         </p>
                         <div className="space-y-1.5">
                           {r.api.map((plant: any) => {
@@ -338,7 +424,7 @@ export default function PlantSourcePicker({
                                     {plant.scientific_name?.[0] && (
                                       <span className="text-[9px] italic text-rhozly-on-surface/50 block truncate">{plant.scientific_name[0]}</span>
                                     )}
-                                    <span className="text-[8px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary/10 px-1.5 py-0.5 rounded-full inline-block mt-0.5">DB</span>
+                                    <span className="text-[8px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary/10 px-1.5 py-0.5 rounded-full inline-block mt-0.5">Perenual</span>
                                   </button>
                                   <button
                                     onClick={() => toggleExpand(cacheKey, plant.common_name, plant.scientific_name?.[0])}
