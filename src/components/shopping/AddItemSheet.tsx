@@ -1,7 +1,7 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { X, Search, Loader2, ArrowLeft, Globe } from "lucide-react";
-import { IconPlant, IconAI } from "../../constants/icons";
+import { X, Search, Loader2, ArrowLeft } from "lucide-react";
+import { IconPlant, IconAI, IconPlantDB } from "../../constants/icons";
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
 import { searchAllProviders, getProviderPlantDetails } from "../../lib/plantProvider";
@@ -15,16 +15,13 @@ type PlantSearchState =
   | "idle"
   | "searching_shed"
   | "shed_results"
-  | "perenual_searching"
-  | "perenual_results"
-  | "ai_searching"
-  | "ai_results"
+  | "all_searching"
+  | "all_results"
   | "preview"
-  | "shed_offer"
-  | "no_results";
+  | "shed_offer";
 
 interface ShedPlant { id: string; plant_name: string; nickname: string | null; }
-type PerenualResult = ProviderSearchResult;
+type DbResult = ProviderSearchResult;
 interface AiResult { name: string; description: string; }
 
 interface Props {
@@ -41,19 +38,16 @@ export default function AddItemSheet({
 }: Props) {
   const [activeTab, setActiveTab] = useState<Tab>("plant");
 
-  // Plant search state
   const [plantQuery, setPlantQuery] = useState("");
   const [plantState, setPlantState] = useState<PlantSearchState>("idle");
   const [shedResults, setShedResults] = useState<ShedPlant[]>([]);
-  const [perenualResults, setPerenualResults] = useState<PerenualResult[]>([]);
-  const [aiResults, setAiResults] = useState<AiResult[]>([]);
+  const [externalAiResults, setExternalAiResults] = useState<AiResult[]>([]);
+  const [externalDbResults, setExternalDbResults] = useState<DbResult[]>([]);
   const [preview, setPreview] = useState<any | null>(null);
-  const [previewSource, setPreviewSource] = useState<"perenual" | "ai" | null>(null);
-  const [shedOfferPlant, setShedOfferPlant] = useState<{ name: string; perenual_id?: number; thumbnail_url?: string } | null>(null);
+  const [shedOfferPlant, setShedOfferPlant] = useState<{ name: string; thumbnail_url?: string } | null>(null);
   const [addingToShed, setAddingToShed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
-  // Product state
   const [productName, setProductName] = useState("");
   const [productCategory, setProductCategory] = useState<string>("");
   const [productSubmitting, setProductSubmitting] = useState(false);
@@ -65,7 +59,6 @@ export default function AddItemSheet({
     setTimeout(() => inputRef.current?.focus(), 50);
   }, [activeTab]);
 
-  // Shed-only search (always runs on query change)
   const searchShed = useCallback(async (q: string) => {
     if (!q.trim()) { setPlantState("idle"); setShedResults([]); return; }
     setPlantState("searching_shed");
@@ -87,136 +80,106 @@ export default function AddItemSheet({
 
   const handleQueryChange = (val: string) => {
     setPlantQuery(val);
-    // Reset any external results when query changes
-    setPerenualResults([]);
-    setAiResults([]);
+    setExternalAiResults([]);
+    setExternalDbResults([]);
     setPreview(null);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => searchShed(val), 400);
   };
 
-  // Plant database search (user-triggered) — searches all enabled providers
-  const handleSearchPerenual = async () => {
+  // Single unified search across AI + Verdantly + Perenual
+  const handleSearchAll = async () => {
     if (!plantQuery.trim()) return;
-    setPlantState("perenual_searching");
-    setPerenualResults([]);
+    setPlantState("all_searching");
+    setExternalAiResults([]);
+    setExternalDbResults([]);
     try {
-      const results = await searchAllProviders(plantQuery);
-      setPerenualResults(results ?? []);
-      setPlantState("perenual_results");
+      const [aiRes, dbRes] = await Promise.allSettled([
+        aiEnabled
+          ? supabase.functions.invoke("search-plants-ai", { body: { query: plantQuery } })
+              .then(({ data, error }) => { if (error) throw error; return (data?.plants ?? []) as AiResult[]; })
+          : Promise.resolve([] as AiResult[]),
+        searchAllProviders(plantQuery),
+      ]);
+      setExternalAiResults(aiRes.status === "fulfilled" ? aiRes.value : []);
+      setExternalDbResults(dbRes.status === "fulfilled" ? dbRes.value : []);
+      setPlantState("all_results");
     } catch (err) {
-      Logger.error("Plant database search failed", err);
+      Logger.error("Plant search failed", err);
       toast.error("Search failed — please try again");
       setPlantState("shed_results");
     }
   };
 
-  // AI search (user-triggered)
-  const handleSearchAI = async () => {
-    if (!plantQuery.trim()) return;
-    setPlantState("ai_searching");
-    setAiResults([]);
-    try {
-      const { data, error } = await supabase.functions.invoke("search-plants-ai", {
-        body: { query: plantQuery },
-      });
-      if (error) throw error;
-      setAiResults(data?.plants ?? []);
-      setPlantState("ai_results");
-    } catch (err) {
-      Logger.error("AI plant search failed", err);
-      toast.error("Search failed — please try again");
-      setPlantState("shed_results");
-    }
-  };
-
-  // Open plant preview (Perenual or Verdantly)
-  const handleOpenPerenualPreview = async (result: PerenualResult) => {
+  const handleOpenDbPreview = async (result: DbResult) => {
     setPlantState("preview");
-    setPreviewSource("perenual");
     try {
       const details = await getProviderPlantDetails({
         source: result._provider === "verdantly" ? "verdantly" : "api",
         perenual_id: result.perenual_id ?? null,
         verdantly_id: result.verdantly_id ?? null,
       });
-      setPreview({ ...details, _perenual_id: result.perenual_id ?? null, _verdantly_id: result.verdantly_id ?? null });
+      setPreview({
+        ...details,
+        _perenual_id: result.perenual_id ?? null,
+        _verdantly_id: result.verdantly_id ?? null,
+        _provider: result._provider,
+      });
     } catch {
       setPreview({
         common_name: result.common_name,
         scientific_name: result.scientific_name?.[0],
         thumbnail_url: result.thumbnail_url,
+        _provider: result._provider,
       });
     }
   };
 
-  // Add plant from shed
   const handleAddShedPlant = async (plant: ShedPlant) => {
     setSubmitting(true);
     await onItemAdded({
-      list_id: listId,
-      home_id: homeId,
-      item_type: "plant",
+      list_id: listId, home_id: homeId, item_type: "plant",
       name: plant.nickname ?? plant.plant_name,
-      is_checked: false,
-      source: "shed",
-      already_in_shed: true,
+      is_checked: false, source: "shed", already_in_shed: true,
     });
     setSubmitting(false);
     onClose();
   };
 
-  // Add plant from Perenual preview
-  const handleAddPerenualPlant = async () => {
+  const handleAddDbPlant = async () => {
     if (!preview) return;
     setSubmitting(true);
     await onItemAdded({
-      list_id: listId,
-      home_id: homeId,
-      item_type: "plant",
+      list_id: listId, home_id: homeId, item_type: "plant",
       name: preview.common_name ?? preview.name,
       is_checked: false,
       perenual_id: preview._perenual_id ?? null,
       thumbnail_url: preview.thumbnail_url ?? null,
-      source: "perenual",
+      source: preview._provider === "verdantly" ? "verdantly" : "perenual",
       already_in_shed: false,
     });
     setSubmitting(false);
-    // Offer to add to shed
-    setShedOfferPlant({
-      name: preview.common_name ?? preview.name,
-      perenual_id: preview._perenual_id,
-      thumbnail_url: preview.thumbnail_url,
-    });
+    setShedOfferPlant({ name: preview.common_name ?? preview.name, thumbnail_url: preview.thumbnail_url });
     setPlantState("shed_offer");
   };
 
-  // Add plant from AI results
   const handleAddAiPlant = async (plant: AiResult) => {
     setSubmitting(true);
     await onItemAdded({
-      list_id: listId,
-      home_id: homeId,
-      item_type: "plant",
-      name: plant.name,
-      is_checked: false,
-      source: "ai",
-      already_in_shed: false,
+      list_id: listId, home_id: homeId, item_type: "plant",
+      name: plant.name, is_checked: false, source: "ai", already_in_shed: false,
     });
     setSubmitting(false);
     setShedOfferPlant({ name: plant.name });
     setPlantState("shed_offer");
   };
 
-  // Add to shed after adding to list
   const handleAddToShed = async () => {
     if (!shedOfferPlant) { onClose(); return; }
     setAddingToShed(true);
     try {
       await supabase.from("inventory_items").insert({
-        home_id: homeId,
-        plant_name: shedOfferPlant.name,
-        status: "In Shed",
+        home_id: homeId, plant_name: shedOfferPlant.name, status: "In Shed",
       });
     } catch (err) {
       Logger.error("Failed to add plant to shed", err);
@@ -226,25 +189,23 @@ export default function AddItemSheet({
     onClose();
   };
 
-  // Add product
   const handleAddProduct = async () => {
     if (!productName.trim() || !productCategory) return;
     setProductSubmitting(true);
     await onItemAdded({
-      list_id: listId,
-      home_id: homeId,
-      item_type: "product",
-      name: productName.trim(),
-      is_checked: false,
-      category: productCategory,
+      list_id: listId, home_id: homeId, item_type: "product",
+      name: productName.trim(), is_checked: false, category: productCategory,
     });
     setProductSubmitting(false);
     onClose();
   };
 
   const hasFallbacks = aiEnabled || perenualEnabled;
-  const showingExternalResults = plantState === "perenual_results" || plantState === "ai_results";
-  const isExternalSearching = plantState === "perenual_searching" || plantState === "ai_searching";
+  const showingExternalResults = plantState === "all_results";
+  const isExternalSearching = plantState === "all_searching";
+
+  const verdantlyDbResults = externalDbResults.filter((r) => r._provider === "verdantly");
+  const perenualDbResults = externalDbResults.filter((r) => r._provider !== "verdantly");
 
   const content = (
     <div
@@ -267,14 +228,14 @@ export default function AddItemSheet({
         <div className="flex gap-1 px-5 pb-3 shrink-0">
           <button
             data-testid="shopping-tab-plant"
-            onClick={() => { setActiveTab("plant"); }}
+            onClick={() => setActiveTab("plant")}
             className={`flex-1 py-2 rounded-2xl text-xs font-black transition-colors ${activeTab === "plant" ? "bg-rhozly-primary text-white" : "bg-rhozly-surface text-rhozly-on-surface/50 hover:text-rhozly-on-surface"}`}
           >
             🌱 Plant
           </button>
           <button
             data-testid="shopping-tab-product"
-            onClick={() => { setActiveTab("product"); }}
+            onClick={() => setActiveTab("product")}
             className={`flex-1 py-2 rounded-2xl text-xs font-black transition-colors ${activeTab === "product" ? "bg-rhozly-primary text-white" : "bg-rhozly-surface text-rhozly-on-surface/50 hover:text-rhozly-on-surface"}`}
           >
             🛒 Product
@@ -288,7 +249,7 @@ export default function AddItemSheet({
           {activeTab === "plant" && (
             <div className="space-y-3">
 
-              {/* Shed offer state */}
+              {/* Shed offer */}
               {plantState === "shed_offer" && shedOfferPlant && (
                 <div className="text-center py-4 space-y-4">
                   <div className="w-14 h-14 rounded-3xl bg-emerald-50 flex items-center justify-center mx-auto">
@@ -320,11 +281,11 @@ export default function AddItemSheet({
                 </div>
               )}
 
-              {/* Preview state */}
-              {plantState === "preview" && previewSource === "perenual" && (
+              {/* Preview */}
+              {plantState === "preview" && (
                 <div className="space-y-3">
                   <button
-                    onClick={() => setPlantState("perenual_results")}
+                    onClick={() => setPlantState("all_results")}
                     className="flex items-center gap-1.5 text-xs font-bold text-rhozly-on-surface/50 hover:text-rhozly-on-surface"
                   >
                     <ArrowLeft size={13} /> Back to results
@@ -341,6 +302,13 @@ export default function AddItemSheet({
                           {preview.scientific_name && (
                             <p className="text-[10px] text-rhozly-on-surface/40 italic mt-0.5">{preview.scientific_name}</p>
                           )}
+                          <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full inline-block mt-1.5 ${
+                            preview._provider === "verdantly"
+                              ? "text-emerald-700 bg-emerald-100"
+                              : "text-rhozly-primary bg-rhozly-primary/10"
+                          }`}>
+                            {preview._provider === "verdantly" ? "Verdantly" : "Perenual"}
+                          </span>
                           <div className="flex flex-wrap gap-1.5 mt-2">
                             {preview.watering && (
                               <span className="text-[9px] font-black uppercase tracking-widest bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-full">
@@ -362,7 +330,7 @@ export default function AddItemSheet({
                       </div>
                       <button
                         data-testid="shopping-add-plant-confirm"
-                        onClick={handleAddPerenualPlant}
+                        onClick={handleAddDbPlant}
                         disabled={submitting}
                         className="w-full py-3 rounded-2xl bg-rhozly-primary text-white text-xs font-black hover:bg-rhozly-primary/90 transition-colors disabled:opacity-60"
                       >
@@ -377,7 +345,7 @@ export default function AddItemSheet({
                 </div>
               )}
 
-              {/* Normal search UI (not preview/offer) */}
+              {/* Normal search UI */}
               {plantState !== "shed_offer" && plantState !== "preview" && (
                 <>
                   {/* Search input */}
@@ -397,7 +365,7 @@ export default function AddItemSheet({
                     )}
                   </div>
 
-                  {/* Shed results section */}
+                  {/* Shed results */}
                   {(plantState === "shed_results" || showingExternalResults || isExternalSearching) && (
                     <div>
                       {shedResults.length > 0 && (
@@ -434,52 +402,35 @@ export default function AddItemSheet({
                     </div>
                   )}
 
-                  {/* Fallback buttons */}
-                  {(plantState === "shed_results") && hasFallbacks && (
-                    <div className="space-y-2">
-                      <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">Search further</p>
-                      <div className="flex gap-2">
-                        {perenualEnabled && (
-                          <button
-                            data-testid="shopping-fallback-perenual"
-                            onClick={handleSearchPerenual}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl border border-rhozly-outline/20 text-xs font-black text-rhozly-on-surface/70 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
-                          >
-                            <Globe size={13} /> Search Perenual
-                          </button>
-                        )}
-                        {aiEnabled && (
-                          <button
-                            data-testid="shopping-fallback-ai"
-                            onClick={handleSearchAI}
-                            className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-2xl border border-violet-200 text-xs font-black text-violet-600 hover:bg-violet-50 transition-colors"
-                          >
-                            <IconAI size={13} /> Search via AI
-                          </button>
-                        )}
-                      </div>
-                    </div>
+                  {/* Search all sources button */}
+                  {plantState === "shed_results" && hasFallbacks && (
+                    <button
+                      data-testid="shopping-fallback-search-all"
+                      onClick={handleSearchAll}
+                      className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-rhozly-outline/20 text-xs font-black text-rhozly-on-surface/70 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
+                    >
+                      <Search size={13} /> Search All Sources
+                    </button>
                   )}
 
-                  {/* No fallbacks available */}
                   {plantState === "shed_results" && !hasFallbacks && plantQuery && (
                     <p className="text-[10px] font-bold text-rhozly-on-surface/30 text-center py-1">
                       No additional search methods available
                     </p>
                   )}
 
-                  {/* Perenual searching */}
-                  {plantState === "perenual_searching" && (
+                  {/* Searching spinner */}
+                  {isExternalSearching && (
                     <div className="flex items-center gap-2 justify-center py-4 text-xs font-bold text-rhozly-on-surface/50">
-                      <Loader2 size={14} className="animate-spin" /> Searching Perenual…
+                      <Loader2 size={14} className="animate-spin" /> Searching all sources…
                     </div>
                   )}
 
-                  {/* Perenual results */}
-                  {plantState === "perenual_results" && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">Perenual Results</p>
+                  {/* Unified external results */}
+                  {plantState === "all_results" && (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between">
+                        <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">Results</p>
                         <button
                           onClick={() => setPlantState("shed_results")}
                           className="text-[10px] font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface"
@@ -487,90 +438,111 @@ export default function AddItemSheet({
                           ← Back
                         </button>
                       </div>
-                      {perenualResults.length === 0 ? (
+
+                      {externalAiResults.length === 0 && verdantlyDbResults.length === 0 && perenualDbResults.length === 0 && (
                         <p className="text-xs font-bold text-rhozly-on-surface/30 text-center py-3">No results found</p>
-                      ) : (
-                        <ul className="space-y-1">
-                          {perenualResults.slice(0, 12).map((r, i) => (
-                            <li
-                              key={r.id}
-                              data-testid={`shopping-perenual-result-${i}`}
-                              onClick={() => handleOpenPerenualPreview(r)}
-                              className="flex items-center gap-2.5 px-3 py-2 rounded-2xl hover:bg-rhozly-surface cursor-pointer transition-colors"
-                            >
-                              {r.thumbnail_url ? (
-                                <img src={r.thumbnail_url} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
-                              ) : (
-                                <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                                  <IconPlant size={14} className="text-emerald-500" />
-                                </div>
-                              )}
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-black text-rhozly-on-surface truncate">{r.common_name}</p>
-                                {r.scientific_name?.[0] && (
-                                  <p className="text-[9px] text-rhozly-on-surface/40 italic truncate">{r.scientific_name[0]}</p>
-                                )}
-                              </div>
-                            </li>
-                          ))}
-                        </ul>
                       )}
-                    </div>
-                  )}
 
-                  {/* AI searching */}
-                  {plantState === "ai_searching" && (
-                    <div className="flex items-center gap-2 justify-center py-4 text-xs font-bold text-violet-500">
-                      <Loader2 size={14} className="animate-spin" /> Asking AI…
-                    </div>
-                  )}
-
-                  {/* AI results */}
-                  {plantState === "ai_results" && (
-                    <div>
-                      <div className="flex items-center justify-between mb-1.5">
-                        <p className="text-[10px] font-black text-violet-500 uppercase tracking-widest">AI Suggestions</p>
-                        <button
-                          onClick={() => setPlantState("shed_results")}
-                          className="text-[10px] font-bold text-rhozly-on-surface/30 hover:text-rhozly-on-surface"
-                        >
-                          ← Back
-                        </button>
-                      </div>
-                      {aiResults.length === 0 ? (
-                        <p className="text-xs font-bold text-rhozly-on-surface/30 text-center py-3">No suggestions found</p>
-                      ) : (
-                        <ul className="space-y-1">
-                          {aiResults.map((r, i) => (
-                            <li
-                              key={i}
-                              data-testid={`shopping-ai-result-${i}`}
-                              className="flex items-center gap-2.5 px-3 py-2 rounded-2xl hover:bg-violet-50 transition-colors"
-                            >
-                              <div className="w-9 h-9 rounded-xl bg-violet-100 flex items-center justify-center shrink-0">
-                                <IconAI size={14} className="text-violet-500" />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-black text-rhozly-on-surface truncate">{r.name}</p>
-                                {r.description && (
-                                  <p className="text-[9px] text-rhozly-on-surface/40 truncate">{r.description}</p>
-                                )}
-                              </div>
-                              <button
-                                onClick={() => handleAddAiPlant(r)}
-                                disabled={submitting}
-                                className="text-[10px] font-black text-violet-600 bg-violet-100 px-2.5 py-1 rounded-xl hover:bg-violet-200 transition-colors shrink-0"
+                      {/* AI results */}
+                      {externalAiResults.length > 0 && (
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/80 mb-1.5">AI Suggestions</p>
+                          <ul className="space-y-1">
+                            {externalAiResults.map((r, i) => (
+                              <li
+                                key={i}
+                                data-testid={`shopping-ai-result-${i}`}
+                                className="flex items-center gap-2.5 px-3 py-2 rounded-2xl hover:bg-amber-50 transition-colors"
                               >
-                                + Add
-                              </button>
-                            </li>
-                          ))}
-                        </ul>
+                                <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                                  <IconAI size={14} className="text-amber-500" />
+                                </div>
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-black text-rhozly-on-surface truncate">{r.name}</p>
+                                  {r.description && (
+                                    <p className="text-[9px] text-rhozly-on-surface/40 truncate">{r.description}</p>
+                                  )}
+                                  <span className="text-[8px] font-black uppercase tracking-widest text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">AI</span>
+                                </div>
+                                <button
+                                  onClick={() => handleAddAiPlant(r)}
+                                  disabled={submitting}
+                                  className="text-[10px] font-black text-amber-600 bg-amber-100 px-2.5 py-1 rounded-xl hover:bg-amber-200 transition-colors shrink-0"
+                                >
+                                  + Add
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Verdantly results */}
+                      {verdantlyDbResults.length > 0 && (
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600/80 mb-1.5">Verdantly Database</p>
+                          <ul className="space-y-1">
+                            {verdantlyDbResults.slice(0, 8).map((r, i) => (
+                              <li
+                                key={r.id}
+                                data-testid={`shopping-verdantly-result-${i}`}
+                                onClick={() => handleOpenDbPreview(r)}
+                                className="flex items-center gap-2.5 px-3 py-2 rounded-2xl hover:bg-emerald-50 cursor-pointer transition-colors"
+                              >
+                                {r.thumbnail_url ? (
+                                  <img src={r.thumbnail_url} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                                ) : (
+                                  <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                                    <IconPlantDB size={14} className="text-emerald-500" />
+                                  </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-black text-rhozly-on-surface truncate">{r.common_name}</p>
+                                  {r.scientific_name?.[0] && (
+                                    <p className="text-[9px] text-rhozly-on-surface/40 italic truncate">{r.scientific_name[0]}</p>
+                                  )}
+                                  <span className="text-[8px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">Verdantly</span>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Perenual results */}
+                      {perenualDbResults.length > 0 && (
+                        <div>
+                          <p className="text-[9px] font-black uppercase tracking-widest text-rhozly-primary/80 mb-1.5">Perenual Database</p>
+                          <ul className="space-y-1">
+                            {perenualDbResults.slice(0, 8).map((r, i) => (
+                              <li
+                                key={r.id}
+                                data-testid={`shopping-perenual-result-${i}`}
+                                onClick={() => handleOpenDbPreview(r)}
+                                className="flex items-center gap-2.5 px-3 py-2 rounded-2xl hover:bg-rhozly-surface cursor-pointer transition-colors"
+                              >
+                                {r.thumbnail_url ? (
+                                  <img src={r.thumbnail_url} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                                ) : (
+                                  <div className="w-9 h-9 rounded-xl bg-rhozly-primary/10 flex items-center justify-center shrink-0">
+                                    <IconPlantDB size={14} className="text-rhozly-primary/50" />
+                                  </div>
+                                )}
+                                <div className="min-w-0 flex-1">
+                                  <p className="text-xs font-black text-rhozly-on-surface truncate">{r.common_name}</p>
+                                  {r.scientific_name?.[0] && (
+                                    <p className="text-[9px] text-rhozly-on-surface/40 italic truncate">{r.scientific_name[0]}</p>
+                                  )}
+                                  <span className="text-[8px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary/10 px-1.5 py-0.5 rounded-full inline-block mt-0.5">Perenual</span>
+                                </div>
+                              </li>
+                            ))}
+                          </ul>
+                        </div>
                       )}
                     </div>
                   )}
 
-                  {/* Idle prompt */}
                   {plantState === "idle" && (
                     <p className="text-xs font-bold text-rhozly-on-surface/30 text-center py-4">
                       Type a plant name to search your shed
