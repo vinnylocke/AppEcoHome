@@ -48,6 +48,8 @@ import UserProfileDropdown from "./components/UserProfileDropdown";
 import GlobalQuickAdd from "./components/GlobalQuickAdd";
 import NavItem from "./components/NavItem";
 import UpdateBanner from "./components/UpdateBanner";
+import MaintenanceScreen from "./components/MaintenanceScreen";
+import { useMaintenanceMode } from "./hooks/useMaintenanceMode";
 import PrivacyPolicyModal from "./components/PrivacyPolicyModal";
 import CookiePolicyModal from "./components/CookiePolicyModal";
 import HelpCenter from "./onboarding/HelpCenter";
@@ -126,6 +128,8 @@ if ("serviceWorker" in navigator) {
 
 
 export default function App() {
+  const { isOn, message } = useMaintenanceMode();
+  if (isOn) return <MaintenanceScreen message={message} />;
   return (
     <BrowserRouter>
       <AppShell />

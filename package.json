@@ -17,7 +17,9 @@
     "test:functions": "%USERPROFILE%\\.deno\\bin\\deno.exe test --allow-env --allow-net --env=.env.test --config supabase/tests/deno.json supabase/tests/",
     "test:all": "npm run test:unit && npm run test:functions && npm run test:e2e",
     "test:seed": "node scripts/seed-test-db.mjs --workers 4",
-    "test:e2e:fresh": "npm run test:seed && playwright test --pass-with-no-tests"
+    "test:e2e:fresh": "npm run test:seed && playwright test --pass-with-no-tests",
+    "deploy": "node scripts/deploy.mjs",
+    "maintenance:off": "node scripts/clear-maintenance.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",
