@@ -168,6 +168,25 @@ The saved lux value is then used by Rhozly's AI for plant recommendations and ca
 
 ---
 
+## Garden Layout Builder
+
+The **Garden Layout Builder** lets you create a top-down 2D map of your garden areas and plan where to place your plants.
+
+Access: Tools → Garden Layout (or `/layout`).
+
+> 📸 Screenshot: The Garden Layout Builder showing a grid-based area with plant icons placed on it
+
+### How to Use It
+
+1. Select an **area** from your locations to start a layout for that space.
+2. **Place plants** — drag plant icons from your Shed onto the grid to position them.
+3. **Resize and adjust** the grid to match your real area dimensions.
+4. Layouts are saved per area and can be revisited at any time.
+
+Use the Layout Builder to plan spacing before planting, check that plants fit your available space, or visualise what a new design will look like before committing to it.
+
+---
+
 ## Sun Tracker
 
 The **Sun Tracker** is an augmented reality tool that shows you the sun's path across the sky and where shadows will fall in your garden at different times of day.

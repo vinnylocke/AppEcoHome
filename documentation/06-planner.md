@@ -1,13 +1,8 @@
 # Garden Planner
 
-The **Planner** lives under the **Plan** tab in the sidebar. It has two sub-sections:
+The **Planner** lives under the **Plan** tab in the sidebar (or directly at `/planner`). Use it to create AI-generated garden plans and work through a guided workflow to bring them to life.
 
-| Tab | What's here |
-|-----|-------------|
-| **Plans** | AI-generated garden plans with task staging |
-| **Shopping** | Shopping lists for garden supplies |
-
-This guide covers **Plans**. For Shopping Lists see [Shopping Lists](./07-shopping-lists.md).
+**Shopping Lists** are their own separate page — see [Shopping Lists](./07-shopping-lists.md).
 
 > 📸 Screenshot: The Planner hub showing the Plans tab active, with three plan cards in the grid (In Progress, Completed, Archived)
 
@@ -15,148 +10,100 @@ This guide covers **Plans**. For Shopping Lists see [Shopping Lists](./07-shoppi
 
 ## What is a Garden Plan?
 
-A garden plan is an AI-generated blueprint for a planting project — for example, "Set up my raised vegetable bed for summer" or "Create a low-water herb garden in the south corner."
+A garden plan is an AI-generated blueprint for a planting project — for example, "Set up a productive raised vegetable bed for summer" or "Create a low-water herb garden in the south corner."
 
-You describe your goals, and Rhozly's AI produces a structured plan with plant suggestions, spacing, timing, and care tasks. You can then **stage** those tasks directly into your schedule.
-
----
-
-## Plan Status Lifecycle
-
-```
-Draft → In Progress → Completed → Archived
-                              ↑
-                           (can restore from archived)
-```
-
-| Status | Meaning |
-|--------|---------|
-| **Draft** | Newly created; the AI plan is still being generated or reviewed |
-| **In Progress** | Tasks have been staged; active work underway |
-| **Completed** | You've marked this plan as done |
-| **Archived** | Soft-deleted; hidden from main view but can be restored |
+You describe your goals and Rhozly's AI produces a structured plan with plant recommendations, preparation tasks, and maintenance schedules. A guided 5-phase staging workflow then helps you turn the blueprint into real tasks and purchases.
 
 ---
 
 ## Viewing Plans
 
-The Plans tab shows cards grouped by status:
+Plans are displayed as cards, filterable by **All / Active / Completed / Archived**.
 
 > 📸 Screenshot: Plan cards in the "Pending" section showing titles, subtitles, plant counts, and an options menu button
 
-**Pending** section includes both Draft and In Progress plans.
-
 Each card shows:
-- **Plan title** and AI-generated subtitle
-- **Created date**
-- **Plant count** (how many species are included)
-- **Options menu** (three dots) — Edit, Duplicate, Archive/Restore, Delete
+- **Plan title** and description
+- **Status badge** (In Progress / Completed / Archived)
+- **Options menu** (⋯) — Archive, Delete
 
 ---
 
-## Creating a Garden Plan
+## Creating a Plan
 
 Tap **+ New Plan** (or use [Global Quick Add](./15-navigation-quick-add.md#global-quick-add) → **Create Plan**).
 
 > 📸 Screenshot: The New Plan form with fields for garden size, climate, skill level, and goal checkboxes
 
-### New Plan Form
+The wizard has three steps:
 
-Fill in the details about your garden project:
-
-| Field | Description |
-|-------|-------------|
-| **Project name** | What you want to call this plan |
-| **Location** | Which of your garden locations this plan is for |
-| **Garden size** | Approximate area (small / medium / large / custom m²) |
-| **Climate** | Your climate type (temperate, Mediterranean, tropical, arid, etc.) |
-| **Skill level** | Beginner / Intermediate / Advanced |
-| **Goals** | Multi-select: pest-free, edible harvest, ornamental, low-water, organic, wildlife-friendly, etc. |
-| **Plants to include** | Specific plants you definitely want in the plan |
-| **Plants to exclude** | Plants you don't want suggested |
-
-Tap **Generate Plan** — Rhozly sends your inputs to the AI, which produces a detailed plan. This typically takes 10–30 seconds.
+1. **Describe your project** — type a prompt describing what you want to grow or achieve (e.g. "A productive summer vegetable raised bed"). Rhozly sends this to the AI.
+2. **Review AI Blueprint** — the AI returns a structured plan with a project overview, recommended plants (with quantities and procurement advice), preparation tasks, and custom maintenance tasks. Review and tap **Accept**, or go back to revise.
+3. **Name and save** — give your plan a name and tap **Create Plan**.
 
 > 📸 Screenshot: The loading screen while the AI generates the plan, with an animated sparkle icon
 
 ---
 
-## Reviewing and Staging a Plan
+## Plan Staging
 
-Once generated, the plan opens in the **Plan Staging** view.
+Opening a plan card enters the **Plan Staging** view — a guided 5-phase workflow to take the AI blueprint into reality.
 
 > 📸 Screenshot: The Plan Staging view — AI blueprint on the left (markdown text), staged task list on the right
 
-### Left Side: AI Blueprint
+### Phase 1 — Infrastructure
 
-The AI blueprint is displayed as formatted text including:
-- **Overview** — a summary of the plan's goals and approach
-- **Plant list** — suggested species with brief notes on each
-- **Planting layout** — spacing recommendations
-- **Timeline** — when to plant, when to expect harvest
-- **Seasonal tips** — conditions to watch for
+Link the plan to an existing garden area (or create a new one). Select the **Location** and **Area** where this plan will be carried out.
 
-### Right Side: Staged Tasks
+Once an area is selected, Phase 1 is marked complete and Phase 2 unlocks.
 
-The AI also produces a list of specific tasks (e.g. "Prepare soil", "Plant tomato seedlings", "Install support cages"). These appear on the right as **staged tasks**.
+### Phase 2 — The Shed
 
-Each staged task shows:
-- Task type badge
-- Task title
-- Suggested date and frequency
-- Location and area assignment
+Rhozly checks each plant in the AI blueprint against your current Shed inventory:
 
-### Staging Tasks
+- **Already in Shed** — shown with a green match indicator; no sourcing action needed.
+- **Need to source** — a checkbox appears so you can mark it for procurement.
+- **Select All / Deselect All** — when there are two or more plants to source, a toggle button lets you check or uncheck all at once.
 
-When you're happy with the staged tasks:
+Tap **Add to Shopping List** to create items in your [Shopping List](./07-shopping-lists.md) for the selected plants.
 
-1. Tap **Stage All Tasks** (or select individual tasks to stage).
-2. A confirmation dialog shows the tasks to be created and which location/area they'll be assigned to.
-3. Tap **Confirm** — Rhozly creates task blueprints for every staged task.
-4. The plan status changes to **In Progress**.
-5. The tasks immediately appear in your Calendar and Schedule.
+### Phase 3 — Staging
+
+Build out the preparation task sequence. Tasks generated from the AI blueprint appear here as a starting point. You can:
+- Accept them as-is
+- Edit titles, descriptions, and due dates
+- Reorder the sequence
+
+Tap **Stage Tasks** to confirm and create the task blueprints in your Schedule.
+
+### Phase 4 — Execution
+
+Work through the staged tasks in your [Schedule](./04-schedule.md). This phase tracks progress as tasks are completed.
+
+### Phase 5 — Maintenance
+
+Once the plan is underway, Rhozly generates recurring maintenance tasks (watering schedules, feeding, pruning) based on the AI blueprint's custom maintenance schedule. These appear as blueprints in your Schedule.
 
 > 📸 Screenshot: The staging confirmation dialog listing tasks with location/area assignments
 
 ---
 
-## Editing a Plan
+## Plan Statuses
 
-From the plan card options menu → **Edit**. This opens the same form used to create the plan. You can adjust the goals, climate, and plant lists, then regenerate the AI blueprint.
-
-> Note: Editing and regenerating does **not** delete tasks you have already staged. Those remain in your Schedule.
-
----
-
-## Duplicating a Plan
-
-Options menu → **Duplicate**. Creates an identical copy of the plan in Draft status. Useful if you want to reuse a plan layout for a different location.
-
----
-
-## Completing a Plan
-
-Options menu → **Mark as Completed**. The plan moves to the **Completed** section. This is purely a status marker — all tasks remain active.
+| Status | Meaning |
+|--------|---------|
+| **In Progress** | Plan is active — staging or execution underway |
+| **Completed** | All tasks done; plan marked as a success |
+| **Archived** | Paused or abandoned; kept for reference |
 
 ---
 
 ## Archiving a Plan
 
-Options menu → **Archive**. The plan moves to the **Archived** section and is hidden from the main view.
-
-From the Archived section, tap **Restore** on any plan to bring it back.
+Options menu (⋯) → **Archive**. The plan moves to the **Archived** filter. Tap **Restore** on any archived plan to bring it back to active.
 
 ---
 
 ## Deleting a Plan
 
-Options menu → **Delete**. A confirmation modal appears:
-
-- **Delete plan only** — removes the plan record; staged tasks remain.
-- **Delete plan and all associated tasks** — removes the plan AND deletes all blueprints and tasks that were created from it.
-
----
-
-## Plan + Shopping Lists Integration
-
-When a plan is staged, Rhozly can suggest items for your Shopping List — seeds, soil, tools, or products needed for the plan's tasks. See [Shopping Lists](./07-shopping-lists.md).
+Options menu (⋯) → **Delete**. A confirmation modal appears before permanent removal.

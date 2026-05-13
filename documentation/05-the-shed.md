@@ -26,7 +26,7 @@ Each plant species in your shed appears as a card showing:
 | **Thumbnail** | Photo of the plant (from Perenual API, Unsplash, or an uploaded image) |
 | **Common name** | The plant's popular name (e.g. "Basil", "Cherry Tomato") |
 | **Scientific name** | Latin name if available |
-| **Source badge** | How it was added: Perenual (database), Manual, or AI |
+| **Source badge** | How it was added: Perenual (database), Verdantly (database), Manual, or AI |
 | **Instance count** | How many individual plants of this species you have |
 
 ---
@@ -52,6 +52,7 @@ Tap **Archived** to see past plants and restore them if needed.
 - **All** — show every plant
 - **Manual** — only plants you created by hand
 - **API** — plants found via the Perenual plant database
+- **Verdantly** — plants sourced from the Verdantly plant database
 - **AI** — plants identified by the Plant Doctor camera
 
 **Sort mode:**
@@ -105,7 +106,7 @@ Tap any plant card to open its detail view.
 
 - **Plant image** at the top
 - **Common and scientific name**
-- **Source** (Perenual / Manual / AI)
+- **Source** (Perenual / Verdantly / Manual / AI)
 - **All instances** — each individual plant of this species grouped by area
   - Each instance shows its status (Pending / Planted / Archived) and the area it's in
 - **Care routine** — if care data is available from the database, a card shows watering frequency, sunlight needs, and other growing tips

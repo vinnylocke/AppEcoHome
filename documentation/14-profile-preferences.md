@@ -131,3 +131,15 @@ The top of the Profile page shows a summary of your current personalisation stat
 | **Quiz status** | Completed (with date) or Not started |
 | **Preferences learned** | Count of total preference records |
 | **Subscription tier** | Your current plan (shown for reference) |
+
+---
+
+## AI Usage
+
+The **AI Usage** panel (visible on the Account tab of your Profile page) shows your Gemini AI token consumption for the current billing period:
+
+- **Requests used** — how many AI calls you've made
+- **Token usage** — total tokens consumed, broken down by feature
+- **Rate limit** — your current per-user allowance
+
+If you regularly reach your limit, contact your home owner or a Rhozly admin — admins can grant higher rate limits to individual users.

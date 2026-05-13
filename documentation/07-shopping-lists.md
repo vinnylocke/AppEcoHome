@@ -1,62 +1,97 @@
 # Shopping Lists
 
-Shopping Lists live under the **Plan** tab → **Shopping** sub-tab. Use them to track what you need to buy for your garden — plants, seeds, tools, fertilisers, and other supplies.
+Shopping Lists is its own page in Rhozly — access it via the **Plan** section of the sidebar → **Shopping Lists**, or directly at `/shopping`. Use them to track what you need to buy for your garden — plants sourced from Perenual, Verdantly, or AI suggestions, as well as products like fertilisers, tools, and supplies.
 
 > 📸 Screenshot: The Shopping Lists page showing two active lists (one expanded with items) and a collapsed Completed section at the bottom
 
 ---
 
+## Multi-List Overview
+
+- **Active lists** appear at the top of the page as expandable cards, each with a progress badge (e.g. "2 / 5 items").
+- **Completed lists** section is collapsed by default — tap the toggle header to expand it.
+
+---
+
 ## Creating a List
 
-Tap **+ New List** to create a shopping list.
+Tap **+ New List** at the top of the page.
 
 > 📸 Screenshot: A new list being created — the list appears with an auto-generated name and an edit icon
 
-A new list is created automatically with a default name ("My List"). You can rename it immediately by:
-1. Clicking/tapping the list **name** to edit it inline
-2. Typing a new name (e.g. "Spring Seeds", "Greenhouse Supplies")
-3. Pressing **Enter** or tapping away to save
+A new list appears with a default name. **Rename** it via the kebab (⋯) menu on the list card → **Rename** → type a new name → tap away to save.
 
-You can create as many lists as you need.
+Create as many lists as you need — one for the garden centre, another for seeds, etc.
+
+---
+
+## Expanding a List
+
+Tap a list card to expand it and see its items. Each item shows:
+
+- **Plant or product name**
+- **Checkbox** to mark as purchased
+- **Source badge** — where the plant came from (Shed, Perenual, Verdantly, or AI)
+- **Delete** icon to remove the item
+
+Checking an item increments the progress badge on the card.
 
 ---
 
 ## Adding Items
 
-Expand a list by tapping it, then tap **+ Add Item**.
+Tap **+ Add Item** on any expanded list to open the Add Item sheet.
 
 > 📸 Screenshot: The add item form inside an expanded list showing a text field, quantity stepper, and item type selector
 
-| Field | Description |
-|-------|-------------|
-| **Item name** | What you need to buy (e.g. "Tomato seeds", "Bamboo canes") |
-| **Quantity** | How many / how much |
-| **Type** | Plant, Seed, Supply, Tool, Fertilizer, Soil, Pot, Other |
+### Plant Tab (Default)
 
-Tap **Add** to add the item to the list.
+The **Plant** tab is active by default. Rhozly searches your Shed first:
+
+1. **Type a plant name** — matching plants already in your Shed appear as results.
+   - Tap a result → a preview card appears → tap **Add to List** to confirm.
+2. **Search All Sources** — if you want a plant you don't yet own, tap **Search All Sources**.
+   - Rhozly searches **Perenual**, **Verdantly**, and the **AI** simultaneously.
+   - Results appear in three sections: **AI Suggestions**, **Verdantly**, and **Perenual**.
+   - Tap any result to preview it → tap **Add to List** to confirm.
+   - Rhozly then asks **"Add to Shed?"** — tap **Yes** to also save the plant to your inventory, or **Skip** to add to the shopping list only.
+
+### Product Tab
+
+Switch to the **Product** tab to add a non-plant item (fertiliser, compost, tools, etc.):
+
+- **Product name** — free text (required)
+- **Category** — required (e.g. Fertiliser, Compost, Equipment, Seeds)
+
+Tap **Add Product** to confirm.
 
 ---
 
 ## Checking Off Items
 
-Tap the **checkbox** next to any item to mark it as bought.
+Tap the **checkbox** next to any item to mark it as purchased.
 
 > 📸 Screenshot: A shopping list with some items ticked (strikethrough text) and some unticked
 
 - Ticked items show a strikethrough and become faded.
+- The progress badge on the card updates immediately.
 - Items stay in the list — you can untick them if needed.
 
 ---
 
-## Removing Items
+## Add Purchased Plants to Shed
 
-Tap the **× delete** button next to any item to remove it from the list. This requires the `shopping.delete_item` permission (automatically granted to home owners).
+When you have one or more **checked plant items** (purchased) that aren't already in your Shed, a button appears at the bottom of the expanded list:
+
+> **Add [N] Purchased Plant(s) to Shed**
+
+Tap it to batch-add all eligible checked plants to your Shed inventory in one action. A success toast confirms, and the button disappears once all eligible plants have been added. Shed-sourced plants are automatically excluded from the count — they're already in your inventory.
 
 ---
 
 ## Completing a List
 
-When you've finished shopping, tap the **Mark Complete** button on the list.
+When you've finished shopping, tap **Mark Complete** on the list card.
 
 > 📸 Screenshot: A list with the "Mark Complete" button highlighted
 
@@ -72,26 +107,10 @@ Expand the **Completed** section → tap **Reopen** on any completed list. It re
 
 ## Deleting a List
 
-Tap the **Delete** button (bin icon) on the list header. A confirmation appears before deletion.
+Open the kebab (⋯) menu on a list card → **Delete**. Deletion requires a second tap to confirm before the list is permanently removed.
 
 ---
 
-## Suggested Items
+## Shopping From a Garden Plan
 
-Rhozly can automatically suggest items for your shopping list from two sources:
-
-### From Plant Doctor Treatments
-
-When the [Plant Doctor](./08-plant-doctor.md) diagnoses a problem and you apply a treatment, it may recommend products (pesticides, fungicides, fertilisers). These appear as **suggested shopping items** — tap to add them to any existing list.
-
-### From Garden Plan Staging
-
-When you stage a [Garden Plan](./06-planner.md), Rhozly analyses the tasks and suggests supplies you may need (e.g. soil amendments, support stakes, seeds for the listed plants).
-
----
-
-## Tips
-
-- Create **separate lists** for different shopping trips (e.g. one for the garden centre, one for the hardware store).
-- Use item **types** to filter or group by category when you're in the shop.
-- Leave completed lists visible until you've received all items — then clean up with **Delete**.
+When working through [Garden Plan Staging](./06-planner.md), Rhozly can automatically add plants you need to source to a Shopping List — created directly from Phase 2 of the staging flow. See [Garden Planner](./06-planner.md) for details.

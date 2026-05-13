@@ -2,12 +2,13 @@
 
 The **Guides** section is a searchable knowledge base of plant care articles. Access it from the **Tools** tab → **Guides**, or directly at `/guides`.
 
-It has two tabs:
+It has three tabs:
 
 | Tab | What's here |
 |-----|-------------|
 | **Rhozly Guides** | Official care guides curated by the Rhozly team |
 | **Community Guides** | Guides written and shared by Rhozly users |
+| **App Help** | AI-powered Q&A for navigating and using Rhozly |
 
 > 📸 Screenshot: The Guides page with the two tabs visible, a search bar, and a grid of guide cards below
 
@@ -140,3 +141,15 @@ The **Rhozly Guides** tab contains curated guides written by the Rhozly team. Th
 - Star them
 - Comment on them
 - Use them as reference material alongside community content
+
+---
+
+## App Help
+
+The **App Help** tab provides an AI-powered Q&A assistant that answers questions about how to use Rhozly.
+
+> 📸 Screenshot: The App Help tab showing a search/ask input field with example question chips below it
+
+Type any question about the app (e.g. "How do I add a plant to my shed?" or "What does the Planner do?") and tap **Ask**. The AI reads the feature documentation and provides a contextual answer with references to the relevant sections.
+
+This is separate from the **Plant Doctor** (which analyses plant health from photos) — App Help is specifically for navigating and understanding Rhozly's features.
