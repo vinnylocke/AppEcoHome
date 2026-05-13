@@ -47,7 +47,7 @@ serve(async (req) => {
   }
 
   try {
-    const { plantName, areaDetails, address, availableMethods, homeId, priorSchedule } =
+    const { plantName, areaDetails, address, availableMethods, homeId, priorSchedule, plantMetadata } =
       await req.json();
 
     const authHeader = req.headers.get("Authorization") ?? "";
@@ -245,6 +245,28 @@ Return ONLY a JSON object with this exact structure:
       ? `\nPrior Schedule (previously generated — refine based on the latest data): ${JSON.stringify(priorSchedule)}`
       : "";
 
+    // Verdantly-sourced planting instructions — use these verbatim in step descriptions when present
+    let plantingInstructionsText = "";
+    if (plantMetadata?.planting_methods) {
+      const pm = plantMetadata.planting_methods;
+      const lines: string[] = [];
+      if (pm.start_indoors) lines.push(`Start Indoors: ${pm.start_indoors}`);
+      if (pm.transplant_outdoors) lines.push(`Transplant Outdoors: ${pm.transplant_outdoors}`);
+      if (pm.direct_sow) lines.push(`Direct Sow: ${pm.direct_sow}`);
+      if (lines.length > 0) {
+        plantingInstructionsText = `\nVerified Planting Instructions (use these for step content — they take priority over generic advice):\n${lines.join("\n")}`;
+      }
+    }
+    if (plantMetadata?.care_notes) {
+      plantingInstructionsText += `\nAdditional Care Notes: ${plantMetadata.care_notes}`;
+    }
+    if (plantMetadata?.spacing_inches) {
+      plantingInstructionsText += `\nRecommended Spacing: ${plantMetadata.spacing_inches} inches`;
+    }
+    if (plantMetadata?.frost_tolerance) {
+      plantingInstructionsText += `\nFrost Tolerance: ${plantMetadata.frost_tolerance}`;
+    }
+
     const climateBlock = monthlyClimate.length > 0
       ? `12-Month Climate Profile (${fmt(oneYearAgo)} to ${fmt(yesterday)}): ${JSON.stringify(monthlyClimate)}`
       : "12-Month Climate Profile: unavailable — use your knowledge of the hemisphere and plant requirements.";
@@ -254,7 +276,7 @@ Area Details: ${JSON.stringify(areaDetails || "General Garden")}
 Available Methods: ${JSON.stringify(availableMethods)}
 Today's Date: ${todayIso}
 ${climateBlock}
-14-Day Forecast (precise dates for imminent planting): ${JSON.stringify(dailyForecasts)}${priorScheduleText}`;
+14-Day Forecast (precise dates for imminent planting): ${JSON.stringify(dailyForecasts)}${plantingInstructionsText}${priorScheduleText}`;
 
     const apiKey = Deno.env.get("GEMINI_API_KEY");
     if (!apiKey)

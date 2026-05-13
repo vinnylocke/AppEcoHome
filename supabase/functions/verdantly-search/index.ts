@@ -86,6 +86,50 @@ function buildAttracts(ecology: any): string[] {
   return result;
 }
 
+function parseSpacingInches(s: any): number | null {
+  if (!s) return null;
+  const m = String(s).match(/(\d+(?:\.\d+)?)/);
+  return m ? parseFloat(m[1]) : null;
+}
+
+function buildMetadata(v: any): Record<string, any> | null {
+  const meta: Record<string, any> = {};
+  const lm = v.lifecycleMilestones ?? {};
+  const gr = v.growingRequirements ?? {};
+  const pi = v.careInstructions?.plantingInstructions;
+
+  // Harvest timing — drives harvest-check blueprint auto-creation
+  if (lm.daysToHarvestMin != null) meta.harvest_days_min = lm.daysToHarvestMin;
+  if (lm.daysToHarvestMax != null) meta.harvest_days_max = lm.daysToHarvestMax;
+  // Single daysToHarvest field (some plants only have one value)
+  if (lm.daysToHarvest != null && meta.harvest_days_min == null) {
+    meta.harvest_days_min = lm.daysToHarvest;
+    meta.harvest_days_max = lm.daysToHarvest;
+  }
+
+  // Structured planting instructions — passed to AI planting schedule
+  if (pi && typeof pi === "object") {
+    const methods: Record<string, string> = {};
+    if (pi.startIndoors) methods.start_indoors = pi.startIndoors;
+    if (pi.transplantOutdoors) methods.transplant_outdoors = pi.transplantOutdoors;
+    if (pi.directSow) methods.direct_sow = pi.directSow;
+    if (Object.keys(methods).length > 0) meta.planting_methods = methods;
+  }
+
+  // Growing context
+  if (gr.spacingRequirement) meta.spacing_inches = parseSpacingInches(gr.spacingRequirement);
+  if (gr.frostTolerance) meta.frost_tolerance = gr.frostTolerance;
+  if (gr.careInstructions) meta.care_notes = gr.careInstructions;
+  if (gr.soilPreference) meta.soil_preference = gr.soilPreference;
+
+  // Additional AI context
+  if (v.pestAndDiseaseRisks) meta.pest_disease_info = v.pestAndDiseaseRisks;
+  if (v.commonUses) meta.common_uses = v.commonUses;
+  if (v.history) meta.history = v.history;
+
+  return Object.keys(meta).length > 0 ? meta : null;
+}
+
 function mapToPlantDetails(v: any) {
   const waterReq = v.growingRequirements?.waterRequirement ?? null;
   const waterDays = waterReq ? (WATERING_DAYS[waterReq] ?? null) : null;
@@ -143,6 +187,7 @@ function mapToPlantDetails(v: any) {
     soil_ph_min:           v.ecology?.soilPhMin ?? null,
     soil_ph_max:           v.ecology?.soilPhMax ?? null,
     planting_instructions: buildPlantingInstructions(v.careInstructions?.plantingInstructions),
+    plant_metadata:        buildMetadata(v),
     source:                "verdantly" as const,
   };
 }

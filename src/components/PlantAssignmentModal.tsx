@@ -194,6 +194,7 @@ export default function PlantAssignmentModal({
             availableMethods: [...new Set([...(plant.propagation ?? []), ...PROPAGATION_OPTIONS])],
             homeId,
             priorSchedule,
+            plantMetadata: plant.plant_metadata ?? null,
           },
         },
       );
