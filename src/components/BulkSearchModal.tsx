@@ -526,25 +526,31 @@ export default function BulkSearchModal({
 
           <div className="flex-1 overflow-y-auto p-8 custom-scrollbar space-y-3">
             {Array.from(selectedPlantsMap.entries()).map(([id, item]) => {
-              const isApi = item.type === "api";
-              const name =
-                typeof item.data === "string"
-                  ? isApi
-                    ? item.data
-                    : item.data.split("(")[0].trim()
-                  : item.data.common_name;
-              const subName =
-                typeof item.data === "string"
-                  ? isApi
-                    ? ""
-                    : item.data.match(/\(([^)]+)\)/)?.[1]
-                  : item.data.scientific_name?.[0];
+              const isDb = item.type === "api" || item.type === "verdantly";
+              // AI items store data as a string; db items store a plant object
+              const name = typeof item.data === "string"
+                ? item.data.split("(")[0].trim()
+                : item.data.common_name;
+              const subName = typeof item.data === "string"
+                ? item.data.match(/\(([^)]+)\)/)?.[1]
+                : item.data.scientific_name?.[0];
+              const rawThumb =
+                item.type === "api"
+                  ? item.data.default_image?.thumbnail
+                  : item.data.thumbnail_url;
               const thumbnail =
-                isApi &&
-                item.data.default_image?.thumbnail &&
-                !item.data.default_image?.thumbnail.includes("upgrade_access")
-                  ? item.data.default_image.thumbnail
+                rawThumb && !rawThumb.includes("upgrade_access")
+                  ? rawThumb
                   : previewCache[id]?.images?.[0] || null;
+
+              const badgeClass =
+                item.type === "api"       ? "bg-rhozly-primary/10 text-rhozly-primary" :
+                item.type === "verdantly" ? "bg-emerald-100 text-emerald-700" :
+                                            "bg-amber-100 text-amber-600";
+              const badgeLabel =
+                item.type === "api"       ? "Perenual" :
+                item.type === "verdantly" ? "Verdantly" :
+                                            "AI";
 
               return (
                 <div
@@ -556,7 +562,7 @@ export default function BulkSearchModal({
                       <div className="w-12 h-12 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0 flex items-center justify-center text-rhozly-primary/40">
                         {thumbnail ? (
                           <img src={thumbnail} alt={name} className="w-full h-full object-cover" />
-                        ) : isApi ? (
+                        ) : isDb ? (
                           <IconPlantDB size={20} />
                         ) : (
                           <IconAI size={20} />
@@ -567,16 +573,14 @@ export default function BulkSearchModal({
                         <p className="text-[10px] font-bold text-rhozly-on-surface/50 italic">
                           {subName || "Ready for processing"}
                         </p>
-                        <span
-                          className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md mt-1 inline-block ${isApi ? "bg-rhozly-primary/10 text-rhozly-primary" : "bg-amber-100 text-amber-600"}`}
-                        >
-                          {isApi ? "Perenual" : "AI"}
+                        <span className={`text-[8px] font-black uppercase tracking-widest px-2 py-0.5 rounded-md mt-1 inline-block ${badgeClass}`}>
+                          {badgeLabel}
                         </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleExpandResult(id, !isApi, name)}
+                        onClick={() => handleExpandResult(id, !isDb, name)}
                         className="p-3 hover:bg-rhozly-surface-low rounded-xl text-rhozly-on-surface/60 hover:text-rhozly-primary transition-colors"
                       >
                         {expandedResultId === id ? <ChevronUp size={18} /> : <Info size={18} />}

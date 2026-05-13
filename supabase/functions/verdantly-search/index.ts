@@ -73,7 +73,7 @@ function mapToPlantDetails(v: any) {
     is_toxic_pets:         !!(v.safety?.toxicity?.dogs?.level || v.safety?.toxicity?.cats?.level || v.safety?.toxicity?.horses?.level),
     is_toxic_humans:       !!(v.safety?.toxicity?.humans?.level),
     attracts:              [],
-    description:           v.highlights?.join(" ") ?? v.description ?? null,
+    description:           Array.isArray(v.highlights) ? v.highlights.join(" ") : (v.highlights ?? v.description ?? null),
     maintenance:           v.careInstructions?.pruningInstructions ?? null,
     growth_rate:           null,
     growth_habit:          v.growthDetails?.growthType ?? null,
