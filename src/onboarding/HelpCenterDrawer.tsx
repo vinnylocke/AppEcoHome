@@ -309,9 +309,26 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
               hr: () => (
                 <hr className="my-5 border-rhozly-outline/10" />
               ),
-              a: ({ children, href }) => (
-                <a href={href} className="text-rhozly-primary font-bold underline underline-offset-2 hover:opacity-75">{children}</a>
-              ),
+              a: ({ children, href }) => {
+                if (href?.startsWith("./") && href.includes(".md")) {
+                  const filename = href.replace("./", "").split("#")[0];
+                  const docId = filename.replace(/^\d+-/, "").replace(".md", "");
+                  const targetDoc = DOCS.find((d) => d.id === docId);
+                  if (targetDoc) {
+                    return (
+                      <button
+                        onClick={() => setActiveDoc(targetDoc)}
+                        className="text-rhozly-primary font-bold underline underline-offset-2 hover:opacity-75"
+                      >
+                        {children}
+                      </button>
+                    );
+                  }
+                }
+                return (
+                  <a href={href} target="_blank" rel="noopener noreferrer" className="text-rhozly-primary font-bold underline underline-offset-2 hover:opacity-75">{children}</a>
+                );
+              },
             }}
           >
             {/* Strip screenshot callout lines — they're placeholder notes for image placement */}
