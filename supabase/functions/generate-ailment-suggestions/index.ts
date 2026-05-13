@@ -4,6 +4,7 @@ import { log, error as logError } from "../_shared/logger.ts";
 import { callGeminiCascade } from "../_shared/gemini.ts";
 import { guardAiByUser } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
+import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
 import { getFallback } from "../_shared/fallbacks.ts";
 
@@ -83,12 +84,18 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } },
     );
+    const serviceDb = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
     const { data: { user } } = await supabase.auth.getUser(authHeader.replace("Bearer ", ""));
     const userId = user?.id ?? null;
 
     if (userId) {
       const guardErr = await guardAiByUser(supabase, userId);
       if (guardErr) return guardErr;
+      const rateLimitErr = await enforceRateLimit(serviceDb, userId, FN);
+      if (rateLimitErr) return rateLimitErr;
     }
 
     log(FN, "request_received", { query, hasExtraContext: !!extraContext });
@@ -161,7 +168,7 @@ ${extraContext ? `\nADDITIONAL CONTEXT:\n${extraContext}` : ""}
     }));
 
     if (ailmentKey) await setCached(supabase, ailmentKey, FN, { results }, 14);
-    await logAiUsage(supabase, { userId, functionName: FN, action: "ailment_suggestions", usage });
+    if (userId) await logAiUsage(serviceDb, { userId, functionName: FN, action: "ailment_suggestions", usage });
     log(FN, "result", { query, count: results.length, fromCache: false });
 
     return new Response(

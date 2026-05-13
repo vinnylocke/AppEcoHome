@@ -350,7 +350,10 @@ serve(async (req) => {
 
     // ── LLM actions — guard AI tier + rate limit ───────────────────────────
 
-    const rateLimitErr = await enforceRateLimit(supabase, callerUserId, FN);
+    // search_plants_text is lightweight (text-only, no image) so it gets its own
+    // higher-limit bucket rather than sharing with heavy vision/care-guide calls.
+    const rateLimitFn = action === "search_plants_text" ? "search-plants-ai" : FN;
+    const rateLimitErr = await enforceRateLimit(supabase, callerUserId, rateLimitFn);
     if (rateLimitErr) return rateLimitErr;
 
     if (homeId) {

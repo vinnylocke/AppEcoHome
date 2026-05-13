@@ -92,11 +92,15 @@ async function deploy() {
 
   try {
     // Step 2: push DB migrations
-    console.log("\n📦  [2/3] Pushing database migrations...");
+    console.log("\n📦  [2/4] Pushing database migrations...");
     run("supabase db push");
 
-    // Step 3: deploy to Vercel (blocks until live)
-    console.log("\n🚀  [3/3] Deploying to Vercel...");
+    // Step 3: deploy all edge functions so they stay in sync with the frontend
+    console.log("\n⚡  [3/4] Deploying edge functions...");
+    run("supabase functions deploy");
+
+    // Step 4: deploy to Vercel (blocks until live)
+    console.log("\n🚀  [4/4] Deploying to Vercel...");
     run("vercel --prod");
 
     // All done — turn maintenance OFF

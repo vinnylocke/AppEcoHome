@@ -6,6 +6,7 @@ import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
 import { getFallback } from "../_shared/fallbacks.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 
 const FN = "generate-guide";
 
@@ -72,7 +73,7 @@ serve(async (req) => {
       - MUST include the plant name and task category.
     `;
 
-    const { text: rawText } = await callGeminiCascade(
+    const { text: rawText, usage } = await callGeminiCascade(
       geminiApiKey,
       FN,
       [{ role: "user", parts: [{ text: `Topic: ${topic}` }] }],
@@ -147,6 +148,7 @@ serve(async (req) => {
 
     const responsePayload = { guide_data: guideData, labels: rawJson.labels };
     await setCached(supabase, guideKey, FN, responsePayload, 7);
+    await logAiUsage(supabase, { userId: authResult.user.id, functionName: FN, action: "generate_guide", usage });
     log(FN, "result", { topic, fromCache: false, sectionsCount: guideData.sections?.length ?? 0 });
 
     return new Response(

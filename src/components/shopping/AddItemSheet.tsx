@@ -4,7 +4,8 @@ import { X, Search, Loader2, ArrowLeft, Globe } from "lucide-react";
 import { IconPlant, IconAI } from "../../constants/icons";
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
-import { PerenualService } from "../../lib/perenualService";
+import { searchAllProviders, getProviderPlantDetails } from "../../lib/plantProvider";
+import type { ProviderSearchResult } from "../../lib/verdantlyUtils";
 import { Logger } from "../../lib/errorHandler";
 import { SHOPPING_CATEGORIES } from "../../constants/shoppingCategories";
 import type { ShoppingListItem } from "../../types/shopping";
@@ -23,7 +24,7 @@ type PlantSearchState =
   | "no_results";
 
 interface ShedPlant { id: string; plant_name: string; nickname: string | null; }
-interface PerenualResult { id: number; common_name: string; scientific_name: string[]; default_image?: { thumbnail?: string } | null; }
+type PerenualResult = ProviderSearchResult;
 interface AiResult { name: string; description: string; }
 
 interface Props {
@@ -94,19 +95,19 @@ export default function AddItemSheet({
     debounceRef.current = setTimeout(() => searchShed(val), 400);
   };
 
-  // Perenual search (user-triggered)
+  // Plant database search (user-triggered) — searches all enabled providers
   const handleSearchPerenual = async () => {
     if (!plantQuery.trim()) return;
     setPlantState("perenual_searching");
     setPerenualResults([]);
     try {
-      const results = await PerenualService.searchPlants(plantQuery);
+      const results = await searchAllProviders(plantQuery);
       setPerenualResults(results ?? []);
       setPlantState("perenual_results");
     } catch (err) {
-      Logger.error("Perenual search failed", err);
+      Logger.error("Plant database search failed", err);
       toast.error("Search failed — please try again");
-      setPlantState("shed_results"); // fall back to showing shed results
+      setPlantState("shed_results");
     }
   };
 
@@ -129,20 +130,22 @@ export default function AddItemSheet({
     }
   };
 
-  // Open Perenual preview
+  // Open plant preview (Perenual or Verdantly)
   const handleOpenPerenualPreview = async (result: PerenualResult) => {
     setPlantState("preview");
     setPreviewSource("perenual");
     try {
-      const details = await PerenualService.getPlantDetails(result.id);
-      setPreview({ ...details, _perenual_id: result.id });
+      const details = await getProviderPlantDetails({
+        source: result._provider === "verdantly" ? "verdantly" : "api",
+        perenual_id: result.perenual_id ?? null,
+        verdantly_id: result.verdantly_id ?? null,
+      });
+      setPreview({ ...details, _perenual_id: result.perenual_id ?? null, _verdantly_id: result.verdantly_id ?? null });
     } catch {
-      // Show minimal data from search result if details fail
       setPreview({
         common_name: result.common_name,
         scientific_name: result.scientific_name?.[0],
-        _perenual_id: result.id,
-        thumbnail_url: result.default_image?.thumbnail,
+        thumbnail_url: result.thumbnail_url,
       });
     }
   };
@@ -495,8 +498,8 @@ export default function AddItemSheet({
                               onClick={() => handleOpenPerenualPreview(r)}
                               className="flex items-center gap-2.5 px-3 py-2 rounded-2xl hover:bg-rhozly-surface cursor-pointer transition-colors"
                             >
-                              {r.default_image?.thumbnail ? (
-                                <img src={r.default_image.thumbnail} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                              {r.thumbnail_url ? (
+                                <img src={r.thumbnail_url} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
                               ) : (
                                 <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
                                   <IconPlant size={14} className="text-emerald-500" />

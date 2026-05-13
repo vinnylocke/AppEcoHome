@@ -18,6 +18,8 @@ import {
 } from "lucide-react";
 import { IconPlantDB, IconAI } from "../constants/icons";
 import { PerenualService } from "../lib/perenualService";
+import { searchAllProviders } from "../lib/plantProvider";
+import { getProviderLabel } from "../lib/verdantlyUtils";
 import toast from "react-hot-toast";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { PlantDoctorService } from "../services/plantDoctorService";
@@ -132,9 +134,12 @@ export default function BulkSearchModal({
   const activeFilterCount = countActiveFilters(filters);
   const hasSearchCriteria = query.trim().length > 0 || activeFilterCount > 0;
 
-  // De-duplicate AI results against Perenual names (case-insensitive common name match)
+  // De-duplicate AI results against Perenual names only (Verdantly variety names are too
+  // specific and would incorrectly filter out valid AI suggestions).
   const perenualNames = new Set(
-    apiResults.map((p) => p.common_name?.toLowerCase().trim()),
+    apiResults
+      .filter((p: any) => p._provider !== "verdantly")
+      .map((p: any) => p.common_name?.toLowerCase().trim()),
   );
   const deduplicatedAiResults = aiResults.filter((match) => {
     const commonName = match.split("(")[0].trim().toLowerCase();
@@ -219,7 +224,6 @@ export default function BulkSearchModal({
       commonName = identifier.split("(")[0].trim();
     }
 
-    const primarySearchTerm = scientificName || commonName;
     let fetchedImages: string[] = [];
     let description = "";
 
@@ -237,15 +241,23 @@ export default function BulkSearchModal({
       }
     };
 
+    // Variety/cultivar scientific names (var., subsp., 'cultivar', f.) have no Wikipedia articles.
+    // Use common name as the primary term in those cases to avoid guaranteed 404s.
+    const isVariety = scientificName != null && /var\.|subsp\.|'\w|f\.\s|cv\./.test(scientificName);
+    const primarySearchTerm = scientificName && !isVariety ? scientificName : commonName;
+
     let data = await fetchWiki(primarySearchTerm);
-    if (!data && scientificName) data = await fetchWiki(commonName);
-    if (!data) data = await fetchWiki(`${commonName} plant`);
+    // Wikipedia uses sentence case ("Grape tomato" not "Grape Tomato") — try sentence-cased fallback
+    if (!data && /[A-Z]/.test(primarySearchTerm.slice(1))) {
+      const sentenceCase =
+        primarySearchTerm.charAt(0).toUpperCase() + primarySearchTerm.slice(1).toLowerCase();
+      if (sentenceCase !== primarySearchTerm) data = await fetchWiki(sentenceCase);
+    }
+    if (!data && scientificName && !isVariety) data = await fetchWiki(commonName);
+    // Last word of a multi-word common name often has a Wikipedia genus/species article
+    // (e.g. "Tomato" from "Cherry Tomato"). Skip "{name} plant" — not a Wikipedia pattern.
     if (!data && commonName.includes(" ")) {
-      const basePlant = commonName.split(" ").pop();
-      if (basePlant) {
-        data = await fetchWiki(basePlant);
-        if (!data) data = await fetchWiki(`${basePlant} plant`);
-      }
+      data = await fetchWiki(commonName.split(" ").pop()!);
     }
 
     if (data) {
@@ -313,15 +325,37 @@ export default function BulkSearchModal({
     }
 
     if (isPremium) {
+      // Perenual handles filter params; Verdantly is added by searchAllProviders when enabled.
+      const perenualFilters = activeFilterCount > 0 ? filters : undefined;
       searches.push(
-        PerenualService.searchPlants(query, activeFilterCount > 0 ? filters : undefined)
-          .then((data) => setApiResults(data || []))
+        PerenualService.searchPlants(query, perenualFilters)
+          .then((perenualItems) => {
+            // Normalise Perenual raw items to the shared shape used for display
+            const normalized = perenualItems.map((p: any) => ({
+              ...p,
+              thumbnail_url: p.default_image?.thumbnail ?? null,
+              _provider: "perenual",
+            }));
+            setApiResults(normalized);
+          })
           .catch((err) => {
             const msg = (err.message || "") as string;
             if (msg.includes("Unexpected token") || msg.includes("Please Upg")) {
               toast.error("Perenual API limit reached.");
             }
           }),
+      );
+      // Verdantly runs in parallel, only when enabled in app_config — avoids
+      // 404 noise on local dev where the function isn't served.
+      // Uses `only: ["verdantly"]` so Perenual isn't called a second time.
+      searches.push(
+        searchAllProviders(query, undefined, ["verdantly"])
+          .then((verdantlyItems) => {
+            if (verdantlyItems.length > 0) {
+              setApiResults((prev: any[]) => [...prev, ...verdantlyItems]);
+            }
+          })
+          .catch(() => {}),
       );
     }
 
@@ -334,7 +368,12 @@ export default function BulkSearchModal({
     setIsLoadingMore(true);
     const exclude = [
       ...aiResults,
-      ...apiResults.map((p) => p.common_name).filter(Boolean),
+      // Only exclude Perenual names — Verdantly returns specific variety names that
+      // the AI would never generate and should not count as "already shown".
+      ...apiResults
+        .filter((p: any) => p._provider !== "verdantly")
+        .map((p: any) => p.common_name)
+        .filter(Boolean),
     ];
     try {
       const data = await PlantDoctorService.searchPlantsText(query, {
@@ -1012,25 +1051,28 @@ export default function BulkSearchModal({
                     </>
                   )}
 
-                  {/* Perenual results */}
+                  {/* Database results (Perenual + Verdantly) */}
                   {apiResults.length > 0 && (
                     <>
                       {isAiEnabled && (
                         <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-primary/70 px-1 pt-1">
-                          Perenual Database
+                          Plant Database
                         </p>
                       )}
                       {apiResults.map((plant: any) => {
                         const isSelected = selectedPlantsMap.has(String(plant.id));
+                        const thumb = plant.thumbnail_url?.includes("upgrade_access") ? null : plant.thumbnail_url;
+                        const providerLabel = getProviderLabel(plant._provider === "verdantly" ? "verdantly" : "api");
+                        const itemType = plant._provider === "verdantly" ? "verdantly" : "api";
                         return (
                           <div
-                            key={`api-${plant.id}`}
+                            key={`${plant._provider ?? "api"}-${plant.id}`}
                             className={`w-full bg-white border rounded-2xl transition-all overflow-hidden flex flex-col shadow-sm ${isSelected ? "border-rhozly-primary ring-1 ring-rhozly-primary/30" : "border-rhozly-outline/10 hover:border-rhozly-primary/30"}`}
                           >
                             <div className="flex items-center p-3 gap-3">
                               <button
                                 onClick={() =>
-                                  toggleSelection(String(plant.id), { type: "api", data: plant })
+                                  toggleSelection(String(plant.id), { type: itemType, data: plant })
                                 }
                                 aria-label={isSelected ? "Remove from selection" : "Add to selection"}
                                 className={`shrink-0 transition-colors ${isSelected ? "text-rhozly-primary" : "text-rhozly-on-surface/20 hover:text-rhozly-primary/50"}`}
@@ -1038,10 +1080,9 @@ export default function BulkSearchModal({
                                 {isSelected ? <CheckSquare2 size={24} /> : <Square size={24} />}
                               </button>
                               <div className="w-12 h-12 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0">
-                                {plant.default_image?.thumbnail &&
-                                !plant.default_image?.thumbnail.includes("upgrade_access") ? (
+                                {thumb ? (
                                   <img
-                                    src={plant.default_image.thumbnail}
+                                    src={thumb}
                                     alt={plant.common_name}
                                     className="w-full h-full object-cover"
                                   />
@@ -1056,8 +1097,12 @@ export default function BulkSearchModal({
                                 <p className="text-[10px] font-bold text-rhozly-on-surface/50 italic truncate">
                                   {plant.scientific_name?.[0]}
                                 </p>
-                                <span className="text-[8px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary/10 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
-                                  Perenual
+                                <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md inline-block mt-0.5 ${
+                                  providerLabel === "Verdantly"
+                                    ? "text-emerald-700 bg-emerald-100"
+                                    : "text-rhozly-primary bg-rhozly-primary/10"
+                                }`}>
+                                  {providerLabel ?? "Database"}
                                 </span>
                               </div>
                               <button

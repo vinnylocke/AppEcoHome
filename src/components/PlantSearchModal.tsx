@@ -9,8 +9,9 @@ import {
   ChevronLeft,
 } from "lucide-react";
 import { IconPlantDB, IconAI } from "../constants/icons";
-import { PerenualService } from "../lib/perenualService";
 import { supabase } from "../lib/supabase";
+import { searchAllProviders, getProviderPlantDetails } from "../lib/plantProvider";
+import { getProviderLabel, type ProviderSearchResult } from "../lib/verdantlyUtils";
 import toast from "react-hot-toast";
 import ManualPlantCreation from "./ManualPlantCreation";
 import MultiImageGallery from "./MultiImageGallery";
@@ -39,7 +40,7 @@ export default function PlantSearchModal({
 
   const [query, setQuery] = useState(initialSearchTerm || "");
   const [searchMode, setSearchMode] = useState<"common" | "scientific">("common");
-  const [results, setResults] = useState<any[]>([]);
+  const [results, setResults] = useState<ProviderSearchResult[]>([]);
 
   const rankedResults = useMemo(() => {
     if (!preferences.length) return results;
@@ -141,7 +142,7 @@ export default function PlantSearchModal({
     setPreviewPlant(null);
     setSelectedResultIndex(-1);
     try {
-      const data = await PerenualService.searchPlants(searchQuery);
+      const data = await searchAllProviders(searchQuery);
       setResults(data);
       setHasSearched(true);
     } catch (err) {
@@ -175,33 +176,29 @@ export default function PlantSearchModal({
     performSearch(nextQuery);
   };
 
-  const handlePreviewPlant = async (searchResultPlant: any) => {
+  const handlePreviewPlant = async (searchResultPlant: ProviderSearchResult) => {
     setIsFetchingPreview(true);
     try {
-      const fullPlantData = await PerenualService.getPlantDetails(
-        searchResultPlant.id,
-      );
+      const fullPlantData = await getProviderPlantDetails({
+        source: searchResultPlant._provider === "verdantly" ? "verdantly" : "api",
+        perenual_id: searchResultPlant.perenual_id,
+        verdantly_id: searchResultPlant.verdantly_id,
+      });
 
-      const getValidImage = (...urls: any[]) => {
-        return (
-          urls.find(
-            (u) => u && typeof u === "string" && !u.includes("upgrade_access"),
-          ) || ""
-        );
-      };
+      const getValidImage = (...urls: (string | null | undefined)[]) =>
+        urls.find((u) => u && typeof u === "string" && !u.includes("upgrade_access")) ?? "";
 
       const safeImage = getValidImage(
         fullPlantData.image_url,
         fullPlantData.thumbnail_url,
-        searchResultPlant.default_image?.original_url,
-        searchResultPlant.default_image?.regular_url,
-        searchResultPlant.default_image?.thumbnail,
+        searchResultPlant.thumbnail_url,
       );
 
       setPreviewPlant({
         ...fullPlantData,
         image_url: safeImage,
         thumbnail_url: safeImage,
+        _provider: searchResultPlant._provider,
       });
     } catch (err) {
       toast.error("Failed to load plant details.");
@@ -232,68 +229,82 @@ export default function PlantSearchModal({
     if (!previewPlant) return;
     setIsAdding(true);
 
+    const isVerdantly = previewPlant.source === "verdantly";
+
     try {
-      const pId = String(previewPlant.perenual_id || previewPlant.id);
-
-      const { data: existingPlant, error: checkError } = await supabase
-        .from("plants")
-        .select("id")
-        .eq("home_id", homeId)
-        .eq("perenual_id", pId)
-        .maybeSingle();
-
-      if (checkError) {
-        throw new Error("Could not verify if plant exists. Try again.");
+      // Duplicate check per provider
+      let existingPlant: any = null;
+      if (isVerdantly && previewPlant.verdantly_id) {
+        const { data, error } = await supabase
+          .from("plants")
+          .select("id")
+          .eq("home_id", homeId)
+          .eq("verdantly_id", previewPlant.verdantly_id)
+          .maybeSingle();
+        if (error) throw new Error("Could not verify if plant exists. Try again.");
+        existingPlant = data;
+      } else {
+        const pId = String(previewPlant.perenual_id);
+        const { data, error } = await supabase
+          .from("plants")
+          .select("id")
+          .eq("home_id", homeId)
+          .eq("perenual_id", pId)
+          .maybeSingle();
+        if (error) throw new Error("Could not verify if plant exists. Try again.");
+        existingPlant = data;
       }
 
       if (existingPlant) {
-        toast.error(`${previewPlant.common_name} is already in your Shed!`, {
-          icon: "🚫",
-        });
+        toast.error(`${previewPlant.common_name} is already in your Shed!`, { icon: "🚫" });
         setIsAdding(false);
         return;
       }
 
-      let permanentImageUrl =
-        previewPlant.image_url || previewPlant.thumbnail_url || "";
+      let permanentImageUrl = previewPlant.image_url || previewPlant.thumbnail_url || "";
 
       if (permanentImageUrl) {
         try {
-          const { data: proxyData, error: proxyError } =
-            await supabase.functions.invoke("image-proxy", {
-              body: {
-                imageUrl: permanentImageUrl,
-                plantName: previewPlant.common_name,
-              },
-            });
-
+          const { data: proxyData, error: proxyError } = await supabase.functions.invoke("image-proxy", {
+            body: { imageUrl: permanentImageUrl, plantName: previewPlant.common_name },
+          });
           if (proxyError) throw proxyError;
-
           if (proxyData?.publicUrl) {
             permanentImageUrl = proxyData.publicUrl;
-
             if (permanentImageUrl.includes("kong:8000")) {
-              permanentImageUrl = permanentImageUrl.replace(
-                "http://kong:8000",
-                "http://127.0.0.1:54321",
-              );
+              permanentImageUrl = permanentImageUrl.replace("http://kong:8000", "http://127.0.0.1:54321");
             }
           }
         } catch (proxyErr) {
-          console.error("❌ Proxy Failed:", proxyErr);
+          console.error("Proxy Failed:", proxyErr);
         }
       }
 
-      const manualId = Math.floor(Date.now() / 1000);
-      const skeletonPlant = {
-        id: manualId,
-        home_id: homeId,
-        common_name: previewPlant.common_name,
-        scientific_name: previewPlant.scientific_name,
-        thumbnail_url: permanentImageUrl,
-        source: "api",
-        perenual_id: pId,
-      };
+      const skeletonPlant = isVerdantly
+        ? {
+            id:              Math.floor(Date.now() / 1000),
+            home_id:         homeId,
+            common_name:     previewPlant.common_name,
+            scientific_name: previewPlant.scientific_name,
+            thumbnail_url:   permanentImageUrl,
+            source:          "verdantly",
+            verdantly_id:    previewPlant.verdantly_id,
+            growth_habit:    previewPlant.growth_habit ?? null,
+            days_to_harvest_min: previewPlant.days_to_harvest_min ?? null,
+            days_to_harvest_max: previewPlant.days_to_harvest_max ?? null,
+            soil_ph_min:     previewPlant.soil_ph_min ?? null,
+            soil_ph_max:     previewPlant.soil_ph_max ?? null,
+            planting_instructions: previewPlant.planting_instructions ?? null,
+          }
+        : {
+            id:          Math.floor(Date.now() / 1000),
+            home_id:     homeId,
+            common_name: previewPlant.common_name,
+            scientific_name: previewPlant.scientific_name,
+            thumbnail_url: permanentImageUrl,
+            source:      "api",
+            perenual_id: String(previewPlant.perenual_id),
+          };
 
       const { data: savedPlant, error } = await supabase
         .from("plants")
@@ -303,23 +314,21 @@ export default function PlantSearchModal({
 
       if (error) throw error;
 
-      if (previewPlant.harvest_season) {
-        await supabase.from("plant_schedules").insert([
-          {
-            home_id: homeId,
-            plant_id: savedPlant.id,
-            title: `${previewPlant.harvest_season} Harvest Season`,
-            description: `Auto-generated from Perenual Database`,
-            task_type: "Harvesting",
-            trigger_event: "Planted",
-            start_reference: `Seasonal: 09-01`,
-            end_reference: `Seasonal: 11-30`,
-            start_offset_days: 0,
-            end_offset_days: 0,
-            frequency_days: 1,
-            is_recurring: true,
-          },
-        ]);
+      if (!isVerdantly && previewPlant.harvest_season) {
+        await supabase.from("plant_schedules").insert([{
+          home_id:         homeId,
+          plant_id:        savedPlant.id,
+          title:           `${previewPlant.harvest_season} Harvest Season`,
+          description:     "Auto-generated from Perenual Database",
+          task_type:       "Harvesting",
+          trigger_event:   "Planted",
+          start_reference: "Seasonal: 09-01",
+          end_reference:   "Seasonal: 11-30",
+          start_offset_days: 0,
+          end_offset_days:   0,
+          frequency_days:  1,
+          is_recurring:    true,
+        }]);
       }
 
       toast.success(`${previewPlant.common_name} added to your Shed!`);
@@ -386,7 +395,7 @@ export default function PlantSearchModal({
               <IconPlantDB className="text-rhozly-primary" /> Global Plant Search
             </h3>
             <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-              Powered by Perenual API
+              Powered by Perenual &amp; Verdantly
             </p>
           </div>
           <button
@@ -498,16 +507,18 @@ export default function PlantSearchModal({
                   <p className="font-bold text-sm">Searching Database...</p>
                 </div>
               ) : rankedResults.length > 0 ? (
-                rankedResults.map((plant: any, index: number) => {
+                rankedResults.map((plant, index) => {
                   const prefScore = scorePlantByPreferences(
                     plant.common_name || "",
                     plant.scientific_name?.[0] || "",
                     preferences,
                   );
                   const isSelected = index === selectedResultIndex;
+                  const thumb = plant.thumbnail_url?.includes("upgrade_access") ? null : plant.thumbnail_url;
+                  const providerLabel = getProviderLabel(plant._provider === "verdantly" ? "verdantly" : "api");
                   return (
                     <div
-                      key={plant.id}
+                      key={`${plant._provider}-${plant.id}`}
                       tabIndex={0}
                       role="button"
                       aria-label={`View ${plant.common_name}`}
@@ -526,12 +537,9 @@ export default function PlantSearchModal({
                     >
                       <div className="flex items-center gap-4">
                         <div className="relative w-16 h-16 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0">
-                          {plant.default_image?.thumbnail &&
-                          !plant.default_image?.thumbnail.includes(
-                            "upgrade_access",
-                          ) ? (
+                          {thumb ? (
                             <img
-                              src={plant.default_image.thumbnail}
+                              src={thumb}
                               alt={plant.common_name}
                               className="w-full h-full object-cover"
                             />
@@ -543,15 +551,26 @@ export default function PlantSearchModal({
                           <MultiImageGallery
                             query={`${plant.common_name} ${plant.scientific_name?.[0] ?? ""} plant`}
                             label={plant.common_name}
-                            existingImageUrl={plant.default_image?.thumbnail?.includes("upgrade_access") ? null : (plant.default_image?.thumbnail ?? null)}
+                            existingImageUrl={thumb}
                             triggerClassName="absolute bottom-1 right-1"
                             compact
                           />
                         </div>
                         <div>
-                          <h4 className="font-black text-lg text-rhozly-on-surface leading-tight">
-                            {plant.common_name}
-                          </h4>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <h4 className="font-black text-lg text-rhozly-on-surface leading-tight">
+                              {plant.common_name}
+                            </h4>
+                            {providerLabel && (
+                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${
+                                providerLabel === "Verdantly"
+                                  ? "bg-emerald-100 text-emerald-700"
+                                  : "bg-blue-100 text-blue-700"
+                              }`}>
+                                {providerLabel}
+                              </span>
+                            )}
+                          </div>
                           <p className="text-xs font-bold text-rhozly-on-surface/50 italic">
                             {plant.scientific_name?.[0]}
                           </p>

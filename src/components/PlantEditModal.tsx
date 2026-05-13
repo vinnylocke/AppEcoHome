@@ -5,7 +5,8 @@ import ManualPlantCreation from "./ManualPlantCreation";
 import PlantScheduleTab from "./PlantScheduleTab";
 import PlantGuidesTab from "./PlantGuidesTab";
 import LightTab from "./LightTab";
-import { PerenualService } from "../lib/perenualService";
+import { getProviderPlantDetails } from "../lib/plantProvider";
+import { getProviderLabel } from "../lib/verdantlyUtils";
 import toast from "react-hot-toast";
 
 // 🧠 IMPORT THE AI CONTEXT
@@ -56,7 +57,7 @@ export default function PlantEditModal({
         wateringNeeds: fullPlantData?.watering,
         sunlightNeeds: fullPlantData?.sunlight,
       },
-      isEditingRestricted: plant.source === "api",
+      isEditingRestricted: plant.source === "api" || plant.source === "verdantly",
     });
 
     // Cleanup on close
@@ -64,14 +65,19 @@ export default function PlantEditModal({
   }, [fullPlantData, activeTab, plant.source, setPageContext]);
 
   const fetchApiDetails = async () => {
-    if (plant.source === "api" && plant.perenual_id) {
+    if (
+      (plant.source === "api" && plant.perenual_id) ||
+      (plant.source === "verdantly" && plant.verdantly_id)
+    ) {
       setIsFetchingApiData(true);
       setFetchError(false);
       setLoadSuccess(false);
       try {
-        const apiData = await PerenualService.getPlantDetails(
-          plant.perenual_id,
-        );
+        const apiData = await getProviderPlantDetails({
+          source: plant.source,
+          perenual_id: plant.perenual_id ? Number(plant.perenual_id) : null,
+          verdantly_id: plant.verdantly_id ?? null,
+        });
 
         // Perenual images are Wasabi signed URLs that expire after 24h.
         // If the stored URL is missing or a Wasabi URL, fetch a fresh one directly.
@@ -194,9 +200,9 @@ export default function PlantEditModal({
             </div>
           ) : activeTab === "care" ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
-              {plant.source === "api" && (
+              {(plant.source === "api" || plant.source === "verdantly") && (
                 <p className="text-[10px] text-rhozly-on-surface/40 font-semibold uppercase tracking-widest mb-4">
-                  Read-only — data sourced from the Perenual plant encyclopedia
+                  Read-only — data sourced from {getProviderLabel(plant.source) ?? "the plant encyclopedia"}
                 </p>
               )}
               <ManualPlantCreation
@@ -204,7 +210,7 @@ export default function PlantEditModal({
                 onSave={onSave}
                 submitLabel="Save Updates"
                 isSaving={isSaving}
-                isReadOnly={plant.source === "api"}
+                isReadOnly={plant.source === "api" || plant.source === "verdantly"}
               />
             </div>
           ) : activeTab === "schedules" ? (

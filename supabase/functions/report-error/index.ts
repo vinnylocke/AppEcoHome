@@ -1,5 +1,7 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { sendEmail } from "../_shared/resend.ts";
 import { log, error as logError } from "../_shared/logger.ts";
+import { enforceIpRateLimit } from "../_shared/rateLimit.ts";
 
 const FN = "report-error";
 
@@ -12,6 +14,14 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
+    const db = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+
+    const rateLimitErr = await enforceIpRateLimit(db, req, FN, 20);
+    if (rateLimitErr) return rateLimitErr;
+
     const {
       errorMessage,
       errorStack,

@@ -17,9 +17,11 @@ Every production deployment follows the same automated pipeline:
 Add both of these to `.env` in the project root:
 
 ```
-VITE_SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_PROD_URL=https://yiuuzlfhtsxbspdyibam.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=eyJ...
 ```
+
+Note: `VITE_SUPABASE_URL` points to localhost for local dev — the deploy script uses `SUPABASE_PROD_URL` to ensure it always targets production.
 
 The service role key is in **Supabase Dashboard → Settings → API → service_role (secret)**. Never commit this key.
 

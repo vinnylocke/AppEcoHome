@@ -25,7 +25,7 @@ import PlantGuidesTab from "./PlantGuidesTab";
 import YieldTab from "./YieldTab";
 import LightTab from "./LightTab";
 import InstanceStatsTab from "./InstanceStatsTab";
-import { PerenualService } from "../lib/perenualService";
+import { getProviderPlantDetails } from "../lib/plantProvider";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -131,10 +131,15 @@ export default function InstanceEditModal({
 
           if (error) throw error;
 
-          if (plantRecord.source === "api" && plantRecord.perenual_id) {
-            const apiData = await PerenualService.getPlantDetails(
-              plantRecord.perenual_id,
-            );
+          if (
+            (plantRecord.source === "api" && plantRecord.perenual_id) ||
+            (plantRecord.source === "verdantly" && plantRecord.verdantly_id)
+          ) {
+            const apiData = await getProviderPlantDetails({
+              source: plantRecord.source,
+              perenual_id: plantRecord.perenual_id ? Number(plantRecord.perenual_id) : null,
+              verdantly_id: plantRecord.verdantly_id ?? null,
+            });
             setCareGuideData({ ...plantRecord, ...apiData });
           } else {
             setCareGuideData(plantRecord);

@@ -57,7 +57,7 @@ interface Plant {
   id: number;
   common_name: string;
   scientific_name: string[];
-  source: "manual" | "api" | "ai";
+  source: "manual" | "api" | "ai" | "verdantly";
   thumbnail_url?: string;
   is_archived: boolean;
   instance_count?: number;
@@ -156,7 +156,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
 
     // Auto-derive labels for API and AI plants from care data.
     // Manual plants carry their user-supplied labels from the form already.
-    if (skeleton.source === "api" || skeleton.source === "ai") {
+    if (skeleton.source === "api" || skeleton.source === "ai" || skeleton.source === "verdantly") {
       skeleton.labels = derivePlantLabels(fullCareData ?? {});
       if (!skeleton.sunlight && fullCareData?.sunlight?.length) {
         skeleton.sunlight = fullCareData.sunlight;
@@ -987,14 +987,16 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                   />
                   <div className="absolute top-4 left-4">
                     <span className={`bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-black uppercase flex items-center gap-1.5 shadow-sm border border-white/20 ${
-                      plant.source === "api" ? "text-rhozly-primary" :
-                      plant.source === "ai"  ? "text-amber-500" :
-                                               "text-rhozly-on-surface/60"
+                      plant.source === "api"       ? "text-rhozly-primary" :
+                      plant.source === "verdantly" ? "text-emerald-600" :
+                      plant.source === "ai"        ? "text-amber-500" :
+                                                     "text-rhozly-on-surface/60"
                     }`}>
-                      {plant.source === "api"  ? <Database size={10} /> :
-                       plant.source === "ai"   ? <Sparkles size={10} /> :
-                                                 <Edit3 size={10} />}
-                      {plant.source === "api" ? "Perenual" : plant.source === "ai" ? "AI" : "Manual"}
+                      {plant.source === "api"       ? <Database size={10} /> :
+                       plant.source === "verdantly" ? <Database size={10} /> :
+                       plant.source === "ai"        ? <Sparkles size={10} /> :
+                                                      <Edit3 size={10} />}
+                      {plant.source === "api" ? "Perenual" : plant.source === "verdantly" ? "Verdantly" : plant.source === "ai" ? "AI" : "Manual"}
                     </span>
                   </div>
                   <div className="absolute top-4 right-4 flex gap-2">
@@ -1132,9 +1134,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                               </p>
                             ) : (
                               <p className="text-[10px] text-rhozly-on-surface/40 font-black uppercase tracking-widest mt-1">
-                                {item.source === "api"
-                                  ? "Perenual Database"
-                                  : "AI Generated"}
+                                {item.source === "api" ? "Perenual Database" : item.source === "verdantly" ? "Verdantly Database" : "AI Generated"}
                               </p>
                             )}
                           </div>

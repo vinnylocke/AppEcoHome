@@ -5,6 +5,7 @@ import { buildYieldPrompt } from "../_shared/yieldPrompt.ts";
 import { log, warn } from "../_shared/logger.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
+import { enforceRateLimit } from "../_shared/rateLimit.ts";
 
 const FN = "predict-yield";
 
@@ -38,6 +39,11 @@ serve(async (req) => {
 
     const { data: ownerMember } = await db.from("home_members").select("user_id").eq("home_id", home_id).eq("role", "owner").limit(1).maybeSingle();
     const userId = ownerMember?.user_id ?? null;
+
+    if (userId) {
+      const rateLimitErr = await enforceRateLimit(db, userId, FN);
+      if (rateLimitErr) return rateLimitErr;
+    }
 
     // Fetch all context in parallel
     const [

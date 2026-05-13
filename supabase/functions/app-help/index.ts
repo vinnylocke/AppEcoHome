@@ -5,6 +5,7 @@ import { callGeminiCascade } from "../_shared/gemini.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 
 const FN = "app-help";
 
@@ -158,7 +159,7 @@ serve(async (req) => {
 
     const userMessage = `KNOWLEDGE BASE:\n${KNOWLEDGE_BASE}\n\nUSER QUESTION: ${question.trim()}`;
 
-    const { text: rawText } = await callGeminiCascade(
+    const { text: rawText, usage } = await callGeminiCascade(
       geminiApiKey,
       FN,
       [{ role: "user", parts: [{ text: userMessage }] }],
@@ -173,6 +174,7 @@ serve(async (req) => {
 
     log(FN, "answered", { question: normalised, sectionCount: result.sectionIds.length });
     await setCached(supabase, key, FN, result, 30);
+    await logAiUsage(supabase, { userId: authResult.user.id, functionName: FN, action: "app_help", usage });
 
     return new Response(JSON.stringify(result), {
       headers: { ...CORS, "Content-Type": "application/json" },

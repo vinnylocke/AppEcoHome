@@ -5,6 +5,7 @@ import { loadPreferences, formatPreferencesBlock, ENTITY_TYPES } from "../_share
 import { callGeminiCascade } from "../_shared/gemini.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
+import { enforceRateLimit } from "../_shared/rateLimit.ts";
 
 const FN = "generate-swipe-plants";
 
@@ -65,6 +66,10 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_ANON_KEY") ?? "",
       { global: { headers: { Authorization: authHeader } } },
     );
+    const serviceDb = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
 
     const { data: { user } } = await supabase.auth.getUser(
       authHeader.replace("Bearer ", ""),
@@ -73,6 +78,11 @@ serve(async (req) => {
 
     const guardErr = await guardAiByHome(supabase, homeId);
     if (guardErr) return guardErr;
+
+    if (userId) {
+      const rateLimitErr = await enforceRateLimit(serviceDb, userId, FN);
+      if (rateLimitErr) return rateLimitErr;
+    }
 
     log(FN, "request_received", { homeId, userId, count, seenCount: alreadySeenPlantNames.length });
 

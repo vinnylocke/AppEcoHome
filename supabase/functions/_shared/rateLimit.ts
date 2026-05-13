@@ -1,6 +1,19 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log } from "./logger.ts";
 
+async function hashIp(ip: string): Promise<string> {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(ip));
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, "0")).join("");
+}
+
+function extractIp(req: Request): string {
+  return (
+    req.headers.get("cf-connecting-ip") ??
+    req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ??
+    "unknown"
+  );
+}
+
 const CORS = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
@@ -11,14 +24,20 @@ const CORS = {
 // Sprout users are blocked at the AI guard layer before they reach rate limiting,
 // but 0 is listed explicitly as a safety net.
 const TIER_LIMITS: Record<string, Record<string, number>> = {
-  "plant-doctor":            { sprout: 0, botanist: 10, sage: 25, evergreen: 50 },
-  "plant-doctor-ai":         { sprout: 0, botanist: 5,  sage: 20, evergreen: 40 },
-  "generate-landscape-plan": { sprout: 0, botanist: 3,  sage: 8,  evergreen: 15 },
-  "scan-area":               { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
-  "generate-guide":          { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
-  "identify-plant":          { sprout: 0, botanist: 10, sage: 25, evergreen: 50 },
-  "contact-support":         { sprout: 2, botanist: 5,  sage: 10, evergreen: 20 },
-  "app-help":                { sprout: 20, botanist: 30, sage: 40, evergreen: 60 },
+  "plant-doctor":                    { sprout: 0, botanist: 10, sage: 25, evergreen: 50 },
+  "plant-doctor-ai":                 { sprout: 0, botanist: 5,  sage: 20, evergreen: 40 },
+  "generate-landscape-plan":         { sprout: 0, botanist: 3,  sage: 8,  evergreen: 15 },
+  "scan-area":                       { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
+  "generate-guide":                  { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
+  "identify-plant":                  { sprout: 0, botanist: 10, sage: 25, evergreen: 50 },
+  "contact-support":                 { sprout: 2, botanist: 5,  sage: 10, evergreen: 20 },
+  "app-help":                        { sprout: 20, botanist: 30, sage: 40, evergreen: 60 },
+  "generate-ailment-suggestions":    { sprout: 0, botanist: 10, sage: 20, evergreen: 40 },
+  "generate-swipe-plants":           { sprout: 0, botanist: 10, sage: 20, evergreen: 40 },
+  "predict-yield":                   { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
+  "smart-plant-scheduler":           { sprout: 0, botanist: 5,  sage: 15, evergreen: 30 },
+  "search-plants-ai":                { sprout: 0, botanist: 20, sage: 40, evergreen: 80 },
+  "visualiser-analyse":              { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
 };
 const DEFAULT_TIER_LIMITS: Record<string, number> = {
   sprout: 0, botanist: 10, sage: 20, evergreen: 40,
@@ -118,6 +137,58 @@ export async function enforceRateLimit(
       window_start: windowStartIso,
       call_count: 1,
     });
+  }
+
+  return null;
+}
+
+/**
+ * Per-IP, per-function hourly rate limit for unauthenticated endpoints.
+ * The caller's IP is SHA-256-hashed before storage (never stored raw).
+ * Returns a 429 Response when the limit is exceeded, null when allowed.
+ */
+export async function enforceIpRateLimit(
+  db: SupabaseClient,
+  req: Request,
+  fnName: string,
+  maxPerHour: number = 50,
+): Promise<Response | null> {
+  const ip = extractIp(req);
+  const ipHash = await hashIp(ip);
+
+  const windowStart = new Date();
+  windowStart.setMinutes(0, 0, 0);
+  windowStart.setMilliseconds(0);
+  const windowStartIso = windowStart.toISOString();
+
+  const { data: row } = await db
+    .from("ip_rate_limit_log")
+    .select("id, call_count")
+    .eq("ip_hash", ipHash)
+    .eq("function_name", fnName)
+    .eq("window_start", windowStartIso)
+    .maybeSingle();
+
+  const currentCount = row?.call_count ?? 0;
+
+  if (currentCount >= maxPerHour) {
+    const windowEnd = windowStart.getTime() + 3_600_000;
+    const retryAfter = Math.ceil((windowEnd - Date.now()) / 1000);
+    log("_shared/rateLimit", "ip_limit_exceeded", { ipHash: ipHash.slice(0, 8), fnName, currentCount, maxPerHour });
+    return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
+      status: 429,
+      headers: {
+        ...CORS,
+        "Content-Type": "application/json",
+        "Retry-After": String(Math.max(retryAfter, 1)),
+      },
+    });
+  }
+
+  if (row) {
+    await db.from("ip_rate_limit_log").update({ call_count: currentCount + 1 }).eq("id", row.id);
+  } else {
+    await db.from("ip_rate_limit_log").insert({ ip_hash: ipHash, function_name: fnName, window_start: windowStartIso, call_count: 1 });
   }
 
   return null;

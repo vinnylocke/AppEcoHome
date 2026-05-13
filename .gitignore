@@ -31,3 +31,4 @@ supabase/.env
 # Generated test output
 playwright-report/
 test-results/
+.vercel

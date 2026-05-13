@@ -5,7 +5,7 @@ import {
   getOptimalLuxRange,
   type LuxRange,
 } from "../lib/plantLightUtils";
-import { PerenualService } from "../lib/perenualService";
+import { getProviderPlantDetails } from "../lib/plantProvider";
 import PlantLightReader from "./PlantLightReader";
 
 interface LightTabProps {
@@ -37,9 +37,17 @@ export default function LightTab({ plantId, plantName, areaId, homeId, areaName 
 
       let sunlight: string[] = Array.isArray(data?.sunlight) ? data.sunlight : [];
 
-      if (sunlight.length === 0 && data?.source === "api" && data?.perenual_id) {
+      if (
+        sunlight.length === 0 &&
+        ((data?.source === "api" && data?.perenual_id) ||
+          (data?.source === "verdantly" && data?.verdantly_id))
+      ) {
         try {
-          const details = await PerenualService.getPlantDetails(Number(data.perenual_id));
+          const details = await getProviderPlantDetails({
+            source: data.source,
+            perenual_id: data.perenual_id ? Number(data.perenual_id) : null,
+            verdantly_id: data.verdantly_id ?? null,
+          });
           if (!cancelled) sunlight = details.sunlight ?? [];
         } catch { /* non-critical */ }
       }

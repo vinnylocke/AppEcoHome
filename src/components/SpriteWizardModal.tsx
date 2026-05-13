@@ -7,7 +7,6 @@ import {
 import { toast } from "react-hot-toast";
 import { removeBackground } from "@imgly/background-removal";
 import { supabase } from "../lib/supabase";
-import { PerenualService } from "../lib/perenualService";
 import {
   SILHOUETTE_TYPES,
   SILHOUETTE_LABELS,
