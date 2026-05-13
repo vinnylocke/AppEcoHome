@@ -203,6 +203,19 @@ function mapToSearchResult(v: any) {
   };
 }
 
+// Species/filter endpoint returns species-level objects whose field names differ
+// from the variety/search endpoint — handle both naming conventions defensively.
+function mapSpeciesFilterResult(s: any) {
+  return {
+    id:              s.id,
+    common_name:     s.commonName ?? s.name ?? "Unknown",
+    scientific_name: s.scientificName ? [s.scientificName] : (s.species?.scientificName ? [s.species.scientificName] : []),
+    thumbnail_url:   s.imageUrl ?? s.thumbnailUrl ?? null,
+    _provider:       "verdantly" as const,
+    verdantly_id:    s.id,
+  };
+}
+
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 serve(async (req) => {
@@ -225,7 +238,10 @@ serve(async (req) => {
     const rateLimitErr = await enforceRateLimit(db, userId, FN);
     if (rateLimitErr) return rateLimitErr;
 
-    const { action, query, id, page: pageParam } = await req.json();
+    const {
+      action, query, id, page: pageParam,
+      duration, waterRequirement, sunlightRequirement, edible, growingZone,
+    } = await req.json();
 
     // ── SEARCH ───────────────────────────────────────────────────────────────
     if (action === "search") {
@@ -306,6 +322,40 @@ serve(async (req) => {
       log(FN, "details_result", { id });
 
       return new Response(JSON.stringify(mapToPlantDetails(raw)), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── FILTER ───────────────────────────────────────────────────────────────
+    if (action === "filter") {
+      const filterPage = typeof pageParam === "number" && pageParam >= 1 ? pageParam : 1;
+
+      const params = new URLSearchParams({ page: String(filterPage), perPage: "10" });
+      if (query?.trim())                     params.set("q",                  query.trim());
+      if (duration)                          params.set("duration",            String(duration));
+      if (waterRequirement)                  params.set("waterRequirement",    String(waterRequirement));
+      if (sunlightRequirement)               params.set("sunlightRequirement", String(sunlightRequirement));
+      if (edible !== undefined)              params.set("edible",              String(edible));
+      if (growingZone !== undefined)         params.set("growingZone",         String(growingZone));
+
+      log(FN, "filter", { query, duration, waterRequirement, sunlightRequirement, edible, growingZone, filterPage });
+
+      const filterRes = await fetch(`${BASE_URL}/v1/plants/species/filter?${params}`, {
+        headers: verdantlyHeaders(apiKey),
+      });
+      if (!filterRes.ok) {
+        const errBody = await filterRes.text();
+        throw new Error(`Verdantly filter failed (${filterRes.status}): ${errBody.slice(0, 200)}`);
+      }
+
+      const filterData = await filterRes.json();
+      const filterItems: any[] = filterData?.data ?? [];
+      const filterResults = filterItems.map(mapSpeciesFilterResult);
+      const filterTotalPages: number | null = filterData?.meta?.pages ?? null;
+      const filterHasMore = filterTotalPages != null ? filterPage < filterTotalPages : filterResults.length >= 10;
+
+      log(FN, "filter_result", { filterPage, count: filterResults.length, filterHasMore });
+      return new Response(JSON.stringify({ results: filterResults, hasMore: filterHasMore, nextPage: filterPage + 1 }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

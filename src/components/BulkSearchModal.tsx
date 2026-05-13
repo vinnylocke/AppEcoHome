@@ -353,7 +353,7 @@ export default function BulkSearchModal({
       );
       // Verdantly runs in parallel — called directly so we get pagination info.
       searches.push(
-        VerdantlyService.searchPlants(query, 1)
+        VerdantlyService.searchPlants(query, 1, activeFilterCount > 0 ? filters : undefined)
           .then(({ results, hasMore, nextPage }) => {
             if (results.length > 0) {
               setApiResults((prev: any[]) => [...prev, ...results]);
@@ -398,7 +398,7 @@ export default function BulkSearchModal({
   const handleShowMoreVerdantly = async () => {
     setIsLoadingMoreVerdantly(true);
     try {
-      const { results, hasMore, nextPage } = await VerdantlyService.searchPlants(query, verdantlyNextPage);
+      const { results, hasMore, nextPage } = await VerdantlyService.searchPlants(query, verdantlyNextPage, activeFilterCount > 0 ? filters : undefined);
       if (results.length > 0) {
         setApiResults((prev) => [...prev, ...results]);
       }
