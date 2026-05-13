@@ -111,7 +111,7 @@ Be specific to what you can actually see. If the image is unclear in any area, s
         temperature: 0.4,
         maxOutputTokens: 1024,
         responseSchema: RESPONSE_SCHEMA,
-        models: ["gemini-2.5-flash-lite", "gemini-3.1-flash-lite-preview", "gemini-3-flash-preview"],
+        models: ["gemini-2.5-flash-lite", "gemini-3.1-flash-lite", "gemini-3-flash-preview"],
       },
     );
 

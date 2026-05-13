@@ -2,7 +2,7 @@ import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import type { GeminiUsage } from "./gemini.ts";
 
 const COST_PER_TOKEN: Record<string, number> = {
-  "gemini-3.1-flash-lite-preview": 0.00000015,
+  "gemini-3.1-flash-lite": 0.00000015,
   "gemini-2.5-flash-lite": 0.00000015,
   "gemini-3-flash-preview": 0.0000003,
   "gemini-3.1-pro-preview": 0.000003,
