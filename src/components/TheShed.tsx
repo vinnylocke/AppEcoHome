@@ -74,12 +74,6 @@ type QueueItem = {
   errorMsg?: string;
 };
 
-function addDaysToDate(dateStr: string, days: number): string {
-  const d = new Date(dateStr);
-  d.setDate(d.getDate() + days);
-  return d.toISOString().split("T")[0];
-}
-
 // --- Helpers for Master Plant Creation ---
 
 export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = false }: { homeId: string; aiEnabled?: boolean; perenualEnabled?: boolean }) {
@@ -203,6 +197,26 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
 
     if (newSchedules.length > 0)
       await supabase.from("plant_schedules").insert(newSchedules);
+
+    // Auto-create harvest-check schedule for Verdantly edible plants
+    const harvestMeta = (fullCareData as any)?.plant_metadata ?? skeleton.plant_metadata;
+    if (harvestMeta?.harvest_days_min && skeleton.source === "verdantly") {
+      await supabase.from("plant_schedules").insert({
+        plant_id: savedPlant.id,
+        home_id: homeId,
+        title: "Check for harvest",
+        task_type: "Harvest",
+        trigger_event: "Planted",
+        start_reference: "Trigger Date",
+        start_offset_days: harvestMeta.harvest_days_min,
+        end_reference: "Trigger Date",
+        end_offset_days: harvestMeta.harvest_days_max ?? harvestMeta.harvest_days_min,
+        frequency_days: 1,
+        is_recurring: true,
+        is_auto_generated: true,
+      });
+    }
+
     return savedPlant;
   };
 
@@ -786,34 +800,6 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         });
         const { error: taskError } = await supabase.from("tasks").insert(tasksToInsert);
         if (taskError) Logger.warn("Failed to create smart schedule tasks", { taskError });
-      }
-
-      // Auto-create harvest-check blueprint for edible Verdantly plants
-      const meta = selectedPlant?.plant_metadata as any;
-      if (
-        assignmentData.isPlanted &&
-        meta?.harvest_days_min &&
-        selectedPlant?.source === "verdantly"
-      ) {
-        const plantedDateStr = assignmentData.isEstablished
-          ? new Date().toISOString().split("T")[0]
-          : assignmentData.plantedDate;
-        const daysMin: number = meta.harvest_days_min;
-        const daysMax: number = meta.harvest_days_max ?? daysMin;
-        const { error: bpError } = await supabase.from("task_blueprints").insert({
-          home_id: homeId,
-          location_id: areaData.location_id,
-          area_id: assignmentData.areaId,
-          title: `Check for harvest — ${selectedPlant.common_name}`,
-          task_type: "Harvest",
-          description: `Harvest check window for ${selectedPlant.common_name}. Expected ready ${daysMin}–${daysMax} days from planting.`,
-          is_recurring: true,
-          frequency_days: 1,
-          start_date: addDaysToDate(plantedDateStr, daysMin),
-          end_date: addDaysToDate(plantedDateStr, daysMax),
-          priority: "Medium",
-        });
-        if (bpError) Logger.warn("Failed to create harvest blueprint", { bpError });
       }
 
       toast.success(`Successfully assigned ${assignmentData.quantity} plants!`);
