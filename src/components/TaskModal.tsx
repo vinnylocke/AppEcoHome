@@ -17,6 +17,7 @@ import {
   Loader2,
   Trash2,
   CalendarClock,
+  Calendar,
   CheckSquare,
   ChevronDown,
   ChevronUp,
@@ -814,6 +815,27 @@ export default function TaskModal({
             </div>
           ) : (
             <>
+              {/* Due Date row — always visible */}
+              {(() => {
+                const today = new Date().toISOString().split("T")[0];
+                const isOverdue = task.due_date && task.due_date < today && task.status !== "Completed";
+                return (
+                  <div className={`flex items-center gap-3 p-3 rounded-2xl border ${isOverdue ? "bg-red-50 border-red-100" : "bg-rhozly-surface-lowest border-rhozly-outline/10"}`}>
+                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isOverdue ? "bg-red-100 text-red-500" : "bg-rhozly-surface text-rhozly-primary"}`}>
+                      <Calendar size={16} />
+                    </div>
+                    <div>
+                      <p className={`text-[10px] font-black uppercase tracking-widest ${isOverdue ? "text-red-400" : "text-rhozly-on-surface/40"}`}>
+                        {isOverdue ? "Overdue" : task.status === "Completed" ? "Completed on" : "Due Date"}
+                      </p>
+                      <p className={`text-sm font-bold ${isOverdue ? "text-red-600" : "text-rhozly-on-surface"}`}>
+                        {task.due_date ? formatDisplayDate(task.due_date) : "No date set"}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Location row — always visible */}
               <div
                 className={`flex items-center gap-3 p-3 bg-rhozly-surface-lowest rounded-2xl border border-rhozly-outline/10 transition-colors ${task.location_id ? "cursor-pointer hover:bg-rhozly-surface-low" : "opacity-50 cursor-default"}`}
