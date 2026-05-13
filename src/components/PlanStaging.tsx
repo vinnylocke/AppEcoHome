@@ -1048,9 +1048,28 @@ export default function PlanStaging({
               </div>
             ) : (
               <div className="space-y-4">
-                <p className="text-xs font-bold text-gray-500">
-                  Tick any plants you need to source, then add them to your Shed.
-                </p>
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-bold text-gray-500">
+                    Tick any plants you need to source, then add them to your Shed.
+                  </p>
+                  {(() => {
+                    const creatableIdxs = localBlueprint.plant_manifest
+                      .map((_: any, i: number) => i)
+                      .filter((i: number) => plantMapping[i] === "create" || !plantMapping[i]);
+                    if (creatableIdxs.length < 2) return null;
+                    const allSelected = creatableIdxs.every((i: number) => selectedForProcurement.includes(i));
+                    return (
+                      <button
+                        onClick={() =>
+                          setSelectedForProcurement(allSelected ? [] : creatableIdxs)
+                        }
+                        className="shrink-0 text-[10px] font-black uppercase tracking-widest text-rhozly-primary hover:text-rhozly-primary/70 transition-colors"
+                      >
+                        {allSelected ? "Deselect All" : "Select All"}
+                      </button>
+                    );
+                  })()}
+                </div>
 
                 <div className="space-y-3">
                   {localBlueprint.plant_manifest.map((p: any, idx: number) => (
