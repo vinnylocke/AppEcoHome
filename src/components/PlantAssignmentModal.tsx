@@ -43,6 +43,7 @@ const GROWTH_STATES = [
 ];
 
 const PROPAGATION_OPTIONS = [
+  "Starter Plant",
   "Seed",
   "Bulb",
   "Cuttings",
