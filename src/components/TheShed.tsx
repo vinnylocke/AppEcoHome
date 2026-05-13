@@ -33,6 +33,7 @@ import PlantAssignmentModal from "./PlantAssignmentModal";
 import BulkSearchModal from "./BulkSearchModal";
 import PlantSourcePicker from "./PlantSourcePicker";
 import { PerenualService } from "../lib/perenualService";
+import { VerdantlyService } from "../lib/verdantlyService";
 import { useLocation, useSearchParams, useNavigate } from "react-router-dom";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import SmartImage from "./SmartImage";
@@ -66,7 +67,7 @@ interface Plant {
 type QueueItem = {
   id: string;
   name: string;
-  source: "api" | "ai";
+  source: "api" | "ai" | "verdantly";
   status: "pending" | "processing" | "success" | "error";
   data: any;
   errorMsg?: string;
@@ -203,19 +204,19 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     if (!selectedItems.length) return;
 
     const newQueue: QueueItem[] = selectedItems.map((item) => {
-      const isApi = item.type === "api";
+      const isDb = item.type === "api" || item.type === "verdantly";
       const realData = item.data;
       return {
-        id: isApi
+        id: isDb
           ? typeof realData === "string"
             ? realData
             : String(realData.id)
-          : realData,
-        name: isApi
+          : realData,   // AI: realData is already the string match identifier
+        name: isDb
           ? typeof realData === "string"
             ? realData
             : realData.common_name
-          : realData,
+          : realData,   // AI: realData is already the string match identifier
         source: item.type,
         status: "pending",
         data: realData,
@@ -287,6 +288,47 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               thumbnail_url: imageUrl,
               source: "api",
               perenual_id: pId,
+            },
+            details,
+          );
+        } else if (item.source === "verdantly") {
+          const verdantlyId = item.data.verdantly_id ?? String(item.data.id);
+
+          const { data: existing } = await supabase
+            .from("plants")
+            .select("id")
+            .eq("home_id", homeId)
+            .eq("verdantly_id", verdantlyId)
+            .maybeSingle();
+          if (existing) throw new Error("Already in Shed");
+
+          const details = await VerdantlyService.getPlantDetails(verdantlyId);
+
+          let imageUrl = details.image_url || details.thumbnail_url || "";
+          if (imageUrl.includes("upgrade_access")) imageUrl = "";
+          if (imageUrl) {
+            const { data: proxyData, error: proxyError } =
+              await supabase.functions.invoke("image-proxy", {
+                body: { imageUrl, plantName: details.common_name },
+              });
+            if (!proxyError && proxyData?.publicUrl)
+              imageUrl = proxyData.publicUrl.includes("kong:8000")
+                ? proxyData.publicUrl.replace(
+                    "http://kong:8000",
+                    "http://127.0.0.1:54321",
+                  )
+                : proxyData.publicUrl;
+          }
+          if (!imageUrl) imageUrl = await fetchFirstAvailableImage(item.data.common_name);
+
+          await savePlantToDB(
+            {
+              common_name: details.common_name,
+              scientific_name: details.scientific_name,
+              thumbnail_url: imageUrl,
+              source: "verdantly",
+              verdantly_id: verdantlyId,
+              perenual_id: null,
             },
             details,
           );
@@ -417,6 +459,47 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             thumbnail_url: imageUrl,
             source: "api",
             perenual_id: pId,
+          },
+          details,
+        );
+      } else if (item.source === "verdantly") {
+        const verdantlyId = item.data.verdantly_id ?? String(item.data.id);
+
+        const { data: existing } = await supabase
+          .from("plants")
+          .select("id")
+          .eq("home_id", homeId)
+          .eq("verdantly_id", verdantlyId)
+          .maybeSingle();
+        if (existing) throw new Error("Already in Shed");
+
+        const details = await VerdantlyService.getPlantDetails(verdantlyId);
+
+        let imageUrl = details.image_url || details.thumbnail_url || "";
+        if (imageUrl.includes("upgrade_access")) imageUrl = "";
+        if (imageUrl) {
+          const { data: proxyData, error: proxyError } =
+            await supabase.functions.invoke("image-proxy", {
+              body: { imageUrl, plantName: details.common_name },
+            });
+          if (!proxyError && proxyData?.publicUrl)
+            imageUrl = proxyData.publicUrl.includes("kong:8000")
+              ? proxyData.publicUrl.replace(
+                  "http://kong:8000",
+                  "http://127.0.0.1:54321",
+                )
+              : proxyData.publicUrl;
+        }
+        if (!imageUrl) imageUrl = await fetchFirstAvailableImage(item.data.common_name);
+
+        await savePlantToDB(
+          {
+            common_name: details.common_name,
+            scientific_name: details.scientific_name,
+            thumbnail_url: imageUrl,
+            source: "verdantly",
+            verdantly_id: verdantlyId,
+            perenual_id: null,
           },
           details,
         );

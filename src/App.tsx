@@ -676,7 +676,7 @@ function AppShell() {
         onInventoryChange={handleInventoryRealtime}
       />
     <PlantDoctorProvider homeId={profile?.home_id || ""}>
-      <Sentry.ErrorBoundary fallback={({ error }) => <ErrorPage error={error instanceof Error ? error : undefined} />}>
+      <Sentry.ErrorBoundary fallback={({ error }) => <ErrorPage error={error instanceof Error ? error : new Error(String(error))} />}>
           <Toaster />
           <a
             href="#main-content"
