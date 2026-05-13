@@ -46,11 +46,52 @@ function verdantlyHeaders(apiKey: string): Record<string, string> {
   };
 }
 
+function buildDescription(v: any): string | null {
+  const parts: string[] = [];
+  const highlights = Array.isArray(v.highlights)
+    ? v.highlights.join(" ")
+    : (typeof v.highlights === "string" ? v.highlights : null);
+  if (highlights) parts.push(highlights);
+  if (v.description && v.description !== highlights) parts.push(v.description);
+  if (v.commonUses && typeof v.commonUses === "string") parts.push(`Common uses: ${v.commonUses}`);
+  return parts.length > 0 ? parts.join("\n\n") : null;
+}
+
+function buildPlantingInstructions(pi: any): string | null {
+  if (!pi) return null;
+  if (typeof pi === "string") return pi;
+  const parts: string[] = [];
+  if (pi.startIndoors) parts.push(`Start indoors: ${pi.startIndoors}`);
+  if (pi.transplantOutdoors) parts.push(`Transplant outdoors: ${pi.transplantOutdoors}`);
+  if (pi.directSow) parts.push(`Direct sow: ${pi.directSow}`);
+  return parts.length > 0 ? parts.join("\n") : null;
+}
+
+function buildMaintenance(ci: any): string | null {
+  if (!ci) return null;
+  const parts: string[] = [];
+  if (ci.pruningInstructions) parts.push(ci.pruningInstructions);
+  if (ci.harvestingInstructions) parts.push(ci.harvestingInstructions);
+  return parts.length > 0 ? parts.join("\n\n") : null;
+}
+
+function buildAttracts(ecology: any): string[] {
+  const result: string[] = [];
+  if (Array.isArray(ecology?.attracts)) {
+    result.push(...ecology.attracts.filter((a: any) => typeof a === "string"));
+  }
+  if (ecology?.attractsPollinators === true && !result.includes("Pollinators")) {
+    result.push("Pollinators");
+  }
+  return result;
+}
+
 function mapToPlantDetails(v: any) {
   const waterReq = v.growingRequirements?.waterRequirement ?? null;
   const waterDays = waterReq ? (WATERING_DAYS[waterReq] ?? null) : null;
   const sunReq = v.growingRequirements?.sunlightRequirement ?? null;
   const sunlight = sunReq ? (SUNLIGHT_MAP[sunReq] ?? []) : [];
+  const lm = v.lifecycleMilestones ?? {};
 
   return {
     common_name:           v.name ?? "Unknown",
@@ -58,7 +99,7 @@ function mapToPlantDetails(v: any) {
     other_names:           [],
     family:                v.species?.taxonomy?.family ?? null,
     plant_type:            v.category ?? null,
-    cycle:                 null,
+    cycle:                 v.growthDetails?.growthPeriod ?? null,
     image_url:             v.imageUrl ?? null,
     thumbnail_url:         v.imageUrl ?? null,
     watering:              waterDays?.label ?? null,
@@ -72,9 +113,9 @@ function mapToPlantDetails(v: any) {
     is_edible:             v.ecology?.isEdible ?? false,
     is_toxic_pets:         !!(v.safety?.toxicity?.dogs?.level || v.safety?.toxicity?.cats?.level || v.safety?.toxicity?.horses?.level),
     is_toxic_humans:       !!(v.safety?.toxicity?.humans?.level),
-    attracts:              [],
-    description:           Array.isArray(v.highlights) ? v.highlights.join(" ") : (v.highlights ?? v.description ?? null),
-    maintenance:           v.careInstructions?.pruningInstructions ?? null,
+    attracts:              buildAttracts(v.ecology),
+    description:           buildDescription(v),
+    maintenance:           buildMaintenance(v.careInstructions),
     growth_rate:           null,
     growth_habit:          v.growthDetails?.growthType ?? null,
     drought_tolerant:      v.ecology?.droughtTolerant ?? false,
@@ -91,17 +132,17 @@ function mapToPlantDetails(v: any) {
     cuisine:               !!(v.ecology?.isEdible),
     medicinal:             false,
     leaf:                  true,
-    flowering_season:      v.lifecycleMilestones?.bloomDate ?? null,
-    harvest_season:        null,
+    flowering_season:      lm.avgFirstBloomDate ?? lm.bloomDate ?? null,
+    harvest_season:        lm.firstHarvestDate ?? lm.lastHarvestDate ?? null,
     pruning_month:         [],
     propagation:           [],
     verdantly_id:          v.id ?? null,
     perenual_id:           null,
-    days_to_harvest_min:   v.lifecycleMilestones?.daysToHarvestMin ?? null,
-    days_to_harvest_max:   v.lifecycleMilestones?.daysToHarvestMax ?? null,
+    days_to_harvest_min:   lm.daysToHarvestMin ?? lm.daysToHarvest ?? null,
+    days_to_harvest_max:   lm.daysToHarvestMax ?? lm.daysToHarvest ?? null,
     soil_ph_min:           v.ecology?.soilPhMin ?? null,
     soil_ph_max:           v.ecology?.soilPhMax ?? null,
-    planting_instructions: v.careInstructions?.plantingInstructions ?? null,
+    planting_instructions: buildPlantingInstructions(v.careInstructions?.plantingInstructions),
     source:                "verdantly" as const,
   };
 }
@@ -161,10 +202,11 @@ serve(async (req) => {
       const items: any[] = data?.data ?? [];
       const results = items.map(mapToSearchResult);
 
-      // Derive hasMore from whatever pagination shape the API returns
-      const pagination = data?.pagination ?? data?.meta ?? {};
+      // Verdantly returns pagination info under `meta.pages`
+      const meta = data?.meta ?? {};
+      const pag  = data?.pagination ?? {};
       const totalPages: number | null =
-        pagination.totalPages ?? pagination.total_pages ?? pagination.lastPage ?? null;
+        meta.pages ?? pag.totalPages ?? pag.total_pages ?? pag.lastPage ?? null;
       const hasMore = totalPages != null ? page < totalPages : results.length >= 10;
       const nextPage = page + 1;
 
