@@ -27,7 +27,7 @@ function loadEnvFile(filename) {
     for (const line of content.split("\n")) {
       const match = line.match(/^([A-Z_a-z][A-Z_a-z0-9]*)=(.*)$/);
       if (match && !process.env[match[1]]) {
-        process.env[match[1]] = match[2].replace(/^["']|["']$/g, "");
+        process.env[match[1]] = match[2].replace(/^["']|["']$/g, "").trim();
       }
     }
   } catch {
@@ -37,7 +37,8 @@ function loadEnvFile(filename) {
 loadEnvFile(".env");
 loadEnvFile(".env.local"); // .env.local overrides .env
 
-const SUPABASE_URL        = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
+// Use SUPABASE_PROD_URL explicitly — VITE_SUPABASE_URL points to localhost in dev
+const SUPABASE_URL        = process.env.SUPABASE_PROD_URL;
 const SERVICE_ROLE_KEY    = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const MAINTENANCE_MESSAGE = process.argv[2] ?? "We're rolling out an update. Back in just a moment!";
 
@@ -76,9 +77,9 @@ async function setMaintenance(enabled, message = null) {
 async function deploy() {
   if (!SUPABASE_URL || !SERVICE_ROLE_KEY) {
     console.error("\n❌  Missing environment variables.");
-    console.error(
-      "    Add VITE_SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY to .env.local\n",
-    );
+    console.error("    Add these to .env:");
+    console.error("      SUPABASE_PROD_URL=https://yiuuzlfhtsxbspdyibam.supabase.co");
+    console.error("      SUPABASE_SERVICE_ROLE_KEY=eyJ...\n");
     process.exit(1);
   }
 

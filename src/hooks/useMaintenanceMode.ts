@@ -35,17 +35,22 @@ export function useMaintenanceMode(): MaintenanceModeState {
           setIsOn(enabled);
           setMessage(val?.message ?? null);
 
-          // Maintenance just lifted — activate any waiting SW then reload so
-          // users get the freshly deployed code without manual intervention.
+          // Maintenance just lifted — activate any waiting SW then reload.
+          // We reload immediately (not via controllerchange) so React never
+          // re-renders the normal app in the gap, preventing the UpdateBanner
+          // from flashing briefly before the page reloads.
           if (wasOn.current && !enabled) {
-            navigator.serviceWorker?.ready.then((reg) => {
-              if (reg.waiting) {
-                reg.waiting.postMessage({ type: "SKIP_WAITING" });
-                // controllerchange listener in App.tsx handles the reload
-              } else {
-                window.location.reload();
-              }
-            }).catch(() => window.location.reload());
+            wasOn.current = false;
+            if (navigator.serviceWorker) {
+              navigator.serviceWorker.ready
+                .then((reg) => {
+                  if (reg.waiting) reg.waiting.postMessage({ type: "SKIP_WAITING" });
+                })
+                .finally(() => window.location.reload());
+            } else {
+              window.location.reload();
+            }
+            return; // Don't update React state — reload is imminent
           }
 
           wasOn.current = enabled;
