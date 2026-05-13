@@ -199,6 +199,24 @@ export default function PlantSourcePicker({
   const selectedItems = Object.values(selections).filter(Boolean) as Selection[];
   const allLoaded = Object.values(results).every((r) => !r.loading);
 
+  const selectAll = () => {
+    const newSelections: Record<string, Selection | null> = {};
+    plants.forEach((name) => {
+      const r = results[name];
+      if (!r || r.loading) return;
+      const best: Selection | null =
+        r.ai.length > 0
+          ? { type: "ai", data: r.ai[0] }
+          : r.verdantly.length > 0
+            ? { type: "verdantly", data: r.verdantly[0] }
+            : r.api.length > 0
+              ? { type: "api", data: r.api[0] }
+              : null;
+      if (best) newSelections[name] = best;
+    });
+    setSelections((prev) => ({ ...prev, ...newSelections }));
+  };
+
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
       <div className="bg-rhozly-surface-lowest w-full max-w-2xl h-[85vh] flex flex-col rounded-3xl shadow-2xl border border-rhozly-outline/20 overflow-hidden">
@@ -449,7 +467,15 @@ export default function PlantSourcePicker({
         </div>
 
         {/* Footer */}
-        <div className="shrink-0 p-6 border-t border-rhozly-outline/10 bg-white">
+        <div className="shrink-0 p-6 border-t border-rhozly-outline/10 bg-white flex flex-col gap-2">
+          {allLoaded && plants.length > 1 && (
+            <button
+              onClick={selectAll}
+              className="w-full py-2.5 border-2 border-rhozly-primary/30 text-rhozly-primary rounded-2xl font-black text-xs hover:bg-rhozly-primary/5 transition-colors"
+            >
+              Select All (Best Match)
+            </button>
+          )}
           <button
             onClick={() => onConfirm(selectedItems)}
             disabled={selectedItems.length === 0 || !allLoaded}
