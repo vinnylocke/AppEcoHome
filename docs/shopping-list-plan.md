@@ -195,7 +195,7 @@ Renders a single list header card: name, item count, rename/delete controls, Mar
 Renders the expanded item rows: checkbox, thumbnail (plants), category badge (products), strikethrough when checked, delete icon.
 
 ### `src/components/shopping/AddItemSheet.tsx`
-Bottom sheet portal for adding an item. Two tabs: "Plant" and "Product". Contains the full plant search flow (shed → Perenual → preview → shed offer) and the product free-text + category picker.
+Bottom sheet portal for adding an item. Two tabs: "Plant" and "Product". Contains the full plant search flow (shed → unified search via `searchAllProviders` [AI + Verdantly + Perenual in parallel] → preview → shed offer) and the product free-text + category picker. `verdantlyEnabled` is implicit — controlled by `app_config` inside `searchAllProviders`, not a component prop.
 
 ### `src/components/shopping/AddToListSheet.tsx`
 Lightweight Plant Doctor integration sheet. Shows pre-populated suggested items (checkboxes to include/exclude) + active list picker + confirm.
@@ -314,88 +314,73 @@ Product tab: text input + `<select>` from `SHOPPING_CATEGORIES`.
 
 ---
 
-## 5. Plant Search Flow
+## 5. Plant Search Flow ✅ Done
 
-The shed is always searched first. External search (Perenual or AI) is user-triggered, not automatic — and the available fallback methods depend entirely on the user's feature flags (`aiEnabled`, `perenualEnabled`).
+The shed is always searched first. Tapping "Search All Sources" fires Perenual, Verdantly, and AI simultaneously via `Promise.allSettled` inside `searchAllProviders`. Results are split into named sections in the sheet (AI / Verdantly / Perenual). Verdantly is enabled/disabled by an `app_config` row read inside `plantProvider.ts` — no separate prop needed in the component.
 
-### State machine
+### State machine (actual implementation)
 
 ```
-IDLE
+idle
   └─ user types (debounced 400 ms)
        ↓
-SEARCHING (shed only — always)
+searching_shed
   └─ query inventory_items WHERE home_id=X AND plant_name ILIKE '%q%'
        ↓
-SHED_RESULTS
+shed_results
   ├─ "In Your Shed" section
-  │   └─ tap "+ Add" → insert (source='shed', already_in_shed=true) → done
+  │   └─ tap result → preview → add confirm → insert (source='shed', already_in_shed=true) → done
   │
-  └─ below shed results, show fallback row based on flags:
-       ├─ both enabled  → two buttons: [Search Perenual] [Search via AI]
-       ├─ perenual only → one button:  [Search Perenual]
-       ├─ ai only       → one button:  [Search via AI]
-       └─ neither       → small text:  "No additional search methods available"
-            ↓ (user taps a button)
+  └─ "Search All Sources" button (`shopping-fallback-search-all`)
+       ↓ (user taps)
 
-── Perenual path ──────────────────────────────────────────────────────────────
-PERENUAL_SEARCHING
-  └─ perenualService.searchPlants(query)
+all_searching
+  └─ searchAllProviders(query) — runs Perenual + Verdantly + AI in parallel via Promise.allSettled
        ↓
-PERENUAL_RESULTS
-  └─ list of Perenual species (thumbnail + name + scientific name)
-       └─ tap row → PREVIEW
-              ↓
-         perenualService.getPlantDetails(id)
-         Show: thumbnail, name, cycle, watering, sunlight
-         [Add to list] → insert (source='perenual', already_in_shed=false) → SHED_OFFER
-         [Back]
-              ↓
-         SHED_OFFER (inline, not a modal)
-         "Want to add [name] to your Shed too?"
-         [Add to Shed] → insert to inventory_items → close sheet
-         [Skip]        → close sheet
+all_results
+  ├─ AI section (shopping-ai-result-{i}) — name + description + Wikipedia accordion
+  ├─ Verdantly section (shopping-verdantly-result-{i}) — thumbnail + name
+  └─ Perenual section (shopping-perenual-result-{i}) — thumbnail + name
+       └─ tap row → preview state
 
-── AI path ────────────────────────────────────────────────────────────────────
-AI_SEARCHING
-  └─ supabase.functions.invoke("search-plants-ai", { body: { query } })
-       ↓
-AI_RESULTS
-  └─ list of AI-suggested plant names (name + brief description, no thumbnail)
-       └─ tap row → insert (source='ai', already_in_shed=false) → SHED_OFFER
-              ↓ same SHED_OFFER flow as Perenual path
+preview
+  └─ plant detail card: name, thumbnail, care info
+     [Add to list] → insert → shed_offer
+     [Back]
+
+shed_offer
+  └─ "Want to add [name] to your Shed too?"
+     [Add to Shed]  (`shopping-add-to-shed-yes`)  → insert inventory_items → close sheet
+     [Skip]         (`shopping-add-to-shed-skip`) → close sheet
 ```
 
-### `search-plants-ai` Edge Function
+### `search-plants-ai` Edge Function ✅ Done
 
-New file: `supabase/functions/search-plants-ai/index.ts`
+File: `supabase/functions/search-plants-ai/index.ts`
 
 - Called from browser via `supabase.functions.invoke()` (CORS-safe, auth enforced).
 - Guards: calls `guardAiByUser(db, userId)` from `_shared/aiGuard.ts` — returns 403 if `ai_enabled` is false.
 - Prompt to Gemini: given a search query, return up to 8 matching plant names with a one-sentence description each, as a JSON array `[{ name, description }]`.
-- No image — AI plant results show a generic leaf icon in the UI.
+- No image — AI plant results show a generic leaf icon + Wikipedia accordion in the UI.
 - Response shape: `{ plants: Array<{ name: string; description: string }> }`
 
-This function is intentionally lightweight — it does not return watering schedules or full care data. Its only job is name discovery. The shed-offer flow after adding an AI result follows the same pattern as Perenual.
+### `verdantly-search` Edge Function ✅ Done
+
+Second provider behind the "Search All Sources" button. Results are tagged `_provider: "verdantly"` and rendered in their own section above Perenual results. Enabled/disabled via `app_config` row — controlled by `searchAllProviders` in `plantProvider.ts`, not a component prop.
 
 ### UI states summary
 
-| State | Shed section | Fallback section |
-|-------|-------------|-----------------|
-| `idle` | Empty input | — |
-| `searching` | Spinner | — |
-| `shed_results` | Results list | Fallback buttons (flag-dependent) |
-| `perenual_searching` | Results (frozen) | Loading spinner |
-| `perenual_results` | Results | Perenual list below |
-| `ai_searching` | Results (frozen) | Loading spinner |
-| `ai_results` | Results | AI list below |
-| `preview` | Hidden | Plant detail card |
-| `shed_offer` | Hidden | Inline offer prompt |
-| `no_results` | "Nothing in your shed" | Fallback buttons |
+| State | Content |
+|-------|---------|
+| `idle` | Empty input |
+| `searching_shed` | Spinner |
+| `shed_results` | Shed results + "Search All Sources" button |
+| `all_searching` | Shed results frozen + global spinner |
+| `all_results` | AI / Verdantly / Perenual result sections |
+| `preview` | Plant detail card |
+| `shed_offer` | Inline offer prompt |
 
-If shed returns zero results, the fallback buttons are still shown (the shed section shows an empty state message instead). The user can still trigger Perenual or AI search even when the shed is empty.
-
-If an external search fails: inline error below its section; shed results remain interactive.
+If shed returns zero results, the "Search All Sources" button is still shown. If a provider throws during the parallel search, its section is omitted silently (the other sections still render).
 
 ---
 
@@ -464,21 +449,23 @@ Render at bottom of `PlantDoctor.tsx` JSX, only when `showAddToList && addToList
 
 ## 7. Implementation Order
 
-| Step | What | Result |
-|------|------|--------|
-| 1 | DB migration | Tables + RLS in local DB |
-| 2 | Constants + types | `shoppingCategories.ts`, `types/shopping.ts` |
-| 3 | `useShoppingLists` hook + realtime context update | CRUD layer ready |
-| 4 | Page + sub-components (no AddItemSheet) + route + nav | `/shopping` renders; lists CRUD works |
-| 5 | `AddItemSheet` — product tab only | Products can be added |
-| 6 | `AddItemSheet` — plant tab + shed search | Shed plants can be added |
-| 7 | `AddItemSheet` — Perenual fallback (flag-gated) + preview + shed offer | Perenual search works |
-| 8 | `search-plants-ai` Edge Function | AI plant search backend ready |
-| 9 | `AddItemSheet` — AI fallback (flag-gated) | AI plant search works |
-| 10 | Completed lists section | Collapsible completed section |
-| 11 | `AddToListSheet` + Plant Doctor integration | Doctor can add to lists |
-| 12 | E2E seeds + Playwright spec + Page Object | Tests pass |
-| 13 | Vitest unit tests | `deriveShoppingItemsFromDiagnosis` + hook tested |
+| Step | What | Result | Status |
+|------|------|--------|--------|
+| 1 | DB migration | Tables + RLS in local DB | ✅ Done |
+| 2 | Constants + types | `shoppingCategories.ts`, `types/shopping.ts` | ✅ Done |
+| 3 | `useShoppingLists` hook + realtime context update | CRUD layer ready | ✅ Done |
+| 4 | Page + sub-components (no AddItemSheet) + route + nav | `/shopping` renders; lists CRUD works | ✅ Done |
+| 5 | `AddItemSheet` — product tab only | Products can be added | ✅ Done |
+| 6 | `AddItemSheet` — plant tab + shed search | Shed plants can be added | ✅ Done |
+| 7 | `AddItemSheet` — Perenual fallback + preview + shed offer | Perenual search works | ✅ Done |
+| 8 | `search-plants-ai` Edge Function | AI plant search backend ready | ✅ Done |
+| 9 | `AddItemSheet` — AI fallback + unified search (Perenual + Verdantly + AI) | All-sources search works | ✅ Done |
+| 9b | `verdantly-search` Edge Function + `plantProvider.ts` parallel merge | Verdantly integrated as second provider | ✅ Done |
+| 10 | Completed lists section | Collapsible completed section | ✅ Done |
+| 11 | "Add Purchased Plants to Shed" button (`shopping-add-to-shed-btn-{id}`) | Checked plants can be bulk-added to Shed | ✅ Done |
+| 12 | `AddToListSheet` + Plant Doctor integration | Doctor can add to lists | ✅ Done |
+| 13 | E2E seeds + Playwright spec (`shopping.spec.ts`) + Page Object (`ShoppingPage.ts`) | 28 E2E tests pass | ✅ Done |
+| 14 | Vitest unit tests (`verdantlyUtils.test.ts`, `plantProvider.test.ts`) | 22 unit tests pass | ✅ Done |
 
 ---
 
@@ -500,13 +487,15 @@ Render at bottom of `PlantDoctor.tsx` JSX, only when `showAddToList && addToList
 | Plant tab | `shopping-tab-plant` |
 | Product tab | `shopping-tab-product` |
 | Plant search input | `shopping-plant-search-input` |
-| "Search Perenual" fallback button | `shopping-fallback-perenual` |
-| "Search via AI" fallback button | `shopping-fallback-ai` |
-| Plant result row (Perenual) | `shopping-perenual-result-{index}` |
+| "Search All Sources" fallback button | `shopping-fallback-search-all` |
+| Plant result row (shed) | `shopping-plant-result-{index}` |
 | Plant result row (AI) | `shopping-ai-result-{index}` |
+| Plant result row (Verdantly) | `shopping-verdantly-result-{index}` |
+| Plant result row (Perenual) | `shopping-perenual-result-{index}` |
 | Add plant confirm | `shopping-add-plant-confirm` |
 | Add to Shed yes | `shopping-add-to-shed-yes` |
 | Skip shed offer | `shopping-add-to-shed-skip` |
+| Add Purchased Plants to Shed | `shopping-add-to-shed-btn-{list.id}` |
 | Product name input | `shopping-product-name-input` |
 | Product category select | `shopping-product-category-select` |
 | Add product confirm | `shopping-add-product-confirm` |

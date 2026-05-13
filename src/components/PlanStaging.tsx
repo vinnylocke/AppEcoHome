@@ -1060,6 +1060,7 @@ export default function PlanStaging({
                     const allSelected = creatableIdxs.every((i: number) => selectedForProcurement.includes(i));
                     return (
                       <button
+                        data-testid="plan-phase2-select-all"
                         onClick={() =>
                           setSelectedForProcurement(allSelected ? [] : creatableIdxs)
                         }

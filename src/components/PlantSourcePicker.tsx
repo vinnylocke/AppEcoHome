@@ -218,7 +218,7 @@ export default function PlantSourcePicker({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
+    <div data-testid="plant-source-picker-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
       <div className="bg-rhozly-surface-lowest w-full max-w-2xl h-[85vh] flex flex-col rounded-3xl shadow-2xl border border-rhozly-outline/20 overflow-hidden">
 
         {/* Header */}
@@ -470,6 +470,7 @@ export default function PlantSourcePicker({
         <div className="shrink-0 p-6 border-t border-rhozly-outline/10 bg-white flex flex-col gap-2">
           {allLoaded && plants.length > 1 && (
             <button
+              data-testid="plant-source-select-all"
               onClick={selectAll}
               className="w-full py-2.5 border-2 border-rhozly-primary/30 text-rhozly-primary rounded-2xl font-black text-xs hover:bg-rhozly-primary/5 transition-colors"
             >
@@ -477,6 +478,7 @@ export default function PlantSourcePicker({
             </button>
           )}
           <button
+            data-testid="plant-source-picker-confirm"
             onClick={() => onConfirm(selectedItems)}
             disabled={selectedItems.length === 0 || !allLoaded}
             className="w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"

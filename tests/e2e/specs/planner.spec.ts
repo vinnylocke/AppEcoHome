@@ -1,6 +1,16 @@
-import { expect } from "@playwright/test";
+import { expect, type Page } from "@playwright/test";
 import { test } from "../fixtures/auth";
 import { PlannerPage } from "../pages/PlannerPage";
+
+async function mockWikipediaInPlanner(page: Page) {
+  await page.route("**/en.wikipedia.org/api/rest_v1/**", (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ extract: "A useful garden plant.", thumbnail: null }),
+    }),
+  );
+}
 
 // All tests require an authenticated session.
 
@@ -517,6 +527,69 @@ test.describe("Planner — plan actions (Section 09)", () => {
     await expect(
       authenticatedPage.getByText(planName),
     ).not.toBeVisible({ timeout: 8000 });
+  });
+
+  test("PLN-new-1: Phase 2 shows Select All button when plan has ≥2 procurable plants", async ({ authenticatedPage }) => {
+    await mockWikipediaInPlanner(authenticatedPage);
+    const planner = new PlannerPage(authenticatedPage);
+    await planner.goto();
+    await planner.waitForLoad();
+
+    await planner.planCard("Summer Veg Plan").click();
+    await authenticatedPage.waitForTimeout(500);
+
+    // Phase 1 is pre-completed via seed (linked_area_id set), so Phase 2 is unlocked.
+    // The plan has 2 plants (Artichoke + Fennel) that won't auto-match shed plants.
+    await expect(
+      authenticatedPage.getByTestId("plan-phase2-select-all"),
+    ).toBeVisible({ timeout: 10000 });
+  });
+
+  test("PLN-new-2: Clicking Select All checks all procurement checkboxes", async ({ authenticatedPage }) => {
+    await mockWikipediaInPlanner(authenticatedPage);
+    const planner = new PlannerPage(authenticatedPage);
+    await planner.goto();
+    await planner.waitForLoad();
+
+    await planner.planCard("Summer Veg Plan").click();
+    await authenticatedPage.waitForTimeout(500);
+
+    const selectAllBtn = authenticatedPage.getByTestId("plan-phase2-select-all");
+    await expect(selectAllBtn).toBeVisible({ timeout: 10000 });
+    await selectAllBtn.click();
+
+    const checkboxes = authenticatedPage.locator("#phase-2 input[type=\"checkbox\"]");
+    const count = await checkboxes.count();
+    expect(count).toBeGreaterThanOrEqual(2);
+    for (let i = 0; i < count; i++) {
+      await expect(checkboxes.nth(i)).toBeChecked();
+    }
+  });
+
+  test("PLN-new-3: Clicking Select All again shows Deselect All and clears checkboxes", async ({ authenticatedPage }) => {
+    await mockWikipediaInPlanner(authenticatedPage);
+    const planner = new PlannerPage(authenticatedPage);
+    await planner.goto();
+    await planner.waitForLoad();
+
+    await planner.planCard("Summer Veg Plan").click();
+    await authenticatedPage.waitForTimeout(500);
+
+    const selectAllBtn = authenticatedPage.getByTestId("plan-phase2-select-all");
+    await expect(selectAllBtn).toBeVisible({ timeout: 10000 });
+
+    await selectAllBtn.click();
+    await expect(selectAllBtn).toContainText("Deselect All");
+
+    await selectAllBtn.click();
+    await expect(selectAllBtn).toContainText("Select All");
+
+    const checkboxes = authenticatedPage.locator("#phase-2 input[type=\"checkbox\"]");
+    const count = await checkboxes.count();
+    expect(count).toBeGreaterThanOrEqual(2);
+    for (let i = 0; i < count; i++) {
+      await expect(checkboxes.nth(i)).not.toBeChecked();
+    }
   });
 
   test("PLAN-019: Restore an archived plan — it moves to Pending tab", async ({ authenticatedPage }) => {

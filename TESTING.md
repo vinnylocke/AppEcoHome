@@ -83,7 +83,8 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
 │       │   ├── statstab.spec.ts
 │       │   ├── security-auth.spec.ts
 │       │   ├── security-xss.spec.ts
-│       │   └── security-storage.spec.ts
+│       │   ├── security-storage.spec.ts
+│       │   └── shopping.spec.ts
 │       ├── pages/                # Page Object Models
 │       │   ├── AuthPage.ts
 │       │   ├── DashboardPage.ts
@@ -100,7 +101,8 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
 │       │   ├── VisualiserPage.ts
 │       │   ├── YieldPage.ts
 │       │   ├── LightTabPage.ts
-│       │   └── InstanceStatsTabPage.ts
+│       │   ├── InstanceStatsTabPage.ts
+│       │   └── ShoppingPage.ts
 │       └── fixtures/
 │           ├── auth.ts           # authenticatedPage Playwright fixture
 │           └── api-mocks.ts      # mockEdgeFunction() + canned AI responses
@@ -718,7 +720,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 182 tests across 9 files
+### Unit tests — 204 tests across 11 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -732,6 +734,8 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `yieldService.test.ts` | 10 | `validateYieldValue`, `fetchYieldRecords`, `insertYieldRecord`, `deleteYieldRecord`, `updateExpectedHarvestDate` |
 | `plantLightUtils.test.ts` | 16 | `getOptimalLuxRange` — full sun/partial/shade mapping, union of ranges, empty/unknown returns null; `getLightFitness` — all 5 ratings, boundary values, color/bgColor presence |
 | `achievements.test.ts` | 13 | `computeUnlocked` — early_adopter always on, per-threshold unlocks for growing/tasks/AI/planning/health/explorer, progress function bounds, all defs have unique keys |
+| `verdantlyUtils.test.ts` | 12 | `VERDANTLY_WATERING_DAYS` mapping, `VERDANTLY_SUNLIGHT_MAP` mapping, `getProviderLabel` source dispatch |
+| `plantProvider.test.ts` | 10 | `searchAllProviders` merge/fallback, `getProviderPlantDetails` provider dispatch, config-gate |
 
 ### Edge function tests — Deno
 
@@ -751,7 +755,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `rls_isolation.test.ts` | 16 | Cross-tenant RLS — tasks, inventory, locations, plans, blueprints, ailments, weather_alerts, community_guides, home_members, yield_records, user_profiles |
 | `edge_function_auth.test.ts` | 7 | Edge function auth — plant-doctor/contact-support/scan-area/generate-guide/image-proxy reject missing/invalid JWT; scan-area 400 on missing homeId |
 
-### E2E tests — 372 tests across 23 files (+ 13 isolation tests)
+### E2E tests — 400 tests across 24 files (+ 13 isolation tests)
 
 Tests run across up to 4 parallel workers (`fullyParallel: false` — spec files run in parallel, tests within a file run sequentially).
 
@@ -767,7 +771,7 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `schedule.spec.ts` | 26 | Blueprint list, create blueprint, edit, archive, restore, delete, frequency options |
 | `weather.spec.ts` | 11 | Weather card, 7-day forecast, alert banners, Garden Intelligence rule panel |
 | `plant-doctor.spec.ts` | 13 | Page structure, upload dropzone, image upload flow, mocked AI identify/diagnose results |
-| `planner.spec.ts` | 21 | Plan list, create plan, status tabs, plan detail, add stage, task lifecycle |
+| `planner.spec.ts` | 24 | Plan list, create plan, status tabs, plan detail, add stage, task lifecycle; Phase 2 Select All / Deselect All |
 | `area-setup.spec.ts` | 21 | Location management, create location, create area, assign plant, delete flows |
 | `garden-profile.spec.ts` | 16 | Garden Profile heading, quiz/completion state, option toggling, Next/Back, progress bar |
 | `guides.spec.ts` | 25 | Guide list, search/filter by level, open guide detail, breadcrumb navigation; Guides tab in PlantEditModal (GDE-021–025) |
@@ -784,9 +788,10 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `security-auth.spec.ts` | 8 | AUTH-001–008: unauthenticated routes redirect to /auth, sign-out invalidates session, post-logout DB query returns 0 rows |
 | `security-xss.spec.ts` | 7 | XSS-001–007: XSS payloads in task title, guide title, guide comment, guide body, location name, plan name — `window.__xss` stays undefined |
 | `security-storage.spec.ts` | 6 | STG-001–006: cross-home area-scan read blocked, alien community-guides upload blocked, alien file delete, SVG MIME rejected, oversized upload rejected, area-scans bucket is private |
+| `shopping.spec.ts` | 28 | Shopping list CRUD, plant/product search (AI + Verdantly + Perenual), shed offer, add purchased plants to shed |
 
 > **Seed note — timezone resilience:** `03_tasks_blueprints.sql` includes a "Daily Garden Check" blueprint (`freq=1`, `start_date = CURRENT_DATE - 1 day`). This ensures at least one ghost task is always visible on any date regardless of UTC/local timezone offset. Ghost task E2E tests anchor to this blueprint so they don't become flaky near midnight UTC on UTC+N machines.
 >
-> **Seed files:** 12 seed files apply in order: `00_bootstrap`, `01_locations_areas`, `02_plants_shed`, `03_tasks_blueprints`, `04_weather`, `05_planner`, `06_ailments_watchlist`, `07_guides`, `08_profile_preferences`, `09_stats`, `10_lux_readings`, `11_community_guides`. `11_community_guides.sql` seeds 2 published community guides (UUIDs `0000000N-0000-0000-0010-000000000001/2`) with stars and comments, used by community-guides and security E2E tests.
+> **Seed files:** 13 seed files apply in order: `00_bootstrap`, `01_locations_areas`, `02_plants_shed`, `03_tasks_blueprints`, `04_weather`, `05_planner`, `06_ailments_watchlist`, `07_guides`, `08_profile_preferences`, `09_stats`, `10_lux_readings`, `11_community_guides`, `12_shopping_lists`. `11_community_guides.sql` seeds 2 published community guides (UUIDs `0000000N-0000-0000-0010-000000000001/2`) with stars and comments. `12_shopping_lists.sql` seeds 2 shopping lists with 6 items and pre-completes Phase 1 of "Summer Veg Plan" for planner Phase 2 tests.
 
 > **RLS / edge function tests (Deno):** The integration tests in `rls_isolation.test.ts` and `edge_function_auth.test.ts` connect to the local Supabase instance and require both worker accounts to be seeded (`npm run test:seed`). They are skipped automatically if `VITE_SUPABASE_PUBLISHABLE_KEY` is not in the environment. The `npm run test:functions` command now includes `--env=.env.test` to load these vars automatically.

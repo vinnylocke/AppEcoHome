@@ -157,6 +157,7 @@ E2E tests run with up to 4 parallel workers, each backed by its own isolated Sup
 | `06_ailments_watchlist.sql` | 4 ailments (pest, disease, invasive; 1 archived) |
 | `07_guides.sql` | 3 guides (Beginner, Intermediate) |
 | `08_profile_preferences.sql` | Quiz completion + 5 planner preferences |
+| `12_shopping_lists.sql` | 2 shopping lists (1 active, 1 completed) with 6 items; pre-completes Summer Veg Plan Phase 1 |
 
 **Fixed UUID convention** — all seed entities use the same prefixes across files:
 
@@ -176,6 +177,8 @@ E2E tests run with up to 4 parallel workers, each backed by its own isolated Sup
 | Weather snapshot | `00000000-0000-0000-000a-000000000001` |
 | Weather alerts | `00000000-0000-0000-000b-00000000000{n}` |
 | Preferences | `00000000-0000-0000-000c-00000000000{n}` |
+| Shopping lists | `00000000-0000-0000-0011-00000000000{n}` |
+| Shopping list items | `00000000-0000-0000-0012-00000000000{n}` |
 
 **Workflow:**
 ```bash
@@ -240,8 +243,11 @@ E2E tests require env vars — see [TESTING.md § Environment Setup](TESTING.md#
 |---------|----------|-------------|
 | Gemini | Plant identification, diagnosis, care guides, planner AI | Supabase Edge Functions only (never from browser) |
 | Open-Meteo | Weather data | Supabase Edge Function (`fetch-weather`) |
-| Perenual | Plant species database | Edge Function + browser (`perenualService.ts`) |
+| Perenual | Plant species database (primary provider); also handles pest/disease search | Edge Function + browser (`perenualService.ts`) |
+| Verdantly | Plant species database (second provider) | Supabase Edge Function (`verdantly-search`) |
 | Unsplash | Plant images | Browser (`SmartImage.tsx`) |
 | Firebase | Push notifications | Browser (`usePushNotifications.ts`) |
 
 **Never call Gemini or Open-Meteo directly from the browser.** All AI calls go through Supabase Edge Functions.
+
+**`plants.source` values:** `'manual' | 'api' | 'ai' | 'verdantly'` — the `plants_source_check` constraint allows all four.

@@ -98,6 +98,10 @@ PLAN_ACTIVE_ID       = 00000001-0000-0000-0008-000000000001  (Summer Veg Plan �
 PLAN_COMPLETED_ID    = 00000001-0000-0000-0008-000000000002  (Spring Cleanup — Completed)
 PLAN_ARCHIVED_ID     = 00000001-0000-0000-0008-000000000003  (Winter Prep — Archived)
 
+-- Shopping lists
+LIST_ACTIVE_ID       = 00000001-0000-0000-0011-000000000001  (Weekly Garden Shop — active)
+LIST_COMPLETE_ID     = 00000001-0000-0000-0011-000000000002  (Last Week's Shop — completed)
+
 -- Guides (shared across all workers — not worker-specific)
 GUIDE_WATERING_ID    = 00000000-0000-0000-0009-000000000001  (Watering Basics — Beginner)
 GUIDE_PRUNING_ID     = 00000000-0000-0000-0009-000000000002  (Pruning Techniques — Intermediate)
@@ -108,7 +112,7 @@ GUIDE_COMPOSTING_ID  = 00000000-0000-0000-0009-000000000003  (Composting 101 —
 
 ## Seed Script Reference
 
-Seeds are run via the npm script which applies all 9 seed files across all 4 worker accounts:
+Seeds are run via the npm script which applies all 10 seed files across all 4 worker accounts:
 
 ```bash
 # Recommended: seed all 4 workers then run all E2E tests
@@ -136,6 +140,7 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | `06_ailments_watchlist.sql` | 4 ailments |
 | `07_guides.sql` | 3 guides |
 | `08_profile_preferences.sql` | Quiz completion + 5 preferences |
+| `12_shopping_lists.sql` | 2 shopping lists (1 active, 1 completed) with 6 items; pre-completes Summer Veg Plan Phase 1 |
 
 > **Lost or corrupted seed data?** Run `npm run test:seed` to restore state. Each seed file is independent.
 
@@ -307,7 +312,7 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | SHED-017 | Manual plant — happy path | ✅ | Switch to manual tab, enter name "E2E Test Plant", save → new card in grid | Plants | — | ✅ Passing |
 | SHED-018 | Manual plant — empty name | ❌ | Submit manual form with blank name → validation error, form stays open | Plants | — | ✅ Passing |
 | SHED-019 | Manual plant — duplicate name | ❌ | Enter an already-existing plant name → duplicate warning or error shown | Plants | — | ✅ Passing |
-| SHED-020 | API search — shows results | ✅ | Type plant name in Perenual search → results list populates | Plants | Perenual API mock | ✅ Passing |
+| SHED-020 | API search — shows results | ✅ | Type plant name → results from Perenual and/or Verdantly appear (mocked) | Plants | Perenual / Verdantly API mock | ✅ Passing |
 | SHED-021 | API search — no results | ❌ | Search for nonsense term → no results shown (empty list) | Plants | Perenual API mock | ✅ Passing |
 | SHED-022a | AI tab — search result appears | ✅ | Switch to AI tab, type plant name → mocked AI matches listed | Plants | `plant-doctor` mock | ✅ Passing |
 
@@ -890,6 +895,7 @@ All Page Objects are implemented. Current files in `tests/e2e/pages/`:
 | `VisualiserPage.ts` | `/visualiser` |
 | `YieldPage.ts` | `/dashboard` (instance modal yield tab) |
 | `LightTabPage.ts` | `/dashboard` (instance modal light tab) + `/shed` (plant modal light tab) |
+| `ShoppingPage.ts` | `/shopping` |
 
 ---
 
@@ -983,3 +989,76 @@ All Page Objects are implemented. Current files in `tests/e2e/pages/`:
 | ID | ✅/❌ | Description | Assertions | Status |
 |----|------|-------------|------------|--------|
 | CGU-017 | ❌ | Draft guide not visible in public community list | Save draft → back → draft title absent from list | ⬜ Pending |
+
+---
+
+## Section 21 — Shopping Lists (/shopping)
+
+**Spec file:** `tests/e2e/specs/shopping.spec.ts`
+**Page Object:** `tests/e2e/pages/ShoppingPage.ts`
+**Seed dependency:** `12_shopping_lists.sql`
+
+**Mocks required:**
+- `**/en.wikipedia.org/api/rest_v1/**` → `{ extract: "A useful plant.", thumbnail: null }`
+- `**/functions/v1/search-plants-ai` → canned AI results array
+- `**/functions/v1/verdantly-search` → `{ results: [{ id: "v1", common_name: "Tomato", ... }] }`
+
+### Stage 1 — Page structure (SHP-001 – SHP-005)
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| SHP-001 | ✅ | Page loads with heading | "Shopping Lists" heading visible | 🔲 Planned |
+| SHP-002 | ✅ | Seeded active list appears | "Weekly Garden Shop" card visible | 🔲 Planned |
+| SHP-003 | ✅ | Completed section collapsed by default | `shopping-completed-section-toggle` visible; completed card hidden | 🔲 Planned |
+| SHP-004 | ✅ | Expanding completed section shows completed list | click toggle → "Last Week's Shop" card visible | 🔲 Planned |
+| SHP-005 | ✅ | New List button creates a list | click `shopping-new-list-btn` → new card in grid, toast | 🔲 Planned |
+
+### Stage 2 — Card interactions (SHP-006 – SHP-011)
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| SHP-006 | ✅ | Expanding a card shows its items | click expand toggle → item rows visible | 🔲 Planned |
+| SHP-007 | ✅ | Checking an item updates progress badge | check unchecked item → x/y count increments | 🔲 Planned |
+| SHP-008 | ✅ | Rename list via kebab menu | open menu → Rename → type → blur → name updated | 🔲 Planned |
+| SHP-009 | ✅ | Mark Complete moves list to completed section | click `shopping-mark-complete-{id}` → toast; card in completed section | 🔲 Planned |
+| SHP-010 | ✅ | Reopen completed list returns it to active | `shopping-reopen-{id}` → card back in active | 🔲 Planned |
+| SHP-011 | ❌ | Delete requires double-tap confirmation | first click → "Tap again to delete"; second → card gone | 🔲 Planned |
+
+### Stage 3 — Add Item (plant/shed search) (SHP-012 – SHP-017)
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| SHP-012 | ✅ | Add Item button opens sheet | `shopping-add-item-btn-{id}` → `shopping-add-item-sheet` visible | 🔲 Planned |
+| SHP-013 | ✅ | Plant tab is default | `shopping-tab-plant` active styling | 🔲 Planned |
+| SHP-014 | ✅ | Typing name shows shed search results | type "Tomato" → shed results section appears | 🔲 Planned |
+| SHP-015 | ✅ | Selecting shed result shows preview | click `shopping-plant-result-0` → `shopping-add-plant-confirm` visible | 🔲 Planned |
+| SHP-016 | ✅ | Confirming shed result adds item to list | confirm → item with plant name visible in list | 🔲 Planned |
+| SHP-017 | ✅ | "Search All Sources" button appears after shed results | `shopping-fallback-search-all` visible | 🔲 Planned |
+
+### Stage 4 — Unified search (AI + Verdantly + Perenual) (SHP-018 – SHP-023)
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| SHP-018 | ✅ | Search All Sources shows AI / Verdantly / Perenual result sections | click → result section headings visible | 🔲 Planned |
+| SHP-019 | ✅ | Info button on AI result expands Wikipedia accordion | click ℹ on `shopping-ai-result-0` → accordion text visible | 🔲 Planned |
+| SHP-020 | ✅ | Clicking Perenual result opens preview | click `shopping-perenual-result-0` → `shopping-add-plant-confirm` visible | 🔲 Planned |
+| SHP-021 | ✅ | Confirming Perenual result adds item to list | confirm → item in list | 🔲 Planned |
+| SHP-022 | ✅ | Shed offer appears after adding plant | `shopping-add-to-shed-skip` + `shopping-add-to-shed-yes` visible | 🔲 Planned |
+| SHP-023 | ✅ | Skipping shed offer closes sheet | click skip → sheet not visible | 🔲 Planned |
+
+### Stage 5 — Product tab (SHP-024 – SHP-025)
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| SHP-024 | ✅ | Product tab adds a product item | product tab → fill name + select category → confirm → product row visible | 🔲 Planned |
+| SHP-025 | ❌ | Product — category required | confirm without category → validation visible, item not added | 🔲 Planned |
+
+### Stage 6 — Add Purchased Plants to Shed (SHP-026 – SHP-028)
+
+Seed state: "Weekly Garden Shop" has "Tomato Seedlings" (checked, `source=null`) eligible for shed, and "Mint" (checked, `source='shed'`) excluded.
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| SHP-026 | ✅ | Button visible for eligible checked plant items | `shopping-add-to-shed-btn-{id}` visible in expanded active list | 🔲 Planned |
+| SHP-027 | ❌ | Shed-sourced plant excluded from button count | button shows "Add 1 Purchased Plant" not "Add 2" (Mint excluded) | 🔲 Planned |
+| SHP-028 | ✅ | Clicking Add to Shed adds inventory and hides button | click → success toast → `shopping-add-to-shed-btn` not visible | 🔲 Planned |

@@ -36,22 +36,22 @@ VALUES
       },
       "plant_manifest": [
         {
-          "common_name": "Tomato",
-          "scientific_name": "Solanum lycopersicum",
-          "quantity": 3,
+          "common_name": "Artichoke",
+          "scientific_name": "Cynara cardunculus",
+          "quantity": 2,
           "role": "Main crop",
-          "aesthetic_reason": "Vibrant red fruits add visual interest.",
-          "horticultural_reason": "Thrives in full sun with warm temperatures.",
-          "procurement_advice": "Buy established seedlings from a nursery."
+          "aesthetic_reason": "Architectural foliage and edible flower heads.",
+          "horticultural_reason": "Thrives in full sun with rich, well-drained soil.",
+          "procurement_advice": "Buy established crowns or pot-grown plants from a nursery."
         },
         {
-          "common_name": "Basil",
-          "scientific_name": "Ocimum basilicum",
-          "quantity": 4,
+          "common_name": "Fennel",
+          "scientific_name": "Foeniculum vulgare",
+          "quantity": 3,
           "role": "Companion plant",
-          "aesthetic_reason": "Fragrant foliage and small white flowers.",
-          "horticultural_reason": "Deters pests and improves tomato flavour.",
-          "procurement_advice": "Grow from seed or buy plug plants."
+          "aesthetic_reason": "Feathery foliage adds height and texture.",
+          "horticultural_reason": "Attracts beneficial insects and deters aphids.",
+          "procurement_advice": "Grow from seed direct sown or buy plug plants."
         }
       ],
       "preparation_tasks": [
