@@ -64,10 +64,13 @@ export default function PlantGuidesTab({
           .from("guides")
           .select("*")
           .order("created_at", { ascending: false }),
+        // Fetch all non-draft community guides and filter client-side.
+        // Server-side .overlaps() breaks when matchTerms contain spaces because
+        // PostgREST formats unquoted array literals: ov.{my plant,bulb} parses
+        // "my plant" as two tokens, causing a 400.
         supabase
           .from("community_guides")
           .select("*, user_profiles!author_id(display_name), community_guide_stars!left(user_id)")
-          .overlaps("labels", matchTerms.map((t) => t.toLowerCase()))
           .eq("is_draft", false),
       ]);
 
@@ -77,11 +80,17 @@ export default function PlantGuidesTab({
         ),
       );
 
-      // Community guides visible only if user is author or has starred
-      const communityMatched = (communityRaw ?? []).filter((g: any) =>
-        g.author_id === userId ||
-        (g.community_guide_stars ?? []).some((s: any) => s.user_id === userId)
-      ).map((g: any) => ({ ...g, _isCommunity: true }));
+      // Community guides: label must overlap with this plant, AND visible only
+      // if user is author or has starred.
+      const communityMatched = (communityRaw ?? []).filter((g: any) => {
+        const labelsMatch = (g.labels as string[] ?? []).some((l: string) =>
+          lowerTerms.has(l.toLowerCase()),
+        );
+        const isVisible =
+          g.author_id === userId ||
+          (g.community_guide_stars ?? []).some((s: any) => s.user_id === userId);
+        return labelsMatch && isVisible;
+      }).map((g: any) => ({ ...g, _isCommunity: true }));
 
       if (!cancelled) {
         setGuides([...rhozlyMatched, ...communityMatched]);

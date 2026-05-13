@@ -32,13 +32,11 @@ export function useMaintenanceMode(): MaintenanceModeState {
         (payload) => {
           const val = (payload.new as any)?.value;
           const enabled = val?.enabled ?? false;
-          setIsOn(enabled);
-          setMessage(val?.message ?? null);
 
           // Maintenance just lifted — activate any waiting SW then reload.
-          // We reload immediately (not via controllerchange) so React never
-          // re-renders the normal app in the gap, preventing the UpdateBanner
-          // from flashing briefly before the page reloads.
+          // State is intentionally NOT updated before this return: updating
+          // setIsOn(false) would cause React to briefly render the normal app
+          // (mounting UpdateBanner) between the Realtime event and the reload.
           if (wasOn.current && !enabled) {
             wasOn.current = false;
             if (navigator.serviceWorker) {
@@ -50,10 +48,12 @@ export function useMaintenanceMode(): MaintenanceModeState {
             } else {
               window.location.reload();
             }
-            return; // Don't update React state — reload is imminent
+            return;
           }
 
           wasOn.current = enabled;
+          setIsOn(enabled);
+          setMessage(val?.message ?? null);
         },
       )
       .subscribe();

@@ -666,6 +666,22 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     if (!plant) return;
     setActionLoading(true);
     try {
+      // Fetch inventory item IDs so we can clean up task_blueprints.
+      // inventory_item_ids is a uuid[] with no FK constraint, so it won't
+      // cascade when inventory_items are deleted.
+      const { data: items } = await supabase
+        .from("inventory_items")
+        .select("id")
+        .eq("plant_id", plant.id);
+      const inventoryIds = (items ?? []).map((i: any) => i.id);
+      if (inventoryIds.length > 0) {
+        await supabase
+          .from("task_blueprints")
+          .delete()
+          .eq("home_id", homeId)
+          .overlaps("inventory_item_ids", inventoryIds);
+      }
+
       const { error } = await supabase
         .from("plants")
         .delete()
