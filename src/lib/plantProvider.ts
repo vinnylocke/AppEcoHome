@@ -49,7 +49,9 @@ export async function searchAllProviders(
 
   if (active.includes("verdantly")) {
     calls.push(
-      VerdantlyService.searchPlants(query).catch(() => [] as ProviderSearchResult[]),
+      VerdantlyService.searchPlants(query)
+        .then(({ results }) => results)
+        .catch(() => [] as ProviderSearchResult[]),
     );
   }
 

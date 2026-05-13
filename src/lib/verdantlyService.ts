@@ -24,9 +24,16 @@ async function callEdgeFunction(body: Record<string, unknown>): Promise<any> {
 }
 
 export const VerdantlyService = {
-  searchPlants: async (query: string): Promise<ProviderSearchResult[]> => {
-    const data = await callEdgeFunction({ action: "search", query });
-    return (data.results ?? []) as ProviderSearchResult[];
+  searchPlants: async (
+    query: string,
+    page = 1,
+  ): Promise<{ results: ProviderSearchResult[]; hasMore: boolean; nextPage: number }> => {
+    const data = await callEdgeFunction({ action: "search", query, page });
+    return {
+      results:  (data.results ?? []) as ProviderSearchResult[],
+      hasMore:  data.hasMore  ?? false,
+      nextPage: data.nextPage ?? page + 1,
+    };
   },
 
   getPlantDetails: async (verdantlyId: string): Promise<PlantDetails> => {

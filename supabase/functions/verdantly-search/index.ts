@@ -139,15 +139,16 @@ serve(async (req) => {
     const rateLimitErr = await enforceRateLimit(db, userId, FN);
     if (rateLimitErr) return rateLimitErr;
 
-    const { action, query, id } = await req.json();
+    const { action, query, id, page: pageParam } = await req.json();
 
     // ── SEARCH ───────────────────────────────────────────────────────────────
     if (action === "search") {
       if (!query?.trim()) throw new Error("query is required");
-      log(FN, "search", { query });
+      const page = typeof pageParam === "number" && pageParam >= 1 ? pageParam : 1;
+      log(FN, "search", { query, page });
 
       const res = await fetch(
-        `${BASE_URL}/v1/plants/varieties/search?page=1&q=${encodeURIComponent(query)}&sortOrder=asc`,
+        `${BASE_URL}/v1/plants/varieties/search?page=${page}&q=${encodeURIComponent(query)}&sortOrder=asc`,
         { headers: verdantlyHeaders(apiKey) },
       );
 
@@ -160,8 +161,15 @@ serve(async (req) => {
       const items: any[] = data?.data ?? [];
       const results = items.map(mapToSearchResult);
 
-      log(FN, "search_result", { query, count: results.length });
-      return new Response(JSON.stringify({ results }), {
+      // Derive hasMore from whatever pagination shape the API returns
+      const pagination = data?.pagination ?? data?.meta ?? {};
+      const totalPages: number | null =
+        pagination.totalPages ?? pagination.total_pages ?? pagination.lastPage ?? null;
+      const hasMore = totalPages != null ? page < totalPages : results.length >= 10;
+      const nextPage = page + 1;
+
+      log(FN, "search_result", { query, page, count: results.length, hasMore });
+      return new Response(JSON.stringify({ results, hasMore, nextPage }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

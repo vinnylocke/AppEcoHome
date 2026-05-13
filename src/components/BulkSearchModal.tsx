@@ -19,6 +19,7 @@ import {
 import { IconPlantDB, IconAI } from "../constants/icons";
 import { PerenualService } from "../lib/perenualService";
 import { searchAllProviders } from "../lib/plantProvider";
+import { VerdantlyService } from "../lib/verdantlyService";
 import { getProviderLabel } from "../lib/verdantlyUtils";
 import toast from "react-hot-toast";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -111,6 +112,9 @@ export default function BulkSearchModal({
   const [apiResults, setApiResults] = useState<any[]>([]);
   const [aiResults, setAiResults] = useState<string[]>([]);
   const [canShowMoreAi, setCanShowMoreAi] = useState(false);
+  const [canShowMoreVerdantly, setCanShowMoreVerdantly] = useState(false);
+  const [isLoadingMoreVerdantly, setIsLoadingMoreVerdantly] = useState(false);
+  const [verdantlyNextPage, setVerdantlyNextPage] = useState(2);
 
   const [filters, setFilters] = useState<PlantSearchFilters>({});
   const [showFilters, setShowFilters] = useState(false);
@@ -306,6 +310,8 @@ export default function BulkSearchModal({
     setAiResults([]);
     setApiResults([]);
     setCanShowMoreAi(false);
+    setCanShowMoreVerdantly(false);
+    setVerdantlyNextPage(2);
     setHasSearched(false);
 
     const searches: Promise<void>[] = [];
@@ -345,15 +351,15 @@ export default function BulkSearchModal({
             }
           }),
       );
-      // Verdantly runs in parallel, only when enabled in app_config — avoids
-      // 404 noise on local dev where the function isn't served.
-      // Uses `only: ["verdantly"]` so Perenual isn't called a second time.
+      // Verdantly runs in parallel — called directly so we get pagination info.
       searches.push(
-        searchAllProviders(query, undefined, ["verdantly"])
-          .then((verdantlyItems) => {
-            if (verdantlyItems.length > 0) {
-              setApiResults((prev: any[]) => [...prev, ...verdantlyItems]);
+        VerdantlyService.searchPlants(query, 1)
+          .then(({ results, hasMore, nextPage }) => {
+            if (results.length > 0) {
+              setApiResults((prev: any[]) => [...prev, ...results]);
             }
+            setCanShowMoreVerdantly(hasMore);
+            setVerdantlyNextPage(nextPage);
           })
           .catch(() => {}),
       );
@@ -387,6 +393,21 @@ export default function BulkSearchModal({
       toast.error("Could not load more AI suggestions.");
     }
     setIsLoadingMore(false);
+  };
+
+  const handleShowMoreVerdantly = async () => {
+    setIsLoadingMoreVerdantly(true);
+    try {
+      const { results, hasMore, nextPage } = await VerdantlyService.searchPlants(query, verdantlyNextPage);
+      if (results.length > 0) {
+        setApiResults((prev) => [...prev, ...results]);
+      }
+      setCanShowMoreVerdantly(hasMore);
+      setVerdantlyNextPage(nextPage);
+    } catch {
+      toast.error("Could not load more Verdantly results.");
+    }
+    setIsLoadingMoreVerdantly(false);
   };
 
   const handleExpandResult = (
@@ -1052,7 +1073,7 @@ export default function BulkSearchModal({
                   )}
 
                   {/* Database results (Perenual + Verdantly) */}
-                  {apiResults.length > 0 && (
+                  {(apiResults.length > 0 || canShowMoreVerdantly) && (
                     <>
                       {isAiEnabled && (
                         <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-primary/70 px-1 pt-1">
@@ -1116,6 +1137,25 @@ export default function BulkSearchModal({
                           </div>
                         );
                       })}
+
+                      {/* Show more Verdantly results */}
+                      {hasSearched && !isLoadingMoreVerdantly && canShowMoreVerdantly && (
+                        <button
+                          data-testid="bulk-search-show-more-verdantly"
+                          onClick={handleShowMoreVerdantly}
+                          className="w-full py-3 border-2 border-dashed border-emerald-300 text-emerald-700 rounded-2xl font-black text-xs hover:bg-emerald-50 transition-colors flex items-center justify-center gap-2"
+                        >
+                          <RefreshCw size={14} /> Show more Verdantly results
+                        </button>
+                      )}
+                      {hasSearched && isLoadingMoreVerdantly && (
+                        <button
+                          disabled
+                          className="w-full py-3 border-2 border-dashed border-emerald-300 text-emerald-700 rounded-2xl font-black text-xs flex items-center justify-center gap-2 opacity-60"
+                        >
+                          <Loader2 size={14} className="animate-spin" /> Loading more Verdantly results…
+                        </button>
+                      )}
                     </>
                   )}
 
