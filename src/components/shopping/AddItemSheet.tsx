@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
-import { X, Search, Loader2, ArrowLeft } from "lucide-react";
+import { X, Search, Loader2, ArrowLeft, Info, ChevronUp } from "lucide-react";
 import { IconPlant, IconAI, IconPlantDB } from "../../constants/icons";
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
@@ -23,6 +23,7 @@ type PlantSearchState =
 interface ShedPlant { id: string; plant_name: string; nickname: string | null; }
 type DbResult = ProviderSearchResult;
 interface AiResult { name: string; description: string; }
+interface WikiEntry { loading: boolean; desc?: string; image?: string; }
 
 interface Props {
   homeId: string;
@@ -48,6 +49,12 @@ export default function AddItemSheet({
   const [addingToShed, setAddingToShed] = useState(false);
   const [submitting, setSubmitting] = useState(false);
 
+  // Info accordion
+  const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
+  const [wikiCache, setWikiCache] = useState<Record<string, WikiEntry>>({});
+  const wikiFetchedRef = useRef<Set<string>>(new Set());
+
+  // Product state
   const [productName, setProductName] = useState("");
   const [productCategory, setProductCategory] = useState<string>("");
   const [productSubmitting, setProductSubmitting] = useState(false);
@@ -83,16 +90,18 @@ export default function AddItemSheet({
     setExternalAiResults([]);
     setExternalDbResults([]);
     setPreview(null);
+    setExpandedItemId(null);
     if (debounceRef.current) clearTimeout(debounceRef.current);
     debounceRef.current = setTimeout(() => searchShed(val), 400);
   };
 
-  // Single unified search across AI + Verdantly + Perenual
+  // Unified search across all enabled sources
   const handleSearchAll = async () => {
     if (!plantQuery.trim()) return;
     setPlantState("all_searching");
     setExternalAiResults([]);
     setExternalDbResults([]);
+    setExpandedItemId(null);
     try {
       const [aiRes, dbRes] = await Promise.allSettled([
         aiEnabled
@@ -109,6 +118,57 @@ export default function AddItemSheet({
       toast.error("Search failed — please try again");
       setPlantState("shed_results");
     }
+  };
+
+  // Wikipedia info fetch
+  const fetchWikiInfo = async (key: string, name: string) => {
+    if (wikiFetchedRef.current.has(key)) return;
+    wikiFetchedRef.current.add(key);
+    setWikiCache(prev => ({ ...prev, [key]: { loading: true } }));
+    try {
+      const cleanName = name.split("(")[0].trim();
+      const res = await fetch(
+        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanName)}`
+      );
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      if (data.type === "disambiguation" || !data.extract) throw new Error();
+      setWikiCache(prev => ({
+        ...prev,
+        [key]: { loading: false, desc: data.extract, image: data.thumbnail?.source ?? data.originalimage?.source },
+      }));
+    } catch {
+      setWikiCache(prev => ({ ...prev, [key]: { loading: false, desc: "No description available." } }));
+    }
+  };
+
+  const toggleItemExpand = (key: string, name: string) => {
+    setExpandedItemId(prev => prev === key ? null : key);
+    fetchWikiInfo(key, name);
+  };
+
+  const renderWikiAccordion = (key: string) => {
+    const entry = wikiCache[key];
+    if (!entry) return null;
+    return (
+      <div className="px-3 pb-2 animate-in slide-in-from-top-1">
+        {entry.loading ? (
+          <div className="flex items-center gap-2 py-2 text-rhozly-on-surface/30">
+            <Loader2 size={12} className="animate-spin" />
+            <span className="text-[10px] font-bold">Loading…</span>
+          </div>
+        ) : (
+          <div className="flex gap-2.5 items-start bg-rhozly-bg rounded-xl p-2.5">
+            {entry.image && (
+              <img src={entry.image} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
+            )}
+            <p className="text-[10px] font-semibold text-rhozly-on-surface/70 leading-relaxed">
+              {entry.desc}
+            </p>
+          </div>
+        )}
+      </div>
+    );
   };
 
   const handleOpenDbPreview = async (result: DbResult) => {
@@ -393,7 +453,6 @@ export default function AddItemSheet({
                           </ul>
                         </>
                       )}
-
                       {shedResults.length === 0 && plantState !== "idle" && !showingExternalResults && !isExternalSearching && (
                         <p className="text-xs font-bold text-rhozly-on-surface/30 text-center py-2">
                           Nothing in your shed matches "{plantQuery}"
@@ -447,33 +506,45 @@ export default function AddItemSheet({
                       {externalAiResults.length > 0 && (
                         <div>
                           <p className="text-[9px] font-black uppercase tracking-widest text-amber-500/80 mb-1.5">AI Suggestions</p>
-                          <ul className="space-y-1">
-                            {externalAiResults.map((r, i) => (
-                              <li
-                                key={i}
-                                data-testid={`shopping-ai-result-${i}`}
-                                className="flex items-center gap-2.5 px-3 py-2 rounded-2xl hover:bg-amber-50 transition-colors"
-                              >
-                                <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
-                                  <IconAI size={14} className="text-amber-500" />
+                          <div className="space-y-0.5">
+                            {externalAiResults.map((r, i) => {
+                              const key = `ai-${i}`;
+                              const isExpanded = expandedItemId === key;
+                              return (
+                                <div key={i} data-testid={`shopping-ai-result-${i}`} className="rounded-2xl border border-transparent hover:border-amber-100 overflow-hidden transition-colors">
+                                  <div className="flex items-center gap-2.5 px-3 py-2">
+                                    <div className="w-9 h-9 rounded-xl bg-amber-100 flex items-center justify-center shrink-0">
+                                      <IconAI size={14} className="text-amber-500" />
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-black text-rhozly-on-surface truncate">{r.name}</p>
+                                      {r.description && (
+                                        <p className="text-[9px] text-rhozly-on-surface/40 truncate">{r.description}</p>
+                                      )}
+                                      <span className="text-[8px] font-black uppercase tracking-widest text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">AI</span>
+                                    </div>
+                                    <div className="flex items-center gap-1 shrink-0">
+                                      <button
+                                        onClick={() => toggleItemExpand(key, r.name)}
+                                        className="p-1.5 rounded-lg text-amber-400 hover:bg-amber-50 hover:text-amber-600 transition-colors"
+                                        aria-label="Show info"
+                                      >
+                                        {isExpanded ? <ChevronUp size={13} /> : <Info size={13} />}
+                                      </button>
+                                      <button
+                                        onClick={() => handleAddAiPlant(r)}
+                                        disabled={submitting}
+                                        className="text-[10px] font-black text-amber-600 bg-amber-100 px-2.5 py-1 rounded-xl hover:bg-amber-200 transition-colors"
+                                      >
+                                        + Add
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {isExpanded && renderWikiAccordion(key)}
                                 </div>
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs font-black text-rhozly-on-surface truncate">{r.name}</p>
-                                  {r.description && (
-                                    <p className="text-[9px] text-rhozly-on-surface/40 truncate">{r.description}</p>
-                                  )}
-                                  <span className="text-[8px] font-black uppercase tracking-widest text-amber-600 bg-amber-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">AI</span>
-                                </div>
-                                <button
-                                  onClick={() => handleAddAiPlant(r)}
-                                  disabled={submitting}
-                                  className="text-[10px] font-black text-amber-600 bg-amber-100 px-2.5 py-1 rounded-xl hover:bg-amber-200 transition-colors shrink-0"
-                                >
-                                  + Add
-                                </button>
-                              </li>
-                            ))}
-                          </ul>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
 
@@ -481,31 +552,40 @@ export default function AddItemSheet({
                       {verdantlyDbResults.length > 0 && (
                         <div>
                           <p className="text-[9px] font-black uppercase tracking-widest text-emerald-600/80 mb-1.5">Verdantly Database</p>
-                          <ul className="space-y-1">
-                            {verdantlyDbResults.slice(0, 8).map((r, i) => (
-                              <li
-                                key={r.id}
-                                data-testid={`shopping-verdantly-result-${i}`}
-                                onClick={() => handleOpenDbPreview(r)}
-                                className="flex items-center gap-2.5 px-3 py-2 rounded-2xl hover:bg-emerald-50 cursor-pointer transition-colors"
-                              >
-                                {r.thumbnail_url ? (
-                                  <img src={r.thumbnail_url} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
-                                ) : (
-                                  <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
-                                    <IconPlantDB size={14} className="text-emerald-500" />
+                          <div className="space-y-0.5">
+                            {verdantlyDbResults.slice(0, 8).map((r, i) => {
+                              const key = `verdantly-${r.id}`;
+                              const isExpanded = expandedItemId === key;
+                              return (
+                                <div key={r.id} data-testid={`shopping-verdantly-result-${i}`} className="rounded-2xl border border-transparent hover:border-emerald-100 overflow-hidden transition-colors">
+                                  <div className="flex items-center gap-2.5 px-3 py-2 cursor-pointer" onClick={() => handleOpenDbPreview(r)}>
+                                    {r.thumbnail_url ? (
+                                      <img src={r.thumbnail_url} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                                    ) : (
+                                      <div className="w-9 h-9 rounded-xl bg-emerald-100 flex items-center justify-center shrink-0">
+                                        <IconPlantDB size={14} className="text-emerald-500" />
+                                      </div>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-black text-rhozly-on-surface truncate">{r.common_name}</p>
+                                      {r.scientific_name?.[0] && (
+                                        <p className="text-[9px] text-rhozly-on-surface/40 italic truncate">{r.scientific_name[0]}</p>
+                                      )}
+                                      <span className="text-[8px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">Verdantly</span>
+                                    </div>
+                                    <button
+                                      onClick={e => { e.stopPropagation(); toggleItemExpand(key, r.common_name); }}
+                                      className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors shrink-0"
+                                      aria-label="Show info"
+                                    >
+                                      {isExpanded ? <ChevronUp size={13} /> : <Info size={13} />}
+                                    </button>
                                   </div>
-                                )}
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs font-black text-rhozly-on-surface truncate">{r.common_name}</p>
-                                  {r.scientific_name?.[0] && (
-                                    <p className="text-[9px] text-rhozly-on-surface/40 italic truncate">{r.scientific_name[0]}</p>
-                                  )}
-                                  <span className="text-[8px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">Verdantly</span>
+                                  {isExpanded && renderWikiAccordion(key)}
                                 </div>
-                              </li>
-                            ))}
-                          </ul>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
 
@@ -513,31 +593,40 @@ export default function AddItemSheet({
                       {perenualDbResults.length > 0 && (
                         <div>
                           <p className="text-[9px] font-black uppercase tracking-widest text-rhozly-primary/80 mb-1.5">Perenual Database</p>
-                          <ul className="space-y-1">
-                            {perenualDbResults.slice(0, 8).map((r, i) => (
-                              <li
-                                key={r.id}
-                                data-testid={`shopping-perenual-result-${i}`}
-                                onClick={() => handleOpenDbPreview(r)}
-                                className="flex items-center gap-2.5 px-3 py-2 rounded-2xl hover:bg-rhozly-surface cursor-pointer transition-colors"
-                              >
-                                {r.thumbnail_url ? (
-                                  <img src={r.thumbnail_url} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
-                                ) : (
-                                  <div className="w-9 h-9 rounded-xl bg-rhozly-primary/10 flex items-center justify-center shrink-0">
-                                    <IconPlantDB size={14} className="text-rhozly-primary/50" />
+                          <div className="space-y-0.5">
+                            {perenualDbResults.slice(0, 8).map((r, i) => {
+                              const key = `perenual-${r.id}`;
+                              const isExpanded = expandedItemId === key;
+                              return (
+                                <div key={r.id} data-testid={`shopping-perenual-result-${i}`} className="rounded-2xl border border-transparent hover:border-rhozly-outline/20 overflow-hidden transition-colors">
+                                  <div className="flex items-center gap-2.5 px-3 py-2 cursor-pointer" onClick={() => handleOpenDbPreview(r)}>
+                                    {r.thumbnail_url ? (
+                                      <img src={r.thumbnail_url} alt="" className="w-9 h-9 rounded-xl object-cover shrink-0" />
+                                    ) : (
+                                      <div className="w-9 h-9 rounded-xl bg-rhozly-primary/10 flex items-center justify-center shrink-0">
+                                        <IconPlantDB size={14} className="text-rhozly-primary/50" />
+                                      </div>
+                                    )}
+                                    <div className="min-w-0 flex-1">
+                                      <p className="text-xs font-black text-rhozly-on-surface truncate">{r.common_name}</p>
+                                      {r.scientific_name?.[0] && (
+                                        <p className="text-[9px] text-rhozly-on-surface/40 italic truncate">{r.scientific_name[0]}</p>
+                                      )}
+                                      <span className="text-[8px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary/10 px-1.5 py-0.5 rounded-full inline-block mt-0.5">Perenual</span>
+                                    </div>
+                                    <button
+                                      onClick={e => { e.stopPropagation(); toggleItemExpand(key, r.common_name); }}
+                                      className="p-1.5 rounded-lg text-rhozly-primary/40 hover:bg-rhozly-primary/10 hover:text-rhozly-primary transition-colors shrink-0"
+                                      aria-label="Show info"
+                                    >
+                                      {isExpanded ? <ChevronUp size={13} /> : <Info size={13} />}
+                                    </button>
                                   </div>
-                                )}
-                                <div className="min-w-0 flex-1">
-                                  <p className="text-xs font-black text-rhozly-on-surface truncate">{r.common_name}</p>
-                                  {r.scientific_name?.[0] && (
-                                    <p className="text-[9px] text-rhozly-on-surface/40 italic truncate">{r.scientific_name[0]}</p>
-                                  )}
-                                  <span className="text-[8px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary/10 px-1.5 py-0.5 rounded-full inline-block mt-0.5">Perenual</span>
+                                  {isExpanded && renderWikiAccordion(key)}
                                 </div>
-                              </li>
-                            ))}
-                          </ul>
+                              );
+                            })}
+                          </div>
                         </div>
                       )}
                     </div>

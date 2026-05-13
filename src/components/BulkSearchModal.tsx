@@ -44,7 +44,7 @@ interface Props {
   onClose: () => void;
   onProceedToBulkAdd: (selectedPlants: any[]) => void;
   initialSearchTerm?: string;
-  initialCartItems?: { type: "api" | "ai"; data: any }[];
+  initialCartItems?: { type: "api" | "ai" | "verdantly"; data: any }[];
   onManualSave?: (plantData: any) => void;
 }
 

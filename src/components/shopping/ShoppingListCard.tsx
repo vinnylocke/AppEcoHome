@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { ChevronDown, ChevronRight, MoreHorizontal, Check, RotateCcw, Pencil, Trash2, Plus } from "lucide-react";
+import { ChevronDown, ChevronRight, MoreHorizontal, Check, RotateCcw, Pencil, Trash2, Plus, Sprout } from "lucide-react";
 import type { ShoppingList, ShoppingListItem } from "../../types/shopping";
 import ShoppingListItems from "./ShoppingListItems";
 import { usePermissions } from "../../context/HomePermissionsContext";
@@ -16,18 +16,20 @@ interface Props {
   onAddItem: () => void;
   onToggleItem: (id: string, checked: boolean) => void;
   onDeleteItem: (id: string) => void;
+  onAddCheckedToShed?: (items: ShoppingListItem[]) => Promise<void>;
 }
 
 export default function ShoppingListCard({
   list, items, isExpanded, onToggleExpand,
   onRename, onDelete, onMarkComplete, onReopen,
-  onAddItem, onToggleItem, onDeleteItem,
+  onAddItem, onToggleItem, onDeleteItem, onAddCheckedToShed,
 }: Props) {
   const { can } = usePermissions();
   const [showMenu, setShowMenu] = useState(false);
   const [isRenaming, setIsRenaming] = useState(false);
   const [renameValue, setRenameValue] = useState(list.name);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [addingToShed, setAddingToShed] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const renameRef = useRef<HTMLInputElement>(null);
   const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -185,6 +187,29 @@ export default function ShoppingListCard({
             onToggle={onToggleItem}
             onDelete={onDeleteItem}
           />
+
+          {(() => {
+            const purchasedPlants = (items ?? []).filter(
+              i => i.is_checked && i.item_type === "plant" && !i.already_in_shed && i.source !== "shed",
+            );
+            if (purchasedPlants.length === 0 || !onAddCheckedToShed || !can("shopping.edit_items")) return null;
+            return (
+              <button
+                data-testid={`shopping-add-to-shed-btn-${list.id}`}
+                disabled={addingToShed}
+                onClick={async () => {
+                  setAddingToShed(true);
+                  try { await onAddCheckedToShed(purchasedPlants); } finally { setAddingToShed(false); }
+                }}
+                className="mt-3 w-full flex items-center justify-center gap-1.5 py-2.5 rounded-2xl bg-green-50 border border-green-200 text-xs font-black text-green-700 hover:bg-green-100 transition-colors disabled:opacity-60"
+              >
+                <Sprout size={13} />
+                {addingToShed
+                  ? "Adding…"
+                  : `Add ${purchasedPlants.length} Purchased Plant${purchasedPlants.length !== 1 ? "s" : ""} to Shed`}
+              </button>
+            );
+          })()}
 
           {!isCompleted && can("shopping.add_items") && (
             <button

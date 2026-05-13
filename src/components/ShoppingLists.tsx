@@ -6,6 +6,8 @@ import { usePermissions } from "../context/HomePermissionsContext";
 import { useShoppingLists } from "../hooks/useShoppingLists";
 import ShoppingListCard from "./shopping/ShoppingListCard";
 import AddItemSheet from "./shopping/AddItemSheet";
+import { supabase } from "../lib/supabase";
+import type { ShoppingListItem } from "../types/shopping";
 
 interface Props {
   homeId: string;
@@ -67,6 +69,22 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
 
   const handleOpenAddItem = (listId: string) => {
     setAddItemListId(listId);
+  };
+
+  const handleAddCheckedToShed = async (listId: string, checkedPlants: ShoppingListItem[]) => {
+    try {
+      await Promise.all(
+        checkedPlants.map(p =>
+          supabase.from("inventory_items").insert({ home_id: homeId, plant_name: p.name, status: "In Shed" }),
+        ),
+      );
+      const ids = checkedPlants.map(p => p.id);
+      await supabase.from("shopping_list_items").update({ already_in_shed: true }).in("id", ids);
+      await fetchItems(listId);
+      toast.success(`${checkedPlants.length} plant${checkedPlants.length !== 1 ? "s" : ""} added to Shed`);
+    } catch {
+      toast.error("Could not add plants to shed");
+    }
   };
 
   return (
@@ -152,6 +170,7 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
                 onAddItem={() => handleOpenAddItem(list.id)}
                 onToggleItem={toggleItem}
                 onDeleteItem={deleteItem}
+                onAddCheckedToShed={plants => handleAddCheckedToShed(list.id, plants)}
               />
             ))}
           </div>

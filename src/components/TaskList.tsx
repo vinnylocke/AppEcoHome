@@ -854,17 +854,17 @@ export default function TaskList({
     <>
       {tasks.length > 0 && (
         <div className="flex flex-col gap-3 mb-4 animate-in fade-in">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/5">
+          <div className="flex flex-wrap sm:flex-row sm:items-center justify-between gap-2">
+            <div className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/5 min-w-0">
               <button
                 onClick={() => setViewTab("pending")}
-                className={`flex-1 px-3 sm:px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === "pending" ? "bg-white text-rhozly-primary shadow-sm border border-rhozly-primary/10" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+                className={`flex-1 px-3 sm:px-4 py-2 rounded-xl text-sm font-black transition-all ${viewTab === "pending" ? "bg-white text-rhozly-primary shadow-sm border border-rhozly-primary/10" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
               >
                 Pending ({pendingCount})
               </button>
               <button
                 onClick={() => setViewTab("completed")}
-                className={`flex-1 px-3 sm:px-6 py-2 rounded-xl text-sm font-black transition-all ${viewTab === "completed" ? "bg-white text-green-600 shadow-sm border border-green-100" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+                className={`flex-1 px-3 sm:px-4 py-2 rounded-xl text-sm font-black transition-all ${viewTab === "completed" ? "bg-white text-green-600 shadow-sm border border-green-100" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
               >
                 Completed ({completedCount})
               </button>
@@ -872,7 +872,7 @@ export default function TaskList({
             {viewTab === "pending" && pendingCount > 0 && !isBulkEditing && (
               <button
                 onClick={() => setIsBulkEditing(true)}
-                className="flex items-center justify-center gap-1.5 px-4 py-3 sm:py-2 bg-rhozly-surface-low rounded-xl text-xs font-black uppercase tracking-widest text-rhozly-on-surface/60 hover:text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors"
+                className="shrink-0 flex items-center justify-center gap-1.5 px-4 py-2 bg-rhozly-surface-low rounded-xl text-xs font-black uppercase tracking-widest text-rhozly-on-surface/60 hover:text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors"
               >
                 <ListChecks size={16} /> Bulk Edit
               </button>
@@ -1027,7 +1027,7 @@ export default function TaskList({
                       {thumbnail && (
                         <img
                           src={thumbnail}
-                          className={`w-9 h-9 rounded-xl object-cover border border-rhozly-outline/10 sm:hidden shrink-0 ${isCompleted ? "grayscale opacity-50" : ""}`}
+                          className={`w-9 h-9 rounded-xl object-cover border border-rhozly-outline/10 md:hidden shrink-0 ${isCompleted ? "grayscale opacity-50" : ""}`}
                           alt="plant"
                         />
                       )}
@@ -1064,9 +1064,9 @@ export default function TaskList({
                       </div>
                     )}
 
-                    {/* Mobile action buttons — below chips, hidden on desktop */}
+                    {/* Mobile action buttons — below chips, hidden on wide desktop */}
                     {!isBulkEditing && !isCompleted && (
-                      <div className="flex items-center gap-0.5 mt-2 sm:hidden" onClick={(e) => e.stopPropagation()}>
+                      <div className="flex items-center gap-0.5 mt-2 md:hidden" onClick={(e) => e.stopPropagation()}>
                         {(task.created_by === currentUserId ? can("tasks.delete_own") : can("tasks.delete_any")) && (
                           <button
                             onClick={(e) => { e.stopPropagation(); setTaskToDelete(task); }}
@@ -1087,8 +1087,8 @@ export default function TaskList({
                     )}
                   </div>
 
-                  {/* Desktop: icon action buttons + thumbnail */}
-                  <div className="hidden sm:flex items-center gap-2 shrink-0 ml-2">
+                  {/* Desktop: icon action buttons + thumbnail (768px+) */}
+                  <div className="hidden md:flex items-center gap-2 shrink-0 ml-2">
                     {!isBulkEditing && !isCompleted && (
                       <div className="flex items-center gap-1 bg-gray-50 border border-gray-100 rounded-xl p-0.5">
                         {(task.created_by === currentUserId ? can("tasks.delete_own") : can("tasks.delete_any")) && (
