@@ -138,8 +138,9 @@ serve(async (req) => {
 
     const authResult = await requireAuth(req, supabase);
     if (authResult instanceof Response) return authResult;
+    const userId = authResult.user.id;
 
-    const rateLimitErr = await enforceRateLimit(supabase, authResult.user.id, FN, 5);
+    const rateLimitErr = await enforceRateLimit(supabase, userId, FN, 5);
     if (rateLimitErr) return rateLimitErr;
 
     const guardErr = await guardAiByHome(supabase, homeId);
@@ -240,7 +241,7 @@ Return valid JSON matching the schema exactly.`;
 
     const analysis = JSON.parse(raw);
     log(FN, "analysis_complete", { homeId, areaId, plantCount: analysis.plants?.length ?? 0 });
-    await logAiUsage(supabase, { homeId, functionName: FN, action: "scan_area", usage });
+    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "scan_area", usage });
 
     return new Response(JSON.stringify(analysis), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

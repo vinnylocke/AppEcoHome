@@ -36,6 +36,9 @@ serve(async (req) => {
     const guardErr = await guardAiByHome(db, home_id);
     if (guardErr) return guardErr;
 
+    const { data: ownerMember } = await db.from("home_members").select("user_id").eq("home_id", home_id).eq("role", "owner").limit(1).maybeSingle();
+    const userId = ownerMember?.user_id ?? null;
+
     // Fetch all context in parallel
     const [
       { data: item },
@@ -128,7 +131,7 @@ serve(async (req) => {
       result = JSON.parse(match[0]);
     }
 
-    await logAiUsage(db, { homeId: home_id, functionName: FN, action: "yield_prediction", usage });
+    await logAiUsage(db, { homeId: home_id, userId, functionName: FN, action: "yield_prediction", usage });
     log(FN, "prediction_complete", { instance_id, confidence: result.confidence });
 
     return new Response(JSON.stringify(result), {

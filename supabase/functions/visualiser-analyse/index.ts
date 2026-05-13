@@ -62,9 +62,12 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
+    let userId: string | null = null;
     if (homeId) {
       const guardErr = await guardAiByHome(db, homeId);
       if (guardErr) return guardErr;
+      const { data: ownerMember } = await db.from("home_members").select("user_id").eq("home_id", homeId).eq("role", "owner").limit(1).maybeSingle();
+      userId = ownerMember?.user_id ?? null;
     }
 
     const plantList = plants
@@ -109,7 +112,7 @@ Be specific to what you can actually see. If the image is unclear in any area, s
 
     const result = JSON.parse(raw);
     if (homeId) {
-      await logAiUsage(db, { homeId, functionName: FN, action: "visualiser_analyse", usage });
+      await logAiUsage(db, { homeId, userId, functionName: FN, action: "visualiser_analyse", usage });
     }
 
     return new Response(JSON.stringify(result), {

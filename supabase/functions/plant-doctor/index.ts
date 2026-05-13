@@ -454,7 +454,7 @@ Each match must be a real plant species. Format each as "Common Name (Scientific
         { responseSchema: SEARCH_PLANTS_SCHEMA, logContext: { action } },
       );
       const parsed = JSON.parse(text);
-      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "search_plants_text", usage });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "search_plants_text", usage });
       log(FN, "result", { action, matchesCount: parsed.matches?.length ?? 0, query: plantSearch ?? null });
       return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -495,7 +495,7 @@ Return all fields accurately. For pruning_month, use the abbreviated month names
       }
 
       await setCached(supabase, careKey, FN, parsedData, 30);
-      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "generate_care_guide", usage });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "generate_care_guide", usage });
       log(FN, "result", {
         action, plant: cleanName, fromCache: false,
         plantType: parsedData.plantData?.plant_type,
@@ -552,7 +552,7 @@ Use specific common names (e.g. "French Marigold" not "Marigold").`;
         { responseSchema: RECOMMEND_PLANTS_SCHEMA, logContext: { action } },
       );
       const parsedData = JSON.parse(rawText);
-      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "recommend_plants", usage });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "recommend_plants", usage });
       log(FN, "result", {
         action, homeId: homeId ?? null, area: areaData?.name,
         environment: isOutside ? "outside" : "inside",
@@ -589,7 +589,7 @@ Also return a brief observation in notes.`;
         { responseSchema: IDENTIFY_VISION_SCHEMA, logContext: { action } },
       );
       const parsed = JSON.parse(rawText);
-      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "identify_vision", usage });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_vision", usage });
       log(FN, "result", { action, possibleNames: (parsed.possible_names ?? []).map((n: any) => `${n.name} (${n.confidence}%)`) });
       return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -726,7 +726,7 @@ Set possible_names to null always.`;
         { responseSchema: DIAGNOSE_SCHEMA, logContext: { action } },
       );
       const parsed = JSON.parse(rawText);
-      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "diagnose", usage });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "diagnose", usage });
       log(FN, "result", {
         action,
         severity: parsed.severity ?? null,
@@ -750,7 +750,7 @@ ${locationLine ? `Gardener location: ${locationLine}. Tailor treatment options t
         apiKey, FN, toMessages([promptText]),
         { responseSchema: DISEASE_INFO_SCHEMA, logContext: { action } },
       );
-      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "get_ai_disease_info", usage });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "get_ai_disease_info", usage });
       log(FN, "result", { action, diseaseName, hasNotes: !!notes });
       return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -780,7 +780,7 @@ CRITICAL RULES:
         { responseSchema: REMEDIAL_PLAN_SCHEMA, logContext: { action } },
       );
       const parsed = JSON.parse(rawText);
-      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "generate_remedial_plan", usage });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "generate_remedial_plan", usage });
       log(FN, "result", {
         action, targetPlant,
         tasksCount: parsed.remedial_schedules?.length ?? 0,
@@ -816,7 +816,7 @@ Determine whether it is a garden pest or a beneficial insect.
         { responseSchema: IDENTIFY_PEST_SCHEMA, logContext: { action } },
       );
       const parsed = JSON.parse(rawText);
-      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "identify_pest", usage });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_pest", usage });
       log(FN, "result", { action, possiblePests: (parsed.possible_pests ?? []).map((p: any) => `${p.name} (${p.confidence}%)`), isPest: parsed.is_pest });
       return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -835,7 +835,7 @@ ${locationLine ? `Gardener location: ${locationLine}. Tailor treatment and preve
         apiKey, FN, toMessages([promptText]),
         { responseSchema: PEST_INFO_SCHEMA, logContext: { action } },
       );
-      await logAiUsage(supabase, { homeId: homeId ?? null, functionName: FN, action: "get_ai_pest_info", usage });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "get_ai_pest_info", usage });
       log(FN, "result", { action, pestName });
       return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
