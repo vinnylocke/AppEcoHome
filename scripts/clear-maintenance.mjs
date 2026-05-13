@@ -8,9 +8,9 @@
 import { readFileSync } from "fs";
 import { resolve } from "path";
 
-function loadEnvLocal() {
+function loadEnvFile(filename) {
   try {
-    const content = readFileSync(resolve(process.cwd(), ".env.local"), "utf8");
+    const content = readFileSync(resolve(process.cwd(), filename), "utf8");
     for (const line of content.split("\n")) {
       const match = line.match(/^([A-Z_a-z][A-Z_a-z0-9]*)=(.*)$/);
       if (match && !process.env[match[1]]) {
@@ -19,7 +19,8 @@ function loadEnvLocal() {
     }
   } catch {}
 }
-loadEnvLocal();
+loadEnvFile(".env");
+loadEnvFile(".env.local");
 
 const SUPABASE_URL     = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;

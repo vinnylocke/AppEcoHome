@@ -5,7 +5,7 @@
  *   node scripts/deploy.mjs
  *   node scripts/deploy.mjs "Deploying new plant features, back in ~2 mins!"
  *
- * Requires in .env.local:
+ * Requires in .env or .env.local:
  *   VITE_SUPABASE_URL=https://your-project.supabase.co
  *   SUPABASE_SERVICE_ROLE_KEY=eyJ...
  *
@@ -19,11 +19,11 @@ import { readFileSync } from "fs";
 import { resolve } from "path";
 
 // ---------------------------------------------------------------------------
-// Load .env.local into process.env
+// Load .env and .env.local into process.env (later file wins)
 // ---------------------------------------------------------------------------
-function loadEnvLocal() {
+function loadEnvFile(filename) {
   try {
-    const content = readFileSync(resolve(process.cwd(), ".env.local"), "utf8");
+    const content = readFileSync(resolve(process.cwd(), filename), "utf8");
     for (const line of content.split("\n")) {
       const match = line.match(/^([A-Z_a-z][A-Z_a-z0-9]*)=(.*)$/);
       if (match && !process.env[match[1]]) {
@@ -31,10 +31,11 @@ function loadEnvLocal() {
       }
     }
   } catch {
-    // .env.local is optional — env vars may already be in the shell
+    // file is optional
   }
 }
-loadEnvLocal();
+loadEnvFile(".env");
+loadEnvFile(".env.local"); // .env.local overrides .env
 
 const SUPABASE_URL        = process.env.VITE_SUPABASE_URL || process.env.SUPABASE_URL;
 const SERVICE_ROLE_KEY    = process.env.SUPABASE_SERVICE_ROLE_KEY;

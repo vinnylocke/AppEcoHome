@@ -26,8 +26,25 @@ The app is called **Rhozly** — use this name in all user-facing text and commi
 | [docs/routing-migration-plan.md](docs/routing-migration-plan.md) | Plan to migrate from state-based tabs to full React Router |
 | [docs/deep-linking-plan.md](docs/deep-linking-plan.md) | Plan for native deep-link handling via Capacitor |
 | [docs/shopping-list-plan.md](docs/shopping-list-plan.md) | Build plan for the Shopping List feature — multi-list CRUD, plant/product search, Plant Doctor integration |
+| [docs/deployment.md](docs/deployment.md) | **Deployment process** — maintenance mode, Vercel pipeline, rollback procedure |
 
 **Always read the relevant plan document at the start of a session** before making changes to a feature area.
+
+---
+
+## Deploying to Production
+
+**Always follow the process in [docs/deployment.md](docs/deployment.md) when asked to deploy.**
+
+The short version — from the project root:
+
+```bash
+npm run deploy
+```
+
+This sets maintenance mode ON, pushes DB migrations, deploys to Vercel, then turns maintenance OFF automatically. Never deploy by pushing to GitHub alone — the migration + maintenance steps must run first.
+
+If a deploy fails mid-way, run `npm run maintenance:off` to bring the app back online before investigating.
 
 ---
 
