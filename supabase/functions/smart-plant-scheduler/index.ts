@@ -87,8 +87,9 @@ serve(async (req) => {
 
     const meteoRes = await fetch(
       `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(address)}&count=1&format=json`,
+      { signal: AbortSignal.timeout(10_000) },
     );
-    const meteoData = await meteoRes.json();
+    const meteoData = meteoRes.ok ? await meteoRes.json() : {};
 
     if (meteoData.results && meteoData.results.length > 0) {
       lat = meteoData.results[0].latitude;
@@ -99,8 +100,9 @@ serve(async (req) => {
       const cleanPostcode = address.replace(/\s+/g, "");
       const pcRes = await fetch(
         `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`,
+        { signal: AbortSignal.timeout(8_000) },
       );
-      if (pcRes.status === 200) {
+      if (pcRes.ok) {
         const pcData = await pcRes.json();
         lat = pcData.result.latitude;
         lng = pcData.result.longitude;
@@ -139,8 +141,8 @@ serve(async (req) => {
       `&timezone=auto&forecast_days=14`;
 
     const [forecastRes, archiveRes, existingPrefs] = await Promise.all([
-      fetch(forecastUrl),
-      fetch(archiveUrl),
+      fetch(forecastUrl, { signal: AbortSignal.timeout(15_000) }),
+      fetch(archiveUrl, { signal: AbortSignal.timeout(20_000) }),
       homeId
         ? loadPreferences(supabase, userId ? { userId } : { homeId })
         : Promise.resolve([]),
@@ -153,6 +155,7 @@ serve(async (req) => {
     });
 
     // 14-day forecast — used for precise date selection when planting is imminent
+    if (!forecastRes.ok) throw new Error(`Open-Meteo forecast error: ${forecastRes.status}`);
     const forecastData = await forecastRes.json();
     const dailyForecasts = forecastData.daily.time.map(
       (date: string, i: number) => ({

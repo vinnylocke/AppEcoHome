@@ -72,8 +72,9 @@ Deno.serve(async (req) => {
           // --- GEOCODER 1: OPEN-METEO (Great for Cities) ---
           const meteoRes = await fetch(
             `https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent(locationQuery)}&count=1`,
+            { signal: AbortSignal.timeout(10_000) },
           );
-          const meteoData = await meteoRes.json();
+          const meteoData = meteoRes.ok ? await meteoRes.json() : {};
 
           if (meteoData.results && meteoData.results.length > 0) {
             lat = meteoData.results[0].latitude;
@@ -86,8 +87,9 @@ Deno.serve(async (req) => {
             const cleanPostcode = locationQuery.replace(/\s+/g, "");
             const pcRes = await fetch(
               `https://api.postcodes.io/postcodes/${encodeURIComponent(cleanPostcode)}`,
+              { signal: AbortSignal.timeout(8_000) },
             );
-            if (pcRes.status === 200) {
+            if (pcRes.ok) {
               const pcData = await pcRes.json();
               lat = pcData.result.latitude;
               lng = pcData.result.longitude;
@@ -133,7 +135,11 @@ Deno.serve(async (req) => {
           forecast_days: "7",
         });
 
-        const weatherRes = await fetch(`${baseUrl}?${params.toString()}`);
+        const weatherRes = await fetch(`${baseUrl}?${params.toString()}`, { signal: AbortSignal.timeout(15_000) });
+        if (!weatherRes.ok) {
+          console.error(`❌ Open-Meteo forecast error: ${weatherRes.status} for home ${home.id}`);
+          continue;
+        }
         const weatherData = await weatherRes.json();
 
         console.log(`💾 Saving weather to database...`);

@@ -16,7 +16,8 @@ export type PermissionKey =
   | 'members.manage'
   | 'integrations.view'
   | 'integrations.control'
-  | 'integrations.manage';
+  | 'integrations.manage'
+  | 'audit.view_all';
 
 export type PermissionSet = Record<PermissionKey, boolean>;
 
@@ -37,6 +38,7 @@ const ALL_OFF: PermissionSet = {
   'integrations.view': false,
   'integrations.control': false,
   'integrations.manage': false,
+  'audit.view_all': false,
 };
 
 const ALL_ON: PermissionSet = Object.fromEntries(

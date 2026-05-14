@@ -9,6 +9,7 @@ export interface UserProfile {
   notification_interval_hours: number;
   created_at: string;
   onboarding_state: Record<string, "completed" | "dismissed">;
+  can_view_audit?: boolean;
 }
 
 export interface Home {

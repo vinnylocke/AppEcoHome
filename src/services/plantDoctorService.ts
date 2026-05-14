@@ -115,14 +115,14 @@ export const PlantDoctorService = {
         hardinessMin?: number;
         hardinessMax?: number;
       };
-      excludeNames?: string[];
+      offset?: number;
     },
-  ): Promise<{ matches: any[] }> {
+  ): Promise<{ matches: any[]; hasMore: boolean }> {
     return invoke({
       action: "search_plants_text",
       plantSearch,
       searchFilters: options?.searchFilters,
-      excludeNames: options?.excludeNames,
+      searchOffset: options?.offset ?? 0,
     });
   },
 

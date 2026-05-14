@@ -42,6 +42,22 @@ supabase --version
 
 ## Standard deploy
 
+### Step 0: Write release notes (required before every deploy)
+
+Open `release-notes.json` in the project root and document what changed in this release:
+
+```json
+[
+  { "label": "New", "items": ["Feature you added"] },
+  { "label": "Fixed", "items": ["Bug you fixed"] },
+  { "label": "Improved", "items": ["Thing you improved"] }
+]
+```
+
+Supported labels: `New`, `Fixed`, `Improved`, `Removed`. Leave as `[]` for hotfixes — a warning will print but the deploy will continue. The deploy script automatically inserts the notes into the `release_notes` table and resets `release-notes.json` to `[]` after a successful deploy. Users will see the notes in a modal on their next visit.
+
+### Step 1: Deploy
+
 ```bash
 npm run deploy
 ```

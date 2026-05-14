@@ -38,6 +38,8 @@ const TIER_LIMITS: Record<string, Record<string, number>> = {
   "smart-plant-scheduler":           { sprout: 0, botanist: 5,  sage: 15, evergreen: 30 },
   "search-plants-ai":                { sprout: 0, botanist: 20, sage: 40, evergreen: 80 },
   "visualiser-analyse":              { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
+  "home-location-details":           { sprout: 0, botanist: 2,  sage: 5,  evergreen: 10 },
+  "perenual-proxy":                  { sprout: 30, botanist: 60, sage: 100, evergreen: 200 },
 };
 const DEFAULT_TIER_LIMITS: Record<string, number> = {
   sprout: 0, botanist: 10, sage: 20, evergreen: 40,

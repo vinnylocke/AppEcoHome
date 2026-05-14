@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
+import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
 
 const FN = "verdantly-search";
 const CACHE_TTL_DAYS = 30;
@@ -249,9 +250,18 @@ serve(async (req) => {
       const page = typeof pageParam === "number" && pageParam >= 1 ? pageParam : 1;
       log(FN, "search", { query, page });
 
+      const searchCacheKey = cacheKey("verdantly_search", query.trim(), String(page));
+      const cachedSearch = await getCached<{ results: unknown[]; hasMore: boolean; nextPage: number }>(db, searchCacheKey);
+      if (cachedSearch) {
+        log(FN, "search_cache_hit", { query, page });
+        return new Response(JSON.stringify(cachedSearch), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const res = await fetch(
         `${BASE_URL}/v1/plants/varieties/search?page=${page}&q=${encodeURIComponent(query)}&sortOrder=asc`,
-        { headers: verdantlyHeaders(apiKey) },
+        { headers: verdantlyHeaders(apiKey), signal: AbortSignal.timeout(12_000) },
       );
 
       if (!res.ok) {
@@ -271,8 +281,10 @@ serve(async (req) => {
       const hasMore = totalPages != null ? page < totalPages : results.length >= 10;
       const nextPage = page + 1;
 
+      const searchPayload = { results, hasMore, nextPage };
+      await setCached(db, searchCacheKey, FN, searchPayload, 1);
       log(FN, "search_result", { query, page, count: results.length, hasMore });
-      return new Response(JSON.stringify({ results, hasMore, nextPage }), {
+      return new Response(JSON.stringify(searchPayload), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -302,7 +314,7 @@ serve(async (req) => {
       // Fetch from Verdantly
       const res = await fetch(
         `${BASE_URL}/v1/plants/varieties/${id}`,
-        { headers: verdantlyHeaders(apiKey) },
+        { headers: verdantlyHeaders(apiKey), signal: AbortSignal.timeout(12_000) },
       );
 
       if (!res.ok) {
@@ -330,6 +342,23 @@ serve(async (req) => {
     if (action === "filter") {
       const filterPage = typeof pageParam === "number" && pageParam >= 1 ? pageParam : 1;
 
+      const filterSig = [
+        query?.trim() || "",
+        duration            ? `dur:${duration}`              : null,
+        waterRequirement    ? `water:${waterRequirement}`    : null,
+        sunlightRequirement ? `sun:${sunlightRequirement}`   : null,
+        edible !== undefined     ? `edible:${edible}`        : null,
+        growingZone !== undefined ? `zone:${growingZone}`    : null,
+      ].filter(Boolean).join("|") || "none";
+      const filterCacheKey = cacheKey("verdantly_filter", filterSig, String(filterPage));
+      const cachedFilter = await getCached<{ results: unknown[]; hasMore: boolean; nextPage: number }>(db, filterCacheKey);
+      if (cachedFilter) {
+        log(FN, "filter_cache_hit", { filterSig, filterPage });
+        return new Response(JSON.stringify(cachedFilter), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       const params = new URLSearchParams({ page: String(filterPage), perPage: "10" });
       if (query?.trim())                     params.set("q",                  query.trim());
       if (duration)                          params.set("duration",            String(duration));
@@ -342,6 +371,7 @@ serve(async (req) => {
 
       const filterRes = await fetch(`${BASE_URL}/v1/plants/species/filter?${params}`, {
         headers: verdantlyHeaders(apiKey),
+        signal: AbortSignal.timeout(12_000),
       });
       if (!filterRes.ok) {
         const errBody = await filterRes.text();
@@ -354,8 +384,10 @@ serve(async (req) => {
       const filterTotalPages: number | null = filterData?.meta?.pages ?? null;
       const filterHasMore = filterTotalPages != null ? filterPage < filterTotalPages : filterResults.length >= 10;
 
+      const filterPayload = { results: filterResults, hasMore: filterHasMore, nextPage: filterPage + 1 };
+      await setCached(db, filterCacheKey, FN, filterPayload, 1);
       log(FN, "filter_result", { filterPage, count: filterResults.length, filterHasMore });
-      return new Response(JSON.stringify({ results: filterResults, hasMore: filterHasMore, nextPage: filterPage + 1 }), {
+      return new Response(JSON.stringify(filterPayload), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

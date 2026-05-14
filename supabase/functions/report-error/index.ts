@@ -25,6 +25,7 @@ Deno.serve(async (req) => {
     const {
       errorMessage,
       errorStack,
+      appVersion,
       pageUrl,
       userAgent,
       platform,
@@ -65,7 +66,8 @@ Deno.serve(async (req) => {
       <div style="padding:28px 32px;border-bottom:1px solid #e8f0eb;">
         <h2 style="margin:0 0 12px;color:#0f2a1e;font-size:16px;font-weight:700;">Device &amp; Context</h2>
         <table style="width:100%;border-collapse:collapse;font-size:13px;">
-          <tr><td style="padding:5px 0;color:#9aada3;width:120px;">Page</td><td style="padding:5px 0;color:#0f2a1e;word-break:break-all;">${pageUrl ?? "—"}</td></tr>
+          <tr><td style="padding:5px 0;color:#9aada3;width:120px;">Version</td><td style="padding:5px 0;color:#0f2a1e;">${appVersion ?? "—"}</td></tr>
+          <tr><td style="padding:5px 0;color:#9aada3;">Page</td><td style="padding:5px 0;color:#0f2a1e;word-break:break-all;">${pageUrl ?? "—"}</td></tr>
           <tr><td style="padding:5px 0;color:#9aada3;">Time</td><td style="padding:5px 0;color:#0f2a1e;">${timestamp ?? "—"}</td></tr>
           <tr><td style="padding:5px 0;color:#9aada3;">Platform</td><td style="padding:5px 0;color:#0f2a1e;">${platform ?? "—"}</td></tr>
           <tr><td style="padding:5px 0;color:#9aada3;">Screen</td><td style="padding:5px 0;color:#0f2a1e;">${screenSize ?? "—"}</td></tr>

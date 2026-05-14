@@ -15,7 +15,7 @@
  */
 
 import { execSync } from "child_process";
-import { readFileSync } from "fs";
+import { readFileSync, writeFileSync } from "fs";
 import { resolve } from "path";
 
 // ---------------------------------------------------------------------------
@@ -40,7 +40,8 @@ loadEnvFile(".env.local"); // .env.local overrides .env
 // Use SUPABASE_PROD_URL explicitly — VITE_SUPABASE_URL points to localhost in dev
 const SUPABASE_URL        = process.env.SUPABASE_PROD_URL;
 const SERVICE_ROLE_KEY    = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const MAINTENANCE_MESSAGE = process.argv[2] ?? "We're rolling out an update. Back in just a moment!";
+const BUMP_MAJOR         = process.argv.includes("--bump-major");
+const MAINTENANCE_MESSAGE = process.argv.slice(2).find(a => !a.startsWith("--")) ?? "We're rolling out an update. Back in just a moment!";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -71,6 +72,61 @@ async function setMaintenance(enabled, message = null) {
   }
 }
 
+async function bumpVersion(bumpMajor = false) {
+  const getRes = await fetch(
+    `${SUPABASE_URL}/rest/v1/app_config?key=eq.app_version&select=value`,
+    { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` } }
+  );
+  const rows = await getRes.json();
+  const current = rows?.[0]?.value ?? { major: 1, minor: 0 };
+
+  const newMajor = bumpMajor ? current.major + 1 : current.major;
+  const newMinor = bumpMajor ? 1 : current.minor + 1;
+
+  const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/app_config?key=eq.app_version`, {
+    method: "PATCH",
+    headers: {
+      apikey:          SERVICE_ROLE_KEY,
+      Authorization:   `Bearer ${SERVICE_ROLE_KEY}`,
+      "Content-Type":  "application/json",
+      Prefer:          "return=minimal",
+    },
+    body: JSON.stringify({ value: { major: newMajor, minor: newMinor }, updated_at: new Date().toISOString() }),
+  });
+  if (!patchRes.ok) throw new Error(`Failed to bump version: ${await patchRes.text()}`);
+
+  const newVersion = `Rhozly OS ${String(newMajor).padStart(2, "0")}.${String(newMinor).padStart(4, "0")}`;
+  const versionKey = `${String(newMajor).padStart(2, "0")}.${String(newMinor).padStart(4, "0")}`;
+
+  // Insert release notes if any were written
+  let sections = [];
+  try {
+    sections = JSON.parse(readFileSync(resolve(process.cwd(), "release-notes.json"), "utf8"));
+  } catch { /* missing file = empty */ }
+
+  if (!sections.length) {
+    console.warn("     ⚠️  release-notes.json is empty — deploying without release notes.");
+  } else {
+    const notesRes = await fetch(`${SUPABASE_URL}/rest/v1/release_notes`, {
+      method: "POST",
+      headers: {
+        apikey:          SERVICE_ROLE_KEY,
+        Authorization:   `Bearer ${SERVICE_ROLE_KEY}`,
+        "Content-Type":  "application/json",
+        Prefer:          "return=minimal",
+      },
+      body: JSON.stringify({ version: versionKey, major: newMajor, minor: newMinor, sections }),
+    });
+    if (!notesRes.ok) throw new Error(`Failed to insert release notes: ${await notesRes.text()}`);
+    console.log(`     📝 Release notes saved for ${newVersion}`);
+
+    // Reset file to blank template for next deploy
+    writeFileSync(resolve(process.cwd(), "release-notes.json"), "[]\n", "utf8");
+  }
+
+  return newVersion;
+}
+
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
@@ -93,7 +149,12 @@ async function deploy() {
   try {
     // Step 2: push DB migrations
     console.log("\n📦  [2/4] Pushing database migrations...");
-    run("supabase db push");
+    run("supabase db push --include-all");
+
+    // Step 2.5: bump version
+    console.log("\n🔢  [2.5/4] Bumping app version...");
+    const newVersion = await bumpVersion(BUMP_MAJOR);
+    console.log(`     → ${newVersion}`);
 
     // Step 3: deploy all edge functions so they stay in sync with the frontend
     console.log("\n⚡  [3/4] Deploying edge functions...");

@@ -14,6 +14,7 @@ import { logAiUsage } from "../_shared/aiUsage.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { deriveClimate, frostDatesForHome } from "../_shared/climateZones.ts";
 import { getSeason } from "../_shared/userContext.ts";
+import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 
 const FN = "generate-landscape-plan";
 
@@ -182,13 +183,24 @@ serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser(authToken);
     const userId = user?.id;
 
-    if (userId) {
-      const guardErr = await guardAiByUser(supabase, userId);
-      if (guardErr) return guardErr;
-
-      const rateLimitErr = await enforceRateLimit(supabase, userId, FN);
-      if (rateLimitErr) return rateLimitErr;
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
+
+    const serviceDb = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+    const memberErr = await requireHomeMembership(serviceDb, homeId, userId);
+    if (memberErr) return memberErr;
+
+    const guardErr = await guardAiByUser(supabase, userId);
+    if (guardErr) return guardErr;
+
+    const rateLimitErr = await enforceRateLimit(supabase, userId, FN);
+    if (rateLimitErr) return rateLimitErr;
 
     log(FN, "request_received", {
       userId: userId ?? null,

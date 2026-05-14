@@ -13,6 +13,7 @@ import { logAiUsage } from "../_shared/aiUsage.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
 import { getFallback } from "../_shared/fallbacks.ts";
+import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 
 const FN = "plant-doctor-ai";
 
@@ -98,13 +99,24 @@ serve(async (req) => {
     const { data: { user } } = await supabase.auth.getUser(authToken);
     const userId = user?.id ?? null;
 
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const serviceDb = createClient(
+      Deno.env.get("SUPABASE_URL") ?? "",
+      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
+    );
+    const memberErr = await requireHomeMembership(serviceDb, homeId, userId);
+    if (memberErr) return memberErr;
+
     const guardErr = await guardAiByHome(supabase, homeId);
     if (guardErr) return guardErr;
 
-    if (userId) {
-      const rateLimitErr = await enforceRateLimit(supabase, userId, FN);
-      if (rateLimitErr) return rateLimitErr;
-    }
+    const rateLimitErr = await enforceRateLimit(supabase, userId, FN);
+    if (rateLimitErr) return rateLimitErr;
 
     log(FN, "request_received", {
       homeId,

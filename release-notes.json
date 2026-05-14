@@ -1,0 +1,17 @@
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "Plant search no longer drops Verdantly results when they arrive before Perenual results"
+    ]
+  },
+  {
+    "label": "Improved",
+    "items": [
+      "Plant name searches are now cached and shared across all users — repeated searches return instantly without hitting the AI again",
+      "Perenual and Verdantly search results are cached for 24 hours — finding plants is faster across the app, including the planner's procure step",
+      "\"Show more AI suggestions\" pre-generates a full batch upfront — clicking through pages never makes a second AI call",
+      "Faster initial load — map, canvas, and chart libraries now load only on the pages that need them"
+    ]
+  }
+]

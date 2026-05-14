@@ -216,11 +216,9 @@ export default function SpriteWizardModal({ plants, homeId, onComplete, onClose 
     updateTab("perenual", { loading: true });
     try {
       // Bypass cache — Perenual image URLs are signed and expire after 24h
-      const key = import.meta.env.VITE_PERENUAL_API_KEY;
-      const res = await fetch(
-        `https://perenual.com/api/v2/species/details/${p.perenual_id}?key=${key}`,
-      );
-      const data = await res.json();
+      const { data } = await supabase.functions.invoke("perenual-proxy", {
+        body: { action: "details", id: p.perenual_id },
+      });
       const images: TabImage[] = [];
       if (data.default_image?.regular_url) {
         images.push({

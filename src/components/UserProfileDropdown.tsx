@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Medal,
   LifeBuoy,
+  ClipboardList,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
@@ -30,6 +31,9 @@ interface Props {
   email: string | null;
   subscriptionTier?: SubscriptionTier;
   isAdmin?: boolean;
+  canViewAudit?: boolean;
+  appVersion?: string;
+  onVersionClick?: () => void;
 }
 
 interface DropdownItem {
@@ -63,7 +67,7 @@ function SectionLabel({ label }: { label: string }) {
   );
 }
 
-export default function UserProfileDropdown({ displayName, firstName, email, subscriptionTier, isAdmin }: Props) {
+export default function UserProfileDropdown({ displayName, firstName, email, subscriptionTier, isAdmin, canViewAudit, appVersion, onVersionClick }: Props) {
   const tierLabel = subscriptionTier ? TIER_LABEL[subscriptionTier] : "Free";
   const nameLabel = displayName || firstName || email?.split("@")[0] || tierLabel;
   const [open, setOpen] = useState(false);
@@ -94,6 +98,9 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
     { testId: "user-profile-home-management", icon: <Building2 size={15} />, label: "Home Management", path: "/home-management" },
     { testId: "user-profile-task-manager", icon: <Repeat size={15} />, label: "Task Manager", path: "/schedule" },
   ];
+  if (canViewAudit) {
+    managementItems.push({ testId: "user-profile-audit-log", icon: <ClipboardList size={15} />, label: "Audit Log", path: "/audit" });
+  }
 
   return (
     <>
@@ -186,6 +193,18 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
                 Sign Out
               </button>
             </div>
+
+            {appVersion && (
+              <div className="px-4 pb-3 pt-1 text-center">
+                <button
+                  data-testid="app-version-label"
+                  onClick={(e) => { e.stopPropagation(); setOpen(false); onVersionClick?.(); }}
+                  className="text-[9px] font-bold text-rhozly-on-surface/20 tracking-widest hover:text-rhozly-on-surface/40 transition-colors"
+                >
+                  {appVersion}
+                </button>
+              </div>
+            )}
           </div>
         </>
       )}

@@ -11,6 +11,9 @@ export default defineConfig({
       output: {
         manualChunks(id) {
           if (id.includes("node_modules/three")) return "three";
+          if (id.includes("node_modules/leaflet") || id.includes("node_modules/react-leaflet")) return "leaflet";
+          if (id.includes("node_modules/konva") || id.includes("node_modules/react-konva")) return "konva";
+          if (id.includes("node_modules/recharts")) return "recharts";
         },
       },
     },

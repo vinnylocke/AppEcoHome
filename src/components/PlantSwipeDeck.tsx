@@ -4,8 +4,6 @@ import { getPlantWikiInfo } from "../lib/wikipedia";
 import { Heart, X, Loader2, Sprout, RefreshCw } from "lucide-react";
 import { toast } from "react-hot-toast";
 
-const PERENUAL_API_KEY = import.meta.env.VITE_PERENUAL_API_KEY as string | undefined;
-
 interface SwipePlant {
   id: string;
   name: string;
@@ -46,24 +44,12 @@ async function fetchPerenualBatch(
   seenNames: string[],
   count: number,
 ): Promise<SwipePlant[]> {
-  if (!PERENUAL_API_KEY) {
-    console.warn("[SwipeDeck] VITE_PERENUAL_API_KEY is not set");
-    return [];
-  }
-
   const page = Math.floor(Math.random() * 50) + 1;
-  const url = `https://perenual.com/api/v2/species-list?key=${PERENUAL_API_KEY}&page=${page}`;
-
-  const response = await fetch(url);
-  const text = await response.text();
-  console.log(`[SwipeDeck] Perenual page=${page} status=${response.status} bodyLen=${text.length} preview="${text.slice(0, 120)}"`);
-
-  if (!response.ok) {
-    throw new Error(`Perenual ${response.status}: ${text.slice(0, 200)}`);
-  }
-
-  const json = JSON.parse(text);
-  const raw: any[] = json.data || [];
+  const { data: result, error } = await supabase.functions.invoke("perenual-proxy", {
+    body: { action: "search", query: "", page },
+  });
+  if (error) throw error;
+  const raw: any[] = result?.data || [];
 
   const seen = new Set(seenNames.map((n) => n.toLowerCase()));
   const results: SwipePlant[] = [];

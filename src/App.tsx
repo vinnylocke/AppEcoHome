@@ -50,8 +50,11 @@ import NavItem from "./components/NavItem";
 import UpdateBanner from "./components/UpdateBanner";
 import MaintenanceScreen from "./components/MaintenanceScreen";
 import { useMaintenanceMode } from "./hooks/useMaintenanceMode";
+import { useAppVersion } from "./hooks/useAppVersion";
 import PrivacyPolicyModal from "./components/PrivacyPolicyModal";
 import CookiePolicyModal from "./components/CookiePolicyModal";
+import ReleaseNotesModal from "./components/ReleaseNotesModal";
+import { useReleaseNotes } from "./hooks/useReleaseNotes";
 import HelpCenter from "./onboarding/HelpCenter";
 import type { OnboardingState } from "./onboarding/types";
 
@@ -74,6 +77,7 @@ const GardenProfile       = lazy(() => import("./components/GardenProfile"));
 const GardenerProfile     = lazy(() => import("./components/GardenerProfile"));
 const LocationManager     = lazy(() => import("./components/LocationManager").then(m => ({ default: m.LocationManager })));
 const AssistantCard       = lazy(() => import("./components/AssistantCard"));
+const AuditPage           = lazy(() => import("./components/AuditPage"));
 import {
   getMidnightTonight,
   getCachedWeatherData,
@@ -160,6 +164,7 @@ const TAB_URL: Record<string, string> = {
 
 function AppShell() {
   usePushNotifications();
+  const appVersion = useAppVersion();
   const navigate = useNavigate();
   const routerLocation = useLocation();
 
@@ -184,6 +189,18 @@ function AppShell() {
   const [isMdBreakpoint, setIsMdBreakpoint] = useState(() => window.matchMedia("(min-width: 768px)").matches);
   const [showPrivacy, setShowPrivacy] = useState(false);
   const [showCookies, setShowCookies] = useState(false);
+  const allReleaseNotes = useReleaseNotes();
+  const [releaseNotesMode, setReleaseNotesMode] = useState<"latest" | "history" | null>(null);
+
+  useEffect(() => {
+    if (!appVersion) return;
+    const versionKey = appVersion.replace("Rhozly OS ", "");
+    const lastSeen = localStorage.getItem("rhozly_last_seen_version");
+    if (lastSeen !== versionKey) {
+      setReleaseNotesMode("latest");
+      localStorage.setItem("rhozly_last_seen_version", versionKey);
+    }
+  }, [appVersion]);
 
   // Onboarding state — kept in sync with profile.onboarding_state
   const [onboardingState, setOnboardingState] = useState<OnboardingState>({});
@@ -439,7 +456,7 @@ function AppShell() {
     const [profileResult, membershipsResult] = await Promise.all([
       supabase
         .from("user_profiles")
-        .select("uid, home_id, display_name, first_name, last_name, subscription_tier, ai_enabled, enable_perenual, is_admin, onboarding_state")
+        .select("uid, home_id, display_name, first_name, last_name, subscription_tier, ai_enabled, enable_perenual, is_admin, onboarding_state, can_view_audit")
         .eq("uid", userId)
         .single(),
       supabase
@@ -494,7 +511,8 @@ function AppShell() {
     const { data } = await supabase
       .from("inventory_items")
       .select("id, status, location_id")
-      .eq("home_id", profile.home_id);
+      .eq("home_id", profile.home_id)
+      .limit(500);
     if (!data) return;
     setLocations((prev) =>
       prev.map((loc) => ({
@@ -676,7 +694,7 @@ function AppShell() {
         onInventoryChange={handleInventoryRealtime}
       />
     <PlantDoctorProvider homeId={profile?.home_id || ""}>
-      <Sentry.ErrorBoundary fallback={({ error }) => <ErrorPage error={error instanceof Error ? error : new Error(String(error))} />}>
+      <Sentry.ErrorBoundary fallback={({ error }) => <ErrorPage error={error instanceof Error ? error : new Error(String(error))} appVersion={appVersion ?? undefined} />}>
           <Toaster />
           <a
             href="#main-content"
@@ -722,6 +740,9 @@ function AppShell() {
                 email={session?.user?.email ?? null}
                 subscriptionTier={profile?.subscription_tier ?? null}
                 isAdmin={profile?.is_admin ?? false}
+                canViewAudit={profile?.can_view_audit ?? false}
+                appVersion={appVersion ?? undefined}
+                onVersionClick={() => setReleaseNotesMode("history")}
               />
             </header>
 
@@ -1212,6 +1233,14 @@ function AppShell() {
                         } />
                       )}
 
+                      {profile?.can_view_audit && (
+                        <Route path="/audit" element={
+                          <div className="h-full animate-in fade-in duration-500">
+                            <AuditPage homeId={profile.home_id!} />
+                          </div>
+                        } />
+                      )}
+
                       {/* No-op entries for full-bleed routes handled by the sibling Routes above */}
                       <Route path="/sun-trajectory" element={null} />
 
@@ -1252,6 +1281,14 @@ function AppShell() {
             )}
       {showPrivacy && <PrivacyPolicyModal onClose={() => setShowPrivacy(false)} />}
       {showCookies && <CookiePolicyModal onClose={() => setShowCookies(false)} />}
+      {releaseNotesMode && allReleaseNotes.length > 0 && (
+        <ReleaseNotesModal
+          notes={allReleaseNotes}
+          currentVersion={appVersion?.replace("Rhozly OS ", "") ?? ""}
+          mode={releaseNotesMode}
+          onClose={() => setReleaseNotesMode(null)}
+        />
+      )}
       </Sentry.ErrorBoundary>
     </PlantDoctorProvider>
   </HomeRealtimeProvider>

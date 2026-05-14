@@ -23,6 +23,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { COUNTRIES } from "../constants/countries";
 import { resolvePermissions, ROLE_DEFAULTS, type Role, type PermissionKey } from "../lib/permissions";
 import { fetchUsdaZone } from "../lib/hardinessZone";
+import HomeLocationInsights from "./HomeLocationInsights";
 
 const ALL_TIMEZONES: string[] = (() => {
   try { return (Intl as any).supportedValuesOf("timeZone") as string[]; }
@@ -36,6 +37,7 @@ interface HomeMember {
   permissions: Record<string, boolean>;
   displayName: string | null;
   email: string;
+  canViewAudit?: boolean;
 }
 
 const PERMISSION_GROUPS: Array<{ label: string; keys: Array<{ key: PermissionKey; label: string }> }> = [
@@ -82,6 +84,9 @@ const PERMISSION_GROUPS: Array<{ label: string; keys: Array<{ key: PermissionKey
     { key: "shopping.delete_items", label: "Delete items" },
     { key: "shopping.delete_list", label: "Delete lists" },
   ]},
+  { label: "Audit & Usage", keys: [
+    { key: "audit.view_all", label: "View all members' activity" },
+  ]},
 ];
 
 interface HomeWithRole {
@@ -94,6 +99,7 @@ interface HomeWithRole {
   lat: number | null;
   lng: number | null;
   hardiness_zone: number | null;
+  climate_zone: string | null;
   members: HomeMember[];
 }
 
@@ -135,6 +141,13 @@ export default function HomeManagement({
   const [openConfigMemberId, setOpenConfigMemberId] = useState<string | null>(null);
   const [recalculatingZones, setRecalculatingZones] = useState<Set<string>>(new Set());
 
+  // Per-home tab state
+  type HomeTab = "settings" | "insights" | "members";
+  const [homeTabs, setHomeTabs] = useState<Record<string, HomeTab>>({});
+  const getTab = (homeId: string): HomeTab => homeTabs[homeId] ?? "settings";
+  const setTab = (homeId: string, tab: HomeTab) =>
+    setHomeTabs((prev) => ({ ...prev, [homeId]: tab }));
+
   // Per-home editing state: homeId → form or null (not editing)
   const [editingForms, setEditingForms] = useState<Record<string, EditForm | null>>({});
   const [savingHomeId, setSavingHomeId] = useState<string | null>(null);
@@ -145,7 +158,7 @@ export default function HomeManagement({
     try {
       const { data: memberRows, error } = await supabase
         .from("home_members")
-        .select("role, homes ( id, name, address, country, timezone, lat, lng, hardiness_zone )")
+        .select("role, homes ( id, name, address, country, timezone, lat, lng, hardiness_zone, climate_zone )")
         .eq("user_id", userId);
       if (error || !memberRows) { setLoading(false); return; }
 
@@ -164,7 +177,7 @@ export default function HomeManagement({
       const userIds = [...new Set((allMemberRows ?? []).map((m) => m.user_id))];
       const { data: profiles } = await supabase
         .from("user_profiles")
-        .select("uid, display_name, email")
+        .select("uid, display_name, email, can_view_audit")
         .in("uid", userIds);
 
       const profileMap = Object.fromEntries(
@@ -181,6 +194,7 @@ export default function HomeManagement({
           permissions: m.permissions ?? {},
           displayName: p?.display_name ?? null,
           email: p?.email ?? m.user_id,
+          canViewAudit: p?.can_view_audit ?? false,
         });
       }
 
@@ -352,6 +366,16 @@ export default function HomeManagement({
     }, 500);
   };
 
+  const updateMemberAuditAccess = async (userId: string, access: boolean) => {
+    setHomes((prev) => prev.map((home) => ({
+      ...home,
+      members: home.members.map((m) =>
+        m.userId === userId ? { ...m, canViewAudit: access } : m
+      ),
+    })));
+    await supabase.rpc("set_member_audit_access", { target_user_id: userId, access });
+  };
+
   const handleJoin = async (e: React.FormEvent) => {
     e.preventDefault();
     const trimmed = joinId.trim();
@@ -484,6 +508,27 @@ export default function HomeManagement({
                     )}
                   </div>
                 </div>
+
+                {/* Tab bar */}
+                <div className="flex bg-rhozly-surface-low p-1 rounded-2xl gap-1">
+                  {(["settings", "insights", "members"] as const).map((t) => (
+                    <button
+                      key={t}
+                      data-testid={`home-mgmt-tab-${t}-${home.id}`}
+                      onClick={() => setTab(home.id, t)}
+                      className={`flex-1 py-2 rounded-xl text-xs font-black transition-colors ${
+                        getTab(home.id) === t
+                          ? "bg-white text-rhozly-primary shadow-sm"
+                          : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+                      }`}
+                    >
+                      {t === "settings" ? "Settings" : t === "insights" ? "Location" : "Members"}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Settings tab */}
+                {getTab(home.id) === "settings" && (<>
 
                 {/* Home details — editable for owners, read-only for members */}
                 <div className="bg-rhozly-surface/40 rounded-2xl p-4 space-y-3">
@@ -671,8 +716,15 @@ export default function HomeManagement({
                   </div>
                 )}
 
-                {/* Members list */}
-                {home.members.length > 0 && (
+                </>)}
+
+                {/* Location Insights tab */}
+                {getTab(home.id) === "insights" && (
+                  <HomeLocationInsights home={home} />
+                )}
+
+                {/* Members tab */}
+                {getTab(home.id) === "members" && home.members.length > 0 && (
                   <div className="space-y-1">
                     <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest flex items-center gap-1.5 mb-2">
                       <Users size={11} />
@@ -752,6 +804,20 @@ export default function HomeManagement({
                           {/* Permission accordion */}
                           {isConfigOpen && canManage && (
                             <div className="ml-11 mt-1 mb-2 bg-rhozly-surface/60 border border-rhozly-outline/15 rounded-2xl p-3 space-y-3">
+                              {/* Audit page access toggle */}
+                              <div className="flex items-center justify-between px-2.5 py-2 bg-rhozly-surface rounded-xl border border-rhozly-outline/10">
+                                <div>
+                                  <p className="text-[10px] font-black text-rhozly-on-surface">Audit Page Access</p>
+                                  <p className="text-[9px] font-medium text-rhozly-on-surface/40">Can navigate to /audit</p>
+                                </div>
+                                <button
+                                  data-testid={`perm-toggle-${member.userId}-audit-access`}
+                                  onClick={() => updateMemberAuditAccess(member.userId, !member.canViewAudit)}
+                                  className={`relative w-8 h-4.5 rounded-full transition-colors flex items-center px-0.5 ${member.canViewAudit ? "bg-emerald-500" : "bg-rhozly-outline/30"}`}
+                                >
+                                  <span className={`w-3.5 h-3.5 rounded-full bg-white shadow-sm transition-transform ${member.canViewAudit ? "translate-x-3.5" : "translate-x-0"}`} />
+                                </button>
+                              </div>
                               {PERMISSION_GROUPS.map((group) => (
                                 <div key={group.label}>
                                   <p className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/30 mb-1.5">{group.label}</p>

@@ -1,7 +1,6 @@
 import { supabase } from "./supabase";
 import { Logger } from "./errorHandler";
 
-const PERENUAL_API_KEY = import.meta.env.VITE_PERENUAL_API_KEY;
 const CACHE_TTL_DAYS = 30;
 
 // 🧹 DATA CLEANING HELPERS
@@ -52,10 +51,16 @@ const extractWateringDays = (benchmark: any) => {
 
 const uniqueArray = (arr: any[]) => Array.from(new Set(arr || []));
 
+async function invoke<T>(body: Record<string, unknown>): Promise<T> {
+  const { data, error } = await supabase.functions.invoke("perenual-proxy", { body });
+  if (error) throw error;
+  if (data?.error) throw new Error(data.error);
+  return data as T;
+}
+
 export const PerenualService = {
-  // 1. Live Search (Always hits the API)
-  // cycle/watering/sunlight accept arrays; multiple values fan out into parallel
-  // calls and results are merged + deduplicated by plant id.
+  // 1. Live Search (Always hits the API via edge function)
+  // cycle/watering/sunlight accept arrays; fan-out and dedup happen server-side.
   searchPlants: async (
     query: string,
     filters?: {
@@ -69,70 +74,19 @@ export const PerenualService = {
       hardinessMax?: number;
     },
   ) => {
-    const buildParams = (cycle?: string, watering?: string, sunlight?: string) => {
-      const p = new URLSearchParams({ key: PERENUAL_API_KEY });
-      if (query.trim())                            p.set("q", query.trim());
-      if (cycle)                                   p.set("cycle", cycle);
-      if (watering)                                p.set("watering", watering);
-      if (sunlight)                                p.set("sunlight", sunlight);
-      if (filters?.edible !== undefined)           p.set("edible", String(filters.edible));
-      if (filters?.poisonous !== undefined)        p.set("poisonous", String(filters.poisonous));
-      if (filters?.indoor !== undefined)           p.set("indoor", String(filters.indoor));
-      if (filters?.hardinessMin !== undefined || filters?.hardinessMax !== undefined) {
-        const min = filters.hardinessMin ?? 1;
-        const max = filters.hardinessMax ?? 13;
-        p.set("hardiness", min === max ? String(min) : `${min}-${max}`);
-      }
-      return p;
-    };
-
-    const fetchOne = async (params: URLSearchParams) => {
-      console.log(`🔎 [SEARCH] Perenual API: ${params.toString()}`);
-      const res = await fetch(`https://perenual.com/api/v2/species-list?${params.toString()}`);
-      const data = await res.json();
-      return (data.data || []) as any[];
-    };
-
     try {
-      // Expand multi-value filters into a flat list of [cycle,watering,sunlight] combos.
-      // Each combo becomes one API call; results are merged and deduped by plant id.
-      const cycles   = filters?.cycle?.length   ? filters.cycle   : [undefined];
-      const waterings = filters?.watering?.length ? filters.watering : [undefined];
-      const sunlights = filters?.sunlight?.length ? filters.sunlight : [undefined];
-
-      const calls: Promise<any[]>[] = [];
-      for (const c of cycles) {
-        for (const w of waterings) {
-          for (const s of sunlights) {
-            calls.push(fetchOne(buildParams(c, w, s)));
-          }
-        }
-      }
-
-      const batches = await Promise.all(calls);
-      const seen = new Set<number>();
-      const merged: any[] = [];
-      for (const batch of batches) {
-        for (const plant of batch) {
-          if (!seen.has(plant.id)) {
-            seen.add(plant.id);
-            merged.push(plant);
-          }
-        }
-      }
-      return merged;
+      const result = await invoke<{ data: any[] }>({ action: "search", query, filters });
+      return result.data ?? [];
     } catch (error) {
       Logger.error("Perenual Search Failed", error);
       throw error;
     }
   },
 
-  // 2. Get Details (Checks Cache -> Then API)
+  // 2. Get Details (Checks Cache -> Then API via edge function)
   getPlantDetails: async (perenualId: number) => {
     try {
       let apiData = null;
-
-      console.log(`⏳ [DETAILS] Fetching data for Plant ID: ${perenualId}...`);
 
       // STEP A: Check Cache
       const { data: cached } = await supabase
@@ -146,47 +100,23 @@ export const PerenualService = {
           (new Date().getTime() - new Date(cached.updated_at).getTime()) /
           (1000 * 3600 * 24);
         if (cacheAgeDays < CACHE_TTL_DAYS) {
-          console.log(
-            `✅ [CACHE HIT] Loaded Plant ${perenualId} instantly from your Supabase Database!`,
-          );
           apiData = cached.raw_data;
-        } else {
-          console.log(
-            `⚠️ [CACHE EXPIRED] Plant ${perenualId} cache is older than ${CACHE_TTL_DAYS} days. Fetching fresh data...`,
-          );
         }
       }
 
-      // STEP B: If no valid cache, hit the Perenual API
+      // STEP B: If no valid cache, fetch via edge function
       if (!apiData) {
-        console.log(
-          `🌐 [API HIT] Downloading Plant ${perenualId} from Perenual API...`,
-        );
-        const response = await fetch(
-          `https://perenual.com/api/v2/species/details/${perenualId}?key=${PERENUAL_API_KEY}`,
-        );
-        apiData = await response.json();
+        apiData = await invoke<any>({ action: "details", id: perenualId });
 
-        // Save raw data to cache safely in the background
+        // Save raw data to cache in the background
         supabase
           .from("species_cache")
-          .upsert({
-            id: perenualId,
-            raw_data: apiData,
-            updated_at: new Date().toISOString(),
-          })
-          .then(() => {
-            console.log(
-              `💾 [CACHE SAVED] Plant ${perenualId} successfully saved to Supabase for future use.`,
-            );
-          });
+          .upsert({ id: perenualId, raw_data: apiData, updated_at: new Date().toISOString() })
+          .then(() => {});
       }
 
-      const wateringDays = extractWateringDays(
-        apiData.watering_general_benchmark,
-      );
+      const wateringDays = extractWateringDays(apiData.watering_general_benchmark);
 
-      // STRICT MAPPING
       return {
         common_name: apiData.common_name || "Unknown",
         scientific_name: apiData.scientific_name || [],
@@ -241,17 +171,7 @@ export const PerenualService = {
   // 3. Search pest & disease list
   searchPestDisease: async (query: string, page = 1) => {
     try {
-      const url = `https://perenual.com/api/pest-disease-list?key=${PERENUAL_API_KEY}&q=${encodeURIComponent(query)}&page=${page}`;
-      const response = await fetch(url);
-      const text = await response.text();
-      const contentType = response.headers.get("content-type") || "";
-
-      if (!contentType.includes("application/json") || text.trimStart().startsWith("<")) {
-        Logger.error("Perenual Pest/Disease non-JSON response", { status: response.status, body: text.slice(0, 200) });
-        throw new Error("Pest & disease search is not available on your Perenual plan. Use Manual or AI entry instead.");
-      }
-
-      const data = JSON.parse(text);
+      const data = await invoke<{ data: any[] }>({ action: "pest-disease", query, page });
       return (data.data || []) as Array<{
         id: number;
         common_name: string;

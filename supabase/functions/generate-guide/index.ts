@@ -108,7 +108,7 @@ serve(async (req) => {
             const encodedPrompt = encodeURIComponent(imagePrompt + styleSuffix);
             const pollinationsUrl = `https://image.pollinations.ai/prompt/${encodedPrompt}?width=800&height=600&nologo=true`;
 
-            const imageResponse = await fetch(pollinationsUrl);
+            const imageResponse = await fetch(pollinationsUrl, { signal: AbortSignal.timeout(20_000) });
             if (!imageResponse.ok) return;
 
             const imageBlob = await imageResponse.blob();

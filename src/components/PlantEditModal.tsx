@@ -7,6 +7,7 @@ import PlantGuidesTab from "./PlantGuidesTab";
 import LightTab from "./LightTab";
 import { getProviderPlantDetails } from "../lib/plantProvider";
 import { getProviderLabel } from "../lib/verdantlyUtils";
+import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 
 // 🧠 IMPORT THE AI CONTEXT
@@ -87,14 +88,12 @@ export default function PlantEditModal({
         let imageUrl = plant.thumbnail_url;
         if (isStale(imageUrl)) {
           try {
-            const key = import.meta.env.VITE_PERENUAL_API_KEY;
-            const res = await fetch(
-              `https://perenual.com/api/v2/species/details/${plant.perenual_id}?key=${key}`,
-            );
-            const fresh = await res.json();
+            const { data: fresh } = await supabase.functions.invoke("perenual-proxy", {
+              body: { action: "details", id: plant.perenual_id },
+            });
             imageUrl =
-              fresh.default_image?.regular_url ||
-              fresh.default_image?.thumbnail ||
+              fresh?.default_image?.regular_url ||
+              fresh?.default_image?.thumbnail ||
               apiData.image_url ||
               "";
           } catch {

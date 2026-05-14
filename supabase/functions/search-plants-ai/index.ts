@@ -93,7 +93,7 @@ serve(async (req) => {
     }
 
     const searchKey = cacheKey("search_plants", query, hemisphere);
-    const cached = await getCached<{ plants: Array<{ name: string; description: string }> }>(supabase, searchKey);
+    const cached = await getCached<{ plants: Array<{ name: string; description: string }> }>(serviceDb, searchKey);
     if (cached) {
       log(FN, "success", { count: cached.plants?.length ?? 0, fromCache: true });
       return new Response(JSON.stringify(cached), {
@@ -131,7 +131,7 @@ Keep names precise and recognisable. Avoid duplicates.`;
       parsed = { plants: [] };
     }
 
-    await setCached(supabase, searchKey, FN, { plants: parsed.plants ?? [] }, 7);
+    await setCached(serviceDb, searchKey, FN, { plants: parsed.plants ?? [] }, 30);
     log(FN, "success", { count: parsed.plants?.length ?? 0, fromCache: false });
 
     return new Response(JSON.stringify({ plants: parsed.plants ?? [] }), {

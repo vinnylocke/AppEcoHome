@@ -6,6 +6,7 @@ import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
+import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 
 const FN = "scan-area";
 
@@ -139,6 +140,9 @@ serve(async (req) => {
     const authResult = await requireAuth(req, supabase);
     if (authResult instanceof Response) return authResult;
     const userId = authResult.user.id;
+
+    const memberErr = await requireHomeMembership(supabase, homeId, userId);
+    if (memberErr) return memberErr;
 
     const rateLimitErr = await enforceRateLimit(supabase, userId, FN, 5);
     if (rateLimitErr) return rateLimitErr;

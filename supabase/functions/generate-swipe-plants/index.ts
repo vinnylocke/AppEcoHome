@@ -6,6 +6,7 @@ import { callGeminiCascade } from "../_shared/gemini.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
+import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 
 const FN = "generate-swipe-plants";
 
@@ -76,13 +77,20 @@ serve(async (req) => {
     );
     const userId = user?.id ?? null;
 
+    if (!userId) {
+      return new Response(JSON.stringify({ error: "unauthorized" }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    const memberErr = await requireHomeMembership(serviceDb, homeId, userId);
+    if (memberErr) return memberErr;
+
     const guardErr = await guardAiByHome(supabase, homeId);
     if (guardErr) return guardErr;
 
-    if (userId) {
-      const rateLimitErr = await enforceRateLimit(serviceDb, userId, FN);
-      if (rateLimitErr) return rateLimitErr;
-    }
+    const rateLimitErr = await enforceRateLimit(serviceDb, userId, FN);
+    if (rateLimitErr) return rateLimitErr;
 
     log(FN, "request_received", { homeId, userId, count, seenCount: alreadySeenPlantNames.length });
 

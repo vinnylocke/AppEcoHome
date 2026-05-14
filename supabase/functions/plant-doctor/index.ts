@@ -213,7 +213,7 @@ const PEST_INFO_SCHEMA = {
 
 async function fetchAndUploadImage(url: string, plantName: string, supabase: any) {
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: AbortSignal.timeout(15_000) });
     if (!response.ok) return null;
     const blob = await response.blob();
     const fileExt = url.split(".").pop()?.split("?")[0] || "jpg";
@@ -240,6 +240,7 @@ async function getWikiImage(plantName: string) {
     try {
       const res = await fetch(
         `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(term)}`,
+        { signal: AbortSignal.timeout(8_000) },
       );
       if (!res.ok) return null;
       const data = await res.json();
@@ -302,7 +303,7 @@ serve(async (req) => {
       currentPlants, imageBase64, mimeType, diagnosisContext,
       diseaseName, pestName, notes, inventoryItemId, areaId,
       deviceLat, deviceLng,
-      searchFilters, excludeNames,
+      searchFilters, searchOffset,
     } = body;
     action = _action;
 
@@ -326,7 +327,9 @@ serve(async (req) => {
       log(FN, "perenual_lookup", { diseaseName });
       const res = await fetch(
         `https://perenual.com/api/pest-disease-list?key=${perenualKey}&q=${encodeURIComponent(diseaseName)}`,
+        { signal: AbortSignal.timeout(12_000) },
       );
+      if (!res.ok) throw new Error(`Perenual pest-disease lookup failed: ${res.status}`);
       const data = await res.json();
       if (data?.data?.length > 0) {
         const item = data.data[0];
@@ -420,8 +423,30 @@ serve(async (req) => {
     if (action === "search_plants_text") {
       const hasQuery = plantSearch && plantSearch.trim().length > 0;
       const filters = searchFilters ?? {};
-      const exclude: string[] = excludeNames ?? [];
+      const offset: number = typeof searchOffset === "number" ? searchOffset : 0;
+      const PAGE_SIZE = 10;
+      const CACHE_SIZE = 30;
 
+      // Build a deterministic cache key from query + active filters (no offset — offset paginates the same dataset).
+      const filtersSig = Object.entries(filters as Record<string, unknown>)
+        .filter(([, v]) => v !== undefined && v !== null)
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([k, v]) => `${k}:${Array.isArray(v) ? [...(v as string[])].sort().join(",") : v}`)
+        .join("|") || "none";
+      const searchCacheKey = cacheKey("plant_search_text", plantSearch?.trim() ?? "", filtersSig);
+
+      // Cache hit — slice the pre-generated full result set.
+      const cachedAll = await getCached<{ matches: string[] }>(supabase, searchCacheKey);
+      if (cachedAll?.matches?.length) {
+        const page = cachedAll.matches.slice(offset, offset + PAGE_SIZE);
+        const hasMore = offset + PAGE_SIZE < cachedAll.matches.length;
+        log(FN, "result", { action, matchesCount: page.length, query: plantSearch ?? null, fromCache: true, offset });
+        return new Response(JSON.stringify({ matches: page, hasMore }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // Cache miss — generate CACHE_SIZE results from Gemini, cache all, return first page.
       const filterLines: string[] = [];
       if (hasQuery)                                            filterLines.push(`- Name matches: "${plantSearch.trim()}"`);
       if (filters.cycle?.length)                              filterLines.push(`- Life cycle must be one of: ${filters.cycle.join(", ")}`);
@@ -442,24 +467,30 @@ serve(async (req) => {
           filterLines.push(`- Hardy in USDA hardiness zone ${min ?? max}`);
         }
       }
-      if (exclude.length > 0)              filterLines.push(`- Do NOT include any of these already-shown plants: ${exclude.join(", ")}`);
 
       const criteriaBlock = filterLines.length > 0
         ? `\nCriteria — the plant MUST satisfy ALL of the following:\n${filterLines.join("\n")}`
         : "";
 
-      const prompt = `Return exactly 10 real plant species that best match the following request.${criteriaBlock}
+      const prompt = `Return exactly ${CACHE_SIZE} real plant species that best match the following request.${criteriaBlock}
 
+Return the most relevant match first, followed by closely related varieties and companion plants. Avoid duplicates.
 Each match must be a real plant species. Format each as "Common Name (Scientific Name)".`;
 
       const { text, usage } = await callGeminiCascade(
         apiKey, FN, toMessages([prompt]),
-        { responseSchema: SEARCH_PLANTS_SCHEMA, logContext: { action } },
+        { responseSchema: SEARCH_PLANTS_SCHEMA, maxOutputTokens: 1500, logContext: { action } },
       );
       const parsed = JSON.parse(text);
+      const allMatches: string[] = parsed.matches ?? [];
+
       await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "search_plants_text", usage });
-      log(FN, "result", { action, matchesCount: parsed.matches?.length ?? 0, query: plantSearch ?? null });
-      return new Response(JSON.stringify(parsed), {
+      await setCached(supabase, searchCacheKey, FN, { matches: allMatches }, 30);
+
+      const page = allMatches.slice(0, PAGE_SIZE);
+      const hasMore = allMatches.length > PAGE_SIZE;
+      log(FN, "result", { action, total: allMatches.length, matchesCount: page.length, query: plantSearch ?? null, fromCache: false });
+      return new Response(JSON.stringify({ matches: page, hasMore }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

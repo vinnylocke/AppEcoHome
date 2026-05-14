@@ -320,11 +320,11 @@ export default function BulkSearchModal({
       searches.push(
         PlantDoctorService.searchPlantsText(query, {
           searchFilters: activeFilterCount > 0 ? filters : undefined,
+          offset: 0,
         })
           .then((data) => {
-            const matches = data.matches || [];
-            setAiResults(matches);
-            setCanShowMoreAi(matches.length >= 10);
+            setAiResults(data.matches || []);
+            setCanShowMoreAi(data.hasMore);
           })
           .catch(() => {}),
       );
@@ -342,7 +342,12 @@ export default function BulkSearchModal({
               thumbnail_url: p.default_image?.thumbnail ?? null,
               _provider: "perenual",
             }));
-            setApiResults(normalized);
+            // Use updater form to preserve any Verdantly results that arrived first.
+            // Without this, a direct setApiResults(normalized) would overwrite them.
+            setApiResults((prev: any[]) => {
+              const verdantlyResults = prev.filter((r: any) => r._provider === "verdantly");
+              return [...normalized, ...verdantlyResults];
+            });
           })
           .catch((err) => {
             const msg = (err.message || "") as string;
@@ -372,23 +377,13 @@ export default function BulkSearchModal({
 
   const handleShowMoreAi = async () => {
     setIsLoadingMore(true);
-    const exclude = [
-      ...aiResults,
-      // Only exclude Perenual names — Verdantly returns specific variety names that
-      // the AI would never generate and should not count as "already shown".
-      ...apiResults
-        .filter((p: any) => p._provider !== "verdantly")
-        .map((p: any) => p.common_name)
-        .filter(Boolean),
-    ];
     try {
       const data = await PlantDoctorService.searchPlantsText(query, {
         searchFilters: activeFilterCount > 0 ? filters : undefined,
-        excludeNames: exclude,
+        offset: aiResults.length,
       });
-      const more = data.matches || [];
-      setAiResults((prev) => [...prev, ...more]);
-      setCanShowMoreAi(more.length >= 10);
+      setAiResults((prev) => [...prev, ...(data.matches || [])]);
+      setCanShowMoreAi(data.hasMore);
     } catch {
       toast.error("Could not load more AI suggestions.");
     }

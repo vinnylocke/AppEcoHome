@@ -3,6 +3,7 @@ import { AlertTriangle, Home, Send, CheckCircle, Loader2 } from "lucide-react";
 
 interface ErrorPageProps {
   error?: Error;
+  appVersion?: string;
 }
 
 function collectDeviceInfo() {
@@ -17,7 +18,7 @@ function collectDeviceInfo() {
   };
 }
 
-export default function ErrorPage({ error }: ErrorPageProps) {
+export default function ErrorPage({ error, appVersion }: ErrorPageProps) {
   const [reportState, setReportState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
 
   const sendReport = async () => {
@@ -34,6 +35,7 @@ export default function ErrorPage({ error }: ErrorPageProps) {
         body: JSON.stringify({
           errorMessage: error?.message ?? "Unknown error",
           errorStack: error?.stack ?? null,
+          appVersion: appVersion ?? null,
           ...collectDeviceInfo(),
         }),
       });
@@ -100,6 +102,7 @@ export default function ErrorPage({ error }: ErrorPageProps) {
               Technical details
             </summary>
             <pre className="mt-3 text-[10px] text-red-600 whitespace-pre-wrap break-words font-mono leading-relaxed">
+              {appVersion ? `Version: ${appVersion}\n\n` : ""}
               {error.message}
               {error.stack ? `\n\n${error.stack}` : ""}
             </pre>
