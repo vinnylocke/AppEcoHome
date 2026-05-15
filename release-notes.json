@@ -1,17 +1,27 @@
 [
   {
-    "label": "Fixed",
+    "label": "New Features",
     "items": [
-      "Plant search no longer drops Verdantly results when they arrive before Perenual results"
+      "Home Dashboard — new dedicated stats view showing weekly task completion rate, per-member breakdown, garden overview (plants, harvests, pruning), weather summary, and automation activity",
+      "Automations — schedule IoT valve devices to run on a timed basis, linked to task blueprints; supports sequential valve firing, weather-aware skipping (rain threshold), and retry on failure",
+      "Calendar Overdue Tracking — past calendar cells now show coloured indicators: green ✓ completed on time, amber ✓ completed late, red ✗ overdue on due date, faint ✕ for each missed carryover day; agenda view shows overdue carryover tasks with an 'Overdue since' badge and late completions on their actual completion day"
     ]
   },
   {
-    "label": "Improved",
+    "label": "Improvements",
     "items": [
-      "Plant name searches are now cached and shared across all users — repeated searches return instantly without hitting the AI again",
-      "Perenual and Verdantly search results are cached for 24 hours — finding plants is faster across the app, including the planner's procure step",
-      "\"Show more AI suggestions\" pre-generates a full batch upfront — clicking through pages never makes a second AI call",
-      "Faster initial load — map, canvas, and chart libraries now load only on the pages that need them"
+      "Dashboard member task counts now correctly attribute completions to whoever actually marked the task done (not the original task creator)",
+      "Dashboard week now starts on Sunday to match the calendar view, with the exact date range shown in the header (e.g. 'May 11 – May 17')",
+      "Pruning events are now individually recorded per plant instance, powering the new 'plants pruned this week' stat on the Home Dashboard",
+      "eWeLink device reconnection now uses a popup OAuth flow so you stay on the Integrations page rather than being redirected away",
+      "Integrations page now has separate Devices and Automations tabs"
+    ]
+  },
+  {
+    "label": "Fixes",
+    "items": [
+      "Device RLS policies updated so home members can save new devices from the browser without a permissions error",
+      "Performance index added to the tasks table to speed up weekly dashboard stat queries"
     ]
   }
 ]

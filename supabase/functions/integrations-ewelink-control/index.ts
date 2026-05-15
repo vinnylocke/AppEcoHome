@@ -16,6 +16,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decryptCredentials } from "../_shared/integrations/encrypt.ts";
 import { insertReading } from "../_shared/integrations/readings.ts";
 import type { ValveReading } from "../_shared/integrations/providerTypes.ts";
+import { buildControlPayload, resolveEffectiveDuration } from "../_shared/integrations/ewelinkDevice.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -70,7 +71,7 @@ Deno.serve(async (req) => {
     // ── Load device + integration ───────────────────────────────────────────
     const { data: device } = await db
       .from("devices")
-      .select("id, home_id, metadata, integration_id")
+      .select("id, home_id, metadata, integration_id, external_device_id")
       .eq("id", deviceId)
       .eq("device_type", "water_valve")
       .single();
@@ -107,41 +108,10 @@ Deno.serve(async (req) => {
     const appId = Deno.env.get("EWELINK_APP_ID") ?? "";
 
     const meta = device.metadata as Record<string, unknown>;
-    const duration = durationSeconds ?? (meta.default_duration_seconds as number | undefined) ?? 1800;
+    const duration = resolveEffectiveDuration(durationSeconds, meta);
 
     // ── Build eWeLink API call ──────────────────────────────────────────────
-    const switchState = command === "turn_on" ? "on" : "off";
-
-    let apiPath: string;
-    let payload: Record<string, unknown>;
-
-    if (meta.use_sub_device) {
-      // Sub-device control via Zigbee Bridge Pro
-      apiPath = `/v2/device/thing/sub/status`;
-      payload = {
-        id: meta.parent_device_id,
-        params: {
-          switches: [
-            {
-              switch: switchState,
-              outlet: 0,
-              ...(command === "turn_on" ? { countdown: duration } : {}),
-            },
-          ],
-          subDevId: meta.sub_device_id,
-        },
-      };
-    } else {
-      // Direct device control
-      apiPath = `/v2/device/thing/status`;
-      payload = {
-        id: meta.direct_device_id,
-        params: {
-          switch: switchState,
-          ...(command === "turn_on" ? { countdown: duration } : {}),
-        },
-      };
-    }
+    const { apiPath, payload } = buildControlPayload(meta, command, duration, device.external_device_id ?? undefined);
 
     const controlRes = await fetch(`${EWELINK_BASE}${apiPath}`, {
       method: "POST",

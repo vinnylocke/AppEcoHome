@@ -3,6 +3,60 @@ import { PerenualService } from "./perenualService";
 import { VerdantlyService } from "./verdantlyService";
 import type { PlantDetails, ProviderSearchResult } from "./verdantlyUtils";
 
+// ─── AI care guide adapter ────────────────────────────────────────────────────
+
+export function careGuideToPlantDetails(guide: any, name: string): PlantDetails {
+  const flowering = guide.flowering_season;
+  const harvest = guide.harvest_season;
+  return {
+    common_name:         guide.common_name ?? name,
+    scientific_name:     Array.isArray(guide.scientific_name)
+                           ? guide.scientific_name
+                           : guide.scientific_name ? [guide.scientific_name] : [],
+    other_names:         [],
+    family:              null,
+    plant_type:          guide.plant_type ?? null,
+    cycle:               guide.cycle ?? null,
+    image_url:           guide.thumbnail_url ?? null,
+    thumbnail_url:       guide.thumbnail_url ?? null,
+    watering:            guide.watering ?? null,
+    watering_benchmark:  null,
+    watering_min_days:   guide.watering_min_days ?? null,
+    watering_max_days:   guide.watering_max_days ?? null,
+    sunlight:            guide.sunlight ?? [],
+    care_level:          guide.care_level ?? null,
+    hardiness_min:       null,
+    hardiness_max:       null,
+    is_edible:           guide.is_edible ?? false,
+    is_toxic_pets:       guide.is_toxic_pets ?? false,
+    is_toxic_humans:     guide.is_toxic_humans ?? false,
+    attracts:            guide.attracts ?? [],
+    description:         guide.description ?? null,
+    maintenance:         guide.maintenance ?? null,
+    growth_rate:         guide.growth_rate ?? null,
+    growth_habit:        null,
+    drought_tolerant:    guide.drought_tolerant ?? false,
+    salt_tolerant:       false,
+    thorny:              false,
+    invasive:            false,
+    tropical:            guide.tropical ?? false,
+    indoor:              guide.indoor ?? false,
+    pest_susceptibility: [],
+    flowers:             false,
+    cones:               false,
+    fruits:              false,
+    edible_leaf:         false,
+    cuisine:             guide.cuisine ?? false,
+    medicinal:           guide.medicinal ?? false,
+    leaf:                false,
+    flowering_season:    Array.isArray(flowering) ? flowering.join(", ") : flowering ?? null,
+    harvest_season:      Array.isArray(harvest) ? harvest.join(", ") : harvest ?? null,
+    pruning_month:       guide.pruning_month ?? [],
+    propagation:         guide.propagation ?? [],
+    source:              "ai",
+  };
+}
+
 // ─── Provider config ──────────────────────────────────────────────────────────
 
 async function getEnabledProviders(): Promise<string[]> {

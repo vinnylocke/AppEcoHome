@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "../../lib/supabase";
 import { X, Settings, Loader2 } from "lucide-react";
 import SoilReadingsPanel from "./SoilReadingsPanel";
@@ -36,12 +37,12 @@ export default function DeviceDetailModal({ device, onClose, onRefresh }: Props)
       });
   }, [device.id, device.device_type]);
 
-  return (
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+      <div className="fixed inset-0 z-50 flex items-center justify-center">
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
         <div
-          className="relative w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-xl max-h-[90vh] overflow-y-auto"
+          className="relative w-[calc(100vw-2rem)] max-w-lg bg-white rounded-3xl shadow-xl max-h-[90vh] overflow-y-auto"
           data-testid="device-detail-modal"
         >
           {/* Header */}
@@ -117,6 +118,7 @@ export default function DeviceDetailModal({ device, onClose, onRefresh }: Props)
           onUpdated={() => { setShowSettings(false); onRefresh(); onClose(); }}
         />
       )}
-    </>
+    </>,
+    document.body,
   );
 }

@@ -1,10 +1,14 @@
 import React, { useEffect, useState, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
-import { Plus, RefreshCw, AlertCircle } from "lucide-react";
+import { Plus, RefreshCw, AlertCircle, Loader2, CheckCircle, XCircle, Cpu, Zap } from "lucide-react";
 import { IconIntegrations } from "../../constants/icons";
 import DeviceCard from "./DeviceCard";
 import ConnectDeviceWizard from "./ConnectDeviceWizard";
 import DeviceDetailModal from "./DeviceDetailModal";
+import AutomationsSection from "./AutomationsSection";
+import type { WizardState } from "./ConnectDeviceWizard";
+
+type TabId = "devices" | "automations";
 
 interface Props {
   homeId: string;
@@ -26,11 +30,85 @@ export interface Device {
 }
 
 export default function IntegrationsPage({ homeId }: Props) {
+  const [activeTab, setActiveTab] = useState<TabId>("devices");
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showWizard, setShowWizard] = useState(false);
+  const [wizardInitialStep, setWizardInitialStep] = useState<number | undefined>(undefined);
+  const [wizardInitialState, setWizardInitialState] = useState<Partial<WizardState> | undefined>(undefined);
   const [selectedDevice, setSelectedDevice] = useState<Device | null>(null);
+  const [callbackTabState, setCallbackTabState] = useState<null | "loading" | "success" | "error">(null);
+  const [callbackTabError, setCallbackTabError] = useState<string | null>(null);
+
+  // Detect eWeLink OAuth callback
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ewelinkCode = params.get("code");
+    if (!ewelinkCode) return;
+
+    history.replaceState({}, "", window.location.pathname);
+
+    const ewelinkState = params.get("state") ?? "";
+    const ewelinkRegion = params.get("region") ?? "";
+    const mode = localStorage.getItem("ewelink_oauth_mode");
+    localStorage.removeItem("ewelink_oauth_mode");
+
+    if (mode === "popup") {
+      const storedState = localStorage.getItem("ewelink_oauth_state") ?? "";
+      const storedHomeId = localStorage.getItem("ewelink_oauth_home_id") ?? "";
+      localStorage.removeItem("ewelink_oauth_state");
+      localStorage.removeItem("ewelink_oauth_home_id");
+
+      if (storedState && ewelinkState && storedState !== ewelinkState) {
+        localStorage.setItem("ewelink_oauth_result", JSON.stringify({ error: "OAuth state mismatch — please try again" }));
+        return;
+      }
+
+      setCallbackTabState("loading");
+
+      (async () => {
+        try {
+          const { data: { session } } = await supabase.auth.getSession();
+          const res = await supabase.functions.invoke("integrations-ewelink-connect", {
+            body: { action: "exchange_code", homeId: storedHomeId, code: ewelinkCode, region: ewelinkRegion },
+            headers: { Authorization: `Bearer ${session?.access_token}` },
+          });
+          if (res.error) throw new Error(res.error.message);
+          if (res.data?.error) throw new Error(res.data.error);
+          const { integrationId, devices } = res.data as { integrationId: string; devices: unknown[] };
+          localStorage.setItem("ewelink_oauth_result", JSON.stringify({ integrationId, devices }));
+          setCallbackTabState("success");
+          window.close();
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : "Failed to connect";
+          localStorage.setItem("ewelink_oauth_result", JSON.stringify({ error: msg }));
+          setCallbackTabError(msg);
+          setCallbackTabState("error");
+          window.close();
+        }
+      })();
+    } else {
+      const expectedState = sessionStorage.getItem("ewelink_oauth_state");
+      sessionStorage.removeItem("ewelink_oauth_state");
+
+      if (expectedState && ewelinkState && expectedState !== ewelinkState) {
+        setError("OAuth authorisation failed — please try again");
+        return;
+      }
+
+      const deviceType = sessionStorage.getItem("ewelink_oauth_deviceType") as WizardState["deviceType"] | null;
+      sessionStorage.removeItem("ewelink_oauth_deviceType");
+
+      setWizardInitialStep(2);
+      setWizardInitialState({
+        brand: "ewelink",
+        deviceType: deviceType ?? null,
+        credentials: { __oauthCode: ewelinkCode, __oauthRegion: ewelinkRegion },
+      });
+      setShowWizard(true);
+    }
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -52,71 +130,154 @@ export default function IntegrationsPage({ homeId }: Props) {
 
   useEffect(() => { load(); }, [load]);
 
-  const handleWizardComplete = () => {
+  const closeWizard = () => {
     setShowWizard(false);
+    setWizardInitialStep(undefined);
+    setWizardInitialState(undefined);
+  };
+
+  const handleWizardComplete = () => {
+    closeWizard();
     load();
   };
 
-  return (
-    <div className="px-4 md:px-8 py-6 w-full">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6 gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <div className="w-10 h-10 rounded-2xl bg-rhozly-primary/10 flex items-center justify-center shrink-0">
-            <IconIntegrations className="text-rhozly-primary" size={20} />
-          </div>
-          <div className="min-w-0">
-            <h1 className="text-lg sm:text-2xl font-black font-display text-rhozly-on-surface leading-tight">Integrations</h1>
-            <p className="text-xs sm:text-sm text-rhozly-on-surface-variant">Connected devices and sensors</p>
-          </div>
+  // Ephemeral callback tab opened by window.open
+  if (callbackTabState !== null) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-rhozly-bg p-6">
+        <div className="w-full max-w-sm bg-white rounded-3xl shadow-xl p-8 text-center">
+          {callbackTabState === "loading" && (
+            <>
+              <Loader2 size={36} className="animate-spin text-rhozly-primary mx-auto mb-4" />
+              <p className="font-black text-rhozly-on-surface text-lg mb-1">Connecting…</p>
+              <p className="text-sm text-rhozly-on-surface-variant">Completing eWeLink authorisation.</p>
+            </>
+          )}
+          {callbackTabState === "success" && (
+            <>
+              <CheckCircle size={36} className="text-green-500 mx-auto mb-4" />
+              <p className="font-black text-rhozly-on-surface text-lg mb-1">Connected!</p>
+              <p className="text-sm text-rhozly-on-surface-variant">Switch back to the Rhozly app to continue.</p>
+            </>
+          )}
+          {callbackTabState === "error" && (
+            <>
+              <XCircle size={36} className="text-red-500 mx-auto mb-4" />
+              <p className="font-black text-rhozly-on-surface text-lg mb-1">Connection failed</p>
+              <p className="text-sm text-rhozly-on-surface-variant mb-1">{callbackTabError}</p>
+              <p className="text-sm text-rhozly-on-surface-variant">Switch back to the app and try again.</p>
+            </>
+          )}
         </div>
-        <div className="flex gap-2 shrink-0">
-          <button
-            onClick={load}
-            data-testid="integrations-refresh"
-            className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-rhozly-surface text-rhozly-on-surface-variant hover:bg-rhozly-surface-low transition-colors"
-          >
-            <RefreshCw size={16} className="sm:w-[18px] sm:h-[18px]" />
-          </button>
-          <button
-            onClick={() => setShowWizard(true)}
-            data-testid="integrations-connect"
-            className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-rhozly-primary text-white font-semibold text-xs sm:text-sm hover:bg-rhozly-primary/90 transition-colors"
-          >
-            <Plus size={16} className="sm:w-[18px] sm:h-[18px]" />
-            <span className="hidden sm:inline">Connect Device</span>
-          </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="flex flex-col h-full">
+      {/* Page header */}
+      <div className="px-4 md:px-8 pt-6 pb-0">
+        <div className="flex items-center justify-between mb-5 gap-3">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-2xl bg-rhozly-primary/10 flex items-center justify-center shrink-0">
+              <IconIntegrations className="text-rhozly-primary" size={20} />
+            </div>
+            <div className="min-w-0">
+              <h1 className="text-lg sm:text-2xl font-black font-display text-rhozly-on-surface leading-tight">Integrations</h1>
+              <p className="text-xs sm:text-sm text-rhozly-on-surface-variant">Connected devices and automations</p>
+            </div>
+          </div>
+
+          {/* Context-sensitive header actions */}
+          {activeTab === "devices" && (
+            <div className="flex gap-2 shrink-0">
+              <button
+                onClick={load}
+                data-testid="integrations-refresh"
+                className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-rhozly-surface text-rhozly-on-surface-variant hover:bg-rhozly-surface-low transition-colors"
+              >
+                <RefreshCw size={16} className="sm:w-[18px] sm:h-[18px]" />
+              </button>
+              <button
+                onClick={() => setShowWizard(true)}
+                data-testid="integrations-connect"
+                className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-rhozly-primary text-white font-semibold text-xs sm:text-sm hover:bg-rhozly-primary/90 transition-colors"
+              >
+                <Plus size={16} className="sm:w-[18px] sm:h-[18px]" />
+                <span className="hidden sm:inline">Connect Device</span>
+              </button>
+            </div>
+          )}
+        </div>
+
+        {/* Tab bar */}
+        <div role="tablist" aria-label="Integrations sections" className="flex gap-1 border-b border-rhozly-outline/10">
+          {([
+            { id: "devices" as TabId,     label: "Devices",     icon: <Cpu size={15} /> },
+            { id: "automations" as TabId, label: "Automations", icon: <Zap size={15} /> },
+          ]).map((tab) => {
+            const isActive = activeTab === tab.id;
+            return (
+              <button
+                key={tab.id}
+                role="tab"
+                aria-selected={isActive}
+                data-testid={`integrations-tab-${tab.id}`}
+                onClick={() => setActiveTab(tab.id)}
+                className={`flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-t-xl text-[13px] uppercase tracking-widest transition-all border-b-2 -mb-px ${
+                  isActive
+                    ? "font-bold text-rhozly-primary border-rhozly-primary bg-rhozly-primary/5"
+                    : "font-normal text-rhozly-on-surface/40 border-transparent hover:text-rhozly-on-surface/70 hover:bg-rhozly-surface-low"
+                }`}
+              >
+                {tab.icon}
+                {tab.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
-      {/* Content */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[...Array(3)].map((_, i) => (
-            <div key={i} className="rounded-3xl bg-rhozly-surface-lowest border border-rhozly-outline/20 p-5 animate-pulse h-40" />
-          ))}
-        </div>
-      ) : error ? (
-        <div className="flex items-center gap-3 p-4 rounded-2xl bg-red-50 border border-red-100 text-red-700">
-          <AlertCircle size={18} />
-          <span className="text-sm">{error}</span>
-        </div>
-      ) : devices.length === 0 ? (
-        <EmptyState onConnect={() => setShowWizard(true)} />
-      ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {devices.map((d) => (
-            <DeviceCard key={d.id} device={d} onClick={() => setSelectedDevice(d)} />
-          ))}
-        </div>
-      )}
+      {/* Tab content */}
+      <div className="flex-1 overflow-auto px-4 md:px-8 py-6">
+        {activeTab === "devices" && (
+          <>
+            {loading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {[...Array(3)].map((_, i) => (
+                  <div key={i} className="rounded-3xl bg-rhozly-surface-lowest border border-rhozly-outline/20 p-5 animate-pulse h-40" />
+                ))}
+              </div>
+            ) : error ? (
+              <div className="flex items-center gap-3 p-4 rounded-2xl bg-red-50 border border-red-100 text-red-700">
+                <AlertCircle size={18} />
+                <span className="text-sm">{error}</span>
+              </div>
+            ) : devices.length === 0 ? (
+              <EmptyState onConnect={() => setShowWizard(true)} />
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                {devices.map((d) => (
+                  <DeviceCard key={d.id} device={d} onClick={() => setSelectedDevice(d)} />
+                ))}
+              </div>
+            )}
+          </>
+        )}
+
+        {activeTab === "automations" && (
+          <AutomationsSection homeId={homeId} />
+        )}
+      </div>
 
       {/* Wizard */}
       {showWizard && (
         <ConnectDeviceWizard
           homeId={homeId}
           onComplete={handleWizardComplete}
-          onClose={() => setShowWizard(false)}
+          onClose={closeWizard}
+          initialStep={wizardInitialStep}
+          initialState={wizardInitialState}
         />
       )}
 

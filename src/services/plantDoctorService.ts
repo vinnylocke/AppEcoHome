@@ -116,6 +116,7 @@ export const PlantDoctorService = {
         hardinessMax?: number;
       };
       offset?: number;
+      homeId?: string;
     },
   ): Promise<{ matches: any[]; hasMore: boolean }> {
     return invoke({
@@ -123,6 +124,7 @@ export const PlantDoctorService = {
       plantSearch,
       searchFilters: options?.searchFilters,
       searchOffset: options?.offset ?? 0,
+      homeId: options?.homeId,
     });
   },
 

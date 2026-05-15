@@ -235,7 +235,7 @@ export default function TaskList({
 
       if (ghostTasks.length > 0) {
         const payloads = ghostTasks.map((task) =>
-          buildGhostPayload(task, "Completed", { completed_at: completedTime }),
+          buildGhostPayload(task, "Completed", { completed_at: completedTime, completed_by: currentUserId }),
         );
         const { error } = await supabase.from("tasks").insert(payloads);
         if (error) throw error;
@@ -246,7 +246,7 @@ export default function TaskList({
           physicalTasks.map((t) =>
             supabase
               .from("tasks")
-              .update({ status: "Completed", completed_at: completedTime })
+              .update({ status: "Completed", completed_at: completedTime, completed_by: currentUserId })
               .eq("id", t.id),
           ),
         );
@@ -664,13 +664,15 @@ export default function TaskList({
     }
 
     try {
+      const completedAt = newStatus === "Completed" ? new Date().toISOString() : null;
       let finalData = task;
       if (task.isGhost) {
         const { data, error } = await supabase
           .from("tasks")
           .insert([
             buildGhostPayload(task, newStatus, {
-              completed_at: newStatus === "Completed" ? new Date().toISOString() : null,
+              completed_at: completedAt,
+              completed_by: newStatus === "Completed" ? currentUserId : null,
             }),
           ])
           .select(
@@ -684,8 +686,8 @@ export default function TaskList({
           .from("tasks")
           .update({
             status: newStatus,
-            completed_at:
-              newStatus === "Completed" ? new Date().toISOString() : null,
+            completed_at: completedAt,
+            completed_by: newStatus === "Completed" ? currentUserId : null,
           })
           .eq("id", task.id);
         if (error) throw error;
@@ -1039,8 +1041,18 @@ export default function TaskList({
                     </h4>
 
                     {/* Chips */}
-                    {(plantName || task.areas?.name || planName || task.auto_completed_reason) && (
+                    {(plantName || task.areas?.name || planName || task.auto_completed_reason || task.overdueCarryoverSince || task.lateCompletionFrom) && (
                       <div className="flex flex-wrap gap-1.5 mt-1.5">
+                        {task.overdueCarryoverSince && (
+                          <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-red-100 text-red-700">
+                            <AlertCircle size={10} /> Overdue since {formatDisplayDate(task.overdueCarryoverSince)}
+                          </div>
+                        )}
+                        {task.lateCompletionFrom && (
+                          <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 text-amber-700">
+                            <CheckSquare size={10} /> Completed late — due {formatDisplayDate(task.lateCompletionFrom)}
+                          </div>
+                        )}
                         {plantName && (
                           <div className="text-[10px] font-bold flex items-center gap-1 px-2 py-0.5 rounded-md bg-emerald-50 text-emerald-700">
                             <Leaf size={10} /> {plantName}{count > 1 && ` (x${count})`}

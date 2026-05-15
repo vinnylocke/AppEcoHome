@@ -4,8 +4,10 @@ import { X, Search, Loader2, ArrowLeft, Info, ChevronUp } from "lucide-react";
 import { IconPlant, IconAI, IconPlantDB } from "../../constants/icons";
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
-import { searchAllProviders, getProviderPlantDetails } from "../../lib/plantProvider";
-import type { ProviderSearchResult } from "../../lib/verdantlyUtils";
+import { searchAllProviders, getProviderPlantDetails, careGuideToPlantDetails } from "../../lib/plantProvider";
+import type { ProviderSearchResult, PlantDetails } from "../../lib/verdantlyUtils";
+import { PlantDoctorService } from "../../services/plantDoctorService";
+import PlantInfoPanel from "../PlantInfoPanel";
 import { Logger } from "../../lib/errorHandler";
 import { SHOPPING_CATEGORIES } from "../../constants/shoppingCategories";
 import type { ShoppingListItem } from "../../types/shopping";
@@ -23,7 +25,6 @@ type PlantSearchState =
 interface ShedPlant { id: string; plant_name: string; nickname: string | null; }
 type DbResult = ProviderSearchResult;
 interface AiResult { name: string; description: string; }
-interface WikiEntry { loading: boolean; desc?: string; image?: string; }
 
 interface Props {
   homeId: string;
@@ -51,8 +52,9 @@ export default function AddItemSheet({
 
   // Info accordion
   const [expandedItemId, setExpandedItemId] = useState<string | null>(null);
-  const [wikiCache, setWikiCache] = useState<Record<string, WikiEntry>>({});
-  const wikiFetchedRef = useRef<Set<string>>(new Set());
+  const [detailsCache, setDetailsCache] = useState<Map<string, PlantDetails>>(new Map());
+  const [loadingDetailsIds, setLoadingDetailsIds] = useState<Set<string>>(new Set());
+  const fetchingDetailsRef = useRef<Set<string>>(new Set());
 
   // Product state
   const [productName, setProductName] = useState("");
@@ -120,56 +122,55 @@ export default function AddItemSheet({
     }
   };
 
-  // Wikipedia info fetch
-  const fetchWikiInfo = async (key: string, name: string) => {
-    if (wikiFetchedRef.current.has(key)) return;
-    wikiFetchedRef.current.add(key);
-    setWikiCache(prev => ({ ...prev, [key]: { loading: true } }));
+  // Auto-prefetch care guides for AI results as soon as the list populates
+  useEffect(() => {
+    if (!aiEnabled) return;
+    externalAiResults.forEach((r, i) => {
+      fetchDetails(`ai-${i}`);
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [externalAiResults]);
+
+  const fetchDetails = async (key: string, plantObj?: any) => {
+    if (detailsCache.has(key) || fetchingDetailsRef.current.has(key)) return;
+    fetchingDetailsRef.current.add(key);
+    setLoadingDetailsIds(prev => new Set(prev).add(key));
     try {
-      const cleanName = name.split("(")[0].trim();
-      const res = await fetch(
-        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(cleanName)}`
-      );
-      if (!res.ok) throw new Error();
-      const data = await res.json();
-      if (data.type === "disambiguation" || !data.extract) throw new Error();
-      setWikiCache(prev => ({
-        ...prev,
-        [key]: { loading: false, desc: data.extract, image: data.thumbnail?.source ?? data.originalimage?.source },
-      }));
+      let details: PlantDetails;
+      if (plantObj) {
+        details = await getProviderPlantDetails({
+          source: plantObj._provider === "verdantly" ? "verdantly" : "api",
+          perenual_id:  plantObj._provider !== "verdantly" ? (plantObj.perenual_id ?? plantObj.id) : null,
+          verdantly_id: plantObj._provider === "verdantly" ? (plantObj.verdantly_id ?? plantObj.id) : null,
+        });
+      } else {
+        const cleanName = key.replace(/^ai-/, "").split("(")[0].trim();
+        const aiData = await PlantDoctorService.generateCareGuide(cleanName, homeId);
+        details = careGuideToPlantDetails(aiData?.plantData ?? aiData, cleanName);
+      }
+      setDetailsCache(prev => new Map(prev).set(key, details));
     } catch {
-      setWikiCache(prev => ({ ...prev, [key]: { loading: false, desc: "No description available." } }));
+      // silently fail
+    } finally {
+      fetchingDetailsRef.current.delete(key);
+      setLoadingDetailsIds(prev => { const s = new Set(prev); s.delete(key); return s; });
     }
   };
 
-  const toggleItemExpand = (key: string, name: string) => {
+  const toggleItemExpand = (key: string, plantObj?: any) => {
     setExpandedItemId(prev => prev === key ? null : key);
-    fetchWikiInfo(key, name);
+    fetchDetails(key, plantObj);
   };
 
-  const renderWikiAccordion = (key: string) => {
-    const entry = wikiCache[key];
-    if (!entry) return null;
-    return (
-      <div className="px-3 pb-2 animate-in slide-in-from-top-1">
-        {entry.loading ? (
-          <div className="flex items-center gap-2 py-2 text-rhozly-on-surface/30">
-            <Loader2 size={12} className="animate-spin" />
-            <span className="text-[10px] font-bold">Loading…</span>
-          </div>
-        ) : (
-          <div className="flex gap-2.5 items-start bg-rhozly-bg rounded-xl p-2.5">
-            {entry.image && (
-              <img src={entry.image} alt="" className="w-14 h-14 rounded-lg object-cover shrink-0" />
-            )}
-            <p className="text-[10px] font-semibold text-rhozly-on-surface/70 leading-relaxed">
-              {entry.desc}
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  };
+  const renderInfoPanel = (key: string, plantName?: string) => (
+    <div className="px-3 pb-2 animate-in slide-in-from-top-1">
+      <PlantInfoPanel
+        details={detailsCache.get(key) ?? null}
+        loading={loadingDetailsIds.has(key)}
+        plantName={plantName}
+      />
+    </div>
+  );
 
   const handleOpenDbPreview = async (result: DbResult) => {
     setPlantState("preview");
@@ -525,11 +526,11 @@ export default function AddItemSheet({
                                     </div>
                                     <div className="flex items-center gap-1 shrink-0">
                                       <button
-                                        onClick={() => toggleItemExpand(key, r.name)}
+                                        onClick={() => toggleItemExpand(key)}
                                         className="p-1.5 rounded-lg text-amber-400 hover:bg-amber-50 hover:text-amber-600 transition-colors"
                                         aria-label="Show info"
                                       >
-                                        {isExpanded ? <ChevronUp size={13} /> : <Info size={13} />}
+                                        {isExpanded ? <ChevronUp size={13} /> : loadingDetailsIds.has(key) ? <Loader2 size={13} className="animate-spin" /> : <Info size={13} />}
                                       </button>
                                       <button
                                         onClick={() => handleAddAiPlant(r)}
@@ -540,7 +541,7 @@ export default function AddItemSheet({
                                       </button>
                                     </div>
                                   </div>
-                                  {isExpanded && renderWikiAccordion(key)}
+                                  {isExpanded && renderInfoPanel(key, r.name)}
                                 </div>
                               );
                             })}
@@ -574,14 +575,14 @@ export default function AddItemSheet({
                                       <span className="text-[8px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">Verdantly</span>
                                     </div>
                                     <button
-                                      onClick={e => { e.stopPropagation(); toggleItemExpand(key, r.common_name); }}
+                                      onClick={e => { e.stopPropagation(); toggleItemExpand(key, { ...r, _provider: "verdantly" }); }}
                                       className="p-1.5 rounded-lg text-emerald-400 hover:bg-emerald-50 hover:text-emerald-600 transition-colors shrink-0"
                                       aria-label="Show info"
                                     >
-                                      {isExpanded ? <ChevronUp size={13} /> : <Info size={13} />}
+                                      {isExpanded ? <ChevronUp size={13} /> : loadingDetailsIds.has(key) ? <Loader2 size={13} className="animate-spin" /> : <Info size={13} />}
                                     </button>
                                   </div>
-                                  {isExpanded && renderWikiAccordion(key)}
+                                  {isExpanded && renderInfoPanel(key, r.common_name)}
                                 </div>
                               );
                             })}
@@ -615,14 +616,14 @@ export default function AddItemSheet({
                                       <span className="text-[8px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary/10 px-1.5 py-0.5 rounded-full inline-block mt-0.5">Perenual</span>
                                     </div>
                                     <button
-                                      onClick={e => { e.stopPropagation(); toggleItemExpand(key, r.common_name); }}
+                                      onClick={e => { e.stopPropagation(); toggleItemExpand(key, { ...r, _provider: "perenual" }); }}
                                       className="p-1.5 rounded-lg text-rhozly-primary/40 hover:bg-rhozly-primary/10 hover:text-rhozly-primary transition-colors shrink-0"
                                       aria-label="Show info"
                                     >
-                                      {isExpanded ? <ChevronUp size={13} /> : <Info size={13} />}
+                                      {isExpanded ? <ChevronUp size={13} /> : loadingDetailsIds.has(key) ? <Loader2 size={13} className="animate-spin" /> : <Info size={13} />}
                                     </button>
                                   </div>
-                                  {isExpanded && renderWikiAccordion(key)}
+                                  {isExpanded && renderInfoPanel(key, r.common_name)}
                                 </div>
                               );
                             })}

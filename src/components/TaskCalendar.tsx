@@ -29,12 +29,15 @@ export interface Task {
   description: string | null;
   status: "Pending" | "Completed" | "Skipped";
   due_date: string;
+  completed_at?: string | null;
   type: string;
   location_id?: string;
   area_id?: string;
   plan_id?: string;
   inventory_item_ids?: string[];
   isGhost?: boolean;
+  overdueCarryoverSince?: string;
+  lateCompletionFrom?: string;
 }
 
 const TASK_TYPE_DOT: Record<string, string> = {
@@ -64,6 +67,7 @@ export default function TaskCalendar({
 
   // 🚀 Tasks array now holds the fully calculated physical AND ghost tasks for the entire month!
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [overdueTasks, setOverdueTasks] = useState<Task[]>([]);
 
   const [locations, setLocations] = useState<any[]>(preloadedLocations ?? []);
   const [plans, setPlans] = useState<any[]>([]);
@@ -90,6 +94,8 @@ export default function TaskCalendar({
   const [selectedArea, setSelectedArea] = useState<string>("all");
   const [selectedPlan, setSelectedPlan] = useState<string>("all");
 
+  const todayStr = getLocalDateString(new Date());
+
   const getTasksForDate = useCallback(
     (date: Date) => {
       const dateStr = getLocalDateString(date);
@@ -112,10 +118,76 @@ export default function TaskCalendar({
     [tasks, selectedTypes, selectedLoc, selectedArea, selectedPlan],
   );
 
-  const agendaTasks = useMemo(
-    () => getTasksForDate(selectedDate),
-    [getTasksForDate, selectedDate],
+  const getCellIndicators = useCallback(
+    (dateStr: string) => {
+      const applyFilters = (t: Task) => {
+        if (selectedTypes.length > 0 && !selectedTypes.includes(t.type)) return false;
+        if (selectedLoc !== "all" && t.location_id !== selectedLoc) return false;
+        if (selectedArea !== "all" && t.area_id !== selectedArea) return false;
+        if (selectedPlan !== "all" && t.plan_id !== selectedPlan) return false;
+        return true;
+      };
+      const ft = tasks.filter(applyFilters);
+      const fo = overdueTasks.filter(applyFilters);
+
+      const greenCount = ft.filter(
+        (t) =>
+          t.status === "Completed" &&
+          t.completed_at &&
+          t.completed_at.slice(0, 10) === dateStr &&
+          t.due_date.slice(0, 10) === dateStr,
+      ).length;
+
+      const redCheckCount = ft.filter(
+        (t) =>
+          t.status === "Completed" &&
+          t.completed_at &&
+          t.completed_at.slice(0, 10) === dateStr &&
+          t.due_date.slice(0, 10) < dateStr,
+      ).length;
+
+      const redXCount = fo.filter((t) => t.due_date.slice(0, 10) === dateStr).length;
+      const faintCount = fo.filter((t) => t.due_date.slice(0, 10) < dateStr).length;
+
+      return { greenCount, redCheckCount, redXCount, faintCount };
+    },
+    [tasks, overdueTasks, selectedTypes, selectedLoc, selectedArea, selectedPlan],
   );
+
+  const agendaTasks = useMemo(() => {
+    const dateStr = getLocalDateString(selectedDate);
+    const baseTasks = getTasksForDate(selectedDate);
+
+    if (dateStr > todayStr) return baseTasks;
+
+    const applyFilters = (t: Task) => {
+      if (selectedTypes.length > 0 && !selectedTypes.includes(t.type)) return false;
+      if (selectedLoc !== "all" && t.location_id !== selectedLoc) return false;
+      if (selectedArea !== "all" && t.area_id !== selectedArea) return false;
+      if (selectedPlan !== "all" && t.plan_id !== selectedPlan) return false;
+      return true;
+    };
+
+    const carryoverTasks = overdueTasks
+      .filter((t) => t.due_date.slice(0, 10) < dateStr && applyFilters(t))
+      .map((t) => ({ ...t, overdueCarryoverSince: t.due_date }));
+
+    const lateCompletions =
+      dateStr < todayStr
+        ? tasks
+            .filter(
+              (t) =>
+                t.status === "Completed" &&
+                t.completed_at &&
+                t.completed_at.slice(0, 10) === dateStr &&
+                t.due_date.slice(0, 10) < dateStr &&
+                applyFilters(t),
+            )
+            .map((t) => ({ ...t, lateCompletionFrom: t.due_date }))
+        : [];
+
+    return [...baseTasks, ...carryoverTasks, ...lateCompletions];
+  }, [getTasksForDate, selectedDate, overdueTasks, tasks, todayStr, selectedTypes, selectedLoc, selectedArea, selectedPlan]);
 
   useEffect(() => {
     const activeTasksOnSelectedDate = getTasksForDate(selectedDate);
@@ -201,19 +273,32 @@ export default function TaskCalendar({
         0,
       );
 
-      const todayStr = getLocalDateString(new Date());
+      const ninetyDaysAgo = new Date();
+      ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-      const result = await TaskEngine.fetchTasksWithGhosts({
-        homeId,
-        startDateStr: getLocalDateString(startOfMonth),
-        endDateStr: getLocalDateString(endOfMonth),
-        includeOverdue: false,
-        todayStr,
-      });
+      const [result, overdueResult] = await Promise.all([
+        TaskEngine.fetchTasksWithGhosts({
+          homeId,
+          startDateStr: getLocalDateString(startOfMonth),
+          endDateStr: getLocalDateString(endOfMonth),
+          includeOverdue: false,
+          todayStr,
+        }),
+        supabase
+          .from("tasks")
+          .select(
+            "id, home_id, blueprint_id, title, description, status, due_date, type, location_id, area_id, plan_id, inventory_item_ids, completed_at",
+          )
+          .eq("home_id", homeId)
+          .eq("status", "Pending")
+          .lt("due_date", todayStr)
+          .gte("due_date", getLocalDateString(ninetyDaysAgo)),
+      ]);
 
       setTasks(result.tasks);
       setInventoryDict(result.inventoryDict);
       setBlockedTaskIds(result.blockedTaskIds);
+      setOverdueTasks((overdueResult.data as Task[]) || []);
       setHasLoadedOnce(true);
       setRefreshKey((k) => k + 1);
     } catch (err: any) {
@@ -491,6 +576,13 @@ export default function TaskCalendar({
                   (t) => scorePlantByPreferences(t.title, "", preferences) > 0,
                 );
 
+              const dayDateStr = getLocalDateString(dayObj.date);
+              const isPastDay = dayDateStr < todayStr;
+              const cellInd = isPastDay ? getCellIndicators(dayDateStr) : null;
+              const hasAnyIndicator = cellInd
+                ? cellInd.greenCount > 0 || cellInd.redCheckCount > 0 || cellInd.redXCount > 0 || cellInd.faintCount > 0
+                : false;
+
               return (
                 <button
                   key={index}
@@ -511,7 +603,35 @@ export default function TaskCalendar({
                   >
                     {dayObj.date.getDate()}
                   </span>
-                  {pendingTasks.length > 0 && (
+
+                  {/* Past: overdue / completion indicators replace the dots */}
+                  {isPastDay && hasAnyIndicator && (
+                    <div className="absolute bottom-1.5 sm:bottom-2 flex items-center gap-0.5 justify-center">
+                      {cellInd!.greenCount > 0 && (
+                        <span className={`text-[9px] font-black leading-none ${isSelected ? "text-white/90" : "text-green-500"}`}>
+                          ✓{cellInd!.greenCount > 1 ? cellInd!.greenCount : ""}
+                        </span>
+                      )}
+                      {cellInd!.redCheckCount > 0 && (
+                        <span className={`text-[9px] font-black leading-none ${isSelected ? "text-white/80" : "text-amber-500"}`}>
+                          ✓{cellInd!.redCheckCount > 1 ? cellInd!.redCheckCount : ""}
+                        </span>
+                      )}
+                      {cellInd!.redXCount > 0 && (
+                        <span className={`text-[9px] font-black leading-none ${isSelected ? "text-white/90" : "text-red-500"}`}>
+                          ✗{cellInd!.redXCount > 1 ? cellInd!.redXCount : ""}
+                        </span>
+                      )}
+                      {cellInd!.faintCount > 0 && (
+                        <span className={`text-[9px] font-black leading-none ${isSelected ? "text-white/30" : "text-red-400/40"}`}>
+                          ✕{cellInd!.faintCount > 1 ? cellInd!.faintCount : ""}
+                        </span>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Today + future: pending task dots */}
+                  {!isPastDay && pendingTasks.length > 0 && (
                     <div className="absolute bottom-2 sm:bottom-3 flex items-center justify-center gap-0.5 sm:gap-1">
                       {pendingTasks.slice(0, 3).map((t, i) => (
                         <span
@@ -533,7 +653,7 @@ export default function TaskCalendar({
             })}
           </div>
 
-          {/* Dot colour legend */}
+          {/* Legend */}
           <div className="flex items-center justify-center flex-wrap gap-x-5 gap-y-1 pt-3 pb-1">
             {Object.entries(TASK_TYPE_DOT).map(([type, color]) => (
               <span key={type} className="flex items-center gap-1.5 text-[10px] font-bold text-rhozly-on-surface/40">
@@ -547,6 +667,18 @@ export default function TaskCalendar({
                 Preferred plant
               </span>
             )}
+            <span className="flex items-center gap-1 text-[10px] font-bold text-rhozly-on-surface/40">
+              <span className="text-green-500 font-black text-[11px] leading-none">✓</span> Done
+            </span>
+            <span className="flex items-center gap-1 text-[10px] font-bold text-rhozly-on-surface/40">
+              <span className="text-amber-500 font-black text-[11px] leading-none">✓</span> Late
+            </span>
+            <span className="flex items-center gap-1 text-[10px] font-bold text-rhozly-on-surface/40">
+              <span className="text-red-500 font-black text-[11px] leading-none">✗</span> Overdue
+            </span>
+            <span className="flex items-center gap-1 text-[10px] font-bold text-rhozly-on-surface/40">
+              <span className="text-red-400/50 font-black text-[11px] leading-none">✕</span> Missed
+            </span>
           </div>
           </div>
         </div>

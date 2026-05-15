@@ -75,7 +75,7 @@ export interface PlantDetails {
   soil_ph_min?: number | null;
   soil_ph_max?: number | null;
   planting_instructions?: any | null;
-  source: "api" | "verdantly";
+  source: "api" | "verdantly" | "ai";
 }
 
 // Unified search result used in PlantSearchModal and BulkSearchModal.

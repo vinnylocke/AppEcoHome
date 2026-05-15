@@ -41,7 +41,15 @@ loadEnvFile(".env.local"); // .env.local overrides .env
 const SUPABASE_URL        = process.env.SUPABASE_PROD_URL;
 const SERVICE_ROLE_KEY    = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const BUMP_MAJOR         = process.argv.includes("--bump-major");
-const MAINTENANCE_MESSAGE = process.argv.slice(2).find(a => !a.startsWith("--")) ?? "We're rolling out an update. Back in just a moment!";
+const BUMP_COUNT         = (() => {
+  const idx = process.argv.indexOf("--bump");
+  if (idx !== -1) {
+    const n = parseInt(process.argv[idx + 1], 10);
+    return isNaN(n) || n < 1 ? 1 : n;
+  }
+  return 1;
+})();
+const MAINTENANCE_MESSAGE = process.argv.slice(2).find(a => !a.startsWith("--") && !/^\d+$/.test(a)) ?? "We're rolling out an update. Back in just a moment!";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -81,7 +89,7 @@ async function bumpVersion(bumpMajor = false) {
   const current = rows?.[0]?.value ?? { major: 1, minor: 0 };
 
   const newMajor = bumpMajor ? current.major + 1 : current.major;
-  const newMinor = bumpMajor ? 1 : current.minor + 1;
+  const newMinor = bumpMajor ? 1 : current.minor + BUMP_COUNT;
 
   const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/app_config?key=eq.app_version`, {
     method: "PATCH",

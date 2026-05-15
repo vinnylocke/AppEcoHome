@@ -34,7 +34,6 @@ import WeatherForecast from "./components/WeatherForecast";
 import { WeatherAlertBanner } from "./components/WeatherAlertBanner";
 import TheShed from "./components/TheShed";
 import TaskCalendar from "./components/TaskCalendar";
-import TaskList from "./components/TaskList";
 import { usePushNotifications } from "./hooks/usePushNotifications";
 import PullToRefresh from "./components/PullToRefresh";
 import { PlantDoctorProvider } from "./context/PlantDoctorContext";
@@ -59,6 +58,7 @@ import HelpCenter from "./onboarding/HelpCenter";
 import type { OnboardingState } from "./onboarding/types";
 
 // Heavy route components — lazy loaded so they don't bloat the initial bundle
+const HomeDashboard       = lazy(() => import("./components/HomeDashboard"));
 const AdminGuideGenerator = lazy(() => import("./components/AdminGuideGenerator"));
 const PlantDoctor         = lazy(() => import("./components/PlantDoctor"));
 const LightSensor         = lazy(() => import("./components/LightSensor"));
@@ -199,6 +199,7 @@ function AppShell() {
     if (lastSeen !== versionKey) {
       setReleaseNotesMode("latest");
       localStorage.setItem("rhozly_last_seen_version", versionKey);
+      sessionStorage.setItem("rhozly_just_saw_release_notes", "true");
     }
   }, [appVersion]);
 
@@ -285,7 +286,7 @@ function AppShell() {
 
   const [searchParams] = useSearchParams();
   const selectedLocationId = searchParams.get("locationId");
-  const dashboardView = (searchParams.get("view") as "locations" | "calendar" | "weather") || "locations";
+  const dashboardView = (searchParams.get("view") as "dashboard" | "locations" | "calendar" | "weather") || "dashboard";
   const [isNavCollapsed, setIsNavCollapsed] = useState(
     () => localStorage.getItem("rhozly_nav") === "true",
   );
@@ -854,7 +855,7 @@ function AppShell() {
                           ) : (
                             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-10">
                               <div
-                                className={`${dashboardView === "weather" || dashboardView === "calendar" ? "col-span-full" : "lg:col-span-7 xl:col-span-8"} space-y-6`}
+                                className="col-span-full space-y-6"
                               >
                                 <WeatherAlertBanner
                                   alerts={alerts}
@@ -863,12 +864,12 @@ function AppShell() {
 
                                 <div className="flex items-center justify-between px-1">
                                   <div data-testid="dashboard-view-switcher" className="bg-rhozly-primary/5 p-1 rounded-2xl inline-flex">
-                                    {["locations", "calendar", "weather"].map(
+                                    {["dashboard", "locations", "calendar", "weather"].map(
                                       (v) => (
                                         <button
                                           key={v}
                                           onClick={() =>
-                                            navigate(v === "locations" ? "/dashboard" : `/dashboard?view=${v}`, { replace: true })
+                                            navigate(v === "dashboard" ? "/dashboard" : `/dashboard?view=${v}`, { replace: true })
                                           }
                                           className={`px-4 py-2 min-h-[44px] rounded-xl text-sm transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm font-bold" : "text-rhozly-on-surface/50 hover:text-rhozly-primary font-normal"}`}
                                         >
@@ -879,8 +880,9 @@ function AppShell() {
                                   </div>
                                 </div>
 
-                                {dashboardView === "locations" ? (
+                                {dashboardView === "dashboard" ? (
                                   <div className="space-y-5">
+                                    {/* Current weather widget */}
                                     <div data-testid="dashboard-weather-widget" className="bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container text-white rounded-3xl p-5 shadow-md flex justify-between items-center">
                                       <div className="flex items-center gap-4">
                                         <div className="bg-white/20 p-3 rounded-2xl">
@@ -896,8 +898,7 @@ function AppShell() {
                                               ? `${Math.round(weather.temp)}°C`
                                               : "--°C"}{" "}
                                             <span className="text-lg opacity-80">
-                                              {weather?.description ||
-                                                "Loading..."}
+                                              {weather?.description || "Loading..."}
                                             </span>
                                           </p>
                                           <p className="text-xs font-bold opacity-70">
@@ -907,14 +908,51 @@ function AppShell() {
                                         </div>
                                       </div>
                                       <button
-                                        onClick={() =>
-                                          navigate("/dashboard?view=weather", { replace: true })
-                                        }
+                                        onClick={() => navigate("/dashboard?view=weather", { replace: true })}
                                         className="text-xs font-bold bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl border border-white/20"
                                       >
                                         Full Forecast
                                       </button>
                                     </div>
+                                    {/* Complete Home Profile quiz prompt */}
+                                    {quizCompleted === false && !quizPromptDismissed && (
+                                      <div className={`bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-3xl p-5 shadow-md relative overflow-hidden transition-all duration-300 ${quizPromptFading ? "opacity-0 scale-95 pointer-events-none" : "opacity-100 scale-100"}`}>
+                                        <button
+                                          onClick={() => { setQuizPromptFading(true); setTimeout(() => { setQuizPromptDismissed(true); setQuizPromptFading(false); }, 300); toast.success("Reminder dismissed — find it any time in Home Profile.", { duration: 2500 }); }}
+                                          className="absolute top-3 right-3 text-white/60 hover:text-white transition"
+                                          aria-label="Dismiss"
+                                        >
+                                          <X size={14} />
+                                        </button>
+                                        <div className="flex items-start gap-4">
+                                          <div className="bg-white/20 p-3 rounded-2xl flex-shrink-0">
+                                            <IconAI size={22} className="text-white" />
+                                          </div>
+                                          <div className="flex-1 min-w-0">
+                                            <p className="font-black text-sm leading-tight mb-1">Set up your Home Profile</p>
+                                            <p className="text-xs text-white/80 leading-snug mb-3">Answer a few quick questions so the AI can personalise your recommendations.</p>
+                                            <button onClick={() => navigate("/profile")} className="bg-white text-emerald-700 text-xs font-black px-4 py-2 rounded-full hover:bg-white/90 transition">Get started →</button>
+                                          </div>
+                                        </div>
+                                      </div>
+                                    )}
+                                    {/* AI Insight card */}
+                                    {session?.user?.id && (
+                                      <Suspense fallback={null}>
+                                        <div data-testid="dashboard-assistant-card">
+                                          <AssistantCard userId={session.user.id} />
+                                        </div>
+                                      </Suspense>
+                                    )}
+                                    {/* Weekly stats + today's tasks */}
+                                    <Suspense fallback={RouteFallback}>
+                                      {profile?.home_id && (
+                                        <HomeDashboard homeId={profile.home_id} />
+                                      )}
+                                    </Suspense>
+                                  </div>
+                                ) : dashboardView === "locations" ? (
+                                  <div className="space-y-5">
                                     {dashboardError && (
                                       <div className="col-span-full p-8 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/30 flex flex-col items-center gap-3">
                                         <p className="font-bold text-sm text-rhozly-on-surface/60">
@@ -997,66 +1035,6 @@ function AppShell() {
                                 )}
                               </div>
 
-                              {dashboardView !== "weather" &&
-                                dashboardView !== "calendar" && (
-                                  <div className="lg:col-span-5 xl:col-span-4 space-y-6">
-                                    {quizCompleted === false && !quizPromptDismissed && (
-                                      <div className={`bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-3xl p-5 shadow-md relative overflow-hidden transition-all duration-300 ${quizPromptFading ? "opacity-0 scale-95 pointer-events-none" : "opacity-100 scale-100"}`}>
-                                        <button
-                                          onClick={() => { setQuizPromptFading(true); setTimeout(() => { setQuizPromptDismissed(true); setQuizPromptFading(false); }, 300); toast.success("Reminder dismissed — find it any time in Home Profile.", { duration: 2500 }); }}
-                                          className="absolute top-3 right-3 text-white/60 hover:text-white transition"
-                                          aria-label="Dismiss"
-                                        >
-                                          <X size={14} />
-                                        </button>
-                                        <div className="flex items-start gap-4">
-                                          <div className="bg-white/20 p-3 rounded-2xl flex-shrink-0">
-                                            <IconAI size={22} className="text-white" />
-                                          </div>
-                                          <div className="flex-1 min-w-0">
-                                            <p className="font-black text-sm leading-tight mb-1">
-                                              Set up your Home Profile
-                                            </p>
-                                            <p className="text-xs text-white/80 leading-snug mb-3">
-                                              Answer a few quick questions so the AI can personalise your recommendations.
-                                            </p>
-                                            <button
-                                              onClick={() => navigate("/profile")}
-                                              className="bg-white text-emerald-700 text-xs font-black px-4 py-2 rounded-full hover:bg-white/90 transition"
-                                            >
-                                              Get started →
-                                            </button>
-                                          </div>
-                                        </div>
-                                      </div>
-                                    )}
-
-                                    {session?.user?.id && (
-                                      <div data-testid="dashboard-assistant-card">
-                                        <AssistantCard userId={session.user.id} />
-                                      </div>
-                                    )}
-
-                                    <div className="flex items-center justify-between px-1">
-                                      <h2 className="font-black opacity-60 uppercase tracking-widest text-sm">
-                                        Daily Tasks
-                                      </h2>
-                                      <button
-                                        onClick={() =>
-                                          navigate("/dashboard?view=calendar", { replace: true })
-                                        }
-                                        className="text-[10px] font-black text-rhozly-primary uppercase tracking-widest hover:underline transition-all"
-                                      >
-                                        View Calendar
-                                      </button>
-                                    </div>
-                                    <div data-testid="dashboard-task-list" className="bg-rhozly-surface-lowest/80 rounded-3xl p-4 sm:p-6 border border-rhozly-outline/10 shadow-sm min-h-[400px]">
-                                      {profile?.home_id && (
-                                        <TaskList homeId={profile.home_id} />
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
                             </div>
                           )}
                         </div>

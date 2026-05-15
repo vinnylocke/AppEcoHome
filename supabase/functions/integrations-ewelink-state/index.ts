@@ -14,6 +14,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decryptCredentials } from "../_shared/integrations/encrypt.ts";
 import { insertReading } from "../_shared/integrations/readings.ts";
 import type { ValveReading } from "../_shared/integrations/providerTypes.ts";
+import { parseDeviceState } from "../_shared/integrations/ewelinkDevice.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -100,7 +101,7 @@ Deno.serve(async (req) => {
 
     const targetId = meta.use_sub_device ? meta.parent_device_id : meta.direct_device_id;
 
-    const stateRes = await fetch(`${EWELINK_BASE}/v2/device/thing/status?id=${targetId}`, {
+    const stateRes = await fetch(`${EWELINK_BASE}/v2/device/thing/status?id=${targetId}&type=1`, {
       headers: {
         Authorization: `Bearer ${accessToken}`,
         "X-CK-Appid": appId,
@@ -120,10 +121,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Extract switch state — works for both direct and sub-device responses
-    const params = stateJson.data?.params ?? {};
-    const rawState: string = params.switch ?? (params.switches?.[0]?.switch) ?? "off";
-    const state: "on" | "off" = rawState === "on" ? "on" : "off";
+    const state = parseDeviceState(stateJson.data ?? {});
     const now = new Date();
 
     // Store as a reading so it appears in history

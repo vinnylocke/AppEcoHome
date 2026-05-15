@@ -1,0 +1,10 @@
+[{
+  "relation": ["delegate_permission/common.handle_all_urls"],
+  "target": {
+    "namespace": "android_app",
+    "package_name": "com.rhozly.app",
+    "sha256_cert_fingerprints": [
+      "5E:59:47:69:A2:A0:51:A4:14:43:F1:0D:D5:B6:84:23:3F:DB:CA:F9:17:0E:66:DF:76:A4:66:7C:6F:92:30:5D"
+    ]
+  }
+}]

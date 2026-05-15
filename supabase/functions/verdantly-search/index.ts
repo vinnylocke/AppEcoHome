@@ -282,7 +282,9 @@ serve(async (req) => {
       const nextPage = page + 1;
 
       const searchPayload = { results, hasMore, nextPage };
-      await setCached(db, searchCacheKey, FN, searchPayload, 1);
+      if (results.length > 0) {
+        await setCached(db, searchCacheKey, FN, searchPayload, 1);
+      }
       log(FN, "search_result", { query, page, count: results.length, hasMore });
       return new Response(JSON.stringify(searchPayload), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

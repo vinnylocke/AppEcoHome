@@ -18,13 +18,15 @@ import {
 } from "lucide-react";
 import { IconPlantDB, IconAI } from "../constants/icons";
 import { PerenualService } from "../lib/perenualService";
-import { searchAllProviders } from "../lib/plantProvider";
+import { searchAllProviders, getProviderPlantDetails, careGuideToPlantDetails } from "../lib/plantProvider";
 import { VerdantlyService } from "../lib/verdantlyService";
 import { getProviderLabel } from "../lib/verdantlyUtils";
+import type { PlantDetails } from "../lib/verdantlyUtils";
 import toast from "react-hot-toast";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { PlantDoctorService } from "../services/plantDoctorService";
 import ManualPlantCreation from "./ManualPlantCreation";
+import PlantInfoPanel from "./PlantInfoPanel";
 
 interface PlantSearchFilters {
   cycle?: string[];
@@ -120,9 +122,9 @@ export default function BulkSearchModal({
   const [showFilters, setShowFilters] = useState(false);
 
   const [expandedResultId, setExpandedResultId] = useState<string | null>(null);
-  const [previewCache, setPreviewCache] = useState<
-    Record<string, { loading: boolean; images?: string[]; desc?: string }>
-  >({});
+  const [detailsCache, setDetailsCache] = useState<Map<string, PlantDetails>>(new Map());
+  const [loadingDetailsIds, setLoadingDetailsIds] = useState<Set<string>>(new Set());
+  const fetchingDetailsRef = useRef<Set<string>>(new Set());
 
   const [selectedPlantsMap, setSelectedPlantsMap] = useState<Map<string, any>>(
     new Map(),
@@ -209,93 +211,38 @@ export default function BulkSearchModal({
     };
   }, []);
 
-  const fetchPreviewData = async (
-    identifier: string,
-    isAi: boolean,
-    commonNameFallback?: string,
-  ) => {
-    setPreviewCache((prev) => {
-      if (prev[identifier]) return prev;
-      return { ...prev, [identifier]: { loading: true } };
-    });
-
-    let scientificName = null;
-    let commonName = commonNameFallback || identifier;
-
-    if (isAi) {
-      const match = identifier.match(/\(([^)]+)\)/);
-      scientificName = match ? match[1] : null;
-      commonName = identifier.split("(")[0].trim();
-    }
-
-    let fetchedImages: string[] = [];
-    let description = "";
-
-    const fetchWiki = async (term: string) => {
-      try {
-        const res = await fetch(
-          `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(term)}`,
-        );
-        if (!res.ok) return null;
-        const data = await res.json();
-        if (data.type === "disambiguation" || !data.extract) return null;
-        return data;
-      } catch (e) {
-        return null;
-      }
-    };
-
-    // Variety/cultivar scientific names (var., subsp., 'cultivar', f.) have no Wikipedia articles.
-    // Use common name as the primary term in those cases to avoid guaranteed 404s.
-    const isVariety = scientificName != null && /var\.|subsp\.|'\w|f\.\s|cv\./.test(scientificName);
-    const primarySearchTerm = scientificName && !isVariety ? scientificName : commonName;
-
-    let data = await fetchWiki(primarySearchTerm);
-    // Wikipedia uses sentence case ("Grape tomato" not "Grape Tomato") — try sentence-cased fallback
-    if (!data && /[A-Z]/.test(primarySearchTerm.slice(1))) {
-      const sentenceCase =
-        primarySearchTerm.charAt(0).toUpperCase() + primarySearchTerm.slice(1).toLowerCase();
-      if (sentenceCase !== primarySearchTerm) data = await fetchWiki(sentenceCase);
-    }
-    if (!data && scientificName && !isVariety) data = await fetchWiki(commonName);
-    // Last word of a multi-word common name often has a Wikipedia genus/species article
-    // (e.g. "Tomato" from "Cherry Tomato"). Skip "{name} plant" — not a Wikipedia pattern.
-    if (!data && commonName.includes(" ")) {
-      data = await fetchWiki(commonName.split(" ").pop()!);
-    }
-
-    if (data) {
-      description = data.extract;
-      const wImg = data.thumbnail?.source || data.originalimage?.source;
-      if (wImg) fetchedImages.push(wImg);
-    }
-
-    setPreviewCache((prev) => ({
-      ...prev,
-      [identifier]: {
-        loading: false,
-        images: fetchedImages,
-        desc: description || "No detailed encyclopedia entry available.",
-      },
-    }));
-  };
-
-  // Auto-load previews for AI results as soon as they arrive
+  // Auto-prefetch care guides for AI results as soon as the list populates
   useEffect(() => {
-    if (aiResults.length > 0) {
-      aiResults.forEach((match) => fetchPreviewData(match, true));
-    }
+    if (!isAiEnabled) return;
+    aiResults.forEach((match) => fetchDetails(match));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [aiResults]);
 
-  useEffect(() => {
-    if (step === "review") {
-      selectedPlantsMap.forEach((item, id) => {
-        if (item.type === "ai" && !previewCache[id]) {
-          fetchPreviewData(id, true);
-        }
-      });
+  const fetchDetails = async (id: string, plantObj?: any) => {
+    if (detailsCache.has(id) || fetchingDetailsRef.current.has(id)) return;
+    fetchingDetailsRef.current.add(id);
+    setLoadingDetailsIds((prev) => new Set(prev).add(id));
+    try {
+      let details: PlantDetails;
+      if (plantObj) {
+        details = await getProviderPlantDetails({
+          source: plantObj._provider === "verdantly" ? "verdantly" : "api",
+          perenual_id:   plantObj._provider !== "verdantly" ? (plantObj.perenual_id ?? plantObj.id) : null,
+          verdantly_id:  plantObj._provider === "verdantly" ? (plantObj.verdantly_id ?? plantObj.id) : null,
+        });
+      } else {
+        const cleanName = id.split("(")[0].trim();
+        const aiData = await PlantDoctorService.generateCareGuide(cleanName, homeId);
+        details = careGuideToPlantDetails(aiData?.plantData ?? aiData, cleanName);
+      }
+      setDetailsCache((prev) => new Map(prev).set(id, details));
+    } catch {
+      // silently fail — PlantInfoPanel shows "No information available"
+    } finally {
+      fetchingDetailsRef.current.delete(id);
+      setLoadingDetailsIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
     }
-  }, [step, selectedPlantsMap]);
+  };
 
   const performSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -321,6 +268,7 @@ export default function BulkSearchModal({
         PlantDoctorService.searchPlantsText(query, {
           searchFilters: activeFilterCount > 0 ? filters : undefined,
           offset: 0,
+          homeId,
         })
           .then((data) => {
             setAiResults(data.matches || []);
@@ -357,14 +305,26 @@ export default function BulkSearchModal({
           }),
       );
       // Verdantly runs in parallel — called directly so we get pagination info.
+      // If page 1 is empty but hasMore is true (Verdantly API quirk), auto-fetch page 2.
       searches.push(
         VerdantlyService.searchPlants(query, 1, activeFilterCount > 0 ? filters : undefined)
-          .then(({ results, hasMore, nextPage }) => {
+          .then(async ({ results, hasMore, nextPage }) => {
             if (results.length > 0) {
               setApiResults((prev: any[]) => [...prev, ...results]);
+              setCanShowMoreVerdantly(hasMore);
+              setVerdantlyNextPage(nextPage);
+            } else if (hasMore) {
+              try {
+                const page2 = await VerdantlyService.searchPlants(query, nextPage, activeFilterCount > 0 ? filters : undefined);
+                if (page2.results.length > 0) {
+                  setApiResults((prev: any[]) => [...prev, ...page2.results]);
+                }
+                setCanShowMoreVerdantly(page2.hasMore);
+                setVerdantlyNextPage(page2.nextPage);
+              } catch {
+                setCanShowMoreVerdantly(false);
+              }
             }
-            setCanShowMoreVerdantly(hasMore);
-            setVerdantlyNextPage(nextPage);
           })
           .catch(() => {}),
       );
@@ -381,6 +341,7 @@ export default function BulkSearchModal({
       const data = await PlantDoctorService.searchPlantsText(query, {
         searchFilters: activeFilterCount > 0 ? filters : undefined,
         offset: aiResults.length,
+        homeId,
       });
       setAiResults((prev) => [...prev, ...(data.matches || [])]);
       setCanShowMoreAi(data.hasMore);
@@ -405,19 +366,13 @@ export default function BulkSearchModal({
     setIsLoadingMoreVerdantly(false);
   };
 
-  const handleExpandResult = (
-    identifier: string,
-    isAi: boolean,
-    commonNameFallback?: string,
-  ) => {
+  const handleExpandResult = (identifier: string, plantObj?: any) => {
     if (expandedResultId === identifier) {
       setExpandedResultId(null);
       return;
     }
     setExpandedResultId(identifier);
-    if (!previewCache[identifier]) {
-      fetchPreviewData(identifier, isAi, commonNameFallback);
-    }
+    fetchDetails(identifier, plantObj);
   };
 
   const toggleSelection = (id: string, plantData: any) => {
@@ -454,35 +409,15 @@ export default function BulkSearchModal({
         ? "bg-red-100 text-red-700 border-red-300"
         : "bg-rhozly-surface-low text-rhozly-on-surface/60 border-transparent";
 
-  const renderAccordionContent = (id: string) => {
-    const cache = previewCache[id];
-    if (!cache) return null;
-
-    return (
-      <div className="p-4 bg-amber-50/50 border-t border-rhozly-outline/5 text-sm flex flex-col gap-4 animate-in slide-in-from-top-2">
-        {cache.loading ? (
-          <div className="flex items-center gap-2 text-amber-600/60 justify-center py-4">
-            <Loader2 size={16} className="animate-spin" /> Fetching preview data...
-          </div>
-        ) : (
-          <div className="flex gap-4 items-start">
-            {cache.images && cache.images.length > 0 && (
-              <img
-                src={cache.images[0]}
-                alt="Preview"
-                className="w-24 h-24 rounded-xl object-cover shadow-sm shrink-0"
-              />
-            )}
-            <div className="flex-1">
-              <p className="text-sm font-semibold text-rhozly-on-surface/80 leading-relaxed whitespace-pre-wrap">
-                {cache.desc}
-              </p>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  };
+  const renderInfoPanel = (id: string, plantName?: string) => (
+    <div className="border-t border-rhozly-outline/5 animate-in slide-in-from-top-2">
+      <PlantInfoPanel
+        details={detailsCache.get(id) ?? null}
+        loading={loadingDetailsIds.has(id)}
+        plantName={plantName}
+      />
+    </div>
+  );
 
   // ── REVIEW CART ───────────────────────────────────────────────────────────
   if (step === "review") {
@@ -536,7 +471,7 @@ export default function BulkSearchModal({
               const thumbnail =
                 rawThumb && !rawThumb.includes("upgrade_access")
                   ? rawThumb
-                  : previewCache[id]?.images?.[0] || null;
+                  : detailsCache.get(id)?.thumbnail_url || null;
 
               const badgeClass =
                 item.type === "api"       ? "bg-rhozly-primary/10 text-rhozly-primary" :
@@ -575,10 +510,10 @@ export default function BulkSearchModal({
                     </div>
                     <div className="flex items-center gap-2">
                       <button
-                        onClick={() => handleExpandResult(id, !isDb, name)}
+                        onClick={() => handleExpandResult(id, isDb ? item.data : undefined)}
                         className="p-3 hover:bg-rhozly-surface-low rounded-xl text-rhozly-on-surface/60 hover:text-rhozly-primary transition-colors"
                       >
-                        {expandedResultId === id ? <ChevronUp size={18} /> : <Info size={18} />}
+                        {expandedResultId === id ? <ChevronUp size={18} /> : loadingDetailsIds.has(id) ? <Loader2 size={18} className="animate-spin" /> : <Info size={18} />}
                       </button>
                       {pendingRemoveId === id ? (
                         <div className="flex items-center gap-1">
@@ -608,7 +543,7 @@ export default function BulkSearchModal({
                       )}
                     </div>
                   </div>
-                  {expandedResultId === id && renderAccordionContent(id)}
+                  {expandedResultId === id && renderInfoPanel(id, typeof item.data === "string" ? item.data.split("(")[0].trim() : item.data.common_name)}
                 </div>
               );
             })}
@@ -616,7 +551,14 @@ export default function BulkSearchModal({
 
           <div className="p-6 border-t border-rhozly-outline/10 bg-white shrink-0">
             <button
-              onClick={() => onProceedToBulkAdd(Array.from(selectedPlantsMap.values()))}
+              onClick={() =>
+                onProceedToBulkAdd(
+                  Array.from(selectedPlantsMap.entries()).map(([id, item]) => ({
+                    ...item,
+                    preloadedDetails: item.type === "ai" ? detailsCache.get(id) : undefined,
+                  })),
+                )
+              }
               disabled={selectedPlantsMap.size === 0}
               className="w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-xl hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100"
             >
@@ -997,7 +939,7 @@ export default function BulkSearchModal({
                       )}
                       {deduplicatedAiResults.map((match: string, i) => {
                         const isSelected = selectedPlantsMap.has(match);
-                        const cachedThumb = previewCache[match]?.images?.[0];
+                        const cachedThumb = detailsCache.get(match)?.thumbnail_url;
 
                         return (
                           <div
@@ -1016,8 +958,6 @@ export default function BulkSearchModal({
                               <div className="w-12 h-12 rounded-xl bg-amber-500/5 overflow-hidden shrink-0 flex items-center justify-center text-amber-500/40">
                                 {cachedThumb ? (
                                   <img src={cachedThumb} alt={match} className="w-full h-full object-cover" />
-                                ) : previewCache[match]?.loading ? (
-                                  <Loader2 size={16} className="animate-spin" />
                                 ) : (
                                   <IconAI size={20} />
                                 )}
@@ -1030,13 +970,13 @@ export default function BulkSearchModal({
                                 </span>
                               </div>
                               <button
-                                onClick={() => handleExpandResult(match, true)}
+                                onClick={() => handleExpandResult(match)}
                                 className="p-3 hover:bg-amber-100 rounded-xl text-amber-600 transition-colors"
                               >
-                                {expandedResultId === match ? <ChevronUp size={18} /> : <Info size={18} />}
+                                {expandedResultId === match ? <ChevronUp size={18} /> : loadingDetailsIds.has(match) ? <Loader2 size={18} className="animate-spin" /> : <Info size={18} />}
                               </button>
                             </div>
-                            {expandedResultId === match && renderAccordionContent(match)}
+                            {expandedResultId === match && renderInfoPanel(match, match.split("(")[0].trim())}
                           </div>
                         );
                       })}
@@ -1126,13 +1066,13 @@ export default function BulkSearchModal({
                                 </span>
                               </div>
                               <button
-                                onClick={() => handleExpandResult(String(plant.id), false, plant.common_name)}
+                                onClick={() => handleExpandResult(String(plant.id), plant)}
                                 className="p-3 hover:bg-rhozly-primary/10 rounded-xl text-rhozly-primary transition-colors"
                               >
-                                {expandedResultId === String(plant.id) ? <ChevronUp size={18} /> : <Info size={18} />}
+                                {expandedResultId === String(plant.id) ? <ChevronUp size={18} /> : loadingDetailsIds.has(String(plant.id)) ? <Loader2 size={18} className="animate-spin" /> : <Info size={18} />}
                               </button>
                             </div>
-                            {expandedResultId === String(plant.id) && renderAccordionContent(String(plant.id))}
+                            {expandedResultId === String(plant.id) && renderInfoPanel(String(plant.id), plant.common_name)}
                           </div>
                         );
                       })}

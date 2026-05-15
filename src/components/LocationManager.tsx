@@ -411,26 +411,34 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
               key={loc.id}
               className="bg-rhozly-surface-lowest rounded-3xl p-6 shadow-sm border border-rhozly-outline/20"
             >
-              <div className="flex items-center justify-between gap-4 mb-6">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <input
+              <div className="flex items-start justify-between gap-4 mb-6">
+                <div className="flex items-start gap-2 flex-1 min-w-0">
+                  <textarea
                     value={loc.name}
                     readOnly={!can("locations.edit")}
-                    onChange={(e) =>
+                    rows={1}
+                    onChange={(e) => {
+                      const el = e.target;
+                      el.style.height = "auto";
+                      el.style.height = el.scrollHeight + "px";
                       setLocations(
                         locations.map((l) =>
                           l.id === loc.id ? { ...l, name: e.target.value } : l,
                         ),
-                      )
-                    }
+                      );
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+                    }}
                     onBlur={() => can("locations.edit") && handleUpdateLocationDB(loc)}
-                    className={`text-2xl font-black font-display text-rhozly-on-surface bg-transparent border-b-2 border-transparent focus:outline-none w-full transition-colors pb-1 ${can("locations.edit") ? "hover:border-rhozly-outline/30 focus:border-rhozly-primary" : "cursor-default"}`}
+                    ref={(el) => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }}
+                    className={`text-2xl font-black font-display text-rhozly-on-surface bg-transparent border-b-2 border-transparent focus:outline-none w-full transition-colors pb-1 resize-none overflow-hidden leading-tight ${can("locations.edit") ? "hover:border-rhozly-outline/30 focus:border-rhozly-primary" : "cursor-default"}`}
                   />
                   {savingLocationId === loc.id && (
-                    <Loader2 size={16} className="animate-spin text-rhozly-primary shrink-0" />
+                    <Loader2 size={16} className="animate-spin text-rhozly-primary shrink-0 self-start mt-1" />
                   )}
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-2 shrink-0 self-start">
                   {can("locations.edit") && (
                     <button
                       onClick={() => toggleEnvironment(loc)}
@@ -475,13 +483,17 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                   {loc.areas.map((area: any) => (
                     <div
                       key={area.id}
-                      className="flex items-center gap-3 bg-white p-2 pl-4 rounded-xl border border-rhozly-outline/10"
+                      className="flex items-start gap-3 bg-white p-2 pl-4 rounded-xl border border-rhozly-outline/10"
                     >
-                      <MapPin className="w-4 h-4 text-rhozly-primary/40" />
-                      <input
+                      <MapPin className="w-4 h-4 text-rhozly-primary/40 mt-1 shrink-0" />
+                      <textarea
                         value={area.name}
                         readOnly={!can("areas.edit")}
-                        onChange={(e) =>
+                        rows={1}
+                        onChange={(e) => {
+                          const el = e.target;
+                          el.style.height = "auto";
+                          el.style.height = el.scrollHeight + "px";
                           setLocations(
                             locations.map((l) =>
                               l.id === loc.id
@@ -495,15 +507,19 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                                   }
                                 : l,
                             ),
-                          )
-                        }
+                          );
+                        }}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+                        }}
                         onBlur={() => can("areas.edit") && handleUpdateAreaDB(area)}
-                        className={`flex-1 min-w-0 text-sm font-bold text-rhozly-on-surface bg-transparent focus:outline-none ${!can("areas.edit") ? "cursor-default" : ""}`}
+                        ref={(el) => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }}
+                        className={`flex-1 min-w-0 text-sm font-bold text-rhozly-on-surface bg-transparent focus:outline-none resize-none overflow-hidden leading-snug ${!can("areas.edit") ? "cursor-default" : ""}`}
                       />
                       {savingAreaId === area.id && (
-                        <Loader2 size={14} className="animate-spin text-rhozly-primary shrink-0" />
+                        <Loader2 size={14} className="animate-spin text-rhozly-primary shrink-0 self-start mt-1" />
                       )}
-                      <div className="flex gap-1 shrink-0 transition-opacity">
+                      <div className="flex gap-1 shrink-0 self-start transition-opacity">
                         {can("areas.edit") && (
                           <button
                             onClick={() => setEditingArea(area)}

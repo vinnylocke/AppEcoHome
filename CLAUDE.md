@@ -78,6 +78,25 @@ docs/                      # Feature build plans
 
 ## Critical Conventions
 
+### Always plan before implementing
+
+**Every task — no matter how small — requires a written plan before any code is written.** This includes bug fixes, UI tweaks, improvements, and new features.
+
+**Workflow:**
+1. When the user asks for a change, read any relevant existing files first.
+2. Write a plan document to `docs/plans/<kebab-case-task-name>.md` covering:
+   - What the problem or goal is
+   - Which files will change and why
+   - The exact approach (what changes, not just "update X")
+   - Any risks, edge cases, or alternatives considered
+3. Show the user a summary of the plan and tell them where the file was saved.
+4. **Wait for explicit approval** ("yes", "go ahead", "looks good", etc.) before writing any application code.
+5. After implementing, leave the plan file in place — it serves as a permanent record of decisions made.
+
+Plans for small tasks can be brief (5–10 lines). Plans for large features should be thorough. The size of the plan should match the size of the task — but the step is never skipped.
+
+Do not combine planning and implementation in the same response. Write the plan, stop, wait.
+
 ### Tests are mandatory for all code changes
 Every new feature, bug fix, or amendment to existing code **must** include corresponding test coverage:
 

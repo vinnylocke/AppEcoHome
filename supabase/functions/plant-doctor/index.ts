@@ -474,7 +474,7 @@ serve(async (req) => {
 
       const prompt = `Return exactly ${CACHE_SIZE} real plant species that best match the following request.${criteriaBlock}
 
-Return the most relevant match first, followed by closely related varieties and companion plants. Avoid duplicates.
+Return the most relevant match first, then different varieties and cultivars of the same plant, then closely related species in the same genus. Do NOT include companion plants or unrelated species. Avoid duplicates.
 Each match must be a real plant species. Format each as "Common Name (Scientific Name)".`;
 
       const { text, usage } = await callGeminiCascade(

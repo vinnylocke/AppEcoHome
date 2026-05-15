@@ -241,6 +241,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         source: item.type,
         status: "pending",
         data: realData,
+        preloadedDetails: item.preloadedDetails ?? undefined,
       };
     });
 
@@ -370,10 +371,42 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             throw new Error(`"${cleanName}" is already in your shed.`);
           }
 
-          const aiData = await PlantDoctorService.generateCareGuide(cleanName);
-          if (!aiData) throw new Error("AI failed to generate data");
-
-          const extracted = aiData.plantData ? aiData.plantData : aiData;
+          let extracted: any;
+          if ((item as any).preloadedDetails) {
+            const pd = (item as any).preloadedDetails;
+            extracted = {
+              common_name:     pd.common_name ?? cleanName,
+              scientific_name: pd.scientific_name,
+              description:     pd.description,
+              sunlight:        pd.sunlight,
+              watering:        pd.watering,
+              watering_min_days: pd.watering_min_days,
+              watering_max_days: pd.watering_max_days,
+              is_edible:       pd.is_edible,
+              is_toxic_pets:   pd.is_toxic_pets,
+              is_toxic_humans: pd.is_toxic_humans,
+              attracts:        pd.attracts,
+              care_level:      pd.care_level,
+              cycle:           pd.cycle,
+              maintenance:     pd.maintenance,
+              growth_rate:     pd.growth_rate,
+              flowering_season: pd.flowering_season,
+              harvest_season:  pd.harvest_season,
+              pruning_month:   pd.pruning_month,
+              propagation:     pd.propagation,
+              drought_tolerant: pd.drought_tolerant,
+              tropical:        pd.tropical,
+              indoor:          pd.indoor,
+              cuisine:         pd.cuisine,
+              medicinal:       pd.medicinal,
+              plant_type:      pd.plant_type,
+              thumbnail_url:   pd.thumbnail_url,
+            };
+          } else {
+            const aiData = await PlantDoctorService.generateCareGuide(cleanName);
+            if (!aiData) throw new Error("AI failed to generate data");
+            extracted = aiData.plantData ? aiData.plantData : aiData;
+          }
           if (!extracted.common_name) extracted.common_name = cleanName;
 
           let imageUrl = extracted.thumbnail_url || "";
@@ -1348,6 +1381,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 plants={sourcePickerPlants}
                 isPremium={perenualEnabled}
                 isAiEnabled={aiEnabled}
+                homeId={homeId}
                 onClose={handleCloseModals}
                 onConfirm={(items) => {
                   setShowSourcePicker(false);

@@ -337,14 +337,64 @@ export const APP_HELP_SECTIONS: HelpSection[] = [
   {
     id: "integrations-overview",
     title: "What are Integrations?",
-    route: "/management",
+    route: "/integrations",
     summary: "Integrations connect physical devices — soil sensors and water valves — to your Rhozly home for real-time monitoring.",
   },
   {
     id: "integrations-connect",
     title: "Connecting a device (soil sensor or water valve)",
-    route: "/management",
+    route: "/integrations",
     summary: "Go to Integrations, tap 'Connect Device', and follow the wizard to link an Ecowitt or eWeLink device.",
+  },
+  {
+    id: "integrations-valve-ewelink",
+    title: "Connecting an eWeLink water valve",
+    route: "/integrations",
+    summary: "Tap 'Connect Device', choose 'Water Valve' then 'eWeLink', and authorise via your eWeLink account. Rhozly will import all your valves automatically.",
+  },
+  {
+    id: "integrations-valve-control",
+    title: "Manually controlling a water valve",
+    route: "/integrations",
+    summary: "Open a valve from the Integrations page, tap 'Turn On' to start the valve for its set duration. It auto-shuts off when the timer expires.",
+  },
+
+  // ── Automations ────────────────────────────────────────────────────────────
+  {
+    id: "automations-overview",
+    title: "What are Automations?",
+    route: "/integrations",
+    summary: "Automations fire your water valves automatically on a daily schedule when linked watering tasks are due, then mark those tasks as complete.",
+  },
+  {
+    id: "automations-create",
+    title: "Creating a watering automation",
+    route: "/integrations",
+    summary: "In Integrations → Automations, tap 'New Automation'. Give it a name, pick your valves, link a watering Blueprint as the controlling task, set a run time and duration.",
+  },
+  {
+    id: "automations-tasks",
+    title: "Controlling vs driven tasks in automations",
+    route: "/integrations",
+    summary: "A 'controlling' task triggers the automation when it is due. A 'driven' task is auto-completed by the automation but does not trigger it. Controlling tasks are always also driven.",
+  },
+  {
+    id: "automations-run-now",
+    title: "Running an automation manually",
+    route: "/integrations",
+    summary: "Tap 'Run Now' on any automation card to fire it immediately, bypassing the schedule and weather checks.",
+  },
+  {
+    id: "automations-weather",
+    title: "Skipping an automation when it rains",
+    route: "/integrations",
+    summary: "Enable 'Skip if it rained' in the automation settings. If today's rainfall exceeds your threshold (default 5 mm), the run is skipped and logged as 'Rain skipped'.",
+  },
+  {
+    id: "automations-sequential",
+    title: "Sequential vs simultaneous valve firing",
+    route: "/integrations",
+    summary: "With multiple valves, 'Fire sequentially' runs one valve at a time to avoid low water pressure. Disable it to fire all valves at once.",
   },
 
   // ── Light Sensor ───────────────────────────────────────────────────────────
@@ -395,4 +445,6 @@ export const POPULAR_QUESTIONS = [
   "How do I invite someone to my home?",
   "What is an Area Scan?",
   "How do I track a pest or disease?",
+  "How do I set up an automation?",
+  "How do I connect a water valve?",
 ];

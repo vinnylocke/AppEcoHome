@@ -1,9 +1,12 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { X, Loader2, ListPlus, Leaf, Info, ChevronUp, AlertCircle } from "lucide-react";
 import { IconPlantDB, IconAI } from "../constants/icons";
 import { PerenualService } from "../lib/perenualService";
 import { VerdantlyService } from "../lib/verdantlyService";
 import { PlantDoctorService } from "../services/plantDoctorService";
+import { getProviderPlantDetails, careGuideToPlantDetails } from "../lib/plantProvider";
+import type { PlantDetails } from "../lib/verdantlyUtils";
+import PlantInfoPanel from "./PlantInfoPanel";
 
 interface PlantResult {
   ai: string[];
@@ -15,12 +18,11 @@ interface PlantResult {
 
 type Selection = { type: "api" | "ai" | "verdantly"; data: any };
 
-type PreviewEntry = { loading: boolean; images?: string[]; desc?: string };
-
 interface Props {
   plants: string[];
   isPremium: boolean;
   isAiEnabled: boolean;
+  homeId?: string;
   onConfirm: (items: { type: "api" | "ai" | "verdantly"; data: any }[]) => void;
   onClose: () => void;
 }
@@ -29,6 +31,7 @@ export default function PlantSourcePicker({
   plants,
   isPremium,
   isAiEnabled,
+  homeId,
   onConfirm,
   onClose,
 }: Props) {
@@ -38,64 +41,42 @@ export default function PlantSourcePicker({
     ),
   );
   const [selections, setSelections] = useState<Record<string, Selection | null>>({});
-  const [previewCache, setPreviewCache] = useState<Record<string, PreviewEntry>>({});
+  const [detailsCache, setDetailsCache] = useState<Map<string, PlantDetails>>(new Map());
+  const [loadingDetailsIds, setLoadingDetailsIds] = useState<Set<string>>(new Set());
+  const fetchingDetailsRef = useRef<Set<string>>(new Set());
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
-  const fetchWiki = async (term: string) => {
+  const fetchDetails = async (id: string, plantObj?: any) => {
+    if (detailsCache.has(id) || fetchingDetailsRef.current.has(id)) return;
+    fetchingDetailsRef.current.add(id);
+    setLoadingDetailsIds((prev) => new Set(prev).add(id));
     try {
-      const res = await fetch(
-        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(term)}`,
-      );
-      if (!res.ok) return null;
-      const data = await res.json();
-      if (data.type === "disambiguation" || !data.extract) return null;
-      return data;
+      let details: PlantDetails;
+      if (plantObj) {
+        details = await getProviderPlantDetails({
+          source: plantObj._provider === "verdantly" ? "verdantly" : "api",
+          perenual_id:  plantObj._provider !== "verdantly" ? (plantObj.perenual_id ?? plantObj.id) : null,
+          verdantly_id: plantObj._provider === "verdantly" ? (plantObj.verdantly_id ?? plantObj.id) : null,
+        });
+      } else {
+        const cleanName = id.split("(")[0].trim();
+        const aiData = await PlantDoctorService.generateCareGuide(cleanName, homeId);
+        details = careGuideToPlantDetails(aiData?.plantData ?? aiData, cleanName);
+      }
+      setDetailsCache((prev) => new Map(prev).set(id, details));
     } catch {
-      return null;
+      // silently fail
+    } finally {
+      fetchingDetailsRef.current.delete(id);
+      setLoadingDetailsIds((prev) => { const s = new Set(prev); s.delete(id); return s; });
     }
-  };
-
-  // cacheKey: unique id for the entry (match string for AI, plant.id string for API)
-  // commonName: used as the Wikipedia search term
-  // scientificName: tried first if provided (AI results may have it in parens)
-  const fetchPreview = async (
-    cacheKey: string,
-    commonName: string,
-    scientificName?: string,
-  ) => {
-    setPreviewCache((prev) => {
-      if (prev[cacheKey]) return prev;
-      return { ...prev, [cacheKey]: { loading: true } };
-    });
-
-    const primary = scientificName || commonName;
-    let data =
-      (await fetchWiki(primary)) ??
-      (scientificName ? await fetchWiki(commonName) : null) ??
-      (await fetchWiki(`${commonName} plant`));
-
-    if (!data && commonName.includes(" ")) {
-      const base = commonName.split(" ").pop()!;
-      data = (await fetchWiki(base)) ?? (await fetchWiki(`${base} plant`));
-    }
-
-    setPreviewCache((prev) => ({
-      ...prev,
-      [cacheKey]: {
-        loading: false,
-        images: data
-          ? [data.thumbnail?.source ?? data.originalimage?.source].filter(Boolean)
-          : [],
-        desc: data?.extract || "No encyclopedia entry found.",
-      },
-    }));
   };
 
   useEffect(() => {
     plants.forEach(async (name) => {
       const [ai, api, verdantlyResult] = await Promise.all([
         isAiEnabled
-          ? PlantDoctorService.searchPlantsText(name)
+          ? PlantDoctorService.searchPlantsText(name, { homeId })
               .then((d) => {
                 const matches = (d.matches || []).slice(0, 3);
                 // Plant was AI-suggested by the planner — always surface at least the name itself
@@ -123,13 +104,6 @@ export default function PlantSourcePicker({
           loading: false,
         },
       }));
-
-      // Auto-fetch previews for AI results
-      ai.forEach((match) => {
-        const sci = match.match(/\(([^)]+)\)/)?.[1];
-        const common = match.split("(")[0].trim();
-        fetchPreview(match, common, sci);
-      });
 
       // Auto-select: AI first, then Verdantly, then Perenual
       const auto: Selection | null =
@@ -159,42 +133,30 @@ export default function PlantSourcePicker({
     return String(cur.data?.id) === String(s.data?.id);
   };
 
-  const toggleExpand = (
-    cacheKey: string,
-    commonName: string,
-    scientificName?: string,
-  ) => {
-    setExpandedId((prev) => (prev === cacheKey ? null : cacheKey));
-    if (!previewCache[cacheKey]) fetchPreview(cacheKey, commonName, scientificName);
+  // Auto-prefetch care guides for AI results as each plant's results load
+  useEffect(() => {
+    if (!isAiEnabled) return;
+    Object.values(results).forEach((r) => {
+      if (r.loading) return;
+      r.ai.forEach((match) => fetchDetails(match));
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [results]);
+
+  const toggleExpand = (id: string, plantObj?: any) => {
+    setExpandedId((prev) => (prev === id ? null : id));
+    fetchDetails(id, plantObj);
   };
 
-  const renderAccordion = (cacheKey: string) => {
-    const p = previewCache[cacheKey];
-    const thumb = p?.images?.[0];
-    return (
-      <div className="p-3 border-t border-rhozly-outline/10 bg-rhozly-surface-low/30 animate-in slide-in-from-top-2">
-        {p?.loading ? (
-          <div className="flex items-center gap-2 text-rhozly-on-surface/40 py-2">
-            <Loader2 size={14} className="animate-spin" />
-            <span className="text-xs font-bold">Loading…</span>
-          </div>
-        ) : (
-          <div className="flex gap-3 items-start">
-            {thumb && (
-              <img
-                src={thumb}
-                alt=""
-                className="w-20 h-20 rounded-xl object-cover shadow-sm shrink-0"
-              />
-            )}
-            <p className="text-xs font-semibold text-rhozly-on-surface/80 leading-relaxed">
-              {p?.desc ?? "No description available."}
-            </p>
-          </div>
-        )}
-      </div>
-    );
-  };
+  const renderInfoPanel = (id: string, plantName?: string) => (
+    <div className="border-t border-rhozly-outline/10 bg-rhozly-surface-low/20 animate-in slide-in-from-top-2">
+      <PlantInfoPanel
+        details={detailsCache.get(id) ?? null}
+        loading={loadingDetailsIds.has(id)}
+        plantName={plantName}
+      />
+    </div>
+  );
 
   const selectedItems = Object.values(selections).filter(Boolean) as Selection[];
   const allLoaded = Object.values(results).every((r) => !r.loading);
@@ -289,12 +251,9 @@ export default function PlantSourcePicker({
                         </p>
                         <div className="space-y-1.5">
                           {r.ai.map((match) => {
-                            const sci = match.match(/\(([^)]+)\)/)?.[1];
-                            const common = match.split("(")[0].trim();
                             const sel: Selection = { type: "ai", data: match };
                             const active = isSelected(name, sel);
-                            const preview = previewCache[match];
-                            const thumb = preview?.images?.[0];
+                            const cachedThumb = detailsCache.get(match)?.thumbnail_url;
                             const isExpanded = expandedId === match;
 
                             return (
@@ -309,10 +268,8 @@ export default function PlantSourcePicker({
                                     </div>
                                   </button>
                                   <button onClick={() => select(name, sel)} className="w-10 h-10 rounded-lg bg-amber-500/10 shrink-0 overflow-hidden flex items-center justify-center">
-                                    {thumb ? (
-                                      <img src={thumb} alt={match} className="w-full h-full object-cover" />
-                                    ) : preview?.loading ? (
-                                      <Loader2 size={12} className="animate-spin text-amber-400" />
+                                    {cachedThumb ? (
+                                      <img src={cachedThumb} alt={match} className="w-full h-full object-cover" />
                                     ) : (
                                       <IconAI size={14} className="text-amber-500" />
                                     )}
@@ -322,14 +279,14 @@ export default function PlantSourcePicker({
                                     <span className="text-[8px] font-black uppercase tracking-widest text-amber-500 bg-amber-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">AI</span>
                                   </button>
                                   <button
-                                    onClick={() => toggleExpand(match, common, sci)}
+                                    onClick={() => toggleExpand(match)}
                                     className="p-2 rounded-lg hover:bg-amber-100 text-amber-600 transition-colors shrink-0"
                                     aria-label="Show details"
                                   >
-                                    {isExpanded ? <ChevronUp size={16} /> : <Info size={16} />}
+                                    {isExpanded ? <ChevronUp size={16} /> : loadingDetailsIds.has(match) ? <Loader2 size={16} className="animate-spin" /> : <Info size={16} />}
                                   </button>
                                 </div>
-                                {isExpanded && renderAccordion(match)}
+                                {isExpanded && renderInfoPanel(match, match.split("(")[0].trim())}
                               </div>
                             );
                           })}
@@ -378,14 +335,14 @@ export default function PlantSourcePicker({
                                     <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">Verdantly</span>
                                   </button>
                                   <button
-                                    onClick={() => toggleExpand(verdantlyKey, plant.common_name, sciName ?? undefined)}
+                                    onClick={() => toggleExpand(verdantlyKey, { ...plant, _provider: "verdantly" })}
                                     className="p-2 rounded-lg hover:bg-emerald-100 text-emerald-600 transition-colors shrink-0"
                                     aria-label="Show details"
                                   >
-                                    {isExpandedItem ? <ChevronUp size={16} /> : <Info size={16} />}
+                                    {isExpandedItem ? <ChevronUp size={16} /> : loadingDetailsIds.has(verdantlyKey) ? <Loader2 size={16} className="animate-spin" /> : <Info size={16} />}
                                   </button>
                                 </div>
-                                {isExpandedItem && renderAccordion(verdantlyKey)}
+                                {isExpandedItem && renderInfoPanel(verdantlyKey, plant.common_name)}
                               </div>
                             );
                           })}
@@ -445,14 +402,14 @@ export default function PlantSourcePicker({
                                     <span className="text-[8px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary/10 px-1.5 py-0.5 rounded-full inline-block mt-0.5">Perenual</span>
                                   </button>
                                   <button
-                                    onClick={() => toggleExpand(cacheKey, plant.common_name, plant.scientific_name?.[0])}
+                                    onClick={() => toggleExpand(cacheKey, { ...plant, _provider: "perenual" })}
                                     className="p-2 rounded-lg hover:bg-rhozly-primary/10 text-rhozly-primary transition-colors shrink-0"
                                     aria-label="Show details"
                                   >
-                                    {isExpanded ? <ChevronUp size={16} /> : <Info size={16} />}
+                                    {isExpanded ? <ChevronUp size={16} /> : loadingDetailsIds.has(cacheKey) ? <Loader2 size={16} className="animate-spin" /> : <Info size={16} />}
                                   </button>
                                 </div>
-                                {isExpanded && renderAccordion(cacheKey)}
+                                {isExpanded && renderInfoPanel(cacheKey, plant.common_name)}
                               </div>
                             );
                           })}
@@ -479,7 +436,17 @@ export default function PlantSourcePicker({
           )}
           <button
             data-testid="plant-source-picker-confirm"
-            onClick={() => onConfirm(selectedItems)}
+            onClick={() =>
+              onConfirm(
+                selectedItems.map((item) => ({
+                  ...item,
+                  preloadedDetails:
+                    item.type === "ai"
+                      ? detailsCache.get(item.data as string)
+                      : undefined,
+                })),
+              )
+            }
             disabled={selectedItems.length === 0 || !allLoaded}
             className="w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:hover:scale-100 flex items-center justify-center gap-2"
           >

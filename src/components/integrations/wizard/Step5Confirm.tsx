@@ -119,11 +119,19 @@ function buildMeta(device: DiscoveredDevice, state: WizardState): Record<string,
       gateway_mac: state.credentials.gatewayMac ?? "",
     };
   }
-  // ewelink — sub_device flag unknown until hardware arrives; default to true
+  if (device.isSubDevice) {
+    return {
+      model: device.model,
+      use_sub_device: true,
+      parent_device_id: device.parentDeviceId,
+      sub_device_id: device.subDeviceId,
+      default_duration_seconds: 1800,
+    };
+  }
   return {
     model: device.model,
-    use_sub_device: true,
-    sub_device_id: device.externalDeviceId,
+    use_sub_device: false,
+    direct_device_id: device.externalDeviceId,
     default_duration_seconds: 1800,
   };
 }

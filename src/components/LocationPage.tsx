@@ -183,7 +183,7 @@ export const LocationPage: React.FC<LocationPageProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <button
-            onClick={() => navigate("/dashboard")}
+            onClick={() => navigate("/dashboard?view=locations")}
             className="p-3 min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-white rounded-xl transition-all shadow-sm"
           >
             <ArrowLeft className="w-6 h-6" />

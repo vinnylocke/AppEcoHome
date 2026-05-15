@@ -38,6 +38,10 @@ window.addEventListener("unhandledrejection", e =>
 const updateSW = registerSW({
   immediate: true,
   onNeedRefresh() {
+    if (sessionStorage.getItem("rhozly_just_saw_release_notes")) {
+      sessionStorage.removeItem("rhozly_just_saw_release_notes");
+      return;
+    }
     window.dispatchEvent(
       new CustomEvent("pwa-update-available", {
         detail: { reload: () => updateSW(true) },

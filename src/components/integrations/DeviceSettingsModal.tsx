@@ -1,7 +1,11 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "../../lib/supabase";
 import { X, Loader2, Trash2, AlertTriangle } from "lucide-react";
 import type { Device } from "./IntegrationsPage";
+
+interface Location { id: string; name: string; }
+interface Area { id: string; name: string; location_id: string; }
 
 interface Props {
   device: Device;
@@ -14,17 +18,58 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
   const [duration, setDuration] = useState<number>(
     (device.metadata?.default_duration_seconds as number | undefined) ?? 1800
   );
+  const [isHomeShutoff, setIsHomeShutoff] = useState<boolean>(
+    !!(device.metadata?.is_home_shutoff)
+  );
+  const [locationId, setLocationId] = useState<string>(device.location_id ?? "");
+  const [areaId, setAreaId] = useState<string>(device.area_id ?? "");
+  const [locations, setLocations] = useState<Location[]>([]);
+  const [areas, setAreas] = useState<Area[]>([]);
   const [saving, setSaving] = useState(false);
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Fetch locations for the home
+  useEffect(() => {
+    supabase
+      .from("locations")
+      .select("id, name")
+      .eq("home_id", device.home_id)
+      .order("name")
+      .then(({ data }) => setLocations((data ?? []) as Location[]));
+  }, [device.home_id]);
+
+  // Fetch areas whenever selected location changes
+  useEffect(() => {
+    if (!locationId) { setAreas([]); setAreaId(""); return; }
+    supabase
+      .from("areas")
+      .select("id, name, location_id")
+      .eq("location_id", locationId)
+      .order("name")
+      .then(({ data }) => {
+        const fetched = (data ?? []) as Area[];
+        setAreas(fetched);
+        // Clear area if it doesn't belong to the new location
+        if (areaId && !fetched.find((a) => a.id === areaId)) setAreaId("");
+      });
+  }, [locationId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const save = async () => {
     setSaving(true);
     setError(null);
-    const updates: Record<string, unknown> = { name };
+    const updates: Record<string, unknown> = {
+      name,
+      location_id: locationId || null,
+      area_id: areaId || null,
+    };
     if (device.device_type === "water_valve") {
-      updates.metadata = { ...device.metadata, default_duration_seconds: duration };
+      updates.metadata = {
+        ...device.metadata,
+        default_duration_seconds: duration,
+        is_home_shutoff: isHomeShutoff,
+      };
     }
     const { error: err } = await supabase.from("devices").update(updates).eq("id", device.id);
     setSaving(false);
@@ -40,10 +85,10 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
     onUpdated();
   };
 
-  return (
-    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
+  return createPortal(
+    <div className="fixed inset-0 z-[60] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full sm:max-w-md bg-white rounded-t-3xl sm:rounded-3xl shadow-xl p-6" data-testid="device-settings-modal">
+      <div className="relative w-[calc(100vw-2rem)] max-w-md bg-white rounded-3xl shadow-xl p-6 max-h-[90vh] overflow-y-auto" data-testid="device-settings-modal">
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-black text-rhozly-on-surface text-lg">Device Settings</h2>
           <button onClick={onClose} data-testid="settings-close">
@@ -64,31 +109,82 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
             />
           </div>
 
-          {/* Valve duration */}
-          {device.device_type === "water_valve" && (
+          {/* Location */}
+          <div>
+            <label className="block text-sm font-semibold text-rhozly-on-surface mb-1.5">Location</label>
+            <select
+              value={locationId}
+              onChange={(e) => { setLocationId(e.target.value); setAreaId(""); }}
+              data-testid="settings-location"
+              className="w-full px-4 py-3 rounded-2xl border border-rhozly-outline/30 bg-white text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary text-sm"
+            >
+              <option value="">— No location —</option>
+              {locations.map((l) => (
+                <option key={l.id} value={l.id}>{l.name}</option>
+              ))}
+            </select>
+          </div>
+
+          {/* Area — only shown when a location is selected */}
+          {locationId && (
             <div>
-              <label className="block text-sm font-semibold text-rhozly-on-surface mb-1.5">
-                Default run duration
-              </label>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  min={60}
-                  max={7200}
-                  step={60}
-                  value={duration}
-                  onChange={(e) => setDuration(Number(e.target.value))}
-                  data-testid="settings-duration"
-                  className="w-28 px-4 py-3 rounded-2xl border border-rhozly-outline/30 bg-white text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary text-sm"
-                />
-                <span className="text-sm text-rhozly-on-surface-variant">
-                  seconds ({Math.round(duration / 60)} min)
-                </span>
-              </div>
-              <p className="text-xs text-rhozly-on-surface-variant mt-1">
-                The valve will auto-off after this duration as a safety failsafe.
-              </p>
+              <label className="block text-sm font-semibold text-rhozly-on-surface mb-1.5">Area</label>
+              <select
+                value={areaId}
+                onChange={(e) => setAreaId(e.target.value)}
+                data-testid="settings-area"
+                className="w-full px-4 py-3 rounded-2xl border border-rhozly-outline/30 bg-white text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary text-sm"
+              >
+                <option value="">— No area —</option>
+                {areas.map((a) => (
+                  <option key={a.id} value={a.id}>{a.name}</option>
+                ))}
+              </select>
             </div>
+          )}
+
+          {/* Valve options */}
+          {device.device_type === "water_valve" && (
+            <>
+              <div>
+                <label className="block text-sm font-semibold text-rhozly-on-surface mb-1.5">
+                  Default run duration
+                </label>
+                <div className="flex items-center gap-3">
+                  <input
+                    type="number"
+                    min={60}
+                    max={7200}
+                    step={60}
+                    value={duration}
+                    onChange={(e) => setDuration(Number(e.target.value))}
+                    data-testid="settings-duration"
+                    className="w-28 px-4 py-3 rounded-2xl border border-rhozly-outline/30 bg-white text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary text-sm"
+                  />
+                  <span className="text-sm text-rhozly-on-surface-variant">
+                    seconds ({Math.round(duration / 60)} min)
+                  </span>
+                </div>
+                <p className="text-xs text-rhozly-on-surface-variant mt-1">
+                  The valve will auto-off after this duration as a safety failsafe.
+                </p>
+              </div>
+
+              <label className="flex items-start gap-3 cursor-pointer" data-testid="settings-home-shutoff">
+                <input
+                  type="checkbox"
+                  checked={isHomeShutoff}
+                  onChange={(e) => setIsHomeShutoff(e.target.checked)}
+                  className="mt-0.5 w-4 h-4 accent-rhozly-primary"
+                />
+                <div>
+                  <p className="text-sm font-semibold text-rhozly-on-surface">Whole home water shutoff</p>
+                  <p className="text-xs text-rhozly-on-surface-variant mt-0.5">
+                    Mark this valve as the main water supply for the entire home.
+                  </p>
+                </div>
+              </label>
+            </>
           )}
 
           {error && (
@@ -147,6 +243,7 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
           </div>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

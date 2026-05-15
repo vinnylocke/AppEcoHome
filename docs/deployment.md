@@ -42,9 +42,9 @@ supabase --version
 
 ## Standard deploy
 
-### Step 0: Write release notes (required before every deploy)
+### Step 0: Release notes (maintained continuously, not just at deploy time)
 
-Open `release-notes.json` in the project root and document what changed in this release:
+`release-notes.json` in the project root is a living document. **Update it as each fix, feature, or improvement is made** — not in a batch just before deploying. This way the notes are always accurate and ready when a deploy comes around.
 
 ```json
 [
@@ -54,18 +54,30 @@ Open `release-notes.json` in the project root and document what changed in this 
 ]
 ```
 
-Supported labels: `New`, `Fixed`, `Improved`, `Removed`. Leave as `[]` for hotfixes — a warning will print but the deploy will continue. The deploy script automatically inserts the notes into the `release_notes` table and resets `release-notes.json` to `[]` after a successful deploy. Users will see the notes in a modal on their next visit.
+Supported labels: `New`, `Fixed`, `Improved`, `Removed`.
 
-### Step 1: Deploy
+**Workflow:**
+- After implementing each fix/feature/improvement, append the relevant item to `release-notes.json` immediately.
+- At deploy time, review what's accumulated, confirm the notes look right, then deploy.
+- The deploy script automatically inserts the notes into the `release_notes` table and resets `release-notes.json` to `[]` after a successful deploy — ready for the next release.
+- Leave as `[]` only for genuine hotfixes with no user-visible change — a warning will print but the deploy will continue.
+
+Users will see the notes in a modal on their next visit.
+
+### Step 1: Count your changes and deploy
+
+**Every distinct fix, feature, or improvement counts as one minor version increment.** Pass `--bump N` where N is the number of changes in this release. This means the minor version acts as a rough indicator of how much went into each release — a release with 4 changes bumps by 4.
+
+| Release contains | Command |
+|---|---|
+| 1 fix / feature / improvement | `npm run deploy` |
+| 3 fixes in one release | `node scripts/deploy.mjs --bump 3` |
+| Major milestone / breaking change | `node scripts/deploy.mjs --bump-major` |
+
+Optionally add a custom maintenance message as the first non-flag argument:
 
 ```bash
-npm run deploy
-```
-
-Optionally provide a custom maintenance message:
-
-```bash
-node scripts/deploy.mjs "Deploying care schedule improvements — back in ~2 mins!"
+node scripts/deploy.mjs --bump 2 "Deploying care schedule improvements — back in ~2 mins!"
 ```
 
 ### What happens step by step

@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { createPortal } from "react-dom";
 import { X, ChevronLeft } from "lucide-react";
 import Step1DeviceType from "./wizard/Step1DeviceType";
 import Step2Brand from "./wizard/Step2Brand";
@@ -10,6 +11,8 @@ interface Props {
   homeId: string;
   onComplete: () => void;
   onClose: () => void;
+  initialStep?: number;
+  initialState?: Partial<WizardState>;
 }
 
 export interface WizardState {
@@ -26,12 +29,15 @@ export interface DiscoveredDevice {
   name: string;
   channel?: number;
   model: string;
+  isSubDevice?: boolean;
+  parentDeviceId?: string | null;
+  subDeviceId?: string | null;
 }
 
 const STEPS = ["Device Type", "Brand", "Credentials", "Devices", "Confirm"];
 
-export default function ConnectDeviceWizard({ homeId, onComplete, onClose }: Props) {
-  const [step, setStep] = useState(0);
+export default function ConnectDeviceWizard({ homeId, onComplete, onClose, initialStep, initialState }: Props) {
+  const [step, setStep] = useState(initialStep ?? 0);
   const [state, setState] = useState<WizardState>({
     deviceType: null,
     brand: null,
@@ -39,6 +45,7 @@ export default function ConnectDeviceWizard({ homeId, onComplete, onClose }: Pro
     integrationId: null,
     discoveredDevices: [],
     selectedDeviceIds: [],
+    ...initialState,
   });
 
   const update = (patch: Partial<WizardState>) =>
@@ -49,11 +56,11 @@ export default function ConnectDeviceWizard({ homeId, onComplete, onClose }: Pro
 
   const stepProps = { homeId, state, update, onNext: next, onBack: back, onComplete };
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+  return createPortal(
+    <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div
-        className="relative w-full sm:max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-xl max-h-[90vh] overflow-y-auto"
+        className="relative w-[calc(100vw-2rem)] max-w-lg bg-white rounded-3xl shadow-xl max-h-[90vh] overflow-y-auto"
         data-testid="connect-device-wizard"
       >
         {/* Header */}
@@ -93,6 +100,7 @@ export default function ConnectDeviceWizard({ homeId, onComplete, onClose }: Pro
           {step === 4 && <Step5Confirm {...stepProps} />}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
