@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Monitoring",
-    "items": [
-      "Sentry error monitoring added to all 42 edge functions — cron job failures will now send email alerts"
-    ]
-  }
-]
+[]
