@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
+import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { loadPreferences, formatPreferencesBlock } from "../_shared/preferences.ts";
 import { guardAiByHome, guardPerenualByHome } from "../_shared/aiGuard.ts";
@@ -879,6 +880,7 @@ ${locationLine ? `Gardener location: ${locationLine}. Tailor treatment and preve
     throw new Error(`Unknown action: ${action}`);
   } catch (err: any) {
     logError(FN, "error", { error: err.message, action: action ?? "unknown" });
+    await captureException(FN, err, { action: action ?? "unknown" });
     const fallback = action ? getFallback(action) : null;
     if (fallback) {
       return new Response(JSON.stringify(fallback), {

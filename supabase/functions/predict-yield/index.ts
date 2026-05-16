@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { buildYieldPrompt } from "../_shared/yieldPrompt.ts";
 import { log, warn } from "../_shared/logger.ts";
+import { captureException } from "../_shared/sentry.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
@@ -145,6 +146,7 @@ serve(async (req) => {
     });
   } catch (err: any) {
     warn(FN, "error", { message: err.message });
+    await captureException(FN, err);
     return new Response(
       JSON.stringify({ error: "Internal error", detail: err.message }),
       { status: 500, headers: { ...CORS, "Content-Type": "application/json" } },

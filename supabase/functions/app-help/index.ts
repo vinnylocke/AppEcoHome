@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { log, error as logError } from "../_shared/logger.ts";
+import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade } from "../_shared/gemini.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
@@ -191,6 +192,7 @@ serve(async (req) => {
     });
   } catch (err: any) {
     logError(FN, "error", { error: err.message });
+    await captureException(FN, err);
     return new Response(
       JSON.stringify({ answer: "Sorry, I couldn't process that right now. Please try again in a moment.", sectionIds: [] }),
       { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },

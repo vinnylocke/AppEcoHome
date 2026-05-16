@@ -1,10 +1,8 @@
 [
   {
-    "label": "Fixes",
+    "label": "Monitoring",
     "items": [
-      "Dashboard view tabs now fit correctly on all phone sizes — they share the full width equally instead of overflowing to the right",
-      "Garden layout editor toolbar no longer clips off-screen on mobile — it scrolls horizontally so all controls remain accessible",
-      "Plant Visualiser 'Set Plant Art' and 'Open Visualiser' buttons are now correctly fixed to the bottom of the screen and stay there as you scroll"
+      "Sentry error monitoring added to all 42 edge functions — cron job failures will now send email alerts"
     ]
   }
 ]

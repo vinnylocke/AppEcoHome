@@ -3,6 +3,7 @@ import { requireAuth } from "../_shared/requireAuth.ts";
 import { getCached, setCached } from "../_shared/aiCache.ts";
 import { callGeminiCascade } from "../_shared/gemini.ts";
 import { log, error as logError } from "../_shared/logger.ts";
+import { captureException } from "../_shared/sentry.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 
@@ -335,6 +336,7 @@ Deno.serve(async (req) => {
     });
   } catch (err: any) {
     logError(FN, "error", { error: err.message });
+    await captureException(FN, err);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: { ...CORS, "Content-Type": "application/json" },

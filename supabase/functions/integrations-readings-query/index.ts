@@ -18,6 +18,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import type { AggregatePeriod, AggregateLevel, ReadingsBucket, ReadingsQueryResponse } from "../_shared/integrations/providerTypes.ts";
+import { captureException } from "../_shared/sentry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -176,6 +177,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("integrations-readings-query error:", err);
+    await captureException("integrations-readings-query", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

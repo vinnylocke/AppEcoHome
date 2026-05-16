@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { log, error as logError } from "../_shared/logger.ts";
+import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade } from "../_shared/gemini.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
@@ -160,6 +161,7 @@ serve(async (req) => {
     );
   } catch (error: any) {
     logError(FN, "error", { error: error.message });
+    await captureException(FN, error);
     return new Response(JSON.stringify(getFallback("generate_guide")), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,

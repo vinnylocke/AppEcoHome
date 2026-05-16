@@ -5,6 +5,7 @@ import { guardAiByUser } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { log, error as logError } from "../_shared/logger.ts";
+import { captureException } from "../_shared/sentry.ts";
 import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
 import { getFallback } from "../_shared/fallbacks.ts";
 
@@ -139,6 +140,7 @@ Keep names precise and recognisable. Avoid duplicates.`;
     });
   } catch (err) {
     logError(FN, err);
+    await captureException(FN, err);
     return new Response(
       JSON.stringify(getFallback("search_plants_ai")),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } },

@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn } from "../_shared/logger.ts";
 import { PATTERNS } from "../_shared/patterns/index.ts";
+import { captureException } from "../_shared/sentry.ts";
 
 const FN = "pattern-scan";
 
@@ -140,6 +141,7 @@ serve(async (_req) => {
       { headers: { "Content-Type": "application/json" } },
     );
   } catch (err: any) {
+    await captureException(FN, err);
     return new Response(
       JSON.stringify({ error: err.message }),
       { status: 500, headers: { "Content-Type": "application/json" } },

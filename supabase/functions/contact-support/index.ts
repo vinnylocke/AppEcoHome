@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { log, error as logError } from "../_shared/logger.ts";
+import { captureException } from "../_shared/sentry.ts";
 import { sendEmail } from "../_shared/resend.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
@@ -98,6 +99,7 @@ Deno.serve(async (req) => {
     });
   } catch (err: any) {
     logError(FN, "error", { error: err.message });
+    await captureException(FN, err);
     return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: corsHeaders,

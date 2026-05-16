@@ -14,6 +14,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { insertReading } from "../_shared/integrations/readings.ts";
 import type { SoilReading } from "../_shared/integrations/providerTypes.ts";
+import { captureException } from "../_shared/sentry.ts";
 
 Deno.serve(async (req) => {
   if (req.method !== "POST") {
@@ -130,6 +131,7 @@ Deno.serve(async (req) => {
     return new Response("ok", { status: 200 });
   } catch (err) {
     console.error("integrations-ecowitt-webhook error:", err);
+    await captureException("integrations-ecowitt-webhook", err);
     return new Response("Internal server error", { status: 500 });
   }
 });

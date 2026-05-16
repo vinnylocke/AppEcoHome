@@ -1,6 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { sendEmail } from "../_shared/resend.ts";
+import { captureException } from "../_shared/sentry.ts";
 
+const FN = "garden-reports";
 const SITE_URL = Deno.env.get("SITE_URL") ?? "https://rhozly.com";
 
 // ─── Date helpers ─────────────────────────────────────────────────────────────
@@ -484,6 +486,7 @@ Deno.serve(async () => {
     });
   } catch (err: any) {
     console.error("🔥 Fatal:", err.message);
+    await captureException(FN, err);
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
 });

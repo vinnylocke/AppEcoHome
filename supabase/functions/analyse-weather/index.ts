@@ -1,5 +1,6 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { log, warn, error as logError } from "../_shared/logger.ts";
+import { captureException } from "../_shared/sentry.ts";
 import {
   WEATHER_RULES,
   EMPTY_RESULT,
@@ -231,6 +232,7 @@ Deno.serve(async (req) => {
     });
   } catch (err: any) {
     logError(FN, "error", { error: err.message });
+    await captureException(FN, err);
     return new Response(JSON.stringify({ error: err.message }), {
       headers: corsHeaders,
       status: 500,

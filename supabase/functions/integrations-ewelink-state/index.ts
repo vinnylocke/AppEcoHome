@@ -15,6 +15,7 @@ import { decryptCredentials } from "../_shared/integrations/encrypt.ts";
 import { insertReading } from "../_shared/integrations/readings.ts";
 import type { ValveReading } from "../_shared/integrations/providerTypes.ts";
 import { parseDeviceState } from "../_shared/integrations/ewelinkDevice.ts";
+import { captureException } from "../_shared/sentry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -133,6 +134,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("integrations-ewelink-state error:", err);
+    await captureException("integrations-ewelink-state", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

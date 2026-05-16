@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { log } from "../_shared/logger.ts";
+import { captureException } from "../_shared/sentry.ts";
 
 const FN = "home-dashboard-stats";
 const CORS = {
@@ -363,6 +364,7 @@ Deno.serve(async (req) => {
     return json(result);
   } catch (err) {
     console.error(`[${FN}] unhandled error`, err);
+    await captureException(FN, err);
     return json({ error: "internal_error" }, 500);
   }
 });

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
+import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { loadPreferences, formatPreferencesBlock } from "../_shared/preferences.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
@@ -317,6 +318,7 @@ ${climateBlock}
     });
   } catch (error: any) {
     logError(FN, "error", { error: error.message });
+    await captureException(FN, error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },

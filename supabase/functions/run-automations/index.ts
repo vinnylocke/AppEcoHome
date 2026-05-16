@@ -13,6 +13,7 @@ import { decryptCredentials } from "../_shared/integrations/encrypt.ts";
 import { buildControlPayload, resolveEffectiveDuration } from "../_shared/integrations/ewelinkDevice.ts";
 import { regionToApiBase } from "../_shared/integrations/ewelinkAuth.ts";
 import { log, warn, error as logError } from "../_shared/logger.ts";
+import { captureException } from "../_shared/sentry.ts";
 
 const FN = "run-automations";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -638,6 +639,7 @@ Deno.serve(async (req) => {
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     logError(FN, "fatal_error", { error: msg });
+    await captureException(FN, err);
     return json({ error: "Internal server error" }, 500);
   }
 });

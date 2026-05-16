@@ -1,5 +1,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { fetchUsdaHardinessZone } from "../_shared/climateZones.ts";
+import { captureException } from "../_shared/sentry.ts";
+
+const FN = "sync-weather";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -190,7 +193,7 @@ Deno.serve(async (req) => {
     );
   } catch (error: any) {
     console.error("🔥 CRITICAL EDGE FUNCTION CRASH:", error);
-
+    await captureException(FN, error);
     return new Response(JSON.stringify({ error: error.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 500,

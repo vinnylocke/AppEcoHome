@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { sendEmail } from "../_shared/resend.ts";
+import { captureException } from "../_shared/sentry.ts";
 
 const FN = "weekly-digest";
 const SITE_URL = Deno.env.get("SITE_URL") ?? "https://rhozly.com";
@@ -352,6 +353,7 @@ Deno.serve(async () => {
     });
   } catch (err: any) {
     logError(FN, "fatal", { error: err.message });
+    await captureException(FN, err);
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
   }
 });

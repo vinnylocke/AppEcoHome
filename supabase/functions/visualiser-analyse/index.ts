@@ -4,6 +4,7 @@ import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
+import { captureException } from "../_shared/sentry.ts";
 
 const FN = "visualiser-analyse";
 
@@ -125,6 +126,7 @@ Be specific to what you can actually see. If the image is unclear in any area, s
     });
   } catch (err: any) {
     console.error(`[${FN}]`, err.message);
+    await captureException(FN, err);
     return new Response(JSON.stringify({ error: err.message }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 400,

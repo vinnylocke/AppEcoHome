@@ -4,6 +4,7 @@ import { requireAuth } from "../_shared/requireAuth.ts";
 import { guardPerenualByUser } from "../_shared/aiGuard.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
+import { captureException } from "../_shared/sentry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -153,6 +154,7 @@ serve(async (req) => {
     return json({ error: "Unknown action" }, 400);
   } catch (err: any) {
     console.error("[perenual-proxy]", err.message);
+    await captureException("perenual-proxy", err);
     return json({ error: err.message }, 400);
   }
 });

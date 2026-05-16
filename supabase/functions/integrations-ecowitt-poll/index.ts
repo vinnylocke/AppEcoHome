@@ -14,6 +14,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decryptCredentials } from "../_shared/integrations/encrypt.ts";
 import { insertReading } from "../_shared/integrations/readings.ts";
 import type { SoilReading } from "../_shared/integrations/providerTypes.ts";
+import { captureException } from "../_shared/sentry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -162,6 +163,7 @@ Deno.serve(async (req) => {
     });
   } catch (err) {
     console.error("integrations-ecowitt-poll error:", err);
+    await captureException("integrations-ecowitt-poll", err);
     return new Response(JSON.stringify({ error: "Internal server error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

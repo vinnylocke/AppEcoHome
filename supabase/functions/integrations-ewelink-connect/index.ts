@@ -12,6 +12,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { encryptCredentials } from "../_shared/integrations/encrypt.ts";
 import { ewelinkHeaders, buildOAuthUrl, regionToApiBase } from "../_shared/integrations/ewelinkAuth.ts";
+import { captureException } from "../_shared/sentry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -145,6 +146,7 @@ Deno.serve(async (req) => {
     return json({ error: "Unknown action" }, 400);
   } catch (err) {
     console.error("integrations-ewelink-connect error:", err);
+    await captureException("integrations-ewelink-connect", err);
     return json({ error: "Internal server error" }, 500);
   }
 });

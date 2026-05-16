@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
+import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade } from "../_shared/gemini.ts";
 import { guardAiByUser } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
@@ -177,6 +178,7 @@ ${extraContext ? `\nADDITIONAL CONTEXT:\n${extraContext}` : ""}
     );
   } catch (err: any) {
     logError(FN, "error", { error: err.message });
+    await captureException(FN, err);
     return new Response(
       JSON.stringify(getFallback("ailment_suggestions")),
       { headers: { ...corsHeaders, "Content-Type": "application/json" }, status: 200 },

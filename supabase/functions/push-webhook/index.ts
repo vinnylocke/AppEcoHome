@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { JWT } from "npm:google-auth-library@9.6.3";
+import { captureException } from "../_shared/sentry.ts";
 
 serve(async (req) => {
   try {
@@ -89,6 +90,7 @@ serve(async (req) => {
     );
   } catch (error: any) {
     console.error("Push Error:", error.message);
+    await captureException("push-webhook", error);
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,
     });

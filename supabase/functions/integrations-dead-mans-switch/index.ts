@@ -17,6 +17,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decryptCredentials } from "../_shared/integrations/encrypt.ts";
 import { insertReading } from "../_shared/integrations/readings.ts";
 import type { ValveReading } from "../_shared/integrations/providerTypes.ts";
+import { captureException } from "../_shared/sentry.ts";
 
 const EWELINK_BASE = "https://eu-apia.coolkit.cc";
 
@@ -126,6 +127,7 @@ Deno.serve(async () => {
     return new Response(`Processed ${results.length} overdue commands:\n${results.join("\n")}`, { status: 200 });
   } catch (err) {
     console.error("integrations-dead-mans-switch error:", err);
+    await captureException("integrations-dead-mans-switch", err);
     return new Response("Internal server error", { status: 500 });
   }
 });
