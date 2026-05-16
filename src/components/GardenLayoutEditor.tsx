@@ -775,7 +775,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   return (
     <div className="h-full flex flex-col">
       {/* Toolbar */}
-      <div className="flex items-center gap-2 px-4 py-2.5 bg-white border-b border-rhozly-outline/20 shrink-0">
+      <div className="flex items-center gap-2 px-4 py-2.5 bg-white border-b border-rhozly-outline/20 shrink-0 overflow-x-auto">
         <button
           data-testid="back-to-layouts-btn"
           onClick={() => navigate("/garden-layout")}

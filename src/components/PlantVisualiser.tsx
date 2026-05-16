@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Search, ScanLine, ChevronRight, Loader2,
   Database, Sparkles, Edit3, CheckCircle2, Sprout, X, Images, AlertCircle,
@@ -417,8 +418,8 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
         />
       )}
 
-      {/* Sticky cart bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-40 p-4 pointer-events-none">
+      {/* Sticky cart bar — rendered via portal to escape PullToRefresh transform stacking context */}
+      {createPortal(<div className="fixed bottom-0 left-0 right-0 z-40 p-4 pointer-events-none">
         <div className="max-w-5xl mx-auto pointer-events-auto">
           <div className="bg-rhozly-surface-lowest shadow-2xl border border-rhozly-outline/20 rounded-2xl p-4 flex items-center justify-between gap-4 animate-in slide-in-from-bottom-2">
             <div className="flex-1 min-w-0">
@@ -491,7 +492,7 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
             </div>
           </div>
         </div>
-      </div>
+      </div>, document.body)}
     </div>
   );
 }

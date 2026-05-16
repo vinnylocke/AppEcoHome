@@ -1,27 +1,10 @@
 [
   {
-    "label": "New Features",
-    "items": [
-      "Home Dashboard — new dedicated stats view showing weekly task completion rate, per-member breakdown, garden overview (plants, harvests, pruning), weather summary, and automation activity",
-      "Automations — schedule IoT valve devices to run on a timed basis, linked to task blueprints; supports sequential valve firing, weather-aware skipping (rain threshold), and retry on failure",
-      "Calendar Overdue Tracking — past calendar cells now show coloured indicators: green ✓ completed on time, amber ✓ completed late, red ✗ overdue on due date, faint ✕ for each missed carryover day; agenda view shows overdue carryover tasks with an 'Overdue since' badge and late completions on their actual completion day"
-    ]
-  },
-  {
-    "label": "Improvements",
-    "items": [
-      "Dashboard member task counts now correctly attribute completions to whoever actually marked the task done (not the original task creator)",
-      "Dashboard week now starts on Sunday to match the calendar view, with the exact date range shown in the header (e.g. 'May 11 – May 17')",
-      "Pruning events are now individually recorded per plant instance, powering the new 'plants pruned this week' stat on the Home Dashboard",
-      "eWeLink device reconnection now uses a popup OAuth flow so you stay on the Integrations page rather than being redirected away",
-      "Integrations page now has separate Devices and Automations tabs"
-    ]
-  },
-  {
     "label": "Fixes",
     "items": [
-      "Device RLS policies updated so home members can save new devices from the browser without a permissions error",
-      "Performance index added to the tasks table to speed up weekly dashboard stat queries"
+      "Dashboard view tabs now fit correctly on all phone sizes — they share the full width equally instead of overflowing to the right",
+      "Garden layout editor toolbar no longer clips off-screen on mobile — it scrolls horizontally so all controls remain accessible",
+      "Plant Visualiser 'Set Plant Art' and 'Open Visualiser' buttons are now correctly fixed to the bottom of the screen and stay there as you scroll"
     ]
   }
 ]

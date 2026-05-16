@@ -863,7 +863,7 @@ function AppShell() {
                                 />
 
                                 <div className="flex items-center justify-between px-1">
-                                  <div data-testid="dashboard-view-switcher" className="bg-rhozly-primary/5 p-1 rounded-2xl inline-flex">
+                                  <div data-testid="dashboard-view-switcher" className="bg-rhozly-primary/5 p-1 rounded-2xl flex w-full">
                                     {["dashboard", "locations", "calendar", "weather"].map(
                                       (v) => (
                                         <button
@@ -871,7 +871,7 @@ function AppShell() {
                                           onClick={() =>
                                             navigate(v === "dashboard" ? "/dashboard" : `/dashboard?view=${v}`, { replace: true })
                                           }
-                                          className={`px-4 py-2 min-h-[44px] rounded-xl text-sm transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm font-bold" : "text-rhozly-on-surface/50 hover:text-rhozly-primary font-normal"}`}
+                                          className={`flex-1 px-2 sm:px-4 py-2 min-h-[44px] rounded-xl text-xs sm:text-sm text-center transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm font-bold" : "text-rhozly-on-surface/50 hover:text-rhozly-primary font-normal"}`}
                                         >
                                           {v.charAt(0).toUpperCase() + v.slice(1)}
                                         </button>
