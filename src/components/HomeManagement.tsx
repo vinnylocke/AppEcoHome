@@ -84,6 +84,15 @@ const PERMISSION_GROUPS: Array<{ label: string; keys: Array<{ key: PermissionKey
     { key: "shopping.delete_items", label: "Delete items" },
     { key: "shopping.delete_list", label: "Delete lists" },
   ]},
+  { label: "Integrations", keys: [
+    { key: "integrations.manage", label: "Add, edit & remove integrations" },
+    { key: "integrations.control", label: "Control devices (turn on/off)" },
+    { key: "integrations.view", label: "View integrations & history" },
+  ]},
+  { label: "Automations", keys: [
+    { key: "automations.manage", label: "Add, edit & delete automations" },
+    { key: "automations.view", label: "View automations & run history" },
+  ]},
   { label: "Audit & Usage", keys: [
     { key: "audit.view_all", label: "View all members' activity" },
   ]},
@@ -739,66 +748,65 @@ export default function HomeManagement({
                       return (
                         <div key={member.userId} data-testid={`home-mgmt-member-${member.userId}`}>
                           {/* Member row */}
-                          <div className="flex items-center gap-3 px-3 py-2 rounded-2xl hover:bg-rhozly-surface transition-colors">
-                            <div className="w-8 h-8 rounded-full bg-rhozly-primary/10 flex items-center justify-center shrink-0">
+                          <div className="flex items-start gap-3 px-3 py-2 rounded-2xl hover:bg-rhozly-surface transition-colors">
+                            <div className="w-8 h-8 rounded-full bg-rhozly-primary/10 flex items-center justify-center shrink-0 mt-0.5">
                               <span className="text-xs font-black text-rhozly-primary">{initials(member)}</span>
                             </div>
                             <div className="flex-1 min-w-0">
-                              <p className="text-xs font-black text-rhozly-on-surface truncate">
+                              {/* Name */}
+                              <p className="text-xs font-black text-rhozly-on-surface break-words">
                                 {member.displayName || member.email}
                                 {isMe && <span className="ml-1.5 text-[9px] font-black text-rhozly-on-surface/30">(you)</span>}
                               </p>
+                              {/* Email (only when display name is set) */}
                               {member.displayName && (
-                                <p className="text-[10px] font-bold text-rhozly-on-surface/40 truncate">{member.email}</p>
+                                <p className="text-[10px] font-bold text-rhozly-on-surface/40 break-all">{member.email}</p>
                               )}
+                              {/* Role + actions row */}
+                              <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
+                                {canManage ? (
+                                  <select
+                                    data-testid={`home-mgmt-role-${member.userId}`}
+                                    value={member.role}
+                                    onChange={(e) => updateMemberRole(member.memberId, e.target.value as Role)}
+                                    className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-rhozly-surface border border-rhozly-outline/20 text-rhozly-on-surface/60 outline-none cursor-pointer"
+                                  >
+                                    <option value="admin">Admin</option>
+                                    <option value="member">Member</option>
+                                    <option value="viewer">Viewer</option>
+                                  </select>
+                                ) : (
+                                  <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${member.role === "owner" ? "bg-rhozly-primary/10 text-rhozly-primary" : member.role === "admin" ? "bg-violet-100 text-violet-700" : "bg-rhozly-surface text-rhozly-on-surface/40"}`}>
+                                    {member.role}
+                                  </span>
+                                )}
+                                {canManage && (
+                                  <button
+                                    data-testid={`home-mgmt-configure-${member.userId}`}
+                                    onClick={() => setOpenConfigMemberId(isConfigOpen ? null : member.memberId)}
+                                    className={`flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-xl transition-colors ${isConfigOpen ? "bg-rhozly-primary/10 text-rhozly-primary" : "text-rhozly-on-surface/40 hover:bg-rhozly-surface"}`}
+                                  >
+                                    <Settings2 size={11} />
+                                    <ChevronDown size={10} className={`transition-transform ${isConfigOpen ? "rotate-180" : ""}`} />
+                                  </button>
+                                )}
+                                {canManage && (
+                                  <button
+                                    data-testid={`home-mgmt-remove-member-${member.userId}`}
+                                    onClick={() => setModal({
+                                      open: true, type: "remove_member",
+                                      homeId: home.id, homeName: home.name,
+                                      memberId: member.userId,
+                                      memberName: member.displayName || member.email,
+                                    })}
+                                    className="flex items-center justify-center w-7 h-7 rounded-xl text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 transition-all"
+                                    title="Remove member"
+                                  >
+                                    <UserX size={13} />
+                                  </button>
+                                )}
+                              </div>
                             </div>
-
-                            {/* Role — dropdown for manageable members, badge otherwise */}
-                            {canManage ? (
-                              <select
-                                data-testid={`home-mgmt-role-${member.userId}`}
-                                value={member.role}
-                                onChange={(e) => updateMemberRole(member.memberId, e.target.value as Role)}
-                                className="text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-rhozly-surface border border-rhozly-outline/20 text-rhozly-on-surface/60 outline-none cursor-pointer"
-                              >
-                                <option value="admin">Admin</option>
-                                <option value="member">Member</option>
-                                <option value="viewer">Viewer</option>
-                              </select>
-                            ) : (
-                              <span className={`text-[9px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full shrink-0 ${member.role === "owner" ? "bg-rhozly-primary/10 text-rhozly-primary" : member.role === "admin" ? "bg-violet-100 text-violet-700" : "bg-rhozly-surface text-rhozly-on-surface/40"}`}>
-                                {member.role}
-                              </span>
-                            )}
-
-                            {/* Configure button */}
-                            {canManage && (
-                              <button
-                                data-testid={`home-mgmt-configure-${member.userId}`}
-                                onClick={() => setOpenConfigMemberId(isConfigOpen ? null : member.memberId)}
-                                className={`flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-2 py-1 rounded-xl transition-colors ${isConfigOpen ? "bg-rhozly-primary/10 text-rhozly-primary" : "text-rhozly-on-surface/40 hover:bg-rhozly-surface"}`}
-                              >
-                                <Settings2 size={11} />
-                                <ChevronDown size={10} className={`transition-transform ${isConfigOpen ? "rotate-180" : ""}`} />
-                              </button>
-                            )}
-
-                            {/* Remove button */}
-                            {canManage && (
-                              <button
-                                data-testid={`home-mgmt-remove-member-${member.userId}`}
-                                onClick={() => setModal({
-                                  open: true, type: "remove_member",
-                                  homeId: home.id, homeName: home.name,
-                                  memberId: member.userId,
-                                  memberName: member.displayName || member.email,
-                                })}
-                                className="flex items-center justify-center w-7 h-7 rounded-xl text-rhozly-on-surface/30 hover:text-red-500 hover:bg-red-50 transition-all shrink-0"
-                                title="Remove member"
-                              >
-                                <UserX size={13} />
-                              </button>
-                            )}
                           </div>
 
                           {/* Permission accordion */}

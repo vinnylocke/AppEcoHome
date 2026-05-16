@@ -42,9 +42,16 @@ const SUPABASE_URL        = process.env.SUPABASE_PROD_URL;
 const SERVICE_ROLE_KEY    = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const BUMP_MAJOR         = process.argv.includes("--bump-major");
 const BUMP_COUNT         = (() => {
+  // Explicit flag: npm run deploy -- --bump 42
   const idx = process.argv.indexOf("--bump");
   if (idx !== -1) {
     const n = parseInt(process.argv[idx + 1], 10);
+    return isNaN(n) || n < 1 ? 1 : n;
+  }
+  // Positional numeric: npm run deploy --bump 42 (npm strips the flag, passes 42 as positional)
+  const positional = process.argv.slice(2).find(a => /^\d+$/.test(a));
+  if (positional) {
+    const n = parseInt(positional, 10);
     return isNaN(n) || n < 1 ? 1 : n;
   }
   return 1;
