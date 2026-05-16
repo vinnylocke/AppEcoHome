@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "label": "Integrations & Automations Permissions",
+    "items": [
+      "Home owners can now set per-member permissions for integrations and automations",
+      "Three integration levels: full management (add/edit/remove devices), device control (turn on/off), or view only",
+      "Two automation levels: full management (create/edit/delete/run) or view only",
+      "Members default to view + device control so they can always switch off a valve in an emergency",
+      "Viewers are read-only across integrations and automations by default"
+    ]
+  }
+]
