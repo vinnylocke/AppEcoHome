@@ -79,6 +79,7 @@ const GardenerProfile     = lazy(() => import("./components/GardenerProfile"));
 const LocationManager     = lazy(() => import("./components/LocationManager").then(m => ({ default: m.LocationManager })));
 const AssistantCard       = lazy(() => import("./components/AssistantCard"));
 const AuditPage           = lazy(() => import("./components/AuditPage"));
+const TierSelection       = lazy(() => import("./components/TierSelection"));
 import {
   getMidnightTonight,
   getCachedWeatherData,
@@ -664,15 +665,17 @@ function AppShell() {
   // New users who have a home but haven't picked a plan yet
   if (profile && profile.home_id && !profile.subscription_tier)
     return (
-      <TierSelection
-        userId={session.user.id}
-        onComplete={(tier: TierId, aiEnabled: boolean, perenualEnabled: boolean) => {
-          setProfile((prev: any) => prev
-            ? { ...prev, subscription_tier: tier, ai_enabled: aiEnabled, enable_perenual: perenualEnabled }
-            : prev
-          );
-        }}
-      />
+      <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-rhozly-primary" /></div>}>
+        <TierSelection
+          userId={session.user.id}
+          onComplete={(tier: TierId, aiEnabled: boolean, perenualEnabled: boolean) => {
+            setProfile((prev: any) => prev
+              ? { ...prev, subscription_tier: tier, ai_enabled: aiEnabled, enable_perenual: perenualEnabled }
+              : prev
+            );
+          }}
+        />
+      </Suspense>
     );
 
   const navLinks = [

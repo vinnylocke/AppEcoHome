@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Bug fixes",
+    "items": [
+      "Fixed crash shown to new beta users after creating their first home — plan selection screen now loads correctly"
+    ]
+  }
+]
