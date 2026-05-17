@@ -61,25 +61,27 @@ export interface HomeDashboardStats {
 
 function getLocalWeekBounds(): { weekStart: string; weekEnd: string; today: string } {
   const now = new Date();
-  // Sunday of the current week at local midnight
   const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, ..., 6=Sat
-  const daysFromSunday = dayOfWeek; // Sunday is always 0 days back
+
+  // Format using LOCAL time components to avoid UTC-shift in non-UTC timezones (e.g. BST UTC+1).
+  // toISOString() returns UTC, which can be one day behind local midnight.
+  const localDate = (d: Date) =>
+    `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 
   const sunday = new Date(now);
   sunday.setHours(0, 0, 0, 0);
-  sunday.setDate(sunday.getDate() - daysFromSunday);
+  sunday.setDate(sunday.getDate() - dayOfWeek);
 
   const saturday = new Date(sunday);
   saturday.setDate(saturday.getDate() + 6);
-  saturday.setHours(23, 59, 59, 999);
 
   const todayMidnight = new Date(now);
   todayMidnight.setHours(0, 0, 0, 0);
 
   return {
-    weekStart: sunday.toISOString(),
-    weekEnd: saturday.toISOString(),
-    today: todayMidnight.toISOString().slice(0, 10),
+    weekStart: localDate(sunday),
+    weekEnd: localDate(saturday),
+    today: localDate(todayMidnight),
   };
 }
 

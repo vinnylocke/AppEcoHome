@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { ShoppingCart, Plus, ChevronDown, ChevronRight, Loader2, AlertCircle } from "lucide-react";
+import { ShoppingCart, Plus, ChevronDown, ChevronRight, Loader2, AlertCircle, X, Wrench, Leaf, FileText } from "lucide-react";
 import toast from "react-hot-toast";
 import { logEvent, EVENT } from "../events/registry";
 import { usePermissions } from "../context/HomePermissionsContext";
@@ -8,6 +8,54 @@ import ShoppingListCard from "./shopping/ShoppingListCard";
 import AddItemSheet from "./shopping/AddItemSheet";
 import { supabase } from "../lib/supabase";
 import type { ShoppingListItem } from "../types/shopping";
+
+const TEMPLATES: {
+  id: string;
+  label: string;
+  description: string;
+  name: string;
+  icon: React.ReactNode;
+  items: { name: string; item_type: "plant" | "product" }[];
+}[] = [
+  {
+    id: "blank",
+    label: "Blank List",
+    description: "Start from scratch with an empty list",
+    name: "My List",
+    icon: <FileText size={18} />,
+    items: [],
+  },
+  {
+    id: "starter",
+    label: "Starter Toolkit",
+    description: "Essential tools and supplies for new gardeners",
+    name: "Starter Toolkit",
+    icon: <Wrench size={18} />,
+    items: [
+      { name: "Hand trowel", item_type: "product" },
+      { name: "Watering can", item_type: "product" },
+      { name: "Gardening gloves", item_type: "product" },
+      { name: "Pruning shears", item_type: "product" },
+      { name: "General-purpose fertiliser", item_type: "product" },
+      { name: "Potting compost", item_type: "product" },
+    ],
+  },
+  {
+    id: "veg",
+    label: "Seasonal Veg Patch",
+    description: "Popular vegetables to get your patch going",
+    name: "Seasonal Veg Patch",
+    icon: <Leaf size={18} />,
+    items: [
+      { name: "Tomato", item_type: "plant" },
+      { name: "Courgette", item_type: "plant" },
+      { name: "Lettuce", item_type: "plant" },
+      { name: "Basil", item_type: "plant" },
+      { name: "Runner beans", item_type: "plant" },
+      { name: "Cucumber", item_type: "plant" },
+    ],
+  },
+];
 
 interface Props {
   homeId: string;
@@ -25,7 +73,8 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
 
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [addItemListId, setAddItemListId] = useState<string | null>(null);
-  const [isCreating, setIsCreating] = useState(false);
+  const [showTemplateModal, setShowTemplateModal] = useState(false);
+  const [isCreatingFromTemplate, setIsCreatingFromTemplate] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
 
   const activeLists = lists.filter(l => l.status === "active");
@@ -40,15 +89,28 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
     }
   };
 
-  const handleNewList = async () => {
-    setIsCreating(true);
-    const list = await createList("My List");
-    setIsCreating(false);
+  const handleNewList = () => {
+    setShowTemplateModal(true);
+  };
+
+  const handleTemplateCreate = async (template: typeof TEMPLATES[number]) => {
+    setIsCreatingFromTemplate(true);
+    const list = await createList(template.name);
     if (list) {
       logEvent(EVENT.SHOPPING_LIST_CREATED, { list_id: list.id });
+      if (template.items.length > 0) {
+        await Promise.all(
+          template.items.map(item =>
+            addItem({ list_id: list.id, home_id: homeId, item_type: item.item_type, name: item.name, is_checked: false }),
+          ),
+        );
+        await fetchItems(list.id);
+      }
       setExpandedId(list.id);
+      setShowTemplateModal(false);
       toast.success("List created");
     }
+    setIsCreatingFromTemplate(false);
   };
 
   const handleDeleteList = async (id: string) => {
@@ -81,7 +143,7 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
       const ids = checkedPlants.map(p => p.id);
       await supabase.from("shopping_list_items").update({ already_in_shed: true }).in("id", ids);
       await fetchItems(listId);
-      toast.success(`${checkedPlants.length} plant${checkedPlants.length !== 1 ? "s" : ""} added to Shed`);
+      toast.success(`Added ${checkedPlants.length} plant${checkedPlants.length !== 1 ? "s" : ""} to your Shed — find them under Garden > The Shed`);
     } catch {
       toast.error("Could not add plants to shed");
     }
@@ -100,7 +162,7 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
             <div>
               <h1 className="font-black text-rhozly-on-surface text-2xl leading-tight">Shopping Lists</h1>
               <p className="text-xs font-bold text-rhozly-on-surface/40">
-                {activeLists.length} active {activeLists.length === 1 ? "list" : "lists"}
+                Track what you need to buy — plants, tools, and supplies
               </p>
             </div>
           </div>
@@ -108,10 +170,9 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
             <button
               data-testid="shopping-new-list-btn"
               onClick={handleNewList}
-              disabled={isCreating}
-              className="flex items-center gap-1.5 bg-rhozly-primary text-white text-xs font-black px-4 py-2.5 rounded-2xl hover:bg-rhozly-primary/90 active:scale-95 transition-all disabled:opacity-60"
+              className="flex items-center gap-1.5 bg-rhozly-primary text-white text-xs font-black px-4 py-2.5 rounded-2xl hover:bg-rhozly-primary/90 active:scale-95 transition-all"
             >
-              {isCreating ? <Loader2 size={13} className="animate-spin" /> : <Plus size={13} />}
+              <Plus size={13} />
               New List
             </button>
           )}
@@ -148,7 +209,7 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
             </div>
             <div>
               <p className="font-black text-rhozly-on-surface/50">No shopping lists yet</p>
-              <p className="text-xs font-bold text-rhozly-on-surface/30 mt-1">Tap "New List" to create your first one</p>
+              <p className="text-xs font-bold text-rhozly-on-surface/30 mt-1">Tap "New List" to get started — choose a template or start from scratch</p>
             </div>
           </div>
         )}
@@ -223,6 +284,53 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
           onClose={() => setAddItemListId(null)}
           onItemAdded={handleAddItem}
         />
+      )}
+
+      {/* Template picker modal */}
+      {showTemplateModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm px-4 pb-4 sm:pb-0">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-xl overflow-hidden">
+            <div className="flex items-center justify-between px-5 pt-5 pb-3">
+              <div>
+                <h2 className="font-black text-rhozly-on-surface text-base">New List</h2>
+                <p className="text-xs font-bold text-rhozly-on-surface/40 mt-0.5">Choose a quick-start template or start blank</p>
+              </div>
+              <button
+                data-testid="template-modal-close"
+                onClick={() => setShowTemplateModal(false)}
+                disabled={isCreatingFromTemplate}
+                className="p-2 rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface transition-colors disabled:opacity-40"
+              >
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-4 pb-5 space-y-2">
+              {TEMPLATES.map(template => (
+                <button
+                  key={template.id}
+                  data-testid={`template-option-${template.id}`}
+                  onClick={() => handleTemplateCreate(template)}
+                  disabled={isCreatingFromTemplate}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 rounded-2xl border border-rhozly-outline/20 bg-rhozly-surface hover:border-rhozly-primary/30 hover:bg-rhozly-primary/5 transition-colors text-left disabled:opacity-50"
+                >
+                  <span className="text-rhozly-primary shrink-0">{template.icon}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-black text-rhozly-on-surface">{template.label}</p>
+                    <p className="text-[11px] font-bold text-rhozly-on-surface/40 mt-0.5">{template.description}</p>
+                    {template.items.length > 0 && (
+                      <p className="text-[10px] font-semibold text-rhozly-on-surface/30 mt-0.5">
+                        {template.items.length} items pre-added
+                      </p>
+                    )}
+                  </div>
+                  {isCreatingFromTemplate && (
+                    <Loader2 size={14} className="animate-spin text-rhozly-primary shrink-0" />
+                  )}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );

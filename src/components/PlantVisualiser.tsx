@@ -1,5 +1,6 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
+import { useNavigate } from "react-router-dom";
 import {
   Search, ScanLine, ChevronRight, Loader2,
   Database, Sparkles, Edit3, CheckCircle2, Sprout, X, Images, AlertCircle,
@@ -31,6 +32,7 @@ const FALLBACK_IMAGE =
 // ─── Component ────────────────────────────────────────────────────────────────
 
 export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId: string; aiEnabled?: boolean }) {
+  const navigate = useNavigate();
   const { plants, isInitialLoading, isError: shedIsError, mutate } = useCachedShed(homeId) as any;
 
   const [search, setSearch] = useState("");
@@ -227,7 +229,7 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
       <div role="list" aria-label="Setup steps" className="flex items-center gap-2">
         {[
           { n: 1, label: "Select Plants", done: selected.size > 0, active: selected.size === 0 },
-          { n: 2, label: "Set Plant Art", done: !!confirmedSprites, active: selected.size > 0 && !confirmedSprites },
+          { n: 2, label: "Choose Plant Icons", done: !!confirmedSprites, active: selected.size > 0 && !confirmedSprites },
           { n: 3, label: "Open Visualiser", done: false, active: !!confirmedSprites && selected.size > 0 },
         ].map((step, i) => (
           <React.Fragment key={step.n}>
@@ -274,6 +276,9 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
           </button>
         ))}
       </div>
+      <p className="text-[11px] font-bold text-rhozly-on-surface/40 -mt-2">
+        Filter by where the plant info came from. Most users can leave this on All.
+      </p>
 
       {/* Result count */}
       <p className="text-xs font-bold text-rhozly-on-surface/60">
@@ -295,9 +300,17 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
               : "No plants in your shed yet."}
           </p>
           {!search && filterSource === "all" && (
-            <p className="text-xs font-bold text-rhozly-on-surface/30 mt-1">
-              Add plants to your shed first, then come back here to visualise them.
-            </p>
+            <>
+              <p className="text-xs font-bold text-rhozly-on-surface/30 mt-1">
+                Add plants to your shed first, then come back here to visualise them.
+              </p>
+              <button
+                onClick={() => navigate("/shed")}
+                className="mt-4 px-5 py-2.5 bg-rhozly-primary text-white rounded-2xl text-sm font-black hover:scale-[1.02] transition-transform"
+              >
+                Go to The Shed →
+              </button>
+            </>
           )}
         </div>
       ) : (
@@ -426,7 +439,7 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
               <p className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-2">
                 <span key={selected.size} className="inline-block animate-in zoom-in-95 duration-150 tabular-nums">{selected.size}</span> Plant{selected.size !== 1 ? "s" : ""} Selected
                 {confirmedSprites && (
-                  <span className="ml-2 text-rhozly-primary">· Art Ready</span>
+                  <span className="ml-2 text-rhozly-primary">· Ready to view in camera</span>
                 )}
               </p>
               {selected.size > 0 ? (
@@ -486,7 +499,7 @@ export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId:
                   }`}
                 >
                   {isOpeningWizard ? <Loader2 size={16} className="animate-spin" /> : <ChevronRight size={16} />}
-                  Set Plant Art
+                  Choose Plant Icons
                 </button>
               )}
             </div>

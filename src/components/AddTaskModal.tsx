@@ -21,6 +21,14 @@ import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
 import { BlueprintService } from "../services/blueprintService";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
 import { usePermissions } from "../context/HomePermissionsContext";
+
+const TASK_TYPE_HINTS: Record<string, string> = {
+  Watering:    "Regular watering reminders — daily, every few days, or weekly based on plant needs.",
+  Pruning:     "Cutting back stems, leaves, or branches to shape plants and encourage healthy growth.",
+  Harvesting:  "Reminder to pick fruit, vegetables, herbs, or flowers when they're ready.",
+  Maintenance: "General care tasks — feeding, repotting, pest checks, tying back, cleaning.",
+  Planting:    "Scheduling when to sow seeds or plant out seedlings at the right time of year.",
+};
 export { TASK_CATEGORIES } from "../constants/taskCategories";
 
 interface Props {
@@ -707,6 +715,11 @@ export default function AddTaskModal({
                   </option>
                 ))}
               </select>
+              {TASK_TYPE_HINTS[form.type] && (
+                <p className="text-[11px] text-rhozly-on-surface/45 font-medium ml-1 mt-1 leading-snug">
+                  {TASK_TYPE_HINTS[form.type]}
+                </p>
+              )}
             </div>
 
             <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
@@ -1141,6 +1154,9 @@ export default function AddTaskModal({
                     }
                     className="w-full p-4 bg-white rounded-2xl font-bold outline-none border border-rhozly-outline/10"
                   />
+                  <p className="text-[10px] text-rhozly-on-surface/40 font-medium ml-1 mt-1 leading-snug">
+                    Tip: vegetables usually need watering every 2–4 days; established shrubs every 7–14 days; pruning every 21–90 days.
+                  </p>
                 </div>
                 <div>
                   <label className="text-[10px] font-black uppercase text-rhozly-primary/60 block mb-2">

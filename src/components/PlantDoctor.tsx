@@ -573,14 +573,14 @@ export default function PlantDoctor({
   return (
     <>
       <div className="h-full flex flex-col relative animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="mb-4 px-2 flex items-end justify-between">
+        <div className="mb-4 px-2 flex flex-wrap items-end justify-between gap-2">
           <div>
             <h1 className="text-2xl sm:text-3xl font-black font-display text-rhozly-on-surface tracking-tight flex items-center gap-3">
               <IconDoctor className="w-8 h-8 text-rhozly-primary" />
               Plant Doctor
             </h1>
             <p className="text-xs sm:text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-              AI-Powered Identification & Diagnosis
+              Take a photo — Rhozly will identify your plant or spot what's wrong
             </p>
           </div>
           <div className="flex gap-1 bg-rhozly-surface-low rounded-2xl p-1 shrink-0">
@@ -674,6 +674,9 @@ export default function PlantDoctor({
                   <CameraIcon className="w-5 h-5" /> Open Camera
                 </button>
               </div>
+              <p className="text-xs font-bold text-rhozly-on-surface/40 text-center mt-4 max-w-xs">
+                Tip: Good light, close up — try to capture the leaf, stem, or the affected area clearly.
+              </p>
             </div>
           ) : (
             <div className="animate-in zoom-in-95 duration-300 xl:grid xl:grid-cols-[2fr_3fr] xl:gap-6 xl:items-start">
@@ -993,7 +996,7 @@ export default function PlantDoctor({
                               ) : (
                                 <Globe size={18} />
                               )}
-                              Search Global API
+                              Search plant database
                             </button>
                           )}
 
@@ -1007,7 +1010,7 @@ export default function PlantDoctor({
                             ) : (
                               <BrainCircuit size={18} />
                             )}{" "}
-                            Get AI Feedback
+                            Ask Rhozly AI
                           </button>
                         </div>
                         {currentSessionId && !confirmedValue && (
@@ -1462,7 +1465,30 @@ export default function PlantDoctor({
                   ref={dropdownRef}
                 >
                   <label className="block text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-2 ml-2">
-                    Context: What do you think this is? (Optional)
+                    Which plant is this? (optional — helps personalise the results)
+                  </label>
+                  {inventoryError ? (
+                    <div className="flex items-center justify-between px-4 py-3 mb-2 rounded-2xl bg-red-50 border border-red-200">
+                      <p className="text-xs font-bold text-red-600">Could not load shed — patient picker unavailable.</p>
+                      <button
+                        onClick={() => setInventoryRetryTick(t => t + 1)}
+                        className="text-xs font-black text-rhozly-primary hover:underline ml-3 shrink-0"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="mb-3">
+                      <PlantInstancePicker
+                        items={myInventory}
+                        selectedId={sickInventoryId}
+                        onSelect={setSickInventoryId}
+                        placeholder="Select from your shed… (or leave blank)"
+                      />
+                    </div>
+                  )}
+                  <label className="block text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-2 ml-2 mt-3">
+                    Or type a name to help the AI (optional)
                   </label>
                   <div className="relative">
                     <input

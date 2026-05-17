@@ -55,6 +55,7 @@ import CookiePolicyModal from "./components/CookiePolicyModal";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { useReleaseNotes } from "./hooks/useReleaseNotes";
 import HelpCenter from "./onboarding/HelpCenter";
+import GettingStartedChecklist from "./components/GettingStartedChecklist";
 import type { OnboardingState } from "./onboarding/types";
 
 // Heavy route components — lazy loaded so they don't bloat the initial bundle
@@ -197,9 +198,13 @@ function AppShell() {
     const versionKey = appVersion.replace("Rhozly OS ", "");
     const lastSeen = localStorage.getItem("rhozly_last_seen_version");
     if (lastSeen !== versionKey) {
-      setReleaseNotesMode("latest");
       localStorage.setItem("rhozly_last_seen_version", versionKey);
-      sessionStorage.setItem("rhozly_just_saw_release_notes", "true");
+      // Brand-new users (no lastSeen) have never seen the app — skip release
+      // notes entirely so they aren't confused by "what's new" with no context.
+      if (lastSeen !== null) {
+        setReleaseNotesMode("latest");
+        sessionStorage.setItem("rhozly_just_saw_release_notes", "true");
+      }
     }
   }, [appVersion]);
 
@@ -293,6 +298,7 @@ function AppShell() {
   const [quizCompleted, setQuizCompleted] = useState<boolean | null>(null);
   const [quizPromptDismissed, setQuizPromptDismissed] = useState(false);
   const [quizPromptFading, setQuizPromptFading] = useState(false);
+  const [quizPromptConfirmDismiss, setQuizPromptConfirmDismiss] = useState(false);
 
   useEffect(() => {
     if (!profile?.home_id || !session?.user?.id) return;
@@ -671,8 +677,8 @@ function AppShell() {
 
   const navLinks = [
     { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", "/"] },
-    { id: "shed",      icon: <IconShed />, label: "Garden", matchPaths: ["/shed", "/watchlist"] },
-    { id: "planner",   icon: <IconPlanner />, label: "Plan",    matchPaths: ["/planner", "/shopping"] },
+    { id: "shed",      icon: <IconShed />, label: "Plants", matchPaths: ["/shed", "/watchlist"] },
+    { id: "planner",   icon: <IconPlanner />, label: "Planner",    matchPaths: ["/planner", "/shopping"] },
     { id: "tools",        icon: <IconDoctor />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
     { id: "integrations", icon: <IconIntegrations />,        label: "Integrations", matchPaths: ["/integrations"] },
   ];
@@ -882,6 +888,17 @@ function AppShell() {
 
                                 {dashboardView === "dashboard" ? (
                                   <div className="space-y-5">
+                                    {/* Getting Started checklist — shown to new users until all steps done or dismissed */}
+                                    {profile?.home_id && session?.user?.id && (
+                                      <GettingStartedChecklist
+                                        homeId={profile.home_id}
+                                        userId={session.user.id}
+                                        quizCompleted={!!quizCompleted}
+                                        hasLocations={locations.length > 0}
+                                        onboardingState={onboardingState}
+                                        onStateChange={setOnboardingState}
+                                      />
+                                    )}
                                     {/* Current weather widget */}
                                     <div data-testid="dashboard-weather-widget" className="bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container text-white rounded-3xl p-5 shadow-md flex justify-between items-center">
                                       <div className="flex items-center gap-4">
@@ -917,23 +934,43 @@ function AppShell() {
                                     {/* Complete Home Profile quiz prompt */}
                                     {quizCompleted === false && !quizPromptDismissed && (
                                       <div className={`bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-3xl p-5 shadow-md relative overflow-hidden transition-all duration-300 ${quizPromptFading ? "opacity-0 scale-95 pointer-events-none" : "opacity-100 scale-100"}`}>
-                                        <button
-                                          onClick={() => { setQuizPromptFading(true); setTimeout(() => { setQuizPromptDismissed(true); setQuizPromptFading(false); }, 300); toast.success("Reminder dismissed — find it any time in Home Profile.", { duration: 2500 }); }}
-                                          className="absolute top-3 right-3 text-white/60 hover:text-white transition"
-                                          aria-label="Dismiss"
-                                        >
-                                          <X size={14} />
-                                        </button>
-                                        <div className="flex items-start gap-4">
-                                          <div className="bg-white/20 p-3 rounded-2xl flex-shrink-0">
-                                            <IconAI size={22} className="text-white" />
+                                        {quizPromptConfirmDismiss ? (
+                                          <div className="flex items-center gap-3">
+                                            <p className="text-sm font-bold text-white/90 flex-1">Hide this reminder?</p>
+                                            <button
+                                              onClick={() => { setQuizPromptFading(true); setTimeout(() => { setQuizPromptDismissed(true); setQuizPromptFading(false); setQuizPromptConfirmDismiss(false); }, 300); toast.success("Reminder hidden — find it any time in Garden Quiz & Preferences.", { duration: 2500 }); }}
+                                              className="text-xs font-black bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-xl transition"
+                                            >
+                                              Yes, hide it
+                                            </button>
+                                            <button
+                                              onClick={() => setQuizPromptConfirmDismiss(false)}
+                                              className="text-xs font-bold text-white/60 hover:text-white transition"
+                                            >
+                                              Keep
+                                            </button>
                                           </div>
-                                          <div className="flex-1 min-w-0">
-                                            <p className="font-black text-sm leading-tight mb-1">Set up your Home Profile</p>
-                                            <p className="text-xs text-white/80 leading-snug mb-3">Answer a few quick questions so the AI can personalise your recommendations.</p>
-                                            <button onClick={() => navigate("/profile")} className="bg-white text-emerald-700 text-xs font-black px-4 py-2 rounded-full hover:bg-white/90 transition">Get started →</button>
-                                          </div>
-                                        </div>
+                                        ) : (
+                                          <>
+                                            <button
+                                              onClick={() => setQuizPromptConfirmDismiss(true)}
+                                              className="absolute top-3 right-3 text-white/60 hover:text-white transition"
+                                              aria-label="Dismiss"
+                                            >
+                                              <X size={14} />
+                                            </button>
+                                            <div className="flex items-start gap-4">
+                                              <div className="bg-white/20 p-3 rounded-2xl flex-shrink-0">
+                                                <IconAI size={22} className="text-white" />
+                                              </div>
+                                              <div className="flex-1 min-w-0">
+                                                <p className="font-black text-sm leading-tight mb-1">Set up your Garden Quiz</p>
+                                                <p className="text-xs text-white/80 leading-snug mb-1">Answer a few quick questions so Rhozly can personalise your plant recommendations and watering schedules — takes about 2 minutes.</p>
+                                                <button onClick={() => navigate("/profile")} className="bg-white text-emerald-700 text-xs font-black px-4 py-2 rounded-full hover:bg-white/90 transition">Start the quiz →</button>
+                                              </div>
+                                            </div>
+                                          </>
+                                        )}
                                       </div>
                                     )}
                                     {/* AI Insight card */}
@@ -1043,7 +1080,7 @@ function AppShell() {
                       <Route path="/schedule" element={
                         profile?.home_id ? (
                           <div className="h-full animate-in fade-in duration-500">
-                            <BlueprintManager homeId={profile.home_id} />
+                            <BlueprintManager homeId={profile.home_id} aiEnabled={profile.ai_enabled ?? false} />
                           </div>
                         ) : null
                       } />

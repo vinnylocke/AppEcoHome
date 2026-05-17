@@ -13,10 +13,13 @@ import {
   Loader2,
   Settings2,
   Zap,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { IconSoilMedium, IconSoilPH, IconWatering, IconNutrients } from "../constants/icons";
 import type { Location, Area } from "../types";
 import { ConfirmModal } from "./ConfirmModal";
+import InfoTooltip from "./InfoTooltip";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 
@@ -53,6 +56,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
 
   // Advanced Area Settings State
   const [editingArea, setEditingArea] = useState<any | null>(null);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
 
   // Custom Modal Delete State
   const [itemToDelete, setItemToDelete] = useState<DeleteTarget | null>(null);
@@ -328,7 +332,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
               )}
             </h1>
             <p className="text-sm font-bold text-rhozly-on-surface/50 mt-1">
-              Organize your spaces and growing areas.
+              Locations are places (e.g. Back Garden), divided into Areas (e.g. Raised Bed, Pots).
             </p>
           </div>
           {!isAddingLoc && can("locations.create") && (
@@ -586,6 +590,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
                         <IconSoilMedium size={14} /> Growing Medium
+                        <InfoTooltip content="What your plants grow in. Garden soil for outdoor beds; potting mix for pots and containers." />
                       </label>
                       <select
                         value={editingArea.growing_medium || ""}
@@ -616,6 +621,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                     <div className="space-y-2">
                       <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
                         <Zap size={14} /> Medium Texture
+                        <InfoTooltip content="How chunky or fine your growing medium is. Most garden beds are Medium (loam). Pots with perlite tend to be Coarse." />
                       </label>
                       <select
                         value={editingArea.medium_texture || ""}
@@ -635,97 +641,117 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                       </select>
                     </div>
 
-                    <p className="col-span-full text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-0 mt-4">Growth Conditions</p>
-                    {/* 3. pH Level */}
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                        <IconSoilPH size={14} /> Medium pH (0.0 - 14.0)
-                      </label>
-                      <input
-                        type="number"
-                        step="0.1"
-                        min="0"
-                        max="14"
-                        value={editingArea.medium_ph || ""}
-                        onChange={(e) =>
-                          setEditingArea({
-                            ...editingArea,
-                            medium_ph: e.target.value,
-                          })
-                        }
-                        placeholder="e.g. 6.5"
-                        className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
-                      />
-                    </div>
-
-                    {/* 4. Lux */}
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                        <Sun size={14} /> Peak Light (Lux)
-                      </label>
-                      <input
-                        type="number"
-                        min="0"
-                        value={editingArea.light_intensity_lux || ""}
-                        onChange={(e) =>
-                          setEditingArea({
-                            ...editingArea,
-                            light_intensity_lux: e.target.value,
-                          })
-                        }
-                        placeholder="e.g. 5000"
-                        className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
-                      />
-                    </div>
-
-                    {/* 5. Water Movement */}
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                        <IconWatering size={14} /> Water Movement
-                      </label>
-                      <select
-                        value={editingArea.water_movement || ""}
-                        onChange={(e) =>
-                          setEditingArea({
-                            ...editingArea,
-                            water_movement: e.target.value,
-                          })
-                        }
-                        className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+                    {/* Advanced Settings accordion */}
+                    <div className="col-span-full">
+                      <button
+                        type="button"
+                        onClick={() => setAdvancedOpen((v) => !v)}
+                        className="flex items-center gap-2 text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors mt-2"
                       >
-                        <option value="">Select Flow...</option>
-                        <option value="Well-Drained">Well-Drained</option>
-                        <option value="Low-Drained">Low-Drained (Pools)</option>
-                        <option value="Recirculating">
-                          Recirculating (Pump)
-                        </option>
-                        <option value="Static">Static / Deep Water</option>
-                      </select>
+                        {advancedOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                        Advanced Settings
+                        <span className="normal-case tracking-normal font-medium text-rhozly-on-surface/30">— pH, light, water flow, nutrients</span>
+                      </button>
                     </div>
 
-                    {/* 6. Nutrient Source */}
-                    <div className="space-y-2">
-                      <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
-                        <IconNutrients size={14} /> Nutrient Source
-                      </label>
-                      <select
-                        value={editingArea.nutrient_source || ""}
-                        onChange={(e) =>
-                          setEditingArea({
-                            ...editingArea,
-                            nutrient_source: e.target.value,
-                          })
-                        }
-                        className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
-                      >
-                        <option value="">Select Source...</option>
-                        <option value="Organic Breakdown">
-                          Organic (Compost)
-                        </option>
-                        <option value="Synthetic">Synthetic / Salts</option>
-                        <option value="Biowaste">Biowaste (Fish/Aqua)</option>
-                      </select>
-                    </div>
+                    {advancedOpen && (
+                      <>
+                        {/* 3. pH Level */}
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
+                            <IconSoilPH size={14} /> Medium pH (0.0 - 14.0)
+                            <InfoTooltip content="Soil pH affects which nutrients plants can absorb. Most gardens sit between 6.0–7.0. Test with a kit from any garden centre." />
+                          </label>
+                          <input
+                            type="number"
+                            step="0.1"
+                            min="0"
+                            max="14"
+                            value={editingArea.medium_ph || ""}
+                            onChange={(e) =>
+                              setEditingArea({
+                                ...editingArea,
+                                medium_ph: e.target.value,
+                              })
+                            }
+                            placeholder="e.g. 6.5"
+                            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+                          />
+                        </div>
+
+                        {/* 4. Lux */}
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
+                            <Sun size={14} /> Peak Light (Lux)
+                            <InfoTooltip content="Rough guide: shaded corner = 500, part-shade garden = 2,000, full south-facing sun = 10,000+. Use the Light Sensor tool to measure." />
+                          </label>
+                          <input
+                            type="number"
+                            min="0"
+                            value={editingArea.light_intensity_lux || ""}
+                            onChange={(e) =>
+                              setEditingArea({
+                                ...editingArea,
+                                light_intensity_lux: e.target.value,
+                              })
+                            }
+                            placeholder="e.g. 5000"
+                            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+                          />
+                        </div>
+
+                        {/* 5. Water Movement */}
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
+                            <IconWatering size={14} /> Water Movement
+                            <InfoTooltip content="How water drains here. Most outdoor beds = Well-Drained. Pots without drainage holes = Low-Drained." />
+                          </label>
+                          <select
+                            value={editingArea.water_movement || ""}
+                            onChange={(e) =>
+                              setEditingArea({
+                                ...editingArea,
+                                water_movement: e.target.value,
+                              })
+                            }
+                            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+                          >
+                            <option value="">Select Flow...</option>
+                            <option value="Well-Drained">Well-Drained</option>
+                            <option value="Low-Drained">Low-Drained (Pools)</option>
+                            <option value="Recirculating">
+                              Recirculating (Pump)
+                            </option>
+                            <option value="Static">Static / Deep Water</option>
+                          </select>
+                        </div>
+
+                        {/* 6. Nutrient Source */}
+                        <div className="space-y-2">
+                          <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
+                            <IconNutrients size={14} /> Nutrient Source
+                            <InfoTooltip content="How you feed your plants. General fertiliser works for most beginners. Leave blank if you're not sure." />
+                          </label>
+                          <select
+                            value={editingArea.nutrient_source || ""}
+                            onChange={(e) =>
+                              setEditingArea({
+                                ...editingArea,
+                                nutrient_source: e.target.value,
+                              })
+                            }
+                            className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10"
+                          >
+                            <option value="">Select Source...</option>
+                            <option value="Organic Breakdown">
+                              Organic (Compost)
+                            </option>
+                            <option value="Synthetic">Synthetic / Salts</option>
+                            <option value="Biowaste">Biowaste (Fish/Aqua)</option>
+                          </select>
+                        </div>
+                      </>
+                    )}
                   </div>
 
                   <div className="mt-10 flex gap-4">

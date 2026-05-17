@@ -180,10 +180,10 @@ export default function GardenProfile({
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 data-testid="profile-heading" className="text-3xl font-black font-display text-rhozly-on-surface leading-tight">
-            Home Profile
+            Garden Profile
           </h1>
           <p className="text-sm text-rhozly-on-surface/60 mt-0.5">
-            Train your recommendations
+            Personalise plant recommendations and watering schedules
           </p>
           {quizDone !== null && (
             <div className="flex items-center gap-2 mt-2 flex-wrap">
@@ -210,7 +210,7 @@ export default function GardenProfile({
             ) : (
               <RefreshCw size={12} />
             )}
-            {confirmingReset ? "Tap again to confirm" : "Reset all"}
+            {confirmingReset ? "Tap again to confirm" : "Reset Profile"}
           </button>
         )}
       </div>
@@ -273,7 +273,7 @@ export default function GardenProfile({
                 Quiz complete!
               </p>
               <p className="text-sm text-rhozly-on-surface/60 mt-1">
-                Your answers are shaping your recommendations.
+                Your answers personalise plant recommendations and watering schedules.
               </p>
             </div>
             <div className="flex flex-col items-center gap-2 w-full">
@@ -315,12 +315,18 @@ export default function GardenProfile({
       )}
 
       {tab === "swipe" && (
+        <>
+        <div className="bg-rhozly-surface-low rounded-2xl px-4 py-3 border border-rhozly-outline/10">
+          <p className="text-xs font-black text-rhozly-on-surface/60 uppercase tracking-widest mb-0.5">How it works</p>
+          <p className="text-sm font-bold text-rhozly-on-surface/70">Swipe right to like, left to pass. The more you swipe, the better your plant suggestions get.</p>
+        </div>
         <PlantSwipeDeck
           homeId={homeId}
           userId={userId}
           aiEnabled={aiEnabled}
           perenualEnabled={perenualEnabled}
         />
+        </>
       )}
 
       </div>{/* end left column */}

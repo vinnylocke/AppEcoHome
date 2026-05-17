@@ -17,6 +17,8 @@ export type PermissionKey =
   | 'integrations.view'
   | 'integrations.control'
   | 'integrations.manage'
+  | 'automations.view'
+  | 'automations.manage'
   | 'audit.view_all';
 
 export type PermissionSet = Record<PermissionKey, boolean>;
@@ -38,6 +40,8 @@ const ALL_OFF: PermissionSet = {
   'integrations.view': false,
   'integrations.control': false,
   'integrations.manage': false,
+  'automations.view': false,
+  'automations.manage': false,
   'audit.view_all': false,
 };
 
@@ -62,6 +66,8 @@ export const ROLE_DEFAULTS: Record<Role, PermissionSet> = {
     'shopping.create_list': true, 'shopping.add_items': true,
     'shopping.edit_items': true, 'shopping.delete_items': true,
     'integrations.view': true,
+    'integrations.control': true,
+    'automations.view': true,
   },
   viewer: {
     ...ALL_OFF,
@@ -69,6 +75,7 @@ export const ROLE_DEFAULTS: Record<Role, PermissionSet> = {
     'tasks.edit_own': true, 'tasks.delete_own': true,
     'tasks.view_home': true,
     'integrations.view': true,
+    'automations.view': true,
   },
 };
 

@@ -43,7 +43,8 @@ export const TaskEngine = {
         .from("task_blueprints")
         .select("*, locations(name, is_outside), areas(name), plans(name)")
         .eq("home_id", homeId)
-        .eq("is_recurring", true),
+        .eq("is_recurring", true)
+        .eq("is_archived", false),
       supabase
         .from("tasks")
         .select("blueprint_id, due_date")

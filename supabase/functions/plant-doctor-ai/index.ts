@@ -181,7 +181,7 @@ serve(async (req) => {
       USER'S KNOWN PREFERENCES (use these to personalise every response):
       ${renderContextBlock(ctx, ["preferences"]).replace("── GARDENER CONTEXT ──\n", "").replace("\n── END CONTEXT ──", "")}
 
-      Provide highly personalised advice formatted in markdown. Address the user by first name if known.
+      Provide highly personalised advice formatted in markdown.
       Always honour the user's known preferences — if they dislike something, never recommend it.
       Tailor seasonal advice to the user's hemisphere and current season (${ctx.currentSeason}, ${ctx.currentMonth}).
       If you recommend a specific plant they do NOT already own, include it in 'suggested_plants'.

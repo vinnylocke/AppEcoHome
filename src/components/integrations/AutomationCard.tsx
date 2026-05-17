@@ -11,6 +11,8 @@ interface Props {
   automation: AutomationFull;
   onEdit: () => void;
   onDeleted: () => void;
+  canManage: boolean;
+  canRun: boolean;
 }
 
 const STATUS_BADGE: Record<string, { label: string; color: string; dot: string }> = {
@@ -21,7 +23,7 @@ const STATUS_BADGE: Record<string, { label: string; color: string; dot: string }
   skipped_no_tasks: { label: "No tasks due",   color: "text-slate-600 bg-slate-100",dot: "bg-slate-400" },
 };
 
-export default function AutomationCard({ automation, onEdit, onDeleted }: Props) {
+export default function AutomationCard({ automation, onEdit, onDeleted, canManage, canRun }: Props) {
   const [running, setRunning] = useState(false);
   const [runResult, setRunResult] = useState<"success" | "failed" | null>(null);
   const [showHistory, setShowHistory] = useState(false);
@@ -84,22 +86,24 @@ export default function AutomationCard({ automation, onEdit, onDeleted }: Props)
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-1 shrink-0">
-          <button
-            onClick={onEdit}
-            data-testid={`automation-edit-${automation.id}`}
-            className="p-2 rounded-xl text-rhozly-on-surface-variant hover:bg-rhozly-surface transition-colors"
-          >
-            <Settings size={16} />
-          </button>
-          <button
-            onClick={() => setConfirmDelete(true)}
-            data-testid={`automation-delete-${automation.id}`}
-            className="p-2 rounded-xl text-rhozly-on-surface-variant hover:text-red-500 hover:bg-red-50 transition-colors"
-          >
-            <Trash2 size={16} />
-          </button>
-        </div>
+        {canManage && (
+          <div className="flex items-center gap-1 shrink-0">
+            <button
+              onClick={onEdit}
+              data-testid={`automation-edit-${automation.id}`}
+              className="p-2 rounded-xl text-rhozly-on-surface-variant hover:bg-rhozly-surface transition-colors"
+            >
+              <Settings size={16} />
+            </button>
+            <button
+              onClick={() => setConfirmDelete(true)}
+              data-testid={`automation-delete-${automation.id}`}
+              className="p-2 rounded-xl text-rhozly-on-surface-variant hover:text-red-500 hover:bg-red-50 transition-colors"
+            >
+              <Trash2 size={16} />
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Devices */}
@@ -144,26 +148,28 @@ export default function AutomationCard({ automation, onEdit, onDeleted }: Props)
 
       {/* Actions */}
       <div className="flex items-center gap-2">
-        <button
-          onClick={runNow}
-          disabled={running}
-          data-testid={`automation-run-now-${automation.id}`}
-          className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
-            runResult === "success" ? "bg-green-500 text-white" :
-            runResult === "failed"  ? "bg-red-500 text-white" :
-            "bg-rhozly-primary text-white hover:bg-rhozly-primary/90 disabled:opacity-60"
-          }`}
-        >
-          {running ? (
-            <><Loader2 size={13} className="animate-spin" /> Running…</>
-          ) : runResult === "success" ? (
-            <><CheckCircle size={13} /> Done</>
-          ) : runResult === "failed" ? (
-            <><XCircle size={13} /> Failed</>
-          ) : (
-            <><Play size={13} /> Run now</>
-          )}
-        </button>
+        {canRun && (
+          <button
+            onClick={runNow}
+            disabled={running}
+            data-testid={`automation-run-now-${automation.id}`}
+            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold transition-colors ${
+              runResult === "success" ? "bg-green-500 text-white" :
+              runResult === "failed"  ? "bg-red-500 text-white" :
+              "bg-rhozly-primary text-white hover:bg-rhozly-primary/90 disabled:opacity-60"
+            }`}
+          >
+            {running ? (
+              <><Loader2 size={13} className="animate-spin" /> Running…</>
+            ) : runResult === "success" ? (
+              <><CheckCircle size={13} /> Done</>
+            ) : runResult === "failed" ? (
+              <><XCircle size={13} /> Failed</>
+            ) : (
+              <><Play size={13} /> Run now</>
+            )}
+          </button>
+        )}
 
         <button
           onClick={() => setShowHistory((v) => !v)}

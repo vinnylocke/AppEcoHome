@@ -19,9 +19,11 @@ import toast from "react-hot-toast";
 import { logEvent, EVENT } from "../events/registry";
 import { usePermissions } from "../context/HomePermissionsContext";
 import { useSearchParams } from "react-router-dom";
+import InfoTooltip from "./InfoTooltip";
 
 import AddTaskModal from "./AddTaskModal";
 import { ConfirmModal } from "./ConfirmModal";
+import OptimiseTab from "./OptimiseTab";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -29,13 +31,15 @@ import { useHomeRealtime } from "../hooks/useHomeRealtime";
 
 interface BlueprintManagerProps {
   homeId: string;
+  aiEnabled?: boolean;
 }
 
-export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
+export default function BlueprintManager({ homeId, aiEnabled = false }: BlueprintManagerProps) {
   const { preferences } = usePlantDoctor();
   const { can } = usePermissions();
   const [searchParams, setSearchParams] = useSearchParams();
   const openHandled = useRef(false);
+  const [activeTab, setActiveTab] = useState<"blueprints" | "optimise">("blueprints");
   const [blueprints, setBlueprints] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
@@ -96,6 +100,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
         `,
         )
         .eq("home_id", homeId)
+        .eq("is_archived", false)
         .order("created_at", { ascending: false });
 
       if (bpError) throw bpError;
@@ -204,10 +209,10 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
   const handleDeleteClick = (bp: any) => {
     setConfirmState({
       isOpen: true,
-      title: "Delete Automation",
+      title: "Delete Task Schedule",
       description:
-        "Are you sure you want to permanently delete this recurring automation? Future tasks will no longer be generated.",
-      confirmText: "Delete Automation",
+        "Are you sure you want to permanently delete this task schedule? Future tasks will no longer be generated.",
+      confirmText: "Delete",
       onConfirm: async () => {
         const { error } = await supabase
           .from("task_blueprints")
@@ -216,7 +221,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
         if (error) throw error;
         logEvent(EVENT.BLUEPRINT_DELETED, { blueprint_id: bp.id, title: bp.title });
         setBlueprints((prev) => prev.filter((b) => b.id !== bp.id));
-        toast.success("Automation removed.");
+        toast.success("Task schedule removed.");
       },
     });
   };
@@ -288,7 +293,7 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
       ? filterOptions.areas.filter((a) => a.location_id === filterLocation)
       : filterOptions.areas;
 
-  if (loading)
+  if (loading && activeTab === "blueprints")
     return (
       <div className="w-full h-full flex flex-col p-4 md:p-8 pb-32">
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
@@ -324,10 +329,10 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
       </div>
     );
 
-  if (fetchError)
+  if (fetchError && activeTab === "blueprints")
     return (
       <div className="p-10 flex flex-col items-center justify-center gap-4 text-center">
-        <p className="font-black text-lg text-rhozly-on-surface">Could not load automations</p>
+        <p className="font-black text-lg text-rhozly-on-surface">Could not load task schedules</p>
         <p className="text-sm font-bold text-rhozly-on-surface/50">Check your connection and try again.</p>
         <button
           onClick={() => setRetryTick((t) => t + 1)}
@@ -340,32 +345,56 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
 
   return (
     <div className="w-full h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-700 pb-32">
-      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-6">
+      <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-4">
         <div>
           <h1 data-testid="schedule-heading" className="text-4xl font-black font-display text-rhozly-on-surface flex items-center gap-3">
-            Automations
-            {blueprints.length > 0 && (
+            Task Schedules
+            {blueprints.length > 0 && activeTab === "blueprints" && (
               <span className="text-base font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
                 {blueprints.length}
               </span>
             )}
           </h1>
-          <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-            Recurring task automations
+          <p className="text-sm font-bold text-rhozly-on-surface/40 mt-1">
+            Set recurring reminders once — Rhozly handles the rest. Watering every 4 days, pruning every 3 weeks, on autopilot.
           </p>
         </div>
-        {can("tasks.create_home") && (
+        {can("tasks.create_home") && activeTab === "blueprints" && (
           <button
             data-testid="blueprint-new-btn"
             onClick={() => setIsBuilding(true)}
             className="flex items-center justify-center gap-2 bg-rhozly-primary text-white px-6 py-3.5 rounded-2xl font-black shadow-lg hover:scale-105 transition-transform active:scale-95"
           >
-            <Plus size={18} strokeWidth={3} /> New Automation
+            <Plus size={18} strokeWidth={3} /> New Task Schedule
           </button>
         )}
       </div>
 
-      {/* 🚀 NEW: Search & Filter Top Bar */}
+      {/* Tab bar */}
+      <div className="overflow-x-auto mb-6 -mx-1">
+        <div className="flex gap-1 px-1 min-w-max bg-rhozly-surface-low rounded-2xl p-1">
+          <button
+            data-testid="tab-blueprints"
+            onClick={() => setActiveTab("blueprints")}
+            className={`shrink-0 px-5 py-2 rounded-xl text-sm font-bold transition-colors ${activeTab === "blueprints" ? "bg-white text-rhozly-on-surface shadow-sm" : "text-rhozly-on-surface-variant hover:text-rhozly-on-surface"}`}
+          >
+            Task Schedules
+          </button>
+          <button
+            data-testid="tab-optimise"
+            onClick={() => setActiveTab("optimise")}
+            className={`shrink-0 px-5 py-2 rounded-xl text-sm font-bold transition-colors ${activeTab === "optimise" ? "bg-white text-rhozly-on-surface shadow-sm" : "text-rhozly-on-surface-variant hover:text-rhozly-on-surface"}`}
+          >
+            Optimise
+          </button>
+        </div>
+      </div>
+
+      {activeTab === "optimise" && <OptimiseTab homeId={homeId} aiEnabled={aiEnabled} />}
+
+      {activeTab === "blueprints" && <>
+
+      {/* Search & Filter Top Bar */}
       {blueprints.length > 0 && (
         <div className="flex flex-col gap-3 mb-6 animate-in slide-in-from-top-2">
           <div className="flex gap-2">
@@ -378,8 +407,8 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search automations..."
-                aria-label="Search automations"
+                placeholder="Search task schedules..."
+                aria-label="Search task schedules"
                 className="w-full pl-12 pr-4 py-3.5 bg-white border border-rhozly-outline/10 rounded-2xl font-bold shadow-sm outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary/20 transition-all"
               />
               {searchQuery && (
@@ -655,7 +684,9 @@ export default function BlueprintManager({ homeId }: BlueprintManagerProps) {
         </>
       )}
 
-      {/* 🚀 MODALS */}
+      </>}
+
+      {/* MODALS */}
       {confirmState && (
         <ConfirmModal
           isOpen={confirmState.isOpen}

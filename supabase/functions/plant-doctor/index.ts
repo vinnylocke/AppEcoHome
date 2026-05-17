@@ -10,6 +10,7 @@ import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
 import { getFallback } from "../_shared/fallbacks.ts";
+import { reverseGeocodeCity } from "../_shared/locationContext.ts";
 
 const FN = "plant-doctor";
 
@@ -398,13 +399,18 @@ serve(async (req) => {
         currentMonthNum = new Date(new Date().toLocaleString("en-US", { timeZone: home.timezone ?? "UTC" })).getMonth() + 1;
         const season = getSeason(hemisphere, currentMonthNum);
         if (hasDeviceCoords) {
-          const latStr = `${Math.abs(deviceLat).toFixed(1)}°${deviceLat >= 0 ? "N" : "S"}`;
-          const lngStr = `${Math.abs(deviceLng).toFixed(1)}°${deviceLng >= 0 ? "E" : "W"}`;
-          locationLine = `Hemisphere: ${hemisphere} | Current month: ${currentMonth} (${season}) | Device location: ${latStr}, ${lngStr}`;
+          const city = await reverseGeocodeCity(deviceLat, deviceLng);
+          const country = home?.country ?? "";
+          locationLine = [
+            city ? `Location: ${city}${country ? `, ${country}` : ""}` : (country ? `Country: ${country}` : ""),
+            `Hemisphere: ${hemisphere}`,
+            `Current month: ${currentMonth} (${season})`,
+          ].filter(Boolean).join(" | ");
         } else {
           const country = home.country ?? "";
+          const city = home.lat != null ? await reverseGeocodeCity(home.lat, home.lng ?? 0) : null;
           locationLine = [
-            country ? `Country: ${country}` : "",
+            city ? `Location: ${city}${country ? `, ${country}` : ""}` : (country ? `Country: ${country}` : ""),
             `Hemisphere: ${hemisphere}`,
             `Current month: ${currentMonth} (${season})`,
           ].filter(Boolean).join(" | ");
@@ -414,9 +420,12 @@ serve(async (req) => {
       hemisphere = deviceLat! >= 0 ? "Northern" : "Southern";
       currentMonthNum = new Date().getMonth() + 1;
       const season = getSeason(hemisphere, currentMonthNum);
-      const latStr = `${Math.abs(deviceLat!).toFixed(1)}°${deviceLat! >= 0 ? "N" : "S"}`;
-      const lngStr = `${Math.abs(deviceLng!).toFixed(1)}°${deviceLng! >= 0 ? "E" : "W"}`;
-      locationLine = `Hemisphere: ${hemisphere} | Current month: ${currentMonth} (${season}) | Device location: ${latStr}, ${lngStr}`;
+      const city = await reverseGeocodeCity(deviceLat!, deviceLng!);
+      locationLine = [
+        city ? `Location: ${city}` : "",
+        `Hemisphere: ${hemisphere}`,
+        `Current month: ${currentMonth} (${season})`,
+      ].filter(Boolean).join(" | ");
     }
 
     // ── action: search_plants_text ─────────────────────────────────────────

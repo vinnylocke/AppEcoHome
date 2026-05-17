@@ -100,19 +100,19 @@ export default function CommunityGuidesTab({ currentUserId, autoOpenNew, onAutoO
   return (
     <div className="pb-32 animate-in fade-in duration-500">
       {/* Header */}
-      <div className="flex items-start justify-between mb-6">
+      <div className="flex flex-wrap items-start justify-between gap-3 mb-6">
         <div>
           <h2 className="text-3xl font-black font-display text-rhozly-on-surface">
             Community Guides
           </h2>
           <p className="text-xs font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-            Written by growers, for growers
+            Tips, tricks, and how-tos written by fellow Rhozly gardeners
           </p>
         </div>
         <button
           data-testid="write-guide-btn"
           onClick={() => setEditGuide("new")}
-          className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl text-sm font-black hover:opacity-90 transition-opacity shrink-0 ml-4"
+          className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl text-sm font-black hover:opacity-90 transition-opacity shrink-0 ml-auto"
         >
           <PenLine size={15} />
           Write a Guide
@@ -237,7 +237,7 @@ export default function CommunityGuidesTab({ currentUserId, autoOpenNew, onAutoO
         <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-rhozly-outline/20 shadow-sm">
           <BookOpen className="mx-auto w-12 h-12 text-rhozly-on-surface/20 mb-4" />
           <p className="font-black text-xl text-rhozly-on-surface/50 mb-2">No community guides yet</p>
-          <p className="text-sm font-bold text-rhozly-on-surface/40 mb-6">Be the first to write one!</p>
+          <p className="text-sm font-bold text-rhozly-on-surface/40 mb-6">Be the first to share your garden knowledge!</p>
           <button
             onClick={() => setEditGuide("new")}
             className="flex items-center gap-2 mx-auto px-5 py-2.5 bg-rhozly-primary text-white rounded-xl text-sm font-black hover:opacity-90 transition-opacity"

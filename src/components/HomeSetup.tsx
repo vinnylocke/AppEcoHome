@@ -176,6 +176,9 @@ export const HomeSetup: React.FC<Props> = ({
                   <p id="create-home-desc" className="text-sm font-bold text-rhozly-on-surface/50">
                     Start fresh and set up a brand new home for your gardens.
                   </p>
+                  <p className="text-xs font-bold text-rhozly-on-surface/30 mt-2">
+                    Your Home is the root of your garden — all locations, plants, and tasks live here.
+                  </p>
                 </button>
 
                 <button
@@ -261,6 +264,9 @@ export const HomeSetup: React.FC<Props> = ({
                       className="w-full px-4 py-3 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl focus:outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary transition-all font-bold text-rhozly-on-surface uppercase"
                       placeholder="e.g. CR3 5ED"
                     />
+                    <p className="text-xs font-bold text-rhozly-on-surface/40 mt-1">
+                      Used to pull local weather data for smart watering reminders
+                    </p>
                   </div>
 
                   <div className="space-y-2">

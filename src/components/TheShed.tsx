@@ -45,6 +45,7 @@ import { logEvent, EVENT } from "../events/registry";
 import { derivePlantLabels } from "../lib/plantLabels";
 import { usePermissions } from "../context/HomePermissionsContext";
 import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
+import InfoTooltip from "./InfoTooltip";
 
 async function fetchFirstAvailableImage(plantName: string): Promise<string> {
   const [wiki, pixabay] = await Promise.all([
@@ -103,6 +104,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     "all",
   );
   const [sortMode, setSortMode] = useState<"alphabetical" | "preference">("alphabetical");
+  const [badgeGuideShown, setBadgeGuideShown] = useState(
+    () => localStorage.getItem("rhozly_badge_guide_shown") === "true",
+  );
   const [searchQuery, setSearchQuery] = useState("");
   const [showBulkSearch, setShowBulkSearch] = useState(false);
   const [initialSearchTerm, setInitialSearchTerm] = useState("");
@@ -995,13 +999,13 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                     aria-label="Add plant"
                     className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
                   >
-                    <Plus size={18} /> Add
+                    <Plus size={18} /> Add Plant
                   </button>
                 )}
               </div>
             </div>
             <p className="text-sm font-bold text-rhozly-on-surface/50 uppercase tracking-widest mt-1">
-              <span className="font-black text-rhozly-on-surface/70">{plants.filter(p => !p.is_archived).length}</span> species · <span className="font-black text-rhozly-on-surface/70">{plants.filter(p => !p.is_archived).reduce((acc, p) => acc + (p.instance_count || 0), 0)}</span> instances
+              <span className="font-black text-rhozly-on-surface/70">{plants.filter(p => !p.is_archived).length}</span> species · <span className="font-black text-rhozly-on-surface/70">{plants.filter(p => !p.is_archived).reduce((acc, p) => acc + (p.instance_count || 0), 0)}</span> plants in your garden
             </p>
             {shedFetchError && (
               <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-xs font-bold text-red-600">
@@ -1055,7 +1059,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               >
                 <option value="all">All Sources</option>
                 <option value="manual">Manual</option>
-                <option value="api">Perenual</option>
+                <option value="api">Plant Database</option>
                 <option value="ai">AI</option>
               </select>
               <select
@@ -1065,11 +1069,32 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 className="bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-xl px-4 py-2.5 min-h-[44px] text-sm font-bold outline-none cursor-pointer"
               >
                 <option value="alphabetical">A – Z</option>
-                <option value="preference">Best Match</option>
+                <option value="preference">Best Match (based on your quiz)</option>
               </select>
             </div>
           </div>
         </div>
+
+        {/* One-time badge guide — shown until dismissed */}
+        {!badgeGuideShown && (
+          <div className="flex items-start gap-3 bg-rhozly-primary/5 border border-rhozly-primary/10 rounded-2xl px-4 py-3 mb-4">
+            <div className="flex-1 text-xs font-bold text-rhozly-on-surface/60 leading-snug">
+              <span className="font-black text-rhozly-on-surface/80">Where plant info comes from:</span>
+              {" "}🌐 <span className="text-rhozly-primary">Perenual</span> — global plant database &nbsp;·&nbsp;
+              🌿 <span className="text-emerald-600">Verdantly</span> — curated growing guides &nbsp;·&nbsp;
+              ✨ <span className="text-amber-500">AI</span> — identified by Rhozly AI &nbsp;·&nbsp;
+              ✏️ <span className="text-rhozly-on-surface/60">Manual</span> — added by you
+            </div>
+            <button
+              data-testid="badge-guide-dismiss"
+              onClick={() => { setBadgeGuideShown(true); localStorage.setItem("rhozly_badge_guide_shown", "true"); }}
+              className="text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors shrink-0 mt-0.5"
+              aria-label="Dismiss"
+            >
+              <X size={14} />
+            </button>
+          </div>
+        )}
 
         <div
           ref={gridRef}

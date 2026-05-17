@@ -15,6 +15,7 @@ import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.3
 import { loadPreferences, formatPreferencesBlock } from "./preferences.ts";
 import type { Preference } from "./preferences.ts";
 import { deriveClimate, frostDatesForHome } from "./climateZones.ts";
+import { reverseGeocodeCity } from "./locationContext.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,6 +77,7 @@ export interface UserContext {
   quizCompleted: boolean;
   // Location
   country: string | null;
+  locationCity: string | null;
   timezone: string | null;
   lat: number | null;
   lng: number | null;
@@ -257,6 +259,13 @@ export async function buildUserContext(
   const frostFirstDate: string | null = home?.frost_first_date ?? frostDates.frostFirstDate;
   const frostLastDate: string | null  = home?.frost_last_date  ?? frostDates.frostLastDate;
 
+  // Reverse-geocode to city/town — only when location section is needed.
+  // Falls back to null gracefully; callers then render country only.
+  const locationCity: string | null =
+    !skip.has("location") && lat !== null && lng !== null
+      ? await reverseGeocodeCity(lat, lng)
+      : null;
+
   // ── Profile ────────────────────────────────────────────────────────────────
   const profile = profileResult.data;
 
@@ -400,6 +409,7 @@ export async function buildUserContext(
     subscriptionTier: profile?.subscription_tier ?? null,
     quizCompleted: !!quizResult.data,
     country,
+    locationCity,
     timezone,
     lat,
     lng,
@@ -434,18 +444,21 @@ export function renderContextBlock(
   for (const section of sections) {
     switch (section) {
       case "identity": {
-        const name = ctx.firstName ?? ctx.displayName ?? "the gardener";
         const tier = ctx.subscriptionTier ?? "unknown";
         const quiz = ctx.quizCompleted ? "completed" : "not completed";
         lines.push(`\nIDENTITY`);
-        lines.push(`Name: ${name} | Tier: ${tier} | Habit quiz: ${quiz}`);
+        lines.push(`Tier: ${tier} | Habit quiz: ${quiz}`);
         break;
       }
 
       case "location": {
         lines.push(`\nLOCATION & SEASON`);
         const parts: string[] = [];
-        if (ctx.country) parts.push(`Country: ${ctx.country}`);
+        if (ctx.locationCity && ctx.country) {
+          parts.push(`Location: ${ctx.locationCity}, ${ctx.country}`);
+        } else if (ctx.country) {
+          parts.push(`Country: ${ctx.country}`);
+        }
         parts.push(`Hemisphere: ${ctx.hemisphere}`);
         parts.push(`Season: ${ctx.currentSeason} (${ctx.currentMonth} ${ctx.isoDate.slice(0, 4)})`);
         if (ctx.climateZone) parts.push(`Climate: ${ctx.climateZone.replace("_", " ")}`);

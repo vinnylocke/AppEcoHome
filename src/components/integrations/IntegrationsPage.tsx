@@ -2,6 +2,7 @@ import React, { useEffect, useState, useCallback } from "react";
 import { supabase } from "../../lib/supabase";
 import { Plus, RefreshCw, AlertCircle, Loader2, CheckCircle, XCircle, Cpu, Zap } from "lucide-react";
 import { IconIntegrations } from "../../constants/icons";
+import { usePermissions } from "../../context/HomePermissionsContext";
 import DeviceCard from "./DeviceCard";
 import ConnectDeviceWizard from "./ConnectDeviceWizard";
 import DeviceDetailModal from "./DeviceDetailModal";
@@ -30,6 +31,10 @@ export interface Device {
 }
 
 export default function IntegrationsPage({ homeId }: Props) {
+  const { can } = usePermissions();
+  const canManageIntegrations = can('integrations.manage');
+  const canControlIntegrations = can('integrations.control');
+
   const [activeTab, setActiveTab] = useState<TabId>("devices");
   const [devices, setDevices] = useState<Device[]>([]);
   const [loading, setLoading] = useState(true);
@@ -198,14 +203,16 @@ export default function IntegrationsPage({ homeId }: Props) {
               >
                 <RefreshCw size={16} className="sm:w-[18px] sm:h-[18px]" />
               </button>
-              <button
-                onClick={() => setShowWizard(true)}
-                data-testid="integrations-connect"
-                className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-rhozly-primary text-white font-semibold text-xs sm:text-sm hover:bg-rhozly-primary/90 transition-colors"
-              >
-                <Plus size={16} className="sm:w-[18px] sm:h-[18px]" />
-                <span className="hidden sm:inline">Connect Device</span>
-              </button>
+              {canManageIntegrations && (
+                <button
+                  onClick={() => setShowWizard(true)}
+                  data-testid="integrations-connect"
+                  className="flex items-center gap-1.5 px-2.5 sm:px-4 py-2 sm:py-2.5 rounded-xl sm:rounded-2xl bg-rhozly-primary text-white font-semibold text-xs sm:text-sm hover:bg-rhozly-primary/90 transition-colors"
+                >
+                  <Plus size={16} className="sm:w-[18px] sm:h-[18px]" />
+                  <span className="hidden sm:inline">Connect Device</span>
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -254,7 +261,7 @@ export default function IntegrationsPage({ homeId }: Props) {
                 <span className="text-sm">{error}</span>
               </div>
             ) : devices.length === 0 ? (
-              <EmptyState onConnect={() => setShowWizard(true)} />
+              <EmptyState onConnect={canManageIntegrations ? () => setShowWizard(true) : undefined} />
             ) : (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {devices.map((d) => (
@@ -266,7 +273,11 @@ export default function IntegrationsPage({ homeId }: Props) {
         )}
 
         {activeTab === "automations" && (
-          <AutomationsSection homeId={homeId} />
+          <AutomationsSection
+            homeId={homeId}
+            canManage={can('automations.manage')}
+            canRun={canManageIntegrations || canControlIntegrations}
+          />
         )}
       </div>
 
@@ -287,13 +298,15 @@ export default function IntegrationsPage({ homeId }: Props) {
           device={selectedDevice}
           onClose={() => setSelectedDevice(null)}
           onRefresh={load}
+          canManage={canManageIntegrations}
+          canControl={canControlIntegrations || canManageIntegrations}
         />
       )}
     </div>
   );
 }
 
-function EmptyState({ onConnect }: { onConnect: () => void }) {
+function EmptyState({ onConnect }: { onConnect?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center text-center py-20 px-6">
       <div className="w-16 h-16 rounded-3xl bg-rhozly-primary/10 flex items-center justify-center mb-4">
@@ -303,14 +316,16 @@ function EmptyState({ onConnect }: { onConnect: () => void }) {
       <p className="text-sm text-rhozly-on-surface-variant max-w-xs mb-6">
         Connect soil sensors or water valves to monitor your garden and automate watering.
       </p>
-      <button
-        onClick={onConnect}
-        data-testid="integrations-empty-connect"
-        className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-rhozly-primary text-white font-semibold hover:bg-rhozly-primary/90 transition-colors"
-      >
-        <Plus size={18} />
-        Connect your first device
-      </button>
+      {onConnect && (
+        <button
+          onClick={onConnect}
+          data-testid="integrations-empty-connect"
+          className="flex items-center gap-2 px-5 py-3 rounded-2xl bg-rhozly-primary text-white font-semibold hover:bg-rhozly-primary/90 transition-colors"
+        >
+          <Plus size={18} />
+          Connect your first device
+        </button>
+      )}
     </div>
   );
 }

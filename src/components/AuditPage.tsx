@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { usePermissions } from "../context/HomePermissionsContext";
+import InfoTooltip from "./InfoTooltip";
 
 interface Props {
   homeId: string;
@@ -105,6 +106,12 @@ function todayStr() {
   return new Date().toISOString().slice(0, 10);
 }
 
+function thirtyDaysAgoStr() {
+  const d = new Date();
+  d.setDate(d.getDate() - 30);
+  return d.toISOString().slice(0, 10);
+}
+
 function toRangeStart(dateStr: string) {
   return new Date(dateStr + "T00:00:00").toISOString();
 }
@@ -146,7 +153,7 @@ export default function AuditPage({ homeId }: Props) {
   const canViewAll = role === "owner" || role === "admin" || can("audit.view_all");
 
   const [activeTab, setActiveTab] = useState<"activity" | "ai_usage">("activity");
-  const [dateFrom, setDateFrom] = useState(todayStr);
+  const [dateFrom, setDateFrom] = useState(thirtyDaysAgoStr);
   const [dateTo, setDateTo] = useState(todayStr);
   const [selectedUserId, setSelectedUserId] = useState<string>("all");
 
@@ -496,10 +503,18 @@ export default function AuditPage({ homeId }: Props) {
                         {canViewAll && <th className="text-left px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">User</th>}
                         <th className="text-left px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">Feature</th>
                         <th className="text-left px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">Model</th>
-                        <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">Prompt</th>
-                        <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">Output</th>
-                        <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">Total</th>
-                        <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">Cost</th>
+                        <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 justify-end">Input <InfoTooltip content="Tokens in your request — the instructions, context, and image data sent to the AI model" size={11} /></span>
+                        </th>
+                        <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 justify-end">Output <InfoTooltip content="Tokens in the AI's reply — the response text generated" size={11} /></span>
+                        </th>
+                        <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 justify-end">Total <InfoTooltip content="Total tokens processed (Prompt + Output). Tokens are units of text — roughly 1 token ≈ 4 characters" size={11} /></span>
+                        </th>
+                        <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 justify-end">Cost <InfoTooltip content="Estimated cost in USD for this AI call, based on the model's pricing" size={11} /></span>
+                        </th>
                       </tr>
                     </thead>
                     <tbody>

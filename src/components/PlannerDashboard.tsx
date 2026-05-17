@@ -12,6 +12,9 @@ import {
   CheckCircle2,
   AlertCircle,
   ChevronLeft,
+  HelpCircle,
+  Leaf,
+  Plus,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -38,6 +41,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
     "Pending" | "Completed" | "Archived"
   >("Pending");
   const [showNewPlanModal, setShowNewPlanModal] = useState(false);
+  const [showPlanExplainer, setShowPlanExplainer] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any | null>(null);
 
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
@@ -239,36 +243,45 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl sm:text-4xl font-black font-display text-rhozly-on-surface flex items-center gap-3">
-            <IconPlanner className="text-rhozly-primary" size={32} /> Landscape Planner
+            <IconPlanner className="text-rhozly-primary" size={32} /> Garden Planner
             {plans.filter((p) => p.status !== "archived").length > 0 && (
               <span className="text-base font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
                 {plans.filter((p) => p.status !== "archived").length}
               </span>
             )}
           </h1>
-          <p className="text-sm font-bold text-rhozly-on-surface/50 uppercase tracking-widest mt-1">
-            AI-Assisted Plan Management
+          <p className="text-sm font-bold text-rhozly-on-surface/50 mt-1">
+            Group your plant choices, tasks, and notes into garden projects.
           </p>
         </div>
-        {can("plans.create") && (
+        <div className="flex items-center gap-2 w-full md:w-auto">
           <button
-            onClick={() => setShowNewPlanModal(true)}
-            data-testid="planner-new-plan-btn"
-            className="px-6 py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:bg-rhozly-primary/90 transition-transform active:scale-95 flex items-center gap-2 w-full md:w-auto justify-center"
+            onClick={() => setShowPlanExplainer(true)}
+            data-testid="planner-what-is-plan"
+            className="flex items-center gap-1.5 text-sm font-bold text-rhozly-on-surface/50 hover:text-rhozly-primary transition-colors px-3 py-2 rounded-xl hover:bg-rhozly-primary/5"
           >
-            <IconAI size={20} /> New Plan
+            <HelpCircle size={15} /> What's a Plan?
           </button>
-        )}
+          {can("plans.create") && (
+            <button
+              onClick={() => setShowNewPlanModal(true)}
+              data-testid="planner-new-plan-btn"
+              className="px-6 py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:bg-rhozly-primary/90 transition-transform active:scale-95 flex items-center gap-2 flex-1 md:flex-none justify-center"
+            >
+              <Plus size={20} /> New Plan
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Tabs */}
       <div
         role="tablist"
         aria-label="Plan status"
-        className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/10 mb-6 max-w-md overflow-x-auto custom-scrollbar shrink-0"
+        className="flex overflow-x-auto gap-1 bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/10 mb-6"
       >
         {[
-          { id: "Pending", label: `Pending (${pendingCount})` },
+          { id: "Pending", label: `Active (${pendingCount})` },
           { id: "Completed", label: `Completed (${completedCount})` },
           { id: "Archived", label: `Archived (${archivedCount})` },
         ].map((tab) => (
@@ -277,7 +290,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
             role="tab"
             aria-selected={activeTab === tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex-1 whitespace-nowrap px-4 py-3 min-h-[44px] rounded-2xl text-sm font-black transition-all ${
+            className={`shrink-0 whitespace-nowrap px-3 sm:px-4 py-3 min-h-[44px] rounded-2xl text-xs sm:text-sm font-black transition-all ${
               activeTab === tab.id
                 ? "bg-white text-rhozly-primary shadow-sm"
                 : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
@@ -322,22 +335,22 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
               <p className="text-xl font-black text-rhozly-on-surface">
                 No plans yet
               </p>
-              <p className="text-sm font-bold text-rhozly-on-surface/50 mt-2">
-                Create your first plan to get started.
+              <p className="text-sm font-bold text-rhozly-on-surface/50 mt-2 max-w-xs">
+                A Plan is a garden project — like "Spring Veggie Bed" or "Front Path Makeover". It groups your plant choices, task schedules, and notes in one place.
               </p>
               {can("plans.create") && (
                 <button
                   onClick={() => setShowNewPlanModal(true)}
                   className="mt-6 px-6 py-3 min-h-[44px] bg-rhozly-primary text-white rounded-2xl font-black shadow-sm hover:bg-rhozly-primary/90 transition-colors active:scale-95 flex items-center gap-2"
                 >
-                  <IconAI size={16} /> New Plan
+                  <Plus size={16} /> Create your first Plan
                 </button>
               )}
             </>
           ) : (
             <>
               <p className="text-xl font-black text-rhozly-on-surface">
-                No {activeTab.toLowerCase()} plans
+                No {activeTab === "Pending" ? "active" : activeTab.toLowerCase()} plans
               </p>
               <p className="text-sm font-bold text-rhozly-on-surface/50 mt-2">
                 Switch to a different tab to see your other plans.
@@ -389,7 +402,13 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
 
                 <div className="absolute top-4 left-4">
                   <span
-                    className={`px-3 py-1.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-sm backdrop-blur-md ${
+                    title={
+                      plan.status === "Draft"        ? "Still planning and researching" :
+                      plan.status === "In Progress"  ? "Actively working on this project" :
+                      plan.status === "Completed"    ? "Done — kept as a reference" :
+                                                       "Hidden from your active plans"
+                    }
+                    className={`px-3 py-1.5 rounded-2xl text-xs font-black uppercase tracking-widest shadow-sm backdrop-blur-md cursor-help ${
                       plan.status === "Draft"
                         ? "bg-white/90 text-rhozly-primary"
                         : plan.status === "In Progress"
@@ -476,9 +495,20 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                 <h3 className="text-xl font-black text-rhozly-on-surface mb-2 line-clamp-1">
                   {plan.name}
                 </h3>
-                <p className="text-sm font-bold text-rhozly-on-surface/60 line-clamp-2 mb-4 flex-1">
+                <p className="text-sm font-bold text-rhozly-on-surface/60 line-clamp-2 mb-3 flex-1">
                   {plan.description}
                 </p>
+                {/* Content preview */}
+                {(() => {
+                  const plantCount = plan.ai_blueprint?.plant_manifest?.length ?? 0;
+                  if (plantCount === 0) return null;
+                  return (
+                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-rhozly-on-surface/40 mb-3">
+                      <Leaf size={11} className="text-rhozly-primary/60" />
+                      {plantCount} plant{plantCount !== 1 ? "s" : ""} in blueprint
+                    </div>
+                  );
+                })()}
                 <div className="flex items-center justify-between text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 pt-4 border-t border-rhozly-outline/5">
                   <span>
                     Created {new Date(plan.created_at).toLocaleDateString()}
@@ -509,9 +539,56 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
         />
       )}
 
+
       {typeof document !== "undefined" &&
         createPortal(
           <>
+            {showPlanExplainer && (
+              <div
+                className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm animate-in fade-in"
+                onClick={() => setShowPlanExplainer(false)}
+              >
+                <div
+                  className="bg-white rounded-3xl w-full max-w-md shadow-2xl p-5 sm:p-8 flex flex-col gap-5 animate-in zoom-in-95 max-h-[90vh] overflow-y-auto"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="bg-rhozly-primary/10 p-3 rounded-2xl">
+                      <IconPlanner size={24} className="text-rhozly-primary" />
+                    </div>
+                    <button onClick={() => setShowPlanExplainer(false)} className="text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60 transition-colors">
+                      <X size={20} />
+                    </button>
+                  </div>
+                  <div>
+                    <h2 className="text-xl font-black text-rhozly-on-surface mb-2">What's a Plan?</h2>
+                    <p className="text-sm font-bold text-rhozly-on-surface/60 leading-relaxed">
+                      A Plan is a garden project — like <em>"Spring Veggie Bed 2026"</em> or <em>"Front Path Makeover"</em>. It groups your plant choices, task schedules, and AI notes in one place so you can track everything from idea to completion.
+                    </p>
+                  </div>
+                  <div className="space-y-3">
+                    {[
+                      { status: "Draft", colour: "text-rhozly-primary bg-rhozly-primary/10", desc: "Still planning and researching your plant choices." },
+                      { status: "In Progress", colour: "text-white bg-rhozly-primary", desc: "Actively planting and working on this project." },
+                      { status: "Completed", colour: "text-white bg-emerald-500", desc: "All done — kept as a reference for next time." },
+                    ].map((s) => (
+                      <div key={s.status} className="flex items-start gap-3">
+                        <span className={`text-[10px] font-black px-2.5 py-1 rounded-xl uppercase tracking-widest shrink-0 ${s.colour}`}>{s.status}</span>
+                        <p className="text-xs font-bold text-rhozly-on-surface/60 pt-0.5">{s.desc}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {can("plans.create") && (
+                    <button
+                      onClick={() => { setShowPlanExplainer(false); setShowNewPlanModal(true); }}
+                      className="w-full py-3.5 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:bg-rhozly-primary/90 transition-colors flex items-center justify-center gap-2"
+                    >
+                      <IconAI size={18} /> Create my first Plan
+                    </button>
+                  )}
+                </div>
+              </div>
+            )}
             {confirmState.isOpen && confirmState.plan && (
               <div
                 className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in"

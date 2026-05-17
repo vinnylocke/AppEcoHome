@@ -2,8 +2,10 @@
  * Rhozly deploy automation
  *
  * Usage:
- *   node scripts/deploy.mjs
- *   node scripts/deploy.mjs "Deploying new plant features, back in ~2 mins!"
+ *   npm run deploy                          → minor +1
+ *   npm run deploy --bump 3                 → minor +3
+ *   npm run deploy --bump-major             → major +1, minor = 1
+ *   npm run deploy --bump-major --bump 3    → major +1, minor = 3
  *
  * Requires in .env or .env.local:
  *   VITE_SUPABASE_URL=https://your-project.supabase.co
@@ -40,15 +42,21 @@ loadEnvFile(".env.local"); // .env.local overrides .env
 // Use SUPABASE_PROD_URL explicitly — VITE_SUPABASE_URL points to localhost in dev
 const SUPABASE_URL        = process.env.SUPABASE_PROD_URL;
 const SERVICE_ROLE_KEY    = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const BUMP_MAJOR         = process.argv.includes("--bump-major");
+// npm strips --bump-major from argv and exposes it as npm_config_bump_major=true
+const BUMP_MAJOR = process.argv.includes("--bump-major") || process.env.npm_config_bump_major === "true";
 const BUMP_COUNT         = (() => {
-  // Explicit flag: npm run deploy -- --bump 42
+  // Explicit flag: npm run deploy -- --bump 3
   const idx = process.argv.indexOf("--bump");
   if (idx !== -1) {
     const n = parseInt(process.argv[idx + 1], 10);
     return isNaN(n) || n < 1 ? 1 : n;
   }
-  // Positional numeric: npm run deploy --bump 42 (npm strips the flag, passes 42 as positional)
+  // npm strips --bump N into npm_config_bump=N env var
+  if (process.env.npm_config_bump) {
+    const n = parseInt(process.env.npm_config_bump, 10);
+    if (!isNaN(n) && n >= 1) return n;
+  }
+  // Positional numeric fallback: npm run deploy --bump 3 (npm strips flag, passes 3 as positional)
   const positional = process.argv.slice(2).find(a => /^\d+$/.test(a));
   if (positional) {
     const n = parseInt(positional, 10);
@@ -96,7 +104,7 @@ async function bumpVersion(bumpMajor = false) {
   const current = rows?.[0]?.value ?? { major: 1, minor: 0 };
 
   const newMajor = bumpMajor ? current.major + 1 : current.major;
-  const newMinor = bumpMajor ? 1 : current.minor + BUMP_COUNT;
+  const newMinor = bumpMajor ? BUMP_COUNT : current.minor + BUMP_COUNT;
 
   const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/app_config?key=eq.app_version`, {
     method: "PATCH",

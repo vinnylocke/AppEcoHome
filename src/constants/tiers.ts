@@ -95,6 +95,7 @@ export const HOURLY_RATE_LIMITS: Record<string, Record<string, number>> = {
   "scan-area":               { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
   "generate-guide":          { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
   "identify-plant":          { sprout: 0, botanist: 10, sage: 25, evergreen: 50 },
+  "optimise-area-ai":        { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
 };
 
 export const FN_DISPLAY_NAMES: Record<string, string> = {
@@ -104,6 +105,7 @@ export const FN_DISPLAY_NAMES: Record<string, string> = {
   "scan-area":               "Area Scan",
   "generate-guide":          "Generate Guide",
   "identify-plant":          "Identify Plant",
+  "optimise-area-ai":        "AI Optimise",
 };
 
 export function tierIdFromFlags(aiEnabled: boolean, perenualEnabled: boolean): TierId {

@@ -394,6 +394,22 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | SCH-027 | Filter by task type — Pest Control | ✅ | Select Pest Control → ailment blueprint shown | Blueprints | — | ✅ Passing |
 | SCH-028 | Clear all filters | ✅ | With filters active, click "Clear All" → all blueprints reappear | Blueprints | — | ✅ Passing |
 
+### Optimise Tab
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| SCH-029 | Tab bar renders | 🔲 | `/schedule` → "Blueprints" and "Optimise" tabs visible | Blueprints | — | 🔲 Planned |
+| SCH-030 | Switch to Optimise tab | 🔲 | Click "Optimise" tab → area selector and Analyse button visible | Any | — | 🔲 Planned |
+| SCH-031 | Analyse with no issues | 🔲 | Select area with single or no blueprints → "All good!" message | Blueprints | — | 🔲 Planned |
+| SCH-032 | Analyse produces proposals | 🔲 | Select area with fragmented blueprints → proposal cards appear | Blueprints | — | 🔲 Planned |
+| SCH-033 | Toggle proposal include/exclude | 🔲 | Uncheck a proposal → "Apply X changes" count decrements | Blueprints | — | 🔲 Planned |
+| SCH-034 | Apply optimisation | 🔲 | Click Apply, confirm → toast "Applied 1 optimisation", history entry appears | Blueprints | — | 🔲 Planned |
+| SCH-035 | Undo session | 🔲 | After apply, click Undo → session reversed, original blueprints visible on Blueprints tab | Blueprints | — | 🔲 Planned |
+| SCH-036 | AI Analyse button hidden without ai_enabled | 🔲 | User without ai_enabled → "AI Analyse" button not visible on Optimise tab | Blueprints | — | 🔲 Planned |
+| SCH-037 | AI Analyse returns proposals | 🔲 | ai_enabled user clicks "AI Analyse" → AI-badged proposal cards appear | Blueprints | Edge fn mock | 🔲 Planned |
+| SCH-038 | AI proposal feedback thumbs | 🔲 | Click thumbs up on an AI proposal → buttons disable; feedback stored | Blueprints | Edge fn mock | 🔲 Planned |
+| SCH-039 | Regenerate modal opens | 🔲 | After AI results appear, click "Regenerate AI results" → modal with textarea shows | Blueprints | Edge fn mock | 🔲 Planned |
+
 ---
 
 ## Section 07 — Task Lifecycle (Task List)

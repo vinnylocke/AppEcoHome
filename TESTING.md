@@ -720,7 +720,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 204 tests across 11 files
+### Unit tests — 274 tests across 14 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -736,6 +736,8 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `achievements.test.ts` | 13 | `computeUnlocked` — early_adopter always on, per-threshold unlocks for growing/tasks/AI/planning/health/explorer, progress function bounds, all defs have unique keys |
 | `verdantlyUtils.test.ts` | 12 | `VERDANTLY_WATERING_DAYS` mapping, `VERDANTLY_SUNLIGHT_MAP` mapping, `getProviderLabel` source dispatch |
 | `plantProvider.test.ts` | 10 | `searchAllProviders` merge/fallback, `getProviderPlantDetails` provider dispatch, config-gate |
+| `taskOptimiser.test.ts` | 12 | `analyseArea` — all 4 scenarios (fragmentation, redundant, two-tier, pileup), non-optimisable categories, cross-area isolation; `canUndoSession` — recent/old sessions, reversed flag, edited blueprint |
+| `taskOptimiserAi.test.ts` | 9 | `analyseAreaAi` — correct edge function invocation, empty proposals, error propagation, optional body fields; `fetchNegativeFeedback` — field mapping, empty result, DB error, missing snapshot fields |
 
 ### Edge function tests — Deno
 
@@ -751,6 +753,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `highPostponeRate.test.ts` | 7 | High postpone rate pattern (>50%, min 4 events) |
 | `blueprintPostponeRate.test.ts` | 6 | Blueprint postpone rate (ghost + physical task IDs) |
 | `purgeSpeciesCache.test.ts` | 5 | `purgeStaleSpeciesCache` — empty result, delete count, referenced plants preserved, custom TTL, error propagation |
+| `aiUsage.test.ts` | 7 | `logAiUsage` — cost calculation per model (flash-lite, pro, flash-preview, unknown), full field mapping to `ai_usage_log`, null homeId/userId/action passthrough |
 | `yield/predictYield.test.ts` | 6 | `buildYieldPrompt` — includes plant name, planted date, harvest date, no-history text, past yields, weather summary |
 | `rls_isolation.test.ts` | 16 | Cross-tenant RLS — tasks, inventory, locations, plans, blueprints, ailments, weather_alerts, community_guides, home_members, yield_records, user_profiles |
 | `edge_function_auth.test.ts` | 7 | Edge function auth — plant-doctor/contact-support/scan-area/generate-guide/image-proxy reject missing/invalid JWT; scan-area 400 on missing homeId |

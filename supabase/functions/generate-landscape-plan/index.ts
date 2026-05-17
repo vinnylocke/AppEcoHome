@@ -285,7 +285,7 @@ serve(async (req) => {
 
       ${personalMemoryBlock}
 
-      USER'S CURRENT GARDEN AREAS: ${JSON.stringify(areas || [])}
+      USER'S CURRENT GARDEN AREAS: ${JSON.stringify((areas || []).map((a: any) => ({ id: a.id, sunlight: a.sunlight })))}
       USER'S CURRENT INVENTORY: ${JSON.stringify(inventory || [])}
 
       CRITICAL RULES:

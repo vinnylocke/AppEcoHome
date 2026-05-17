@@ -32,3 +32,6 @@ supabase/.env
 playwright-report/
 test-results/
 .vercel
+
+# Beta invite list — keep emails out of version control
+beta-invites.txt

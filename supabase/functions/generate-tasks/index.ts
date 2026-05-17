@@ -44,15 +44,13 @@ serve(async (req) => {
 
     const tasksToInsert = [];
 
-    // Materialize through end of current UTC week (Sunday) so the weekly digest
-    // can query physical tasks for Mon–Sun without relying on ghost generation.
+    // Materialize at least 7 days ahead from today so tasks are always available
+    // regardless of what day of the week this function runs.
     const todayStr = new Date().toISOString().split("T")[0];
     const now = new Date();
-    const dayOfWeek = now.getUTCDay(); // 0=Sun, 1=Mon…
-    const daysToSunday = dayOfWeek === 0 ? 0 : 7 - dayOfWeek;
-    const sunday = new Date(now);
-    sunday.setUTCDate(now.getUTCDate() + daysToSunday);
-    const maxDate = parseSafeDate(sunday.toISOString().split("T")[0]);
+    const sevenDaysAhead = new Date(now);
+    sevenDaysAhead.setUTCDate(now.getUTCDate() + 7);
+    const maxDate = parseSafeDate(sevenDaysAhead.toISOString().split("T")[0]);
 
     // 2. Loop through blueprints and project tasks through end of current week
     for (const bp of blueprints || []) {

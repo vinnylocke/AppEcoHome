@@ -275,8 +275,13 @@ Return ONLY a JSON object with this exact structure:
       ? `12-Month Climate Profile (${fmt(oneYearAgo)} to ${fmt(yesterday)}): ${JSON.stringify(monthlyClimate)}`
       : "12-Month Climate Profile: unavailable — use your knowledge of the hemisphere and plant requirements.";
 
+    // Strip area name from the details object — pass only horticultural properties.
+    const safeAreaDetails = areaDetails
+      ? Object.fromEntries(Object.entries(areaDetails).filter(([k]) => k !== "name"))
+      : "General Garden";
+
     const userMessage = `Plant: ${plantName}
-Area Details: ${JSON.stringify(areaDetails || "General Garden")}
+Area Details: ${JSON.stringify(safeAreaDetails)}
 Available Methods: ${JSON.stringify(availableMethods)}
 Today's Date: ${todayIso}
 ${climateBlock}

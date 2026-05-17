@@ -19,7 +19,8 @@
     "test:seed": "node scripts/seed-test-db.mjs --workers 4",
     "test:e2e:fresh": "npm run test:seed && playwright test --pass-with-no-tests",
     "deploy": "node scripts/deploy.mjs",
-    "maintenance:off": "node scripts/clear-maintenance.mjs"
+    "maintenance:off": "node scripts/clear-maintenance.mjs",
+    "invite:beta": "node scripts/invite-beta-users.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",

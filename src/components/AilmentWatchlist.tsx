@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   Plus, Search, Loader2, Biohazard, X,
-  Edit3, Trash2, ChevronRight, ChevronUp, ChevronLeft, AlertTriangle,
+  Edit3, Trash2, ChevronRight, ChevronUp, ChevronDown, ChevronLeft, AlertTriangle,
   CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock,
 } from "lucide-react";
 import { IconPest, IconPlant, IconPlantDB, IconAI } from "../constants/icons";
@@ -16,7 +16,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { logEvent, EVENT } from "../events/registry";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
 import { usePermissions } from "../context/HomePermissionsContext";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -424,10 +424,14 @@ function AddAilmentModal({
   onSaved: (ailment: Ailment) => void;
   onClose: () => void;
 }) {
-  const [mode, setMode] = useState<CreationMode>("manual");
+  const navigate = useNavigate();
+  const [mode, setMode] = useState<CreationMode>("ai");
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formErrors, setFormErrors] = useState<{ name?: string; description?: string }>({});
+  const [symptomsOpen, setSymptomsOpen] = useState(false);
+  const [preventionOpen, setPreventionOpen] = useState(false);
+  const [remedyOpen, setRemedyOpen] = useState(false);
 
   // Shared bulk-add step
   const [step, setStep] = useState<"tabs" | "review">("tabs");
@@ -784,14 +788,24 @@ function AddAilmentModal({
           </button>
         </div>
 
+        {step === "tabs" && (
+          <div className="mx-6 mb-2 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
+            <IconAI size={16} className="text-amber-500 shrink-0 mt-0.5" />
+            <p className="text-xs font-bold text-amber-700 leading-snug">
+              Not sure what's affecting your plant? Describe what you see to Rhozly AI and we'll identify it.
+            </p>
+          </div>
+        )}
+
         {/* Mode Picker — hidden during review */}
         {step === "tabs" && (
-          <div className="flex bg-rhozly-surface-low p-1 rounded-2xl mx-6 mb-4 flex-wrap gap-1">
-            {(["manual", "perenual", "ai"] as CreationMode[]).map((m) => (
+          <div className="overflow-x-auto mx-4 mb-4">
+            <div className="flex bg-rhozly-surface-low p-1 rounded-2xl gap-1 min-w-max">
+            {(["ai", "perenual", "manual"] as CreationMode[]).map((m) => (
               <button
                 key={m}
                 onClick={() => setMode(m)}
-                className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
+                className={`shrink-0 px-4 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
                   mode === m
                     ? m === "ai"
                       ? "bg-white text-amber-500 shadow-sm"
@@ -802,9 +816,10 @@ function AddAilmentModal({
                 {m === "manual" && <Edit3 size={12} />}
                 {m === "perenual" && <IconPlantDB size={12} />}
                 {m === "ai" && <IconAI size={12} />}
-                {m === "manual" ? "Manual" : m === "perenual" ? "Perenual" : "AI"}
+                {m === "manual" ? "Add Manually" : m === "perenual" ? "Search Database" : "Ask Rhozly AI ✦"}
               </button>
             ))}
+            </div>
           </div>
         )}
 
@@ -1001,12 +1016,19 @@ function AddAilmentModal({
                       <div className="w-10 h-10 bg-rhozly-on-surface/5 rounded-2xl flex items-center justify-center mx-auto mb-3">
                         <Lock size={18} className="text-rhozly-on-surface/30" />
                       </div>
-                      <p className="font-black text-rhozly-on-surface text-sm mb-1">AI Tier Required</p>
-                      <p className="text-xs font-bold text-rhozly-on-surface/50 leading-relaxed">
-                        Upgrade to AI tier to search for pests and diseases using AI.
+                      <p className="font-black text-rhozly-on-surface text-sm mb-1">AI subscription required</p>
+                      <p className="text-xs font-bold text-rhozly-on-surface/50 leading-relaxed mb-3">
+                        This feature needs the Botanist or Sage plan.
                       </p>
+                      <button
+                        onClick={() => { onClose(); navigate("/gardener"); }}
+                        className="text-xs font-black text-rhozly-primary hover:underline"
+                      >
+                        Upgrade in Account Settings →
+                      </button>
                     </div>
                   ) : (
+                  <>
                   <div className="flex gap-2">
                     <input
                       value={aiQuery}
@@ -1024,6 +1046,10 @@ function AddAilmentModal({
                       {aiSearchLoading ? <Loader2 size={16} className="animate-spin" /> : <IconAI size={16} />}
                     </button>
                   </div>
+                  <p className="text-[11px] font-bold text-rhozly-on-surface/40 px-1">
+                    Tip: avoid including personal details like names or addresses in your search.
+                  </p>
+                  </>
                   )}
 
                   {aiSearchLoading && (
@@ -1172,14 +1198,23 @@ function AddAilmentModal({
 
                   {(form.type === "pest" || form.type === "disease") && (
                     <div className="space-y-3">
-                      <div className="flex items-center justify-between">
-                        <h4 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/50">Symptoms</h4>
+                      <button
+                        type="button"
+                        onClick={() => setSymptomsOpen((v) => !v)}
+                        className="w-full flex items-center justify-between px-1 py-2 text-xs font-black uppercase tracking-widest text-rhozly-on-surface/50 hover:text-rhozly-on-surface transition-colors"
+                      >
+                        <span>Symptoms <span className="font-bold normal-case tracking-normal text-rhozly-on-surface/30">(optional)</span></span>
+                        {symptomsOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                      </button>
+                      {symptomsOpen && (
+                      <div className="space-y-3">
+                      <div className="flex justify-end">
                         <button
                           type="button"
                           onClick={() => setForm((f) => ({ ...f, symptoms: [...f.symptoms, newSymptom()] }))}
                           className="flex items-center gap-1 text-xs font-black text-rhozly-primary hover:underline"
                         >
-                          <Plus size={12} /> Add
+                          <Plus size={12} /> Add symptom
                         </button>
                       </div>
                       {form.symptoms.map((s, idx) => (
@@ -1227,19 +1262,45 @@ function AddAilmentModal({
                           </select>
                         </div>
                       ))}
+                      </div>
+                    )}
                     </div>
                   )}
 
-                  <StepBuilder
-                    label="Prevention Steps"
-                    steps={form.prevention_steps}
-                    onChange={(steps) => setForm((f) => ({ ...f, prevention_steps: steps }))}
-                  />
-                  <StepBuilder
-                    label="Remedy Steps"
-                    steps={form.remedy_steps}
-                    onChange={(steps) => setForm((f) => ({ ...f, remedy_steps: steps }))}
-                  />
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setPreventionOpen((v) => !v)}
+                      className="w-full flex items-center justify-between px-1 py-2 text-xs font-black uppercase tracking-widest text-rhozly-on-surface/50 hover:text-rhozly-on-surface transition-colors"
+                    >
+                      <span>Prevention Steps <span className="font-bold normal-case tracking-normal text-rhozly-on-surface/30">(optional)</span></span>
+                      {preventionOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                    {preventionOpen && (
+                      <StepBuilder
+                        label=""
+                        steps={form.prevention_steps}
+                        onChange={(steps) => setForm((f) => ({ ...f, prevention_steps: steps }))}
+                      />
+                    )}
+                  </div>
+                  <div>
+                    <button
+                      type="button"
+                      onClick={() => setRemedyOpen((v) => !v)}
+                      className="w-full flex items-center justify-between px-1 py-2 text-xs font-black uppercase tracking-widest text-rhozly-on-surface/50 hover:text-rhozly-on-surface transition-colors"
+                    >
+                      <span>Remedy Steps <span className="font-bold normal-case tracking-normal text-rhozly-on-surface/30">(optional)</span></span>
+                      {remedyOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                    </button>
+                    {remedyOpen && (
+                      <StepBuilder
+                        label=""
+                        steps={form.remedy_steps}
+                        onChange={(steps) => setForm((f) => ({ ...f, remedy_steps: steps }))}
+                      />
+                    )}
+                  </div>
                 </>
               )}
             </>
@@ -1254,9 +1315,9 @@ function AddAilmentModal({
                 <p className="text-sm font-black text-rhozly-on-surface">{totalSelected} Selected</p>
                 <p className="text-[10px] font-bold uppercase tracking-widest text-rhozly-on-surface/40">
                   {checkedPerenualIds.size > 0 && checkedAiIds.size > 0
-                    ? `${checkedPerenualIds.size} Perenual · ${checkedAiIds.size} AI`
+                    ? `${checkedPerenualIds.size} from database · ${checkedAiIds.size} AI`
                     : checkedPerenualIds.size > 0
-                    ? "from Perenual"
+                    ? "from Plant Database"
                     : "AI generated"}
                 </p>
               </div>
@@ -1317,7 +1378,7 @@ function AddAilmentModal({
 // ─── Source badge helpers ─────────────────────────────────────────────────────
 
 const SOURCE_META: Record<string, { icon: React.ReactNode; label: string; colour: string }> = {
-  perenual: { icon: <IconPlantDB size={10} />, label: "Perenual", colour: "text-rhozly-primary" },
+  perenual: { icon: <IconPlantDB size={10} />, label: "Plant Database", colour: "text-rhozly-primary" },
   ai:       { icon: <IconAI size={10} />, label: "AI",       colour: "text-amber-500" },
   manual:   { icon: <Edit3 size={10} />,    label: "Manual",   colour: "text-rhozly-on-surface/60" },
 };
@@ -1448,6 +1509,7 @@ export type AilmentFilter = "all" | AilmentType;
 
 export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId: string; aiEnabled?: boolean }) {
   const { can } = usePermissions();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const openHandled = useRef(false);
   const [ailments, setAilments] = useState<Ailment[]>([]);
@@ -1567,7 +1629,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
               </span>
             )}
           </h1>
-          <p className="text-sm font-bold text-rhozly-on-surface/40 mt-1">Invasive plants, pests &amp; diseases</p>
+          <p className="text-sm font-bold text-rhozly-on-surface/40 mt-1">Track pests, diseases, and invasive plants</p>
         </div>
         {can("ailments.add") && (
           <button
@@ -1580,22 +1642,21 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
       </div>
 
       {/* Active / Archived tabs + type filters */}
-      <div className="flex flex-col sm:flex-row flex-wrap items-stretch sm:items-center gap-3">
-        <div role="tablist" aria-label="Ailment status" className="bg-rhozly-surface-low p-1.5 rounded-2xl flex gap-1 border border-rhozly-outline/10">
+      <div className="flex flex-col gap-2">
+        <div role="tablist" aria-label="Ailment status" className="flex gap-1 overflow-x-auto bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/10">
           {(["active", "archived"] as const).map((tab) => (
             <button
               key={tab}
               role="tab"
               aria-selected={viewTab === tab}
               onClick={() => setViewTab(tab)}
-              className={`flex-1 sm:flex-none px-6 py-2 min-h-[44px] rounded-xl text-sm font-black transition-all ${viewTab === tab ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+              className={`shrink-0 whitespace-nowrap px-6 py-2 min-h-[44px] rounded-xl text-sm font-black transition-all ${viewTab === tab ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
             >
               {tab.charAt(0).toUpperCase() + tab.slice(1)}
             </button>
           ))}
         </div>
-
-        <div className="flex gap-1.5 bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/5 overflow-x-auto flex-1">
+        <div className="flex gap-1.5 overflow-x-auto bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/5">
           {([
             { id: "all", label: "All" },
             { id: "invasive_plant", label: "Invasive", icon: <IconPlant size={12} /> },
@@ -1605,7 +1666,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
             <button
               key={f.id}
               onClick={() => setFilter(f.id)}
-              className={`flex items-center gap-1.5 px-4 py-2 min-h-[44px] rounded-xl text-xs font-black whitespace-nowrap transition-all ${filter === f.id ? "bg-white text-rhozly-primary shadow-sm border border-rhozly-outline/10" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+              className={`flex items-center gap-1.5 px-4 py-2 min-h-[44px] rounded-xl text-xs font-black whitespace-nowrap shrink-0 transition-all ${filter === f.id ? "bg-white text-rhozly-primary shadow-sm border border-rhozly-outline/10" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
             >
               {f.icon}{f.label}
               <span className="ml-1 opacity-60">{counts[f.id]}</span>
@@ -1673,13 +1734,26 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
               ? "No archived ailments."
               : "Your watchlist is empty."}
           </p>
-          {!search && viewTab === "active" && can("ailments.add") && (
-            <button
-              onClick={() => setShowAdd(true)}
-              className="mt-4 px-5 py-2.5 bg-rhozly-primary text-white rounded-2xl text-sm font-black hover:scale-[1.02] transition-transform"
-            >
-              Add your first entry
-            </button>
+          {!search && viewTab === "active" && (
+            <div className="mt-4 flex flex-col items-center gap-3">
+              <p className="text-xs font-bold text-rhozly-on-surface/30 max-w-xs">Not sure what you're dealing with? Use Plant Doctor to photograph and identify problems.</p>
+              <div className="flex gap-2 flex-wrap justify-center">
+                {can("ailments.add") && (
+                  <button
+                    onClick={() => setShowAdd(true)}
+                    className="px-5 py-2.5 bg-rhozly-primary text-white rounded-2xl text-sm font-black hover:scale-[1.02] transition-transform"
+                  >
+                    Add your first entry
+                  </button>
+                )}
+                <button
+                  onClick={() => navigate("/doctor")}
+                  className="px-5 py-2.5 bg-rhozly-surface text-rhozly-on-surface/60 border border-rhozly-outline/20 rounded-2xl text-sm font-black hover:scale-[1.02] transition-transform"
+                >
+                  Open Plant Doctor
+                </button>
+              </div>
+            </div>
           )}
         </div>
       )}

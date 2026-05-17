@@ -58,6 +58,8 @@ export const EVENT = {
   // Locations / areas
   LOCATION_CREATED:          "location_created",
   AREA_CREATED:              "area_created",
+  // Optimiser
+  TASK_OPTIMISED:            "task_optimised",
 } as const;
 
 export type EventType = typeof EVENT[keyof typeof EVENT];

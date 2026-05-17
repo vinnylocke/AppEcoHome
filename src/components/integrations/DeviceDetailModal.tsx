@@ -13,9 +13,11 @@ interface Props {
   device: Device;
   onClose: () => void;
   onRefresh: () => void;
+  canManage: boolean;
+  canControl: boolean;
 }
 
-export default function DeviceDetailModal({ device, onClose, onRefresh }: Props) {
+export default function DeviceDetailModal({ device, onClose, onRefresh, canManage, canControl }: Props) {
   const [current, setCurrent] = useState<SoilReading | null>(null);
   const [previous, setPrevious] = useState<SoilReading | null>(null);
   const [loading, setLoading] = useState(true);
@@ -53,13 +55,15 @@ export default function DeviceDetailModal({ device, onClose, onRefresh }: Props)
                 {device.provider} · {device.device_type === "soil_sensor" ? "Soil Sensor" : "Water Valve"}
               </p>
             </div>
-            <button
-              onClick={() => setShowSettings(true)}
-              data-testid="device-settings-btn"
-              className="p-2 rounded-xl bg-rhozly-surface text-rhozly-on-surface-variant hover:text-rhozly-on-surface transition-colors"
-            >
-              <Settings size={18} />
-            </button>
+            {canManage && (
+              <button
+                onClick={() => setShowSettings(true)}
+                data-testid="device-settings-btn"
+                className="p-2 rounded-xl bg-rhozly-surface text-rhozly-on-surface-variant hover:text-rhozly-on-surface transition-colors"
+              >
+                <Settings size={18} />
+              </button>
+            )}
             <button
               onClick={onClose}
               data-testid="device-detail-close"
@@ -85,7 +89,7 @@ export default function DeviceDetailModal({ device, onClose, onRefresh }: Props)
             )}
 
             {/* Valve controls */}
-            {device.device_type === "water_valve" && (
+            {device.device_type === "water_valve" && canControl && (
               <section>
                 <ValveControlPanel
                   deviceId={device.id}

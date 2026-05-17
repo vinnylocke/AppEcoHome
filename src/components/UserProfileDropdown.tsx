@@ -11,6 +11,7 @@ import {
   Medal,
   LifeBuoy,
   ClipboardList,
+  Rocket,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
@@ -89,13 +90,13 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
   };
 
   const profileItems: DropdownItem[] = [
-    { testId: "nav-gardener-profile", icon: <Medal size={15} />, label: "Gardener's Profile", path: "/gardener" },
-    { testId: "user-profile-garden-profile", icon: <Sprout size={15} />, label: "Home Profile", path: "/profile" },
+    { testId: "nav-gardener-profile", icon: <Medal size={15} />, label: "Account Settings", path: "/gardener" },
+    { testId: "user-profile-garden-profile", icon: <Sprout size={15} />, label: "Garden Quiz & Preferences", path: "/profile" },
   ];
 
   const managementItems: DropdownItem[] = [
     { testId: "user-profile-location-management", icon: <Wrench size={15} />, label: "Location Management", path: "/management" },
-    { testId: "user-profile-home-management", icon: <Building2 size={15} />, label: "Home Management", path: "/home-management" },
+    { testId: "user-profile-home-management", icon: <Building2 size={15} />, label: "Members & Permissions", path: "/home-management" },
     { testId: "user-profile-task-manager", icon: <Repeat size={15} />, label: "Task Manager", path: "/schedule" },
   ];
   if (canViewAudit) {
@@ -169,6 +170,17 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
             {/* Support */}
             <div className="p-1.5 pb-0">
               <SectionLabel label="Help" />
+              <button
+                data-testid="user-profile-getting-started"
+                onClick={(e) => { e.stopPropagation(); go("/dashboard"); }}
+                className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors group"
+              >
+                <span className="text-rhozly-on-surface/40 group-hover:text-rhozly-primary transition-colors">
+                  <Rocket size={15} />
+                </span>
+                <span className="flex-1 text-left">Getting Started</span>
+                <ChevronRight size={12} className="text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50 transition-colors" />
+              </button>
               <button
                 data-testid="user-profile-contact-support"
                 onClick={(e) => { e.stopPropagation(); setOpen(false); setSupportOpen(true); }}

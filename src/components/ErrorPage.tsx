@@ -25,12 +25,10 @@ export default function ErrorPage({ error, appVersion }: ErrorPageProps) {
     setReportState("sending");
     try {
       const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-      const anonKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
       const res = await fetch(`${supabaseUrl}/functions/v1/report-error`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "apikey": anonKey,
         },
         body: JSON.stringify({
           errorMessage: error?.message ?? "Unknown error",

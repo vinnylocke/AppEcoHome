@@ -74,7 +74,7 @@ serve(async (_req) => {
       db.from("home_members").select("user_id, home_id").in("user_id", userIds),
       itemIds.length
         ? db.from("inventory_items")
-            .select("id, plant_name, nickname, area_name, planted_at, species_id")
+            .select("id, plant_name, nickname, area_id, area_name, planted_at, species_id")
             .in("id", itemIds)
         : Promise.resolve({ data: [] }),
     ]);
@@ -86,7 +86,7 @@ serve(async (_req) => {
 
     const [{ data: homeRows }, { data: speciesRows }] = await Promise.all([
       homeIds.length
-        ? db.from("homes").select("id, address, lat, lng").in("id", homeIds)
+        ? db.from("homes").select("id, country, lat, lng").in("id", homeIds)
         : Promise.resolve({ data: [] }),
       speciesIds.length
         ? db.from("plants").select("id, watering, care_level, cycle").in("id", speciesIds)
@@ -94,11 +94,11 @@ serve(async (_req) => {
     ]);
 
     // Build lookup maps
-    const userHomeMap = new Map<string, { address: string | null; lat: number | null; lng: number | null }>();
+    const userHomeMap = new Map<string, { country: string | null; lat: number | null; lng: number | null }>();
     for (const m of members ?? []) {
       if (!userHomeMap.has(m.user_id)) {
         const home = (homeRows ?? []).find((h: any) => h.id === m.home_id);
-        if (home) userHomeMap.set(m.user_id, { address: home.address, lat: home.lat, lng: home.lng });
+        if (home) userHomeMap.set(m.user_id, { country: home.country, lat: home.lat, lng: home.lng });
       }
     }
 
@@ -190,15 +190,17 @@ serve(async (_req) => {
           .map((e: any) => `${new Date(e.created_at).toISOString().split("T")[0]}: ${e.event_type}`)
           .join("\n");
 
+        const hemisphere = homeInfo?.lat != null
+          ? (homeInfo.lat >= 0 ? "Northern" : "Southern")
+          : null;
+
         const userMessage = [
           `Today's date: ${today}`,
-          homeInfo?.address ? `Location: ${homeInfo.address}` : null,
-          homeInfo?.lat != null
-            ? `Coordinates: lat ${homeInfo.lat.toFixed(2)}, lng ${(homeInfo.lng ?? 0).toFixed(2)}`
-            : null,
+          homeInfo?.country ? `Country: ${homeInfo.country}` : null,
+          hemisphere ? `Hemisphere: ${hemisphere}` : null,
           "",
           `Plant: ${plantName}`,
-          item?.area_name ? `Area: ${item.area_name}` : null,
+          item?.area_id ? `Area ID: ${item.area_id}` : null,
           item?.planted_at
             ? `Planted: ${new Date(item.planted_at).toISOString().split("T")[0]}`
             : "Status: In Shed (not yet planted)",

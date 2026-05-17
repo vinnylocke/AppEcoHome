@@ -22,6 +22,7 @@ const AI_FUNCTIONS = [
   "identify-plant",
   "generate-landscape-plan",
   "generate-guide",
+  "optimise-area-ai",
 ];
 
 export default function AIUsagePanel({ homeId, userId }: Props) {

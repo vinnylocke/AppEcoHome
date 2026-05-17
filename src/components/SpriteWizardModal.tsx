@@ -454,11 +454,14 @@ export default function SpriteWizardModal({ plants, homeId, onComplete, onClose 
         <div className="px-6 py-5 border-b border-rhozly-outline/10 flex items-center justify-between shrink-0">
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
-              Plant {idx + 1} of {plants.length}
+              Choose Plant Icons · {idx + 1} of {plants.length}
             </p>
             <h2 className="text-lg font-black text-rhozly-on-surface leading-tight">
               {plant.common_name}
             </h2>
+            <p className="text-xs font-bold text-rhozly-on-surface/40 mt-0.5">
+              Choose how this plant looks in the visualiser
+            </p>
           </div>
 
           {/* Progress dots */}

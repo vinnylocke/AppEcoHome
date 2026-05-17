@@ -203,8 +203,7 @@ serve(async (req) => {
 
     const userText = `Analyse this garden area image thoroughly.
 
-Area: ${area?.name ?? "Unknown area"} (${isOutside ? "outdoor" : "indoor"})
-Location: ${locationName}
+Area: ${areaId} (${isOutside ? "outdoor" : "indoor"})
 Growing medium: ${area?.growing_medium ?? "unknown"}
 pH: ${area?.medium_ph ?? "unknown"}
 ${luxContext}

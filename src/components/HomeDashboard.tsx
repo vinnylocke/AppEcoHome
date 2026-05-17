@@ -12,6 +12,8 @@ import {
   ChevronUp,
   TrendingUp,
   ChevronRight,
+  MapPin,
+  Calendar,
 } from "lucide-react";
 import { useHomeDashboardStats, type HomeDashboardStats } from "../hooks/useHomeDashboardStats";
 import TaskList from "./TaskList";
@@ -110,7 +112,7 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
           />
           <StatCard
             data-testid="dash-stat-tasks-auto"
-            label="Auto-completed"
+            label="Done automatically"
             value={tasks.autoCompleted}
             onClick={tasks.autoCompleted > 0 ? () => navigate("/schedule?filter=automated") : undefined}
           />
@@ -266,7 +268,7 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
             />
             <StatCard
               data-testid="dash-stat-skipped-rain"
-              label="Skipped by Rain"
+              label="Skipped (rained)"
               value={weather.tasksSkippedByRain}
               onClick={weather.tasksSkippedByRain > 0 ? () => navigate("/schedule?filter=skipped") : undefined}
             />
@@ -353,6 +355,70 @@ function TasksPanel({ homeId }: { homeId: string }) {
   );
 }
 
+function EmptyGardenPanel() {
+  const navigate = useNavigate();
+  const tiles = [
+    {
+      icon: <MapPin size={24} className="text-emerald-600" />,
+      bg: "bg-emerald-50 border-emerald-100",
+      iconBg: "bg-emerald-100",
+      title: "Add a Location",
+      description: "Set up your first garden area — Back Garden, Greenhouse, Balcony, or anywhere you grow.",
+      cta: "Add Location",
+      path: "/management",
+      testId: "empty-home-add-location",
+    },
+    {
+      icon: <Leaf size={24} className="text-teal-600" />,
+      bg: "bg-teal-50 border-teal-100",
+      iconBg: "bg-teal-100",
+      title: "Add Plants to the Shed",
+      description: "Search millions of plants or add your own. Your Shed is where all your plants live.",
+      cta: "Go to Shed",
+      path: "/shed",
+      testId: "empty-home-add-plants",
+    },
+    {
+      icon: <Calendar size={24} className="text-indigo-600" />,
+      bg: "bg-indigo-50 border-indigo-100",
+      iconBg: "bg-indigo-100",
+      title: "Set a Task Schedule",
+      description: "Create recurring reminders for watering, pruning, and harvesting — set once, runs forever.",
+      cta: "Create Schedule",
+      path: "/schedule",
+      testId: "empty-home-add-schedule",
+    },
+  ];
+
+  return (
+    <div className="space-y-4" data-testid="empty-garden-panel">
+      <div className="px-1">
+        <h3 className="font-black text-base text-rhozly-on-surface">Welcome to your garden dashboard</h3>
+        <p className="text-sm text-rhozly-on-surface/50 mt-0.5">Follow these three steps to get your garden set up.</p>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+        {tiles.map((t) => (
+          <button
+            key={t.path}
+            data-testid={t.testId}
+            onClick={() => navigate(t.path)}
+            className={`flex flex-col gap-3 p-4 rounded-2xl border text-left transition-all hover:shadow-md active:scale-[0.98] ${t.bg}`}
+          >
+            <div className={`w-10 h-10 rounded-xl flex items-center justify-center ${t.iconBg}`}>
+              {t.icon}
+            </div>
+            <div>
+              <p className="font-black text-sm text-rhozly-on-surface leading-tight">{t.title}</p>
+              <p className="text-[11px] text-rhozly-on-surface/55 mt-1 leading-snug">{t.description}</p>
+            </div>
+            <span className="text-xs font-black text-rhozly-primary mt-auto">{t.cta} →</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function formatWeekRange(weekStart: string | null, weekEnd: string | null): string {
   if (!weekStart || !weekEnd) return "";
   const fmt = (iso: string) =>
@@ -418,12 +484,15 @@ export default function HomeDashboard({ homeId }: Props) {
               <div className="space-y-2">
                 <div className="h-4 w-32 bg-rhozly-surface-low animate-pulse rounded-full" />
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}
-                </div>
+                  {Array.from({ length: 6 }).map((_, i) => <SkeletonCard key={i} />)}</div>
               </div>
             </div>
           ) : stats ? (
-            <StatsPanel stats={stats} homeId={homeId} />
+            stats.garden.totalPlants === 0 ? (
+              <EmptyGardenPanel />
+            ) : (
+              <StatsPanel stats={stats} homeId={homeId} />
+            )
           ) : !error ? (
             <div className="flex items-center justify-center py-20 text-rhozly-on-surface/30 text-sm font-bold">
               No data available yet.

@@ -70,6 +70,14 @@ export default function GuideList() {
     }
   }, [activeGuide?.id]);
 
+  const [showGuideBanner, setShowGuideBanner] = useState(() => {
+    try { return !localStorage.getItem("rhozly_guides_visited"); } catch { return false; }
+  });
+  const dismissGuideBanner = () => {
+    try { localStorage.setItem("rhozly_guides_visited", "1"); } catch { /* ignore */ }
+    setShowGuideBanner(false);
+  };
+
   // Reading section progress via nearest scrollable ancestor
   const [readProgress, setReadProgress] = useState(0);
   const readViewRef = useRef<HTMLDivElement>(null);
@@ -153,7 +161,7 @@ export default function GuideList() {
   }, [allLabels, labelSearchQuery]);
 
   const filteredGuides = useMemo(() => {
-    return guides.filter((g) => {
+    const results = guides.filter((g) => {
       const title = g.data.title?.toLowerCase() || "";
       const subtitle = g.data.subtitle?.toLowerCase() || "";
       const query = searchQuery.toLowerCase();
@@ -163,6 +171,12 @@ export default function GuideList() {
         selectedLabel === "All" || g.labels?.includes(selectedLabel);
 
       return matchesSearch && matchesLabel;
+    });
+    // Pin "Getting Started" guide always first regardless of sort
+    return results.sort((a, b) => {
+      const aStarter = a.data.title?.toLowerCase().includes("getting started") ? -1 : 0;
+      const bStarter = b.data.title?.toLowerCase().includes("getting started") ? -1 : 0;
+      return aStarter - bStarter;
     });
   }, [guides, searchQuery, selectedLabel]);
 
@@ -352,7 +366,7 @@ export default function GuideList() {
   return (
     <div className="pb-32 animate-in fade-in duration-500">
       {/* Tab bar */}
-      <div className="flex gap-1 mb-8">
+      <div className="flex gap-1 overflow-x-auto mb-8">
         {GUIDE_TABS.map((tab) => {
           const isActive = activeTab === tab.id;
           const count = tab.id === "rhozly" && !isLoading ? filteredGuides.length : null;
@@ -361,7 +375,7 @@ export default function GuideList() {
               key={tab.id}
               data-testid={tab.testid}
               onClick={() => setActiveTab(tab.id)}
-              className={`px-5 py-3 min-h-[44px] rounded-xl text-xs uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 ${
+              className={`shrink-0 px-4 py-3 min-h-[44px] rounded-xl text-xs uppercase tracking-widest transition-all border-b-2 flex items-center gap-2 ${
                 isActive
                   ? "font-black text-rhozly-primary border-rhozly-primary bg-rhozly-surface-low"
                   : "font-bold text-rhozly-on-surface/40 border-transparent hover:text-rhozly-on-surface/70 hover:bg-rhozly-surface-low"
@@ -399,7 +413,7 @@ export default function GuideList() {
           Rhozly Guides
         </h2>
         <p className="text-xs font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-          Learn & Grow
+          Guides Library
         </p>
       </div>
 
@@ -550,6 +564,39 @@ export default function GuideList() {
           )}
         </div>
       </div>
+
+      {/* First-visit banner */}
+      {showGuideBanner && activeTab === "rhozly" && !isLoading && !fetchError && (
+        <div className="flex items-center justify-between gap-3 bg-emerald-50 border border-emerald-200 rounded-2xl px-4 py-3 mb-6">
+          <div className="flex items-center gap-3 min-w-0">
+            <BookOpen size={18} className="text-emerald-600 shrink-0" />
+            <div className="min-w-0">
+              <p className="text-sm font-black text-emerald-800">New to gardening apps?</p>
+              <p className="text-xs font-bold text-emerald-600">Read our Getting Started guide first — it covers everything you need to know.</p>
+            </div>
+          </div>
+          {filteredGuides.find(g => g.data.title?.toLowerCase().includes("getting started")) && (
+            <button
+              data-testid="guide-banner-open-getting-started"
+              onClick={() => {
+                const g = filteredGuides.find(g => g.data.title?.toLowerCase().includes("getting started"));
+                if (g) { setActiveGuide(g); dismissGuideBanner(); }
+              }}
+              className="shrink-0 px-3 py-1.5 bg-emerald-600 text-white text-xs font-black rounded-xl hover:bg-emerald-700 transition-colors whitespace-nowrap"
+            >
+              Open Guide
+            </button>
+          )}
+          <button
+            data-testid="guide-banner-dismiss"
+            onClick={dismissGuideBanner}
+            className="shrink-0 p-1 text-emerald-500 hover:text-emerald-700 transition-colors"
+            aria-label="Dismiss banner"
+          >
+            <X size={16} />
+          </button>
+        </div>
+      )}
 
       {/* Guide Grid */}
       {isLoading ? (

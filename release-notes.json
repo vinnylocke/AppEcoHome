@@ -1,9 +1,1 @@
-[
-  {
-    "label": "Home Members display",
-    "items": [
-      "Member names in the Home Management screen no longer get cut off on mobile",
-      "Name, email and role controls now stack cleanly on smaller screens"
-    ]
-  }
-]
+[]

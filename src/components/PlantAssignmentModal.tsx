@@ -14,6 +14,7 @@ import {
   Lock,
 } from "lucide-react";
 import { IconGrowth, IconAI } from "../constants/icons";
+import InfoTooltip from "./InfoTooltip";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
@@ -466,13 +467,13 @@ export default function PlantAssignmentModal({
                       className="mx-auto text-rhozly-primary mb-3"
                       size={32}
                     />
-                    <h4 className="text-sm font-black text-rhozly-on-surface uppercase tracking-widest mb-2">
+                    <h4 className="text-sm font-black text-rhozly-on-surface uppercase tracking-widest mb-1">
                       Smart Schedule
+                      <span className="ml-2 normal-case tracking-normal text-[10px] font-medium text-rhozly-on-surface/30">(Optional)</span>
                     </h4>
                     <p className="text-xs font-bold text-rhozly-on-surface/60 mb-6 leading-relaxed">
-                      Use AI and a live 14-day weather forecast to determine the
-                      best propagation methods and perfect days to plant this{" "}
-                      {plant.common_name}.
+                      Rhozly AI uses a live 14-day weather forecast to suggest the best planting days and care schedule for{" "}
+                      {plant.common_name}. Skip this if you just want to add the plant now.
                     </p>
                     <button
                       onClick={handleSmartSchedule}
@@ -620,6 +621,7 @@ export default function PlantAssignmentModal({
                       <span className="text-[9px] tracking-widest text-rhozly-primary">
                         Already Established?
                       </span>
+                      <InfoTooltip content="Tick if the plant has been in the ground for more than one growing season. Leave unticked if it's new." size={11} />
                     </label>
                   </label>
                   {!formData.isEstablished ? (
@@ -646,6 +648,8 @@ export default function PlantAssignmentModal({
                 <div className="space-y-3">
                   <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
                     <IconGrowth size={14} /> Current Growth State
+                    <span className="normal-case tracking-normal font-medium text-rhozly-on-surface/30">(Optional)</span>
+                    <InfoTooltip content="Is this a seedling, young plant, or fully grown? Leave as Vegetative if you're not sure — you can update it later." />
                   </label>
                   <select
                     value={formData.growthState}

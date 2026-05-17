@@ -24,9 +24,11 @@ export interface AutomationFull {
 
 interface Props {
   homeId: string;
+  canManage: boolean;
+  canRun: boolean;
 }
 
-export default function AutomationsSection({ homeId }: Props) {
+export default function AutomationsSection({ homeId, canManage, canRun }: Props) {
   const [automations, setAutomations] = useState<AutomationFull[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
@@ -137,14 +139,16 @@ export default function AutomationsSection({ homeId }: Props) {
             <p className="text-xs text-rhozly-on-surface-variant">Schedule valves to run automatically</p>
           </div>
         </div>
-        <button
-          onClick={openNew}
-          data-testid="automation-new"
-          className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rhozly-primary text-white text-xs font-bold hover:bg-rhozly-primary/90 transition-colors shrink-0"
-        >
-          <Plus size={14} />
-          New automation
-        </button>
+        {canManage && (
+          <button
+            onClick={openNew}
+            data-testid="automation-new"
+            className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-rhozly-primary text-white text-xs font-bold hover:bg-rhozly-primary/90 transition-colors shrink-0"
+          >
+            <Plus size={14} />
+            New automation
+          </button>
+        )}
       </div>
 
       {loading ? (
@@ -152,7 +156,7 @@ export default function AutomationsSection({ homeId }: Props) {
           <Loader2 size={20} className="animate-spin text-rhozly-on-surface-variant" />
         </div>
       ) : automations.length === 0 ? (
-        <AutomationsEmptyState onNew={openNew} />
+        <AutomationsEmptyState onNew={canManage ? openNew : undefined} />
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
           {automations.map((a) => (
@@ -161,6 +165,8 @@ export default function AutomationsSection({ homeId }: Props) {
               automation={a}
               onEdit={() => openEdit(a)}
               onDeleted={() => handleDeleted(a.id)}
+              canManage={canManage}
+              canRun={canRun}
             />
           ))}
         </div>
@@ -178,7 +184,7 @@ export default function AutomationsSection({ homeId }: Props) {
   );
 }
 
-function AutomationsEmptyState({ onNew }: { onNew: () => void }) {
+function AutomationsEmptyState({ onNew }: { onNew?: () => void }) {
   return (
     <div className="flex flex-col items-center justify-center text-center py-12 px-6 rounded-3xl border border-dashed border-rhozly-outline/30 bg-rhozly-surface-lowest">
       <div className="w-12 h-12 rounded-2xl bg-rhozly-primary/10 flex items-center justify-center mb-3">
@@ -188,14 +194,16 @@ function AutomationsEmptyState({ onNew }: { onNew: () => void }) {
       <p className="text-xs text-rhozly-on-surface-variant max-w-xs mb-4">
         Set up a schedule to automatically water your garden when tasks are due.
       </p>
-      <button
-        onClick={onNew}
-        data-testid="automation-empty-new"
-        className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rhozly-primary text-white text-xs font-bold hover:bg-rhozly-primary/90 transition-colors"
-      >
-        <Plus size={14} />
-        Create your first automation
-      </button>
+      {onNew && (
+        <button
+          onClick={onNew}
+          data-testid="automation-empty-new"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-rhozly-primary text-white text-xs font-bold hover:bg-rhozly-primary/90 transition-colors"
+        >
+          <Plus size={14} />
+          Create your first automation
+        </button>
+      )}
     </div>
   );
 }
