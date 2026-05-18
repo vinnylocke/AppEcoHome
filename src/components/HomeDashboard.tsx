@@ -172,7 +172,13 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           {dayStrip.map((day, idx) => {
             const label = DAY_LABELS[idx] ?? day.date.slice(5, 10);
-            const pending = day.total - day.completed;
+            // Colour tokens: on-green (today card) vs normal background
+            const buckets = [
+              { count: day.overdue,        normalCls: "text-red-600",    todayCls: "text-red-200"    },
+              { count: day.completedLate,  normalCls: "text-orange-500", todayCls: "text-orange-200" },
+              { count: day.completedOnTime,normalCls: "text-emerald-600",todayCls: "text-emerald-200"},
+              { count: day.pending,        normalCls: "text-rhozly-on-surface", todayCls: "text-white" },
+            ].filter((b) => b.count > 0);
             return (
               <button
                 key={day.date}
@@ -182,18 +188,31 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
                   day.isToday
                     ? "bg-rhozly-primary text-white border-rhozly-primary shadow-md"
                     : day.isPast
-                    ? "bg-rhozly-surface-low border-rhozly-outline/10 opacity-60"
+                    ? "bg-rhozly-surface-low border-rhozly-outline/10 opacity-70"
                     : "bg-rhozly-surface-low border-rhozly-outline/10 hover:border-rhozly-primary/30"
                 }`}
               >
                 <span className={`text-[10px] font-bold uppercase tracking-widest ${day.isToday ? "text-white/80" : "text-rhozly-on-surface/40"}`}>
                   {label}
                 </span>
-                <span className={`text-lg font-black leading-none ${day.isToday ? "text-white" : "text-rhozly-on-surface"}`}>
-                  {day.isPast ? day.completed : pending || day.total}
-                </span>
+                {day.total === 0 ? (
+                  <span className={`text-lg font-black leading-none ${day.isToday ? "text-white/40" : "text-rhozly-on-surface/25"}`}>
+                    —
+                  </span>
+                ) : (
+                  <div className="flex items-baseline gap-0.5 leading-none flex-wrap justify-center">
+                    {buckets.map((b, i) => (
+                      <span
+                        key={i}
+                        className={`text-lg font-black leading-none ${day.isToday ? b.todayCls : b.normalCls}`}
+                      >
+                        {b.count}
+                      </span>
+                    ))}
+                  </div>
+                )}
                 <span className={`text-[9px] font-bold ${day.isToday ? "text-white/70" : "text-rhozly-on-surface/40"}`}>
-                  {day.isPast ? `of ${day.total}` : "tasks"}
+                  {day.total === 1 ? "1 task" : `${day.total} tasks`}
                 </span>
               </button>
             );

@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
       // 1. Tasks this week — all relevant columns for grouping
       db
         .from("tasks")
-        .select("id, status, type, due_date, completed_by, auto_completed_reason")
+        .select("id, status, type, due_date, completed_by, auto_completed_reason, completed_at")
         .eq("home_id", homeId)
         .gte("due_date", weekStart)
         .lte("due_date", weekEnd),
@@ -297,7 +297,10 @@ Deno.serve(async (req) => {
     const dayStrip: Array<{
       date: string;
       total: number;
-      completed: number;
+      completedOnTime: number;
+      completedLate: number;
+      overdue: number;
+      pending: number;
       isPast: boolean;
       isToday: boolean;
     }> = [];
@@ -306,10 +309,25 @@ Deno.serve(async (req) => {
     while (stripDay <= stripEnd) {
       const ds = stripDay.toISOString().slice(0, 10);
       const dayTasks = tasks.filter((t) => t.due_date.slice(0, 10) === ds);
+      const completedOnTime = dayTasks.filter(
+        (t) => t.status === "Completed" && t.completed_at != null && t.completed_at.slice(0, 10) <= ds,
+      ).length;
+      const completedLate = dayTasks.filter(
+        (t) => t.status === "Completed" && (t.completed_at == null || t.completed_at.slice(0, 10) > ds),
+      ).length;
+      const overdue = dayTasks.filter(
+        (t) => t.status !== "Completed" && ds < today,
+      ).length;
+      const pending = dayTasks.filter(
+        (t) => t.status !== "Completed" && ds >= today,
+      ).length;
       dayStrip.push({
         date: ds,
         total: dayTasks.length,
-        completed: dayTasks.filter((t) => t.status === "Completed").length,
+        completedOnTime,
+        completedLate,
+        overdue,
+        pending,
         isPast: ds < today,
         isToday: ds === today,
       });

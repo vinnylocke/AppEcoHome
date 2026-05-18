@@ -10,7 +10,10 @@ export interface MemberStat {
 export interface DayStrip {
   date: string;
   total: number;
-  completed: number;
+  completedOnTime: number;
+  completedLate: number;
+  overdue: number;
+  pending: number;
   isPast: boolean;
   isToday: boolean;
 }
