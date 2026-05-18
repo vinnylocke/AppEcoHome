@@ -5,6 +5,14 @@ import {
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
+import PlantSourcePicker from "./PlantSourcePicker";
+import BulkSearchModal from "./BulkSearchModal";
+import { PerenualService } from "../lib/perenualService";
+import { VerdantlyService } from "../lib/verdantlyService";
+import { PlantDoctorService } from "../services/plantDoctorService";
+import { derivePlantLabels } from "../lib/plantLabels";
+import { buildAutoSeasonalSchedules, getHemisphere, normalizePeriods } from "../lib/seasonal";
+import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
 
 interface CompanionPlant {
   id: string | null;
@@ -32,6 +40,7 @@ interface Props {
   plantName: string;
   homeId: string;
   aiEnabled: boolean;
+  isPremium: boolean;
   onPlantsAdded?: () => void;
 }
 
@@ -213,6 +222,7 @@ export default function CompanionPlantsTab({
   plantName,
   homeId,
   aiEnabled,
+  isPremium,
   onPlantsAdded,
 }: Props) {
   const [companions, setCompanions] = useState<CompanionResult | null>(null);
@@ -220,7 +230,10 @@ export default function CompanionPlantsTab({
   const [error, setError] = useState<"ai_required" | "fetch_failed" | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
-  const [adding, setAdding] = useState(false);
+  const [showSourcePicker, setShowSourcePicker] = useState(false);
+  const [pickerSelections, setPickerSelections] = useState<{ type: "api" | "ai" | "verdantly"; data: any }[]>([]);
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [isBulkAdding, setIsBulkAdding] = useState(false);
 
   const fetchCompanions = useCallback(async () => {
     setLoading(true);
@@ -266,90 +279,152 @@ export default function CompanionPlantsTab({
     return map;
   }, [companions]);
 
-  const handleAddToShed = async () => {
+  const fetchImageFallback = async (name: string): Promise<string> => {
+    const [wiki, pixabay] = await Promise.all([
+      searchWikimediaImages(name).catch(() => []),
+      searchPixabayImages(name).catch(() => []),
+    ]);
+    return (wiki[0] as any)?.thumbUrl || (pixabay[0] as any)?.thumbUrl || "";
+  };
+
+  const saveToShed = async (skeleton: any, fullCareData?: any) => {
+    const id = Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
+    skeleton.id = id;
+    skeleton.home_id = homeId;
+    if (skeleton.source === "api" || skeleton.source === "ai" || skeleton.source === "verdantly") {
+      skeleton.labels = derivePlantLabels(fullCareData ?? {});
+      if (!skeleton.sunlight && fullCareData?.sunlight?.length) skeleton.sunlight = fullCareData.sunlight;
+    }
+    const { data: saved, error: insertErr } = await supabase.from("plants").insert([skeleton]).select().single();
+    if (insertErr) throw insertErr;
+    const { data: homeData } = await supabase.from("homes").select("country, timezone").eq("id", homeId).single();
+    const hemisphere = getHemisphere(homeData?.country, homeData?.timezone);
+    const schedules = buildAutoSeasonalSchedules({
+      plantId: saved.id, homeId, hemisphere,
+      harvestPeriods: normalizePeriods(fullCareData?.harvest_season || skeleton.harvest_season),
+      pruningPeriods: normalizePeriods(fullCareData?.pruning_month || skeleton.pruning_month),
+      wateringMinDays: fullCareData?.watering_min_days || skeleton?.watering_min_days || 3,
+      wateringMaxDays: fullCareData?.watering_max_days || skeleton?.watering_max_days || 14,
+    });
+    if (schedules.length > 0) await supabase.from("plant_schedules").insert(schedules);
+    const harvestMeta = (fullCareData as any)?.plant_metadata ?? skeleton.plant_metadata;
+    if (harvestMeta?.harvest_days_min && skeleton.source === "verdantly") {
+      await supabase.from("plant_schedules").insert({
+        plant_id: saved.id, home_id: homeId, title: "Check for harvest", task_type: "Harvest",
+        trigger_event: "Planted", start_reference: "Trigger Date",
+        start_offset_days: harvestMeta.harvest_days_min, end_reference: "Trigger Date",
+        end_offset_days: harvestMeta.harvest_days_max ?? harvestMeta.harvest_days_min,
+        frequency_days: 1, is_recurring: true, is_auto_generated: true,
+      });
+    }
+    return saved;
+  };
+
+  const handleOpenSourcePicker = () => {
     if (checked.size === 0) return;
-    setAdding(true);
+    setShowSourcePicker(true);
+  };
 
-    const selectedPlants = Array.from(checked).map((k) => allCompanions.get(k)).filter(Boolean) as CompanionPlant[];
+  const handleSourcePickerConfirm = (items: { type: "api" | "ai" | "verdantly"; data: any }[]) => {
+    setPickerSelections(items);
+    setShowSourcePicker(false);
+    setShowBulkModal(true);
+  };
 
-    try {
-      const verdantlyIds = selectedPlants.filter((p) => p.id).map((p) => p.id as string);
-      const aiNames = selectedPlants.filter((p) => !p.id).map((p) => p.name);
+  const handleBulkAdd = async (items: { type: "api" | "ai" | "verdantly"; data: any; preloadedDetails?: any }[]) => {
+    setShowBulkModal(false);
+    if (!items.length) return;
+    setIsBulkAdding(true);
+    let addedCount = 0;
+    let skippedCount = 0;
 
-      const alreadyInShed = new Set<string>();
-
-      if (verdantlyIds.length > 0) {
-        const { data: existing } = await supabase.from("plants").select("verdantly_id").eq("home_id", homeId).in("verdantly_id", verdantlyIds);
-        (existing ?? []).forEach((r: any) => { if (r.verdantly_id) alreadyInShed.add(r.verdantly_id); });
-      }
-      if (aiNames.length > 0) {
-        const { data: existing } = await supabase.from("plants").select("common_name").eq("home_id", homeId).in("common_name", aiNames);
-        (existing ?? []).forEach((r: any) => { if (r.common_name) alreadyInShed.add(`ai-${r.common_name}`); });
-      }
-
-      const toAdd = selectedPlants.filter((p) => !alreadyInShed.has(p.id ?? `ai-${p.name}`));
-      const skippedCount = selectedPlants.length - toAdd.length;
-
-      if (toAdd.length === 0) {
-        toast(`All selected plants are already in your Shed`, { icon: "🌿" });
-        return;
-      }
-
-      const manualId = () => Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 10000);
-      let addedCount = 0;
-
-      for (const plant of toAdd) {
-        if (plant.id) {
-          try {
-            const { data: details } = await supabase.functions.invoke("verdantly-search", { body: { action: "details", id: plant.id } });
-            if (details && !details.error) {
-              await supabase.from("plants").insert([{
-                id: manualId(), home_id: homeId,
-                common_name: details.common_name ?? plant.name,
-                scientific_name: details.scientific_name ?? [],
-                source: "verdantly", verdantly_id: plant.id,
-                thumbnail_url: details.image_url ?? details.thumbnail_url ?? null,
-                image_url: details.image_url ?? null,
-                watering: details.watering ?? null,
-                watering_min_days: details.watering_min_days ?? null,
-                watering_max_days: details.watering_max_days ?? null,
-                sunlight: details.sunlight ?? [],
-                care_level: details.care_level ?? null,
-                cycle: details.cycle ?? null,
-                is_edible: details.is_edible ?? false,
-                is_toxic_pets: details.is_toxic_pets ?? false,
-                is_toxic_humans: details.is_toxic_humans ?? false,
-                growth_habit: details.growth_habit ?? null,
-                days_to_harvest_min: details.days_to_harvest_min ?? null,
-                days_to_harvest_max: details.days_to_harvest_max ?? null,
-                soil_ph_min: details.soil_ph_min ?? null,
-                soil_ph_max: details.soil_ph_max ?? null,
-                planting_instructions: details.planting_instructions ?? null,
-              }]);
-              addedCount++;
-            } else {
-              await supabase.from("plants").insert([{ id: manualId(), home_id: homeId, common_name: plant.name, scientific_name: plant.scientificName ? [plant.scientificName] : [], source: "verdantly", verdantly_id: plant.id }]);
-              addedCount++;
-            }
-          } catch { /* skip */ }
+    for (const item of items) {
+      try {
+        if (item.type === "api") {
+          let pId: string, details: any, defaultImage: any;
+          if (typeof item.data === "string") {
+            const res = await PerenualService.searchPlants(item.data);
+            if (!res?.length) throw new Error("No match found");
+            pId = String(res[0].id); defaultImage = res[0].default_image;
+            details = await PerenualService.getPlantDetails(res[0].id);
+          } else {
+            pId = String(item.data.id); defaultImage = item.data.default_image;
+            details = await PerenualService.getPlantDetails(item.data.id);
+          }
+          const { data: ex } = await supabase.from("plants").select("id").eq("home_id", homeId).eq("perenual_id", pId).maybeSingle();
+          if (ex) { skippedCount++; continue; }
+          let img = details.image_url || details.thumbnail_url || defaultImage?.original_url || defaultImage?.regular_url || defaultImage?.thumbnail || "";
+          if (img.includes("upgrade_access")) img = "";
+          if (img) {
+            const { data: proxy, error: pe } = await supabase.functions.invoke("image-proxy", { body: { imageUrl: img, plantName: details.common_name } });
+            if (!pe && proxy?.publicUrl) img = proxy.publicUrl.includes("kong:8000") ? proxy.publicUrl.replace("http://kong:8000", "http://127.0.0.1:54321") : proxy.publicUrl;
+          }
+          await saveToShed({ common_name: details.common_name, scientific_name: details.scientific_name, thumbnail_url: img, source: "api", perenual_id: pId }, details);
+          addedCount++;
+        } else if (item.type === "verdantly") {
+          const vId = item.data.verdantly_id ?? String(item.data.id);
+          const { data: ex } = await supabase.from("plants").select("id").eq("home_id", homeId).eq("verdantly_id", vId).maybeSingle();
+          if (ex) { skippedCount++; continue; }
+          const details = await VerdantlyService.getPlantDetails(vId);
+          let img = details.image_url || details.thumbnail_url || "";
+          if (img.includes("upgrade_access")) img = "";
+          if (img) {
+            const { data: proxy, error: pe } = await supabase.functions.invoke("image-proxy", { body: { imageUrl: img, plantName: details.common_name } });
+            if (!pe && proxy?.publicUrl) img = proxy.publicUrl.includes("kong:8000") ? proxy.publicUrl.replace("http://kong:8000", "http://127.0.0.1:54321") : proxy.publicUrl;
+          }
+          if (!img) img = await fetchImageFallback(item.data.common_name ?? "");
+          await saveToShed({ common_name: details.common_name, scientific_name: details.scientific_name, thumbnail_url: img, source: "verdantly", verdantly_id: vId, perenual_id: null, plant_metadata: (details as any).plant_metadata ?? null }, details);
+          addedCount++;
         } else {
-          await supabase.from("plants").insert([{ id: manualId(), home_id: homeId, common_name: plant.name, scientific_name: plant.scientificName ? [plant.scientificName] : [], source: "manual" }]);
+          const cleanName = typeof item.data === "string" ? item.data.split("(")[0].trim() : item.data.common_name;
+          const { data: ex } = await supabase.from("plants").select("id").eq("home_id", homeId).ilike("common_name", cleanName).limit(1);
+          if (ex?.length) { skippedCount++; continue; }
+          let extracted: any;
+          if ((item as any).preloadedDetails) {
+            const pd = (item as any).preloadedDetails;
+            extracted = { ...pd, common_name: pd.common_name ?? cleanName };
+          } else {
+            const ai = await PlantDoctorService.generateCareGuide(cleanName);
+            if (!ai) throw new Error("AI failed");
+            extracted = ai.plantData ?? ai;
+            if (!extracted.common_name) extracted.common_name = cleanName;
+          }
+          let img = extracted.thumbnail_url || "";
+          if (img.includes("kong:8000")) img = img.replace("http://kong:8000", "http://127.0.0.1:54321");
+          if (!img) img = await fetchImageFallback(cleanName);
+          extracted.thumbnail_url = img;
+          await saveToShed({ ...extracted, source: "ai", perenual_id: null }, extracted);
           addedCount++;
         }
+      } catch {
+        skippedCount++;
       }
+    }
 
-      if (addedCount > 0) {
-        const msg = skippedCount > 0
-          ? `${addedCount} companion${addedCount !== 1 ? "s" : ""} added to your Shed (${skippedCount} already there)`
-          : `${addedCount} companion${addedCount !== 1 ? "s" : ""} added to your Shed`;
-        toast.success(msg);
-        setChecked(new Set());
-        onPlantsAdded?.();
-      }
+    setIsBulkAdding(false);
+    setChecked(new Set());
+    onPlantsAdded?.();
+
+    if (addedCount > 0 && skippedCount === 0) {
+      toast.success(`${addedCount} plant${addedCount !== 1 ? "s" : ""} added to your Shed`);
+    } else if (addedCount > 0) {
+      toast.success(`${addedCount} added, ${skippedCount} skipped`);
+    } else {
+      toast(`Could not add plants — they may already be in your Shed`, { icon: "🌿" });
+    }
+  };
+
+  const handleManualSave = async (plantData: any) => {
+    setShowBulkModal(false);
+    setIsBulkAdding(true);
+    try {
+      await saveToShed({ ...plantData, source: "manual", perenual_id: null }, plantData);
+      toast.success(`${plantData.common_name} added to your Shed`);
+      onPlantsAdded?.();
     } catch {
-      toast.error("Failed to add companions to Shed.");
+      toast.error("Failed to add plant to Shed.");
     } finally {
-      setAdding(false);
+      setIsBulkAdding(false);
     }
   };
 
@@ -447,14 +522,45 @@ export default function CompanionPlantsTab({
         <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-[80] animate-in slide-in-from-bottom-3 duration-200">
           <button
             data-testid="companion-add-to-shed"
-            onClick={handleAddToShed}
-            disabled={adding}
-            className="flex items-center gap-2 px-6 py-3.5 min-h-[48px] bg-rhozly-primary text-white text-sm font-black rounded-2xl shadow-xl hover:opacity-90 disabled:opacity-60 transition-opacity"
+            onClick={handleOpenSourcePicker}
+            className="flex items-center gap-2 px-6 py-3.5 min-h-[48px] bg-rhozly-primary text-white text-sm font-black rounded-2xl shadow-xl hover:opacity-90 transition-opacity"
           >
-            {adding ? <Loader2 size={16} className="animate-spin" /> : <Plus size={16} />}
+            <Plus size={16} />
             Add {checked.size} to Shed
           </button>
         </div>
+      )}
+
+      {isBulkAdding && (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-black/40">
+          <div className="flex items-center gap-3 bg-rhozly-surface rounded-2xl px-6 py-4 shadow-2xl">
+            <Loader2 size={20} className="animate-spin text-rhozly-primary" />
+            <span className="text-sm font-black text-rhozly-on-surface">Adding plants…</span>
+          </div>
+        </div>
+      )}
+
+      {showSourcePicker && (
+        <PlantSourcePicker
+          plants={Array.from(checked).map((k) => allCompanions.get(k)?.name ?? k)}
+          isPremium={isPremium}
+          isAiEnabled={aiEnabled}
+          homeId={homeId}
+          onConfirm={handleSourcePickerConfirm}
+          onClose={() => setShowSourcePicker(false)}
+        />
+      )}
+
+      {showBulkModal && (
+        <BulkSearchModal
+          homeId={homeId}
+          isPremium={isPremium}
+          isAiEnabled={aiEnabled}
+          initialCartItems={pickerSelections}
+          onProceedToBulkAdd={handleBulkAdd}
+          onManualSave={handleManualSave}
+          onClose={() => setShowBulkModal(false)}
+        />
       )}
     </div>
   );

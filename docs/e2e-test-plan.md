@@ -1105,5 +1105,5 @@ Edge function mock via `mockEdgeFunction(page, "companion-planting", ...)`.
 
 | ID | ✅/❌ | Description | Assertions | Status |
 |----|------|-------------|------------|--------|
-| CPT-006 | ✅ | Add to Shed button appears when a companion is checked | click `companion-plant-verd-123` → `companion-add-to-shed` visible | ✅ Passing |
+| CPT-006 | ✅ | Add to Shed button appears when a companion is checked; clicking opens PlantSourcePicker | click `companion-plant-verd-123` → `companion-add-to-shed` visible | ✅ Passing |
 | CPT-007 | ✅ | ai_required response shows upgrade message | mock returns `{ error: "ai_required" }` → "AI Add-on Required" text visible | ✅ Passing |

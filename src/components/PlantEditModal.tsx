@@ -21,6 +21,7 @@ interface PlantEditModalProps {
   onClose: () => void;
   isSaving?: boolean;
   aiEnabled?: boolean;
+  isPremium?: boolean;
 }
 
 export default function PlantEditModal({
@@ -30,6 +31,7 @@ export default function PlantEditModal({
   onClose,
   isSaving,
   aiEnabled = false,
+  isPremium = false,
 }: PlantEditModalProps) {
   // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
@@ -239,6 +241,7 @@ export default function PlantEditModal({
                 plantName={plant.common_name}
                 homeId={homeId}
                 aiEnabled={aiEnabled}
+                isPremium={isPremium}
               />
             </div>
           )}

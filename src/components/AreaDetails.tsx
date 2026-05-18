@@ -56,6 +56,7 @@ interface AreaDetailsProps {
   onTasksUpdated?: () => void;
   onAreaUpdated?: () => void;
   aiEnabled?: boolean;
+  perenualEnabled?: boolean;
 }
 
 export default function AreaDetails({
@@ -66,6 +67,7 @@ export default function AreaDetails({
   onTasksUpdated,
   onAreaUpdated,
   aiEnabled = false,
+  perenualEnabled = false,
 }: AreaDetailsProps) {
   const { setPageContext, preferences } = usePlantDoctor();
   const navigate = useNavigate();
@@ -892,6 +894,7 @@ export default function AreaDetails({
                 instance={editingInstance}
                 currentAreaId={area.id}
                 aiEnabled={aiEnabled}
+                isPremium={perenualEnabled}
                 onClose={() => {
                   setEditingInstance(null);
                   navigate(`/dashboard?locationId=${searchParams.get("locationId")}&areaId=${searchParams.get("areaId")}`);

@@ -54,6 +54,7 @@ interface InstanceEditModalProps {
   onUpdate: (payload: any) => void;
   onTasksUpdated?: () => void;
   aiEnabled?: boolean;
+  isPremium?: boolean;
 }
 
 export default function InstanceEditModal({
@@ -64,6 +65,7 @@ export default function InstanceEditModal({
   onUpdate,
   onTasksUpdated,
   aiEnabled = false,
+  isPremium = false,
 }: InstanceEditModalProps) {
   const { setPageContext } = usePlantDoctor();
 
@@ -632,6 +634,7 @@ export default function InstanceEditModal({
                 plantName={companionPlantRecord.common_name ?? instance.plant_name}
                 homeId={homeId}
                 aiEnabled={aiEnabled}
+                isPremium={isPremium}
               />
             ) : (
               <div className="flex items-center justify-center py-16">

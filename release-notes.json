@@ -1,14 +1,3 @@
 [
-  {
-    "label": "Fixed",
-    "items": [
-      "Companion plant names now display correctly for Verdantly plants"
-    ]
-  },
-  {
-    "label": "Improved",
-    "items": [
-      "Companion plants now show images and relationship description when you tap the info icon"
-    ]
-  }
+  { "label": "Improved", "items": ["Companion plants now uses the full search modal when adding to Shed — search Perenual, Verdantly, and AI results and pick the exact variant you want"] }
 ]

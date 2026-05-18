@@ -57,6 +57,9 @@ import { useReleaseNotes } from "./hooks/useReleaseNotes";
 import HelpCenter from "./onboarding/HelpCenter";
 import GettingStartedChecklist from "./components/GettingStartedChecklist";
 import type { OnboardingState } from "./onboarding/types";
+import { BetaFeedbackProvider } from "./context/BetaFeedbackContext";
+import BetaFeedbackSheet from "./components/BetaFeedbackSheet";
+import BetaFeedbackBanner from "./components/BetaFeedbackBanner";
 
 // Heavy route components — lazy loaded so they don't bloat the initial bundle
 const HomeDashboard       = lazy(() => import("./components/HomeDashboard"));
@@ -464,7 +467,7 @@ function AppShell() {
     const [profileResult, membershipsResult] = await Promise.all([
       supabase
         .from("user_profiles")
-        .select("uid, home_id, display_name, first_name, last_name, subscription_tier, ai_enabled, enable_perenual, is_admin, onboarding_state, can_view_audit")
+        .select("uid, home_id, display_name, first_name, last_name, subscription_tier, ai_enabled, enable_perenual, is_admin, onboarding_state, can_view_audit, is_beta")
         .eq("uid", userId)
         .single(),
       supabase
@@ -696,6 +699,7 @@ function AppShell() {
   );
 
   return (
+    <BetaFeedbackProvider isBeta={profile?.is_beta ?? false} userId={session?.user?.id}>
     <HomePermissionsProvider homeId={profile?.home_id} userId={session?.user?.id}>
     <HomeRealtimeProvider homeId={profile?.home_id || ""}>
       <DashboardRealtimeSubscriber
@@ -755,6 +759,8 @@ function AppShell() {
                 onVersionClick={() => setReleaseNotesMode("history")}
               />
             </header>
+
+            <BetaFeedbackBanner />
 
             <div className="flex flex-1 overflow-hidden relative z-10 w-full">
               <nav
@@ -857,6 +863,7 @@ function AppShell() {
                                   <LocationPage
                                     location={loc}
                                     aiEnabled={profile?.ai_enabled ?? false}
+                                    perenualEnabled={profile?.enable_perenual ?? false}
                                   />
                                 );
                               })()}
@@ -1294,6 +1301,7 @@ function AppShell() {
                   open={helpCenterOpen}
                   onClose={() => setHelpCenterOpen(false)}
                 />
+                <BetaFeedbackSheet />
               </div>,
               document.body,
             )}
@@ -1311,6 +1319,7 @@ function AppShell() {
     </PlantDoctorProvider>
   </HomeRealtimeProvider>
   </HomePermissionsProvider>
+  </BetaFeedbackProvider>
   );
 }
 

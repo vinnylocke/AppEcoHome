@@ -1440,6 +1440,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 onClose={() => setEditingPlant(null)}
                 isSaving={actionLoading}
                 aiEnabled={aiEnabled}
+                isPremium={perenualEnabled}
               />
             )}
           </>,
