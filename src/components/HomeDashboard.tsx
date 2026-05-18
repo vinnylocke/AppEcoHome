@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   RefreshCw,
@@ -69,9 +69,33 @@ function SectionHeader({ icon, title }: { icon: React.ReactNode; title: string }
   );
 }
 
+function DayLegend({ activeDay, dayStrip }: { activeDay: string | null; dayStrip: HomeDashboardStats["dayStrip"] }) {
+  if (!activeDay) return null;
+  const d = dayStrip.find((s) => s.date === activeDay);
+  if (!d || d.total === 0) return null;
+  const pills = [
+    { count: d.overdue,         label: "overdue",        cls: "text-red-700 bg-red-50"                            },
+    { count: d.completedLate,   label: "completed late", cls: "text-orange-700 bg-orange-50"                      },
+    { count: d.completedOnTime, label: "on time",        cls: "text-emerald-700 bg-emerald-50"                    },
+    { count: d.pending,         label: "pending",        cls: "text-rhozly-on-surface/70 bg-rhozly-surface-low"   },
+  ].filter((p) => p.count > 0);
+  if (pills.length === 0) return null;
+  return (
+    <div className="flex flex-wrap gap-1.5 mt-2">
+      {pills.map((p, i) => (
+        <span key={i} className={`text-xs font-bold px-2.5 py-0.5 rounded-full ${p.cls}`}>
+          {p.count} {p.label}
+        </span>
+      ))}
+    </div>
+  );
+}
+
 function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: string }) {
   const navigate = useNavigate();
   const [membersExpanded, setMembersExpanded] = useState(false);
+  const [activeDay, setActiveDay] = useState<string | null>(null);
+  const leaveTimeout = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const { tasks, garden, weather, automations, additional, dayStrip } = stats;
 
@@ -172,18 +196,25 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           {dayStrip.map((day, idx) => {
             const label = DAY_LABELS[idx] ?? day.date.slice(5, 10);
-            // Colour tokens: on-green (today card) vs normal background
             const buckets = [
-              { count: day.overdue,        normalCls: "text-red-600",    todayCls: "text-red-200"    },
-              { count: day.completedLate,  normalCls: "text-orange-500", todayCls: "text-orange-200" },
-              { count: day.completedOnTime,normalCls: "text-emerald-600",todayCls: "text-emerald-200"},
-              { count: day.pending,        normalCls: "text-rhozly-on-surface", todayCls: "text-white" },
+              { count: day.overdue,         normalCls: "text-red-600",           todayCls: "text-red-200"    },
+              { count: day.completedLate,   normalCls: "text-orange-500",         todayCls: "text-orange-200" },
+              { count: day.completedOnTime, normalCls: "text-emerald-600",        todayCls: "text-emerald-200"},
+              { count: day.pending,         normalCls: "text-rhozly-on-surface",  todayCls: "text-white"      },
             ].filter((b) => b.count > 0);
+            const slashCls = day.isToday ? "text-white/30" : "text-rhozly-on-surface/20";
             return (
               <button
                 key={day.date}
                 data-testid={`dash-day-${day.date}`}
                 onClick={() => navigate(`/dashboard?view=calendar&date=${day.date}`)}
+                onMouseEnter={() => {
+                  if (leaveTimeout.current) clearTimeout(leaveTimeout.current);
+                  setActiveDay(day.date);
+                }}
+                onMouseLeave={() => {
+                  leaveTimeout.current = setTimeout(() => setActiveDay(null), 300);
+                }}
                 className={`flex flex-col items-center gap-0.5 px-3 py-2.5 rounded-2xl min-w-[52px] shrink-0 border transition-all ${
                   day.isToday
                     ? "bg-rhozly-primary text-white border-rhozly-primary shadow-md"
@@ -200,14 +231,22 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
                     —
                   </span>
                 ) : (
-                  <div className="flex items-baseline gap-0.5 leading-none flex-wrap justify-center">
+                  <div
+                    className="flex items-baseline leading-none flex-wrap justify-center"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setActiveDay((prev) => (prev === day.date ? null : day.date));
+                    }}
+                  >
                     {buckets.map((b, i) => (
-                      <span
-                        key={i}
-                        className={`text-lg font-black leading-none ${day.isToday ? b.todayCls : b.normalCls}`}
-                      >
-                        {b.count}
-                      </span>
+                      <React.Fragment key={i}>
+                        {i > 0 && (
+                          <span className={`text-sm font-bold leading-none mx-0.5 ${slashCls}`}>/</span>
+                        )}
+                        <span className={`text-lg font-black leading-none ${day.isToday ? b.todayCls : b.normalCls}`}>
+                          {b.count}
+                        </span>
+                      </React.Fragment>
                     ))}
                   </div>
                 )}
@@ -218,6 +257,7 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
             );
           })}
         </div>
+        <DayLegend activeDay={activeDay} dayStrip={dayStrip} />
       </section>
 
       {/* ── Garden This Week ─────────────────────────────────────────────── */}

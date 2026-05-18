@@ -2,14 +2,8 @@
   {
     "label": "Improved",
     "items": [
-      "Week Overview now shows coloured task counts per day — red for overdue, orange for completed late, green for completed on time, and black for pending tasks",
-      "Overdue tasks stay pinned to their original due date in the week strip rather than disappearing"
-    ]
-  },
-  {
-    "label": "Fixed",
-    "items": [
-      "Completed tasks with a missing completion timestamp are now correctly counted in the week overview"
+      "Week Overview day strip now shows a slash between coloured task counts so they read as separate numbers",
+      "Hovering a day on desktop (or tapping the numbers on mobile) shows a legend below the strip explaining what each colour means"
     ]
   }
 ]

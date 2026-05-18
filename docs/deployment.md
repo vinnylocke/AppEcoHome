@@ -64,7 +64,17 @@ Supported labels: `New`, `Fixed`, `Improved`, `Removed`.
 
 Users will see the notes in a modal on their next visit.
 
-### Step 1: Count your changes and deploy
+### Step 1: Commit and push to GitHub
+
+Stage and commit all changed files, then push to `main` before deploying. The deploy script reads from disk, not from git, but keeping the repo in sync ensures the history is accurate and rollbacks are clean.
+
+```bash
+git add <files>          # stage specific files — avoid git add -A to prevent accidental includes
+git commit -m "feat/fix/chore: description"
+git push origin main
+```
+
+### Step 2: Count your changes and deploy
 
 **Every distinct fix, feature, or improvement counts as one minor version increment.** Pass `--bump N` where N is the number of changes in this release. This means the minor version acts as a rough indicator of how much went into each release — a release with 4 changes bumps by 4.
 
@@ -80,7 +90,7 @@ Optionally add a custom maintenance message as the first non-flag argument:
 node scripts/deploy.mjs --bump 2 "Deploying care schedule improvements — back in ~2 mins!"
 ```
 
-### What happens step by step
+### What the deploy script does step by step
 
 | Step | Command | What it does |
 |---|---|---|
