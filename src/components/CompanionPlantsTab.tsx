@@ -11,7 +11,8 @@ import { PerenualService } from "../lib/perenualService";
 import { VerdantlyService } from "../lib/verdantlyService";
 import { PlantDoctorService } from "../services/plantDoctorService";
 import { derivePlantLabels } from "../lib/plantLabels";
-import { buildAutoSeasonalSchedules, getHemisphere, normalizePeriods } from "../lib/seasonal";
+import { getHemisphere, normalizePeriods } from "../lib/seasonal";
+import { buildAutoSeasonalSchedules } from "../lib/plantScheduleFactory";
 import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
 
 interface CompanionPlant {
