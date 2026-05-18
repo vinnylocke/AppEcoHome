@@ -1,8 +1,14 @@
 [
   {
-    "label": "New",
+    "label": "Fixed",
     "items": [
-      "Companion Plants tab on every plant — see which plants help, harm, or coexist with yours, and add companions directly to your Shed"
+      "Companion plant names now display correctly for Verdantly plants"
+    ]
+  },
+  {
+    "label": "Improved",
+    "items": [
+      "Companion plants now show images and relationship description when you tap the info icon"
     ]
   }
 ]

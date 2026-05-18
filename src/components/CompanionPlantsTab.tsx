@@ -1,5 +1,8 @@
 import React, { useState, useEffect, useCallback } from "react";
-import { Loader2, Plus, CheckSquare, Square, ChevronDown, ChevronRight, Sprout, ShieldAlert, Minus, Lock } from "lucide-react";
+import {
+  Loader2, Plus, CheckSquare, Square, ChevronDown, ChevronRight,
+  Sprout, ShieldAlert, Minus, Lock, Info, X,
+} from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 
@@ -16,6 +19,13 @@ interface CompanionResult {
   neutral: CompanionPlant[];
 }
 
+interface GalleryImage {
+  id: string;
+  thumb_url: string;
+  full_url: string;
+  alt: string;
+}
+
 interface Props {
   source: string;
   verdantlyId?: string | null;
@@ -25,7 +35,82 @@ interface Props {
   onPlantsAdded?: () => void;
 }
 
-// ─── Section component ────────────────────────────────────────────────────────
+// ─── Inline image panel ────────────────────────────────────────────────────────
+
+interface ImagePanelProps {
+  plantName: string;
+  reason: string | null | undefined;
+  onClose: () => void;
+}
+
+function ImagePanel({ plantName, reason, onClose }: ImagePanelProps) {
+  const [images, setImages] = useState<GalleryImage[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.functions
+      .invoke("plant-image-search", { body: { query: plantName, count: 4 } })
+      .then(({ data }) => {
+        if (!cancelled) setImages(data?.images ?? []);
+      })
+      .catch(() => {})
+      .finally(() => { if (!cancelled) setLoading(false); });
+    return () => { cancelled = true; };
+  }, [plantName]);
+
+  const hasContent = loading || images.length > 0;
+
+  return (
+    <div className="mt-1 mb-2 mx-3 rounded-xl bg-rhozly-surface-low/60 border border-rhozly-outline/10 overflow-hidden animate-in slide-in-from-top-2 duration-200">
+      <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
+        <span className="text-[10px] font-black text-rhozly-on-surface/50 uppercase tracking-widest">{plantName}</span>
+        <button onClick={onClose} className="p-1 rounded-lg hover:bg-rhozly-surface transition-colors">
+          <X size={12} className="text-rhozly-on-surface/40" />
+        </button>
+      </div>
+
+      {reason && (
+        <p className="px-3 pb-2 text-[10px] font-semibold text-rhozly-on-surface/70 leading-relaxed">
+          {reason}
+        </p>
+      )}
+
+      {hasContent && (
+        <div className="overflow-x-auto px-3 pb-3">
+          <div className="flex gap-1.5">
+            {loading
+              ? [0, 1, 2].map((i) => (
+                  <div key={i} className="w-16 h-16 rounded-xl bg-rhozly-surface animate-pulse shrink-0" />
+                ))
+              : images.map((img) => (
+                  <a
+                    key={img.id}
+                    href={img.full_url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="shrink-0 rounded-xl overflow-hidden block"
+                  >
+                    <img
+                      src={img.thumb_url}
+                      alt={img.alt}
+                      className="w-16 h-16 object-cover hover:scale-105 transition-transform"
+                    />
+                  </a>
+                ))
+            }
+          </div>
+        </div>
+      )}
+
+      {!loading && images.length === 0 && !reason && (
+        <p className="px-3 pb-3 text-[10px] text-rhozly-on-surface/40">No additional information available.</p>
+      )}
+    </div>
+  );
+}
+
+// ─── Section component ─────────────────────────────────────────────────────────
 
 interface SectionProps {
   title: string;
@@ -34,17 +119,14 @@ interface SectionProps {
   plants: CompanionPlant[];
   checked: Set<string>;
   onToggle: (key: string) => void;
+  expandedKey: string | null;
+  onExpand: (key: string | null) => void;
   defaultOpen?: boolean;
 }
 
 function CompanionSection({
-  title,
-  icon,
-  headerClass,
-  plants,
-  checked,
-  onToggle,
-  defaultOpen = true,
+  title, icon, headerClass, plants, checked, onToggle,
+  expandedKey, onExpand, defaultOpen = true,
 }: SectionProps) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -65,30 +147,56 @@ function CompanionSection({
       </button>
 
       {open && (
-        <div className="divide-y divide-rhozly-outline/5">
+        <div>
           {plants.map((plant) => {
             const key = plant.id ?? `ai-${plant.name}`;
             const isChecked = checked.has(key);
+            const isExpanded = expandedKey === key;
+
             return (
-              <button
-                key={key}
-                data-testid={`companion-plant-${key}`}
-                onClick={() => onToggle(key)}
-                className="w-full flex items-start gap-3 px-4 py-3 text-left hover:bg-rhozly-surface-low/50 transition-colors"
-              >
-                <span className="shrink-0 mt-0.5 text-rhozly-primary">
-                  {isChecked ? <CheckSquare size={16} /> : <Square size={16} className="text-rhozly-on-surface/30" />}
-                </span>
-                <span className="flex-1 min-w-0">
-                  <span className="block text-xs font-black text-rhozly-on-surface">{plant.name}</span>
-                  {plant.scientificName && (
-                    <span className="block text-[10px] font-medium text-rhozly-on-surface/50 italic">{plant.scientificName}</span>
-                  )}
-                  {plant.reason && (
-                    <span className="block text-[10px] font-semibold text-rhozly-on-surface/60 mt-0.5 leading-relaxed">{plant.reason}</span>
-                  )}
-                </span>
-              </button>
+              <div key={key} className="border-t border-rhozly-outline/5 first:border-t-0">
+                <div className="flex items-start gap-3 px-4 py-3">
+                  {/* Checkbox */}
+                  <button
+                    data-testid={`companion-plant-${key}`}
+                    onClick={() => onToggle(key)}
+                    className="shrink-0 mt-0.5 text-rhozly-primary"
+                  >
+                    {isChecked
+                      ? <CheckSquare size={16} />
+                      : <Square size={16} className="text-rhozly-on-surface/30" />}
+                  </button>
+
+                  {/* Name + scientific name */}
+                  <div className="flex-1 min-w-0">
+                    <span className="block text-xs font-black text-rhozly-on-surface">{plant.name}</span>
+                    {plant.scientificName && (
+                      <span className="block text-[10px] font-medium text-rhozly-on-surface/50 italic">{plant.scientificName}</span>
+                    )}
+                    {plant.reason && !isExpanded && (
+                      <span className="block text-[10px] font-semibold text-rhozly-on-surface/60 mt-0.5 leading-relaxed line-clamp-2">{plant.reason}</span>
+                    )}
+                  </div>
+
+                  {/* Info toggle */}
+                  <button
+                    onClick={() => onExpand(isExpanded ? null : key)}
+                    className={`shrink-0 p-1.5 rounded-lg transition-colors ${isExpanded ? "bg-rhozly-primary/10 text-rhozly-primary" : "hover:bg-rhozly-surface-low text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60"}`}
+                    aria-label={isExpanded ? "Close details" : "Show details"}
+                  >
+                    <Info size={14} />
+                  </button>
+                </div>
+
+                {/* Inline image panel */}
+                {isExpanded && (
+                  <ImagePanel
+                    plantName={plant.name}
+                    reason={plant.reason}
+                    onClose={() => onExpand(null)}
+                  />
+                )}
+              </div>
             );
           })}
         </div>
@@ -97,7 +205,7 @@ function CompanionSection({
   );
 }
 
-// ─── Main component ───────────────────────────────────────────────────────────
+// ─── Main component ────────────────────────────────────────────────────────────
 
 export default function CompanionPlantsTab({
   source,
@@ -111,6 +219,7 @@ export default function CompanionPlantsTab({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<"ai_required" | "fetch_failed" | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
+  const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
 
   const fetchCompanions = useCallback(async () => {
@@ -127,10 +236,7 @@ export default function CompanionPlantsTab({
       });
 
       if (fnErr) throw new Error(fnErr.message);
-      if (data?.error === "ai_required") {
-        setError("ai_required");
-        return;
-      }
+      if (data?.error === "ai_required") { setError("ai_required"); return; }
       if (data?.error) throw new Error(data.error);
 
       setCompanions(data as CompanionResult);
@@ -141,20 +247,16 @@ export default function CompanionPlantsTab({
     }
   }, [source, verdantlyId, plantName, aiEnabled]);
 
-  useEffect(() => {
-    fetchCompanions();
-  }, [fetchCompanions]);
+  useEffect(() => { fetchCompanions(); }, [fetchCompanions]);
 
   const toggleChecked = (key: string) => {
     setChecked((prev) => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(key)) next.delete(key); else next.add(key);
       return next;
     });
   };
 
-  // Build a flat lookup map from all companions
   const allCompanions = React.useMemo((): Map<string, CompanionPlant> => {
     if (!companions) return new Map();
     const map = new Map<string, CompanionPlant>();
@@ -171,35 +273,21 @@ export default function CompanionPlantsTab({
     const selectedPlants = Array.from(checked).map((k) => allCompanions.get(k)).filter(Boolean) as CompanionPlant[];
 
     try {
-      // Check which are already in the shed for this home
       const verdantlyIds = selectedPlants.filter((p) => p.id).map((p) => p.id as string);
       const aiNames = selectedPlants.filter((p) => !p.id).map((p) => p.name);
 
-      let alreadyInShed = new Set<string>();
+      const alreadyInShed = new Set<string>();
 
       if (verdantlyIds.length > 0) {
-        const { data: existing } = await supabase
-          .from("plants")
-          .select("verdantly_id")
-          .eq("home_id", homeId)
-          .in("verdantly_id", verdantlyIds);
+        const { data: existing } = await supabase.from("plants").select("verdantly_id").eq("home_id", homeId).in("verdantly_id", verdantlyIds);
         (existing ?? []).forEach((r: any) => { if (r.verdantly_id) alreadyInShed.add(r.verdantly_id); });
       }
-
       if (aiNames.length > 0) {
-        const { data: existing } = await supabase
-          .from("plants")
-          .select("common_name")
-          .eq("home_id", homeId)
-          .in("common_name", aiNames);
+        const { data: existing } = await supabase.from("plants").select("common_name").eq("home_id", homeId).in("common_name", aiNames);
         (existing ?? []).forEach((r: any) => { if (r.common_name) alreadyInShed.add(`ai-${r.common_name}`); });
       }
 
-      const toAdd = selectedPlants.filter((p) => {
-        const key = p.id ?? `ai-${p.name}`;
-        return !alreadyInShed.has(p.id ?? key);
-      });
-
+      const toAdd = selectedPlants.filter((p) => !alreadyInShed.has(p.id ?? `ai-${p.name}`));
       const skippedCount = selectedPlants.length - toAdd.length;
 
       if (toAdd.length === 0) {
@@ -207,24 +295,19 @@ export default function CompanionPlantsTab({
         return;
       }
 
-      let addedCount = 0;
       const manualId = () => Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 10000);
+      let addedCount = 0;
 
       for (const plant of toAdd) {
         if (plant.id) {
-          // Verdantly plant — fetch full details first
           try {
-            const { data: details } = await supabase.functions.invoke("verdantly-search", {
-              body: { action: "details", id: plant.id },
-            });
+            const { data: details } = await supabase.functions.invoke("verdantly-search", { body: { action: "details", id: plant.id } });
             if (details && !details.error) {
               await supabase.from("plants").insert([{
-                id: manualId(),
-                home_id: homeId,
+                id: manualId(), home_id: homeId,
                 common_name: details.common_name ?? plant.name,
                 scientific_name: details.scientific_name ?? [],
-                source: "verdantly",
-                verdantly_id: plant.id,
+                source: "verdantly", verdantly_id: plant.id,
                 thumbnail_url: details.image_url ?? details.thumbnail_url ?? null,
                 image_url: details.image_url ?? null,
                 watering: details.watering ?? null,
@@ -245,29 +328,12 @@ export default function CompanionPlantsTab({
               }]);
               addedCount++;
             } else {
-              // Details fetch failed — fall back to minimal record
-              await supabase.from("plants").insert([{
-                id: manualId(),
-                home_id: homeId,
-                common_name: plant.name,
-                scientific_name: plant.scientificName ? [plant.scientificName] : [],
-                source: "verdantly",
-                verdantly_id: plant.id,
-              }]);
+              await supabase.from("plants").insert([{ id: manualId(), home_id: homeId, common_name: plant.name, scientific_name: plant.scientificName ? [plant.scientificName] : [], source: "verdantly", verdantly_id: plant.id }]);
               addedCount++;
             }
-          } catch {
-            // Skip this plant silently
-          }
+          } catch { /* skip */ }
         } else {
-          // AI-generated companion — add as manual entry
-          await supabase.from("plants").insert([{
-            id: manualId(),
-            home_id: homeId,
-            common_name: plant.name,
-            scientific_name: plant.scientificName ? [plant.scientificName] : [],
-            source: "manual",
-          }]);
+          await supabase.from("plants").insert([{ id: manualId(), home_id: homeId, common_name: plant.name, scientific_name: plant.scientificName ? [plant.scientificName] : [], source: "manual" }]);
           addedCount++;
         }
       }
@@ -287,7 +353,7 @@ export default function CompanionPlantsTab({
     }
   };
 
-  // ── Loading ──────────────────────────────────────────────────────────────────
+  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16 text-rhozly-on-surface/40">
@@ -297,7 +363,7 @@ export default function CompanionPlantsTab({
     );
   }
 
-  // ── Upgrade message ──────────────────────────────────────────────────────────
+  // ── Upgrade message ────────────────────────────────────────────────────────
   if (error === "ai_required") {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-16 text-center px-6">
@@ -315,7 +381,7 @@ export default function CompanionPlantsTab({
     );
   }
 
-  // ── Error ────────────────────────────────────────────────────────────────────
+  // ── Error ──────────────────────────────────────────────────────────────────
   if (error === "fetch_failed" || !companions) {
     return (
       <div className="flex flex-col items-center justify-center gap-4 py-16 text-center px-6">
@@ -333,7 +399,7 @@ export default function CompanionPlantsTab({
 
   const hasAny = companions.beneficial.length > 0 || companions.harmful.length > 0 || companions.neutral.length > 0;
 
-  // ── Empty ────────────────────────────────────────────────────────────────────
+  // ── Empty ──────────────────────────────────────────────────────────────────
   if (!hasAny) {
     return (
       <div className="flex flex-col items-center justify-center gap-3 py-16 text-rhozly-on-surface/40">
@@ -343,10 +409,12 @@ export default function CompanionPlantsTab({
     );
   }
 
+  const sectionProps = { checked, onToggle: toggleChecked, expandedKey, onExpand: setExpandedKey };
+
   return (
     <div className="flex flex-col gap-3 pb-24">
       <p className="text-[10px] font-semibold text-rhozly-on-surface/50 leading-relaxed">
-        Select plants to add them to your Shed. Tick the checkbox next to each companion you want to grow.
+        Tap <Info size={10} className="inline" /> to see images. Tick the checkbox next to any companion you want to add to your Shed.
       </p>
 
       <CompanionSection
@@ -354,27 +422,24 @@ export default function CompanionPlantsTab({
         icon={<Sprout size={13} />}
         headerClass="bg-emerald-50 text-emerald-700"
         plants={companions.beneficial}
-        checked={checked}
-        onToggle={toggleChecked}
         defaultOpen={true}
+        {...sectionProps}
       />
       <CompanionSection
         title="Harmful"
         icon={<ShieldAlert size={13} />}
         headerClass="bg-red-50 text-red-700"
         plants={companions.harmful}
-        checked={checked}
-        onToggle={toggleChecked}
         defaultOpen={true}
+        {...sectionProps}
       />
       <CompanionSection
         title="Neutral"
         icon={<Minus size={13} />}
         headerClass="bg-rhozly-surface-low text-rhozly-on-surface/60"
         plants={companions.neutral}
-        checked={checked}
-        onToggle={toggleChecked}
         defaultOpen={false}
+        {...sectionProps}
       />
 
       {/* Sticky add-to-shed footer */}

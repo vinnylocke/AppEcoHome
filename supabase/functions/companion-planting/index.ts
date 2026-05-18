@@ -57,10 +57,10 @@ async function fetchVerdantlyCompanions(
   const raw = data?.data ?? data;
 
   const mapItem = (item: any): CompanionPlant => ({
-    id: item.id ?? null,
-    name: item.name ?? "Unknown",
+    id: item.plantId ?? item.id ?? null,
+    name: item.commonName ?? item.name ?? "Unknown",
     scientificName: item.scientificName ?? null,
-    reason: item.reason ?? null,
+    reason: item.description ?? item.reason ?? null,
   });
 
   return {
