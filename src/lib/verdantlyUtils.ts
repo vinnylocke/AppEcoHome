@@ -3,22 +3,17 @@
 // All callers should use the normalised PlantDetails shape.
 
 export const VERDANTLY_WATERING_DAYS: Record<string, { min: number; max: number; label: string }> = {
-  "Low":      { min: 14, max: 21, label: "Minimum" },
-  "Moderate": { min: 7,  max: 14, label: "Average"  },
-  "High":     { min: 2,  max: 7,  label: "Frequent" },
+  "low":      { min: 14, max: 21, label: "Minimum" },
+  "moderate": { min: 7,  max: 14, label: "Average"  },
+  "high":     { min: 2,  max: 7,  label: "Frequent" },
 };
 
 export const VERDANTLY_SUNLIGHT_MAP: Record<string, string[]> = {
-  "Full sun":                      ["full_sun"],
-  "Full Sun":                      ["full_sun"],
-  "Partial shade":                 ["part_shade"],
-  "Partial Shade":                 ["part_shade"],
-  "Full shade":                    ["deep_shade"],
-  "Full Shade":                    ["deep_shade"],
-  "Full sun to partial shade":     ["full_sun", "part_shade"],
-  "Full Sun to Partial Shade":     ["full_sun", "part_shade"],
-  "Partial to full shade":         ["part_shade", "deep_shade"],
-  "Partial to Full Shade":         ["part_shade", "deep_shade"],
+  "full sun":                  ["full_sun"],
+  "partial shade":             ["part_shade"],
+  "full shade":                ["deep_shade"],
+  "full sun to partial shade": ["full_sun", "part_shade"],
+  "partial to full shade":     ["part_shade", "deep_shade"],
 };
 
 // Shared result shape used throughout plant search UI.

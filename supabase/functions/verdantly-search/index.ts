@@ -18,24 +18,20 @@ const corsHeaders = {
 };
 
 // ─── Field Conversion Tables ────────────────────────────────────────────────
+// v2 API returns lowercase water/sunlight values
 
 const WATERING_DAYS: Record<string, { min: number; max: number; label: string }> = {
-  "Low":      { min: 14, max: 21, label: "Minimum" },
-  "Moderate": { min: 7,  max: 14, label: "Average"  },
-  "High":     { min: 2,  max: 7,  label: "Frequent" },
+  "low":      { min: 14, max: 21, label: "Minimum" },
+  "moderate": { min: 7,  max: 14, label: "Average"  },
+  "high":     { min: 2,  max: 7,  label: "Frequent" },
 };
 
 const SUNLIGHT_MAP: Record<string, string[]> = {
-  "Full sun":                      ["full_sun"],
-  "Full Sun":                      ["full_sun"],
-  "Partial shade":                 ["part_shade"],
-  "Partial Shade":                 ["part_shade"],
-  "Full shade":                    ["deep_shade"],
-  "Full Shade":                    ["deep_shade"],
-  "Full sun to partial shade":     ["full_sun", "part_shade"],
-  "Full Sun to Partial Shade":     ["full_sun", "part_shade"],
-  "Partial to full shade":         ["part_shade", "deep_shade"],
-  "Partial to Full Shade":         ["part_shade", "deep_shade"],
+  "full sun":                  ["full_sun"],
+  "partial shade":             ["part_shade"],
+  "full shade":                ["deep_shade"],
+  "full sun to partial shade": ["full_sun", "part_shade"],
+  "partial to full shade":     ["part_shade", "deep_shade"],
 };
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -59,24 +55,27 @@ function buildDescription(v: any): string | null {
   return parts.length > 0 ? parts.join("\n\n") : null;
 }
 
-function buildPlantingInstructions(pi: any): string | null {
-  if (!pi) return null;
-  if (typeof pi === "string") return pi;
+// v2: planting instructions live at v.care.planting (same sub-fields as v1)
+function buildPlantingInstructions(planting: any): string | null {
+  if (!planting) return null;
+  if (typeof planting === "string") return planting;
   const parts: string[] = [];
-  if (pi.startIndoors) parts.push(`Start indoors: ${pi.startIndoors}`);
-  if (pi.transplantOutdoors) parts.push(`Transplant outdoors: ${pi.transplantOutdoors}`);
-  if (pi.directSow) parts.push(`Direct sow: ${pi.directSow}`);
+  if (planting.startIndoors)       parts.push(`Start indoors: ${planting.startIndoors}`);
+  if (planting.transplantOutdoors) parts.push(`Transplant outdoors: ${planting.transplantOutdoors}`);
+  if (planting.directSow)          parts.push(`Direct sow: ${planting.directSow}`);
   return parts.length > 0 ? parts.join("\n") : null;
 }
 
-function buildMaintenance(ci: any): string | null {
-  if (!ci) return null;
+// v2: pruning/harvesting live at v.care.pruning / v.care.harvesting
+function buildMaintenance(care: any): string | null {
+  if (!care) return null;
   const parts: string[] = [];
-  if (ci.pruningInstructions) parts.push(ci.pruningInstructions);
-  if (ci.harvestingInstructions) parts.push(ci.harvestingInstructions);
+  if (care.pruning)    parts.push(care.pruning);
+  if (care.harvesting) parts.push(care.harvesting);
   return parts.length > 0 ? parts.join("\n\n") : null;
 }
 
+// v2: ecology lives at v.distribution.ecology
 function buildAttracts(ecology: any): string[] {
   const result: string[] = [];
   if (Array.isArray(ecology?.attracts)) {
@@ -88,64 +87,54 @@ function buildAttracts(ecology: any): string[] {
   return result;
 }
 
-function parseSpacingInches(s: any): number | null {
-  if (!s) return null;
-  const m = String(s).match(/(\d+(?:\.\d+)?)/);
-  return m ? parseFloat(m[1]) : null;
-}
-
 function buildMetadata(v: any): Record<string, any> | null {
   const meta: Record<string, any> = {};
-  const lm = v.lifecycleMilestones ?? {};
-  const gr = v.growingRequirements ?? {};
-  const pi = v.careInstructions?.plantingInstructions;
+  const lc      = v.lifecycle ?? {};
+  const gr      = v.growing ?? {};
+  const planting = v.care?.planting;
 
-  // Harvest timing — drives harvest-check blueprint auto-creation
-  if (lm.daysToHarvestMin != null) meta.harvest_days_min = lm.daysToHarvestMin;
-  if (lm.daysToHarvestMax != null) meta.harvest_days_max = lm.daysToHarvestMax;
-  // Single daysToHarvest field (some plants only have one value)
-  if (lm.daysToHarvest != null && meta.harvest_days_min == null) {
-    meta.harvest_days_min = lm.daysToHarvest;
-    meta.harvest_days_max = lm.daysToHarvest;
-  }
+  // Harvest timing
+  if (lc.daysToHarvestMin != null) meta.harvest_days_min = lc.daysToHarvestMin;
+  if (lc.daysToHarvestMax != null) meta.harvest_days_max = lc.daysToHarvestMax;
 
-  // Structured planting instructions — passed to AI planting schedule
-  if (pi && typeof pi === "object") {
+  // Structured planting instructions
+  if (planting && typeof planting === "object") {
     const methods: Record<string, string> = {};
-    if (pi.startIndoors) methods.start_indoors = pi.startIndoors;
-    if (pi.transplantOutdoors) methods.transplant_outdoors = pi.transplantOutdoors;
-    if (pi.directSow) methods.direct_sow = pi.directSow;
+    if (planting.startIndoors)       methods.start_indoors = planting.startIndoors;
+    if (planting.transplantOutdoors) methods.transplant_outdoors = planting.transplantOutdoors;
+    if (planting.directSow)          methods.direct_sow = planting.directSow;
     if (Object.keys(methods).length > 0) meta.planting_methods = methods;
   }
 
-  // Growing context
-  if (gr.spacingRequirement) meta.spacing_inches = parseSpacingInches(gr.spacingRequirement);
-  if (gr.frostTolerance) meta.frost_tolerance = gr.frostTolerance;
-  if (gr.careInstructions) meta.care_notes = gr.careInstructions;
-  if (gr.soilPreference) meta.soil_preference = gr.soilPreference;
+  // Growing context — v2 spacing is already a number, not a string
+  if (gr.spacing != null)      meta.spacing_inches  = gr.spacing;
+  if (gr.frostTolerance)       meta.frost_tolerance = gr.frostTolerance;
+  if (gr.soil)                 meta.soil_preference = gr.soil;
+  if (v.care?.overview)        meta.care_notes      = v.care.overview;
 
   // Additional AI context
   if (v.pestAndDiseaseRisks) meta.pest_disease_info = v.pestAndDiseaseRisks;
-  if (v.commonUses) meta.common_uses = v.commonUses;
-  if (v.history) meta.history = v.history;
+  if (v.commonUses)          meta.common_uses       = v.commonUses;
+  if (v.history)             meta.history           = v.history;
 
   return Object.keys(meta).length > 0 ? meta : null;
 }
 
 function mapToPlantDetails(v: any) {
-  const waterReq = v.growingRequirements?.waterRequirement ?? null;
-  const waterDays = waterReq ? (WATERING_DAYS[waterReq] ?? null) : null;
-  const sunReq = v.growingRequirements?.sunlightRequirement ?? null;
-  const sunlight = sunReq ? (SUNLIGHT_MAP[sunReq] ?? []) : [];
-  const lm = v.lifecycleMilestones ?? {};
+  const waterReq  = v.growing?.water ?? null;
+  const waterDays = waterReq ? (WATERING_DAYS[waterReq.toLowerCase()] ?? null) : null;
+  const sunReq    = v.growing?.sunlight ?? null;
+  const sunlight  = sunReq ? (SUNLIGHT_MAP[sunReq.toLowerCase()] ?? []) : [];
+  const lc        = v.lifecycle ?? {};
+  const ecology   = v.distribution?.ecology ?? {};
 
   return {
     common_name:           v.name ?? "Unknown",
-    scientific_name:       v.species?.scientificName ? [v.species.scientificName] : [],
+    scientific_name:       v.scientificName ? [v.scientificName] : [],
     other_names:           [],
-    family:                v.species?.taxonomy?.family ?? null,
-    plant_type:            v.category ?? null,
-    cycle:                 v.growthDetails?.growthPeriod ?? null,
+    family:                v.taxonomy?.family ?? null,
+    plant_type:            v.classification?.category ?? null,
+    cycle:                 lc.duration ?? null,
     image_url:             v.imageUrl ?? null,
     thumbnail_url:         v.imageUrl ?? null,
     watering:              waterDays?.label ?? null,
@@ -154,41 +143,41 @@ function mapToPlantDetails(v: any) {
     watering_max_days:     waterDays?.max ?? null,
     sunlight,
     care_level:            null,
-    hardiness_min:         v.growingRequirements?.minGrowingZone ?? null,
-    hardiness_max:         v.growingRequirements?.maxGrowingZone ?? null,
-    is_edible:             v.ecology?.isEdible ?? false,
+    hardiness_min:         v.growing?.hardinessZone?.min ?? null,
+    hardiness_max:         v.growing?.hardinessZone?.max ?? null,
+    is_edible:             ecology.isEdible ?? false,
     is_toxic_pets:         !!(v.safety?.toxicity?.dogs?.level || v.safety?.toxicity?.cats?.level || v.safety?.toxicity?.horses?.level),
     is_toxic_humans:       !!(v.safety?.toxicity?.humans?.level),
-    attracts:              buildAttracts(v.ecology),
+    attracts:              buildAttracts(ecology),
     description:           buildDescription(v),
-    maintenance:           buildMaintenance(v.careInstructions),
+    maintenance:           buildMaintenance(v.care),
     growth_rate:           null,
-    growth_habit:          v.growthDetails?.growthType ?? null,
-    drought_tolerant:      v.ecology?.droughtTolerant ?? false,
+    growth_habit:          v.growing?.growthHabit ?? null,
+    drought_tolerant:      ecology.droughtTolerant ?? false,
     salt_tolerant:         false,
     thorny:                false,
-    invasive:              v.ecology?.isInvasive ?? false,
+    invasive:              ecology.isInvasive ?? false,
     tropical:              false,
     indoor:                false,
     pest_susceptibility:   [],
     flowers:               false,
     cones:                 false,
-    fruits:                !!(v.ecology?.isEdible),
+    fruits:                !!(ecology.isEdible),
     edible_leaf:           false,
-    cuisine:               !!(v.ecology?.isEdible),
+    cuisine:               !!(ecology.isEdible),
     medicinal:             false,
     leaf:                  true,
-    flowering_season:      lm.avgFirstBloomDate ?? lm.bloomDate ?? null,
-    harvest_season:        lm.firstHarvestDate ?? lm.lastHarvestDate ?? null,
+    flowering_season:      lc.avgFirstBloomDate ?? null,
+    harvest_season:        lc.firstHarvestDate ?? lc.lastHarvestDate ?? null,
     pruning_month:         [],
     propagation:           [],
     verdantly_id:          v.id ?? null,
     perenual_id:           null,
-    days_to_harvest_min:   lm.daysToHarvestMin ?? lm.daysToHarvest ?? null,
-    days_to_harvest_max:   lm.daysToHarvestMax ?? lm.daysToHarvest ?? null,
-    soil_ph_min:           v.ecology?.soilPhMin ?? null,
-    soil_ph_max:           v.ecology?.soilPhMax ?? null,
-    planting_instructions: buildPlantingInstructions(v.careInstructions?.plantingInstructions),
+    days_to_harvest_min:   lc.daysToHarvestMin ?? null,
+    days_to_harvest_max:   lc.daysToHarvestMax ?? null,
+    soil_ph_min:           v.growing?.soilPhMin ?? null,
+    soil_ph_max:           v.growing?.soilPhMax ?? null,
+    planting_instructions: buildPlantingInstructions(v.care?.planting),
     plant_metadata:        buildMetadata(v),
     source:                "verdantly" as const,
   };
@@ -198,23 +187,10 @@ function mapToSearchResult(v: any) {
   return {
     id:              v.id,
     common_name:     v.name ?? "Unknown",
-    scientific_name: v.species?.scientificName ? [v.species.scientificName] : [],
+    scientific_name: v.scientificName ? [v.scientificName] : [],
     thumbnail_url:   v.imageUrl ?? null,
     _provider:       "verdantly" as const,
     verdantly_id:    v.id,
-  };
-}
-
-// Species/filter endpoint returns species-level objects whose field names differ
-// from the variety/search endpoint — handle both naming conventions defensively.
-function mapSpeciesFilterResult(s: any) {
-  return {
-    id:              s.id,
-    common_name:     s.commonName ?? s.name ?? "Unknown",
-    scientific_name: s.scientificName ? [s.scientificName] : (s.species?.scientificName ? [s.species.scientificName] : []),
-    thumbnail_url:   s.imageUrl ?? s.thumbnailUrl ?? null,
-    _provider:       "verdantly" as const,
-    verdantly_id:    s.id,
   };
 }
 
@@ -242,7 +218,7 @@ serve(async (req) => {
 
     const {
       action, query, id, page: pageParam,
-      duration, waterRequirement, sunlightRequirement, edible, growingZone,
+      waterRequirement, sunlightRequirement, edible, growingZone,
     } = await req.json();
 
     // ── SEARCH ───────────────────────────────────────────────────────────────
@@ -261,7 +237,7 @@ serve(async (req) => {
       }
 
       const res = await fetch(
-        `${BASE_URL}/v1/plants/varieties/search?page=${page}&q=${encodeURIComponent(query)}&sortOrder=asc`,
+        `${BASE_URL}/v2/plants/varieties/search?page=${page}&q=${encodeURIComponent(query)}&sortOrder=asc`,
         { headers: verdantlyHeaders(apiKey), signal: AbortSignal.timeout(12_000) },
       );
 
@@ -274,11 +250,8 @@ serve(async (req) => {
       const items: any[] = data?.data ?? [];
       const results = items.map(mapToSearchResult);
 
-      // Verdantly returns pagination info under `meta.pages`
       const meta = data?.meta ?? {};
-      const pag  = data?.pagination ?? {};
-      const totalPages: number | null =
-        meta.pages ?? pag.totalPages ?? pag.total_pages ?? pag.lastPage ?? null;
+      const totalPages: number | null = meta.pages ?? null;
       const hasMore = totalPages != null ? page < totalPages : results.length >= 10;
       const nextPage = page + 1;
 
@@ -297,7 +270,6 @@ serve(async (req) => {
       if (!id) throw new Error("id is required");
       log(FN, "details", { id });
 
-      // Check cache first
       const { data: cached } = await db
         .from("verdantly_cache")
         .select("*")
@@ -314,9 +286,8 @@ serve(async (req) => {
         }
       }
 
-      // Fetch from Verdantly
       const res = await fetch(
-        `${BASE_URL}/v1/plants/varieties/${id}`,
+        `${BASE_URL}/v2/plants/varieties/${id}`,
         { headers: verdantlyHeaders(apiKey), signal: AbortSignal.timeout(12_000) },
       );
 
@@ -325,9 +296,10 @@ serve(async (req) => {
         throw new Error(`Verdantly details failed (${res.status}): ${body.slice(0, 200)}`);
       }
 
-      const raw = await res.json();
+      // v2 wraps the plant object in { data: {...}, meta: {...} }
+      const rawResponse = await res.json();
+      const raw = rawResponse.data ?? rawResponse;
 
-      // Upsert cache (fire-and-forget)
       db.from("verdantly_cache").upsert({
         id,
         raw_data: raw,
@@ -342,16 +314,16 @@ serve(async (req) => {
     }
 
     // ── FILTER ───────────────────────────────────────────────────────────────
+    // v2 merged filtering into /v2/plants/varieties/search — no separate filter endpoint
     if (action === "filter") {
       const filterPage = typeof pageParam === "number" && pageParam >= 1 ? pageParam : 1;
 
       const filterSig = [
         query?.trim() || "",
-        duration            ? `dur:${duration}`              : null,
-        waterRequirement    ? `water:${waterRequirement}`    : null,
-        sunlightRequirement ? `sun:${sunlightRequirement}`   : null,
-        edible !== undefined     ? `edible:${edible}`        : null,
-        growingZone !== undefined ? `zone:${growingZone}`    : null,
+        waterRequirement    ? `water:${waterRequirement}`  : null,
+        sunlightRequirement ? `sun:${sunlightRequirement}` : null,
+        edible !== undefined     ? `edible:${edible}`      : null,
+        growingZone !== undefined ? `zone:${growingZone}`  : null,
       ].filter(Boolean).join("|") || "none";
       const filterCacheKey = cacheKey("verdantly_filter", filterSig, String(filterPage));
       const cachedFilter = await getCached<{ results: unknown[]; hasMore: boolean; nextPage: number }>(db, filterCacheKey);
@@ -363,16 +335,15 @@ serve(async (req) => {
       }
 
       const params = new URLSearchParams({ page: String(filterPage), perPage: "10" });
-      if (query?.trim())                     params.set("q",                  query.trim());
-      if (duration)                          params.set("duration",            String(duration));
-      if (waterRequirement)                  params.set("waterRequirement",    String(waterRequirement));
-      if (sunlightRequirement)               params.set("sunlightRequirement", String(sunlightRequirement));
-      if (edible !== undefined)              params.set("edible",              String(edible));
-      if (growingZone !== undefined)         params.set("growingZone",         String(growingZone));
+      if (query?.trim())                params.set("q",                  query.trim());
+      if (waterRequirement)             params.set("waterRequirement",    String(waterRequirement));
+      if (sunlightRequirement)          params.set("sunlightRequirement", String(sunlightRequirement));
+      if (edible !== undefined)         params.set("isEdible",            String(edible));
+      if (growingZone !== undefined)    params.set("growingZone",         String(growingZone));
 
-      log(FN, "filter", { query, duration, waterRequirement, sunlightRequirement, edible, growingZone, filterPage });
+      log(FN, "filter", { query, waterRequirement, sunlightRequirement, edible, growingZone, filterPage });
 
-      const filterRes = await fetch(`${BASE_URL}/v1/plants/species/filter?${params}`, {
+      const filterRes = await fetch(`${BASE_URL}/v2/plants/varieties/search?${params}`, {
         headers: verdantlyHeaders(apiKey),
         signal: AbortSignal.timeout(12_000),
       });
@@ -383,7 +354,7 @@ serve(async (req) => {
 
       const filterData = await filterRes.json();
       const filterItems: any[] = filterData?.data ?? [];
-      const filterResults = filterItems.map(mapSpeciesFilterResult);
+      const filterResults = filterItems.map(mapToSearchResult);
       const filterTotalPages: number | null = filterData?.meta?.pages ?? null;
       const filterHasMore = filterTotalPages != null ? filterPage < filterTotalPages : filterResults.length >= 10;
 

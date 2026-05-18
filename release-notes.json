@@ -2,8 +2,7 @@
   {
     "label": "Improved",
     "items": [
-      "Week Overview day strip now shows a slash between coloured task counts so they read as separate numbers",
-      "Hovering a day on desktop (or tapping the numbers on mobile) shows a legend below the strip explaining what each colour means"
+      "Verdantly plant search upgraded to API v2 — richer plant data including detailed care instructions, growing conditions, planting guides, and harvest timing"
     ]
   }
 ]
