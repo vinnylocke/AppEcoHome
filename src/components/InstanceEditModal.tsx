@@ -13,6 +13,7 @@ import {
   Check,
   Loader2,
   BarChart2,
+  Sprout,
 } from "lucide-react";
 import { IconGrowth, IconPlant, IconPlantDB, IconHarvest, IconLight } from "../constants/icons";
 import { supabase } from "../lib/supabase";
@@ -25,6 +26,7 @@ import PlantGuidesTab from "./PlantGuidesTab";
 import YieldTab from "./YieldTab";
 import LightTab from "./LightTab";
 import InstanceStatsTab from "./InstanceStatsTab";
+import CompanionPlantsTab from "./CompanionPlantsTab";
 import { getProviderPlantDetails } from "../lib/plantProvider";
 
 // 🧠 IMPORT THE AI CONTEXT
@@ -66,13 +68,14 @@ export default function InstanceEditModal({
   const { setPageContext } = usePlantDoctor();
 
   const [activeTab, setActiveTab] = useState<
-    "details" | "routine" | "journal" | "care_guide" | "guides" | "yield" | "light" | "stats"
+    "details" | "routine" | "journal" | "care_guide" | "guides" | "yield" | "light" | "stats" | "companions"
   >("details");
   const [savingInstance, setSavingInstance] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
 
   const [careGuideData, setCareGuideData] = useState<any>(null);
   const [loadingCareGuide, setLoadingCareGuide] = useState(false);
+  const [companionPlantRecord, setCompanionPlantRecord] = useState<any>(null);
 
   const [editForm, setEditForm] = useState({
     identifier: instance.identifier || instance.plant_name,
@@ -154,6 +157,17 @@ export default function InstanceEditModal({
       fetchCareGuide();
     }
   }, [activeTab, instance.plant_id, careGuideData]);
+
+  useEffect(() => {
+    if (activeTab === "companions" && !companionPlantRecord) {
+      supabase
+        .from("plants")
+        .select("id, common_name, source, verdantly_id, perenual_id")
+        .eq("id", instance.plant_id)
+        .single()
+        .then(({ data }) => { if (data) setCompanionPlantRecord(data); });
+    }
+  }, [activeTab, instance.plant_id, companionPlantRecord]);
 
   const handleUpdateInstance = async () => {
     setSavingInstance(true);
@@ -343,6 +357,14 @@ export default function InstanceEditModal({
             className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "stats" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
             <BarChart2 size={14} /> Stats
+          </button>
+
+          <button
+            data-testid="instance-modal-tab-companions"
+            onClick={() => setActiveTab("companions")}
+            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "companions" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+          >
+            <Sprout size={14} /> Companions
           </button>
         </div>
 
@@ -598,6 +620,24 @@ export default function InstanceEditModal({
         {activeTab === "stats" && (
           <div className="animate-in slide-in-from-right-4">
             <InstanceStatsTab instance={instance} />
+          </div>
+        )}
+
+        {activeTab === "companions" && (
+          <div className="animate-in slide-in-from-right-4">
+            {companionPlantRecord ? (
+              <CompanionPlantsTab
+                source={companionPlantRecord.source}
+                verdantlyId={companionPlantRecord.verdantly_id ?? null}
+                plantName={companionPlantRecord.common_name ?? instance.plant_name}
+                homeId={homeId}
+                aiEnabled={aiEnabled}
+              />
+            ) : (
+              <div className="flex items-center justify-center py-16">
+                <Loader2 className="animate-spin text-rhozly-on-surface/30" size={24} />
+              </div>
+            )}
           </div>
         )}
       </div>

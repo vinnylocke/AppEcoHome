@@ -1078,3 +1078,32 @@ Seed state: "Weekly Garden Shop" has "Tomato Seedlings" (checked, `source=null`)
 | SHP-026 | ✅ | Button visible for eligible checked plant items | `shopping-add-to-shed-btn-{id}` visible in expanded active list | 🔲 Planned |
 | SHP-027 | ❌ | Shed-sourced plant excluded from button count | button shows "Add 1 Purchased Plant" not "Add 2" (Mint excluded) | 🔲 Planned |
 | SHP-028 | ✅ | Clicking Add to Shed adds inventory and hides button | click → success toast → `shopping-add-to-shed-btn` not visible | 🔲 Planned |
+
+---
+
+## Section 22 — Companion Plants Tab
+
+**Spec file:** `tests/e2e/specs/companion-plants.spec.ts`
+**Seed dependency:** `02_plants_shed.sql` (any seeded shed plant)
+
+**Mocks required:**
+- `companion-planting` edge function → `{ beneficial, harmful, neutral }` or `{ error: "ai_required" }`
+
+Edge function mock via `mockEdgeFunction(page, "companion-planting", ...)`.
+
+### Stage 1 — Tab presence and section rendering (CPT-001 – CPT-005)
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| CPT-001 | ✅ | Companions tab button visible in PlantEditModal | `plant-modal-tab-companions` visible after opening first shed plant | ✅ Passing |
+| CPT-002 | ✅ | Clicking tab shows Beneficial section | `companion-section-beneficial` visible | ✅ Passing |
+| CPT-003 | ✅ | Beneficial section lists mocked plants | "Basil" and "Marigold" text visible | ✅ Passing |
+| CPT-004 | ✅ | Harmful section lists mocked harmful plants | "Fennel" text visible | ✅ Passing |
+| CPT-005 | ✅ | Neutral section collapsed by default; expands on click | "Parsley" hidden → click neutral header → "Parsley" visible | ✅ Passing |
+
+### Stage 2 — Interactions (CPT-006 – CPT-007)
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| CPT-006 | ✅ | Add to Shed button appears when a companion is checked | click `companion-plant-verd-123` → `companion-add-to-shed` visible | ✅ Passing |
+| CPT-007 | ✅ | ai_required response shows upgrade message | mock returns `{ error: "ai_required" }` → "AI Add-on Required" text visible | ✅ Passing |

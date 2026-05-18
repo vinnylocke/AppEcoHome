@@ -1,10 +1,11 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
-import { X, Droplets, Calendar, Database, Loader2, RefreshCw, BookOpen, Sun } from "lucide-react";
+import { X, Droplets, Calendar, Database, Loader2, RefreshCw, BookOpen, Sun, Sprout } from "lucide-react";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantScheduleTab from "./PlantScheduleTab";
 import PlantGuidesTab from "./PlantGuidesTab";
 import LightTab from "./LightTab";
+import CompanionPlantsTab from "./CompanionPlantsTab";
 import { getProviderPlantDetails } from "../lib/plantProvider";
 import { getProviderLabel } from "../lib/verdantlyUtils";
 import { supabase } from "../lib/supabase";
@@ -19,6 +20,7 @@ interface PlantEditModalProps {
   onSave: (updatedData: any) => void;
   onClose: () => void;
   isSaving?: boolean;
+  aiEnabled?: boolean;
 }
 
 export default function PlantEditModal({
@@ -27,6 +29,7 @@ export default function PlantEditModal({
   onSave,
   onClose,
   isSaving,
+  aiEnabled = false,
 }: PlantEditModalProps) {
   // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
@@ -43,6 +46,7 @@ export default function PlantEditModal({
     { id: "schedules", label: "Automations", icon: Calendar },
     { id: "light", label: "Light", icon: Sun },
     { id: "guides", label: "Guides", icon: BookOpen },
+    { id: "companions", label: "Companions", icon: Sprout },
   ];
 
   // 🧠 LIVE AI SYNC: Update the AI on the Master Plant Template being viewed/edited
@@ -220,11 +224,21 @@ export default function PlantEditModal({
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
               <LightTab plantId={plant.id} plantName={plant.common_name} />
             </div>
-          ) : (
+          ) : activeTab === "guides" ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
               <PlantGuidesTab
                 plantId={plant.id}
                 commonName={plant.common_name}
+              />
+            </div>
+          ) : (
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <CompanionPlantsTab
+                source={plant.source}
+                verdantlyId={plant.verdantly_id ?? null}
+                plantName={plant.common_name}
+                homeId={homeId}
+                aiEnabled={aiEnabled}
               />
             </div>
           )}

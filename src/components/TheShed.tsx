@@ -44,6 +44,7 @@ import { PlantDoctorService } from "../services/plantDoctorService";
 import { logEvent, EVENT } from "../events/registry";
 import { derivePlantLabels } from "../lib/plantLabels";
 import { usePermissions } from "../context/HomePermissionsContext";
+import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
 import InfoTooltip from "./InfoTooltip";
 
@@ -80,6 +81,7 @@ type QueueItem = {
 export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = false }: { homeId: string; aiEnabled?: boolean; perenualEnabled?: boolean }) {
   const { can } = usePermissions();
   const { setPageContext, preferences } = usePlantDoctor();
+  const { requestFeedback } = useBetaFeedbackContext();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -753,6 +755,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         plantData,
       );
       toast.success(`${plantData.common_name} added to shed!`);
+      requestFeedback("add_plant", { source: "manual" });
       logEvent(EVENT.PLANT_ADDED, { plant_name: plantData.common_name, source: "manual" });
       handleCloseModals();
       refreshShed(); // 🚀 BACKGROUND SYNC
@@ -856,6 +859,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       }
 
       toast.success(`Successfully assigned ${assignmentData.quantity} plants!`);
+      requestFeedback("plant_assign_area");
       refreshShed(); // 🚀 BACKGROUND SYNC
       setSelectedPlant(null);
 
@@ -1435,6 +1439,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 onSave={handleUpdatePlant}
                 onClose={() => setEditingPlant(null)}
                 isSaving={actionLoading}
+                aiEnabled={aiEnabled}
               />
             )}
           </>,

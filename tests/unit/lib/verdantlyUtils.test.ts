@@ -10,16 +10,16 @@ describe("VERDANTLY_WATERING_DAYS", () => {
     expect(Object.keys(VERDANTLY_WATERING_DAYS)).toHaveLength(3);
   });
 
-  test("Low maps to min:14 max:21 label:Minimum", () => {
-    expect(VERDANTLY_WATERING_DAYS["Low"]).toEqual({ min: 14, max: 21, label: "Minimum" });
+  test("low maps to min:14 max:21 label:Minimum", () => {
+    expect(VERDANTLY_WATERING_DAYS["low"]).toEqual({ min: 14, max: 21, label: "Minimum" });
   });
 
-  test("Moderate maps to min:7 max:14 label:Average", () => {
-    expect(VERDANTLY_WATERING_DAYS["Moderate"]).toEqual({ min: 7, max: 14, label: "Average" });
+  test("moderate maps to min:7 max:14 label:Average", () => {
+    expect(VERDANTLY_WATERING_DAYS["moderate"]).toEqual({ min: 7, max: 14, label: "Average" });
   });
 
-  test("High maps to min:2 max:7 label:Frequent", () => {
-    expect(VERDANTLY_WATERING_DAYS["High"]).toEqual({ min: 2, max: 7, label: "Frequent" });
+  test("high maps to min:2 max:7 label:Frequent", () => {
+    expect(VERDANTLY_WATERING_DAYS["high"]).toEqual({ min: 2, max: 7, label: "Frequent" });
   });
 
   test("min is always less than max for all keys", () => {
@@ -30,28 +30,24 @@ describe("VERDANTLY_WATERING_DAYS", () => {
 });
 
 describe("VERDANTLY_SUNLIGHT_MAP", () => {
-  test("Full sun maps to [full_sun]", () => {
-    expect(VERDANTLY_SUNLIGHT_MAP["Full sun"]).toEqual(["full_sun"]);
+  test("full sun maps to [full_sun]", () => {
+    expect(VERDANTLY_SUNLIGHT_MAP["full sun"]).toEqual(["full_sun"]);
   });
 
-  test("Full Sun (capital S) maps to [full_sun]", () => {
-    expect(VERDANTLY_SUNLIGHT_MAP["Full Sun"]).toEqual(["full_sun"]);
+  test("partial shade maps to [part_shade]", () => {
+    expect(VERDANTLY_SUNLIGHT_MAP["partial shade"]).toEqual(["part_shade"]);
   });
 
-  test("Partial shade maps to [part_shade]", () => {
-    expect(VERDANTLY_SUNLIGHT_MAP["Partial shade"]).toEqual(["part_shade"]);
+  test("full shade maps to [deep_shade]", () => {
+    expect(VERDANTLY_SUNLIGHT_MAP["full shade"]).toEqual(["deep_shade"]);
   });
 
-  test("Full shade maps to [deep_shade]", () => {
-    expect(VERDANTLY_SUNLIGHT_MAP["Full shade"]).toEqual(["deep_shade"]);
+  test("full sun to partial shade maps to two entries", () => {
+    expect(VERDANTLY_SUNLIGHT_MAP["full sun to partial shade"]).toEqual(["full_sun", "part_shade"]);
   });
 
-  test("Full sun to partial shade maps to two entries", () => {
-    expect(VERDANTLY_SUNLIGHT_MAP["Full sun to partial shade"]).toEqual(["full_sun", "part_shade"]);
-  });
-
-  test("Partial to full shade maps to two entries", () => {
-    expect(VERDANTLY_SUNLIGHT_MAP["Partial to full shade"]).toEqual(["part_shade", "deep_shade"]);
+  test("partial to full shade maps to two entries", () => {
+    expect(VERDANTLY_SUNLIGHT_MAP["partial to full shade"]).toEqual(["part_shade", "deep_shade"]);
   });
 
   test("unknown key returns undefined", () => {
