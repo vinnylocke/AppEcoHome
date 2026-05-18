@@ -129,6 +129,18 @@ async function checkControllingTaskDue(
     return true;
   }
 
+  // Schedule maths didn't hit today — but a postponed task due today still
+  // counts: if any linked blueprint has a Postponed task for today, allow the run.
+  const { data: postponed } = await db
+    .from("tasks")
+    .select("id")
+    .in("blueprint_id", bpIds)
+    .eq("due_date", today)
+    .eq("status", "Postponed")
+    .limit(1);
+
+  if (postponed && (postponed as unknown[]).length > 0) return true;
+
   return false;
 }
 
@@ -327,7 +339,7 @@ async function completeTasks(
     for (const task of existingTasks as Array<Record<string, unknown>>) {
       const blueprintId = task.blueprint_id as string;
       const title = task.title as string ?? "";
-      if ((task.status as string) !== "Pending") {
+      if (["Completed", "Skipped"].includes(task.status as string)) {
         results.push({ blueprint_id: blueprintId, title, already_done: true });
         continue;
       }
@@ -367,11 +379,11 @@ async function completeTasks(
 
     if (existing) {
       const existingTask = existing as Record<string, unknown>;
-      if (existingTask.status !== "Pending") {
+      if (["Completed", "Skipped"].includes(existingTask.status as string)) {
         results.push({ blueprint_id: blueprintId, title: blueprint.title as string, already_done: true });
         continue;
       }
-      // Update existing Pending task
+      // Update existing Pending or Postponed task
       await db.from("tasks")
         .update({
           status: "Completed",
