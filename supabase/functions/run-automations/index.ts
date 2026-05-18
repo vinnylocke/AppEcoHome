@@ -55,7 +55,7 @@ async function checkRain(
   db: ReturnType<typeof createClient>,
   homeId: string,
   thresholdMm: number,
-): Promise<boolean> {
+): Promise<{ rained: boolean; mm: number }> {
   const today = new Date().toISOString().split("T")[0];
   const { data: snapshot } = await db
     .from("weather_snapshots")
@@ -63,20 +63,20 @@ async function checkRain(
     .eq("home_id", homeId)
     .single();
 
-  if (!snapshot?.data) return false;
+  if (!snapshot?.data) return { rained: false, mm: 0 };
 
   const daily = (snapshot.data as Record<string, unknown>).daily as {
     time: string[];
     precipitation_sum: number[];
   } | undefined;
 
-  if (!daily?.time || !daily?.precipitation_sum) return false;
+  if (!daily?.time || !daily?.precipitation_sum) return { rained: false, mm: 0 };
 
   const todayIdx = daily.time.indexOf(today);
-  if (todayIdx === -1) return false;
+  if (todayIdx === -1) return { rained: false, mm: 0 };
 
   const mm = daily.precipitation_sum[todayIdx] ?? 0;
-  return mm >= thresholdMm;
+  return { rained: mm >= thresholdMm, mm };
 }
 
 async function checkControllingTaskDue(
@@ -90,7 +90,8 @@ async function checkControllingTaskDue(
     .eq("automation_id", automationId)
     .eq("role", "controlling");
 
-  if (!abps || abps.length === 0) return false;
+  // No controlling blueprints = no gate; always allow
+  if (!abps || abps.length === 0) return true;
 
   const bpIds = abps.map((r: Record<string, unknown>) => r.blueprint_id as string);
 
@@ -134,6 +135,7 @@ async function checkControllingTaskDue(
 async function fireValve(
   apiBase: string,
   device: Record<string, unknown>,
+  command: "turn_on" | "turn_off",
   durationSeconds: number,
   retryOnFailure: boolean,
   accessToken: string,
@@ -141,8 +143,8 @@ async function fireValve(
   const meta = device.metadata as Record<string, unknown>;
   const { apiPath, payload } = buildControlPayload(
     meta,
-    "turn_on",
-    durationSeconds,
+    command,
+    command === "turn_off" ? 0 : durationSeconds,
     device.external_device_id as string,
   );
 
@@ -173,6 +175,7 @@ async function fireValves(
   automationId: string,
   automation: Record<string, unknown>,
   runId: string,
+  triggeredBy: "schedule" | "manual",
 ): Promise<DeviceResult[]> {
   const { data: adRows } = await db
     .from("automation_devices")
@@ -203,15 +206,14 @@ async function fireValves(
     const device = (devices as Array<Record<string, unknown>>)[i];
     const integrationId = device.integration_id as string;
 
-    // Sequential: queue all but the first valve
+    // Sequential: queue all but the first valve + their paired turn-offs
     if (sequential && i > 0) {
       const fireAt = new Date(Date.now() + i * durationSeconds * 1_000).toISOString();
-      await db.from("automation_valve_queue").insert({
-        automation_run_id: runId,
-        device_id: device.id as string,
-        fire_at: fireAt,
-        status: "pending",
-      });
+      const turnOffAt = new Date(Date.now() + (i + 1) * durationSeconds * 1_000).toISOString();
+      await db.from("automation_valve_queue").insert([
+        { automation_run_id: runId, device_id: device.id as string, fire_at: fireAt, command: "turn_on", status: "pending" },
+        { automation_run_id: runId, device_id: device.id as string, fire_at: turnOffAt, command: "turn_off", status: "pending" },
+      ]);
       results.push({ device_id: device.id as string, name: device.name as string, success: true, queued: true });
       continue;
     }
@@ -238,7 +240,28 @@ async function fireValves(
       credCache.set(integrationId, cred);
     }
 
-    const ok = await fireValve(cred.apiBase, device, durationSeconds, retry, cred.accessToken);
+    const ok = await fireValve(cred.apiBase, device, "turn_on", durationSeconds, retry, cred.accessToken);
+    if (ok) {
+      const turnOffAt = new Date(Date.now() + durationSeconds * 1_000).toISOString();
+      await Promise.all([
+        db.from("automation_valve_queue").insert({
+          automation_run_id: runId,
+          device_id: device.id as string,
+          fire_at: turnOffAt,
+          command: "turn_off",
+          status: "pending",
+        }),
+        db.from("valve_events").insert({
+          device_id: device.id as string,
+          home_id: automation.home_id as string,
+          automation_id: automationId,
+          event_type: "turn_on",
+          triggered_by: triggeredBy === "manual" ? "manual" : "scheduled",
+          duration_seconds: durationSeconds,
+          fired_at: new Date().toISOString(),
+        }),
+      ]);
+    }
     results.push({
       device_id: device.id as string,
       name: device.name as string,
@@ -255,6 +278,7 @@ async function completeTasks(
   automationId: string,
   homeId: string,
   today: string,
+  isManual = false,
 ): Promise<TaskResult[]> {
   const { data: abps } = await db
     .from("automation_blueprints")
@@ -265,6 +289,61 @@ async function completeTasks(
 
   const results: TaskResult[] = [];
 
+  // ── Manual run: only complete tasks that already exist for today ─────────
+  // If none exist, insert one generic record instead of materialising phantoms.
+  if (isManual) {
+    const bpIds = (abps as Array<Record<string, unknown>>).map((r) => r.blueprint_id as string);
+
+    const { data: existingTasks } = await db
+      .from("tasks")
+      .select("id, status, blueprint_id, title")
+      .in("blueprint_id", bpIds)
+      .eq("due_date", today);
+
+    if (!existingTasks || (existingTasks as unknown[]).length === 0) {
+      // No scheduled tasks due today — insert a single generic marker task
+      const { data: autoRow } = await db
+        .from("automations")
+        .select("name")
+        .eq("id", automationId)
+        .single();
+      const autoName = (autoRow as Record<string, unknown>)?.name as string ?? "Automation";
+
+      await db.from("tasks").insert({
+        home_id: homeId,
+        blueprint_id: null,
+        title: `${autoName} ran`,
+        description: "Your automation ran manually. No scheduled watering tasks were due today.",
+        type: "Watering",
+        due_date: today,
+        status: "Completed",
+        completed_at: new Date().toISOString(),
+        auto_completed_reason: "automation",
+      });
+      return [{ blueprint_id: "generic", title: `${autoName} ran`, already_done: false }];
+    }
+
+    // Complete only the tasks that exist for today
+    for (const task of existingTasks as Array<Record<string, unknown>>) {
+      const blueprintId = task.blueprint_id as string;
+      const title = task.title as string ?? "";
+      if ((task.status as string) !== "Pending") {
+        results.push({ blueprint_id: blueprintId, title, already_done: true });
+        continue;
+      }
+      await db.from("tasks")
+        .update({
+          status: "Completed",
+          completed_at: new Date().toISOString(),
+          auto_completed_reason: "automation",
+        })
+        .eq("id", task.id as string);
+      results.push({ blueprint_id: blueprintId, title, already_done: false });
+    }
+    return results;
+  }
+
+  // ── Scheduled run: materialise + complete all linked blueprints ──────────
   for (const abp of abps as Array<Record<string, unknown>>) {
     const blueprintId = abp.blueprint_id as string;
 
@@ -349,16 +428,23 @@ async function sendNotification(
   status: string,
   durationSeconds: number,
   automationId: string,
+  rainMm = 0,
 ): Promise<void> {
-  const isSuccess = status === "success" || status === "partial";
   const durationMins = Math.round(durationSeconds / 60);
 
-  const title = isSuccess
-    ? `${automationName} watered your garden`
-    : `${automationName} failed to water`;
-  const body = isSuccess
-    ? `Valves ran for ${durationMins} min${status === "partial" ? " (some devices failed)" : " successfully"}.`
-    : "Check your device connections and try again.";
+  let title: string;
+  let body: string;
+  if (status === "skipped_weather") {
+    const mmText = rainMm > 0 ? ` (${rainMm}mm forecast)` : "";
+    title = `${automationName} skipped — rain detected`;
+    body = `Your garden didn't need extra water today${mmText}.`;
+  } else if (status === "success" || status === "partial") {
+    title = `${automationName} watered your garden`;
+    body = `Valves ran for ${durationMins} min${status === "partial" ? " (some devices failed)" : " successfully"}.`;
+  } else {
+    title = `${automationName} failed to water`;
+    body = "Check your device connections and try again.";
+  }
 
   const { data: members } = await db
     .from("home_members")
@@ -385,7 +471,7 @@ async function drainValveQueue(db: ReturnType<typeof createClient>): Promise<voi
 
   const { data: pending } = await db
     .from("automation_valve_queue")
-    .select("id, device_id, automation_run_id")
+    .select("id, device_id, automation_run_id, command")
     .eq("status", "pending")
     .lte("fire_at", now);
 
@@ -397,7 +483,7 @@ async function drainValveQueue(db: ReturnType<typeof createClient>): Promise<voi
     // Load device + automation settings via the run
     const { data: runRow } = await db
       .from("automation_runs")
-      .select("automation_id")
+      .select("automation_id, home_id, triggered_by")
       .eq("id", entry.automation_run_id as string)
       .single();
 
@@ -442,9 +528,11 @@ async function drainValveQueue(db: ReturnType<typeof createClient>): Promise<voi
     const { accessToken } = await decryptCredentials(integ.credentials_encrypted as string);
     const apiBase = regionToApiBase(integ.region as string);
 
+    const command = ((entry.command as string) ?? "turn_on") as "turn_on" | "turn_off";
     const ok = await fireValve(
       apiBase,
       dev,
+      command,
       auto.duration_seconds as number,
       auto.retry_on_failure as boolean,
       accessToken,
@@ -456,7 +544,20 @@ async function drainValveQueue(db: ReturnType<typeof createClient>): Promise<voi
       error_message: ok ? null : "eWeLink control failed",
     }).eq("id", entry.id as string);
 
-    log(FN, "queue_drain", { entryId: entry.id, deviceId, success: ok });
+    if (ok) {
+      const run = runRow as Record<string, unknown>;
+      await db.from("valve_events").insert({
+        device_id: deviceId,
+        home_id: run.home_id as string,
+        automation_id: run.automation_id as string,
+        event_type: command,
+        triggered_by: (run.triggered_by as string) === "manual" ? "manual" : "scheduled",
+        duration_seconds: command === "turn_on" ? (auto.duration_seconds as number) : null,
+        fired_at: now,
+      });
+    }
+
+    log(FN, "queue_drain", { entryId: entry.id, deviceId, command, success: ok });
   }
 }
 
@@ -476,15 +577,18 @@ async function runAutomation(
 
   // ── Weather check (scheduled runs only) ──────────────────────────────────
   if (triggeredBy === "schedule" && automation.skip_if_rained) {
-    const rained = await checkRain(db, homeId, automation.rain_threshold_mm as number).catch(() => false);
+    const { rained, mm: rainMm } = await checkRain(db, homeId, automation.rain_threshold_mm as number)
+      .catch(() => ({ rained: false, mm: 0 }));
     if (rained) {
-      log(FN, "weather_skip", { automationId });
+      log(FN, "weather_skip", { automationId, rainMm });
       await db.from("automation_runs").insert({
         automation_id: automationId, home_id: homeId,
         triggered_by: triggeredBy, status: "skipped_weather",
         completed_at: new Date().toISOString(),
       });
       await db.from("automations").update({ last_run_date: today }).eq("id", automationId);
+      await sendNotification(db, homeId, automationName, "skipped_weather", automation.duration_seconds as number, automationId, rainMm)
+        .catch((e) => warn(FN, "notify_error", { error: e.message }));
       return { status: "skipped_weather" };
     }
   }
@@ -515,10 +619,10 @@ async function runAutomation(
   const runId = (runRow as Record<string, unknown>).id as string;
 
   // ── Fire valves ───────────────────────────────────────────────────────────
-  const devicesTriggered = await fireValves(db, automationId, automation, runId);
+  const devicesTriggered = await fireValves(db, automationId, automation, runId, triggeredBy);
 
   // ── Mark tasks done ───────────────────────────────────────────────────────
-  const tasksCompleted = await completeTasks(db, automationId, homeId, today);
+  const tasksCompleted = await completeTasks(db, automationId, homeId, today, triggeredBy === "manual");
 
   // ── Determine run status ──────────────────────────────────────────────────
   const realFires = devicesTriggered.filter((d) => !d.queued);

@@ -5,6 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import type { AggregatePeriod } from "../../lib/integrations/types";
+import ValveTimeline from "./ValveTimeline";
 
 interface Props {
   deviceId: string;
@@ -24,7 +25,10 @@ export default function HistoryChart({ deviceId, deviceType }: Props) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isSoil = deviceType === "soil_sensor";
+
   useEffect(() => {
+    if (!isSoil) return;
     let cancelled = false;
     const load = async () => {
       setLoading(true);
@@ -47,9 +51,12 @@ export default function HistoryChart({ deviceId, deviceType }: Props) {
     };
     load();
     return () => { cancelled = true; };
-  }, [deviceId, period]);
+  }, [deviceId, period, isSoil]);
 
-  const isSoil = deviceType === "soil_sensor";
+  // Valves use the ValveTimeline component — no period picker needed
+  if (!isSoil) {
+    return <ValveTimeline deviceId={deviceId} />;
+  }
 
   return (
     <div>
@@ -79,10 +86,8 @@ export default function HistoryChart({ deviceId, deviceType }: Props) {
         <p className="text-sm text-red-500 text-center py-6">{error}</p>
       ) : data.length === 0 ? (
         <p className="text-sm text-rhozly-on-surface-variant text-center py-6">No data for this period.</p>
-      ) : isSoil ? (
-        <SoilChart data={data} period={period} />
       ) : (
-        <p className="text-sm text-rhozly-on-surface-variant text-center py-6">Valve state history coming soon.</p>
+        <SoilChart data={data} period={period} />
       )}
     </div>
   );

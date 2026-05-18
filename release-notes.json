@@ -1,3 +1,19 @@
 [
-  { "label": "Improved", "items": ["Companion plants now uses the full search modal when adding to Shed — search Perenual, Verdantly, and AI results and pick the exact variant you want"] }
+  {
+    "label": "New",
+    "items": [
+      "Valve state history — the device history panel now shows a timeline of every open and close event, with time, duration, and whether it was triggered by a schedule or manually"
+    ]
+  },
+  {
+    "label": "Fixed",
+    "items": [
+      "Automations were never firing — a missing configuration setting meant the scheduled trigger was being rejected silently",
+      "Automations with no task gate set were incorrectly skipping instead of always running",
+      "Running an automation manually no longer creates phantom tasks — if no watering tasks are due today, a single generic record is created instead",
+      "Water valves now turn off correctly after the set duration — the turn-off command is now sent explicitly rather than relying on a countdown the device was ignoring",
+      "Automations skipped due to rain now send a notification and appear correctly in the run history with the forecasted rainfall amount",
+      "Water valves no longer show as offline on the device list — the online indicator now checks whether the valve is linked rather than using a stale last-seen timestamp"
+    ]
+  }
 ]

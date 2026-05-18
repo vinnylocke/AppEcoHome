@@ -9,9 +9,12 @@ interface Props {
 }
 
 export default function DeviceCard({ device, onClick }: Props) {
-  const isOnline =
-    device.last_seen_at
-      ? Date.now() - new Date(device.last_seen_at).getTime() < 60 * 60 * 1000 // within 1 hour
+  // Valves don't send periodic readings so last_seen_at goes stale — treat as
+  // online whenever the device is linked (external_device_id present).
+  const isOnline = device.device_type === "water_valve"
+    ? !!device.external_device_id
+    : device.last_seen_at
+      ? Date.now() - new Date(device.last_seen_at).getTime() < 60 * 60 * 1000
       : false;
 
   const isSoil = device.device_type === "soil_sensor";
@@ -46,12 +49,18 @@ export default function DeviceCard({ device, onClick }: Props) {
       </p>
 
       {/* Last seen */}
-      {device.last_seen_at ? (
-        <p className="text-xs text-rhozly-on-surface-variant">
-          Last reading {timeAgo(device.last_seen_at)}
-        </p>
+      {isSoil ? (
+        device.last_seen_at ? (
+          <p className="text-xs text-rhozly-on-surface-variant">
+            Last reading {timeAgo(device.last_seen_at)}
+          </p>
+        ) : (
+          <p className="text-xs text-rhozly-on-surface-variant/60">No readings yet</p>
+        )
       ) : (
-        <p className="text-xs text-rhozly-on-surface-variant/60">No readings yet</p>
+        <p className="text-xs text-rhozly-on-surface-variant/60">
+          {device.last_seen_at ? `Last run ${timeAgo(device.last_seen_at)}` : "No runs yet"}
+        </p>
       )}
     </button>
   );
