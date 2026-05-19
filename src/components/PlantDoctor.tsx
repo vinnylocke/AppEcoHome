@@ -24,6 +24,7 @@ import {
   BrainCircuit,
   ShieldCheck,
   Sun,
+  Edit3,
 } from "lucide-react";
 import { IconDoctor, IconPlantDB, IconPest, IconAI, IconPlant, IconGuides, IconShopping } from "../constants/icons";
 import { toast } from "react-hot-toast";
@@ -38,6 +39,7 @@ import AddToListSheet, { type SuggestedItem } from "./shopping/AddToListSheet";
 import type { ShoppingList } from "../types/shopping";
 import PlantDoctorHistory from "./PlantDoctorHistory";
 import { usePlantDoctorSessions } from "../hooks/usePlantDoctorSessions";
+import PhotoAnnotationOverlay, { type PhotoAnnotation } from "./PhotoAnnotationOverlay";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -78,6 +80,8 @@ export default function PlantDoctor({
 
   const [imagePreview, setImagePreview] = useState<string | null>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [annotations, setAnnotations] = useState<PhotoAnnotation[]>([]);
+  const [annotatingPhoto, setAnnotatingPhoto] = useState(false);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
@@ -323,6 +327,8 @@ export default function PlantDoctor({
     setTreatmentApplied(false);
     setCurrentSessionId(null);
     setConfirmedValue(null);
+    setAnnotations([]);
+    setAnnotatingPhoto(false);
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
@@ -352,6 +358,7 @@ export default function PlantDoctor({
             possible_diseases: result.possible_diseases,
             possible_pests: result.possible_pests,
           },
+          annotations,
         })
         .select("id")
         .single();
@@ -716,20 +723,49 @@ export default function PlantDoctor({
           ) : (
             <div className="animate-in zoom-in-95 duration-300 xl:grid xl:grid-cols-[2fr_3fr] xl:gap-6 xl:items-start">
               {/* Left: image (sticky on xl) */}
-              <div className="mb-6 xl:mb-0 xl:sticky xl:top-4">
+              <div className="mb-6 xl:mb-0 xl:sticky xl:top-4 space-y-2">
                 <div className="relative rounded-3xl overflow-hidden border border-rhozly-outline/20 bg-rhozly-on-surface/5 flex justify-center max-h-[400px] shadow-inner">
-                  <img
+                  <PhotoAnnotationOverlay
                     src={imagePreview}
                     alt="Plant preview"
-                    className="object-contain w-full h-full"
+                    annotations={annotations}
+                    onChange={setAnnotations}
+                    editing={annotatingPhoto}
+                    maxHeightClass="max-h-[400px]"
                   />
                   <button
                     onClick={clearImage}
                     disabled={isUIBusy}
-                    className="absolute top-4 right-4 w-12 h-12 bg-white/90 backdrop-blur-sm rounded-2xl text-rhozly-on-surface/60 hover:text-red-500 hover:bg-white flex items-center justify-center shadow-sm transition-colors disabled:opacity-50"
+                    aria-label="Remove photo"
+                    className="absolute top-4 right-4 w-12 h-12 bg-white/90 backdrop-blur-sm rounded-2xl text-rhozly-on-surface/60 hover:text-red-500 hover:bg-white flex items-center justify-center shadow-sm transition-colors disabled:opacity-50 z-10"
                   >
                     <X className="w-5 h-5" />
                   </button>
+                </div>
+
+                {/* Annotation controls */}
+                <div className="flex items-center justify-between gap-2 px-1">
+                  <button
+                    type="button"
+                    onClick={() => setAnnotatingPhoto((v) => !v)}
+                    aria-pressed={annotatingPhoto}
+                    data-testid="doctor-annotate-toggle"
+                    className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-colors min-h-[36px] ${
+                      annotatingPhoto
+                        ? "bg-rhozly-primary text-white shadow-sm"
+                        : "bg-rhozly-surface-low text-rhozly-on-surface/70 hover:bg-rhozly-surface"
+                    }`}
+                  >
+                    <Edit3 size={12} />
+                    {annotatingPhoto ? "Done marking" : "Mark areas"}
+                  </button>
+                  <p className="text-[10px] font-bold text-rhozly-on-surface/45 leading-snug text-right max-w-[200px]">
+                    {annotatingPhoto
+                      ? "Tap the image to drop a numbered marker; tap a marker to label or remove it."
+                      : annotations.length > 0
+                        ? `${annotations.length} marker${annotations.length === 1 ? "" : "s"} saved with this session.`
+                        : "Optional — point out specific areas before you analyse."}
+                  </p>
                 </div>
               </div>
 

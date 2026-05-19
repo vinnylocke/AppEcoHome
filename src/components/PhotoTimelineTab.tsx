@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { format } from "date-fns";
-import { BookOpen, CheckCircle2, ImageOff, Loader2, Stethoscope, X } from "lucide-react";
+import { BookOpen, CheckCircle2, ImageOff, Loader2, Star, Stethoscope, X } from "lucide-react";
+import { toast } from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 
@@ -41,6 +42,39 @@ export default function PhotoTimelineTab({ inventoryItemId }: PhotoTimelineTabPr
   const [photos, setPhotos] = useState<TimelinePhoto[]>([]);
   const [loading, setLoading] = useState(true);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [coverUrl, setCoverUrl] = useState<string | null>(null);
+  const [settingCover, setSettingCover] = useState<string | null>(null);
+
+  const fetchCover = async () => {
+    const { data } = await supabase
+      .from("inventory_items")
+      .select("cover_image_url")
+      .eq("id", inventoryItemId)
+      .maybeSingle();
+    setCoverUrl(data?.cover_image_url ?? null);
+  };
+
+  const setAsCover = async (url: string) => {
+    setSettingCover(url);
+    try {
+      const { error } = await supabase
+        .from("inventory_items")
+        .update({ cover_image_url: url })
+        .eq("id", inventoryItemId);
+      if (error) throw error;
+      setCoverUrl(url);
+      toast.success("Set as plant cover.");
+    } catch (err: any) {
+      Logger.error("Failed to set plant cover", err, { inventoryItemId }, "Could not set as cover.");
+    } finally {
+      setSettingCover(null);
+    }
+  };
+
+  useEffect(() => {
+    fetchCover();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [inventoryItemId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -157,37 +191,70 @@ export default function PhotoTimelineTab({ inventoryItemId }: PhotoTimelineTabPr
           >
             {photos.map((photo, idx) => {
               const meta = SOURCE_META[photo.source];
+              const isCover = coverUrl === photo.url;
+              const isSettingThisCover = settingCover === photo.url;
               return (
-                <button
+                <div
                   key={photo.id}
-                  type="button"
-                  onClick={() => setLightboxIndex(idx)}
-                  aria-label={`Open photo: ${photo.subject}`}
-                  className="group relative aspect-square rounded-2xl overflow-hidden bg-rhozly-surface-low border border-rhozly-outline/15 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary"
+                  className="group relative aspect-square rounded-2xl overflow-hidden bg-rhozly-surface-low border border-rhozly-outline/15"
                   data-testid={`photo-timeline-item-${idx}`}
                 >
-                  <img
-                    src={photo.url}
-                    alt={photo.subject}
-                    loading="lazy"
-                    className="w-full h-full object-cover transition-transform group-hover:scale-105"
-                  />
+                  <button
+                    type="button"
+                    onClick={() => setLightboxIndex(idx)}
+                    aria-label={`Open photo: ${photo.subject}`}
+                    className="w-full h-full focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary"
+                  >
+                    <img
+                      src={photo.url}
+                      alt={photo.subject}
+                      loading="lazy"
+                      className="w-full h-full object-cover transition-transform group-hover:scale-105"
+                    />
+                    <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-2.5 py-2">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-white/85">
+                        {format(new Date(photo.date), "d MMM yyyy")}
+                      </p>
+                      <p className="text-[11px] font-bold text-white leading-tight truncate">
+                        {photo.subject}
+                      </p>
+                    </div>
+                  </button>
+
                   <span
-                    className={`absolute top-1.5 left-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm ${meta.chipClass}`}
+                    className={`absolute top-1.5 left-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm pointer-events-none ${meta.chipClass}`}
                     data-testid={`photo-timeline-source-${photo.source}-${idx}`}
                   >
                     {meta.icon}
                     {meta.label}
                   </span>
-                  <div className="absolute inset-x-0 bottom-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent px-2.5 py-2">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-white/85">
-                      {format(new Date(photo.date), "d MMM yyyy")}
-                    </p>
-                    <p className="text-[11px] font-bold text-white leading-tight truncate">
-                      {photo.subject}
-                    </p>
-                  </div>
-                </button>
+
+                  {/* Cover indicator / action */}
+                  {isCover ? (
+                    <span
+                      className="absolute top-1.5 right-1.5 inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest shadow-sm bg-amber-400 text-amber-950 pointer-events-none"
+                      data-testid={`photo-timeline-item-${idx}-is-cover`}
+                    >
+                      <Star size={9} className="fill-amber-950" /> Cover
+                    </span>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => setAsCover(photo.url)}
+                      disabled={isSettingThisCover}
+                      aria-label="Set as plant cover"
+                      title="Set as plant cover"
+                      className="absolute top-1.5 right-1.5 p-1.5 rounded-lg bg-white/85 backdrop-blur-sm text-rhozly-on-surface/70 hover:text-amber-500 opacity-0 group-hover:opacity-100 focus:opacity-100 transition-opacity shadow-sm disabled:opacity-100"
+                      data-testid={`photo-timeline-item-${idx}-set-cover`}
+                    >
+                      {isSettingThisCover ? (
+                        <Loader2 size={11} className="animate-spin" />
+                      ) : (
+                        <Star size={11} />
+                      )}
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>

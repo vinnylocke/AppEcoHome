@@ -26,6 +26,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { saveMemoryEvent } from "../lib/plannerMemory";
 import { logEvent, EVENT } from "../events/registry";
 import WikiPlantCard from "./WikiPlantCard";
+import PlanReferencePhotos from "./PlanReferencePhotos";
 import {
   injectBlueprintTasks,
   activateMaintenanceBlueprints,
@@ -799,6 +800,10 @@ export default function PlanStaging({
       </div>
 
       <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6 custom-scrollbar pb-24">
+        {/* Reference photos — collapsible; sits above the phase work so it's
+            easy to find but doesn't take vertical space when collapsed. */}
+        <PlanReferencePhotos planId={plan.id} homeId={homeId} />
+
         {/* Pre-Start Review Panel */}
         {!isStarted && (
           <section className="bg-white rounded-3xl p-6 sm:p-8 shadow-md border border-rhozly-primary/30 relative overflow-hidden animate-in fade-in">

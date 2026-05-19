@@ -1,19 +1,10 @@
 [
   {
-    "label": "Accessibility",
+    "label": "Photos — Round Two",
     "items": [
-      "Modals now trap keyboard focus while open and return focus to where you were when they close — easier to navigate without a mouse.",
-      "Every close (✕) button across the app now has a screen-reader label.",
-      "New High Contrast toggle in Account Settings → Accessibility forces solid colours for secondary text and chips. Easier to read in bright sunlight or for users with low vision."
-    ]
-  },
-  {
-    "label": "Photos Everywhere",
-    "items": [
-      "New unified photo uploader: drag-and-drop, paste from clipboard, choose file, or take a photo with your camera.",
-      "Tasks can now carry a completion photo — open a completed task to attach a 'before/after' or any visual record.",
-      "Linking a plant to a Watchlist ailment now supports an evidence photo and freeform notes, so the issue is captured for next time.",
-      "New Photos tab on every plant — a chronological grid of journal photos, completed-task photos, and ailment evidence shots in one view, with a click-to-zoom lightbox."
+      "Plans can now carry a set of reference photos — inspiration shots, progress photos, anything you want to remember. Find the new 'Reference photos' section at the top of any plan.",
+      "Plant Doctor: mark up your photo before you analyse. Drop numbered markers on specific areas (yellowing leaves, bite marks) and add short labels. Markers are saved with the diagnosis in your History.",
+      "Set any photo as your plant's cover — visit a plant's Photos tab, hover any image, and tap the star to pin it as the plant's cover photo."
     ]
   }
 ]
