@@ -15,6 +15,7 @@ import {
   Check,
   X,
   RefreshCw,
+  Star,
 } from "lucide-react";
 import CommunityGuidesTab from "./CommunityGuidesTab";
 import AppHelpSearch from "./AppHelpSearch";
@@ -120,8 +121,41 @@ export default function GuideList() {
     setIsLoading(false);
   };
 
+  // Bookmarks — per-user, cross-device. Loaded once on mount.
+  const [bookmarkedIds, setBookmarkedIds] = useState<Set<string>>(new Set());
+  const fetchBookmarks = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data } = await supabase
+      .from("guide_bookmarks")
+      .select("guide_id")
+      .eq("user_id", user.id);
+    setBookmarkedIds(new Set((data ?? []).map((r: any) => r.guide_id)));
+  };
+  const toggleBookmark = async (guideId: string) => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const next = new Set(bookmarkedIds);
+    if (next.has(guideId)) {
+      next.delete(guideId);
+      setBookmarkedIds(next);
+      await supabase
+        .from("guide_bookmarks")
+        .delete()
+        .eq("user_id", user.id)
+        .eq("guide_id", guideId);
+    } else {
+      next.add(guideId);
+      setBookmarkedIds(next);
+      await supabase
+        .from("guide_bookmarks")
+        .insert({ user_id: user.id, guide_id: guideId });
+    }
+  };
+
   useEffect(() => {
     fetchGuides();
+    fetchBookmarks();
   }, []);
 
   // Handle Escape key to close dropdown
@@ -182,13 +216,15 @@ export default function GuideList() {
 
       return matchesSearch && matchesLabel;
     });
-    // Pin "Getting Started" guide always first regardless of sort
+    // Sort: Getting Started always first; then bookmarked guides; then the rest.
     return results.sort((a, b) => {
-      const aStarter = a.data.title?.toLowerCase().includes("getting started") ? -1 : 0;
-      const bStarter = b.data.title?.toLowerCase().includes("getting started") ? -1 : 0;
-      return aStarter - bStarter;
+      const aStarter = a.data.title?.toLowerCase().includes("getting started") ? -2 : 0;
+      const bStarter = b.data.title?.toLowerCase().includes("getting started") ? -2 : 0;
+      const aBookmark = bookmarkedIds.has(a.id) ? -1 : 0;
+      const bBookmark = bookmarkedIds.has(b.id) ? -1 : 0;
+      return (aStarter + aBookmark) - (bStarter + bBookmark);
     });
-  }, [guides, searchQuery, selectedLabel]);
+  }, [guides, searchQuery, selectedLabel, bookmarkedIds]);
 
   const getCoverImage = (guideData: any) => {
     const imgSection = guideData.sections?.find((s: any) => s.type === "image");
@@ -653,65 +689,88 @@ export default function GuideList() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 relative z-10">
           {filteredGuides.map((guide) => {
             const cover = getCoverImage(guide.data);
+            const isBookmarked = bookmarkedIds.has(guide.id);
             return (
-              <button
-                key={guide.id}
-                onClick={() => { setActiveGuide(guide); toast.success("Opening guide…", { duration: 800 }); }}
-                className="group text-left bg-white rounded-2xl border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full hover:-translate-y-1 active:scale-[0.98] cursor-pointer"
-              >
-                {cover ? (
-                  <div className="h-48 overflow-hidden bg-gray-100">
-                    <img
-                      src={cover}
-                      alt="cover"
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
-                      loading="lazy"
-                    />
-                  </div>
-                ) : (
-                  <div className="h-48 bg-gradient-to-br from-rhozly-surface-low to-rhozly-surface flex items-center justify-center">
-                    <BookOpen size={48} className="text-rhozly-on-surface/10" />
-                  </div>
-                )}
+              <div key={guide.id} className="relative">
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => { setActiveGuide(guide); toast.success("Opening guide…", { duration: 800 }); }}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setActiveGuide(guide); toast.success("Opening guide…", { duration: 800 }); } }}
+                  className="group text-left bg-white rounded-2xl border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col h-full hover:-translate-y-1 active:scale-[0.98] cursor-pointer focus:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary"
+                >
+                  {cover ? (
+                    <div className="h-48 overflow-hidden bg-gray-100">
+                      <img
+                        src={cover}
+                        alt="cover"
+                        className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                        loading="lazy"
+                      />
+                    </div>
+                  ) : (
+                    <div className="h-48 bg-gradient-to-br from-rhozly-surface-low to-rhozly-surface flex items-center justify-center">
+                      <BookOpen size={48} className="text-rhozly-on-surface/10" />
+                    </div>
+                  )}
 
-                <div className="p-6 flex flex-col flex-1">
-                  <div className="flex gap-2 mb-3 flex-wrap">
-                    <span className="bg-rhozly-surface-low text-rhozly-on-surface text-xs font-black uppercase px-2 py-1 rounded-md">
-                      {guide.data.difficulty}
-                    </span>
-                    <span className="bg-rhozly-surface-low text-rhozly-on-surface text-xs font-black uppercase px-2 py-1 rounded-md">
-                      {guide.data.estimated_minutes}m
-                    </span>
-                  </div>
-                  <h3 className="text-xl font-black leading-tight mb-2 text-rhozly-on-surface group-hover:text-rhozly-primary transition-colors line-clamp-2">
-                    {guide.data.title}
-                  </h3>
-                  <p className="text-sm font-bold text-rhozly-on-surface/50 line-clamp-2 mb-4">
-                    {guide.data.subtitle}
-                  </p>
-
-                  <div className="mt-auto pt-4 flex items-center justify-between gap-2 border-t border-rhozly-outline/5">
-                    <div className="flex gap-1 flex-wrap min-w-0">
-                      {guide.labels?.slice(0, 2).map((l: string) => (
-                        <span
-                          key={l}
-                          className="text-xs font-black text-rhozly-primary/60 uppercase truncate"
-                        >
-                          #{l}
-                        </span>
-                      ))}
-                      {guide.labels?.length > 2 && (
-                        <span className="text-xs font-black text-rhozly-on-surface/30 uppercase">
-                          +{guide.labels.length - 2}
+                  <div className="p-6 flex flex-col flex-1">
+                    <div className="flex gap-2 mb-3 flex-wrap">
+                      <span className="bg-rhozly-surface-low text-rhozly-on-surface text-xs font-black uppercase px-2 py-1 rounded-md">
+                        {guide.data.difficulty}
+                      </span>
+                      <span className="bg-rhozly-surface-low text-rhozly-on-surface text-xs font-black uppercase px-2 py-1 rounded-md">
+                        {guide.data.estimated_minutes}m
+                      </span>
+                      {isBookmarked && (
+                        <span className="bg-amber-100 text-amber-800 text-xs font-black uppercase px-2 py-1 rounded-md flex items-center gap-1">
+                          <Star size={10} className="fill-amber-600" /> Bookmarked
                         </span>
                       )}
                     </div>
-                    <span className="text-xs font-black text-rhozly-primary shrink-0 group-hover:underline">
-                      Read →
-                    </span>
+                    <h3 className="text-xl font-black leading-tight mb-2 text-rhozly-on-surface group-hover:text-rhozly-primary transition-colors line-clamp-2">
+                      {guide.data.title}
+                    </h3>
+                    <p className="text-sm font-bold text-rhozly-on-surface/50 line-clamp-2 mb-4">
+                      {guide.data.subtitle}
+                    </p>
+
+                    <div className="mt-auto pt-4 flex items-center justify-between gap-2 border-t border-rhozly-outline/5">
+                      <div className="flex gap-1 flex-wrap min-w-0">
+                        {guide.labels?.slice(0, 2).map((l: string) => (
+                          <span
+                            key={l}
+                            className="text-xs font-black text-rhozly-primary/60 uppercase truncate"
+                          >
+                            #{l}
+                          </span>
+                        ))}
+                        {guide.labels?.length > 2 && (
+                          <span className="text-xs font-black text-rhozly-on-surface/30 uppercase">
+                            +{guide.labels.length - 2}
+                          </span>
+                        )}
+                      </div>
+                      <span className="text-xs font-black text-rhozly-primary shrink-0 group-hover:underline">
+                        Read →
+                      </span>
+                    </div>
                   </div>
                 </div>
-              </button>
+
+                {/* Bookmark star — overlays the top-right of the card */}
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleBookmark(guide.id); }}
+                  aria-label={isBookmarked ? `Remove ${guide.data.title} from bookmarks` : `Bookmark ${guide.data.title}`}
+                  data-testid={`guide-bookmark-${guide.id}`}
+                  className="absolute top-3 right-3 w-10 h-10 bg-white/90 backdrop-blur-sm rounded-xl shadow-md flex items-center justify-center hover:scale-110 active:scale-95 transition-transform"
+                >
+                  <Star
+                    size={16}
+                    className={isBookmarked ? "fill-amber-500 text-amber-500" : "text-rhozly-on-surface/40"}
+                  />
+                </button>
+              </div>
             );
           })}
         </div>

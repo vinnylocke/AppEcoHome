@@ -25,6 +25,7 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { IconAI, IconPlanner } from "../constants/icons";
 import NewPlanForm from "./NewPlanForm";
 import PlanStaging from "./PlanStaging";
+import AssistantCard from "./AssistantCard";
 import { Repeat } from "lucide-react";
 
 interface PlannerDashboardProps {
@@ -303,6 +304,12 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
       </div>
 
       {/* Tabs */}
+      {/* AI Assistant — surfaced here so plan-related insights catch the user
+          mid-planning rather than only on the dashboard. */}
+      <div className="mb-6">
+        <AssistantCard contextLabel="Your plans" />
+      </div>
+
       <div
         role="tablist"
         aria-label="Plan status"

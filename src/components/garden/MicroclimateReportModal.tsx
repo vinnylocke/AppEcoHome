@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { X, Wind, Snowflake, Sun, Lightbulb, Loader2 } from "lucide-react";
+import { X, Wind, Snowflake, Sun, Lightbulb, Loader2, Printer } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { Logger } from "../../lib/errorHandler";
 import type { ShapeData } from "../GardenShapeProperties";
@@ -102,20 +102,34 @@ export default function MicroclimateReportModal({
       data-testid="microclimate-report-modal"
       className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4"
     >
-      <div className="bg-white rounded-3xl w-full max-w-2xl shadow-xl flex flex-col max-h-[90vh]">
+      <div id="microclimate-print-root" className="bg-white rounded-3xl w-full max-w-2xl shadow-xl flex flex-col max-h-[90vh]">
         <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-rhozly-outline/10 shrink-0">
           <div>
-            <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">Wave 11B</p>
+            <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">Garden insights</p>
             <p className="font-black text-rhozly-on-surface">Microclimate Report</p>
+            <p className="text-[10px] font-bold text-rhozly-on-surface/40 mt-0.5 hidden print:block">
+              Generated {new Date().toLocaleString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+            </p>
           </div>
-          <button
-            data-testid="microclimate-close-btn"
-            onClick={onClose}
-            aria-label="Close report"
-            className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface transition-colors"
-          >
-            <X size={18} />
-          </button>
+          <div className="flex items-center gap-1 print:hidden">
+            <button
+              data-testid="microclimate-print-btn"
+              onClick={() => window.print()}
+              aria-label="Print or save as PDF"
+              title="Print or save as PDF"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/60 hover:text-rhozly-primary hover:bg-rhozly-surface transition-colors"
+            >
+              <Printer size={18} />
+            </button>
+            <button
+              data-testid="microclimate-close-btn"
+              onClick={onClose}
+              aria-label="Close report"
+              className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface transition-colors"
+            >
+              <X size={18} />
+            </button>
+          </div>
         </div>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 space-y-3">

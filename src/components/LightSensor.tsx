@@ -369,6 +369,57 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     ? locations.find((l) => l.id === selectedLocationId)?.areas || []
     : [];
 
+  // ── Expected vs measured comparison ──────────────────────────────────────
+  // When an area is picked, load the plants in it so we can compare each
+  // plant's preferred sunlight to the current lux reading.
+  const [areaPlants, setAreaPlants] = useState<Array<{ id: number; name: string; sunlight: string[]; minLux: number; maxLux: number }>>([]);
+  useEffect(() => {
+    if (!selectedAreaId) {
+      setAreaPlants([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("inventory_items")
+        .select("id, identifier, plant_name, plants(sunlight)")
+        .eq("home_id", homeId)
+        .eq("area_id", selectedAreaId);
+      if (cancelled) return;
+      const SUN_LUX: Record<string, [number, number]> = {
+        "deep shade":        [0, 500],
+        "full shade":        [0, 500],
+        "shade":             [500, 2_500],
+        "part shade":        [2_500, 10_000],
+        "partial shade":     [2_500, 10_000],
+        "filtered shade":    [2_500, 10_000],
+        "part sun":          [10_000, 20_000],
+        "partial sun":       [10_000, 20_000],
+        "bright indirect":   [2_500, 10_000],
+        "full sun":          [20_000, 100_000],
+        "sun":               [20_000, 100_000],
+      };
+      const next = (data ?? []).map((row: any) => {
+        const sun: string[] = Array.isArray(row.plants?.sunlight) ? row.plants.sunlight : [];
+        const ranges = sun.map((s) => SUN_LUX[String(s).toLowerCase()]).filter(Boolean) as Array<[number, number]>;
+        const minLux = ranges.length > 0 ? Math.min(...ranges.map((r) => r[0])) : 0;
+        const maxLux = ranges.length > 0 ? Math.max(...ranges.map((r) => r[1])) : 0;
+        return {
+          id: row.id,
+          name: row.identifier || row.plant_name || "Plant",
+          sunlight: sun,
+          minLux,
+          maxLux,
+        };
+      });
+      setAreaPlants(next);
+    })();
+    return () => { cancelled = true; };
+  }, [selectedAreaId, homeId]);
+
+  // Position of the current lux value along the band, 0–1 (clamped at 50,000).
+  const bandPosition = Math.max(0, Math.min(1, lux / 50_000));
+
   return (
     <div className="flex flex-col p-6 animate-in fade-in duration-500">
       <canvas ref={canvasRef} className="hidden" />
@@ -585,6 +636,72 @@ export default function LightSensor({ homeId }: LightSensorProps) {
           </span>
         </div>
       </div>
+
+      {/* Lux band visualisation — gives readings a quick visual context */}
+      <div className="w-full mt-2 mb-4" data-testid="lux-band">
+        <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-2 text-center">
+          Where this reading sits
+        </p>
+        <div className="relative h-3 rounded-full overflow-hidden shadow-inner bg-gradient-to-r from-slate-700 via-amber-200 to-yellow-300">
+          {/* Marker for current reading */}
+          <div
+            className="absolute -top-1.5 w-1 h-6 rounded-full bg-rhozly-on-surface shadow-md transition-all duration-700"
+            style={{ left: `calc(${bandPosition * 100}% - 2px)` }}
+            aria-hidden="true"
+          />
+        </div>
+        <div className="flex justify-between mt-1.5 text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+          <span>Deep shade</span>
+          <span>Shade</span>
+          <span>Part-shade</span>
+          <span>Sun</span>
+          <span>Full sun</span>
+        </div>
+      </div>
+
+      {/* Expected-vs-measured — only when an area with plants is selected */}
+      {selectedAreaId && areaPlants.length > 0 && (
+        <div className="w-full mb-4 bg-white rounded-2xl border border-rhozly-outline/15 p-4 space-y-2" data-testid="lux-expected-vs-measured">
+          <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/45">
+            Light needs of plants in this area
+          </p>
+          {areaPlants.slice(0, 5).map((p) => {
+            const noPref = p.minLux === 0 && p.maxLux === 0;
+            const underLit = !noPref && lux > 0 && lux < p.minLux;
+            const overLit  = !noPref && lux > 0 && lux > p.maxLux;
+            const ok       = !noPref && lux > 0 && lux >= p.minLux && lux <= p.maxLux;
+            return (
+              <div
+                key={p.id}
+                className={`flex items-center justify-between gap-2 px-3 py-2 rounded-xl text-xs font-bold ${
+                  ok       ? "bg-emerald-50 text-emerald-800" :
+                  underLit ? "bg-amber-50 text-amber-800" :
+                  overLit  ? "bg-rose-50 text-rose-800" :
+                             "bg-rhozly-surface-low text-rhozly-on-surface/60"
+                }`}
+                data-testid={`lux-plant-row-${p.id}`}
+              >
+                <span className="truncate">{p.name}</span>
+                <span className="shrink-0 text-[10px] font-black uppercase tracking-widest">
+                  {noPref
+                    ? "No sun pref."
+                    : ok
+                      ? "Within range ✓"
+                      : underLit
+                        ? `Wants ≥ ${p.minLux.toLocaleString()} lx`
+                        : `Prefers ≤ ${p.maxLux.toLocaleString()} lx`
+                  }
+                </span>
+              </div>
+            );
+          })}
+          {areaPlants.length > 5 && (
+            <p className="text-[10px] font-bold text-rhozly-on-surface/40">
+              +{areaPlants.length - 5} more plants in this area
+            </p>
+          )}
+        </div>
+      )}
 
       <div className="w-full space-y-4 mt-4">
         <div

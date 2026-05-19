@@ -50,6 +50,7 @@ import { usePermissions } from "../context/HomePermissionsContext";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
 import InfoTooltip from "./InfoTooltip";
+import AssistantCard from "./AssistantCard";
 
 async function fetchFirstAvailableImage(plantName: string): Promise<string> {
   const [wiki, pixabay] = await Promise.all([
@@ -1313,6 +1314,12 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             </button>
           </div>
         )}
+
+        {/* AI Assistant — surfaces insights related to the Shed (plant counts,
+            care reminders, suitability flags) right where the user is browsing. */}
+        <div className="mb-6">
+          <AssistantCard contextLabel="Your shed" />
+        </div>
 
         <div
           ref={gridRef}

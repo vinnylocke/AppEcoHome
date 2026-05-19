@@ -7,24 +7,39 @@ interface Insight {
   insight_text: string;
 }
 
-export default function AssistantCard({ userId }: { userId: string }) {
+interface AssistantCardProps {
+  /** Optional — when omitted, the card resolves the current user automatically. */
+  userId?: string;
+  /** Optional label for compact framing on context-specific surfaces. */
+  contextLabel?: string;
+}
+
+export default function AssistantCard({ userId: userIdProp, contextLabel }: AssistantCardProps) {
+  const [resolvedUserId, setResolvedUserId] = useState<string | null>(userIdProp ?? null);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [expanded, setExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
 
+  // Self-resolve userId if not passed (so the card is drop-in on any page).
+  useEffect(() => {
+    if (userIdProp) { setResolvedUserId(userIdProp); return; }
+    supabase.auth.getUser().then(({ data }) => setResolvedUserId(data.user?.id ?? null));
+  }, [userIdProp]);
+
   const load = useCallback(async () => {
+    if (!resolvedUserId) return;
     const { data } = await supabase
       .from("user_insights")
       .select("id, insight_text, created_at")
-      .eq("user_id", userId)
+      .eq("user_id", resolvedUserId)
       .is("dismissed_at", null)
       .order("created_at", { ascending: false })
       .limit(20);
     setInsights(data ?? []);
     setLoading(false);
-  }, [userId]);
+  }, [resolvedUserId]);
 
-  useEffect(() => { load(); }, [load]);
+  useEffect(() => { if (resolvedUserId) load(); }, [load, resolvedUserId]);
 
   // Mark the latest insight as surfaced the first time it's shown
   const latestId = insights[0]?.id;
@@ -66,7 +81,7 @@ export default function AssistantCard({ userId }: { userId: string }) {
             <Sparkles size={15} className="text-white" />
           </div>
           <span className="text-xs font-black uppercase tracking-widest text-white/80">
-            AI Insight
+            {contextLabel ? `AI · ${contextLabel}` : "AI Insight"}
           </span>
           {insights.length > 1 && (
             <span className="text-[10px] font-black bg-white/20 px-2 py-0.5 rounded-full">

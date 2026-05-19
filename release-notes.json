@@ -1,23 +1,27 @@
 [
   {
-    "label": "Ask Rhozly AI from anywhere",
+    "label": "Light Meter",
     "items": [
-      "Watchlist cards now have an 'Ask Rhozly AI about this' button so you can dig into an ailment in seconds.",
-      "Every Shed plant card has a quick AI button — get advice on a specific plant without typing its name.",
-      "The Daily Brief on the dashboard has a new 'Got a plant question?' chip that opens the chat with today's context already loaded."
+      "New 'where this reading sits' band shows where your lux measurement falls on the deep-shade-to-full-sun gradient.",
+      "When you pick an area, see at a glance whether each plant in it is over- or under-lit — green ✓ for within range, amber for under, rose for over."
     ]
   },
   {
-    "label": "Plant Doctor History",
+    "label": "Microclimate Report",
     "items": [
-      "Search past Plant Doctor sessions by plant or condition name.",
-      "Filter the history by action — All / Identify / Diagnose / Pest."
+      "Export the Microclimate Report to PDF — tap the printer icon to print or save through your browser's print dialog."
     ]
   },
   {
-    "label": "Plant Search",
+    "label": "AI Insight",
     "items": [
-      "Plant search across providers can now include Rhozly AI suggestions alongside Perenual and Verdantly — labelled clearly so you know where each result came from."
+      "The AI Insight card now appears in the Planner ('Your plans') and the Shed ('Your shed') as well as the dashboard, so insights catch you wherever you're working."
+    ]
+  },
+  {
+    "label": "Guides",
+    "items": [
+      "Bookmark any guide with the star — bookmarked guides are pinned to the top of your Guides list and stay in sync across your devices."
     ]
   }
 ]
