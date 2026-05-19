@@ -9,7 +9,10 @@ import {
   Sparkles,
   Loader2,
   RefreshCw,
+  CalendarDays,
+  Download,
 } from "lucide-react";
+import { buildTasksIcs, downloadIcs } from "../lib/icsExport";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
@@ -64,6 +67,17 @@ export default function TaskCalendar({
 
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDate, setSelectedDate] = useState(new Date());
+  const [calendarView, setCalendarView] = useState<"month" | "week">(() => {
+    if (typeof window === "undefined") return "month";
+    const saved = window.localStorage.getItem("rhozly_calendar_view");
+    return saved === "week" ? "week" : "month";
+  });
+  useEffect(() => {
+    try { window.localStorage.setItem("rhozly_calendar_view", calendarView); } catch { /* noop */ }
+  }, [calendarView]);
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
+  const [dragOverDate, setDragOverDate] = useState<string | null>(null);
+  const [rescheduling, setRescheduling] = useState(false);
 
   // 🚀 Tasks array now holds the fully calculated physical AND ghost tasks for the entire month!
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -315,6 +329,104 @@ export default function TaskCalendar({
     fetchTasksAndBlueprints();
   }, [currentDate, homeId]);
 
+  const generateWeekDays = () => {
+    // Build a 7-day window starting on the Sunday on/before currentDate.
+    const start = new Date(currentDate);
+    start.setDate(start.getDate() - start.getDay());
+    return Array.from({ length: 7 }, (_, i) => {
+      const d = new Date(start);
+      d.setDate(start.getDate() + i);
+      return d;
+    });
+  };
+
+  const shiftWeek = (direction: 1 | -1) => {
+    const next = new Date(currentDate);
+    next.setDate(next.getDate() + direction * 7);
+    setCurrentDate(next);
+  };
+
+  const handleExportIcs = () => {
+    // Export every pending task whose due_date falls within the next 90 days,
+    // newest-first. Reuses the in-memory `tasks` array (already includes ghosts).
+    const today = getLocalDateString(new Date());
+    const horizon = new Date();
+    horizon.setDate(horizon.getDate() + 90);
+    const horizonStr = getLocalDateString(horizon);
+    const exportable = tasks.filter((t) =>
+      t.status !== "Completed" &&
+      t.due_date >= today &&
+      t.due_date <= horizonStr,
+    );
+    if (exportable.length === 0) {
+      toast.error("No upcoming tasks to export — try adding a few first.");
+      return;
+    }
+    const ics = buildTasksIcs(
+      exportable.map((t) => ({
+        id: t.id,
+        title: t.title,
+        description: t.description,
+        due_date: t.due_date,
+        type: t.type,
+      })),
+    );
+    downloadIcs(ics, `rhozly-tasks-${today}.ics`);
+    toast.success(`Exported ${exportable.length} task${exportable.length === 1 ? "" : "s"} to your calendar.`);
+  };
+
+  const handleDropOnDate = async (targetDate: Date) => {
+    if (!draggingTaskId) return;
+    const task = tasks.find((t) => t.id === draggingTaskId);
+    if (!task) {
+      setDraggingTaskId(null);
+      setDragOverDate(null);
+      return;
+    }
+    const newDateStr = getLocalDateString(targetDate);
+    if (task.due_date === newDateStr) {
+      setDraggingTaskId(null);
+      setDragOverDate(null);
+      return;
+    }
+    setRescheduling(true);
+    try {
+      // Ghost tasks must be materialized before we can reschedule them.
+      if (task.isGhost) {
+        const { error } = await supabase
+          .from("tasks")
+          .insert({
+            home_id: task.home_id,
+            blueprint_id: task.blueprint_id,
+            title: task.title,
+            description: task.description,
+            type: task.type,
+            due_date: newDateStr,
+            status: "Pending",
+            location_id: task.location_id,
+            area_id: task.area_id,
+            plan_id: task.plan_id,
+            inventory_item_ids: task.inventory_item_ids,
+          });
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from("tasks")
+          .update({ due_date: newDateStr })
+          .eq("id", task.id);
+        if (error) throw error;
+      }
+      toast.success(`Moved to ${targetDate.toLocaleDateString("default", { weekday: "short", day: "numeric", month: "short" })}.`);
+      await fetchTasksAndBlueprints();
+    } catch (err: any) {
+      Logger.error("Failed to reschedule task by drag", err, { taskId: task.id }, "Could not reschedule task.");
+    } finally {
+      setDraggingTaskId(null);
+      setDragOverDate(null);
+      setRescheduling(false);
+    }
+  };
+
   const generateCalendarDays = () => {
     const year = currentDate.getFullYear();
     const month = currentDate.getMonth();
@@ -365,7 +477,26 @@ export default function TaskCalendar({
             Operational Hub
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
+          {/* View toggle */}
+          <div className="flex bg-rhozly-surface-low rounded-2xl p-1 shadow-sm" data-testid="calendar-view-toggle">
+            <button
+              onClick={() => setCalendarView("month")}
+              aria-pressed={calendarView === "month"}
+              className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 min-h-[36px] ${calendarView === "month" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/50 hover:text-rhozly-on-surface"}`}
+              data-testid="calendar-view-month"
+            >
+              <CalendarIcon size={13} /> Month
+            </button>
+            <button
+              onClick={() => setCalendarView("week")}
+              aria-pressed={calendarView === "week"}
+              className={`px-3 py-2 rounded-xl text-xs font-black uppercase tracking-widest transition-colors flex items-center gap-1.5 min-h-[36px] ${calendarView === "week" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/50 hover:text-rhozly-on-surface"}`}
+              data-testid="calendar-view-week"
+            >
+              <CalendarDays size={13} /> Week
+            </button>
+          </div>
           <button
             onClick={() => setIsFilterOpen(!isFilterOpen)}
             className={`px-4 py-3 rounded-2xl font-black transition-all shadow-sm flex items-center gap-2 ${isFilterOpen || hasActiveFilters ? "bg-rhozly-primary text-white" : "bg-rhozly-surface-low text-rhozly-on-surface hover:bg-rhozly-surface-mid"}`}
@@ -376,6 +507,14 @@ export default function TaskCalendar({
                 !
               </span>
             )}
+          </button>
+          <button
+            onClick={handleExportIcs}
+            data-testid="calendar-export-ics"
+            className="px-4 py-3 bg-rhozly-surface-low text-rhozly-on-surface rounded-2xl font-black hover:bg-rhozly-surface-mid transition-all shadow-sm flex items-center gap-2"
+            title="Export upcoming tasks as iCalendar (.ics)"
+          >
+            <Download size={16} /> Export
           </button>
           <button
             onClick={() => {
@@ -495,36 +634,56 @@ export default function TaskCalendar({
         <div className="flex-[2] bg-rhozly-surface-lowest rounded-[3rem] p-6 shadow-2xl border border-rhozly-outline/10">
           <div className="flex items-center justify-between mb-8 px-4">
             <h3 className="text-2xl font-black">
-              {currentDate.toLocaleString("default", {
-                month: "long",
-                year: "numeric",
-              })}
+              {calendarView === "week"
+                ? (() => {
+                    const wk = generateWeekDays();
+                    const first = wk[0];
+                    const last = wk[6];
+                    const sameMonth = first.getMonth() === last.getMonth();
+                    return sameMonth
+                      ? `${first.toLocaleString("default", { month: "long", year: "numeric" })}`
+                      : `${first.toLocaleString("default", { month: "short" })} – ${last.toLocaleString("default", { month: "short", year: "numeric" })}`;
+                  })()
+                : currentDate.toLocaleString("default", {
+                    month: "long",
+                    year: "numeric",
+                  })}
             </h3>
             <div className="flex gap-2">
               <button
-                onClick={() =>
-                  setCurrentDate(
-                    new Date(
-                      currentDate.getFullYear(),
-                      currentDate.getMonth() - 1,
-                      1,
-                    ),
-                  )
-                }
+                onClick={() => {
+                  if (calendarView === "week") {
+                    shiftWeek(-1);
+                  } else {
+                    setCurrentDate(
+                      new Date(
+                        currentDate.getFullYear(),
+                        currentDate.getMonth() - 1,
+                        1,
+                      ),
+                    );
+                  }
+                }}
+                aria-label={calendarView === "week" ? "Previous week" : "Previous month"}
                 className="p-3 bg-rhozly-surface-low rounded-2xl hover:bg-rhozly-primary hover:text-white transition-all"
               >
                 <ChevronLeft size={20} />
               </button>
               <button
-                onClick={() =>
-                  setCurrentDate(
-                    new Date(
-                      currentDate.getFullYear(),
-                      currentDate.getMonth() + 1,
-                      1,
-                    ),
-                  )
-                }
+                onClick={() => {
+                  if (calendarView === "week") {
+                    shiftWeek(1);
+                  } else {
+                    setCurrentDate(
+                      new Date(
+                        currentDate.getFullYear(),
+                        currentDate.getMonth() + 1,
+                        1,
+                      ),
+                    );
+                  }
+                }}
+                aria-label={calendarView === "week" ? "Next week" : "Next month"}
                 className="p-3 bg-rhozly-surface-low rounded-2xl hover:bg-rhozly-primary hover:text-white transition-all"
               >
                 <ChevronRight size={20} />
@@ -556,11 +715,93 @@ export default function TaskCalendar({
           )}
 
           <div className="relative">
-            {isLoading && (
+            {(isLoading || rescheduling) && (
               <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-white/60 backdrop-blur-sm">
                 <Loader2 size={32} className="animate-spin text-rhozly-primary" />
               </div>
             )}
+          {calendarView === "week" ? (
+            <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2 sm:gap-3" data-testid="calendar-week-grid">
+              {generateWeekDays().map((dayDate, index) => {
+                const dayDateStr = getLocalDateString(dayDate);
+                const isSelected = isSameDay(dayDate, selectedDate);
+                const isToday = isSameDay(dayDate, new Date());
+                const isPastDay = dayDateStr < todayStr;
+                const dayTasks = getTasksForDate(dayDate).filter((t) => t.status !== "Skipped");
+                const isDragTarget = dragOverDate === dayDateStr;
+                return (
+                  <div
+                    key={index}
+                    onClick={() => setSelectedDate(dayDate)}
+                    onDragOver={(e) => {
+                      if (draggingTaskId) {
+                        e.preventDefault();
+                        setDragOverDate(dayDateStr);
+                      }
+                    }}
+                    onDragLeave={() => setDragOverDate((d) => (d === dayDateStr ? null : d))}
+                    onDrop={(e) => { e.preventDefault(); handleDropOnDate(dayDate); }}
+                    className={`relative flex flex-col rounded-3xl p-3 min-h-[200px] border-2 transition-all cursor-pointer
+                      ${isSelected ? "border-rhozly-primary bg-rhozly-primary/5" : "border-rhozly-outline/10 bg-white"}
+                      ${isToday && !isSelected ? "border-rhozly-primary/30" : ""}
+                      ${isPastDay && !isSelected ? "opacity-80" : ""}
+                      ${isDragTarget ? "ring-2 ring-rhozly-primary scale-[1.02] bg-rhozly-primary/10" : ""}
+                    `}
+                    data-testid={`calendar-week-day-${dayDateStr}`}
+                  >
+                    <div className="flex items-baseline justify-between mb-2">
+                      <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+                        {dayDate.toLocaleDateString("default", { weekday: "short" })}
+                      </span>
+                      <span className={`text-2xl font-black ${isToday ? "text-rhozly-primary" : "text-rhozly-on-surface"}`}>
+                        {dayDate.getDate()}
+                      </span>
+                    </div>
+                    <div className="flex-1 flex flex-col gap-1 overflow-hidden">
+                      {dayTasks.length === 0 && (
+                        <p className="text-[10px] font-bold text-rhozly-on-surface/30 italic">
+                          {isPastDay ? "—" : "Free"}
+                        </p>
+                      )}
+                      {dayTasks.slice(0, 6).map((t) => {
+                        const dotCls = TASK_TYPE_DOT[t.type] ?? "bg-rhozly-primary";
+                        const completed = t.status === "Completed";
+                        return (
+                          <div
+                            key={t.id}
+                            draggable={!completed}
+                            onDragStart={(e) => {
+                              if (completed) return;
+                              setDraggingTaskId(t.id);
+                              e.dataTransfer.effectAllowed = "move";
+                              e.dataTransfer.setData("text/plain", t.id);
+                            }}
+                            onDragEnd={() => { setDraggingTaskId(null); setDragOverDate(null); }}
+                            onClick={(e) => { e.stopPropagation(); setSelectedDate(dayDate); }}
+                            title={t.title}
+                            data-testid={`calendar-week-task-${t.id}`}
+                            className={`flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-bold leading-tight truncate transition-opacity
+                              ${completed ? "bg-rhozly-surface-low text-rhozly-on-surface/40 line-through" : "bg-rhozly-surface-low text-rhozly-on-surface hover:bg-rhozly-primary/10 cursor-grab active:cursor-grabbing"}
+                              ${draggingTaskId === t.id ? "opacity-40" : ""}
+                              ${t.isGhost ? "italic" : ""}
+                            `}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${dotCls} shrink-0`} />
+                            <span className="truncate">{t.title}</span>
+                          </div>
+                        );
+                      })}
+                      {dayTasks.length > 6 && (
+                        <p className="text-[10px] font-black text-rhozly-on-surface/40 mt-1">
+                          +{dayTasks.length - 6} more — open day to view
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
           <div className="grid grid-cols-7 gap-2 sm:gap-3">
             {days.map((dayObj, index) => {
               const isSelected = isSameDay(dayObj.date, selectedDate);
@@ -652,6 +893,14 @@ export default function TaskCalendar({
               );
             })}
           </div>
+          )}
+
+          {/* Drag hint — only relevant in week view */}
+          {calendarView === "week" && (
+            <p className="text-[10px] font-bold text-rhozly-on-surface/40 mt-3 px-1 text-center">
+              Tip — drag a task to another day to reschedule.
+            </p>
+          )}
 
           {/* Legend */}
           <div className="flex items-center justify-center flex-wrap gap-x-5 gap-y-1 pt-3 pb-1">

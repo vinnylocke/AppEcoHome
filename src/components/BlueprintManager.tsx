@@ -13,6 +13,8 @@ import {
   Search,
   Filter,
   X,
+  Pause,
+  Play,
 } from "lucide-react";
 import { IconGrowth, IconPrune, IconHarvest, IconAI } from "../constants/icons";
 import toast from "react-hot-toast";
@@ -29,6 +31,7 @@ import { TASK_CATEGORIES } from "../constants/taskCategories";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
+import { Logger } from "../lib/errorHandler";
 
 interface BlueprintManagerProps {
   homeId: string;
@@ -51,6 +54,30 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
   // Builder Modal State
   const [isBuilding, setIsBuilding] = useState(false);
   const [editingBlueprint, setEditingBlueprint] = useState<any | null>(null);
+
+  // Pause menu state
+  const [pauseMenuId, setPauseMenuId] = useState<string | null>(null);
+  const [savingPauseId, setSavingPauseId] = useState<string | null>(null);
+
+  const setBlueprintPaused = async (blueprintId: string, pausedUntil: string | null) => {
+    setSavingPauseId(blueprintId);
+    try {
+      const { error } = await supabase
+        .from("task_blueprints")
+        .update({ paused_until: pausedUntil })
+        .eq("id", blueprintId);
+      if (error) throw error;
+      setBlueprints((prev) =>
+        prev.map((b) => (b.id === blueprintId ? { ...b, paused_until: pausedUntil } : b)),
+      );
+      toast.success(pausedUntil ? "Schedule paused." : "Schedule resumed.");
+    } catch (err: any) {
+      Logger.error("Failed to update blueprint pause state", err, { blueprintId }, "Could not update pause state.");
+    } finally {
+      setSavingPauseId(null);
+      setPauseMenuId(null);
+    }
+  };
 
   // Universal Confirmation State
   const [confirmState, setConfirmState] = useState<{
@@ -627,19 +654,93 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
                     </h3>
                   </div>
                 </div>
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    handleDeleteClick(bp);
-                  }}
-                  aria-label={`Delete ${bp.title}`}
-                  className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/20 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors shrink-0 opacity-30 group-hover:opacity-100"
-                >
-                  <Trash2 size={16} />
-                </button>
+                <div className="flex items-center gap-1 shrink-0">
+                  {/* Pause / resume control */}
+                  <div className="relative">
+                    {(() => {
+                      const pausedMs = bp.paused_until ? new Date(bp.paused_until).getTime() : null;
+                      const isPaused = pausedMs !== null && pausedMs > Date.now();
+                      return (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isPaused) {
+                              setBlueprintPaused(bp.id, null);
+                            } else {
+                              setPauseMenuId(pauseMenuId === bp.id ? null : bp.id);
+                            }
+                          }}
+                          disabled={savingPauseId === bp.id}
+                          aria-label={isPaused ? `Resume ${bp.title}` : `Pause ${bp.title}`}
+                          className={`min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl transition-colors disabled:opacity-50 ${
+                            isPaused
+                              ? "text-amber-600 bg-amber-50 hover:bg-amber-100"
+                              : "text-rhozly-on-surface/20 hover:text-rhozly-primary hover:bg-rhozly-primary/5 opacity-30 group-hover:opacity-100"
+                          }`}
+                          data-testid={`blueprint-${bp.id}-pause-toggle`}
+                        >
+                          {isPaused ? <Play size={16} /> : <Pause size={16} />}
+                        </button>
+                      );
+                    })()}
+                    {pauseMenuId === bp.id && (
+                      <div
+                        className="absolute right-0 mt-2 w-52 bg-white rounded-2xl shadow-xl border border-rhozly-outline/10 z-20 overflow-hidden animate-in fade-in zoom-in-95"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <p className="px-4 py-2 text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">Pause for…</p>
+                        {[
+                          { label: "1 week", days: 7 },
+                          { label: "2 weeks", days: 14 },
+                          { label: "1 month", days: 30 },
+                        ].map(({ label, days }) => (
+                          <button
+                            key={label}
+                            onClick={() => {
+                              const until = new Date();
+                              until.setDate(until.getDate() + days);
+                              setBlueprintPaused(bp.id, until.toISOString());
+                            }}
+                            className="w-full px-4 py-2.5 text-left text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors"
+                            data-testid={`blueprint-${bp.id}-pause-${days}d`}
+                          >
+                            {label}
+                          </button>
+                        ))}
+                        <button
+                          onClick={() => setPauseMenuId(null)}
+                          className="w-full px-4 py-2.5 text-left text-xs font-bold text-rhozly-on-surface/40 hover:bg-rhozly-surface-low transition-colors border-t border-rhozly-outline/10"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleDeleteClick(bp);
+                    }}
+                    aria-label={`Delete ${bp.title}`}
+                    className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-on-surface/20 hover:text-red-500 hover:bg-red-50 rounded-xl transition-colors opacity-30 group-hover:opacity-100"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
               </div>
 
               <div className="flex-1 mb-4">
+                {(() => {
+                  const pausedMs = bp.paused_until ? new Date(bp.paused_until).getTime() : null;
+                  const isPaused = pausedMs !== null && pausedMs > Date.now();
+                  if (!isPaused) return null;
+                  return (
+                    <div className="mb-2 flex items-center gap-1.5 text-[10px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1 rounded-md w-fit uppercase tracking-widest">
+                      <Pause size={10} />
+                      Paused until {new Date(bp.paused_until).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                    </div>
+                  );
+                })()}
                 {bp.description && (
                   <p className="text-xs font-bold text-rhozly-on-surface/50 line-clamp-2">
                     {bp.description}

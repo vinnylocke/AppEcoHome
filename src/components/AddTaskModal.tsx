@@ -9,6 +9,8 @@ import {
   Link as LinkIcon,
   Search,
   Droplets,
+  Sparkles,
+  Camera as CameraIcon,
 } from "lucide-react";
 import { IconAI, IconPrune, IconHarvest } from "../constants/icons";
 import { supabase } from "../lib/supabase";
@@ -46,6 +48,7 @@ interface Props {
   selectedDate?: Date;
   isBlueprintMode?: boolean;
   existingBlueprint?: any;
+  aiEnabled?: boolean;
   onClose: () => void;
   onSuccess: () => void;
 }
@@ -56,6 +59,7 @@ export default function AddTaskModal({
   selectedDate,
   isBlueprintMode = false,
   existingBlueprint,
+  aiEnabled = false,
   onClose,
   onSuccess,
 }: Props) {
@@ -470,6 +474,28 @@ export default function AddTaskModal({
       setDateError(false);
     }
     if (hasError) return;
+
+    // Conflict detection — only when creating a brand-new recurring blueprint.
+    // Looks for an existing active blueprint with the same area + task type;
+    // if found, ask the user to confirm before creating a duplicate.
+    if (!existingBlueprint && form.isRecurring && form.area_id) {
+      const { data: dupes } = await supabase
+        .from("task_blueprints")
+        .select("id, title, frequency_days")
+        .eq("home_id", homeId)
+        .eq("area_id", form.area_id)
+        .eq("task_type", form.type)
+        .eq("is_archived", false)
+        .or("paused_until.is.null,paused_until.lt.now()");
+      const conflict = (dupes ?? []).find((d: any) => d.frequency_days === form.frequency_days);
+      if (conflict) {
+        const ok = window.confirm(
+          `You already have an active "${form.type}" schedule for this area, every ${conflict.frequency_days} day${conflict.frequency_days === 1 ? "" : "s"} ("${conflict.title}"). Save this one anyway?`,
+        );
+        if (!ok) return;
+      }
+    }
+
     setLoading(true);
 
     try {
@@ -667,6 +693,33 @@ export default function AddTaskModal({
         </div>
 
         <div className="space-y-6">
+          {/* Generate from photo (only for brand-new tasks) */}
+          {!existingBlueprint && (
+            <GenerateFromPhotoBlock
+              homeId={homeId}
+              aiEnabled={aiEnabled}
+              onGenerated={(suggestion) => {
+                setForm((prev) => ({
+                  ...prev,
+                  title: suggestion.title || prev.title,
+                  description: suggestion.description || prev.description,
+                  type: TASK_CATEGORIES.includes(suggestion.task_type as any)
+                    ? suggestion.task_type
+                    : prev.type,
+                  frequency_days:
+                    suggestion.frequency_days > 0
+                      ? suggestion.frequency_days
+                      : prev.frequency_days,
+                  isRecurring:
+                    isBlueprintMode || (prev.isRecurring && suggestion.frequency_days > 0)
+                      ? true
+                      : suggestion.frequency_days > 0,
+                }));
+                userTouchedFrequency.current = true;
+                setTitleError(false);
+              }}
+            />
+          )}
           <input
             type="text"
             placeholder="Task Name *"
@@ -1216,5 +1269,130 @@ export default function AddTaskModal({
       </div>
     </div>,
     document.body,
+  );
+}
+
+// ── Generate-from-photo helper ──────────────────────────────────────────────
+
+interface GenerateFromPhotoSuggestion {
+  title: string;
+  description: string;
+  task_type: string;
+  frequency_days: number;
+  notes?: string;
+}
+
+function GenerateFromPhotoBlock({
+  homeId,
+  aiEnabled,
+  onGenerated,
+}: {
+  homeId: string;
+  aiEnabled: boolean;
+  onGenerated: (s: GenerateFromPhotoSuggestion) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  const handleFile = async (file: File) => {
+    if (!aiEnabled) {
+      toast.error("This needs the AI tier. Upgrade in Account Settings.");
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      toast.error("Image must be under 5MB.");
+      return;
+    }
+    setGenerating(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+          const result = reader.result as string;
+          resolve(result.split(",")[1]);
+        };
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const { data, error } = await supabase.functions.invoke("generate-task-from-photo", {
+        body: { homeId, imageBase64: base64, mimeType: file.type || "image/jpeg" },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      onGenerated(data as GenerateFromPhotoSuggestion);
+      toast.success("Task pre-filled from photo — review and save.");
+      setOpen(false);
+    } catch (err: any) {
+      Logger.error("generate-task-from-photo failed", err, { homeId }, "Couldn't generate a task from that photo.");
+    } finally {
+      setGenerating(false);
+      if (fileRef.current) fileRef.current.value = "";
+    }
+  };
+
+  if (!open) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpen(true)}
+        data-testid="add-task-generate-from-photo-toggle"
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border-2 border-dashed border-rhozly-primary/30 bg-rhozly-primary/5 text-rhozly-primary text-sm font-black hover:bg-rhozly-primary/10 transition-colors"
+      >
+        <Sparkles size={15} />
+        Generate from a photo
+        <span className="text-[10px] font-bold uppercase tracking-widest bg-rhozly-primary/15 px-2 py-0.5 rounded-full">AI</span>
+      </button>
+    );
+  }
+
+  return (
+    <div className="bg-rhozly-surface-low/40 rounded-2xl p-4 border border-rhozly-outline/15 space-y-3" data-testid="add-task-generate-from-photo-panel">
+      <div className="flex items-center justify-between">
+        <p className="text-xs font-black text-rhozly-on-surface flex items-center gap-1.5">
+          <Sparkles size={14} className="text-rhozly-primary" />
+          Generate task from photo
+        </p>
+        <button
+          type="button"
+          onClick={() => setOpen(false)}
+          disabled={generating}
+          aria-label="Close photo generator"
+          className="p-1 text-rhozly-on-surface/40 hover:text-rhozly-on-surface disabled:opacity-50"
+        >
+          <X size={14} />
+        </button>
+      </div>
+      <p className="text-[11px] font-medium text-rhozly-on-surface/55 leading-snug">
+        Take or choose a photo of the plant or area. Rhozly AI will suggest a task type, title, and how often to do it — you'll get a chance to edit before saving.
+      </p>
+      <input
+        ref={fileRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFile(file);
+        }}
+        data-testid="add-task-generate-from-photo-input"
+      />
+      <button
+        type="button"
+        onClick={() => fileRef.current?.click()}
+        disabled={generating || !aiEnabled}
+        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-rhozly-primary text-white text-sm font-black hover:opacity-90 transition-opacity disabled:opacity-50"
+        data-testid="add-task-generate-from-photo-choose"
+      >
+        {generating ? <Loader2 size={15} className="animate-spin" /> : <CameraIcon size={15} />}
+        {generating ? "Analysing photo…" : "Choose photo"}
+      </button>
+      {!aiEnabled && (
+        <p className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1.5 rounded-md">
+          AI tier required — upgrade in Account Settings to use this.
+        </p>
+      )}
+    </div>
   );
 }

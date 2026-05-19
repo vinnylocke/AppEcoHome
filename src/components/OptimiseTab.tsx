@@ -43,6 +43,7 @@ export default function OptimiseTab({ homeId, aiEnabled }: Props) {
   const [locations, setLocations] = useState<Location[]>([]);
   const [areas, setAreas] = useState<Area[]>([]);
   const [dataLoaded, setDataLoaded] = useState(false);
+  const [analyseScope, setAnalyseScope] = useState<"single" | "whole">("single");
   const [selectedLocationId, setSelectedLocationId] = useState<string>("");
   const [selectedAreaId, setSelectedAreaId] = useState<string>("");
   const [analysing, setAnalysing] = useState(false);
@@ -131,14 +132,28 @@ export default function OptimiseTab({ homeId, aiEnabled }: Props) {
   }, [homeId]);
 
   const handleAnalyse = useCallback(async () => {
-    if (!selectedAreaId) return;
+    if (analyseScope === "single" && !selectedAreaId) return;
     setAnalysing(true);
     setProposals(null);
 
     try {
       const { bpData, instanceMap } = await fetchAnalysisData();
-      const areaName = selectedArea?.name ?? "Area";
-      const found = analyseArea(selectedAreaId, areaName, bpData, instanceMap);
+      let found: OptimisationProposal[] = [];
+      if (analyseScope === "whole") {
+        // Iterate every area in the home and merge results, de-duped by id.
+        const seen = new Set<string>();
+        for (const area of areas) {
+          const areaResults = analyseArea(area.id, area.name, bpData, instanceMap);
+          for (const proposal of areaResults) {
+            if (seen.has(proposal.id)) continue;
+            seen.add(proposal.id);
+            found.push(proposal);
+          }
+        }
+      } else {
+        const areaName = selectedArea?.name ?? "Area";
+        found = analyseArea(selectedAreaId, areaName, bpData, instanceMap);
+      }
       setProposals(found);
       setIncluded((prev) => {
         const next = new Set(prev);
@@ -151,7 +166,7 @@ export default function OptimiseTab({ homeId, aiEnabled }: Props) {
     } finally {
       setAnalysing(false);
     }
-  }, [selectedAreaId, selectedArea, fetchAnalysisData]);
+  }, [analyseScope, selectedAreaId, selectedArea, areas, fetchAnalysisData]);
 
   const runAiAnalysis = useCallback(async (negFeedback: NegativeFeedbackItem[], reason?: string) => {
     const newProposals = await analyseAreaAi({
@@ -382,57 +397,96 @@ export default function OptimiseTab({ homeId, aiEnabled }: Props) {
       {/* Selectors + Analyse buttons */}
       <div className="bg-white rounded-2xl border border-rhozly-outline/20 p-5 space-y-4">
         <div>
-          <h2 className="text-sm font-bold text-rhozly-on-surface mb-1">Select an area to analyse</h2>
+          <h2 className="text-sm font-bold text-rhozly-on-surface mb-1">
+            {analyseScope === "whole" ? "Analyse the whole garden" : "Select an area to analyse"}
+          </h2>
           <p className="text-xs text-rhozly-on-surface-variant">
-            Choose a location and area, then click Find Improvements to see what can be consolidated.
+            {analyseScope === "whole"
+              ? "Find consolidation opportunities across every area at once."
+              : "Choose a location and area, then click Find Improvements to see what can be consolidated."}
           </p>
         </div>
 
-        {/* Location dropdown */}
-        <div className="relative">
-          <select
-            data-testid="optimise-location-select"
-            value={selectedLocationId}
-            onChange={(e) => handleLocationChange(e.target.value)}
-            className="w-full appearance-none rounded-xl border border-rhozly-outline/30 bg-rhozly-surface px-4 py-3 pr-10 text-sm text-rhozly-on-surface focus:outline-none focus:ring-2 focus:ring-rhozly-primary/40"
+        {/* Scope toggle */}
+        <div className="flex bg-rhozly-surface-low rounded-xl p-1" data-testid="optimise-scope-toggle">
+          <button
+            type="button"
+            onClick={() => {
+              setAnalyseScope("single");
+              setProposals(null);
+              setAiProposals(null);
+              setFeedbackMap({});
+            }}
+            aria-pressed={analyseScope === "single"}
+            className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors min-h-[36px] ${analyseScope === "single" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/50 hover:text-rhozly-on-surface"}`}
+            data-testid="optimise-scope-single"
           >
-            <option value="">— Choose a location —</option>
-            {locations.map((loc) => (
-              <option key={loc.id} value={loc.id}>{loc.name}</option>
-            ))}
-          </select>
-          <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-rhozly-on-surface-variant" />
+            Single area
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setAnalyseScope("whole");
+              setProposals(null);
+              setAiProposals(null);
+              setFeedbackMap({});
+            }}
+            aria-pressed={analyseScope === "whole"}
+            className={`flex-1 px-3 py-2 rounded-lg text-[11px] font-black uppercase tracking-widest transition-colors min-h-[36px] ${analyseScope === "whole" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/50 hover:text-rhozly-on-surface"}`}
+            data-testid="optimise-scope-whole"
+          >
+            Whole garden
+          </button>
         </div>
 
-        {/* Area dropdown — only shown once a location is selected */}
-        {selectedLocationId && (
-          <div className="relative">
-            <select
-              data-testid="optimise-area-select"
-              value={selectedAreaId}
-              onChange={(e) => handleAreaChange(e.target.value)}
-              className="w-full appearance-none rounded-xl border border-rhozly-outline/30 bg-rhozly-surface px-4 py-3 pr-10 text-sm text-rhozly-on-surface focus:outline-none focus:ring-2 focus:ring-rhozly-primary/40"
-            >
-              <option value="">— Choose an area —</option>
-              {filteredAreas.map((area) => (
-                <option key={area.id} value={area.id}>{area.name}</option>
-              ))}
-            </select>
-            <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-rhozly-on-surface-variant" />
-          </div>
+        {/* Location + area dropdowns — only in single-area mode */}
+        {analyseScope === "single" && (
+          <>
+            <div className="relative">
+              <select
+                data-testid="optimise-location-select"
+                value={selectedLocationId}
+                onChange={(e) => handleLocationChange(e.target.value)}
+                className="w-full appearance-none rounded-xl border border-rhozly-outline/30 bg-rhozly-surface px-4 py-3 pr-10 text-sm text-rhozly-on-surface focus:outline-none focus:ring-2 focus:ring-rhozly-primary/40"
+              >
+                <option value="">— Choose a location —</option>
+                {locations.map((loc) => (
+                  <option key={loc.id} value={loc.id}>{loc.name}</option>
+                ))}
+              </select>
+              <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-rhozly-on-surface-variant" />
+            </div>
+
+            {selectedLocationId && (
+              <div className="relative">
+                <select
+                  data-testid="optimise-area-select"
+                  value={selectedAreaId}
+                  onChange={(e) => handleAreaChange(e.target.value)}
+                  className="w-full appearance-none rounded-xl border border-rhozly-outline/30 bg-rhozly-surface px-4 py-3 pr-10 text-sm text-rhozly-on-surface focus:outline-none focus:ring-2 focus:ring-rhozly-primary/40"
+                >
+                  <option value="">— Choose an area —</option>
+                  {filteredAreas.map((area) => (
+                    <option key={area.id} value={area.id}>{area.name}</option>
+                  ))}
+                </select>
+                <ChevronDown size={16} className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-rhozly-on-surface-variant" />
+              </div>
+            )}
+          </>
         )}
 
         <button
           data-testid="optimise-analyse-btn"
-          disabled={!selectedAreaId || analysing || aiAnalysing}
+          disabled={analysing || aiAnalysing || (analyseScope === "single" && !selectedAreaId) || (analyseScope === "whole" && areas.length === 0)}
           onClick={handleAnalyse}
           className="w-full flex items-center justify-center gap-2 rounded-xl bg-rhozly-primary text-white font-semibold text-sm py-3 transition-opacity disabled:opacity-40"
         >
           {analysing ? <Loader2 size={16} className="animate-spin" /> : <Sparkles size={16} />}
-          {analysing ? "Finding Improvements…" : "Find Improvements"}
+          {analysing ? "Finding Improvements…" : analyseScope === "whole" ? `Scan ${areas.length} areas` : "Find Improvements"}
         </button>
 
-        {aiEnabled && (
+        {aiEnabled && analyseScope === "single" && (
           <div className="flex items-center gap-2">
             <button
               data-testid="optimise-ai-analyse-btn"
@@ -445,6 +499,11 @@ export default function OptimiseTab({ homeId, aiEnabled }: Props) {
             </button>
             <InfoTooltip content="Uses Rhozly AI to find subtler improvements, like adjusting watering frequency for the season. Uses your AI quota." />
           </div>
+        )}
+        {aiEnabled && analyseScope === "whole" && (
+          <p className="text-[11px] font-medium text-rhozly-on-surface/50 leading-snug bg-rhozly-surface-low/40 rounded-xl px-3 py-2">
+            AI suggestions stay area-by-area to keep quality high — switch back to <span className="font-black">Single area</span> mode to use AI Ideas.
+          </p>
         )}
       </div>
 

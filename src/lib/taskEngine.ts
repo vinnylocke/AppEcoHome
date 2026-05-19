@@ -140,8 +140,15 @@ export const TaskEngine = {
 
     // Generate ghost tasks from blueprints (pure JS — no DB calls)
     const ghosts: any[] = [];
+    const nowMs = Date.now();
     bps.forEach((bp) => {
       if (!bp.frequency_days || !bp.start_date) return;
+
+      // Paused blueprints don't generate ghost tasks until the pause ends.
+      // A past timestamp means the pause has elapsed — treat as active.
+      const pausedUntil = bp.paused_until ? new Date(bp.paused_until).getTime() : null;
+      const isPaused = pausedUntil !== null && pausedUntil > nowMs;
+      if (isPaused) return;
 
       const freq = bp.frequency_days;
       let currentGhostDate = new Date(bp.start_date);

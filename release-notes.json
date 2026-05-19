@@ -1,10 +1,23 @@
 [
   {
-    "label": "Photos — Round Two",
+    "label": "Calendar",
     "items": [
-      "Plans can now carry a set of reference photos — inspiration shots, progress photos, anything you want to remember. Find the new 'Reference photos' section at the top of any plan.",
-      "Plant Doctor: mark up your photo before you analyse. Drop numbered markers on specific areas (yellowing leaves, bite marks) and add short labels. Markers are saved with the diagnosis in your History.",
-      "Set any photo as your plant's cover — visit a plant's Photos tab, hover any image, and tap the star to pin it as the plant's cover photo."
+      "New Week view on the Schedule — toggle between Month and Week from the calendar header. Drag a task chip onto another day to reschedule it.",
+      "Export upcoming tasks to your phone or laptop calendar — tap Export to download an .ics file you can import into Google Calendar, Apple Calendar, or Outlook."
+    ]
+  },
+  {
+    "label": "Task Schedules",
+    "items": [
+      "Pause a recurring schedule for 1, 2, or 4 weeks — useful when you're away or a plant is dormant. Resume any time with a single tap.",
+      "When you set up a new recurring schedule, Rhozly now warns you if it duplicates an existing one in the same area.",
+      "Generate a task from a photo — snap your garden, and Rhozly AI suggests a task type, title, and how often to do it. You review and save."
+    ]
+  },
+  {
+    "label": "Optimise",
+    "items": [
+      "New 'Whole garden' mode — scan every area in one go to find duplicated or redundant schedules across the whole site."
     ]
   }
 ]
