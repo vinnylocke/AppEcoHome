@@ -12,16 +12,42 @@ import { supabase } from "./supabase";
  * extending `QueuedWrite["op"]` + the executor in `applyOne()`.
  */
 
+interface BaseQueued {
+  id: string;
+  queuedAt: number;
+}
+
 export type QueuedWrite =
-  | {
-      id: string;
+  | (BaseQueued & {
       kind: "task-status";
       taskId: string;
       status: "Pending" | "Completed";
       completedAt: string | null;
       completedBy: string | null;
-      queuedAt: number;
-    };
+    })
+  | (BaseQueued & {
+      kind: "task-postpone";
+      taskId: string;
+      newDueDate: string;
+    })
+  | (BaseQueued & {
+      kind: "journal-add";
+      homeId: string;
+      inventoryItemId: string;
+      subject: string;
+      description: string | null;
+      imageUrl: string | null;
+      taskId: string | null;
+    })
+  | (BaseQueued & {
+      kind: "ailment-link";
+      homeId: string;
+      plantInstanceId: string;
+      ailmentId: string;
+      linkedBy: string | null;
+      photoUrl: string | null;
+      notes: string | null;
+    });
 
 const STORAGE_KEY = "rhozly_offline_queue_v1";
 const LISTENERS = new Set<() => void>();
@@ -84,6 +110,39 @@ async function applyOne(item: QueuedWrite): Promise<void> {
         completed_by: item.completedBy,
       })
       .eq("id", item.taskId);
+    if (error) throw error;
+    return;
+  }
+  if (item.kind === "task-postpone") {
+    const { error } = await supabase
+      .from("tasks")
+      .update({ due_date: item.newDueDate })
+      .eq("id", item.taskId);
+    if (error) throw error;
+    return;
+  }
+  if (item.kind === "journal-add") {
+    const { error } = await supabase.from("plant_journals").insert({
+      home_id:           item.homeId,
+      inventory_item_id: item.inventoryItemId,
+      subject:           item.subject,
+      description:       item.description,
+      image_url:         item.imageUrl,
+      task_id:           item.taskId,
+    });
+    if (error) throw error;
+    return;
+  }
+  if (item.kind === "ailment-link") {
+    const { error } = await supabase.from("plant_instance_ailments").insert({
+      home_id:          item.homeId,
+      plant_instance_id: item.plantInstanceId,
+      ailment_id:        item.ailmentId,
+      linked_by:         item.linkedBy,
+      status:            "active",
+      photo_url:         item.photoUrl,
+      notes:             item.notes,
+    });
     if (error) throw error;
     return;
   }

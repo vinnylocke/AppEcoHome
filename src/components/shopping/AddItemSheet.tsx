@@ -11,6 +11,7 @@ import PlantInfoPanel from "../PlantInfoPanel";
 import { Logger } from "../../lib/errorHandler";
 import { SHOPPING_CATEGORIES } from "../../constants/shoppingCategories";
 import type { ShoppingListItem } from "../../types/shopping";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 type Tab = "plant" | "product";
 type PlantSearchState =
@@ -38,6 +39,7 @@ interface Props {
 export default function AddItemSheet({
   homeId, listId, aiEnabled, perenualEnabled, onClose, onItemAdded,
 }: Props) {
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [activeTab, setActiveTab] = useState<Tab>("plant");
 
   const [plantQuery, setPlantQuery] = useState("");
@@ -277,6 +279,10 @@ export default function AddItemSheet({
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add shopping list item"
         data-testid="shopping-add-item-sheet"
         className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[85vh] animate-in slide-in-from-bottom duration-300"
       >

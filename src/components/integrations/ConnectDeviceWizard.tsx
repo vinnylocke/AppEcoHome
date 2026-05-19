@@ -6,6 +6,7 @@ import Step2Brand from "./wizard/Step2Brand";
 import Step3Credentials from "./wizard/Step3Credentials";
 import Step4Discovery from "./wizard/Step4Discovery";
 import Step5Confirm from "./wizard/Step5Confirm";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 interface Props {
   homeId: string;
@@ -37,6 +38,7 @@ export interface DiscoveredDevice {
 const STEPS = ["Device Type", "Brand", "Credentials", "Devices", "Confirm"];
 
 export default function ConnectDeviceWizard({ homeId, onComplete, onClose, initialStep, initialState }: Props) {
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [step, setStep] = useState(initialStep ?? 0);
   const [state, setState] = useState<WizardState>({
     deviceType: null,
@@ -60,6 +62,10 @@ export default function ConnectDeviceWizard({ homeId, onComplete, onClose, initi
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Connect device wizard"
         className="relative w-[calc(100vw-2rem)] max-w-lg bg-white rounded-3xl shadow-xl max-h-[90vh] overflow-y-auto"
         data-testid="connect-device-wizard"
       >

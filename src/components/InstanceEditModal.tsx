@@ -76,6 +76,20 @@ export default function InstanceEditModal({
   const [activeTab, setActiveTab] = useState<
     "details" | "routine" | "journal" | "photos" | "care_guide" | "guides" | "yield" | "light" | "stats" | "companions"
   >("details");
+
+  // Cover image — pinned via the Photo Timeline tab. Refetched when the user
+  // switches tabs so a freshly-pinned cover surfaces without a hard reload.
+  const [coverImageUrl, setCoverImageUrl] = useState<string | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    supabase
+      .from("inventory_items")
+      .select("cover_image_url")
+      .eq("id", instance.id)
+      .maybeSingle()
+      .then(({ data }) => { if (!cancelled) setCoverImageUrl(data?.cover_image_url ?? null); });
+    return () => { cancelled = true; };
+  }, [instance.id, activeTab]);
   const [savingInstance, setSavingInstance] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
 
@@ -286,6 +300,18 @@ export default function InstanceEditModal({
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
       <div ref={trapRef} role="dialog" aria-modal="true" aria-label="Edit plant instance" className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-3xl p-8 shadow-2xl border border-rhozly-outline/20 relative">
+        {/* Cover photo strip — only shown when the user has pinned a cover via
+            the Photos tab. Gives the modal a visual anchor for this instance. */}
+        {coverImageUrl && (
+          <div className="-mx-8 -mt-8 mb-6 h-40 sm:h-48 relative overflow-hidden rounded-t-3xl" data-testid="instance-cover-hero">
+            <img
+              src={coverImageUrl}
+              alt={`${instance.identifier} cover photo`}
+              className="w-full h-full object-cover"
+            />
+            <div className="absolute inset-0 bg-gradient-to-t from-rhozly-surface-lowest via-rhozly-surface-lowest/30 to-transparent" />
+          </div>
+        )}
         <div className="flex justify-between items-start mb-6 relative z-10">
           <div>
             <h3 className="text-3xl font-black text-rhozly-on-surface">

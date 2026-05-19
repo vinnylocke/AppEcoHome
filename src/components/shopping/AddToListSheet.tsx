@@ -2,6 +2,7 @@ import React, { useState } from "react";
 import { createPortal } from "react-dom";
 import { X, ShoppingCart, Plus, Loader2 } from "lucide-react";
 import type { ShoppingList, ShoppingListItem } from "../../types/shopping";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 export interface SuggestedItem {
   name: string;
@@ -22,6 +23,7 @@ export default function AddToListSheet({
   homeId, suggestedItems, activeLists,
   onClose, onConfirm, onCreateAndConfirm,
 }: Props) {
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [selectedItems, setSelectedItems] = useState<Set<number>>(
     new Set(suggestedItems.map((_, i) => i))
   );
@@ -58,6 +60,10 @@ export default function AddToListSheet({
       onClick={e => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Add to shopping list"
         data-testid="shopping-add-to-list-sheet"
         className="w-full max-w-lg bg-white rounded-t-3xl shadow-2xl flex flex-col max-h-[80vh] animate-in slide-in-from-bottom duration-300"
       >

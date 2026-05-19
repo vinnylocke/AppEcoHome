@@ -304,6 +304,87 @@ function DataExportSection({ userId }: { userId: string }) {
   );
 }
 
+// ─── My Beta Feedback Section ───────────────────────────────────────────────
+
+const FEEDBACK_STATUS_META: Record<string, { label: string; classes: string }> = {
+  open:         { label: "Awaiting review",   classes: "bg-rhozly-surface-low text-rhozly-on-surface/60" },
+  acknowledged: { label: "Acknowledged",      classes: "bg-amber-100 text-amber-800" },
+  resolved:     { label: "Resolved",          classes: "bg-emerald-100 text-emerald-800" },
+};
+
+function MyFeedbackSection({ userId }: { userId: string }) {
+  const [items, setItems] = useState<any[] | null>(null);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    supabase
+      .from("beta_feedback")
+      .select("id, action_context, description, ratings, admin_status, admin_response, created_at")
+      .eq("user_id", userId)
+      .order("created_at", { ascending: false })
+      .limit(50)
+      .then(({ data }) => setItems((data ?? []) as any[]));
+  }, [userId]);
+
+  if (items === null) return null;
+  if (items.length === 0) return null;
+
+  const visible = expanded ? items : items.slice(0, 3);
+
+  return (
+    <section className="bg-white rounded-2xl border border-rhozly-outline/10 p-4 space-y-3" data-testid="my-feedback-section">
+      <h3 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/55 flex items-center gap-2">
+        <MessageSquare size={13} className="text-rhozly-primary" />
+        My Beta Feedback
+        <span className="ml-auto text-[10px] font-bold text-rhozly-on-surface/40 normal-case tracking-normal">
+          {items.length} submitted
+        </span>
+      </h3>
+      <ul className="space-y-2">
+        {visible.map((item) => {
+          const meta = FEEDBACK_STATUS_META[item.admin_status] ?? FEEDBACK_STATUS_META.open;
+          return (
+            <li
+              key={item.id}
+              className="bg-rhozly-surface-low/40 rounded-xl px-3 py-2.5 border border-rhozly-outline/10"
+              data-testid={`my-feedback-item-${item.id}`}
+            >
+              <div className="flex items-center justify-between gap-2 mb-1">
+                <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/45 truncate">
+                  {item.action_context}
+                </span>
+                <span className={`shrink-0 inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full ${meta.classes}`}>
+                  {meta.label}
+                </span>
+              </div>
+              <p className="text-xs font-medium text-rhozly-on-surface/75 leading-snug line-clamp-3">
+                {item.description || <span className="italic text-rhozly-on-surface/40">No comment</span>}
+              </p>
+              {item.admin_response && (
+                <div className="mt-2 px-2.5 py-1.5 rounded-lg bg-rhozly-primary/5 border-l-2 border-rhozly-primary text-[11px] font-medium text-rhozly-on-surface/80">
+                  <span className="font-black text-rhozly-primary">Rhozly:</span> {item.admin_response}
+                </div>
+              )}
+              <p className="text-[10px] font-bold text-rhozly-on-surface/35 mt-1">
+                {new Date(item.created_at).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+              </p>
+            </li>
+          );
+        })}
+      </ul>
+      {items.length > 3 && (
+        <button
+          onClick={() => setExpanded((v) => !v)}
+          className="text-xs font-black text-rhozly-primary hover:underline"
+          data-testid="my-feedback-toggle"
+        >
+          {expanded ? "Show less" : `Show all ${items.length}`}
+        </button>
+      )}
+    </section>
+  );
+}
+
 // ─── Account Tab ────────────────────────────────────────────────────────────
 
 function AccountTab({ userId, homeId, displayName, email, subscriptionTier, onDisplayNameChange, onTierChange }: {
@@ -659,6 +740,9 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, onDi
 
       {/* Accessibility */}
       <AccessibilitySection />
+
+      {/* My Beta Feedback (only renders for users with at least one submission) */}
+      <MyFeedbackSection userId={userId} />
 
       {/* Data Export */}
       <DataExportSection userId={userId} />

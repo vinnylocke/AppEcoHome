@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "../../lib/supabase";
 import { X, Loader2, Trash2, AlertTriangle } from "lucide-react";
 import type { Device } from "./IntegrationsPage";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 interface Location { id: string; name: string; }
 interface Area { id: string; name: string; location_id: string; }
@@ -14,6 +15,7 @@ interface Props {
 }
 
 export default function DeviceSettingsModal({ device, onClose, onUpdated }: Props) {
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [name, setName] = useState(device.name);
   const [duration, setDuration] = useState<number>(
     (device.metadata?.default_duration_seconds as number | undefined) ?? 1800
@@ -88,7 +90,7 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-[calc(100vw-2rem)] max-w-md bg-white rounded-3xl shadow-xl p-6 max-h-[90vh] overflow-y-auto" data-testid="device-settings-modal">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-label="Device settings" className="relative w-[calc(100vw-2rem)] max-w-md bg-white rounded-3xl shadow-xl p-6 max-h-[90vh] overflow-y-auto" data-testid="device-settings-modal">
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-black text-rhozly-on-surface text-lg">Device Settings</h2>
           <button onClick={onClose} data-testid="settings-close" aria-label="Close">

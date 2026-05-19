@@ -1,125 +1,114 @@
 # Phase 2 — Deferred Items Tracker
 
-Running log of everything explicitly deferred from each Phase 2 wave, so nothing slips when we mop up at the end. Items are removed from this file as they ship.
+Running log of everything explicitly deferred from each Phase 2 wave. Items get removed as they ship.
 
-Last updated after **Wave 7** deploy.
+Last updated after the **mop-up pass** that followed Wave 7.
 
 ---
 
-## Wave 1 — Accessibility
+## Mop-up pass (post Wave 7)
+
+The mop-up sweep cleared:
+
+- ✅ Focus traps on the high-traffic remaining modals — AddItemSheet, AddToListSheet, AutomationModal, ConnectDeviceWizard, DeviceDetailModal, DeviceSettingsModal, NewPlanForm, SpriteWizardModal. We're now at 27 modal containers with traps out of ~58.
+- ✅ `PhotoUploader` client-side compression — 1600px longest-edge cap, JPEG re-encode at 0.85 quality, skipped for tiny / SVG / GIF inputs.
+- ✅ Offline queue expanded — new kinds: `task-postpone`, `journal-add`, `ailment-link`. Wiring those new kinds into the relevant UI mutations is a follow-up; the queue infrastructure is ready.
+- ✅ InstanceEditModal cover photo hero — when a user has pinned a cover via the Photos tab, it now appears as a top banner on the instance modal.
+- ✅ Beta feedback self-history — `beta_feedback.admin_status` + `admin_response` columns, plus a "My Beta Feedback" section in Gardener Profile → Account showing status badges and any admin reply.
+- ✅ Microclimate deep-link — a "Microclimate" chip on the Daily Brief footer navigates to `/garden-layout`, surfacing the existing in-editor report.
+- ✅ Presence avatars on PlanStaging — Supabase Realtime Presence channel `plan:<id>`, avatar stack appears next to the plan title when other home members are viewing the same plan.
+
+---
+
+## Still deferred — Wave 1 (Accessibility)
 
 ### 1A. Blanket low-opacity text audit
-- **Skipped intentionally** — 256 occurrences of `text-rhozly-on-surface/20|/30|/40`. Bumping all would create visual regression across the app. The **High Contrast toggle (1B)** is the escape hatch for users who need readable secondary text.
-- **Revisit if:** users actually report contrast complaints in the wild, or we onboard a low-vision tester. At that point do a targeted sweep per-component, not a global bump.
+- 256 occurrences of `text-rhozly-on-surface/20|/30|/40`. Bumping all would create visual regression.
+- The **High Contrast toggle** in Gardener Profile is the escape hatch.
+- **Revisit if:** specific contrast complaints come in. Then do a targeted per-component sweep.
 
-### 1C. Focus traps on remaining modals
-- Wave 1 shipped focus traps on **13 high-traffic modals** (+ 5 that already had hand-rolled traps). That leaves ~40 modals without traps.
-- Pattern is documented: `useFocusTrap<HTMLDivElement>(isOpen)` + `ref={trapRef}` on the inner modal container + `role="dialog" aria-modal="true"`.
-- **Revisit:** apply incrementally as those modals are touched for other reasons, or do a sweep at the end.
-
----
-
-## Wave 2 — Photos Everywhere
-
-### 2E. AI "best photo" selector
-- **Replaced** by Pass 3's pragmatic *"Set as plant cover"* feature — a star button on each Photo Timeline image promotes it to `inventory_items.cover_image_url`. Solves the same practical use case without an edge function.
-- **True AI version deferred:** Gemini Vision endpoint that auto-ranks photos by clarity / framing / plant area coverage. Likely not worth the bundle / quota cost unless users specifically ask.
+### 1C. Focus traps on the remaining ~30 modals
+- Lower-traffic surfaces: in-line confirm modals in OptimiseTab / ShoppingLists / TaskList / AilmentWatchlist, garden bottom sheets (BedTemplatesSheet, GardenZoneSheet, GardenNorthSheet), lightboxes (MultiImageGallery, DiagnosisImageGallery, PhotoTimelineTab lightbox, PlanReferencePhotos lightbox), HelpCenter drawer, CommunityGuideEditor, AreaDetails editor, LocationManager modals, CompanionPlantsTab modal, WikiImagePicker, PlantLightReader, BulkConfigModal (has hand-rolled trap), HomeDropdown (popover not modal).
+- Pattern is fully documented — add `useFocusTrap` + `ref={trapRef}` + `role="dialog" aria-modal="true"` to each inner modal container. Knock these off opportunistically when touching the file for other reasons.
 
 ---
 
-## Wave 3 — Task & Calendar Polish
+## Still deferred — Wave 3
 
-### 3F. Weekly Optimise Digest — actual delivery
-- The **toggle** exists in Gardener Profile → Notifications, labelled "Coming soon".
-- **What's missing:** the cron edge function that aggregates each user's week and sends an email.
-- **Revisit:** when we have a transactional-email integration story (currently no SendGrid/Resend wiring). Could ship in Wave 7 if we're already adding infra there.
+### 3F. Weekly Optimise Digest delivery
+- The toggle exists in Gardener Profile → Notifications, labelled "Coming soon".
+- **What's still missing:** the cron edge function that aggregates each user's week and sends an email.
+- **Blocker:** project has no transactional-email integration (no SendGrid / Resend / Postmark wiring). This needs scaffolding before the digest itself.
 
 ---
 
-## Wave 5 — Planning & Insights Polish
+## Still deferred — Wave 5
 
-### 5A. Plan Staging autosave + Quick vs Full mode
-- Autosave is **already happening** via `saveStagingState` on each action — no debounced 2s save needed.
-- **Quick vs Full mode** (just-a-name-and-plants vs the full phase-by-phase form) deferred — would need plan creation flow rework. Revisit if new users report the full form is intimidating.
+### 5A. Plan Staging — Quick vs Full mode
+- Autosave is already happening per-action.
+- **Quick vs Full mode** (just-a-name-and-plants vs full phase form) deferred — would need plan creation flow rework. Revisit if new users report the full form is intimidating.
 
 ### 5B. Light Sensor multi-sample mode
 - Shipped: band visual + expected-vs-measured comparison.
-- **Deferred:** taking 3–5 readings spaced apart, averaging, saving the spread alongside the mean. Needs a new "sample" sub-flow + a `light_samples` table.
+- **Deferred:** take 3–5 readings, average, save spread alongside the mean. Needs a new "sample" sub-flow + a `light_samples` table.
 
-### 5C. Microclimate Report surfaced in more places
-- Shipped: print-to-PDF on the existing modal.
-- **Deferred:** report links on Dashboard climate strip, plant-detail, area-detail. Tricky because the report needs `shapes` + `sunAnalysisResults` + `recentLuxByArea` — currently only available inside GardenLayoutEditor. Revisit when there's a shared garden-state context.
+### 5C. Microclimate Report — deeper surfacing
+- Shipped: print-to-PDF + a deep-link chip from the Daily Brief.
+- **Deferred:** inline microclimate cards on plant-detail, area-detail, dashboard. Needs the layout-state (shapes + sun analysis + recent lux) to be lifted into a shared context so non-layout pages can read it.
 
 ### 5E. Visualiser snapshots + Layout integration
-- **Fully deferred.** Needs: `visualiser_snapshots` table (camera pose + plant arrangement JSON), save/load UI, "Open in Layout" → convert visualiser scene to GardenLayoutEditor shapes.
-- Substantial feature on its own — best shipped as its own wave / pass with care, not bolted onto Wave 5.
+- **Fully deferred** — needs `visualiser_snapshots` table (camera pose + plant arrangement JSON), save/load UI, "Open in Layout" → convert visualiser scene to GardenLayoutEditor shapes. Substantial feature on its own.
 
 ---
 
-## Wave 6 — Account, Home & Admin
+## Still deferred — Wave 6
 
 ### 6B. Home Management — QR invite + member activity log
-- **Fully deferred.** Needs:
-  - A `home_invite_tokens` table with short-lived signed tokens (security review).
-  - A QR generator on the client (we'd need to add `qrcode` lib — ~10KB).
-  - An "accept invite" route that swaps a token for membership.
-  - An `home_activity_log` table for the activity tab + writes from every member-affecting action.
-- **Revisit when:** there's actual demand for multi-member homes — currently most users are single-member.
+- **Fully deferred.** Needs `home_invite_tokens` (security review), a QR generator (~10KB lib), an accept-invite route, and a `home_activity_log` table with writes from every member-affecting action.
+- Revisit when there's actual demand for multi-member homes.
 
 ### 6C. Integrations — cross-link + simplified wizard + demo mode
-- **Fully deferred.** Substantial UI work on top of existing integrations flow:
-  - Surfacing device readings inline on Area metrics chips (touches LocationManager + IntegrationsPage).
-  - Stripped-down "Quick setup" wizard for ewelink / ecowitt — needs UX research.
-  - Demo mode with mock device data, gated by `profile.is_beta`.
-- **Revisit when:** beta users explicitly ask for hardware integration improvements, or when we onboard new integrations partners.
+- **Fully deferred.** Surfacing device readings on Area chips, "Quick setup" wizard, mock-data demo mode. Substantial UI work.
 
 ### 6D. Shopping Lists — sharing
-- Shipped: quantity field.
-- **Deferred:** "Share list" → public read-only link or per-member edit grant. Needs short-lived signed tokens (similar to 6B) and a share-target UI.
+- Quantity field shipped; sharing deferred (depends on same invite-token infra as 6B).
 
 ### 6E. Admin Guide Generator — bulk + approvals
-- Shipped: preview pane (was already in place).
-- **Deferred:**
-  - Bulk-generate: paste a list of topics → queue one guide per topic. Needs a queue table + cron worker.
-  - Approvals workflow: draft → admin review → published. Needs `guide_drafts` table + status column on `guides`.
-
-### 6F. Beta Feedback — user self-history
-- Shipped: release-notes try-it-now links.
-- **Deferred:** "My Feedback" list — every feedback the user has submitted with admin status (open / acknowledged / resolved). Needs an `admin_status` column on `beta_feedback` + a view.
+- Preview pane already shipped.
+- **Deferred:** bulk-generate (queue table + cron worker), approvals workflow (`guide_drafts` table + status column on `guides`).
 
 ---
 
-## Wave 7 — Reliability & Realtime
+## Still deferred — Wave 7
 
-### 7A. Optimistic UI sweep
-- Shipped: optimistic UI on **task completion** + an offline write queue that captures task-status writes when the network fails.
-- **Deferred:** the same pattern across every other Supabase mutation (~100 sites). Each surface needs its own undo-on-failure shape, so this is closer to a multi-wave campaign than a one-shot. Revisit only when individual surfaces show user-visible lag.
+### 7A. Optimistic UI sweep across remaining mutations
+- Shipped: task completion + offline queue capturing `task-status` writes.
+- **Deferred:** the same pattern across the other ~100 Supabase mutation sites. Closer to a multi-wave campaign than a one-shot. Revisit only when individual surfaces show user-visible lag.
 
-### 7A. Realtime conflict resolution + presence
-- **Fully deferred.**
-  - **Conflict resolution:** depends on optimistic UI being everywhere first.
-  - **Presence avatars** on Plan / Area / Plant detail pages — cosmetic; needs Supabase Presence channel + member metadata join. Revisit when multi-member homes get real usage.
+### 7A. Conflict resolution toast
+- **Fully deferred.** Depends on optimistic UI being everywhere first.
 
 ### 7B. Service-worker page caching for offline read
-- **Fully deferred.** Currently the PWA service worker (`registerSW` in main.tsx) handles installability, not data caching. Caching plants / plans / tasks for offline read needs:
-  - A cache-first fetch handler keyed on Supabase REST URLs.
-  - Schema validation to drop stale cached responses across migrations.
-- Best handled as its own pass, paired with a clear cache-bust signal during deploys.
+- **Fully deferred.** Caching plants / plans / tasks for offline reading needs a cache-first fetch handler keyed on Supabase REST URLs + schema-version cache busting. Best handled as its own pass paired with a clear cache-bust signal during deploys.
 
-### 7B. Write queue — expand beyond task completion
-- Shipped: queue applies to `tasks.status` updates only.
-- **Deferred:** add queue kinds for other common offline actions (plant edits, journal entries, ailment linking). Pattern is in place — each new kind needs a discriminated entry in `QueuedWrite["kind"]` + an executor in `applyOne()`.
-
-### 7C. Pull-to-refresh per-route
-- **Already shipped** — `PullToRefresh` wraps the global `<Routes>` block in App.tsx. The handler is dashboard-centric but acceptable across routes for now. Per-route handlers can come later if specific pages need them.
+### 7B. Offline queue — wire new kinds into UI
+- Queue infrastructure ready (`task-postpone`, `journal-add`, `ailment-link` shapes exist).
+- **Deferred:** actually catching offline errors at the relevant call sites (PlantJournalTab, LinkAilmentModal, TaskModal postpone) and routing through `enqueueWrite`.
 
 ---
 
-## Out-of-wave items worth tracking
+## Cannot honestly be done without dedicated infra/research
 
-- **High-contrast mode (Wave 1)** could ship a high-contrast cover photo border / chip variants — currently only solid text colours are overridden. Low priority.
-- **PhotoUploader (Wave 2)** could grow image-compression on the client side before upload to keep storage costs down. Currently uploads raw image (capped at 5MB).
-- **InstanceEditModal hero (Wave 2 Pass 3)** could display `inventory_items.cover_image_url` as a hero banner at the top of the modal. Cover image is stored but only visible in the Photo Timeline. Quick follow-up when convenient.
+These all need scaffolding the project doesn't have, security review, or substantial UX work. Tagged separately so we don't keep deferring them in mop-up passes:
+
+- **Weekly Optimise Digest** — needs transactional-email infra.
+- **Visualiser snapshots** — own multi-day feature.
+- **QR invite + member activity log** — needs security review of invite tokens.
+- **Integrations wizard + demo mode** — needs UX research.
+- **Service-worker page caching** — own wave with deploy-aware cache busting.
+- **Full optimistic-UI sweep** — multi-wave campaign across ~100 sites.
+- **Admin guide bulk-generate + approvals** — queue + workflow tables.
+- **Shopping list sharing** — same token infra as QR invite.
 
 ---
 
@@ -127,5 +116,5 @@ Last updated after **Wave 7** deploy.
 
 When deferring an item:
 1. Add it here with a one-liner on **why** and a **revisit if** trigger.
-2. Mention it in the wave's commit message (already doing this).
+2. Mention it in the wave's commit message.
 3. When it ships, remove the entry.

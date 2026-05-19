@@ -30,12 +30,49 @@ interface PhotoUploaderProps {
 }
 
 /**
+ * Resize and re-encode an image on the client so uploads stay quick and
+ * storage costs stay sensible. Caps the longest edge at 1600px, encodes as
+ * JPEG at 85% quality. Returns the original file on any failure so the
+ * uploader never blocks on compression.
+ */
+async function compressImage(file: File): Promise<File> {
+  const MAX_DIMENSION = 1600;
+  const QUALITY = 0.85;
+
+  const bitmap = await createImageBitmap(file).catch(() => null);
+  if (!bitmap) return file;
+
+  let { width, height } = bitmap;
+  if (Math.max(width, height) > MAX_DIMENSION) {
+    const scale = MAX_DIMENSION / Math.max(width, height);
+    width = Math.round(width * scale);
+    height = Math.round(height * scale);
+  }
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d");
+  if (!ctx) return file;
+  ctx.drawImage(bitmap, 0, 0, width, height);
+
+  const blob: Blob | null = await new Promise((resolve) =>
+    canvas.toBlob((b) => resolve(b), "image/jpeg", QUALITY),
+  );
+  if (!blob || blob.size >= file.size) return file;
+
+  const baseName = file.name.replace(/\.[^.]+$/, "");
+  return new File([blob], `${baseName}.jpg`, { type: "image/jpeg" });
+}
+
+/**
  * Unified photo upload component.
  *
  * - File input, drag-and-drop, paste-from-clipboard
  * - Optimistic local preview while uploading
  * - Supabase Storage upload + public URL retrieval
  * - Progress bar
+ * - Client-side image compression (resize + re-encode) before upload
  * - Remove-photo affordance
  */
 export default function PhotoUploader({
@@ -59,16 +96,25 @@ export default function PhotoUploader({
   const [localPreview, setLocalPreview] = useState<string | null>(null);
 
   const acceptFile = useCallback(
-    async (file: File) => {
+    async (rawFile: File) => {
       if (disabled) return;
-      if (!file.type.startsWith("image/")) {
+      if (!rawFile.type.startsWith("image/")) {
         toast.error("Please choose an image file.");
         return;
       }
-      if (file.size > maxSizeMb * 1024 * 1024) {
+      if (rawFile.size > maxSizeMb * 1024 * 1024) {
         toast.error(`Image must be under ${maxSizeMb}MB.`);
         return;
       }
+
+      // Compress on the client before upload to keep storage costs down and
+      // make uploads faster on flaky connections. Skip for tiny files where
+      // re-encoding would inflate the result, and for SVG / GIF where we'd
+      // lose animation or vector data.
+      const SKIP_COMPRESS = rawFile.size < 200 * 1024
+        || rawFile.type === "image/svg+xml"
+        || rawFile.type === "image/gif";
+      const file = SKIP_COMPRESS ? rawFile : await compressImage(rawFile).catch(() => rawFile);
 
       // Show local preview immediately while the upload runs.
       const localUrl = URL.createObjectURL(file);

@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 import { saveInitialPromptMemory } from "../lib/plannerMemory";
 import { logEvent, EVENT } from "../events/registry";
 
@@ -39,6 +40,7 @@ export default function NewPlanForm({
   onSuccess,
   aiEnabled = false,
 }: NewPlanFormProps) {
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [step, setStep] = useState(1);
   const [isGenerating, setIsGenerating] = useState(false);
   const [errors, setErrors] = useState({
@@ -168,6 +170,10 @@ export default function NewPlanForm({
     // 🚀 FIX: Removed the zoom-in-95 from the wrapper to prevent viewport clipping
     <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 sm:p-6 bg-rhozly-bg/95 backdrop-blur-sm animate-in fade-in">
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Create new plan"
         // 🚀 FIX: Added the zoom animation directly to the modal box
         className="bg-white w-full max-w-2xl rounded-[2.5rem] shadow-2xl border border-rhozly-outline/10 flex flex-col max-h-[100dvh] sm:max-h-[90vh] overflow-hidden relative animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}

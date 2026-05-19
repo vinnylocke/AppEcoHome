@@ -8,6 +8,7 @@ import ValveControlPanel from "./ValveControlPanel";
 import DeviceSettingsModal from "./DeviceSettingsModal";
 import type { Device } from "./IntegrationsPage";
 import type { SoilReading } from "./SoilReadingsPanel";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 interface Props {
   device: Device;
@@ -18,6 +19,7 @@ interface Props {
 }
 
 export default function DeviceDetailModal({ device, onClose, onRefresh, canManage, canControl }: Props) {
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [current, setCurrent] = useState<SoilReading | null>(null);
   const [previous, setPrevious] = useState<SoilReading | null>(null);
   const [loading, setLoading] = useState(true);
@@ -44,6 +46,10 @@ export default function DeviceDetailModal({ device, onClose, onRefresh, canManag
       <div className="fixed inset-0 z-50 flex items-center justify-center">
         <div className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={onClose} />
         <div
+          ref={trapRef}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${device.name} details`}
           className="relative w-[calc(100vw-2rem)] max-w-lg bg-white rounded-3xl shadow-xl max-h-[90vh] overflow-y-auto"
           data-testid="device-detail-modal"
         >

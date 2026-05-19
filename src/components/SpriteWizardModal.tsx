@@ -14,6 +14,7 @@ import {
   silhouetteToPngBlob,
   type SilhouetteType,
 } from "./visualiser/PlantSilhouettes";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -68,6 +69,7 @@ interface Props {
 // ─── Component ───────────────────────────────────────────────────────────────
 
 export default function SpriteWizardModal({ plants, homeId, onComplete, onClose }: Props) {
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [idx, setIdx] = useState(0);
   const [phase, setPhase] = useState<Phase>("loading");
   const [cachedUrl, setCachedUrl] = useState<string | null>(null);
@@ -448,7 +450,7 @@ export default function SpriteWizardModal({ plants, homeId, onComplete, onClose 
 
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
-      <div className="w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl border border-rhozly-outline/20 flex flex-col max-h-[90vh] overflow-hidden">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-label="Choose plant icons" className="w-full max-w-lg bg-white rounded-[2.5rem] shadow-2xl border border-rhozly-outline/20 flex flex-col max-h-[90vh] overflow-hidden">
 
         {/* Header */}
         <div className="px-6 py-5 border-b border-rhozly-outline/10 flex items-center justify-between shrink-0">

@@ -1,6 +1,6 @@
 import React, { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sunset, CheckCircle2, CloudRain, Thermometer, Sparkles, ChevronRight, Leaf, MessageSquare } from "lucide-react";
+import { Sunset, CheckCircle2, CloudRain, Thermometer, Sparkles, ChevronRight, Leaf, MessageSquare, Wind } from "lucide-react";
 import SunCalc from "suncalc";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 
@@ -247,6 +247,16 @@ export default function DailyBriefCard({
                 Zone {hardinessZone}
               </button>
             )}
+            <button
+              onClick={() => navigate("/garden-layout")}
+              data-testid="daily-brief-microclimate-chip"
+              className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-white/15 transition-colors"
+              title="Open a layout to see your garden's sun, wind, and frost outlook by area"
+              aria-label="Open garden layouts"
+            >
+              <Wind size={11} />
+              Microclimate
+            </button>
             <p className="text-[11px] font-bold text-white/65 leading-snug min-w-0">
               {alerts.length > 0
                 ? <>⚠ <span className="text-white/85 font-black">{alerts[0].title}</span></>

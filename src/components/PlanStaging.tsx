@@ -27,6 +27,7 @@ import { saveMemoryEvent } from "../lib/plannerMemory";
 import { logEvent, EVENT } from "../events/registry";
 import WikiPlantCard from "./WikiPlantCard";
 import PlanReferencePhotos from "./PlanReferencePhotos";
+import PresenceAvatars from "./PresenceAvatars";
 import {
   injectBlueprintTasks,
   activateMaintenanceBlueprints,
@@ -50,6 +51,11 @@ export default function PlanStaging({
   const location = useLocation();
   const [isProcessing, setIsProcessing] = useState(false);
   const [isRegenerating, setIsRegenerating] = useState(false);
+  // Resolve current user id once so PresenceAvatars can self-register.
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
+  }, []);
 
   const [localBlueprint, setLocalBlueprint] = useState(plan.ai_blueprint);
   const [localCoverImage, setLocalCoverImage] = useState(plan.cover_image_url);
@@ -792,10 +798,11 @@ export default function PlanStaging({
         >
           <ArrowLeft size={20} />
         </button>
-        <div className="absolute bottom-6 left-6 right-6 text-white z-10">
+        <div className="absolute bottom-6 left-6 right-6 text-white z-10 flex items-end justify-between gap-4">
           <h1 className="text-3xl sm:text-4xl font-black font-display leading-tight">
             {localBlueprint.project_overview.title}
           </h1>
+          <PresenceAvatars channelKey={`plan:${plan.id}`} userId={currentUserId} />
         </div>
       </div>
 

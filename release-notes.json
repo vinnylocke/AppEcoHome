@@ -1,10 +1,39 @@
 [
   {
+    "label": "Accessibility",
+    "items": [
+      "Keyboard focus traps added to 8 more modals — Add Item, Add to List, Automation, Connect Device, Device Detail / Settings, New Plan, and Choose Plant Icons. Tab stays inside the dialog while it's open."
+    ]
+  },
+  {
+    "label": "Photos",
+    "items": [
+      "Photo uploads are now compressed in the browser before they hit storage — uploads are faster on flaky connections and your photos take up less space.",
+      "Pinned a plant photo as the cover? It now appears as a banner at the top of that plant's edit screen."
+    ]
+  },
+  {
     "label": "Reliability",
     "items": [
-      "Marking a task complete now feels instant — the tick lands locally before the round-trip to the server.",
-      "If you mark a task complete while offline, it's queued locally and synced automatically the moment you're back online. A 'queued' chip in the header shows how many actions are waiting.",
-      { "text": "Out and about in the garden with patchy signal? Just keep ticking things off — Rhozly will catch up later.", "link": { "label": "Open today's tasks", "path": "/dashboard?view=calendar" } }
+      "The offline queue now knows how to replay more than just task completions — task postpones, journal entries, and ailment links can also be queued. (Wiring those call sites into the queue is in progress.)"
+    ]
+  },
+  {
+    "label": "Beta Feedback",
+    "items": [
+      { "text": "New 'My Beta Feedback' section in Account Settings shows every piece of feedback you've sent and its status — Awaiting review / Acknowledged / Resolved — plus any reply from the Rhozly team.", "link": { "label": "Open Account Settings", "path": "/gardener" } }
+    ]
+  },
+  {
+    "label": "Garden Insights",
+    "items": [
+      { "text": "New 'Microclimate' chip on the Daily Brief takes you straight to your garden layouts to see the sun / wind / frost outlook by area.", "link": { "label": "Open Garden Layouts", "path": "/garden-layout" } }
+    ]
+  },
+  {
+    "label": "Planner",
+    "items": [
+      "When you and another home member are reviewing the same plan, you'll see small avatars next to the plan title showing who else is here."
     ]
   }
 ]

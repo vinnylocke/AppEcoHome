@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { supabase } from "../../lib/supabase";
 import { X, Loader2, Droplets, AlertCircle, Check, Search, ChevronDown } from "lucide-react";
 import type { AutomationFull } from "./AutomationsSection";
+import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -34,6 +35,7 @@ const DEFAULT_TIME = "07:00";
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function AutomationModal({ homeId, automation, onSaved, onClose }: Props) {
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
   const isEdit = automation !== null;
 
   // Form state
@@ -327,6 +329,10 @@ export default function AutomationModal({ homeId, automation, onSaved, onClose }
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={onClose} />
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Automation"
         className="relative w-full sm:w-[calc(100vw-2rem)] sm:max-w-lg bg-white rounded-t-3xl sm:rounded-3xl shadow-xl max-h-[92vh] overflow-y-auto"
         data-testid="automation-modal"
       >
