@@ -1366,11 +1366,14 @@ function GenerateFromPhotoBlock({
       <p className="text-[11px] font-medium text-rhozly-on-surface/55 leading-snug">
         Take or choose a photo of the plant or area. Rhozly AI will suggest a task type, title, and how often to do it — you'll get a chance to edit before saving.
       </p>
+      {/* `capture` is intentionally omitted — with it, mobile browsers force the
+          camera and hide the photo library. Leaving it off lets iOS / Android
+          show their native picker with both 'Take photo' and 'Choose from
+          library' options. */}
       <input
         ref={fileRef}
         type="file"
         accept="image/*"
-        capture="environment"
         className="hidden"
         onChange={(e) => {
           const file = e.target.files?.[0];
