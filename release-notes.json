@@ -2,7 +2,7 @@
   {
     "label": "Bug Fixes",
     "items": [
-      "Generate task from photo: the photo picker now offers your photo library too, not just the camera."
+      "Generate task from photo now has explicit Take Photo and From Library buttons, so you can choose either path on any device."
     ]
   }
 ]

@@ -11,6 +11,7 @@ import {
   Droplets,
   Sparkles,
   Camera as CameraIcon,
+  Upload,
 } from "lucide-react";
 import { IconAI, IconPrune, IconHarvest } from "../constants/icons";
 import { supabase } from "../lib/supabase";
@@ -1293,7 +1294,8 @@ function GenerateFromPhotoBlock({
 }) {
   const [open, setOpen] = useState(false);
   const [generating, setGenerating] = useState(false);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const libraryRef = useRef<HTMLInputElement>(null);
+  const cameraRef = useRef<HTMLInputElement>(null);
 
   const handleFile = async (file: File) => {
     if (!aiEnabled) {
@@ -1327,7 +1329,8 @@ function GenerateFromPhotoBlock({
       Logger.error("generate-task-from-photo failed", err, { homeId }, "Couldn't generate a task from that photo.");
     } finally {
       setGenerating(false);
-      if (fileRef.current) fileRef.current.value = "";
+      if (libraryRef.current) libraryRef.current.value = "";
+      if (cameraRef.current)  cameraRef.current.value  = "";
     }
   };
 
@@ -1366,12 +1369,11 @@ function GenerateFromPhotoBlock({
       <p className="text-[11px] font-medium text-rhozly-on-surface/55 leading-snug">
         Take or choose a photo of the plant or area. Rhozly AI will suggest a task type, title, and how often to do it — you'll get a chance to edit before saving.
       </p>
-      {/* `capture` is intentionally omitted — with it, mobile browsers force the
-          camera and hide the photo library. Leaving it off lets iOS / Android
-          show their native picker with both 'Take photo' and 'Choose from
-          library' options. */}
+      {/* Two separate inputs so users explicitly pick camera vs library — the
+          single-input approach with no `capture` attr leaves picker behaviour
+          up to each browser, and some hide the camera entirely. */}
       <input
-        ref={fileRef}
+        ref={libraryRef}
         type="file"
         accept="image/*"
         className="hidden"
@@ -1379,18 +1381,49 @@ function GenerateFromPhotoBlock({
           const file = e.target.files?.[0];
           if (file) handleFile(file);
         }}
-        data-testid="add-task-generate-from-photo-input"
+        data-testid="add-task-generate-from-photo-library-input"
       />
-      <button
-        type="button"
-        onClick={() => fileRef.current?.click()}
-        disabled={generating || !aiEnabled}
-        className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-rhozly-primary text-white text-sm font-black hover:opacity-90 transition-opacity disabled:opacity-50"
-        data-testid="add-task-generate-from-photo-choose"
-      >
-        {generating ? <Loader2 size={15} className="animate-spin" /> : <CameraIcon size={15} />}
-        {generating ? "Analysing photo…" : "Choose photo"}
-      </button>
+      <input
+        ref={cameraRef}
+        type="file"
+        accept="image/*"
+        capture="environment"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0];
+          if (file) handleFile(file);
+        }}
+        data-testid="add-task-generate-from-photo-camera-input"
+      />
+      {generating ? (
+        <div className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl bg-rhozly-primary text-white text-sm font-black">
+          <Loader2 size={15} className="animate-spin" />
+          Analysing photo…
+        </div>
+      ) : (
+        <div className="grid grid-cols-2 gap-2">
+          <button
+            type="button"
+            onClick={() => cameraRef.current?.click()}
+            disabled={!aiEnabled}
+            className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl bg-rhozly-primary text-white text-sm font-black hover:opacity-90 transition-opacity disabled:opacity-50"
+            data-testid="add-task-generate-from-photo-take"
+          >
+            <CameraIcon size={15} />
+            Take photo
+          </button>
+          <button
+            type="button"
+            onClick={() => libraryRef.current?.click()}
+            disabled={!aiEnabled}
+            className="flex items-center justify-center gap-2 px-3 py-3 rounded-xl border border-rhozly-primary/30 bg-white text-rhozly-primary text-sm font-black hover:bg-rhozly-primary/5 transition-colors disabled:opacity-50"
+            data-testid="add-task-generate-from-photo-library"
+          >
+            <Upload size={15} />
+            From library
+          </button>
+        </div>
+      )}
       {!aiEnabled && (
         <p className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-1.5 rounded-md">
           AI tier required — upgrade in Account Settings to use this.
