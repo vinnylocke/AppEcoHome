@@ -1,27 +1,10 @@
 [
   {
-    "label": "Your Account",
+    "label": "Reliability",
     "items": [
-      { "text": "Upload a profile photo — tap the avatar circle on the Account tab to pick an image.", "link": { "label": "Open Account Settings", "path": "/gardener" } },
-      "Download a copy of everything you've added to Rhozly as a single JSON file — homes, plants, plans, journals, tasks, and ailments. GDPR-aligned."
-    ]
-  },
-  {
-    "label": "Shopping",
-    "items": [
-      "New Quantity field on shopping list items — record '×3 stakes' or '×500g bone meal' to keep your list precise."
-    ]
-  },
-  {
-    "label": "Reports",
-    "items": [
-      "Audit Log now has a Print / PDF button alongside the CSV export — save your AI usage history in any format that works for you."
-    ]
-  },
-  {
-    "label": "Release Notes",
-    "items": [
-      "Release notes can now carry 'Try it →' links — tap the link in a note to jump straight to the feature."
+      "Marking a task complete now feels instant — the tick lands locally before the round-trip to the server.",
+      "If you mark a task complete while offline, it's queued locally and synced automatically the moment you're back online. A 'queued' chip in the header shows how many actions are waiting.",
+      { "text": "Out and about in the garden with patchy signal? Just keep ticking things off — Rhozly will catch up later.", "link": { "label": "Open today's tasks", "path": "/dashboard?view=calendar" } }
     ]
   }
 ]

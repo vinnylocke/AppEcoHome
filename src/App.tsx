@@ -46,6 +46,7 @@ import UserProfileDropdown from "./components/UserProfileDropdown";
 import GlobalQuickAdd from "./components/GlobalQuickAdd";
 import GlobalSearch from "./components/GlobalSearch";
 import OfflineBadge from "./components/OfflineBadge";
+import QueuedActionsBadge from "./components/QueuedActionsBadge";
 import NavItem from "./components/NavItem";
 import UpdateBanner from "./components/UpdateBanner";
 import MaintenanceScreen from "./components/MaintenanceScreen";
@@ -886,6 +887,7 @@ function AppShell() {
                     onHomeListChanged={refreshProfile}
                   />
                   <OfflineBadge />
+                  <QueuedActionsBadge />
                   <GlobalSearch homeId={profile?.home_id ?? null} />
                   <GlobalQuickAdd />
                 </div>

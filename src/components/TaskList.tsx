@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
+import { enqueue as enqueueWrite } from "../lib/offlineQueue";
 import TaskModal from "./TaskModal";
 import { TaskEngine } from "../lib/taskEngine";
 import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
@@ -669,6 +670,14 @@ export default function TaskList({
     try {
       const completedAt = newStatus === "Completed" ? new Date().toISOString() : null;
       let finalData = task;
+
+      // Optimistically reflect the toggle locally before the round trip so
+      // the UI feels instant. We undo it in the catch below if the request
+      // doesn't end up queueing or completing.
+      const optimisticTask = { ...task, status: newStatus, completed_at: completedAt, isAutoCompleted: false };
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? optimisticTask : t)));
+      if (selectedTask?.id === task.id) setSelectedTask(optimisticTask);
+
       if (task.isGhost) {
         const { data, error } = await supabase
           .from("tasks")
@@ -693,10 +702,29 @@ export default function TaskList({
             completed_by: newStatus === "Completed" ? currentUserId : null,
           })
           .eq("id", task.id);
-        if (error) throw error;
+        if (error) {
+          // If we're offline, queue the write and keep the optimistic UI.
+          // We only queue real tasks — ghost tasks need a multi-step insert
+          // that's harder to replay safely.
+          if (typeof navigator !== "undefined" && navigator.onLine === false) {
+            enqueueWrite({
+              kind: "task-status",
+              taskId: task.id,
+              status: newStatus,
+              completedAt,
+              completedBy: newStatus === "Completed" ? currentUserId : null,
+            });
+            toast.success(newStatus === "Completed"
+              ? "Marked done — will sync when you're back online."
+              : "Reopened — will sync when you're back online.");
+            setIsUpdatingTask(null);
+            return;
+          }
+          throw error;
+        }
         finalData = { ...task, status: newStatus, isAutoCompleted: false };
       }
-      setTasks(tasks.map((t) => (t.id === task.id ? finalData : t)));
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? finalData : t)));
       if (selectedTask?.id === task.id) {
         setSelectedTask(finalData);
       }

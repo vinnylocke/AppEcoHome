@@ -2,7 +2,7 @@
 
 Running log of everything explicitly deferred from each Phase 2 wave, so nothing slips when we mop up at the end. Items are removed from this file as they ship.
 
-Last updated after **Wave 6** deploy.
+Last updated after **Wave 7** deploy.
 
 ---
 
@@ -86,6 +86,32 @@ Last updated after **Wave 6** deploy.
 ### 6F. Beta Feedback — user self-history
 - Shipped: release-notes try-it-now links.
 - **Deferred:** "My Feedback" list — every feedback the user has submitted with admin status (open / acknowledged / resolved). Needs an `admin_status` column on `beta_feedback` + a view.
+
+---
+
+## Wave 7 — Reliability & Realtime
+
+### 7A. Optimistic UI sweep
+- Shipped: optimistic UI on **task completion** + an offline write queue that captures task-status writes when the network fails.
+- **Deferred:** the same pattern across every other Supabase mutation (~100 sites). Each surface needs its own undo-on-failure shape, so this is closer to a multi-wave campaign than a one-shot. Revisit only when individual surfaces show user-visible lag.
+
+### 7A. Realtime conflict resolution + presence
+- **Fully deferred.**
+  - **Conflict resolution:** depends on optimistic UI being everywhere first.
+  - **Presence avatars** on Plan / Area / Plant detail pages — cosmetic; needs Supabase Presence channel + member metadata join. Revisit when multi-member homes get real usage.
+
+### 7B. Service-worker page caching for offline read
+- **Fully deferred.** Currently the PWA service worker (`registerSW` in main.tsx) handles installability, not data caching. Caching plants / plans / tasks for offline read needs:
+  - A cache-first fetch handler keyed on Supabase REST URLs.
+  - Schema validation to drop stale cached responses across migrations.
+- Best handled as its own pass, paired with a clear cache-bust signal during deploys.
+
+### 7B. Write queue — expand beyond task completion
+- Shipped: queue applies to `tasks.status` updates only.
+- **Deferred:** add queue kinds for other common offline actions (plant edits, journal entries, ailment linking). Pattern is in place — each new kind needs a discriminated entry in `QueuedWrite["kind"]` + an executor in `applyOne()`.
+
+### 7C. Pull-to-refresh per-route
+- **Already shipped** — `PullToRefresh` wraps the global `<Routes>` block in App.tsx. The handler is dashboard-centric but acceptable across routes for now. Per-route handlers can come later if specific pages need them.
 
 ---
 
