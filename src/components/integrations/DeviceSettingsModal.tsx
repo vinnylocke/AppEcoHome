@@ -91,7 +91,7 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
       <div className="relative w-[calc(100vw-2rem)] max-w-md bg-white rounded-3xl shadow-xl p-6 max-h-[90vh] overflow-y-auto" data-testid="device-settings-modal">
         <div className="flex items-center justify-between mb-5">
           <h2 className="font-black text-rhozly-on-surface text-lg">Device Settings</h2>
-          <button onClick={onClose} data-testid="settings-close">
+          <button onClick={onClose} data-testid="settings-close" aria-label="Close">
             <X size={20} className="text-rhozly-on-surface-variant" />
           </button>
         </div>

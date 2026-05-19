@@ -180,6 +180,7 @@ export const HomeSetup: React.FC<Props> = ({
                 {hasExistingHome && onCancel && (
                   <button
                     onClick={onCancel}
+                    aria-label="Cancel home setup"
                     className="p-3 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors"
                   >
                     <X className="w-6 h-6" />

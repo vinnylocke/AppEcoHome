@@ -7,6 +7,7 @@ import { PlantDoctorService } from "../services/plantDoctorService";
 import { getProviderPlantDetails, careGuideToPlantDetails } from "../lib/plantProvider";
 import type { PlantDetails } from "../lib/verdantlyUtils";
 import PlantInfoPanel from "./PlantInfoPanel";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface PlantResult {
   ai: string[];
@@ -35,6 +36,7 @@ export default function PlantSourcePicker({
   onConfirm,
   onClose,
 }: Props) {
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [results, setResults] = useState<Record<string, PlantResult>>(() =>
     Object.fromEntries(
       plants.map((p) => [p, { ai: [], api: [], verdantly: [], loading: true }]),
@@ -181,7 +183,7 @@ export default function PlantSourcePicker({
 
   return (
     <div data-testid="plant-source-picker-modal" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
-      <div className="bg-rhozly-surface-lowest w-full max-w-2xl h-[85vh] flex flex-col rounded-3xl shadow-2xl border border-rhozly-outline/20 overflow-hidden">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-label="Choose plant source" className="bg-rhozly-surface-lowest w-full max-w-2xl h-[85vh] flex flex-col rounded-3xl shadow-2xl border border-rhozly-outline/20 overflow-hidden">
 
         {/* Header */}
         <div className="p-8 pb-4 shrink-0 flex justify-between items-start border-b border-rhozly-outline/10">

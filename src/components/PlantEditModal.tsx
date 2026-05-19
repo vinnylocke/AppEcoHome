@@ -14,6 +14,7 @@ import toast from "react-hot-toast";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface PlantEditModalProps {
   homeId: string;
@@ -36,6 +37,7 @@ export default function PlantEditModal({
 }: PlantEditModalProps) {
   // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("care");
@@ -210,7 +212,7 @@ export default function PlantEditModal({
   // 🚀 PORTAL WRAPPER
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
-      <div className="bg-rhozly-surface-lowest w-full max-w-3xl h-[90vh] flex flex-col rounded-3xl shadow-2xl border border-rhozly-outline/20 overflow-hidden">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-label="Edit plant" className="bg-rhozly-surface-lowest w-full max-w-3xl h-[90vh] flex flex-col rounded-3xl shadow-2xl border border-rhozly-outline/20 overflow-hidden">
         {/* Header */}
         <div className="px-6 sm:px-8 pt-6 sm:pt-8 pb-3 shrink-0">
           <div className="flex justify-between items-start gap-3">

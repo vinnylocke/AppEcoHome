@@ -30,6 +30,8 @@ import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { formatDisplayDate } from "../lib/dateUtils";
 import { usePermissions } from "../context/HomePermissionsContext";
+import { useFocusTrap } from "../hooks/useFocusTrap";
+import PhotoUploader from "./PhotoUploader";
 
 interface TaskModalProps {
   task: any;
@@ -61,7 +63,34 @@ export default function TaskModal({
 }: TaskModalProps) {
   const navigate = useNavigate();
   const { homeMembers } = usePermissions();
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
+  const [completionPhotoUrl, setCompletionPhotoUrl] = useState<string | null>(
+    task?.completion_photo_url ?? null,
+  );
+
+  useEffect(() => {
+    setCompletionPhotoUrl(task?.completion_photo_url ?? null);
+  }, [task?.id, task?.completion_photo_url]);
+
+  const saveCompletionPhoto = async (url: string | null) => {
+    setCompletionPhotoUrl(url);
+    if (task.isGhost) {
+      // Photo can only attach to a real (materialized) task — completed ghosts
+      // are always materialized first, so this branch shouldn't fire in practice.
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from("tasks")
+        .update({ completion_photo_url: url })
+        .eq("id", task.id);
+      if (error) throw error;
+      onTasksUpdated();
+    } catch (err: any) {
+      Logger.error("Failed to save completion photo", err, { taskId: task.id }, "Could not save photo — please try again.");
+    }
+  };
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
@@ -419,6 +448,10 @@ export default function TaskModal({
       onClick={onClose}
     >
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Task details"
         className="bg-white w-full max-w-lg rounded-3xl p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col max-h-[90vh] overflow-y-auto custom-scrollbar"
         onClick={(e) => e.stopPropagation()}
       >
@@ -447,6 +480,7 @@ export default function TaskModal({
           )}
           <button
             onClick={onClose}
+            aria-label="Close"
             className="p-2 bg-rhozly-surface-low rounded-xl hover:bg-rhozly-surface transition-colors shrink-0"
           >
             <X size={18} />
@@ -511,6 +545,7 @@ export default function TaskModal({
                     </h4>
                     <button
                       onClick={() => setIsEditingInstances(false)}
+                      aria-label="Cancel editing instances"
                       className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-primary hover:text-rhozly-primary/80"
                     >
                       <X size={16} />
@@ -1090,6 +1125,7 @@ export default function TaskModal({
                             setDepSearchQuery("");
                             setShowDepDropdown(true);
                           }}
+                          aria-label="Clear dependency"
                           className="p-2 text-rhozly-on-surface/30 hover:text-red-500 mr-1"
                         >
                           <X size={16} />
@@ -1178,6 +1214,32 @@ export default function TaskModal({
                 </button>
               )}
             </div>
+          </div>
+        )}
+
+        {/* Completion photo — shown once the task is marked complete */}
+        {task.status === "Completed" && !task.isGhost && (
+          <div className="mb-6 pt-2" data-testid="task-completion-photo-section">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/55">
+                Completion photo
+              </h4>
+              <span className="text-[10px] font-bold text-rhozly-on-surface/40 uppercase tracking-widest">
+                Optional
+              </span>
+            </div>
+            <PhotoUploader
+              bucket="plant-images"
+              pathPrefix="task-completions"
+              value={completionPhotoUrl}
+              onChange={saveCompletionPhoto}
+              label="Photograph the result"
+              aspectClass="h-40"
+              testIdPrefix="task-completion-photo"
+            />
+            <p className="text-[11px] font-medium text-rhozly-on-surface/50 leading-snug mt-1.5 px-1">
+              Useful when you want to look back later — pruning before/after, harvest size, repair work.
+            </p>
           </div>
         )}
 

@@ -67,6 +67,7 @@ export default function DeviceDetailModal({ device, onClose, onRefresh, canManag
             <button
               onClick={onClose}
               data-testid="device-detail-close"
+              aria-label="Close"
               className="p-2 text-rhozly-on-surface-variant hover:text-rhozly-on-surface"
             >
               <X size={20} />

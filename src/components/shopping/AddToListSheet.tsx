@@ -67,7 +67,7 @@ export default function AddToListSheet({
             <ShoppingCart size={18} className="text-rhozly-primary" />
             <p className="font-black text-rhozly-on-surface">Add to Shopping List</p>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-xl text-rhozly-on-surface/30 hover:text-rhozly-on-surface">
+          <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-xl text-rhozly-on-surface/30 hover:text-rhozly-on-surface">
             <X size={18} />
           </button>
         </div>

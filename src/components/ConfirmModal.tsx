@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
 import { AlertTriangle, Loader2, X } from "lucide-react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface ConfirmModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   const confirmButtonRef = useRef<HTMLButtonElement>(null);
   const cancelButtonRef = useRef<HTMLButtonElement>(null);
   const triggerElementRef = useRef<HTMLElement | null>(null);
+  const trapRef = useFocusTrap<HTMLDivElement>(isOpen, { autoFocus: false, restoreFocus: false });
   const [confirmError, setConfirmError] = useState<string | null>(null);
   const [isConfirming, setIsConfirming] = useState(false);
 
@@ -90,7 +92,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   // 🚀 PORTAL WRAPPER: Automatically teleports this component to the body whenever it's used!
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-rhozly-bg/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div role="alertdialog" aria-modal="true" className="bg-rhozly-surface-lowest rounded-3xl w-full max-w-md border border-rhozly-outline/20 shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+      <div ref={trapRef} role="alertdialog" aria-modal="true" className="bg-rhozly-surface-lowest rounded-3xl w-full max-w-md border border-rhozly-outline/20 shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
         {/* Header */}
         <div className="flex items-start justify-between p-6 pb-4">
           <div className="flex items-center gap-3">
@@ -106,6 +108,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
           <button
             onClick={onClose}
             disabled={busy}
+            aria-label="Close"
             className="p-2 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors disabled:opacity-50"
           >
             <X className="w-5 h-5" />

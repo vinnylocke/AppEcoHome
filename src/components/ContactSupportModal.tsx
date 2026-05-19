@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { X, CheckCircle2, Loader2 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface Props {
   defaultName: string | null;
@@ -15,6 +16,7 @@ export default function ContactSupportModal({ defaultName, defaultEmail, onClose
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -40,7 +42,11 @@ export default function ContactSupportModal({ defaultName, defaultEmail, onClose
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
+        ref={trapRef}
         data-testid="contact-support-modal"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Contact Support"
         className="w-full max-w-xl bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200"
       >
         {/* Header */}
@@ -54,6 +60,7 @@ export default function ContactSupportModal({ defaultName, defaultEmail, onClose
           <button
             data-testid="contact-support-close"
             onClick={onClose}
+            aria-label="Close"
             className="w-8 h-8 rounded-lg flex items-center justify-center text-rhozly-on-surface/40 hover:bg-rhozly-surface-low hover:text-rhozly-on-surface transition-colors"
           >
             <X size={16} />

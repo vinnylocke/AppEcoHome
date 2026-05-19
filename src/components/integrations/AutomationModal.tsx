@@ -335,7 +335,7 @@ export default function AutomationModal({ homeId, automation, onSaved, onClose }
           <h2 className="font-black text-rhozly-on-surface text-lg">
             {isEdit ? "Edit Automation" : "New Automation"}
           </h2>
-          <button onClick={onClose} data-testid="automation-modal-close" className="p-1.5 rounded-xl hover:bg-rhozly-surface transition-colors">
+          <button onClick={onClose} data-testid="automation-modal-close" aria-label="Close" className="p-1.5 rounded-xl hover:bg-rhozly-surface transition-colors">
             <X size={20} className="text-rhozly-on-surface-variant" />
           </button>
         </div>

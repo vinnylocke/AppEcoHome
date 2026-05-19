@@ -5,8 +5,12 @@ import "./index.css";
 import "shepherd.js/dist/css/shepherd.css";
 import "./onboarding/shepherdTheme.css";
 import * as Sentry from "@sentry/react";
+import { bootstrapHighContrast } from "./hooks/useHighContrast";
 
 import { registerSW } from "virtual:pwa-register";
+
+// Apply persisted accessibility preference before the first paint.
+bootstrapHighContrast();
 
 // Module-scope flag — resets on every real page load but survives
 // background/foreground cycles within the same session (unlike sessionStorage).

@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { X, Sparkles, Wrench, TrendingUp, Trash2 } from "lucide-react";
 import type { ReleaseNote, ReleaseNoteSection } from "../hooks/useReleaseNotes";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface Props {
   notes: ReleaseNote[];
@@ -42,6 +43,7 @@ function formatDate(iso: string) {
 export default function ReleaseNotesModal({ notes, currentVersion, mode: initialMode, onClose }: Props) {
   const [mode, setMode] = useState(initialMode);
   const latest = notes[0];
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   return (
     <div
@@ -49,6 +51,10 @@ export default function ReleaseNotesModal({ notes, currentVersion, mode: initial
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
+        ref={trapRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label={mode === "latest" ? "What's new" : "Release notes"}
         data-testid="release-notes-modal"
         className="w-full max-w-md bg-white rounded-2xl shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-200 flex flex-col max-h-[85vh]"
       >
@@ -67,6 +73,7 @@ export default function ReleaseNotesModal({ notes, currentVersion, mode: initial
           <button
             data-testid="release-notes-close"
             onClick={onClose}
+            aria-label="Close"
             className="w-8 h-8 rounded-lg flex items-center justify-center text-rhozly-on-surface/40 hover:bg-rhozly-surface-low hover:text-rhozly-on-surface transition-colors"
           >
             <X size={16} />

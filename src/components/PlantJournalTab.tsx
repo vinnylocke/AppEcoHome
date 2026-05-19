@@ -4,7 +4,6 @@ import { format } from "date-fns";
 import {
   BookOpen,
   Plus,
-  Camera,
   Loader2,
   X,
   Save,
@@ -15,6 +14,7 @@ import {
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { logEvent, EVENT } from "../events/registry";
+import PhotoUploader from "./PhotoUploader";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -37,10 +37,8 @@ export default function PlantJournalTab({
   const [isAdding, setIsAdding] = useState(false);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
   const [deleteConfirm, setDeleteConfirm] = useState<string | null>(null);
   const [subjectError, setSubjectError] = useState(false);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const deleteButtonRef = useRef<HTMLButtonElement>(null);
   const deleteModalRef = useRef<HTMLDivElement>(null);
 
@@ -155,52 +153,6 @@ export default function PlantJournalTab({
       setAvailableTasks(data || []);
     } catch (error) {
       Logger.error("Failed to fetch tasks for journal linking", error);
-    }
-  };
-
-  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    if (file.size > 5 * 1024 * 1024) {
-      return toast.error("Image must be under 5MB");
-    }
-
-    setUploading(true);
-    setUploadProgress(0);
-    try {
-      const fileExt = file.name.split(".").pop();
-      const fileName = `journal-${Math.random()}.${fileExt}`;
-      const filePath = `plant-photos/${fileName}`;
-
-      // Simulate progress for better UX
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 90) return prev;
-          return prev + 10;
-        });
-      }, 100);
-
-      const { error: uploadError } = await supabase.storage
-        .from("plant-images")
-        .upload(filePath, file);
-
-      clearInterval(progressInterval);
-      setUploadProgress(100);
-
-      if (uploadError) throw uploadError;
-
-      const {
-        data: { publicUrl },
-      } = supabase.storage.from("plant-images").getPublicUrl(filePath);
-
-      setForm((prev) => ({ ...prev, image_url: publicUrl }));
-      toast.success("Photo attached!");
-    } catch (err: any) {
-      Logger.error("Failed to attach journal photo", err, {}, "Failed to attach photo.");
-    } finally {
-      setUploading(false);
-      setUploadProgress(0);
     }
   };
 
@@ -354,62 +306,22 @@ export default function PlantJournalTab({
             className="w-full p-4 bg-white rounded-2xl font-bold border border-transparent focus:border-rhozly-primary outline-none text-sm resize-none"
           />
 
-          {form.image_url ? (
-            <div className="relative w-full h-40 rounded-2xl overflow-hidden group">
-              <img
-                src={form.image_url}
-                alt="Attached"
-                className="w-full h-full object-cover"
-              />
-              <button
-                onClick={() => setForm({ ...form, image_url: "" })}
-                className="absolute top-2 right-2 p-2 bg-black/50 text-white rounded-xl hover:bg-red-500 backdrop-blur-sm transition-colors"
-              >
-                <X size={16} />
-              </button>
-            </div>
-          ) : (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              aria-label="Attach photo to entry"
-              className="w-full py-6 border-2 border-dashed border-rhozly-outline/20 rounded-2xl flex flex-col items-center justify-center gap-2 text-rhozly-on-surface/50 hover:border-rhozly-primary/30 hover:text-rhozly-primary transition-colors bg-white"
-            >
-              {uploading ? (
-                <>
-                  <Loader2 className="animate-spin" />
-                  <div className="w-full max-w-[200px] h-2 bg-rhozly-outline/20 rounded-full overflow-hidden">
-                    <div
-                      className="h-full bg-rhozly-primary transition-all duration-300"
-                      style={{ width: `${uploadProgress}%` }}
-                    />
-                  </div>
-                  <span className="text-[10px] font-black uppercase tracking-widest">
-                    Uploading... {uploadProgress}%
-                  </span>
-                </>
-              ) : (
-                <>
-                  <Camera size={24} />
-                  <span className="text-[10px] font-black uppercase tracking-widest">
-                    Attach Photo
-                  </span>
-                </>
-              )}
-            </button>
-          )}
-
-          <input
-            type="file"
-            ref={fileInputRef}
-            onChange={handleImageUpload}
-            accept="image/*"
-            capture="environment"
-            className="hidden"
+          <PhotoUploader
+            bucket="plant-images"
+            pathPrefix="plant-photos"
+            value={form.image_url || null}
+            onChange={(url) => setForm((prev) => ({ ...prev, image_url: url ?? "" }))}
+            label="Attach a photo to this entry"
+            aspectClass="h-40"
+            testIdPrefix="journal-photo"
+            onUploadStart={() => setUploading(true)}
+            onUploadEnd={() => setUploading(false)}
+            disabled={saving}
           />
 
           <button
             onClick={handleSave}
-            disabled={saving}
+            disabled={saving || uploading}
             className="w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-50 flex justify-center items-center gap-2"
           >
             {saving ? (

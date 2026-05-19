@@ -85,6 +85,7 @@ export default function ConnectDeviceWizard({ homeId, onComplete, onClose, initi
           <button
             onClick={onClose}
             data-testid="wizard-close"
+            aria-label="Close wizard"
             className="p-1 text-rhozly-on-surface-variant hover:text-rhozly-on-surface"
           >
             <X size={20} />

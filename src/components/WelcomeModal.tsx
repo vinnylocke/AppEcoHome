@@ -4,6 +4,7 @@ import { ChevronLeft, ChevronRight, Sprout, MapPin, Repeat, X } from "lucide-rea
 import { IconAI } from "../constants/icons";
 import { supabase } from "../lib/supabase";
 import type { OnboardingState } from "../onboarding/types";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface Props {
   userId: string;
@@ -95,6 +96,7 @@ export default function WelcomeModal({ userId, onboardingState, onStateChange, o
   const [slideIdx, setSlideIdx] = useState(0);
   const slide = SLIDES[slideIdx];
   const isLast = slideIdx === SLIDES.length - 1;
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   const recordCompletion = async (status: "completed" | "dismissed") => {
     const next: OnboardingState = { ...onboardingState, [WELCOME_KEY]: status };
@@ -122,8 +124,10 @@ export default function WelcomeModal({ userId, onboardingState, onStateChange, o
       className="fixed inset-0 z-[100] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-300"
     >
       <div
+        ref={trapRef}
         className="bg-rhozly-bg rounded-3xl w-full max-w-md shadow-2xl border border-rhozly-outline/10 overflow-hidden animate-in zoom-in-95 duration-300"
         role="dialog"
+        aria-modal="true"
         aria-labelledby="welcome-modal-title"
       >
         {/* Close button */}

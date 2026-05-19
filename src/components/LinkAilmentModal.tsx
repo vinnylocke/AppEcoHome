@@ -9,6 +9,8 @@ import { AutomationEngine } from "../lib/automationEngine";
 import { logEvent, EVENT } from "../events/registry";
 import { getLocalDateString } from "../lib/taskEngine";
 import type { Ailment, AilmentType } from "./AilmentWatchlist";
+import { useFocusTrap } from "../hooks/useFocusTrap";
+import PhotoUploader from "./PhotoUploader";
 
 const TYPE_META: Record<AilmentType, { label: string; icon: React.ReactNode; colour: string }> = {
   invasive_plant: { label: "Invasive Plant", icon: <IconPlant size={12} />, colour: "bg-orange-100 text-orange-700" },
@@ -31,12 +33,16 @@ interface Props {
 }
 
 export default function LinkAilmentModal({ homeId, plantInstance, onClose, onLinked }: Props) {
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [ailments, setAilments] = useState<Ailment[]>([]);
   const [existingLinks, setExistingLinks] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [linking, setLinking] = useState(false);
   const [search, setSearch] = useState("");
+  const [photoUrl, setPhotoUrl] = useState<string | null>(null);
+  const [notes, setNotes] = useState("");
+  const [photoUploading, setPhotoUploading] = useState(false);
 
   useEffect(() => {
     const load = async () => {
@@ -73,12 +79,15 @@ export default function LinkAilmentModal({ homeId, plantInstance, onClose, onLin
       const { data: { user } } = await supabase.auth.getUser();
       const today = getLocalDateString(new Date());
 
+      const trimmedNotes = notes.trim();
       const rows = Array.from(selected).map((ailmentId) => ({
         plant_instance_id: plantInstance.id,
         ailment_id: ailmentId,
         home_id: homeId,
         linked_by: user?.id ?? null,
         status: "active",
+        photo_url: photoUrl,
+        notes: trimmedNotes || null,
       }));
 
       const { error: linkError } = await supabase.from("plant_instance_ailments").insert(rows);
@@ -128,7 +137,7 @@ export default function LinkAilmentModal({ homeId, plantInstance, onClose, onLin
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/40 backdrop-blur-sm p-4">
-      <div className="bg-white rounded-3xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-label="Link plant to ailment" className="bg-white rounded-3xl w-full max-w-lg max-h-[85vh] flex flex-col shadow-2xl overflow-hidden">
         {/* Header */}
         <div className="flex items-start justify-between p-6 pb-4 border-b border-rhozly-outline/10">
           <div>
@@ -222,6 +231,46 @@ export default function LinkAilmentModal({ homeId, plantInstance, onClose, onLin
           )}
         </div>
 
+        {/* Photo + notes (shown once at least one ailment is selected) */}
+        {selected.size > 0 && (
+          <div className="px-5 py-4 border-t border-rhozly-outline/10 bg-rhozly-surface-low/40 space-y-3" data-testid="link-ailment-evidence-section">
+            <div>
+              <div className="flex items-center justify-between mb-1.5">
+                <h4 className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/55">
+                  Evidence photo
+                </h4>
+                <span className="text-[10px] font-bold text-rhozly-on-surface/40 uppercase tracking-widest">
+                  Optional
+                </span>
+              </div>
+              <PhotoUploader
+                bucket="plant-images"
+                pathPrefix="ailment-evidence"
+                value={photoUrl}
+                onChange={setPhotoUrl}
+                label="Photograph the issue"
+                aspectClass="h-32"
+                testIdPrefix="ailment-evidence-photo"
+                onUploadStart={() => setPhotoUploading(true)}
+                onUploadEnd={() => setPhotoUploading(false)}
+              />
+            </div>
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/55 block mb-1.5">
+                Notes <span className="font-bold text-rhozly-on-surface/40 normal-case tracking-normal">(optional — anything specific about this plant)</span>
+              </label>
+              <textarea
+                data-testid="link-ailment-notes"
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="e.g. Leaves yellow on south side only; started after the heatwave."
+                rows={2}
+                className="w-full text-sm rounded-xl border border-rhozly-outline/20 bg-white px-3 py-2 text-rhozly-on-surface placeholder:text-rhozly-on-surface/40 focus:outline-none focus:ring-2 focus:ring-rhozly-primary/30 resize-none"
+              />
+            </div>
+          </div>
+        )}
+
         {/* Footer */}
         <div className="p-5 border-t border-rhozly-outline/10 flex gap-3">
           <button
@@ -232,7 +281,7 @@ export default function LinkAilmentModal({ homeId, plantInstance, onClose, onLin
           </button>
           <button
             onClick={handleLink}
-            disabled={linking || selected.size === 0}
+            disabled={linking || photoUploading || selected.size === 0}
             className="flex-1 py-3.5 bg-rhozly-primary text-white rounded-2xl font-black text-sm flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform disabled:opacity-60"
           >
             {linking ? <Loader2 size={16} className="animate-spin" /> : <CheckCircle2 size={16} />}

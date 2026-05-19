@@ -425,6 +425,7 @@ export default function AreaDetails({
               </div>
               <button
                 onClick={() => setRecommendations(null)}
+                aria-label="Dismiss recommendations"
                 className="text-rhozly-primary/50 hover:text-rhozly-primary bg-white p-1.5 rounded-xl shadow-sm border border-rhozly-primary/10"
               >
                 <X size={16} />
@@ -837,6 +838,7 @@ export default function AreaDetails({
                     </div>
                     <button
                       onClick={() => setIsEditingArea(false)}
+                      aria-label="Close"
                       className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
                     >
                       <X size={24} />

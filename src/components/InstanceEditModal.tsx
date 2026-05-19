@@ -5,6 +5,7 @@ import {
   Settings2,
   ClipboardList,
   BookOpen,
+  Images,
   MapPin,
   Navigation,
   Hash,
@@ -21,6 +22,7 @@ import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import InstanceCareRoutine from "./InstanceCareRoutine";
 import PlantJournalTab from "./PlantJournalTab";
+import PhotoTimelineTab from "./PhotoTimelineTab";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantGuidesTab from "./PlantGuidesTab";
 import YieldTab from "./YieldTab";
@@ -28,6 +30,7 @@ import LightTab from "./LightTab";
 import InstanceStatsTab from "./InstanceStatsTab";
 import CompanionPlantsTab from "./CompanionPlantsTab";
 import { getProviderPlantDetails } from "../lib/plantProvider";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -68,9 +71,10 @@ export default function InstanceEditModal({
   isPremium = false,
 }: InstanceEditModalProps) {
   const { setPageContext } = usePlantDoctor();
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   const [activeTab, setActiveTab] = useState<
-    "details" | "routine" | "journal" | "care_guide" | "guides" | "yield" | "light" | "stats" | "companions"
+    "details" | "routine" | "journal" | "photos" | "care_guide" | "guides" | "yield" | "light" | "stats" | "companions"
   >("details");
   const [savingInstance, setSavingInstance] = useState(false);
   const [locations, setLocations] = useState<any[]>([]);
@@ -281,7 +285,7 @@ export default function InstanceEditModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
-      <div className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-3xl p-8 shadow-2xl border border-rhozly-outline/20 relative">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-label="Edit plant instance" className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-3xl p-8 shadow-2xl border border-rhozly-outline/20 relative">
         <div className="flex justify-between items-start mb-6 relative z-10">
           <div>
             <h3 className="text-3xl font-black text-rhozly-on-surface">
@@ -293,6 +297,7 @@ export default function InstanceEditModal({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform shrink-0"
           >
             <X size={24} />
@@ -327,6 +332,14 @@ export default function InstanceEditModal({
             className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "journal" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
             <BookOpen size={14} /> Journal
+          </button>
+
+          <button
+            data-testid="instance-modal-tab-photos"
+            onClick={() => setActiveTab("photos")}
+            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "photos" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+          >
+            <Images size={14} /> Photos
           </button>
 
           <button
@@ -583,6 +596,12 @@ export default function InstanceEditModal({
         {activeTab === "journal" && (
           <div className="animate-in slide-in-from-right-4">
             <PlantJournalTab inventoryItemId={instance.id} homeId={homeId} />
+          </div>
+        )}
+
+        {activeTab === "photos" && (
+          <div className="animate-in slide-in-from-right-4">
+            <PhotoTimelineTab inventoryItemId={instance.id} />
           </div>
         )}
 

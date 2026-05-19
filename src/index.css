@@ -87,6 +87,43 @@ body > div > .fixed {
 }
 
 /* =========================================
+   ♿ HIGH-CONTRAST MODE
+   Activated when the user toggles it in Gardener Profile → Account →
+   Accessibility, which adds `.high-contrast` to <html>. The block bumps
+   secondary-text opacities to fully solid for users who need extra
+   contrast (bright sunlight, low vision). Decorative chrome stays calm
+   in default mode — this is an opt-in override.
+========================================= */
+html.high-contrast {
+  /* Force every opacity-modified on-surface text to solid base */
+  --color-rhozly-outline: rgba(26, 28, 27, 0.45);
+}
+html.high-contrast .text-rhozly-on-surface\/20,
+html.high-contrast .text-rhozly-on-surface\/30,
+html.high-contrast .text-rhozly-on-surface\/35,
+html.high-contrast .text-rhozly-on-surface\/40,
+html.high-contrast .text-rhozly-on-surface\/45,
+html.high-contrast .text-rhozly-on-surface\/50,
+html.high-contrast .text-rhozly-on-surface\/55,
+html.high-contrast .text-rhozly-on-surface\/60,
+html.high-contrast .text-rhozly-on-surface\/65 {
+  color: var(--color-rhozly-on-surface) !important;
+}
+/* Mid-tone whites in the dark header etc. need the same treatment */
+html.high-contrast .text-white\/40,
+html.high-contrast .text-white\/50,
+html.high-contrast .text-white\/60 {
+  color: #ffffff !important;
+}
+/* Borders also get a contrast bump so card edges remain visible */
+html.high-contrast .border-rhozly-outline\/10,
+html.high-contrast .border-rhozly-outline\/15,
+html.high-contrast .border-rhozly-outline\/20,
+html.high-contrast .border-rhozly-outline\/30 {
+  border-color: rgba(26, 28, 27, 0.5) !important;
+}
+
+/* =========================================
    GLOBAL MODAL BEHAVIOR FIX
 ========================================= */
 

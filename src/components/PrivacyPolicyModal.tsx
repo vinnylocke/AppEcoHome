@@ -1,14 +1,16 @@
 import React from "react";
 import { createPortal } from "react-dom";
 import { X } from "lucide-react";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface Props {
   onClose: () => void;
 }
 
 export default function PrivacyPolicyModal({ onClose }: Props) {
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
   return createPortal(
-    <div className="fixed inset-0 z-[200] flex flex-col bg-rhozly-bg animate-in fade-in duration-200">
+    <div ref={trapRef} role="dialog" aria-modal="true" aria-label="Privacy Policy" className="fixed inset-0 z-[200] flex flex-col bg-rhozly-bg animate-in fade-in duration-200">
       {/* Header — matches app header */}
       <div className="flex items-center justify-between px-5 py-4 shrink-0 bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container shadow-md">
         <div>

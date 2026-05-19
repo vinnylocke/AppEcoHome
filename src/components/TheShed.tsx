@@ -1641,6 +1641,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                           if (n > 0) toast.success(`${n} plant${n !== 1 ? "s" : ""} imported successfully.`);
                           setBulkQueue([]);
                         }}
+                        aria-label="Close bulk import"
                         className="p-3 bg-rhozly-surface-low rounded-2xl hover:scale-110 transition-transform"
                       >
                         <X size={24} />

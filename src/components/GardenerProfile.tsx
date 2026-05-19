@@ -2,11 +2,12 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { toast } from "react-hot-toast";
-import { User, Trophy, BarChart2, Save, Loader2, Lock, Trash2, AlertTriangle, X, CheckCircle2, Bell, Droplets, Wheat, Scissors, Cloud, Sun, Sparkles, MessageSquare } from "lucide-react";
+import { User, Trophy, BarChart2, Save, Loader2, Lock, Trash2, AlertTriangle, X, CheckCircle2, Bell, Droplets, Wheat, Scissors, Cloud, Sun, Sparkles, MessageSquare, Eye } from "lucide-react";
 import { TIERS, type TierId } from "../constants/tiers";
 import { useAchievements } from "../hooks/useAchievements";
 import { ACHIEVEMENTS } from "../lib/achievements";
 import AIUsagePanel from "./AIUsagePanel";
+import { useHighContrast } from "../hooks/useHighContrast";
 
 interface Props {
   userId: string;
@@ -199,6 +200,41 @@ function NotificationsTab() {
         Preferences are saved on this device. Categories marked "Coming soon" persist but don't yet affect delivery — wiring lands in a future release.
       </p>
     </div>
+  );
+}
+
+// ─── Accessibility Section ──────────────────────────────────────────────────
+
+function AccessibilitySection() {
+  const [highContrast, setHighContrast] = useHighContrast();
+  return (
+    <section className="bg-white rounded-2xl border border-rhozly-outline/10 p-4 space-y-3" data-testid="accessibility-section">
+      <h3 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/55 flex items-center gap-2">
+        <Eye size={13} className="text-rhozly-primary" />
+        Accessibility
+      </h3>
+      <label className="flex items-center justify-between gap-3 cursor-pointer">
+        <div className="min-w-0">
+          <p className="text-sm font-black text-rhozly-on-surface">High contrast</p>
+          <p className="text-[11px] font-medium text-rhozly-on-surface/55 leading-snug">
+            Forces solid colours for secondary text and chips. Easier to read in bright light or for users with low vision.
+          </p>
+        </div>
+        <input
+          data-testid="accessibility-high-contrast-toggle"
+          type="checkbox"
+          checked={highContrast}
+          onChange={(e) => setHighContrast(e.target.checked)}
+          aria-label="High contrast mode"
+          className="w-11 h-6 shrink-0 appearance-none rounded-full bg-rhozly-outline/30 checked:bg-rhozly-primary transition-colors relative cursor-pointer
+            after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:shadow-md after:transition-transform
+            checked:after:translate-x-5"
+        />
+      </label>
+      <p className="text-[10px] font-bold text-rhozly-on-surface/45 leading-snug">
+        Rhozly also honours your OS-level Reduce Motion preference automatically — turn it on in Settings → Accessibility on iOS, or System Settings → Accessibility on Android / macOS / Windows.
+      </p>
+    </section>
   );
 }
 
@@ -554,6 +590,9 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, onDi
 
       {/* AI Usage */}
       <AIUsagePanel homeId={homeId} userId={userId} />
+
+      {/* Accessibility */}
+      <AccessibilitySection />
 
       {/* Danger Zone */}
       <section className="bg-white rounded-2xl border border-red-200 p-4 space-y-3">

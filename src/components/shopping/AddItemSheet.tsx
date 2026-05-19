@@ -280,7 +280,7 @@ export default function AddItemSheet({
         {/* Header */}
         <div className="flex items-center justify-between px-5 pt-5 pb-3 shrink-0">
           <p className="font-black text-rhozly-on-surface">Add Item</p>
-          <button onClick={onClose} className="p-1.5 rounded-xl text-rhozly-on-surface/30 hover:text-rhozly-on-surface">
+          <button onClick={onClose} aria-label="Close" className="p-1.5 rounded-xl text-rhozly-on-surface/30 hover:text-rhozly-on-surface">
             <X size={18} />
           </button>
         </div>

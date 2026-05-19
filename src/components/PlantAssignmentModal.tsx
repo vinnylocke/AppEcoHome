@@ -21,6 +21,7 @@ import { supabase } from "../lib/supabase";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { AutomationEngine } from "../lib/automationEngine"; // 🚀 IMPORT THE ENGINE
 import { logEvent, EVENT } from "../events/registry";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 interface PlantAssignmentModalProps {
   plant: any;
@@ -63,6 +64,7 @@ export default function PlantAssignmentModal({
   aiEnabled = false,
 }: PlantAssignmentModalProps) {
   const { setPageContext } = usePlantDoctor();
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   const [step, setStep] = useState<1 | 2>(1);
   const [selectedLoc, setSelectedLoc] = useState("");
@@ -307,7 +309,7 @@ export default function PlantAssignmentModal({
 
   return createPortal(
     <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
-      <div className="bg-rhozly-surface-lowest w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar rounded-3xl p-8 shadow-2xl border border-rhozly-outline/20 relative">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-label="Assign plant to area" className="bg-rhozly-surface-lowest w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar rounded-3xl p-8 shadow-2xl border border-rhozly-outline/20 relative">
         <div
           aria-live="polite"
           aria-atomic="true"

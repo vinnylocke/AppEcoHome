@@ -13,6 +13,7 @@ import { Logger } from "../lib/errorHandler";
 import { getQuestionsToAsk } from "../lib/scanQuestions";
 import type { ScanQuestion } from "../lib/scanQuestions";
 import { logEvent, EVENT } from "../events/registry";
+import { useFocusTrap } from "../hooks/useFocusTrap";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -161,6 +162,7 @@ export default function AreaScanModal({
 }: AreaScanModalProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
+  const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   const [flow, setFlow] = useState<FlowState>("idle");
   const [imageFile, setImageFile] = useState<File | null>(null);
@@ -333,7 +335,7 @@ export default function AreaScanModal({
 
   return createPortal(
     <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/60 backdrop-blur-sm p-4 overflow-y-auto">
-      <div className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl mt-4 mb-8 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+      <div ref={trapRef} role="dialog" aria-modal="true" aria-label="Area scan" className="bg-white rounded-3xl w-full max-w-2xl shadow-2xl mt-4 mb-8 overflow-hidden animate-in fade-in zoom-in-95 duration-200">
 
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-rhozly-outline/10">
@@ -352,6 +354,7 @@ export default function AreaScanModal({
           </div>
           <button
             onClick={onClose}
+            aria-label="Close"
             className="p-2 rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low transition-all"
           >
             <X size={20} />
