@@ -1201,7 +1201,7 @@ function AppShell() {
                                 ) : dashboardView === "calendar" ? (
                                   <div className="bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/10 overflow-hidden shadow-sm">
                                     {profile?.home_id && (
-                                      <TaskCalendar homeId={profile.home_id} preloadedLocations={locations} />
+                                      <TaskCalendar homeId={profile.home_id} preloadedLocations={locations} aiEnabled={profile?.ai_enabled ?? false} />
                                     )}
                                   </div>
                                 ) : (

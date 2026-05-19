@@ -59,9 +59,11 @@ function taskDotColor(type: string, isSelected: boolean): string {
 export default function TaskCalendar({
   homeId,
   preloadedLocations,
+  aiEnabled = false,
 }: {
   homeId: string;
   preloadedLocations?: any[];
+  aiEnabled?: boolean;
 }) {
   const { setPageContext, preferences } = usePlantDoctor();
 
@@ -981,6 +983,7 @@ export default function TaskCalendar({
         <AddTaskModal
           homeId={homeId}
           selectedDate={selectedDate}
+          aiEnabled={aiEnabled}
           onClose={() => setIsAddingTask(false)}
           onSuccess={() => {
             setIsAddingTask(false);

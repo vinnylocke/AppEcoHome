@@ -2,7 +2,7 @@
   {
     "label": "Bug Fixes",
     "items": [
-      "Fixed the Add Plant button on the Shed being clipped off the right edge on small phones."
+      "Fixed 'Generate task from photo' refusing to run for AI-tier users — the modal wasn't being told which plan you're on, so it gated the feature even on Botanist / Sage / Evergreen."
     ]
   }
 ]

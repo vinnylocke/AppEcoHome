@@ -850,6 +850,7 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
           homeId={homeId}
           isBlueprintMode={true}
           existingBlueprint={editingBlueprint}
+          aiEnabled={aiEnabled}
           onClose={() => {
             setIsBuilding(false);
             setEditingBlueprint(null);
