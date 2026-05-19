@@ -14,6 +14,7 @@ export interface ShoppingListItem {
   item_type: "plant" | "product";
   name: string;
   is_checked: boolean;
+  quantity?: number | null;
   perenual_id?: number | null;
   thumbnail_url?: string | null;
   source?: "shed" | "perenual" | "ai" | null;

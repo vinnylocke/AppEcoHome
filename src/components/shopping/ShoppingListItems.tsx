@@ -70,6 +70,11 @@ export default function ShoppingListItems({ items, onToggle, onDelete }: Props) 
               className={`text-xs font-bold text-rhozly-on-surface leading-tight block truncate transition-all ${item.is_checked ? "line-through text-rhozly-on-surface/30" : ""}`}
             >
               {item.name}
+              {item.quantity != null && item.quantity !== 0 && (
+                <span className={`ml-1.5 font-black ${item.is_checked ? "text-rhozly-on-surface/30" : "text-rhozly-primary"}`} data-testid={`shopping-item-qty-${item.id}`}>
+                  ×{item.quantity}
+                </span>
+              )}
             </span>
             <div className="flex items-center gap-1 mt-0.5 flex-wrap">
               {item.item_type === "product" && item.category && (

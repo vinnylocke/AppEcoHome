@@ -9,6 +9,7 @@ import {
   Loader2,
   Download,
   TrendingUp,
+  Printer,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { usePermissions } from "../context/HomePermissionsContext";
@@ -333,11 +334,14 @@ export default function AuditPage({ homeId }: Props) {
   const isDefaultFilters = dateFrom === todayStr() && dateTo === todayStr() && selectedUserId === "all";
 
   return (
-    <div className="max-w-5xl mx-auto px-4 py-6 space-y-6">
+    <div id="audit-print-root" className="max-w-5xl mx-auto px-4 py-6 space-y-6">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-black text-rhozly-on-surface">Audit Log</h1>
         <p className="text-sm font-bold text-rhozly-on-surface/40 mt-0.5">Home activity and AI usage</p>
+        <p className="text-[10px] font-bold text-rhozly-on-surface/40 mt-0.5 hidden print:block">
+          Generated {new Date().toLocaleString("en-GB", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit" })}
+        </p>
       </div>
 
       {/* Filter bar */}
@@ -555,6 +559,15 @@ export default function AuditPage({ homeId }: Props) {
                 >
                   <Download size={13} />
                   Export CSV
+                </button>
+                <button
+                  data-testid="audit-export-pdf"
+                  onClick={() => window.print()}
+                  title="Print or save as PDF"
+                  className="flex items-center gap-1.5 bg-rhozly-surface-low text-rhozly-on-surface text-xs font-black px-3 py-2 min-h-[40px] rounded-xl hover:bg-rhozly-surface active:scale-95 transition print:hidden"
+                >
+                  <Printer size={13} />
+                  Print / PDF
                 </button>
               </div>
 

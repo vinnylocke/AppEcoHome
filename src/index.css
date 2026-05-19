@@ -124,17 +124,20 @@ html.high-contrast .border-rhozly-outline\/30 {
 }
 
 /* =========================================
-   PRINT — Microclimate Report PDF export
-   When the user triggers window.print() from the Microclimate Report
-   modal we want only that modal to print. The rest of the app + the
-   modal backdrop are hidden, the modal sheds shadows / scrollbars,
-   and chrome buttons disappear via the print:hidden Tailwind variant.
+   PRINT — PDF export from report-style screens
+   Triggered by window.print() from the Microclimate Report modal and
+   the Audit Log page. The rest of the app + modal backdrops are
+   hidden; the report sheds shadows / scrollbars; chrome buttons
+   disappear via the print:hidden Tailwind variant.
 ========================================= */
 @media print {
   body * { visibility: hidden !important; }
   #microclimate-print-root,
-  #microclimate-print-root * { visibility: visible !important; }
-  #microclimate-print-root {
+  #microclimate-print-root *,
+  #audit-print-root,
+  #audit-print-root * { visibility: visible !important; }
+  #microclimate-print-root,
+  #audit-print-root {
     position: fixed !important;
     inset: 0 !important;
     width: 100% !important;
@@ -147,7 +150,8 @@ html.high-contrast .border-rhozly-outline\/30 {
     padding: 24px 32px !important;
     page-break-inside: auto;
   }
-  #microclimate-print-root .overflow-y-auto {
+  #microclimate-print-root .overflow-y-auto,
+  #audit-print-root .overflow-y-auto {
     overflow: visible !important;
     max-height: none !important;
   }

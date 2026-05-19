@@ -238,6 +238,72 @@ function AccessibilitySection() {
   );
 }
 
+// ─── Data Export Section ─────────────────────────────────────────────────────
+
+function DataExportSection({ userId }: { userId: string }) {
+  const [exporting, setExporting] = useState(false);
+
+  const handleExport = async () => {
+    if (exporting) return;
+    setExporting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error("Not signed in.");
+      const supabaseUrl = (import.meta as any).env.VITE_SUPABASE_URL as string;
+      const res = await fetch(`${supabaseUrl}/functions/v1/export-user-data`, {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${session.access_token}`,
+          "Content-Type":  "application/json",
+        },
+        body: "{}",
+      });
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({}));
+        throw new Error(body.error ?? `Export failed (${res.status})`);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `rhozly-export-${new Date().toISOString().split("T")[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      toast.success("Your data has been downloaded.");
+    } catch (err: any) {
+      toast.error(err.message ?? "Could not export your data.");
+    } finally {
+      setExporting(false);
+    }
+  };
+
+  return (
+    <section className="bg-white rounded-2xl border border-rhozly-outline/10 p-4 space-y-3" data-testid="data-export-section">
+      <h3 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/55 flex items-center gap-2">
+        <Save size={13} className="text-rhozly-primary" />
+        Your Data
+      </h3>
+      <p className="text-xs text-rhozly-on-surface/60 font-medium leading-relaxed">
+        Download a copy of everything you've added to Rhozly — your homes, plants, plans, journals, tasks, and ailments — as a single JSON file.
+      </p>
+      <button
+        data-testid="data-export-btn"
+        onClick={handleExport}
+        disabled={exporting}
+        className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-rhozly-primary/30 text-rhozly-primary text-xs font-black hover:bg-rhozly-primary/5 transition-colors disabled:opacity-50"
+      >
+        {exporting ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+        {exporting ? "Preparing…" : "Download my data"}
+      </button>
+      <p className="text-[10px] font-bold text-rhozly-on-surface/40 leading-snug">
+        Limited to 3 exports per hour. Photos are referenced by URL — the JSON doesn't bundle the image files themselves.
+      </p>
+    </section>
+  );
+}
+
 // ─── Account Tab ────────────────────────────────────────────────────────────
 
 function AccountTab({ userId, homeId, displayName, email, subscriptionTier, onDisplayNameChange, onTierChange }: {
@@ -594,6 +660,9 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, onDi
       {/* Accessibility */}
       <AccessibilitySection />
 
+      {/* Data Export */}
+      <DataExportSection userId={userId} />
+
       {/* Danger Zone */}
       <section className="bg-white rounded-2xl border border-red-200 p-4 space-y-3">
         <h3 className="text-xs font-black uppercase tracking-widest text-red-500">Danger Zone</h3>
@@ -779,6 +848,45 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
     setParams(p, { replace: true });
   };
 
+  // Avatar — fetched on mount; updated via PhotoUploader.
+  const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
+  const [avatarLoading, setAvatarLoading] = useState(false);
+  useEffect(() => {
+    supabase
+      .from("user_profiles")
+      .select("avatar_url")
+      .eq("uid", userId)
+      .maybeSingle()
+      .then(({ data }) => setAvatarUrl(data?.avatar_url ?? null));
+  }, [userId]);
+  const handleAvatarUpload = async (file: File) => {
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Avatar must be under 2MB.");
+      return;
+    }
+    setAvatarLoading(true);
+    try {
+      const ext = (file.name.split(".").pop() || "jpg").toLowerCase().slice(0, 5);
+      const path = `${userId}/avatar-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("plant-images")
+        .upload(path, file, { contentType: file.type, upsert: false });
+      if (uploadError) throw uploadError;
+      const { data: { publicUrl } } = supabase.storage.from("plant-images").getPublicUrl(path);
+      const { error: dbError } = await supabase
+        .from("user_profiles")
+        .update({ avatar_url: publicUrl })
+        .eq("uid", userId);
+      if (dbError) throw dbError;
+      setAvatarUrl(publicUrl);
+      toast.success("Avatar updated.");
+    } catch (err: any) {
+      toast.error("Could not update avatar — please try again.");
+    } finally {
+      setAvatarLoading(false);
+    }
+  };
+
   const unlockedCount = unlockedKeys.length;
   const totalCount = ACHIEVEMENTS.length;
 
@@ -793,9 +901,41 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="w-14 h-14 rounded-full bg-rhozly-primary-container flex items-center justify-center shrink-0">
-          <User size={24} className="text-rhozly-primary" />
-        </div>
+        <label
+          htmlFor="avatar-upload-input"
+          className="relative w-14 h-14 rounded-full bg-rhozly-primary-container flex items-center justify-center shrink-0 overflow-hidden cursor-pointer group focus-within:ring-2 focus-within:ring-rhozly-primary"
+          title="Change avatar"
+          data-testid="gardener-profile-avatar"
+        >
+          {avatarUrl ? (
+            <img
+              src={avatarUrl}
+              alt="Your avatar"
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <User size={24} className="text-rhozly-primary" />
+          )}
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center opacity-0 group-hover:opacity-100">
+            {avatarLoading ? (
+              <Loader2 size={14} className="text-white animate-spin" />
+            ) : (
+              <span className="text-[9px] font-black uppercase tracking-widest text-white">Change</span>
+            )}
+          </div>
+          <input
+            id="avatar-upload-input"
+            type="file"
+            accept="image/*"
+            className="hidden"
+            onChange={(e) => {
+              const f = e.target.files?.[0];
+              e.target.value = "";
+              if (f) handleAvatarUpload(f);
+            }}
+            data-testid="gardener-profile-avatar-input"
+          />
+        </label>
         <div>
           <h1 className="text-lg font-black text-rhozly-on-surface">{displayName || "Gardener"}</h1>
           <p className="text-xs text-rhozly-on-surface/50 font-bold">

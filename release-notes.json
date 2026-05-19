@@ -1,27 +1,27 @@
 [
   {
-    "label": "Light Meter",
+    "label": "Your Account",
     "items": [
-      "New 'where this reading sits' band shows where your lux measurement falls on the deep-shade-to-full-sun gradient.",
-      "When you pick an area, see at a glance whether each plant in it is over- or under-lit — green ✓ for within range, amber for under, rose for over."
+      { "text": "Upload a profile photo — tap the avatar circle on the Account tab to pick an image.", "link": { "label": "Open Account Settings", "path": "/gardener" } },
+      "Download a copy of everything you've added to Rhozly as a single JSON file — homes, plants, plans, journals, tasks, and ailments. GDPR-aligned."
     ]
   },
   {
-    "label": "Microclimate Report",
+    "label": "Shopping",
     "items": [
-      "Export the Microclimate Report to PDF — tap the printer icon to print or save through your browser's print dialog."
+      "New Quantity field on shopping list items — record '×3 stakes' or '×500g bone meal' to keep your list precise."
     ]
   },
   {
-    "label": "AI Insight",
+    "label": "Reports",
     "items": [
-      "The AI Insight card now appears in the Planner ('Your plans') and the Shed ('Your shed') as well as the dashboard, so insights catch you wherever you're working."
+      "Audit Log now has a Print / PDF button alongside the CSV export — save your AI usage history in any format that works for you."
     ]
   },
   {
-    "label": "Guides",
+    "label": "Release Notes",
     "items": [
-      "Bookmark any guide with the star — bookmarked guides are pinned to the top of your Guides list and stay in sync across your devices."
+      "Release notes can now carry 'Try it →' links — tap the link in a note to jump straight to the feature."
     ]
   }
 ]

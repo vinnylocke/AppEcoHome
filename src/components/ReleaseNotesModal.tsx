@@ -1,5 +1,6 @@
 import React, { useState } from "react";
-import { X, Sparkles, Wrench, TrendingUp, Trash2 } from "lucide-react";
+import { X, Sparkles, Wrench, TrendingUp, Trash2, ArrowRight } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 import type { ReleaseNote, ReleaseNoteSection } from "../hooks/useReleaseNotes";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 
@@ -17,20 +18,46 @@ const SECTION_ICONS: Record<string, React.ReactNode> = {
   Removed:  <Trash2 size={13} />,
 };
 
-function SectionBlock({ section }: { section: ReleaseNoteSection }) {
+function SectionBlock({
+  section,
+  onTryIt,
+}: {
+  section: ReleaseNoteSection;
+  onTryIt: (path: string) => void;
+}) {
   return (
     <div className="mb-3 last:mb-0">
       <div className="flex items-center gap-1.5 mb-1.5">
         <span className="text-rhozly-primary/60">{SECTION_ICONS[section.label] ?? <Sparkles size={13} />}</span>
         <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">{section.label}</span>
       </div>
-      <ul className="space-y-1 pl-1">
-        {(section.items ?? []).map((item, i) => (
-          <li key={i} className="flex items-start gap-2 text-sm text-rhozly-on-surface/70 font-medium leading-snug">
-            <span className="mt-1.5 w-1 h-1 rounded-full bg-rhozly-primary/40 shrink-0" />
-            {item}
-          </li>
-        ))}
+      <ul className="space-y-1.5 pl-1">
+        {(section.items ?? []).map((item, i) => {
+          const text = typeof item === "string" ? item : item.text;
+          const link = typeof item === "string" ? null : item.link ?? null;
+          return (
+            <li key={i} className="flex items-start gap-2 text-sm text-rhozly-on-surface/70 font-medium leading-snug">
+              <span className="mt-1.5 w-1 h-1 rounded-full bg-rhozly-primary/40 shrink-0" />
+              <span className="flex-1">
+                {text}
+                {link && (
+                  <>
+                    {" "}
+                    <button
+                      type="button"
+                      onClick={() => onTryIt(link.path)}
+                      data-testid="release-notes-try-it-link"
+                      className="inline-flex items-center gap-0.5 ml-1 text-rhozly-primary font-black hover:underline"
+                    >
+                      {link.label}
+                      <ArrowRight size={11} className="inline" />
+                    </button>
+                  </>
+                )}
+              </span>
+            </li>
+          );
+        })}
       </ul>
     </div>
   );
@@ -41,6 +68,11 @@ function formatDate(iso: string) {
 }
 
 export default function ReleaseNotesModal({ notes, currentVersion, mode: initialMode, onClose }: Props) {
+  const navigate = useNavigate();
+  const handleTryIt = (path: string) => {
+    onClose();
+    navigate(path);
+  };
   const [mode, setMode] = useState(initialMode);
   const latest = notes[0];
   const trapRef = useFocusTrap<HTMLDivElement>(true);
@@ -85,7 +117,7 @@ export default function ReleaseNotesModal({ notes, currentVersion, mode: initial
           {mode === "latest" ? (
             /* Latest version only */
             latest && latest.sections?.length > 0 ? (
-              latest.sections.map((s, i) => <SectionBlock key={i} section={s} />)
+              latest.sections.map((s, i) => <SectionBlock key={i} section={s} onTryIt={handleTryIt} />)
             ) : (
               <p className="text-sm text-rhozly-on-surface/40 font-medium text-center py-4">
                 No release notes were recorded for this version.
@@ -110,7 +142,7 @@ export default function ReleaseNotesModal({ notes, currentVersion, mode: initial
                     </span>
                   </div>
                   {note.sections?.length > 0 ? (
-                    note.sections.map((s, i) => <SectionBlock key={i} section={s} />)
+                    note.sections.map((s, i) => <SectionBlock key={i} section={s} onTryIt={handleTryIt} />)
                   ) : (
                     <p className="text-xs text-rhozly-on-surface/30 font-medium pl-1">No notes recorded.</p>
                   )}

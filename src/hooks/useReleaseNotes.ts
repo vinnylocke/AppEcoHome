@@ -1,9 +1,21 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 
+/**
+ * A release-note item is either a plain string or a rich object with an
+ * optional "Try it →" call-to-action. The CTA renders as a button on the
+ * Release Notes modal and routes the user to the relevant path.
+ */
+export type ReleaseNoteItem =
+  | string
+  | {
+      text: string;
+      link?: { label: string; path: string };
+    };
+
 export interface ReleaseNoteSection {
   label: string;
-  items: string[];
+  items: ReleaseNoteItem[];
 }
 
 export interface ReleaseNote {

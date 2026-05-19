@@ -59,6 +59,7 @@ export default function AddItemSheet({
   // Product state
   const [productName, setProductName] = useState("");
   const [productCategory, setProductCategory] = useState<string>("");
+  const [productQuantity, setProductQuantity] = useState<string>("");
   const [productSubmitting, setProductSubmitting] = useState(false);
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -253,9 +254,11 @@ export default function AddItemSheet({
   const handleAddProduct = async () => {
     if (!productName.trim() || !productCategory) return;
     setProductSubmitting(true);
+    const parsedQty = productQuantity.trim() ? Number(productQuantity) : null;
     await onItemAdded({
       list_id: listId, home_id: homeId, item_type: "product",
       name: productName.trim(), is_checked: false, category: productCategory,
+      quantity: parsedQty != null && !Number.isNaN(parsedQty) && parsedQty > 0 ? parsedQty : null,
     });
     setProductSubmitting(false);
     onClose();
@@ -660,19 +663,35 @@ export default function AddItemSheet({
                 />
               </div>
 
-              <div>
-                <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1.5">Category</p>
-                <select
-                  data-testid="shopping-product-category-select"
-                  value={productCategory}
-                  onChange={e => setProductCategory(e.target.value)}
-                  className="w-full bg-rhozly-bg border border-rhozly-outline/20 rounded-2xl px-4 py-2.5 text-sm font-bold text-rhozly-on-surface outline-none focus:border-rhozly-primary appearance-none"
-                >
-                  <option value="">Select category…</option>
-                  {SHOPPING_CATEGORIES.map(c => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
+              <div className="grid grid-cols-[1fr_auto] gap-3">
+                <div>
+                  <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1.5">Category</p>
+                  <select
+                    data-testid="shopping-product-category-select"
+                    value={productCategory}
+                    onChange={e => setProductCategory(e.target.value)}
+                    className="w-full bg-rhozly-bg border border-rhozly-outline/20 rounded-2xl px-4 py-2.5 text-sm font-bold text-rhozly-on-surface outline-none focus:border-rhozly-primary appearance-none"
+                  >
+                    <option value="">Select category…</option>
+                    {SHOPPING_CATEGORIES.map(c => (
+                      <option key={c} value={c}>{c}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="w-24">
+                  <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1.5">Qty</p>
+                  <input
+                    data-testid="shopping-product-quantity-input"
+                    type="number"
+                    inputMode="decimal"
+                    min="0"
+                    step="any"
+                    placeholder="—"
+                    value={productQuantity}
+                    onChange={e => setProductQuantity(e.target.value)}
+                    className="w-full bg-rhozly-bg border border-rhozly-outline/20 rounded-2xl px-3 py-2.5 text-sm font-bold text-rhozly-on-surface outline-none focus:border-rhozly-primary text-center"
+                  />
+                </div>
               </div>
 
               <button
