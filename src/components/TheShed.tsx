@@ -1136,8 +1136,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       <div className="h-full flex flex-col p-4 md:p-8 animate-in fade-in duration-700 relative">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-10">
           <div>
-            <div className="flex items-center gap-4">
-              <h1 className="text-4xl font-black font-display text-rhozly-on-surface flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+              <h1 className="text-3xl sm:text-4xl font-black font-display text-rhozly-on-surface flex items-center gap-3">
                 The Shed
                 {plants.filter((p) => !p.is_archived).length > 0 && (
                   <span className="text-base font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
@@ -1180,7 +1180,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                     data-testid="shed-add-plant-btn"
                     onClick={() => setShowBulkSearch(true)}
                     aria-label="Add plant"
-                    className="flex items-center gap-2 px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
+                    className="flex items-center gap-2 px-4 sm:px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
                   >
                     <Plus size={18} /> Add Plant
                   </button>

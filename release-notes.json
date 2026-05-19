@@ -2,7 +2,7 @@
   {
     "label": "Bug Fixes",
     "items": [
-      "Fixed a crash when opening the release-notes history — a single malformed row used to take down the whole modal. Each note now renders inside its own boundary so the rest of your history stays readable."
+      "Fixed the Add Plant button on the Shed being clipped off the right edge on small phones."
     ]
   }
 ]
