@@ -1,7 +1,8 @@
 import React, { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
-import { Sunset, CheckCircle2, CloudRain, Thermometer, Sparkles, ChevronRight, Leaf } from "lucide-react";
+import { Sunset, CheckCircle2, CloudRain, Thermometer, Sparkles, ChevronRight, Leaf, MessageSquare } from "lucide-react";
 import SunCalc from "suncalc";
+import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface Props {
   firstName: string | null;
@@ -40,6 +41,7 @@ export default function DailyBriefCard({
   hardinessZone,
 }: Props) {
   const navigate = useNavigate();
+  const { setIsOpen, setPageContext } = usePlantDoctor();
   const now = new Date();
 
   // Sun events for today
@@ -251,6 +253,28 @@ export default function DailyBriefCard({
                 : <>{sun ? <>Sunrise was {formatTime(sun.sunrise)} · day length {sun ? formatHoursMinutes((sun.sunset.getTime() - sun.sunrise.getTime()) / 3_600_000) : "—"}</> : "Plan your day below"}</>
               }
             </p>
+            <button
+              onClick={() => {
+                setPageContext({
+                  action: "Asking from the dashboard Daily Brief",
+                  context: {
+                    today_task_count: todayTaskCount,
+                    overdue_count: overdueCount,
+                    weather_summary: weather?.summary ?? null,
+                    weather_temp_c: weather?.temp ?? null,
+                    hardiness_zone: hardinessZone ?? null,
+                  },
+                });
+                setIsOpen(true);
+              }}
+              data-testid="daily-brief-ask-ai"
+              className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-white/15 transition-colors"
+              aria-label="Ask Rhozly AI a question"
+              title="Ask Rhozly AI"
+            >
+              <MessageSquare size={11} />
+              Got a plant question?
+            </button>
           </div>
           <button
             onClick={() => navigate("/dashboard?view=calendar")}

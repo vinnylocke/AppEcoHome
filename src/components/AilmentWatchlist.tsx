@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   Plus, Search, Loader2, Biohazard, X,
   Edit3, Trash2, ChevronRight, ChevronUp, ChevronDown, ChevronLeft, AlertTriangle,
-  CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock,
+  CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock, Sparkles,
 } from "lucide-react";
 import { IconPest, IconPlant, IconPlantDB, IconAI } from "../constants/icons";
 import { toast } from "react-hot-toast";
@@ -16,6 +16,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import { logEvent, EVENT } from "../events/registry";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
 import { usePermissions } from "../context/HomePermissionsContext";
+import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 
@@ -1410,14 +1411,18 @@ function AilmentCard({
   onClick,
   onArchiveToggle,
   onDelete,
+  onAskAi,
   canDelete,
+  aiEnabled,
 }: {
   ailment: Ailment;
   affectedCount: number;
   onClick: () => void;
   onArchiveToggle: () => void;
   onDelete: () => void;
+  onAskAi: () => void;
   canDelete: boolean;
+  aiEnabled: boolean;
 }) {
   const meta = TYPE_META[ailment.type];
   const srcMeta = SOURCE_META[ailment.source] ?? SOURCE_META.manual;
@@ -1512,6 +1517,16 @@ function AilmentCard({
             {meta.icon} {meta.label}
           </span>
         </div>
+        {aiEnabled && (
+          <button
+            onClick={(e) => { e.stopPropagation(); onAskAi(); }}
+            data-testid={`ailment-ask-ai-${ailment.id}`}
+            className="mt-3 w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl bg-rhozly-primary/5 border border-rhozly-primary/20 text-rhozly-primary text-xs font-black hover:bg-rhozly-primary/10 transition-colors"
+          >
+            <Sparkles size={13} />
+            Ask Rhozly AI about this
+          </button>
+        )}
       </div>
     </div>
   );
@@ -1524,6 +1539,7 @@ export type AilmentFilter = "all" | AilmentType;
 export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId: string; aiEnabled?: boolean }) {
   const { can } = usePermissions();
   const { requestFeedback } = useBetaFeedbackContext();
+  const { setIsOpen, setPageContext } = usePlantDoctor();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const openHandled = useRef(false);
@@ -1755,6 +1771,21 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
               onClick={() => setSelectedAilment(a)}
               onArchiveToggle={() => setConfirmState({ isOpen: true, type: a.is_archived ? "unarchive" : "archive", ailment: a })}
               onDelete={() => setConfirmState({ isOpen: true, type: "delete", ailment: a })}
+              onAskAi={() => {
+                setPageContext({
+                  action: "Asking about a Watchlist ailment",
+                  ailment: {
+                    name: a.name,
+                    scientific_name: a.scientific_name,
+                    type: a.type,
+                    description: a.description,
+                    symptoms: a.symptoms,
+                    affected_plants: a.affected_plants,
+                  },
+                });
+                setIsOpen(true);
+              }}
+              aiEnabled={aiEnabled}
               canDelete={can("ailments.delete")}
             />
           ))}

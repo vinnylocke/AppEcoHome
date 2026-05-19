@@ -83,7 +83,7 @@ type QueueItem = {
 
 export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = false }: { homeId: string; aiEnabled?: boolean; perenualEnabled?: boolean }) {
   const { can } = usePermissions();
-  const { setPageContext, preferences } = usePlantDoctor();
+  const { setPageContext, setIsOpen, preferences } = usePlantDoctor();
   const { requestFeedback } = useBetaFeedbackContext();
   const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -1458,6 +1458,32 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                     >
                       <Sun size={16} />
                     </button>
+                    {aiEnabled && (
+                      <button
+                        data-testid={`plant-card-ask-ai-${plant.id}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPageContext({
+                            action: "Asking about a plant in the Shed",
+                            plant: {
+                              id: plant.id,
+                              common_name: plant.common_name,
+                              scientific_name: plant.scientific_name?.[0] ?? null,
+                              source: plant.source,
+                              sunlight: plant.sunlight ?? null,
+                              cycle: plant.cycle ?? null,
+                              edible: plant.edible ?? null,
+                            },
+                          });
+                          setIsOpen(true);
+                        }}
+                        aria-label={`Ask Rhozly AI about ${plant.common_name}`}
+                        title="Ask Rhozly AI about this plant"
+                        className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-rhozly-primary flex items-center justify-center shadow-md transition-all active:scale-90"
+                      >
+                        <Sparkles size={16} />
+                      </button>
+                    )}
                     {can("shed.delete") && (
                       <button
                         onClick={(e) => {

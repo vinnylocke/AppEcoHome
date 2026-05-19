@@ -79,14 +79,15 @@ export interface ProviderSearchResult {
   common_name: string;
   scientific_name: string[];
   thumbnail_url: string | null;
-  _provider: "perenual" | "verdantly";
+  _provider: "perenual" | "verdantly" | "ai";
   // Extra for pre-filling when the user picks a result
   verdantly_id?: string;
   perenual_id?: number;
 }
 
-export function getProviderLabel(source: string): "Perenual" | "Verdantly" | null {
+export function getProviderLabel(source: string): "Perenual" | "Verdantly" | "Rhozly AI" | null {
   if (source === "api" || source === "perenual") return "Perenual";
   if (source === "verdantly") return "Verdantly";
+  if (source === "ai") return "Rhozly AI";
   return null;
 }

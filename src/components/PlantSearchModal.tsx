@@ -10,7 +10,8 @@ import {
 } from "lucide-react";
 import { IconPlantDB, IconAI } from "../constants/icons";
 import { supabase } from "../lib/supabase";
-import { searchAllProviders, getProviderPlantDetails } from "../lib/plantProvider";
+import { searchAllProviders, getProviderPlantDetails, careGuideToPlantDetails } from "../lib/plantProvider";
+import { PlantDoctorService } from "../services/plantDoctorService";
 import { getProviderLabel, type ProviderSearchResult } from "../lib/verdantlyUtils";
 import toast from "react-hot-toast";
 import ManualPlantCreation from "./ManualPlantCreation";
@@ -22,6 +23,7 @@ import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 interface Props {
   homeId: string;
   isPremium: boolean;
+  isAiEnabled?: boolean;
   onClose: () => void;
   onSuccess: (newPlant?: any) => void;
   initialSearchTerm?: string;
@@ -31,6 +33,7 @@ interface Props {
 export default function PlantSearchModal({
   homeId,
   isPremium,
+  isAiEnabled = false,
   onClose,
   onSuccess,
   initialSearchTerm,
@@ -142,7 +145,12 @@ export default function PlantSearchModal({
     setPreviewPlant(null);
     setSelectedResultIndex(-1);
     try {
-      const data = await searchAllProviders(searchQuery);
+      const data = await searchAllProviders(
+        searchQuery,
+        undefined,
+        undefined,
+        { includeAi: isAiEnabled, homeId },
+      );
       setResults(data);
       setHasSearched(true);
     } catch (err) {
@@ -179,11 +187,18 @@ export default function PlantSearchModal({
   const handlePreviewPlant = async (searchResultPlant: ProviderSearchResult) => {
     setIsFetchingPreview(true);
     try {
-      const fullPlantData = await getProviderPlantDetails({
-        source: searchResultPlant._provider === "verdantly" ? "verdantly" : "api",
-        perenual_id: searchResultPlant.perenual_id,
-        verdantly_id: searchResultPlant.verdantly_id,
-      });
+      let fullPlantData: any;
+      if (searchResultPlant._provider === "ai") {
+        // AI suggestions don't have provider IDs — synthesise a care guide instead.
+        const guide = await PlantDoctorService.generateCareGuide(searchResultPlant.common_name, homeId);
+        fullPlantData = careGuideToPlantDetails(guide?.plantData ?? guide, searchResultPlant.common_name);
+      } else {
+        fullPlantData = await getProviderPlantDetails({
+          source: searchResultPlant._provider === "verdantly" ? "verdantly" : "api",
+          perenual_id: searchResultPlant.perenual_id,
+          verdantly_id: searchResultPlant.verdantly_id,
+        });
+      }
 
       const getValidImage = (...urls: (string | null | undefined)[]) =>
         urls.find((u) => u && typeof u === "string" && !u.includes("upgrade_access")) ?? "";
@@ -515,7 +530,7 @@ export default function PlantSearchModal({
                   );
                   const isSelected = index === selectedResultIndex;
                   const thumb = plant.thumbnail_url?.includes("upgrade_access") ? null : plant.thumbnail_url;
-                  const providerLabel = getProviderLabel(plant._provider === "verdantly" ? "verdantly" : "api");
+                  const providerLabel = getProviderLabel(plant._provider);
                   return (
                     <div
                       key={`${plant._provider}-${plant.id}`}

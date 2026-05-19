@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Search,
   Activity,
@@ -8,6 +8,7 @@ import {
   Loader2,
   ImageOff,
   Clock,
+  X,
 } from "lucide-react";
 import { IconPest } from "../constants/icons";
 import type { PlantDoctorSession, SessionCandidate } from "../hooks/usePlantDoctorSessions";
@@ -209,10 +210,45 @@ function SessionCard({ session }: { session: PlantDoctorSession }) {
   );
 }
 
+type ActionFilter = "all" | "identify" | "diagnose" | "pest";
+
+const ACTION_LABELS: Record<ActionFilter, string> = {
+  all: "All",
+  identify: "Identify",
+  diagnose: "Diagnose",
+  pest: "Pest",
+};
+
 export default function PlantDoctorHistory({ sessions, isLoading, onLoad }: Props) {
   useEffect(() => {
     onLoad();
   }, [onLoad]);
+
+  const [actionFilter, setActionFilter] = useState<ActionFilter>("all");
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const filtered = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    return sessions.filter((s) => {
+      if (actionFilter !== "all" && s.action !== actionFilter) return false;
+      if (!q) return true;
+      // Match against confirmed value + every candidate name (string or object).
+      const haystack: string[] = [s.confirmed_value ?? ""];
+      const candidatesList = s.action === "identify"
+        ? s.results.possible_names
+        : s.action === "pest"
+          ? s.results.possible_pests
+          : s.results.possible_diseases;
+      (candidatesList ?? []).forEach((c) => {
+        if (typeof c === "string") haystack.push(c);
+        else {
+          haystack.push(c.name);
+          if (c.scientific_name) haystack.push(c.scientific_name);
+        }
+      });
+      return haystack.some((h) => h.toLowerCase().includes(q));
+    });
+  }, [sessions, actionFilter, searchQuery]);
 
   if (isLoading) {
     return (
@@ -238,10 +274,52 @@ export default function PlantDoctorHistory({ sessions, isLoading, onLoad }: Prop
   }
 
   return (
-    <div className="space-y-3">
-      {sessions.map((s) => (
-        <SessionCard key={s.id} session={s} />
-      ))}
+    <div className="space-y-3" data-testid="doctor-history-list">
+      {/* Filter row */}
+      <div className="bg-white rounded-2xl border border-rhozly-outline/10 p-3 space-y-2.5">
+        <div className="relative">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-rhozly-on-surface/30" />
+          <input
+            type="text"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Filter by plant or condition name…"
+            data-testid="doctor-history-search"
+            className="w-full pl-9 pr-9 py-2.5 rounded-xl border border-rhozly-outline/20 bg-rhozly-surface-lowest text-sm font-bold focus:outline-none focus:ring-2 focus:ring-rhozly-primary/30"
+          />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              aria-label="Clear search"
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+            >
+              <X size={12} />
+            </button>
+          )}
+        </div>
+        <div className="flex gap-1 bg-rhozly-surface-low rounded-xl p-1" data-testid="doctor-history-action-filter">
+          {(Object.keys(ACTION_LABELS) as ActionFilter[]).map((key) => (
+            <button
+              key={key}
+              onClick={() => setActionFilter(key)}
+              aria-pressed={actionFilter === key}
+              className={`flex-1 px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${actionFilter === key ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/50 hover:text-rhozly-on-surface"}`}
+              data-testid={`doctor-history-filter-${key}`}
+            >
+              {ACTION_LABELS[key]}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {filtered.length === 0 ? (
+        <div className="text-center py-12 text-rhozly-on-surface/40">
+          <p className="text-sm font-black">No matching sessions</p>
+          <p className="text-xs font-bold mt-1">Try a different filter or search term.</p>
+        </div>
+      ) : (
+        filtered.map((s) => <SessionCard key={s.id} session={s} />)
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import { supabase } from "./supabase";
 import { PerenualService } from "./perenualService";
 import { VerdantlyService } from "./verdantlyService";
+import { PlantDoctorService } from "../services/plantDoctorService";
 import type { PlantDetails, ProviderSearchResult } from "./verdantlyUtils";
 
 // ─── AI care guide adapter ────────────────────────────────────────────────────
@@ -85,11 +86,14 @@ function fromPerenualSearchItem(item: any): ProviderSearchResult {
 export async function searchAllProviders(
   query: string,
   filters?: Parameters<typeof PerenualService.searchPlants>[1],
-  /** Restrict to specific providers; defaults to all enabled ones. */
-  only?: ("perenual" | "verdantly")[],
+  /** Restrict to specific providers; defaults to all enabled ones (plus AI when opted in). */
+  only?: ("perenual" | "verdantly" | "ai")[],
+  /** When set, fans out to the AI provider too. Defaults to false to keep the call cheap. */
+  options?: { includeAi?: boolean; homeId?: string },
 ): Promise<ProviderSearchResult[]> {
   const enabled = await getEnabledProviders();
   const active = only ? enabled.filter((p) => only.includes(p as any)) : enabled;
+  const wantAi = options?.includeAi || (only?.includes("ai") ?? false);
 
   const calls: Promise<ProviderSearchResult[]>[] = [];
 
@@ -111,6 +115,20 @@ export async function searchAllProviders(
         hardinessMin: filters.hardinessMin,
       } : undefined)
         .then(({ results }) => results)
+        .catch(() => [] as ProviderSearchResult[]),
+    );
+  }
+
+  if (wantAi) {
+    calls.push(
+      PlantDoctorService.searchPlantsText(query, options?.homeId ? { homeId: options.homeId } : undefined)
+        .then((d) => (d.matches || []).slice(0, 5).map<ProviderSearchResult>((name, idx) => ({
+          id:              `ai-${idx}-${name}`,
+          common_name:     name,
+          scientific_name: [],
+          thumbnail_url:   null,
+          _provider:       "ai",
+        })))
         .catch(() => [] as ProviderSearchResult[]),
     );
   }
