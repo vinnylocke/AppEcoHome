@@ -107,6 +107,10 @@ export default function BulkSearchModal({
   const [activeTab, setActiveTab] = useState<"search" | "manual">("search");
   const [query, setQuery] = useState(initialSearchTerm || "");
   const [isSearching, setIsSearching] = useState(false);
+  // Paste-a-list mode — user pastes multi-line text, "Search next" processes
+  // one line at a time so results stay focused per query
+  const [listMode, setListMode] = useState(false);
+  const [pastedList, setPastedList] = useState("");
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [searchError, setSearchError] = useState<string>("");
   const [hasSearched, setHasSearched] = useState(false);
@@ -711,6 +715,75 @@ export default function BulkSearchModal({
                   <p className="text-xs text-red-500 font-bold mt-2 px-2 animate-in slide-in-from-top-1" role="alert">
                     {searchError}
                   </p>
+                )}
+
+                {/* Paste-a-list toggle + textarea */}
+                <div className="mt-2 flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    data-testid="bulk-paste-toggle"
+                    onClick={() => {
+                      setListMode((v) => {
+                        if (v) setPastedList("");
+                        return !v;
+                      });
+                    }}
+                    className={`flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest px-2.5 py-1.5 min-h-[32px] rounded-full transition-colors ${
+                      listMode
+                        ? "bg-rhozly-primary text-white"
+                        : "text-rhozly-on-surface/55 hover:text-rhozly-primary hover:bg-rhozly-primary/5"
+                    }`}
+                  >
+                    <ListPlus size={12} />
+                    {listMode ? "Hide list" : "Paste a list"}
+                  </button>
+                  {listMode && (() => {
+                    const remaining = pastedList.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+                    return (
+                      <span className="text-[11px] font-bold text-rhozly-on-surface/55">
+                        {remaining.length} item{remaining.length !== 1 ? "s" : ""} queued
+                      </span>
+                    );
+                  })()}
+                </div>
+
+                {listMode && (
+                  <div
+                    data-testid="bulk-paste-panel"
+                    className="mt-2 bg-rhozly-surface-low rounded-2xl p-3 space-y-2 animate-in slide-in-from-top-1"
+                  >
+                    <textarea
+                      data-testid="bulk-paste-textarea"
+                      value={pastedList}
+                      onChange={(e) => setPastedList(e.target.value)}
+                      placeholder={"Paste plant names — one per line\nTomato\nBasil\nCourgette\nPepper"}
+                      rows={5}
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-rhozly-outline/15 text-sm font-bold outline-none focus:border-rhozly-primary resize-y min-h-[100px]"
+                    />
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="text-[11px] font-bold text-rhozly-on-surface/50 leading-snug">
+                        Tap "Search next" to search the first item — repeat to work through the list.
+                      </p>
+                      <button
+                        type="button"
+                        data-testid="bulk-paste-search-next"
+                        onClick={() => {
+                          const lines = pastedList.split(/\n+/).map((s) => s.trim()).filter(Boolean);
+                          if (lines.length === 0) return;
+                          const next = lines[0];
+                          setQuery(next);
+                          setPastedList(lines.slice(1).join("\n"));
+                          // Small defer so React commits the new query before we submit
+                          setTimeout(() => performSearch(), 0);
+                        }}
+                        disabled={!pastedList.trim()}
+                        className="shrink-0 flex items-center gap-1.5 bg-rhozly-primary text-white text-xs font-black px-3 py-2 min-h-[36px] rounded-xl disabled:opacity-50 hover:opacity-90 transition"
+                      >
+                        <Search size={12} />
+                        Search next
+                      </button>
+                    </div>
+                  </div>
                 )}
               </form>
 

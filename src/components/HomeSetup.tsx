@@ -1,8 +1,9 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { supabase } from "../lib/supabase";
-import { Home, Plus, ArrowLeft, X, Key, Loader2 } from "lucide-react";
+import { Plus, ArrowLeft, X, Key, Loader2, Compass } from "lucide-react";
 import { Logger } from "../lib/errorHandler";
 import { COUNTRIES } from "../constants/countries";
+import { getHemisphere } from "../lib/seasonal";
 
 const ALL_TIMEZONES: string[] = (() => {
   try { return (Intl as any).supportedValuesOf("timeZone") as string[]; }
@@ -135,9 +136,34 @@ export const HomeSetup: React.FC<Props> = ({
     }
   };
 
+  // Derived hemisphere for the user's selection — shown as informational chip
+  const hemisphere = useMemo(() => {
+    const c = COUNTRIES.find((x) => x.code === country);
+    return getHemisphere(c?.name ?? country, timezone);
+  }, [country, timezone]);
+
   return (
     <div className="min-h-screen bg-rhozly-bg flex items-center justify-center p-4">
-      <div className="max-w-2xl mx-auto w-full space-y-8 animate-in fade-in duration-500">
+      <div className="max-w-2xl mx-auto w-full space-y-6 animate-in fade-in duration-500">
+        {/* Onboarding step indicator — visible across Auth → HomeSetup → TierSelection → Dashboard */}
+        {!hasExistingHome && (
+          <div className="flex items-center justify-center gap-2 px-1">
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/55">
+              <span className="w-1.5 h-1.5 rounded-full bg-rhozly-primary inline-block" />
+              Account
+            </span>
+            <span className="w-6 h-px bg-rhozly-primary/40" />
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-rhozly-primary">
+              <span className="w-2 h-2 rounded-full bg-rhozly-primary inline-block" />
+              Home
+            </span>
+            <span className="w-6 h-px bg-rhozly-outline/30" />
+            <span className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/30">
+              <span className="w-1.5 h-1.5 rounded-full bg-rhozly-outline/40 inline-block" />
+              Plan
+            </span>
+          </div>
+        )}
         <div className="bg-rhozly-surface-lowest rounded-3xl p-8 shadow-sm border border-rhozly-outline/20">
           {/* Selection Step */}
           {step === "selection" && (
@@ -288,6 +314,16 @@ export const HomeSetup: React.FC<Props> = ({
                         <option key={c.code} value={c.code}>{c.name}</option>
                       ))}
                     </select>
+                  </div>
+
+                  {/* Inferred hemisphere chip — informational, drives seasonal recommendations */}
+                  <div className="flex items-center gap-2 bg-rhozly-primary/5 border border-rhozly-primary/15 rounded-xl px-3 py-2">
+                    <Compass size={14} className="text-rhozly-primary shrink-0" />
+                    <p className="text-[11px] font-bold text-rhozly-on-surface/70 leading-snug">
+                      <span className="text-rhozly-on-surface/55">Detected: </span>
+                      <span className="text-rhozly-primary font-black uppercase tracking-widest">{hemisphere === "northern" ? "Northern hemisphere" : "Southern hemisphere"}</span>
+                      <span className="text-rhozly-on-surface/40"> · drives seasonal recommendations</span>
+                    </p>
                   </div>
 
                   <div className="space-y-2">

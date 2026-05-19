@@ -917,31 +917,139 @@ All Page Objects are implemented. Current files in `tests/e2e/pages/`:
 
 ## Section 20 — Garden Layout Builder
 
-**Route:** `/garden-layout` (list) and `/garden-layout/:layoutId` (editor)  
-**Components:** `GardenLayoutList.tsx`, `GardenLayoutEditor.tsx`, `GardenShapePanel.tsx`, `GardenShapeProperties.tsx`, `GardenRuler.tsx`, `GardenScaleBar.tsx`  
-**Seed dependency:** None yet (layouts created during tests)  
+**Route:** `/garden-layout` (list) and `/garden-layout/:layoutId` (editor)
+**Components:** `GardenLayoutList.tsx`, `GardenLayoutEditor.tsx`, `GardenEditorToolbar.tsx`, `GardenShapePanel.tsx`, `GardenShapeProperties.tsx`, `GardenRuler.tsx`, `GardenScaleBar.tsx`
+**Spec file:** `tests/e2e/specs/garden-layout.spec.ts`
+**Seed dependency:** None (layouts created during tests; cleaned up by data isolation)
 
-### Stage 1 — Layout list (GLB-001 – GLB-005)
-
-| ID | ❌/✅ | Description | Assertions | Status |
-|----|------|-------------|------------|--------|
-| GLB-001 | ⬜ | Layout list page loads via nav | `create-layout-btn` visible | ⬜ Not written |
-| GLB-002 | ⬜ | Create layout shows name input and navigates to editor | Click `create-layout-btn` → `new-layout-name-input` visible → fill → `create-layout-confirm` → URL contains `/garden-layout/` | ⬜ Not written |
-| GLB-003 | ⬜ | Layout card appears in list after creation | `layout-card-{id}` visible | ⬜ Not written |
-| GLB-004 | ⬜ | Rename layout inline | Pencil icon → edit name → Save | ⬜ Not written |
-| GLB-005 | ⬜ | Delete layout removes it from list | Delete icon → card gone | ⬜ Not written |
-
-### Stage 2 — Editor canvas (GLB-006 – GLB-012)
+### Stage 1 — Layout list (GLB-001 – GLB-002)
 
 | ID | ❌/✅ | Description | Assertions | Status |
 |----|------|-------------|------------|--------|
-| GLB-006 | ⬜ | Editor loads with toolbar and back button | `back-to-layouts-btn` visible, layout name in toolbar | ⬜ Not written |
-| GLB-007 | ⬜ | Adding a preset shape shows "Unsaved" then "Saved" | Click `shape-tile-raised-bed` → saveState transitions to Saved | ⬜ Not written |
-| GLB-008 | ⬜ | Canvas settings modal opens and saves | `canvas-settings-btn` → modal → `layout-name-input`, `canvas-width-input`, `canvas-height-input` → `save-settings-btn` | ⬜ Not written |
-| GLB-009 | ⬜ | Zoom in/out buttons work | `zoom-in-btn` click increases zoom display | ⬜ Not written |
-| GLB-010 | ⬜ | Shape properties panel opens on shape select | Select shape → `shape-label-input` visible | ⬜ Not written |
-| GLB-011 | ⬜ | Deleting a shape removes it | `delete-shape-btn` click → shape gone from canvas | ⬜ Not written |
-| GLB-012 | ⬜ | Custom polygon tool toggles | `shape-tile-custom` → polygon mode hint visible | ⬜ Not written |
+| GLB-001 | ✅ | Layout list page loads via nav | `create-layout-btn` visible | ✅ Passing |
+| GLB-002 | ✅ | Blank-canvas wizard creates a layout and navigates to editor | `create-blank-canvas` → fill `new-layout-name-input` → `create-layout-confirm` → URL contains `/garden-layout/` and `back-to-layouts-btn` visible | ✅ Passing |
+
+### Stage 2 — Desktop editor toolbar (GLB-006 – GLB-009, Wave 1A/B)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-006 | ✅ | Desktop toolbar single-row with three mode buttons | `editor-toolbar-desktop`, `mode-draw-btn`, `mode-move-btn`, `mode-rotate-btn` visible | ✅ Passing |
+| GLB-007 | ✅ | Mode buttons show Draw / Edit / Look labels (rename) | text content matches /Draw/, /Edit/, /Look/ | ✅ Passing |
+| GLB-008 | ✅ | View toggles + zoom + settings present in 2D | `view-2d-btn`, `view-3d-btn`, `zoom-in-btn`, `zoom-out-btn`, `canvas-settings-btn` visible | ✅ Passing |
+| GLB-009 | ✅ | Switching to 3D hides zoom controls | `zoom-in-btn` count = 0 after `view-3d-btn` click | ✅ Passing |
+
+### Stage 3 — Shape rail sections (GLB-010 – GLB-011, Wave 1D)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-010 | ✅ | Rail has Beds / Structures / Hardscape / Features sections | `rail-section-beds`, `rail-section-structures`, `rail-section-hardscape`, `rail-section-features` all visible | ✅ Passing |
+| GLB-011 | ✅ | Known presets render in their sections | `shape-tile-raised-bed`, `shape-tile-greenhouse`, `shape-tile-path`, `shape-tile-pond` visible | ✅ Passing |
+
+### Stage 4 — Mobile toolbar + floating bubble (GLB-012 – GLB-014, Wave 1A)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-012 | ✅ | Mobile toolbar renders two rows + floating bubble | `editor-toolbar-mobile-row-1`, `editor-toolbar-mobile-row-2`, `editor-floating-bubble` visible at 390×844 | ✅ Passing |
+| GLB-013 | ✅ | Floating bubble contains view + zoom + settings buttons in 2D | `bubble-view-btn`, `zoom-in-btn`, `zoom-out-btn`, `canvas-settings-btn` inside `editor-floating-bubble` | ✅ Passing |
+| GLB-014 | ✅ | Shape rail at bottom is horizontally scrollable with section labels | `shape-rail-mobile` + `rail-section-beds` visible | ✅ Passing |
+
+### Stage 5 — Properties tabs (GLB-015 – GLB-016, Wave 1C)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-015 | ✅ | Drawing a shape opens properties with four tabs (Wave 7D added Photos) | `property-tab-style`, `property-tab-size`, `property-tab-link`, `property-tab-photos` visible | ✅ Passing |
+| GLB-016 | ✅ | Style tab shows label/colour, Size tab shows dimensions, Link tab shows delete | tab switches reveal the right fields | ✅ Passing |
+
+### Stage 6 — Living map (Wave 7) — *requires linked area + plants in seed*
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-017 | ⬜ | Shape linked to area with planted plants renders plant tokens | Konva tokens visible inside shape bounding box (counts ≥ 1) | ⬜ Pending seed extension |
+| GLB-018 | ⬜ | Shape with active ailments renders coloured ring | dashed coloured stroke at shape bounds | ⬜ Pending seed extension |
+| GLB-019 | ⬜ | Pending Tasks section in Link tab shows count + one-tap done | `shape-tasks-list` + `shape-task-done-{id}` clickable | ⬜ Pending seed extension |
+| GLB-020 | ✅ | Photos tab opens the timeline | `property-tab-photos` → `shape-photo-timeline` visible | ✅ Passing |
+
+### Stage 7 — Smart map (Wave 8)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-021 | ✅ | Companions toggle visible in toolbar Layers group (3D mode + location) | `toggle-companions-btn` visible | ✅ Passing |
+| GLB-022 | ⬜ | AI suggestions button on linked shape | `shape-suggest-btn` visible after linking an area | ⬜ Pending seed extension |
+
+### Stage 8 — Workflows (Wave 9)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-023 | ✅ | Plan filter chip visible on canvas | `canvas-plan-filter` → `plan-filter-trigger` visible | ✅ Passing |
+| GLB-024 | ✅ | Plan filter menu opens and shows "All shapes" entry | click trigger → `plan-filter-option-all` visible | ✅ Passing |
+| GLB-025 | ⬜ | Quick Actions sheet opens from properties Link tab CTA | `shape-quick-actions-btn` → `shape-quick-actions` visible | ⬜ Pending seed extension |
+
+### Stage 9 — Pro tools (Wave 10)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-026 | ⬜ | Per-shape notes can be added and listed | `shape-notes-add-btn` → input → save → row appears | ⬜ Pending E2E coverage |
+| GLB-027 | ⬜ | Planting history shows past plants when shape is linked | `shape-history` lists year sections | ⬜ Pending seed extension |
+
+### Stage 10 — Microclimate report (Wave 11B)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-028 | ✅ | Microclimate Report button opens modal (desktop) | `microclimate-report-btn` → `microclimate-report-modal` visible | ✅ Passing |
+| GLB-029 | ✅ | Report modal closes via X | `microclimate-close-btn` click → modal gone | ✅ Passing |
+
+### Stage 11 — Aesthetics (Waves 2 / 6)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-030 | ✅ | Colour palette tabs are visible in Style tab | `palette-tab-foliage`, `palette-tab-hardscape`, `palette-tab-water`, `palette-tab-accents` visible | ✅ Passing |
+| GLB-031 | ⬜ | Picking a swatch from a non-foliage palette updates the shape colour | switch palette → click swatch → shape Konva node fill updated | ⬜ Pending E2E |
+
+### Stage 12 — Free-form drawing (Wave 4A)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-032 | ✅ | Free-form Bed tile is visible in shape rail | `shape-tile-curve` visible | ✅ Passing |
+| GLB-033 | ⬜ | Drawing 3+ points with Free-form tool produces a smoothed shape | tap canvas points → dblclick → shape persists with curve-bed preset_id | ⬜ Pending E2E |
+
+### Stage 13 — Onboarding & coach marks (Wave 4C)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-034 | ✅ | Empty editor shows a first-shape coach mark | `first-shape-coach` visible when shape count = 0 | ✅ Passing |
+
+### Stage 14 — Undo / Redo + keyboard shortcuts (Wave 5)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-035 | ✅ | Undo/Redo buttons present in toolbar | `undo-btn` and `redo-btn` visible | ✅ Passing |
+| GLB-036 | ⬜ | Drawing then pressing Ctrl+Z removes the shape | new shape → Ctrl+Z → shape gone | ⬜ Pending E2E |
+| GLB-037 | ⬜ | Ctrl+D duplicates the selected shape | select shape → Ctrl+D → 2 shapes | ⬜ Pending E2E |
+
+### Stage 15 — Smart map polish (sun-fit, snap, long-press, multi-select, right-click)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-038 | ⬜ | Sun-fit badge renders on a linked shape when sun classification known | small ✓/~/! circle in top-left of shape | ⬜ Pending |
+| GLB-039 | ✅ | Snap-to-grid toggle visible in toolbar | `toggle-snap-btn` visible | ✅ Passing |
+| GLB-040 | ✅ | Right-click on a shape opens context menu | `shape-context-menu` visible with `ctx-duplicate`/`ctx-delete` entries | ✅ Passing |
+| GLB-041 | ✅ | Frost / Wind / Companions toggles in toolbar | `toggle-frost-btn`, `toggle-wind-btn`, `toggle-companions-btn` visible | ✅ Passing |
+
+### Stage 16 — Wizard expanded shapes (Wave 4B) + Starter layouts (Wave 12E)
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-042 | ✅ | T-shape and Trapezoid options visible in builder step 1 | `shape-option-t-shape`, `shape-option-trapezoid` visible | ✅ Passing |
+| GLB-043 | ✅ | "Starter Layout" entry visible in new-layout wizard | `create-starter-layout` visible | ✅ Passing |
+| GLB-044 | ✅ | All three starter templates render | `starter-template-allotment`, `starter-template-front-border`, `starter-template-container` visible | ✅ Passing |
+
+### Stage 17 — Zones + Templates + North sheet + Export
+
+| ID | ❌/✅ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| GLB-045 | ✅ | Zones / Templates / Microclimate / Export launchers in canvas top-right (desktop) | `zones-launch-btn`, `templates-launch-btn`, `microclimate-report-btn`, `export-png-btn` visible | ✅ Passing |
+| GLB-046 | ✅ | Tapping canvas compass opens North sheet | `canvas-compass-overlay` click → `north-sheet` visible | ✅ Passing |
+| GLB-047 | ⬜ | Zones sheet "Create Zone" disabled with no selection | `zone-create-btn` disabled when `selectedShapeIds` empty | ⬜ Pending E2E |
 
 ---
 

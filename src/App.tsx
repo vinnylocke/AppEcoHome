@@ -3,7 +3,6 @@ import React, { useEffect, useState, useCallback, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "./lib/supabase";
 import {
-  Cloud,
   Menu,
   Home,
   Loader2,
@@ -45,6 +44,8 @@ import ErrorPage from "./components/ErrorPage";
 import { type TierId } from "./constants/tiers";
 import UserProfileDropdown from "./components/UserProfileDropdown";
 import GlobalQuickAdd from "./components/GlobalQuickAdd";
+import GlobalSearch from "./components/GlobalSearch";
+import OfflineBadge from "./components/OfflineBadge";
 import NavItem from "./components/NavItem";
 import UpdateBanner from "./components/UpdateBanner";
 import MaintenanceScreen from "./components/MaintenanceScreen";
@@ -56,6 +57,10 @@ import ReleaseNotesModal from "./components/ReleaseNotesModal";
 import { useReleaseNotes } from "./hooks/useReleaseNotes";
 import HelpCenter from "./onboarding/HelpCenter";
 import GettingStartedChecklist from "./components/GettingStartedChecklist";
+import NotificationOptInCard from "./components/NotificationOptInCard";
+import DailyBriefCard from "./components/DailyBriefCard";
+import InstallPwaPrompt from "./components/InstallPwaPrompt";
+import WelcomeModal from "./components/WelcomeModal";
 import type { OnboardingState } from "./onboarding/types";
 import { BetaFeedbackProvider } from "./context/BetaFeedbackContext";
 import BetaFeedbackSheet from "./components/BetaFeedbackSheet";
@@ -72,6 +77,7 @@ const BlueprintManager    = lazy(() => import("./components/BlueprintManager"));
 const PlantVisualiser     = lazy(() => import("./components/PlantVisualiser"));
 const GardenLayoutList    = lazy(() => import("./components/GardenLayoutList"));
 const GardenLayoutEditor  = lazy(() => import("./components/GardenLayoutEditor"));
+const SharedGardenLayout  = lazy(() => import("./components/garden/SharedGardenLayout"));
 const HomeManagement      = lazy(() => import("./components/HomeManagement"));
 const GardenHub           = lazy(() => import("./components/GardenHub"));
 const PlannerHub          = lazy(() => import("./components/PlannerHub"));
@@ -141,7 +147,15 @@ export default function App() {
   if (isOn) return <MaintenanceScreen message={message} />;
   return (
     <BrowserRouter>
-      <AppShell />
+      <Routes>
+        {/* Public read-only routes — bypass the auth-gated AppShell entirely */}
+        <Route path="/share/garden-layout/:token" element={
+          <Suspense fallback={null}>
+            <SharedGardenLayout />
+          </Suspense>
+        } />
+        <Route path="*" element={<AppShell />} />
+      </Routes>
       <UpdateBanner />
     </BrowserRouter>
   );
@@ -187,6 +201,16 @@ function AppShell() {
   const [isHomeLoading, setIsHomeLoading] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [locationTaskCounts, setLocationTaskCounts] = useState<Record<string, number>>({});
+  const [overdueTaskCount, setOverdueTaskCount] = useState(0);
+  const [homeLatLng, setHomeLatLng] = useState<{ lat: number | null; lng: number | null }>({ lat: null, lng: null });
+  const [hardinessZone, setHardinessZone] = useState<number | null>(null);
+  const [lastSyncedAt, setLastSyncedAt] = useState<number | null>(null);
+  const [, setSyncTick] = useState(0);
+  // Re-render every 15s so the "Synced Xs ago" text stays accurate
+  useEffect(() => {
+    const id = setInterval(() => setSyncTick((n) => n + 1), 15000);
+    return () => clearInterval(id);
+  }, []);
 
   // Mobile Nav State
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -214,6 +238,20 @@ function AppShell() {
 
   // Onboarding state — kept in sync with profile.onboarding_state
   const [onboardingState, setOnboardingState] = useState<OnboardingState>({});
+  const [showWelcomeModal, setShowWelcomeModal] = useState(false);
+
+  // First-run welcome modal — only for users who:
+  //   1) have never seen/dismissed it (onboarding_state.welcome_modal absent)
+  //   2) have no locations yet (so existing pre-feature users don't get surprised)
+  // dashboardLoaded ensures we don't flash the modal before locations are known.
+  useEffect(() => {
+    if (!profile?.home_id) return;
+    if (!dashboardLoaded) return;
+    const status = onboardingState["welcome_modal"];
+    if (status === "completed" || status === "dismissed") return;
+    if (locations.length > 0) return;
+    setShowWelcomeModal(true);
+  }, [profile?.home_id, dashboardLoaded, locations.length, onboardingState]);
 
   useEffect(() => {
     const handleDeepLink = async () => {
@@ -249,9 +287,10 @@ function AppShell() {
   useEffect(() => {
     if (!profile?.home_id) return;
 
-    if ("Notification" in window && Notification.permission === "default") {
-      Notification.requestPermission();
-    }
+    // Browser notification permission is now requested via the explicit
+    // dashboard opt-in card (NotificationOptInCard) — not auto-requested
+    // on load. This avoids the dreaded "Allow notifications?" prompt
+    // before the user understands what they'll receive.
 
     const notificationChannel = supabase
       .channel("system-notifications")
@@ -293,9 +332,29 @@ function AppShell() {
     };
   }, [profile?.home_id]);
 
-  const [searchParams] = useSearchParams();
+  const [searchParams, setSearchParamsForView] = useSearchParams();
   const selectedLocationId = searchParams.get("locationId");
   const dashboardView = (searchParams.get("view") as "dashboard" | "locations" | "calendar" | "weather") || "dashboard";
+
+  // Persist last selected dashboard view; restore on first visit to /dashboard with no view param
+  useEffect(() => {
+    if (routerLocation.pathname !== "/dashboard") return;
+    if (selectedLocationId) return; // viewing a specific location, not switching views
+    const urlView = searchParams.get("view");
+    if (urlView) {
+      // User explicitly selected a view — remember it
+      localStorage.setItem("rhozly_dashboard_view", urlView);
+      return;
+    }
+    // No view param — restore last preference if any (skip if "dashboard" since that's the default)
+    const saved = localStorage.getItem("rhozly_dashboard_view");
+    if (saved && saved !== "dashboard" && ["locations", "calendar", "weather"].includes(saved)) {
+      const next = new URLSearchParams(searchParams);
+      next.set("view", saved);
+      setSearchParamsForView(next, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [routerLocation.pathname, searchParams.toString()]);
   const [isNavCollapsed, setIsNavCollapsed] = useState(
     () => localStorage.getItem("rhozly_nav") === "true",
   );
@@ -324,6 +383,24 @@ function AppShell() {
     return () => mq.removeEventListener("change", handler);
   }, []);
 
+  // Global keyboard shortcut: "?" opens the Help Center (when not currently typing)
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key !== "?") return;
+      const target = e.target as HTMLElement;
+      const isTyping = target && (
+        target.tagName === "INPUT" ||
+        target.tagName === "TEXTAREA" ||
+        (target as any).isContentEditable
+      );
+      if (isTyping) return;
+      e.preventDefault();
+      setHelpCenterOpen((v) => !v);
+    };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, []);
+
   useEffect(() => {
     localStorage.setItem("rhozly_nav", isNavCollapsed.toString());
   }, [isNavCollapsed]);
@@ -349,7 +426,7 @@ function AppShell() {
       .select(
         `
         *,
-        weather_snapshots ( data ),
+        weather_snapshots ( data, updated_at ),
         locations (
           *,
           areas ( id, name ),
@@ -369,6 +446,10 @@ function AppShell() {
     }
 
     if (data) {
+      // Capture home lat/lng + hardiness zone for Daily Brief
+      setHomeLatLng({ lat: (data as any).lat ?? null, lng: (data as any).lng ?? null });
+      setHardinessZone((data as any).hardiness_zone ?? null);
+
       if (data.locations) {
         setLocations(data.locations);
         setLocationCache(profile.home_id, data.locations);
@@ -377,8 +458,8 @@ function AppShell() {
         if (locationIds.length > 0) {
           const todayStr = getLocalDateString(new Date());
 
-          // Fetch alerts, today's physical tasks, and blueprints in parallel
-          const [alertResult, todayTasksResult, bpResult] = await Promise.all([
+          // Fetch alerts, today's physical tasks, overdue tasks, and blueprints in parallel
+          const [alertResult, todayTasksResult, overdueResult, bpResult] = await Promise.all([
             supabase
               .from("weather_alerts")
               .select("*")
@@ -393,11 +474,20 @@ function AppShell() {
               .neq("status", "Skipped")
               .neq("status", "Completed"),
             supabase
+              .from("tasks")
+              .select("id", { count: "exact", head: true })
+              .in("location_id", locationIds)
+              .lt("due_date", todayStr)
+              .neq("status", "Skipped")
+              .neq("status", "Completed"),
+            supabase
               .from("task_blueprints")
               .select("id, location_id, start_date, created_at, end_date, frequency_days")
               .in("location_id", locationIds)
               .eq("is_recurring", true),
           ]);
+
+          setOverdueTaskCount(overdueResult.count ?? 0);
 
           setAlerts(alertResult.data || []);
 
@@ -436,9 +526,30 @@ function AppShell() {
 
       if (data.weather_snapshots) {
         const snapshots = data.weather_snapshots;
-        const freshRawData = Array.isArray(snapshots)
-          ? snapshots[0]?.data
-          : snapshots?.data;
+        const snapshotRow = Array.isArray(snapshots) ? snapshots[0] : snapshots;
+        const freshRawData = snapshotRow?.data;
+        const updatedAtIso = snapshotRow?.updated_at as string | undefined;
+        // If the snapshot is stale (>6h old) the daily cron likely missed this home —
+        // trigger a defensive refresh so the forecast page shows a full 7 days.
+        // sync-weather has a 1-hour idempotency guard, so repeated calls are cheap.
+        if (updatedAtIso) {
+          const ageMs = Date.now() - new Date(updatedAtIso).getTime();
+          if (ageMs > 6 * 60 * 60 * 1000) {
+            supabase.functions.invoke("sync-weather", { body: { home_id: profile.home_id } })
+              .then(() => {
+                // Re-fetch the snapshot once sync finishes; ignore errors silently.
+                supabase
+                  .from("weather_snapshots")
+                  .select("data, updated_at")
+                  .eq("home_id", profile.home_id)
+                  .single()
+                  .then(({ data: fresh }) => {
+                    if (fresh?.data) setRawWeather(fresh.data);
+                  });
+              })
+              .catch(() => { /* fall through — page still works with stale data */ });
+          }
+        }
         if (freshRawData) {
           setRawWeather(freshRawData);
           try {
@@ -458,7 +569,19 @@ function AppShell() {
       }
     }
     setDashboardLoaded(true);
+    setLastSyncedAt(Date.now());
   }, [profile?.home_id]);
+
+  function formatSyncedAgo(ms: number | null): string {
+    if (ms == null) return "Not synced yet";
+    const diff = Date.now() - ms;
+    if (diff < 30_000) return "Synced just now";
+    if (diff < 60_000) return "Synced 30s ago";
+    const mins = Math.floor(diff / 60_000);
+    if (mins < 60) return `Synced ${mins} min${mins !== 1 ? "s" : ""} ago`;
+    const hrs = Math.floor(mins / 60);
+    return `Synced ${hrs}h ago`;
+  }
 
   // Fetches profile for a given userId. Accepts userId directly so it can be
   // called inline after getSession() without waiting for a React re-render cycle.
@@ -681,8 +804,15 @@ function AppShell() {
       </Suspense>
     );
 
-  const navLinks = [
-    { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", "/"] },
+  const navLinks: Array<{
+    id: string;
+    icon: React.ReactElement;
+    label: string;
+    matchPaths: string[];
+    badge?: number;
+    badgeTone?: "amber" | "rose" | "primary";
+  }> = [
+    { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", "/"], badge: overdueTaskCount, badgeTone: "rose" },
     { id: "shed",      icon: <IconShed />, label: "Plants", matchPaths: ["/shed", "/watchlist"] },
     { id: "planner",   icon: <IconPlanner />, label: "Planner",    matchPaths: ["/planner", "/shopping"] },
     { id: "tools",        icon: <IconDoctor />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
@@ -745,6 +875,8 @@ function AppShell() {
                     onAddNewHome={() => setIsAddingHome(true)}
                     onHomeListChanged={refreshProfile}
                   />
+                  <OfflineBadge />
+                  <GlobalSearch homeId={profile?.home_id ?? null} />
                   <GlobalQuickAdd />
                 </div>
               </div>
@@ -782,6 +914,8 @@ function AppShell() {
                       }}
                       isCollapsed={sidebarIsCollapsed}
                       isMobile={!isMdBreakpoint}
+                      badge={link.badge}
+                      badgeTone={link.badgeTone}
                     />
                   ))}
                 </div>
@@ -895,6 +1029,15 @@ function AppShell() {
                                     )}
                                   </div>
                                 </div>
+                                {/* Sync status indicator — tells the user when their data was last refreshed */}
+                                <div className="flex items-center justify-end px-2 -mt-2 -mb-1">
+                                  <span
+                                    data-testid="dashboard-sync-status"
+                                    className="text-[10px] font-bold text-rhozly-on-surface/35 uppercase tracking-widest"
+                                  >
+                                    {formatSyncedAgo(lastSyncedAt)}
+                                  </span>
+                                </div>
 
                                 {dashboardView === "dashboard" ? (
                                   <div className="space-y-5">
@@ -909,38 +1052,23 @@ function AppShell() {
                                         onStateChange={setOnboardingState}
                                       />
                                     )}
-                                    {/* Current weather widget */}
-                                    <div data-testid="dashboard-weather-widget" className="bg-gradient-to-r from-rhozly-primary to-rhozly-primary-container text-white rounded-3xl p-5 shadow-md flex justify-between items-center">
-                                      <div className="flex items-center gap-4">
-                                        <div className="bg-white/20 p-3 rounded-2xl">
-                                          {weather?.Icon ? (
-                                            <weather.Icon className="w-8 h-8" />
-                                          ) : (
-                                            <Cloud className="w-8 h-8" />
-                                          )}
-                                        </div>
-                                        <div>
-                                          <p className="font-black text-2xl mb-1">
-                                            {weather
-                                              ? `${Math.round(weather.temp)}°C`
-                                              : "--°C"}{" "}
-                                            <span className="text-lg opacity-80">
-                                              {weather?.description || "Loading..."}
-                                            </span>
-                                          </p>
-                                          <p className="text-xs font-bold opacity-70">
-                                            Humidity: {weather?.humidity || "--"}%
-                                            • Wind: {weather?.wind || "--"} km/h
-                                          </p>
-                                        </div>
-                                      </div>
-                                      <button
-                                        onClick={() => navigate("/dashboard?view=weather", { replace: true })}
-                                        className="text-xs font-bold bg-white/10 hover:bg-white/20 px-4 py-2 rounded-xl border border-white/20"
-                                      >
-                                        Full Forecast
-                                      </button>
-                                    </div>
+                                    {/* One-time notification opt-in (hides itself when granted/denied/dismissed) */}
+                                    <NotificationOptInCard />
+                                    {/* PWA install prompt — only when beforeinstallprompt fires + not already installed */}
+                                    <InstallPwaPrompt />
+                                    {/* Daily Brief — greets the user, surfaces today's tasks, weather, golden hour, frost risk in one card */}
+                                    <DailyBriefCard
+                                      firstName={profile?.first_name ?? null}
+                                      weather={weather}
+                                      rawWeather={rawWeather}
+                                      locations={locations}
+                                      alerts={alerts}
+                                      todayTaskCount={Object.values(locationTaskCounts).reduce((a, b) => a + b, 0)}
+                                      overdueCount={overdueTaskCount}
+                                      homeLat={homeLatLng.lat}
+                                      homeLng={homeLatLng.lng}
+                                      hardinessZone={hardinessZone}
+                                    />
                                     {/* Complete Home Profile quiz prompt */}
                                     {quizCompleted === false && !quizPromptDismissed && (
                                       <div className={`bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-3xl p-5 shadow-md relative overflow-hidden transition-all duration-300 ${quizPromptFading ? "opacity-0 scale-95 pointer-events-none" : "opacity-100 scale-100"}`}>
@@ -1076,6 +1204,7 @@ function AppShell() {
                                         weatherData={rawWeather}
                                         alerts={alerts}
                                         homeId={profile?.home_id ?? null}
+                                        onRefresh={fetchDashboardData}
                                       />
                                     )}
                                   </div>
@@ -1307,7 +1436,15 @@ function AppShell() {
             )}
       {showPrivacy && <PrivacyPolicyModal onClose={() => setShowPrivacy(false)} />}
       {showCookies && <CookiePolicyModal onClose={() => setShowCookies(false)} />}
-      {releaseNotesMode && allReleaseNotes.length > 0 && (
+      {showWelcomeModal && session?.user?.id && (
+        <WelcomeModal
+          userId={session.user.id}
+          onboardingState={onboardingState}
+          onStateChange={setOnboardingState}
+          onClose={() => setShowWelcomeModal(false)}
+        />
+      )}
+      {!showWelcomeModal && releaseNotesMode && allReleaseNotes.length > 0 && (
         <ReleaseNotesModal
           notes={allReleaseNotes}
           currentVersion={appVersion?.replace("Rhozly OS ", "") ?? ""}

@@ -5,6 +5,7 @@ export interface TierDef {
   name: string;
   icon: string;
   vibe: string;
+  goodFor: string;
   features: string[];
   ai_enabled: boolean;
   enable_perenual: boolean;
@@ -20,6 +21,7 @@ export const TIERS: TierDef[] = [
     name: "Sprout",
     icon: "🌱",
     vibe: "Just starting out. Basic tracking & care.",
+    goodFor: "1–5 plants · learning the basics",
     features: [
       "Plant & task tracking",
       "Location & area management",
@@ -38,6 +40,7 @@ export const TIERS: TierDef[] = [
     name: "Botanist",
     icon: "📖",
     vibe: "Serious data. Detailed species guides and care schedules.",
+    goodFor: "10–20 plants · weekly gardener · wants accurate care info",
     features: [
       "Everything in Sprout",
       "10,000+ species database",
@@ -49,17 +52,19 @@ export const TIERS: TierDef[] = [
     accentBg: "bg-blue-50",
     accentText: "text-blue-700",
     accentBorder: "border-blue-200",
+    badge: "Most Popular",
   },
   {
     id: "sage",
     name: "Sage",
     icon: "🧠",
     vibe: "Wisdom. Instant AI diagnosis and smart growth advice.",
+    goodFor: "Anyone with sick / problem plants · wants AI help",
     features: [
       "Everything in Sprout",
-      "AI plant diagnosis",
+      "AI plant diagnosis (photo → diagnosis)",
       "Smart growth advice",
-      "Plant Doctor AI",
+      "Plant Doctor AI · ~25 scans/hour",
       "AI area scanning",
     ],
     ai_enabled: true,
@@ -73,10 +78,11 @@ export const TIERS: TierDef[] = [
     name: "Evergreen",
     icon: "🌿",
     vibe: "The complete ecosystem. Everything unlocked.",
+    goodFor: "20+ plants · multi-bed gardener · wants every feature",
     features: [
       "Everything in Botanist",
       "Everything in Sage",
-      "Full AI + species database",
+      "Full AI + species database · highest quotas",
     ],
     ai_enabled: true,
     enable_perenual: true,

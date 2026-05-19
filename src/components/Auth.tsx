@@ -107,7 +107,7 @@ export const Auth: React.FC = () => {
         });
         if (error) throw error;
 
-        setSuccessMessage("Account created! Check your email for a confirmation link.");
+        setSuccessMessage("🌱 Welcome to Rhozly! Check your email for a confirmation link — once you click it you'll land on the home setup screen and we'll get your garden going.");
         Logger.success("Check your email for the confirmation link!");
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -139,23 +139,21 @@ export const Auth: React.FC = () => {
     }
   };
 
-  const handleGoogleLogin = async () => {
+  const handleOAuthLogin = async (provider: "google" | "apple") => {
     try {
-      Logger.log("Starting Google OAuth login...");
+      Logger.log(`Starting ${provider} OAuth login...`);
 
-      // 🚀 THE FIX: Dynamically set the redirect URL based on platform
       const isNative = Capacitor.isNativePlatform();
-      const currentUrl = window.location.origin; // Grabs your local IP (e.g., http://192.168.1.XX:5173) or live domain
+      const currentUrl = window.location.origin;
 
       const redirectUrl = isNative
-        ? "com.rhozly.app://google-callback"
+        ? `com.rhozly.app://${provider}-callback`
         : `${currentUrl}/`;
 
       const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
+        provider,
         options: {
           redirectTo: redirectUrl,
-          // Only skip browser redirect if we are on a native mobile app
           skipBrowserRedirect: isNative,
         },
       });
@@ -165,17 +163,19 @@ export const Auth: React.FC = () => {
       if (isNative && data?.url) {
         await Browser.open({ url: data.url });
       }
-      // If NOT native (e.g. PWA on tablet), Supabase handles the redirect automatically!
     } catch (err: any) {
       Logger.error(
-        "Google Login Error",
+        `${provider} Login Error`,
         err,
         {},
-        "Failed to sign in with Google. Please try again.",
+        `Failed to sign in with ${provider === "google" ? "Google" : "Apple"}. Please try again.`,
       );
       setError(err.message);
     }
   };
+
+  const handleGoogleLogin = () => handleOAuthLogin("google");
+  const handleAppleLogin = () => handleOAuthLogin("apple");
 
   return (
     <div
@@ -229,7 +229,13 @@ export const Auth: React.FC = () => {
             className={theme.typography.tagline}
             style={{ color: theme.colors.onSurface }}
           >
-            Nurturing your digital arboretum
+            Plant care that fits your week
+          </p>
+          <p
+            className="text-xs font-semibold opacity-60 mt-1 text-center max-w-[260px]"
+            style={{ color: theme.colors.onSurface }}
+          >
+            Track plants · automate reminders · diagnose problems · plan your garden
           </p>
         </div>
 
@@ -491,6 +497,11 @@ export const Auth: React.FC = () => {
                   {fieldErrors.email}
                 </p>
               )}
+              {isSignUp && !fieldErrors.email && (
+                <p className="mt-1 ml-1 text-[11px] font-medium opacity-50" style={{ color: theme.colors.onSurface }}>
+                  Used for sign-in and password recovery. We never share it.
+                </p>
+              )}
             </div>
 
             {/* Password Field */}
@@ -622,6 +633,7 @@ export const Auth: React.FC = () => {
           {/* Social & Biometric Actions */}
           <div className="space-y-3">
             <button
+              data-testid="auth-google"
               onClick={handleGoogleLogin}
               type="button"
               className={`${theme.typography.signInButton} min-h-[44px] w-full flex items-center justify-center gap-3 rounded-xl font-semibold transition-colors duration-200 active:scale-95 focus:ring-2 focus:outline-none`}
@@ -637,6 +649,23 @@ export const Auth: React.FC = () => {
                 alt="Google"
               />
               <>{isSignUp ? "Sign Up with Google" : "Sign In with Google"}</>
+            </button>
+
+            <button
+              data-testid="auth-apple"
+              onClick={handleAppleLogin}
+              type="button"
+              className={`${theme.typography.signInButton} min-h-[44px] w-full flex items-center justify-center gap-3 rounded-xl font-semibold transition-colors duration-200 active:scale-95 focus:ring-2 focus:outline-none`}
+              style={{
+                backgroundColor: "#0f172a",
+                color: "#ffffff",
+                "--tw-ring-color": theme.colors.primary,
+              } as React.CSSProperties}
+            >
+              <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                <path d="M17.6 12.7c0-2.6 2.1-3.8 2.2-3.9-1.2-1.8-3.1-2-3.7-2-1.6-.2-3.1.9-3.9.9-.8 0-2-.9-3.4-.9-1.7 0-3.3 1-4.2 2.6-1.8 3.1-.5 7.7 1.3 10.2.9 1.2 1.9 2.6 3.3 2.5 1.3-.1 1.8-.9 3.4-.9 1.6 0 2.1.9 3.4.8 1.4 0 2.3-1.2 3.2-2.5.7-1 1.3-2.1 1.7-3.3-1.7-.6-2.9-2.1-2.9-3.6zM14.6 4.4c.7-.9 1.3-2.1 1.1-3.4-1.1.1-2.4.8-3.1 1.6-.7.8-1.3 2.1-1.1 3.3 1.2.1 2.4-.6 3.1-1.5z" />
+              </svg>
+              <>{isSignUp ? "Sign Up with Apple" : "Sign In with Apple"}</>
             </button>
 
             {/* Biometrics button hidden until implementation is ready */}

@@ -18,6 +18,7 @@ import { IconGrowth, IconPrune, IconHarvest, IconAI } from "../constants/icons";
 import toast from "react-hot-toast";
 import { logEvent, EVENT } from "../events/registry";
 import { usePermissions } from "../context/HomePermissionsContext";
+import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { useSearchParams } from "react-router-dom";
 import InfoTooltip from "./InfoTooltip";
 
@@ -37,6 +38,7 @@ interface BlueprintManagerProps {
 export default function BlueprintManager({ homeId, aiEnabled = false }: BlueprintManagerProps) {
   const { preferences } = usePlantDoctor();
   const { can } = usePermissions();
+  const { requestFeedback } = useBetaFeedbackContext();
   const [searchParams, setSearchParams] = useSearchParams();
   const openHandled = useRef(false);
   const [activeTab, setActiveTab] = useState<"blueprints" | "optimise">("blueprints");
@@ -643,6 +645,48 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
                     {bp.description}
                   </p>
                 )}
+                {/* Next-occurrence preview — derived from start_date + frequency_days */}
+                {(() => {
+                  if (!bp.frequency_days || bp.frequency_days <= 0) return null;
+                  const anchorStr = (bp.start_date || bp.created_at || new Date().toISOString()).split("T")[0];
+                  const anchorMs = new Date(anchorStr).getTime();
+                  const todayMs = new Date(new Date().toISOString().split("T")[0]).getTime();
+                  const endMs = bp.end_date ? new Date(bp.end_date).getTime() : null;
+                  const dayMs = 24 * 60 * 60 * 1000;
+
+                  // Find the first occurrence >= today
+                  let cursor = anchorMs;
+                  if (cursor < todayMs) {
+                    const diffDays = Math.floor((todayMs - cursor) / dayMs);
+                    const skips = Math.floor(diffDays / bp.frequency_days);
+                    cursor = anchorMs + (skips + 1) * bp.frequency_days * dayMs;
+                  }
+
+                  const upcoming: string[] = [];
+                  for (let i = 0; i < 3 && (!endMs || cursor <= endMs); i++) {
+                    upcoming.push(new Date(cursor).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }));
+                    cursor += bp.frequency_days * dayMs;
+                  }
+                  if (upcoming.length === 0) return null;
+                  return (
+                    <div className="mt-2 flex items-center gap-1.5 text-[10px] font-bold text-rhozly-on-surface/45">
+                      <span className="uppercase tracking-widest text-rhozly-on-surface/35">Next:</span>
+                      <span className="font-black text-rhozly-on-surface/70">{upcoming[0]}</span>
+                      {upcoming[1] && (
+                        <>
+                          <span className="text-rhozly-on-surface/20">·</span>
+                          <span>{upcoming[1]}</span>
+                        </>
+                      )}
+                      {upcoming[2] && (
+                        <>
+                          <span className="text-rhozly-on-surface/20">·</span>
+                          <span>{upcoming[2]}</span>
+                        </>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
 
               <div className="pt-4 border-t border-rhozly-outline/10 flex flex-wrap gap-2 mt-auto">
@@ -710,9 +754,11 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
             setEditingBlueprint(null);
           }}
           onSuccess={() => {
+            const isNew = !editingBlueprint;
             setIsBuilding(false);
             setEditingBlueprint(null);
             toast.success("Automation saved");
+            if (isNew) requestFeedback("blueprint_create");
             fetchBlueprints();
           }}
         />

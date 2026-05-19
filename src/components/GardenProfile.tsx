@@ -294,23 +294,31 @@ export default function GardenProfile({
             </div>
           </div>
         ) : (
-          <HabitQuiz
-            homeId={homeId}
-            userId={userId}
-            onComplete={() => {
-              setQuizDone(true);
-              toast.success("Quiz complete! Your preferences have been saved.");
-              supabase
-                .from("planner_preferences")
-                .select("id, entity_type, entity_name, sentiment, source, recorded_at")
-                .eq("home_id", homeId)
-                .eq("user_id", userId)
-                .order("recorded_at", { ascending: false })
-                .then(({ data, error }) => {
-                  if (!error) setPrefs(data || []);
-                });
-            }}
-          />
+          <div className="flex flex-col gap-4">
+            <div className="bg-rhozly-primary/5 border border-rhozly-primary/15 rounded-2xl px-4 py-3 flex items-start gap-3">
+              <ClipboardList size={16} className="text-rhozly-primary shrink-0 mt-0.5" />
+              <p className="text-sm font-bold text-rhozly-on-surface/75 leading-snug">
+                Your answers personalise plant recommendations and watering schedules — takes about 2 minutes.
+              </p>
+            </div>
+            <HabitQuiz
+              homeId={homeId}
+              userId={userId}
+              onComplete={() => {
+                setQuizDone(true);
+                toast.success("Quiz complete! Your preferences have been saved.");
+                supabase
+                  .from("planner_preferences")
+                  .select("id, entity_type, entity_name, sentiment, source, recorded_at")
+                  .eq("home_id", homeId)
+                  .eq("user_id", userId)
+                  .order("recorded_at", { ascending: false })
+                  .then(({ data, error }) => {
+                    if (!error) setPrefs(data || []);
+                  });
+              }}
+            />
+          </div>
         )
       )}
 

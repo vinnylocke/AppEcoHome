@@ -812,6 +812,45 @@ export default function HomeManagement({
                           {/* Permission accordion */}
                           {isConfigOpen && canManage && (
                             <div className="ml-11 mt-1 mb-2 bg-rhozly-surface/60 border border-rhozly-outline/15 rounded-2xl p-3 space-y-3">
+                              {/* Role-template description + reset-to-defaults */}
+                              <div className="flex items-start justify-between gap-3 px-2.5 py-2 bg-rhozly-primary/5 rounded-xl border border-rhozly-primary/15">
+                                <div className="min-w-0">
+                                  <p className="text-[10px] font-black text-rhozly-primary uppercase tracking-widest">
+                                    {member.role === "admin"
+                                      ? "Admin — full access (recommended for a co-owner)"
+                                      : member.role === "member"
+                                        ? "Member — can add/edit, no destructive deletes (good for family / housemates)"
+                                        : member.role === "viewer"
+                                          ? "Viewer — read-only + personal tasks (good for a one-time helper)"
+                                          : "Owner — full access (this is the home creator)"}
+                                  </p>
+                                  <p className="text-[9px] font-medium text-rhozly-on-surface/50 mt-0.5 leading-snug">
+                                    Toggles below override the role's defaults. Reset wipes overrides.
+                                  </p>
+                                </div>
+                                {Object.keys(member.permissions).length > 0 && (
+                                  <button
+                                    data-testid={`perm-reset-defaults-${member.userId}`}
+                                    onClick={async () => {
+                                      // Optimistic + persist
+                                      setHomes((prev) => prev.map((h) => ({
+                                        ...h,
+                                        members: h.members.map((m) =>
+                                          m.memberId === member.memberId ? { ...m, permissions: {} } : m
+                                        ),
+                                      })));
+                                      await supabase
+                                        .from("home_members")
+                                        .update({ permissions: {} })
+                                        .eq("id", member.memberId);
+                                    }}
+                                    className="shrink-0 flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-rhozly-primary hover:bg-rhozly-primary/10 px-2 py-1.5 rounded-lg transition-colors"
+                                    title="Discard all custom overrides and use the role's defaults"
+                                  >
+                                    Reset to {member.role}
+                                  </button>
+                                )}
+                              </div>
                               {/* Audit page access toggle */}
                               <div className="flex items-center justify-between px-2.5 py-2 bg-rhozly-surface rounded-xl border border-rhozly-outline/10">
                                 <div>

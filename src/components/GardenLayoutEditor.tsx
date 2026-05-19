@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Stage, Layer, Rect, Circle, Ellipse, Line, Text, Transformer } from "react-konva";
-import {
-  ArrowLeft, ZoomIn, ZoomOut, Settings, CheckCircle2, Loader2, X, Play, Pause,
-  Pencil, Hand, Eye,
-} from "lucide-react";
+import { X, Loader2, ChevronRight } from "lucide-react";
 import GardenLayout3D from "./GardenLayout3D";
 import GardenCompass from "./GardenCompass";
 import { supabase } from "../lib/supabase";
@@ -14,8 +11,23 @@ import GardenRuler from "./GardenRuler";
 import GardenScaleBar from "./GardenScaleBar";
 import GardenShapePanel, { type ShapePreset } from "./GardenShapePanel";
 import GardenShapeProperties, { type ShapeData } from "./GardenShapeProperties";
+import GardenEditorToolbar, { type InteractionMode } from "./GardenEditorToolbar";
 import { useSunPosition } from "../hooks/useSunPosition";
 import { computeAllShapesSunHours, type ShapeSunResult } from "../lib/sunAnalysis";
+import { useShapeLiveState } from "../hooks/useShapeLiveState";
+import { computeTokenGrid, getPlantTokenColor, getPlantInitial, MAX_VISIBLE_TOKENS } from "../lib/garden/plantTokens";
+import { getShapeDecorations } from "../lib/garden/shapeDecorations";
+import { getCompanionRelationForGroups } from "../constants/companionPlants";
+import { parsePlantSunPreference, getPlantSunFit, getShapeFitSummary } from "../lib/garden/sunFit";
+import { classifyFrostRisk, computeWindExposure, type ForecastDay } from "../lib/garden/microclimate";
+import { computeAlignmentGuides, getShapeBounds, type GuideLine } from "../lib/garden/alignmentGuides";
+import PlanFilterChip from "./garden/PlanFilterChip";
+import MicroclimateReportModal from "./garden/MicroclimateReportModal";
+import GardenNorthSheet from "./garden/GardenNorthSheet";
+import ShapeQuickActions from "./garden/ShapeQuickActions";
+import GardenContextMenu from "./garden/GardenContextMenu";
+import GardenZoneSheet from "./garden/GardenZoneSheet";
+import BedTemplatesSheet, { type TemplateRow } from "./garden/BedTemplatesSheet";
 import { usePermissions } from "../context/HomePermissionsContext";
 
 interface Layout {
@@ -41,8 +53,13 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   const [layout, setLayout] = useState<Layout | null>(null);
   const [shapes, setShapes] = useState<ShapeData[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Wave 5C — secondary selection via shift-click. Operates alongside selectedId.
+  const [extraSelection, setExtraSelection] = useState<Set<string>>(new Set());
   const [tool, setTool] = useState<"select" | "polygon" | "draw">("select");
-  const [interactionMode, setInteractionMode] = useState<"draw" | "move" | "rotate">("move");
+  // When the polygon tool is started via the Free-form Bed tile we render the
+  // resulting shape with Konva tension to smooth the corners (Wave 4A).
+  const [polygonSmoothed, setPolygonSmoothed] = useState(false);
+  const [interactionMode, setInteractionMode] = useState<InteractionMode>("move");
   const [pendingPreset, setPendingPreset] = useState<ShapePreset | null>(null);
   const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
   const [drawCurrent, setDrawCurrent] = useState<{ x: number; y: number } | null>(null);
@@ -68,14 +85,67 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   );
   const [isPlaying, setIsPlaying] = useState(false);
   const [compassReadState, setCompassReadState] = useState<"idle" | "ready" | "done">("idle");
-  const [areaPlants, setAreaPlants] = useState<
-    Record<string, Array<{ id: string; plant_name: string; nickname: string | null }>>
-  >({});
   const [areaLuxReadings, setAreaLuxReadings] = useState<
     Array<{ area_id: string; lux_value: number; recorded_at: string }>
   >([]);
   const [showLuxOverlay, setShowLuxOverlay] = useState(false);
   const [showSunOverlay, setShowSunOverlay] = useState(false);
+  const [showCompanionsOverlay, setShowCompanionsOverlay] = useState(false);
+  const [showFrostOverlay, setShowFrostOverlay] = useState(false);
+  const [showWindOverlay, setShowWindOverlay] = useState(false);
+  const [showPhOverlay, setShowPhOverlay] = useState(false);
+  const [showMoistureOverlay, setShowMoistureOverlay] = useState(false);
+  const [forecast, setForecast] = useState<ForecastDay[]>([]);
+  const [propertiesExpanded, setPropertiesExpanded] = useState(false);
+  const [activePlanFilter, setActivePlanFilter] = useState<string | null>(() => {
+    // Pre-apply a plan filter passed via sessionStorage (e.g. "View on Layout" from Planner)
+    try {
+      const stashed = typeof window !== "undefined" ? sessionStorage.getItem("rhozly:plan-filter") : null;
+      if (stashed) {
+        sessionStorage.removeItem("rhozly:plan-filter");
+        return stashed;
+      }
+    } catch { /* ignore */ }
+    return null;
+  });
+  const [showMicroclimate, setShowMicroclimate] = useState(false);
+  const [showNorthSheet, setShowNorthSheet] = useState(false);
+  const [showZoneSheet, setShowZoneSheet] = useState(false);
+  const [showTemplatesSheet, setShowTemplatesSheet] = useState(false);
+  const [snapToGrid, setSnapToGrid] = useState(false);
+  const SNAP_STEP_M = 0.5;
+  const snap = useCallback((v: number) => snapToGrid ? Math.round(v / SNAP_STEP_M) * SNAP_STEP_M : v, [snapToGrid]);
+
+  // Long-press detection (Wave 9C) — holding a shape opens the Quick Actions sheet.
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [quickActionsShape, setQuickActionsShape] = useState<ShapeData | null>(null);
+
+  // Smart alignment guides while dragging — visual lines only, no snapping.
+  const [dragGuides, setDragGuides] = useState<GuideLine[]>([]);
+
+  // Plant token resize popup state. The save callbacks themselves are defined
+  // AFTER the useShapeLiveState() call below so they can depend on its
+  // returned refetch function without hitting a TDZ on the render-time deps array.
+  const [tokenResize, setTokenResize] = useState<{ itemId: string; areaId: string; plantName: string; size: number; height: number } | null>(null);
+  // The currently selected plant token in 3D — gets TransformControls.
+  const [selectedTokenId, setSelectedTokenId] = useState<string | null>(null);
+  // Drag-select rectangle (Wave 5C extension) — desktop multi-select.
+  const [marquee, setMarquee] = useState<{ x1: number; y1: number; x2: number; y2: number } | null>(null);
+  // Right-click context menu (Wave 5D)
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; shape: ShapeData } | null>(null);
+  const cancelLongPress = useCallback(() => {
+    if (longPressTimerRef.current) {
+      clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }, []);
+  const startLongPress = useCallback((shape: ShapeData) => {
+    cancelLongPress();
+    longPressTimerRef.current = setTimeout(() => {
+      longPressTimerRef.current = null;
+      setQuickActionsShape(shape);
+    }, 550);
+  }, [cancelLongPress]);
 
   const stageRef = useRef<any>(null);
   const transformerRef = useRef<any>(null);
@@ -89,6 +159,24 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   const panStartRef = useRef({ x: 0, y: 0 });
   const lastTouchDistRef = useRef<number | null>(null);
 
+  // Undo/redo history (Wave 5A) — refs so pushing doesn't trigger renders.
+  // We snapshot the shapes array at the moment a user action commits.
+  const historyRef = useRef<{ past: ShapeData[][]; future: ShapeData[][] }>({ past: [], future: [] });
+  const HISTORY_LIMIT = 50;
+  const [, setHistoryTick] = useState(0); // forces a render when we want canUndo/canRedo to refresh
+
+  // Action registry — exposed via a stable ref so callbacks declared later in
+  // the component can be reached from earlier useEffects (e.g. keyboard handler)
+  // without tripping a TDZ on render-time dependency evaluation.
+  const actionsRef = useRef({
+    undo:           () => {},
+    redo:           () => {},
+    deleteShape:    (_id: string) => { void _id; },
+    recordHistory:  () => {},
+    triggerSave:    () => {},
+    duplicateShape: (_id: string) => { void _id; },
+  });
+
   // Refs that mirror state for use inside stable callbacks
   const stagePosRef = useRef(stagePos);
   const zoomRef = useRef(zoom);
@@ -99,26 +187,135 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   useEffect(() => { zoomRef.current = zoom; }, [zoom]);
   useEffect(() => { containerSizeRef.current = containerSize; }, [containerSize]);
 
-  // Escape cancels draw mode or polygon drawing
+  // Collapse the mobile properties sheet whenever the selected shape changes
+  useEffect(() => { setPropertiesExpanded(false); }, [selectedId]);
+  // Clear 3D token selection when leaving 3D view or changing shapes
+  useEffect(() => { setSelectedTokenId(null); }, [viewMode, selectedId]);
+
+  // Fetch forecast once, on demand, for the frost overlay (Wave 11A)
+  useEffect(() => {
+    if (!showFrostOverlay || forecast.length > 0) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("weather_snapshots")
+          .select("data")
+          .eq("home_id", homeId)
+          .order("updated_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+        if (cancelled) return;
+        const raw = (data?.data ?? {}) as any;
+        const daily = raw.daily ?? raw.forecast ?? raw.next7 ?? null;
+        const parsed: ForecastDay[] = [];
+        if (daily?.time && daily?.temperature_2m_min) {
+          for (let i = 0; i < daily.time.length; i++) {
+            parsed.push({
+              date: daily.time[i],
+              temp_min_c: daily.temperature_2m_min[i] ?? 0,
+              temp_max_c: daily.temperature_2m_max?.[i] ?? 0,
+              wind_speed_kph: daily.windspeed_10m_max?.[i],
+              precip_mm: daily.precipitation_sum?.[i],
+            });
+          }
+        } else if (Array.isArray(daily)) {
+          for (const d of daily) parsed.push({
+            date: d.date ?? d.day ?? "",
+            temp_min_c: d.temp_min_c ?? d.min ?? d.tempmin ?? 0,
+            temp_max_c: d.temp_max_c ?? d.max ?? d.tempmax ?? 0,
+            wind_speed_kph: d.wind_speed_kph ?? d.windspeed,
+            precip_mm: d.precip_mm ?? d.precipitation,
+          });
+        }
+        setForecast(parsed);
+      } catch (err) {
+        Logger.error("Failed to load forecast for frost overlay", err);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showFrostOverlay, homeId]);
+
+  // Keyboard shortcuts (Wave 5B):
+  //   Escape         — cancel draw/polygon or deselect
+  //   Delete/Bksp    — delete selected shape
+  //   Ctrl/Cmd+Z     — undo
+  //   Ctrl/Cmd+Shift+Z (or Ctrl+Y) — redo
+  //   Ctrl/Cmd+D     — duplicate selected shape
+  //   1 / 2          — switch 2D / 3D view
+  //   F              — fit selected (or canvas) to view
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
-      if (tool === "draw") {
-        setPendingPreset(null);
-        setDrawStart(null);
-        setDrawCurrent(null);
-        setTool("select");
-        setInteractionMode("move");
-      } else if (tool === "polygon") {
-        setPolyPoints([]);
-        setPointerPos(null);
-        setTool("select");
-        setInteractionMode("move");
+      // Skip if user is typing in an input/textarea.
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA" || target.isContentEditable)) {
+        return;
+      }
+
+      if (e.key === "Escape") {
+        if (tool === "draw") {
+          setPendingPreset(null);
+          setDrawStart(null);
+          setDrawCurrent(null);
+          setTool("select");
+          setInteractionMode("move");
+        } else if (tool === "polygon") {
+          setPolyPoints([]);
+          setPointerPos(null);
+          setTool("select");
+          setInteractionMode("move");
+        } else {
+          setSelectedId(null);
+        }
+        return;
+      }
+
+      const isMod = e.ctrlKey || e.metaKey;
+      if (isMod && (e.key === "z" || e.key === "Z")) {
+        e.preventDefault();
+        if (e.shiftKey) actionsRef.current.redo(); else actionsRef.current.undo();
+        return;
+      }
+      if (isMod && (e.key === "y" || e.key === "Y")) {
+        e.preventDefault();
+        actionsRef.current.redo();
+        return;
+      }
+
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedId) {
+        e.preventDefault();
+        const all = [selectedId, ...extraSelection];
+        for (const id of all) actionsRef.current.deleteShape(id);
+        return;
+      }
+
+      if (isMod && (e.key === "d" || e.key === "D") && selectedId) {
+        e.preventDefault();
+        const all = [selectedId, ...extraSelection];
+        for (const id of all) actionsRef.current.duplicateShape(id);
+        return;
+      }
+
+      if (!isMod && (e.key === "1")) {
+        setViewMode("2d");
+        return;
+      }
+      if (!isMod && (e.key === "2")) {
+        setViewMode("3d");
+        return;
+      }
+
+      if (!isMod && (e.key === "f" || e.key === "F")) {
+        // Fit canvas to view — reset zoom and centre
+        setZoom(1);
+        setStagePos({ x: 32, y: 32 });
+        return;
       }
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [tool]);
+  }, [tool, selectedId, extraSelection]);
 
   // Container resize
   useEffect(() => {
@@ -175,21 +372,98 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     ? { altitude: rawSunPos.altitude, azimuth: -rawSunPos.azimuth - northOffsetRad }
     : undefined;
 
-  // Fetch plants for all linked areas
-  const areaIdKey = shapes.map(s => s.area_id).filter(Boolean).sort().join(",");
-  useEffect(() => {
-    const ids = [...new Set(shapes.map(s => s.area_id).filter(Boolean))] as string[];
-    if (!ids.length) { setAreaPlants({}); return; }
-    supabase.from("inventory_items")
-      .select("id, plant_name, nickname, area_id")
-      .in("area_id", ids).eq("status", "Planted")
-      .then(({ data }) => {
-        const map: Record<string, Array<{ id: string; plant_name: string; nickname: string | null }>> = {};
-        for (const r of data ?? []) if (r.area_id) (map[r.area_id] ??= []).push(r);
-        setAreaPlants(map);
-      });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [areaIdKey]);
+  // Linked-area key drives the live-state hook + other area-bound fetches
+  const linkedAreaIds = useMemo(
+    () => [...new Set(shapes.map(s => s.area_id).filter(Boolean))] as string[],
+    [shapes],
+  );
+  const areaIdKey = [...linkedAreaIds].sort().join(",");
+
+  // Plants / tasks / ailments / pH / moisture per linked area
+  const { plants: areaPlants, tasks: areaTaskCounts, ailments: areaAilmentSeverity, ph: areaPh, moisture: areaMoisture, refetch: refetchLiveState } =
+    useShapeLiveState(homeId, linkedAreaIds);
+
+  // Plant token persistence callbacks — declared here so they can safely depend on
+  // refetchLiveState (returned from the hook above) without a TDZ on render-time deps.
+  const updateTokenPosition = useCallback(async (itemId: string, x: number, y: number) => {
+    try {
+      const { error } = await supabase.from("inventory_items")
+        .update({ display_x_m: x, display_y_m: y })
+        .eq("id", itemId);
+      if (error) throw error;
+      refetchLiveState();
+    } catch (err) {
+      Logger.error("Failed to save plant token position", err);
+      toast.error("Could not save plant position");
+    }
+  }, [refetchLiveState]);
+
+  // 3D drag handler — persists world X/Z + height in one call.
+  const updateTokenPosition3D = useCallback(async (itemId: string, worldX: number, worldZ: number, heightM: number) => {
+    try {
+      const { error } = await supabase.from("inventory_items")
+        .update({ display_x_m: worldX, display_y_m: worldZ, display_height_m: heightM })
+        .eq("id", itemId);
+      if (error) throw error;
+      refetchLiveState();
+    } catch (err) {
+      Logger.error("Failed to save plant token 3D position", err);
+      toast.error("Could not save plant position");
+    }
+  }, [refetchLiveState]);
+
+  const updateTokenSize = useCallback(async (itemId: string, size: number, height: number) => {
+    try {
+      const { error } = await supabase.from("inventory_items")
+        .update({ display_size_m: size, display_height_m: height })
+        .eq("id", itemId);
+      if (error) throw error;
+      refetchLiveState();
+    } catch (err) {
+      Logger.error("Failed to save plant token size", err);
+      toast.error("Could not resize plant");
+    }
+  }, [refetchLiveState]);
+
+  // Companion overlay — find adjacent shape pairs with plants and classify the relation
+  const companionLines = useMemo(() => {
+    if (!showCompanionsOverlay) return [] as { from: { x: number; y: number }; to: { x: number; y: number }; relation: "Beneficial" | "Harmful"; reason?: string }[];
+    const ADJACENCY_M = 5;
+    const out: { from: { x: number; y: number }; to: { x: number; y: number }; relation: "Beneficial" | "Harmful"; reason?: string }[] = [];
+
+    const shapeCentre = (s: ShapeData): { x: number; y: number } | null => {
+      if (s.shape_type === "rect" || s.shape_type === "path") {
+        return { x: s.x_m + (s.width_m ?? 1) / 2, y: s.y_m + (s.height_m ?? 1) / 2 };
+      }
+      if (s.shape_type === "circle") return { x: s.x_m, y: s.y_m };
+      if (s.shape_type === "ellipse") return { x: s.x_m, y: s.y_m };
+      if (s.shape_type === "polygon" && s.points && s.points.length > 0) {
+        const cx = s.points.reduce((a, p) => a + p.x, 0) / s.points.length;
+        const cy = s.points.reduce((a, p) => a + p.y, 0) / s.points.length;
+        return { x: s.x_m + cx, y: s.y_m + cy };
+      }
+      return null;
+    };
+
+    const withPlants = shapes
+      .filter((s) => s.area_id && (areaPlants[s.area_id]?.length ?? 0) > 0)
+      .map((s) => ({ s, centre: shapeCentre(s), names: (areaPlants[s.area_id!] ?? []).map((p) => p.plant_name) }))
+      .filter((x) => x.centre !== null) as { s: ShapeData; centre: { x: number; y: number }; names: string[] }[];
+
+    for (let i = 0; i < withPlants.length; i++) {
+      for (let j = i + 1; j < withPlants.length; j++) {
+        const a = withPlants[i];
+        const b = withPlants[j];
+        const dx = a.centre.x - b.centre.x;
+        const dy = a.centre.y - b.centre.y;
+        if (Math.sqrt(dx * dx + dy * dy) > ADJACENCY_M) continue;
+        const rel = getCompanionRelationForGroups(a.names, b.names);
+        if (rel.relation === "Neutral") continue;
+        out.push({ from: a.centre, to: b.centre, relation: rel.relation, reason: rel.reason });
+      }
+    }
+    return out;
+  }, [showCompanionsOverlay, shapes, areaPlants]);
 
   // Fetch lux readings (3D only)
   useEffect(() => {
@@ -275,6 +549,19 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     transformerRef.current.nodes(node ? [node] : []);
   }, [selectedId, shapes]);
 
+  // Push current shape state to undo history. Called before each user mutation.
+  // MUST be declared before updateShape/deleteShape/reorder/commitDraw so their
+  // useCallback dep arrays don't hit a TDZ ReferenceError (Wave 5A bugfix).
+  const recordHistory = useCallback(() => {
+    const current = shapesRef.current;
+    historyRef.current.past.push(JSON.parse(JSON.stringify(current)));
+    if (historyRef.current.past.length > HISTORY_LIMIT) {
+      historyRef.current.past.shift();
+    }
+    historyRef.current.future = [];
+    setHistoryTick((n) => (n + 1) & 0xffff);
+  }, []);
+
   // Auto-save — delete + re-insert strategy for simplicity
   const triggerSave = useCallback(() => {
     setSaveState("unsaved");
@@ -306,6 +593,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               dashed: s.dashed ?? false,
               extrude_m: s.extrude_m ?? null,
               preset_id: s.preset_id ?? null,
+              plan_id: s.plan_id ?? null,
             }))
           );
           if (insErr) throw insErr;
@@ -318,18 +606,43 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     }, 600);
   }, [layoutId]);
 
-  const updateShape = useCallback((id: string, updates: Partial<ShapeData>) => {
-    setShapes(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  const undo = useCallback(() => {
+    const { past, future } = historyRef.current;
+    if (past.length === 0) return;
+    const prev = past.pop()!;
+    future.push(JSON.parse(JSON.stringify(shapesRef.current)));
+    setShapes(prev);
+    setSelectedId(null);
+    setHistoryTick((n) => (n + 1) & 0xffff);
     triggerSave();
   }, [triggerSave]);
 
+  const redo = useCallback(() => {
+    const { past, future } = historyRef.current;
+    if (future.length === 0) return;
+    const next = future.pop()!;
+    past.push(JSON.parse(JSON.stringify(shapesRef.current)));
+    setShapes(next);
+    setSelectedId(null);
+    setHistoryTick((n) => (n + 1) & 0xffff);
+    triggerSave();
+  }, [triggerSave]);
+
+  const updateShape = useCallback((id: string, updates: Partial<ShapeData>) => {
+    recordHistory();
+    setShapes(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+    triggerSave();
+  }, [triggerSave, recordHistory]);
+
   const deleteShape = useCallback((id: string) => {
+    recordHistory();
     setShapes(prev => prev.filter(s => s.id !== id));
     setSelectedId(null);
     triggerSave();
-  }, [triggerSave]);
+  }, [triggerSave, recordHistory]);
 
   const reorder = useCallback((id: string, action: "front" | "forward" | "backward" | "back") => {
+    recordHistory();
     setShapes(prev => {
       const idx = prev.findIndex(s => s.id === id);
       if (idx === -1) return prev;
@@ -346,7 +659,140 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       return arr;
     });
     triggerSave();
-  }, [triggerSave]);
+  }, [triggerSave, recordHistory]);
+
+  // Apply a saved template — drops a new shape near the canvas centre using template geometry.
+  // Generate (or fetch existing) public share link for this layout.
+  const sharingLayoutRef = useRef(false);
+  const handleShareLink = useCallback(async () => {
+    if (!layout || sharingLayoutRef.current) return;
+    sharingLayoutRef.current = true;
+    try {
+      let { data, error } = await supabase
+        .from("garden_layouts")
+        .select("share_token")
+        .eq("id", layout.id)
+        .single();
+      if (error) throw error;
+      let token = data?.share_token as string | null;
+      if (!token) {
+        // Generate a cryptographically random base36 token.
+        const bytes = new Uint8Array(12);
+        crypto.getRandomValues(bytes);
+        token = Array.from(bytes).map(b => b.toString(36).padStart(2, "0")).join("").slice(0, 16);
+        const { error: upErr } = await supabase
+          .from("garden_layouts")
+          .update({ share_token: token, updated_at: new Date().toISOString() })
+          .eq("id", layout.id);
+        if (upErr) throw upErr;
+      }
+      const url = `${window.location.origin}/share/garden-layout/${token}`;
+      try {
+        await navigator.clipboard.writeText(url);
+        toast.success("Share link copied to clipboard");
+      } catch {
+        // Clipboard API may fail in older browsers — show the URL via prompt as fallback.
+        toast(url);
+      }
+    } catch (err) {
+      Logger.error("Failed to generate share link", err);
+      toast.error("Could not create share link");
+    } finally {
+      sharingLayoutRef.current = false;
+    }
+  }, [layout]);
+
+  // Export the current 2D canvas as a high-DPI PNG (Wave 12)
+  const exportPng = useCallback(() => {
+    if (!stageRef.current || !layout) return;
+    try {
+      const url = stageRef.current.toDataURL({ pixelRatio: 2, mimeType: "image/png" });
+      const a = document.createElement("a");
+      a.href = url;
+      const safeName = layout.name.replace(/[^a-z0-9-_ ]/gi, "").trim() || "garden";
+      a.download = `${safeName}.png`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      toast.success("Layout exported");
+    } catch (err) {
+      Logger.error("Failed to export layout PNG", err);
+      toast.error("Could not export image");
+    }
+  }, [layout]);
+
+  const applyTemplate = useCallback((tpl: TemplateRow) => {
+    if (!layout) return;
+    const newId = crypto.randomUUID();
+    const cx = layout.canvas_w_m / 2;
+    const cy = layout.canvas_h_m / 2;
+    const w = tpl.width_m ?? 1;
+    const h = tpl.height_m ?? 1;
+    const newShape: ShapeData = {
+      id: newId,
+      layout_id: layout.id,
+      area_id: null,
+      shape_type: tpl.shape_type as ShapeData["shape_type"],
+      label: tpl.name,
+      color: tpl.colour,
+      x_m: tpl.shape_type === "circle" ? cx : cx - w / 2,
+      y_m: tpl.shape_type === "circle" ? cy : cy - h / 2,
+      width_m: tpl.width_m,
+      height_m: tpl.height_m,
+      radius_m: tpl.radius_m,
+      points: tpl.points,
+      rotation: 0,
+      z_index: shapesRef.current.length,
+      dashed: tpl.dashed,
+      extrude_m: tpl.extrude_m,
+      preset_id: tpl.preset_id,
+      plan_id: activePlanFilter,
+    };
+    recordHistory();
+    setShapes((prev) => [...prev, newShape]);
+    setSelectedId(newId);
+    triggerSave();
+    toast.success(`Applied template "${tpl.name}"`);
+  }, [layout, activePlanFilter, recordHistory, triggerSave]);
+
+  const duplicateShape = useCallback((id: string) => {
+    const original = shapesRef.current.find((s) => s.id === id);
+    if (!original) return;
+    const newId = crypto.randomUUID();
+    const clone: ShapeData = {
+      ...JSON.parse(JSON.stringify(original)),
+      id: newId,
+      x_m: original.x_m + 0.5,
+      y_m: original.y_m + 0.5,
+      z_index: shapesRef.current.length,
+    };
+    recordHistory();
+    setShapes((prev) => [...prev, clone]);
+    setSelectedId(newId);
+    triggerSave();
+  }, [triggerSave, recordHistory]);
+
+  // Keep the action registry in sync — every callback assigned via this effect
+  // is reachable from the keyboard handler via actionsRef.current without TDZ.
+  useEffect(() => {
+    actionsRef.current.undo           = undo;
+    actionsRef.current.redo           = redo;
+    actionsRef.current.deleteShape    = deleteShape;
+    actionsRef.current.recordHistory  = recordHistory;
+    actionsRef.current.triggerSave    = triggerSave;
+    actionsRef.current.duplicateShape = duplicateShape;
+  }, [undo, redo, deleteShape, recordHistory, triggerSave, duplicateShape]);
+
+  // Centralised mode switch — resets transient draw/polygon state when leaving Draw mode.
+  const handleModeChange = useCallback((mode: InteractionMode) => {
+    setInteractionMode(mode);
+    if (mode !== "draw") {
+      setPendingPreset(null);
+      setTool("select");
+      setDrawStart(null);
+      setDrawCurrent(null);
+    }
+  }, []);
 
   // Selecting a preset arms draw mode — user then drags on canvas to place + size the shape.
   const addPreset = useCallback((preset: ShapePreset) => {
@@ -362,10 +808,10 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   const commitDraw = useCallback((start: { x: number; y: number }, end: { x: number; y: number }) => {
     if (!layout || !pendingPreset) return;
     const minM = 0.1; // minimum 10 cm in any dimension
-    const x1 = Math.min(start.x, end.x);
-    const y1 = Math.min(start.y, end.y);
-    const x2 = Math.max(start.x, end.x);
-    const y2 = Math.max(start.y, end.y);
+    const x1 = snap(Math.min(start.x, end.x));
+    const y1 = snap(Math.min(start.y, end.y));
+    const x2 = snap(Math.max(start.x, end.x));
+    const y2 = snap(Math.max(start.y, end.y));
     const w = Math.max(minM, x2 - x1);
     const h = Math.max(minM, y2 - y1);
     const cx = (x1 + x2) / 2;
@@ -378,6 +824,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       dashed: pendingPreset.dashed ?? false,
       extrude_m: pendingPreset.extrude_m,
       preset_id: pendingPreset.id,
+      plan_id: activePlanFilter,
     };
     let shape: ShapeData;
     if (pendingPreset.shapeType === "circle") {
@@ -387,6 +834,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     } else {
       shape = { ...base, shape_type: "rect", x_m: x1, y_m: y1, width_m: w, height_m: h, radius_m: null, points: null };
     }
+    recordHistory();
     setShapes(prev => [...prev, shape]);
     setSelectedId(id);
     setPendingPreset(null);
@@ -395,7 +843,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
     setTool("select");
     setInteractionMode("move");
     triggerSave();
-  }, [layout, pendingPreset, triggerSave]);
+  }, [layout, pendingPreset, triggerSave, recordHistory, activePlanFilter, snap]);
 
   // Zoom via scroll wheel
   const handleWheel = useCallback((e: any) => {
@@ -451,15 +899,18 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       z_index: shapesRef.current.length,
       dashed: false,
       extrude_m: 0.3,
-      preset_id: null,
+      // "curve-bed" preset id signals the renderer to apply tension (Wave 4A)
+      preset_id: polygonSmoothed ? "curve-bed" : null,
     };
+    recordHistory();
     setShapes(prev => [...prev, newShape]);
     setSelectedId(id);
     setPolyPoints([]);
     setPointerPos(null);
+    setPolygonSmoothed(false);
     setTool("select");
     triggerSave();
-  }, [tool, polyPoints, layout, triggerSave]);
+  }, [tool, polyPoints, layout, triggerSave, polygonSmoothed, recordHistory]);
 
   // Manual pan — mousedown on bare stage background starts it
   const handleStageMouseDown = useCallback((e: any) => {
@@ -472,10 +923,17 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       setDrawCurrent(pt);
       return;
     }
-    // Pan canvas only in rotate (view) mode; in move mode background click just deselects
+    // Pan canvas only in rotate (view) mode; in move mode background click starts marquee select.
     if (interactionMode === "rotate") {
       isPanningRef.current = true;
       panStartRef.current = { x: e.evt.clientX, y: e.evt.clientY };
+      return;
+    }
+    if (interactionMode === "move" && tool === "select") {
+      const pos = stageRef.current.getRelativePointerPosition();
+      if (pos) {
+        setMarquee({ x1: pos.x / BASE_PX, y1: pos.y / BASE_PX, x2: pos.x / BASE_PX, y2: pos.y / BASE_PX });
+      }
     }
   }, [tool, interactionMode]);
 
@@ -494,14 +952,48 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       const pos = stageRef.current?.getRelativePointerPosition();
       if (pos) setDrawCurrent({ x: pos.x / BASE_PX, y: pos.y / BASE_PX });
     }
-  }, [tool, drawStart]);
+    if (marquee) {
+      const pos = stageRef.current?.getRelativePointerPosition();
+      if (pos) setMarquee(prev => prev ? { ...prev, x2: pos.x / BASE_PX, y2: pos.y / BASE_PX } : prev);
+    }
+  }, [tool, drawStart, marquee]);
 
   const handleStageMouseUp = useCallback(() => {
     isPanningRef.current = false;
     if (tool === "draw" && drawStart && drawCurrent) {
       commitDraw(drawStart, drawCurrent);
     }
-  }, [tool, drawStart, drawCurrent, commitDraw]);
+    if (marquee) {
+      const x1 = Math.min(marquee.x1, marquee.x2);
+      const y1 = Math.min(marquee.y1, marquee.y2);
+      const x2 = Math.max(marquee.x1, marquee.x2);
+      const y2 = Math.max(marquee.y1, marquee.y2);
+      const minDim = 0.2;
+      if (x2 - x1 > minDim || y2 - y1 > minDim) {
+        const hits: string[] = [];
+        for (const s of shapesRef.current) {
+          const b = getShapeBounds(s);
+          if (!b) continue;
+          // Intersect test: any overlap with marquee.
+          if (b.maxX >= x1 && b.minX <= x2 && b.maxY >= y1 && b.minY <= y2) {
+            hits.push(s.id);
+          }
+        }
+        if (hits.length > 0) {
+          setSelectedId(hits[0]);
+          setExtraSelection(new Set(hits.slice(1)));
+        } else {
+          setSelectedId(null);
+          setExtraSelection(new Set());
+        }
+      } else {
+        // Treat as a plain click → deselect
+        setSelectedId(null);
+        setExtraSelection(new Set());
+      }
+      setMarquee(null);
+    }
+  }, [tool, drawStart, drawCurrent, commitDraw, marquee]);
 
   // Touch: single finger = pan, two fingers = pinch-zoom
   const handleTouchStart = useCallback((e: any) => {
@@ -582,10 +1074,25 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   // Shape renderer
   const renderShape = (shape: ShapeData) => {
     const isSel = shape.id === selectedId;
+    const isExtra = extraSelection.has(shape.id);
+    const dimmedByFilter = activePlanFilter !== null && shape.plan_id !== activePlanFilter;
     const shapeClick = (e: any) => {
       if (interactionMode === "rotate") return; // no selection while navigating
+      if (dimmedByFilter) return; // suppress selection while a different plan is filtered
       e.cancelBubble = true;
+      const shiftHeld = e.evt?.shiftKey;
+      if (shiftHeld) {
+        // Shift+click toggles secondary selection without disturbing the primary.
+        setExtraSelection((prev) => {
+          const next = new Set(prev);
+          if (next.has(shape.id) || shape.id === selectedId) next.delete(shape.id);
+          else next.add(shape.id);
+          return next;
+        });
+        return;
+      }
       setSelectedId(shape.id);
+      setExtraSelection(new Set());
     };
 
     const onTransformEnd = (e: any) => {
@@ -594,35 +1101,86 @@ export default function GardenLayoutEditor({ homeId }: Props) {
       node.scaleX(1);
       node.scaleY(1);
       if (shape.shape_type === "circle") {
-        const r = Math.max(0.05, (shape.radius_m ?? 0.5) * Math.max(sx, sy));
+        const r = Math.max(0.05, snap((shape.radius_m ?? 0.5) * Math.max(sx, sy)));
         node.radius(r * BASE_PX);
-        updateShape(shape.id, { radius_m: r, rotation: node.rotation(), x_m: node.x() / BASE_PX, y_m: node.y() / BASE_PX });
+        updateShape(shape.id, { radius_m: r, rotation: node.rotation(), x_m: snap(node.x() / BASE_PX), y_m: snap(node.y() / BASE_PX) });
       } else if (shape.shape_type === "ellipse") {
-        const rx = Math.max(0.05, (shape.width_m ?? 2) / 2 * sx);
-        const ry = Math.max(0.05, (shape.height_m ?? 1) / 2 * sy);
+        const rx = Math.max(0.05, snap((shape.width_m ?? 2) / 2 * sx));
+        const ry = Math.max(0.05, snap((shape.height_m ?? 1) / 2 * sy));
         node.radiusX(rx * BASE_PX);
         node.radiusY(ry * BASE_PX);
-        updateShape(shape.id, { width_m: rx * 2, height_m: ry * 2, rotation: node.rotation(), x_m: node.x() / BASE_PX, y_m: node.y() / BASE_PX });
+        updateShape(shape.id, { width_m: rx * 2, height_m: ry * 2, rotation: node.rotation(), x_m: snap(node.x() / BASE_PX), y_m: snap(node.y() / BASE_PX) });
       } else {
-        const w = Math.max(0.1, (shape.width_m ?? 1) * sx);
-        const h = Math.max(0.1, (shape.height_m ?? 1) * sy);
+        const w = Math.max(0.1, snap((shape.width_m ?? 1) * sx));
+        const h = Math.max(0.1, snap((shape.height_m ?? 1) * sy));
         node.width(w * BASE_PX);
         node.height(h * BASE_PX);
-        updateShape(shape.id, { width_m: w, height_m: h, rotation: node.rotation(), x_m: node.x() / BASE_PX, y_m: node.y() / BASE_PX });
+        updateShape(shape.id, { width_m: w, height_m: h, rotation: node.rotation(), x_m: snap(node.x() / BASE_PX), y_m: snap(node.y() / BASE_PX) });
       }
+    };
+
+    const onShapePointerDown = () => {
+      if (interactionMode === "move" && shape.area_id) startLongPress(shape);
+    };
+    const onShapePointerUp = () => cancelLongPress();
+    const onShapeDragStart = () => cancelLongPress();
+    const onShapeContextMenu = (e: any) => {
+      if (interactionMode === "rotate" || dimmedByFilter) return;
+      e.evt.preventDefault();
+      e.cancelBubble = true;
+      setSelectedId(shape.id);
+      setExtraSelection(new Set());
+      setContextMenu({ x: e.evt.clientX, y: e.evt.clientY, shape });
     };
 
     const sharedDrag = {
       draggable: interactionMode === "move" && tool === "select",
-      onDragEnd: (e: any) => updateShape(shape.id, { x_m: e.target.x() / BASE_PX, y_m: e.target.y() / BASE_PX }),
+      onDragStart: onShapeDragStart,
+      onDragMove: (e: any) => {
+        // Build a hypothetical shape at the current drag position and compute guides.
+        const newX = e.target.x() / BASE_PX;
+        const newY = e.target.y() / BASE_PX;
+        const draggedAtNew: ShapeData = (() => {
+          if (shape.shape_type === "polygon" && shape.points) {
+            return { ...shape, x_m: newX, y_m: newY };
+          }
+          return { ...shape, x_m: newX, y_m: newY };
+        })();
+        const draggedBounds = getShapeBounds(draggedAtNew);
+        if (!draggedBounds) { setDragGuides([]); return; }
+        const others = shapesRef.current.filter((s) => s.id !== shape.id);
+        setDragGuides(computeAlignmentGuides(draggedBounds, others));
+      },
+      onDragEnd: (e: any) => {
+        setDragGuides([]);
+        updateShape(shape.id, { x_m: snap(e.target.x() / BASE_PX), y_m: snap(e.target.y() / BASE_PX) });
+      },
       onTransformEnd,
+      onMouseDown: onShapePointerDown,
+      onTouchStart: onShapePointerDown,
+      onMouseUp: onShapePointerUp,
+      onTouchEnd: onShapePointerUp,
+      onMouseLeave: onShapePointerUp,
+      onContextMenu: onShapeContextMenu,
     };
 
     // Dashed shapes (boundaries, canopies) get a very light fill so interior remains visible
-    const fill = shape.dashed ? shape.color + "22" : shape.color + "bb";
-    const stroke = shape.color;
-    const sw = isSel ? 2.5 : 1.5;
-    const dashProp = shape.dashed ? [8, 5] : undefined;
+    const fillAlpha = dimmedByFilter ? "33" : shape.dashed ? "22" : "bb";
+    const strokeAlphaMul = dimmedByFilter ? 0.35 : 1;
+    const fill = shape.color + fillAlpha;
+    const stroke = isExtra ? "#3b82f6" : shape.color + (strokeAlphaMul < 1 ? "55" : "");
+    const sw = isSel ? 2.5 : isExtra ? 2.5 : 1.5;
+    const dashProp = shape.dashed ? [8, 5] : isExtra ? [6, 4] : undefined;
+
+    // Soft drop shadow (Wave 2D) — solid shapes get a subtle lift; selected shapes get a stronger one.
+    // Dashed boundaries / canopies stay flat so they read as outlines.
+    const useShadow = !shape.dashed && !dimmedByFilter;
+    const shadowProps = useShadow ? {
+      shadowColor: "rgba(60, 40, 20, 0.35)",
+      shadowBlur: isSel ? 8 : 4,
+      shadowOffsetY: isSel ? 3 : 2,
+      shadowOpacity: 1,
+    } : {};
 
     let node: React.ReactNode = null;
     let labelX = 0, labelY = 0;
@@ -644,6 +1202,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           rotation={shape.rotation}
           cornerRadius={3}
           dash={dashProp}
+          {...shadowProps}
           onClick={shapeClick}
           onTap={shapeClick}
           {...sharedDrag}
@@ -664,6 +1223,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           strokeWidth={sw}
           rotation={shape.rotation}
           dash={dashProp}
+          {...shadowProps}
           onClick={shapeClick}
           onTap={shapeClick}
           {...sharedDrag}
@@ -686,6 +1246,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           strokeWidth={sw}
           rotation={shape.rotation}
           dash={dashProp}
+          {...shadowProps}
           onClick={shapeClick}
           onTap={shapeClick}
           {...sharedDrag}
@@ -697,6 +1258,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         (shape.y_m + p.y) * BASE_PX,
       ]);
       if (pts.length < 4) return null;
+      const tension = shape.preset_id === "curve-bed" ? 0.5 : 0;
       node = (
         <Line
           id={shape.id}
@@ -704,11 +1266,13 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           y={0}
           points={pts}
           closed
+          tension={tension}
           fill={fill}
           stroke={stroke}
           strokeWidth={sw}
           rotation={shape.rotation}
           dash={dashProp}
+          {...shadowProps}
           draggable={interactionMode === "move" && tool === "select"}
           onClick={shapeClick}
           onTap={shapeClick}
@@ -734,9 +1298,284 @@ export default function GardenLayoutEditor({ homeId }: Props) {
 
     if (!node) return null;
 
+    // Per-preset decoration overlay (Wave 2B) — wood frames, ripples, stone pattern, planks…
+    const decorations = !dimmedByFilter ? getShapeDecorations(shape, BASE_PX) : null;
+
+    // Always-visible dimension label (Wave 6A) — small text under the shape at sufficient zoom.
+    let dimensionText: string | null = null;
+    let dimensionX = 0, dimensionY = 0;
+    if (zoom >= 0.6 && !shape.dashed) {
+      const fmt = (n: number) => (n >= 10 ? n.toFixed(0) : n.toFixed(1));
+      if (shape.shape_type === "rect" || shape.shape_type === "path" || shape.shape_type === "ellipse") {
+        const w = shape.width_m ?? 0;
+        const h = shape.height_m ?? 0;
+        if (w > 0 && h > 0) {
+          dimensionText = `${fmt(w)} × ${fmt(h)} m`;
+          if (shape.shape_type === "rect" || shape.shape_type === "path") {
+            dimensionX = shape.x_m * BASE_PX + (w * BASE_PX) / 2;
+            dimensionY = shape.y_m * BASE_PX + h * BASE_PX + 4;
+          } else {
+            dimensionX = shape.x_m * BASE_PX;
+            dimensionY = shape.y_m * BASE_PX + (h / 2) * BASE_PX + 4;
+          }
+        }
+      } else if (shape.shape_type === "circle") {
+        const r = shape.radius_m ?? 0;
+        if (r > 0) {
+          dimensionText = `r ${fmt(r)} m`;
+          dimensionX = shape.x_m * BASE_PX;
+          dimensionY = shape.y_m * BASE_PX + r * BASE_PX + 4;
+        }
+      }
+    }
+
+    // ── Live-state overlays (Wave 7): plant tokens, task indicator, ailment ring ──
+    const linkedPlants = shape.area_id ? (areaPlants[shape.area_id] ?? []) : [];
+    const taskCounts = shape.area_id ? areaTaskCounts[shape.area_id] : undefined;
+    const ailment = shape.area_id ? areaAilmentSeverity[shape.area_id] : undefined;
+
+    // Atmospheric overlay tint colours (Wave 11A + pH/Moisture follow-up)
+    let overlayTint: string | null = null;
+    if (showFrostOverlay && forecast.length > 0) {
+      const worstMin = Math.min(...forecast.slice(0, 7).map((d) => d.temp_min_c));
+      const risk = classifyFrostRisk(worstMin);
+      overlayTint = risk === "Severe" ? "#dc262640"
+        : risk === "Moderate" ? "#f9731640"
+        : risk === "Mild" ? "#fbbf2440"
+        : "#94a3b833";
+    } else if (showWindOverlay) {
+      const expo = computeWindExposure(shape, shapes);
+      overlayTint = expo === "Exposed" ? "#ef444440"
+        : expo === "Partly Sheltered" ? "#fbbf2440"
+        : "#10b98140";
+    } else if (showPhOverlay && shape.area_id) {
+      const phValue = areaPh[shape.area_id];
+      if (phValue != null) {
+        // Acidic (red) → neutral (grey) → alkaline (blue)
+        if (phValue < 5.5) overlayTint = "#dc262640";
+        else if (phValue < 6.5) overlayTint = "#fbbf2440";
+        else if (phValue <= 7.5) overlayTint = "#94a3b833";
+        else if (phValue <= 8.0) overlayTint = "#7dd3fc40";
+        else overlayTint = "#3b82f640";
+      }
+    } else if (showMoistureOverlay && shape.area_id) {
+      const m = areaMoisture[shape.area_id];
+      if (m != null) {
+        // 0-30 = dry (amber), 30-60 = ideal (green), 60+ = wet (blue)
+        if (m < 30) overlayTint = "#fbbf2440";
+        else if (m < 60) overlayTint = "#10b98140";
+        else overlayTint = "#3b82f640";
+      }
+    }
+
+    // Sun-fit summary (Wave 8C) — only when overlay/results are available
+    let sunFitSummary: "fit" | "mixed" | "mismatch" | "unknown" = "unknown";
+    if (linkedPlants.length > 0 && sunAnalysisResults) {
+      const shapeSun = sunAnalysisResults.find((r) => r.shapeId === shape.id);
+      if (shapeSun) {
+        const fits = linkedPlants.map((p) => getPlantSunFit(parsePlantSunPreference(p.sunlight), shapeSun.classification));
+        sunFitSummary = getShapeFitSummary(fits);
+      }
+    }
+
+    // Bounding box for tokens — derive from shape geometry in metres
+    let bboxX = shape.x_m, bboxY = shape.y_m, bboxW = 0, bboxH = 0;
+    if (shape.shape_type === "rect" || shape.shape_type === "path") {
+      bboxW = shape.width_m ?? 1; bboxH = shape.height_m ?? 1;
+    } else if (shape.shape_type === "circle") {
+      const r = shape.radius_m ?? 0.5;
+      bboxX = shape.x_m - r; bboxY = shape.y_m - r; bboxW = 2 * r; bboxH = 2 * r;
+    } else if (shape.shape_type === "ellipse") {
+      const w = shape.width_m ?? 2; const h = shape.height_m ?? 1;
+      bboxX = shape.x_m - w / 2; bboxY = shape.y_m - h / 2; bboxW = w; bboxH = h;
+    } else if (shape.shape_type === "polygon" && shape.points && shape.points.length > 0) {
+      const xs = shape.points.map(p => p.x); const ys = shape.points.map(p => p.y);
+      const minX = Math.min(...xs), maxX = Math.max(...xs);
+      const minY = Math.min(...ys), maxY = Math.max(...ys);
+      bboxX = shape.x_m + minX; bboxY = shape.y_m + minY;
+      bboxW = maxX - minX; bboxH = maxY - minY;
+    }
+
+    const showTokens = linkedPlants.length > 0 && bboxW > 0.3 && bboxH > 0.3 && !shape.dashed;
+    const tokensToShow = Math.min(linkedPlants.length, MAX_VISIBLE_TOKENS);
+    const tokenGrid = showTokens ? computeTokenGrid(tokensToShow, bboxW, bboxH) : null;
+
     return (
       <React.Fragment key={shape.id}>
+        {/* Ailment ring — rendered under the shape so it appears as an outline halo */}
+        {ailment && (shape.shape_type === "rect" || shape.shape_type === "path") && (
+          <Rect
+            x={shape.x_m * BASE_PX - 4}
+            y={shape.y_m * BASE_PX - 4}
+            width={(shape.width_m ?? 1) * BASE_PX + 8}
+            height={(shape.height_m ?? 1) * BASE_PX + 8}
+            stroke={ailment.severity === "severe" ? "#ef4444" : ailment.severity === "moderate" ? "#f97316" : "#eab308"}
+            strokeWidth={3}
+            cornerRadius={5}
+            dash={[6, 4]}
+            listening={false}
+          />
+        )}
+        {ailment && shape.shape_type === "circle" && (
+          <Circle
+            x={shape.x_m * BASE_PX}
+            y={shape.y_m * BASE_PX}
+            radius={(shape.radius_m ?? 0.5) * BASE_PX + 4}
+            stroke={ailment.severity === "severe" ? "#ef4444" : ailment.severity === "moderate" ? "#f97316" : "#eab308"}
+            strokeWidth={3}
+            dash={[6, 4]}
+            listening={false}
+          />
+        )}
+        {ailment && shape.shape_type === "ellipse" && (
+          <Ellipse
+            x={shape.x_m * BASE_PX}
+            y={shape.y_m * BASE_PX}
+            radiusX={(shape.width_m ?? 2) / 2 * BASE_PX + 4}
+            radiusY={(shape.height_m ?? 1) / 2 * BASE_PX + 4}
+            stroke={ailment.severity === "severe" ? "#ef4444" : ailment.severity === "moderate" ? "#f97316" : "#eab308"}
+            strokeWidth={3}
+            dash={[6, 4]}
+            listening={false}
+          />
+        )}
+
         {node}
+
+        {/* Material-aware decorations (Wave 2B) */}
+        {decorations}
+
+        {/* Frost / wind tint overlay (Wave 11A) — drawn above shape but below tokens */}
+        {overlayTint && bboxW > 0 && bboxH > 0 && (
+          <Rect
+            x={bboxX * BASE_PX}
+            y={bboxY * BASE_PX}
+            width={bboxW * BASE_PX}
+            height={bboxH * BASE_PX}
+            fill={overlayTint}
+            cornerRadius={4}
+            listening={false}
+          />
+        )}
+
+        {/* Plant tokens overlay — draggable & tap-to-resize when the parent shape is selected */}
+        {showTokens && tokenGrid && linkedPlants.slice(0, MAX_VISIBLE_TOKENS).map((plant, i) => {
+          const auto = tokenGrid.positions[i];
+          if (!auto) return null;
+          // Stored position takes precedence over auto-grid layout (both in metres in shape-local coords).
+          const px = plant.display_x_m ?? (bboxX + auto.x);
+          const py = plant.display_y_m ?? (bboxY + auto.y);
+          const customDiameter = plant.display_size_m;
+          const diameterM = customDiameter ?? tokenGrid.diameterM;
+          const cx = px * BASE_PX;
+          const cy = py * BASE_PX;
+          const r = diameterM * BASE_PX / 2;
+          const color = getPlantTokenColor(plant);
+          const initial = getPlantInitial(plant);
+          const interactive = isSel && tool === "select" && interactionMode === "move";
+
+          const handleTokenDragEnd = (e: any) => {
+            const newCx = e.target.x();
+            const newCy = e.target.y();
+            // Clamp to shape's bbox (inset slightly so tokens don't fall off the edge).
+            const margin = diameterM / 2;
+            const clampedX = Math.max(bboxX + margin, Math.min(bboxX + bboxW - margin, newCx / BASE_PX));
+            const clampedY = Math.max(bboxY + margin, Math.min(bboxY + bboxH - margin, newCy / BASE_PX));
+            e.target.x(clampedX * BASE_PX);
+            e.target.y(clampedY * BASE_PX);
+            updateTokenPosition(plant.id, clampedX, clampedY);
+          };
+
+          const handleTokenClick = (e: any) => {
+            e.cancelBubble = true;
+            if (!shape.area_id) return;
+            setTokenResize({ itemId: plant.id, areaId: shape.area_id, plantName: plant.nickname ?? plant.plant_name, size: diameterM, height: plant.display_height_m ?? 0 });
+          };
+
+          return (
+            <React.Fragment key={`tk-${plant.id}`}>
+              <Circle
+                x={cx} y={cy} radius={r}
+                fill={color}
+                stroke="#ffffff"
+                strokeWidth={1.5}
+                shadowColor="rgba(0,0,0,0.25)"
+                shadowBlur={3}
+                shadowOffsetY={1}
+                listening={interactive}
+                draggable={interactive}
+                onClick={interactive ? handleTokenClick : undefined}
+                onTap={interactive ? handleTokenClick : undefined}
+                onDragEnd={handleTokenDragEnd}
+              />
+              {r >= 8 && (
+                <Text
+                  x={cx - r} y={cy - r * 0.55}
+                  text={initial}
+                  width={r * 2}
+                  align="center"
+                  fontSize={Math.max(8, r * 1.05)}
+                  fontStyle="bold"
+                  fill="#ffffff"
+                  listening={false}
+                />
+              )}
+            </React.Fragment>
+          );
+        })}
+
+        {/* +N more pill when there are more plants than we can show */}
+        {showTokens && linkedPlants.length > MAX_VISIBLE_TOKENS && (
+          <Text
+            x={(bboxX + bboxW) * BASE_PX - 28}
+            y={(bboxY + bboxH) * BASE_PX - 14}
+            text={`+${linkedPlants.length - MAX_VISIBLE_TOKENS}`}
+            fontSize={10}
+            fontStyle="bold"
+            fill="rgba(0,0,0,0.65)"
+            listening={false}
+          />
+        )}
+
+        {/* Task indicator — single dot in upper-right corner */}
+        {taskCounts && (taskCounts.overdue > 0 || taskCounts.today > 0) && (
+          <Circle
+            x={(bboxX + bboxW) * BASE_PX - 6}
+            y={bboxY * BASE_PX + 6}
+            radius={6}
+            fill={taskCounts.overdue > 0 ? "#ef4444" : "#f59e0b"}
+            stroke="#ffffff"
+            strokeWidth={2}
+            listening={false}
+          />
+        )}
+
+        {/* Sun-fit badge — small glyph in upper-left corner of linked beds (Wave 8C) */}
+        {sunFitSummary !== "unknown" && (
+          <>
+            <Circle
+              x={bboxX * BASE_PX + 7}
+              y={bboxY * BASE_PX + 7}
+              radius={7}
+              fill={sunFitSummary === "fit" ? "#16a34a" : sunFitSummary === "mixed" ? "#f59e0b" : "#dc2626"}
+              stroke="#ffffff"
+              strokeWidth={1.5}
+              listening={false}
+            />
+            <Text
+              x={bboxX * BASE_PX + 1.5}
+              y={bboxY * BASE_PX + 2}
+              text={sunFitSummary === "fit" ? "✓" : sunFitSummary === "mixed" ? "~" : "!"}
+              width={11}
+              align="center"
+              fontSize={9}
+              fontStyle="bold"
+              fill="#ffffff"
+              listening={false}
+            />
+          </>
+        )}
+
         {shape.label && (
           <Text
             x={labelX}
@@ -747,6 +1586,19 @@ export default function GardenLayoutEditor({ homeId }: Props) {
             fill="rgba(0,0,0,0.7)"
             align="center"
             offsetX={shape.label.length * 3.2}
+            listening={false}
+          />
+        )}
+        {dimensionText && (
+          <Text
+            x={dimensionX}
+            y={dimensionY}
+            text={dimensionText}
+            fontSize={9}
+            fontStyle="bold"
+            fill="rgba(0,0,0,0.45)"
+            align="center"
+            offsetX={dimensionText.length * 2.6}
             listening={false}
           />
         )}
@@ -773,173 +1625,50 @@ export default function GardenLayoutEditor({ homeId }: Props) {
   const selectedShape = shapes.find(s => s.id === selectedId) ?? null;
 
   return (
-    <div className="h-full flex flex-col">
-      {/* Toolbar */}
-      <div className="flex items-center gap-2 px-4 py-2.5 bg-white border-b border-rhozly-outline/20 shrink-0 overflow-x-auto">
-        <button
-          data-testid="back-to-layouts-btn"
-          onClick={() => navigate("/garden-layout")}
-          className="p-2 rounded-xl text-rhozly-on-surface/50 hover:text-rhozly-on-surface hover:bg-rhozly-surface transition-colors"
-        >
-          <ArrowLeft size={18} />
-        </button>
+    <div className="h-full flex flex-col relative">
+      <GardenEditorToolbar
+        layout={layout}
+        homeId={homeId}
+        saveState={saveState}
+        canEdit={canEdit}
+        isMobile={isMobile}
+        interactionMode={interactionMode}
+        onModeChange={handleModeChange}
+        viewMode={viewMode}
+        setViewMode={setViewMode}
+        homeLatLng={homeLatLng}
+        setHomeLatLng={setHomeLatLng}
+        sunDate={sunDate}
+        setSunDate={setSunDate}
+        sunMinutes={sunMinutes}
+        setSunMinutes={setSunMinutes}
+        isPlaying={isPlaying}
+        setIsPlaying={setIsPlaying}
+        showLuxOverlay={showLuxOverlay}
+        setShowLuxOverlay={setShowLuxOverlay}
+        showSunOverlay={showSunOverlay}
+        setShowSunOverlay={setShowSunOverlay}
+        showCompanionsOverlay={showCompanionsOverlay}
+        setShowCompanionsOverlay={setShowCompanionsOverlay}
+        showFrostOverlay={showFrostOverlay}
+        setShowFrostOverlay={setShowFrostOverlay}
+        showWindOverlay={showWindOverlay}
+        setShowWindOverlay={setShowWindOverlay}
+        showPhOverlay={showPhOverlay}
+        setShowPhOverlay={setShowPhOverlay}
+        showMoistureOverlay={showMoistureOverlay}
+        setShowMoistureOverlay={setShowMoistureOverlay}
+        adjustZoom={adjustZoom}
+        onBack={() => navigate("/garden-layout")}
+        onOpenSettings={() => { setShowSettings(true); setCompassReadState("idle"); }}
+        onUndo={undo}
+        onRedo={redo}
+        canUndo={historyRef.current.past.length > 0}
+        canRedo={historyRef.current.future.length > 0}
+        snapToGrid={snapToGrid}
+        setSnapToGrid={setSnapToGrid}
+      />
 
-        <div className="flex-1 min-w-0">
-          <p className="font-black text-rhozly-on-surface text-sm truncate">{layout.name}</p>
-          <p className="text-[10px] font-bold text-rhozly-on-surface/40">{layout.canvas_w_m}m × {layout.canvas_h_m}m</p>
-        </div>
-
-        {/* Save state indicator */}
-        <div className="flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest shrink-0">
-          {saveState === "saving" && (
-            <><Loader2 size={12} className="animate-spin text-rhozly-on-surface/40" /><span className="text-rhozly-on-surface/40 hidden sm:inline">Saving…</span></>
-          )}
-          {saveState === "saved" && (
-            <><CheckCircle2 size={12} className="text-emerald-500" /><span className="text-emerald-500 hidden sm:inline">Saved</span></>
-          )}
-          {saveState === "unsaved" && (
-            <span className="text-amber-500">Unsaved</span>
-          )}
-        </div>
-
-        {/* Interaction mode — Draw / Move / Rotate */}
-        <div className="flex items-center gap-0.5 bg-rhozly-surface rounded-xl p-0.5">
-          {([
-            ...(canEdit ? [{ id: "draw",   label: "Draw",   Icon: Pencil }] : []),
-            { id: "move",   label: "Move",   Icon: Hand   },
-            { id: "rotate", label: "View",   Icon: Eye    },
-          ] as { id: "draw" | "move" | "rotate"; label: string; Icon: any }[]).map(({ id, label, Icon }) => (
-            <button
-              key={id}
-              data-testid={`mode-${id}-btn`}
-              onClick={() => {
-                setInteractionMode(id);
-                if (id !== "draw") { setPendingPreset(null); setTool("select"); setDrawStart(null); setDrawCurrent(null); }
-                if (id === "draw" && !pendingPreset) { /* wait for preset selection */ }
-              }}
-              title={label}
-              className={`flex items-center gap-1 px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${interactionMode === id ? "bg-white text-rhozly-on-surface shadow-sm" : "text-rhozly-on-surface/50 hover:text-rhozly-on-surface"}`}
-            >
-              <Icon size={13} />
-              <span className="hidden sm:inline">{label}</span>
-            </button>
-          ))}
-        </div>
-
-        {/* 2D / 3D pill toggle */}
-        <div className="flex items-center gap-0.5 bg-rhozly-surface rounded-xl p-0.5">
-          <button
-            data-testid="view-2d-btn"
-            onClick={() => setViewMode("2d")}
-            className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${viewMode === "2d" ? "bg-white text-rhozly-on-surface shadow-sm" : "text-rhozly-on-surface/50"}`}
-          >
-            2D
-          </button>
-          <button
-            data-testid="view-3d-btn"
-            onClick={() => setViewMode("3d")}
-            className={`px-2.5 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${viewMode === "3d" ? "bg-white text-rhozly-on-surface shadow-sm" : "text-rhozly-on-surface/50"}`}
-          >
-            3D
-          </button>
-        </div>
-
-        {/* Zoom controls (2D only) */}
-        {viewMode === "2d" && (
-          <div className="flex items-center gap-0.5">
-            <button
-              data-testid="zoom-out-btn"
-              onClick={() => adjustZoom(-0.15)}
-              className="p-1.5 rounded-lg text-rhozly-on-surface/50 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
-            >
-              <ZoomOut size={16} />
-            </button>
-            <button
-              data-testid="zoom-in-btn"
-              onClick={() => adjustZoom(0.15)}
-              className="p-1.5 rounded-lg text-rhozly-on-surface/50 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
-            >
-              <ZoomIn size={16} />
-            </button>
-          </div>
-        )}
-
-        {/* Sun time controls — 3D only */}
-        {viewMode === "3d" && (
-          homeLatLng ? (
-            <div className="flex items-center gap-1.5 shrink-0">
-              <input
-                data-testid="sun-date-input"
-                type="date"
-                value={sunDate}
-                onChange={e => { setSunDate(e.target.value); setIsPlaying(false); }}
-                className="bg-rhozly-surface rounded-lg px-2 py-1 text-[10px] font-black text-rhozly-on-surface border border-rhozly-outline/20 outline-none focus:border-rhozly-primary"
-              />
-              <input
-                data-testid="sun-time-slider"
-                type="range"
-                min={0}
-                max={1440}
-                step={5}
-                value={sunMinutes}
-                onChange={e => { setSunMinutes(Number(e.target.value)); setIsPlaying(false); }}
-                className="w-24 accent-rhozly-primary"
-              />
-              <span className="text-[10px] font-black text-rhozly-on-surface/70 w-10 shrink-0 tabular-nums">
-                {String(Math.floor(sunMinutes / 60)).padStart(2, "0")}:{String(sunMinutes % 60).padStart(2, "0")}
-              </span>
-              <button
-                data-testid="sun-play-btn"
-                onClick={() => setIsPlaying(p => !p)}
-                title={isPlaying ? "Pause sun animation" : "Play sun animation"}
-                className="p-1.5 rounded-lg text-rhozly-on-surface/50 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
-              >
-                {isPlaying ? <Pause size={14} /> : <Play size={14} />}
-              </button>
-              <button
-                data-testid="toggle-lux-btn"
-                onClick={() => setShowLuxOverlay(v => !v)}
-                className={`px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${showLuxOverlay ? "bg-amber-100 text-amber-700" : "text-rhozly-on-surface/50 hover:bg-rhozly-surface"}`}
-              >
-                Lux
-              </button>
-              <button
-                data-testid="toggle-sun-btn"
-                onClick={() => setShowSunOverlay(v => !v)}
-                className={`px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition-colors ${showSunOverlay ? "bg-yellow-100 text-yellow-700" : "text-rhozly-on-surface/50 hover:bg-rhozly-surface"}`}
-              >
-                Sun
-              </button>
-            </div>
-          ) : (
-            <button
-              data-testid="sun-location-prompt"
-              onClick={() => navigator.geolocation.getCurrentPosition(
-                pos => {
-                  const lat = pos.coords.latitude;
-                  const lng = pos.coords.longitude;
-                  setHomeLatLng({ lat, lng });
-                  supabase.from("homes").update({ lat, lng }).eq("id", homeId);
-                },
-                () => {}
-              )}
-              className="text-[10px] font-black text-amber-500 hover:text-amber-600 transition-colors shrink-0"
-              title="Sun simulation needs your location"
-            >
-              ☀ Allow location for sun
-            </button>
-          )
-        )}
-
-        {/* Canvas settings */}
-        <button
-          data-testid="canvas-settings-btn"
-          onClick={() => { setShowSettings(true); setCompassReadState("idle"); }}
-          className="p-1.5 rounded-xl text-rhozly-on-surface/50 hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
-        >
-          <Settings size={16} />
-        </button>
-      </div>
 
       {/* Editor body */}
       <div className={`flex-1 flex overflow-hidden ${isMobile ? "flex-col" : "flex-row"}`}>
@@ -949,8 +1678,10 @@ export default function GardenLayoutEditor({ homeId }: Props) {
             tool={tool}
             viewMode={viewMode}
             pendingPresetId={pendingPreset?.id ?? null}
+            curveMode={polygonSmoothed}
             onAddPreset={addPreset}
-            onStartPolygon={() => { setTool("polygon"); setPolyPoints([]); setSelectedId(null); }}
+            onStartPolygon={() => { setTool("polygon"); setPolyPoints([]); setSelectedId(null); setPolygonSmoothed(false); }}
+            onStartCurve={() => { setTool("polygon"); setPolyPoints([]); setSelectedId(null); setPolygonSmoothed(true); }}
             isMobile={false}
           />
         )}
@@ -978,6 +1709,14 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               sunAnalysisResults={sunAnalysisResults}
               showSunOverlay={showSunOverlay}
               sunDateObj={sunDateObj}
+              selectedTokenId={selectedTokenId}
+              onTokenSelect={(itemId) => {
+                // Single click just attaches the transform gizmo. The size /
+                // height popup opens via the separate "Edit details" button
+                // shown in the 3D overlay when a token is selected.
+                setSelectedTokenId(itemId);
+              }}
+              onTokenMove={updateTokenPosition3D}
             />
           )}
 
@@ -1016,6 +1755,54 @@ export default function GardenLayoutEditor({ homeId }: Props) {
 
               <Layer>
                 {shapes.map(renderShape)}
+
+                {/* Marquee drag-select rectangle */}
+                {marquee && (
+                  <Rect
+                    x={Math.min(marquee.x1, marquee.x2) * BASE_PX}
+                    y={Math.min(marquee.y1, marquee.y2) * BASE_PX}
+                    width={Math.abs(marquee.x2 - marquee.x1) * BASE_PX}
+                    height={Math.abs(marquee.y2 - marquee.y1) * BASE_PX}
+                    fill="rgba(59, 130, 246, 0.08)"
+                    stroke="#3b82f6"
+                    strokeWidth={1}
+                    dash={[5, 3]}
+                    listening={false}
+                  />
+                )}
+
+                {/* Smart alignment guides while dragging */}
+                {dragGuides.map((g, i) => g.axis === "x" ? (
+                  <Line
+                    key={`guide-x-${i}`}
+                    points={[g.position * BASE_PX, 0, g.position * BASE_PX, (layout.canvas_h_m + 4) * BASE_PX]}
+                    stroke="#ec4899"
+                    strokeWidth={1}
+                    dash={[4, 3]}
+                    listening={false}
+                  />
+                ) : (
+                  <Line
+                    key={`guide-y-${i}`}
+                    points={[0, g.position * BASE_PX, (layout.canvas_w_m + 4) * BASE_PX, g.position * BASE_PX]}
+                    stroke="#ec4899"
+                    strokeWidth={1}
+                    dash={[4, 3]}
+                    listening={false}
+                  />
+                ))}
+
+                {/* Companion overlay — adjacency lines between shapes with plants */}
+                {showCompanionsOverlay && companionLines.map((c, i) => (
+                  <Line
+                    key={`cmp-${i}`}
+                    points={[c.from.x * BASE_PX, c.from.y * BASE_PX, c.to.x * BASE_PX, c.to.y * BASE_PX]}
+                    stroke={c.relation === "Beneficial" ? "#16a34a" : "#ef4444"}
+                    strokeWidth={2.5}
+                    dash={[6, 4]}
+                    listening={false}
+                  />
+                ))}
 
                 {/* Draw-mode ghost — shows shape size as user drags */}
                 {tool === "draw" && drawStart && drawCurrent && pendingPreset && (() => {
@@ -1085,17 +1872,137 @@ export default function GardenLayoutEditor({ homeId }: Props) {
             </Stage>
           </div>
 
+          {/* 3D selected-token control bar — only visible when a plant token is selected in 3D mode */}
+          {viewMode === "3d" && selectedTokenId && (() => {
+            const selectedPlant = Object.values(areaPlants).flat().find((p) => p.id === selectedTokenId);
+            if (!selectedPlant) return null;
+            let areaId: string | null = null;
+            for (const [aid, list] of Object.entries(areaPlants)) {
+              if (list.some(p => p.id === selectedTokenId)) { areaId = aid; break; }
+            }
+            return (
+              <div
+                data-testid="token3d-control-bar"
+                className="absolute top-3 left-1/2 -translate-x-1/2 z-20 flex items-center gap-2 bg-white/95 backdrop-blur-sm rounded-2xl shadow-lg border border-rhozly-outline/15 px-3 py-1.5 animate-in fade-in slide-in-from-top-2 duration-200"
+              >
+                <div className="min-w-0 max-w-[180px]">
+                  <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">Editing token</p>
+                  <p className="text-xs font-black text-rhozly-on-surface truncate">{selectedPlant.nickname ?? selectedPlant.plant_name}</p>
+                </div>
+                <button
+                  data-testid="token3d-edit-btn"
+                  onClick={() => {
+                    if (!areaId) return;
+                    setTokenResize({
+                      itemId: selectedPlant.id,
+                      areaId,
+                      plantName: selectedPlant.nickname ?? selectedPlant.plant_name,
+                      size: selectedPlant.display_size_m ?? 0.3,
+                      height: selectedPlant.display_height_m ?? 0,
+                    });
+                  }}
+                  className="min-h-[36px] px-3 rounded-xl bg-rhozly-primary text-white text-[11px] font-black uppercase tracking-widest"
+                >
+                  Size / Height
+                </button>
+                <button
+                  data-testid="token3d-deselect-btn"
+                  onClick={() => setSelectedTokenId(null)}
+                  aria-label="Done"
+                  className="min-h-[36px] min-w-[36px] flex items-center justify-center rounded-xl text-rhozly-on-surface/50 hover:bg-rhozly-surface"
+                >
+                  <X size={16} />
+                </button>
+              </div>
+            );
+          })()}
+
+          {/* Plan filter chip — floating top-left of canvas */}
+          <div className="absolute top-3 left-3 z-20" data-testid="canvas-plan-filter">
+            <PlanFilterChip
+              homeId={homeId}
+              value={activePlanFilter}
+              onChange={setActivePlanFilter}
+            />
+          </div>
+
+          {/* Microclimate + Zones + Templates launchers — floating top-right of canvas */}
+          {!isMobile && (
+            <div className="absolute top-3 right-3 z-20 flex items-center gap-2">
+              <button
+                data-testid="templates-launch-btn"
+                onClick={() => setShowTemplatesSheet(true)}
+                className="flex items-center gap-1.5 min-h-[36px] px-3 rounded-xl bg-white shadow-md border border-rhozly-outline/15 text-xs font-black text-rhozly-on-surface/70 hover:text-rhozly-on-surface transition-colors"
+              >
+                Templates
+              </button>
+              <button
+                data-testid="zones-launch-btn"
+                onClick={() => setShowZoneSheet(true)}
+                className="flex items-center gap-1.5 min-h-[36px] px-3 rounded-xl bg-white shadow-md border border-rhozly-outline/15 text-xs font-black text-rhozly-on-surface/70 hover:text-rhozly-on-surface transition-colors"
+              >
+                Zones
+              </button>
+              <button
+                data-testid="microclimate-report-btn"
+                onClick={() => setShowMicroclimate(true)}
+                className="flex items-center gap-1.5 min-h-[36px] px-3 rounded-xl bg-white shadow-md border border-rhozly-outline/15 text-xs font-black text-rhozly-on-surface/70 hover:text-rhozly-on-surface transition-colors"
+              >
+                Microclimate
+              </button>
+              {viewMode === "2d" && (
+                <button
+                  data-testid="export-png-btn"
+                  onClick={exportPng}
+                  title="Download a PNG of this layout"
+                  className="flex items-center gap-1.5 min-h-[36px] px-3 rounded-xl bg-white shadow-md border border-rhozly-outline/15 text-xs font-black text-rhozly-on-surface/70 hover:text-rhozly-on-surface transition-colors"
+                >
+                  Export
+                </button>
+              )}
+              <button
+                data-testid="share-link-btn"
+                onClick={handleShareLink}
+                title="Get a public link for this layout"
+                className="flex items-center gap-1.5 min-h-[36px] px-3 rounded-xl bg-white shadow-md border border-rhozly-outline/15 text-xs font-black text-rhozly-on-surface/70 hover:text-rhozly-on-surface transition-colors"
+              >
+                Share
+              </button>
+            </div>
+          )}
+
           {/* Scale bar + polygon instructions — 2D only */}
           {viewMode === "2d" && <GardenScaleBar pxPerM={BASE_PX * zoom} zoom={zoom} />}
 
-          {/* Compass overlay — 2D only. In 3D the North arrow lives inside the scene
-              so it orbits correctly with the camera. */}
+          {/* Compass overlay — 2D only. Tap to open the focused Set North sheet (Wave 6B). */}
           {viewMode === "2d" && (
-            <div
+            <button
               data-testid="canvas-compass-overlay"
-              className="absolute bottom-4 left-4 z-10 bg-white/80 backdrop-blur-sm rounded-2xl p-1.5 shadow-md border border-rhozly-outline/10 pointer-events-none"
+              onClick={canEdit ? () => setShowNorthSheet(true) : undefined}
+              disabled={!canEdit}
+              aria-label="Adjust North orientation"
+              className="absolute bottom-4 left-4 z-10 bg-white/85 backdrop-blur-sm rounded-2xl p-1.5 shadow-md border border-rhozly-outline/10 hover:bg-white transition-colors disabled:cursor-default"
             >
               <GardenCompass value={northOffset} size={64} readOnly />
+            </button>
+          )}
+
+          {/* First-shape coach mark — only when canvas is empty (Wave 4C) */}
+          {viewMode === "2d" && canEdit && shapes.length === 0 && tool === "select" && !pendingPreset && (
+            <div
+              data-testid="first-shape-coach"
+              className="absolute inset-x-0 top-1/3 z-10 pointer-events-none flex justify-center animate-in fade-in slide-in-from-top-2 duration-700"
+            >
+              <div className="bg-white/95 backdrop-blur-sm rounded-3xl px-5 py-4 shadow-lg border border-rhozly-outline/20 max-w-sm mx-4 text-center">
+                <p className="text-[10px] font-black text-rhozly-primary uppercase tracking-widest mb-1">
+                  Welcome to your garden
+                </p>
+                <p className="text-sm font-bold text-rhozly-on-surface leading-snug">
+                  {isMobile
+                    ? "Pick a shape from the rail below and drag on the canvas to place it."
+                    : "Pick a shape from the panel on the left, then drag on the canvas to place it."}
+                </p>
+              </div>
             </div>
           )}
 
@@ -1107,10 +2014,12 @@ export default function GardenLayoutEditor({ homeId }: Props) {
                 </p>
               </div>
               <button
+                data-testid="cancel-draw-btn"
                 onClick={() => { setPendingPreset(null); setDrawStart(null); setDrawCurrent(null); setTool("select"); setInteractionMode("move"); }}
-                className="absolute top-4 right-4 p-2 rounded-xl bg-white border border-rhozly-outline/20 shadow-sm text-rhozly-on-surface/50 hover:text-rhozly-on-surface transition-colors"
+                aria-label="Cancel drawing"
+                className="absolute top-4 right-4 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-white border border-rhozly-outline/20 shadow-sm text-rhozly-on-surface/60 hover:text-rhozly-on-surface transition-colors"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </>
           )}
@@ -1125,10 +2034,12 @@ export default function GardenLayoutEditor({ homeId }: Props) {
                 </p>
               </div>
               <button
+                data-testid="cancel-polygon-btn"
                 onClick={() => { setTool("select"); setPolyPoints([]); setPointerPos(null); }}
-                className="absolute top-4 right-4 p-2 rounded-xl bg-white border border-rhozly-outline/20 shadow-sm text-rhozly-on-surface/50 hover:text-rhozly-on-surface transition-colors"
+                aria-label="Cancel polygon"
+                className="absolute top-4 right-4 min-h-[44px] min-w-[44px] flex items-center justify-center rounded-xl bg-white border border-rhozly-outline/20 shadow-sm text-rhozly-on-surface/60 hover:text-rhozly-on-surface transition-colors"
               >
-                <X size={16} />
+                <X size={18} />
               </button>
             </>
           )}
@@ -1139,6 +2050,9 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           <GardenShapeProperties
             shape={selectedShape}
             homeId={homeId}
+            taskCounts={selectedShape.area_id ? areaTaskCounts[selectedShape.area_id] : undefined}
+            ailmentSummary={selectedShape.area_id ? areaAilmentSeverity[selectedShape.area_id] : undefined}
+            sunClassification={sunAnalysisResults?.find(r => r.shapeId === selectedShape.id)?.classification ?? null}
             onChange={updates => updateShape(selectedShape.id, updates)}
             onDelete={() => deleteShape(selectedShape.id)}
             onClose={() => setSelectedId(null)}
@@ -1146,6 +2060,7 @@ export default function GardenLayoutEditor({ homeId }: Props) {
             onBringForward={() => reorder(selectedShape.id, "forward")}
             onSendBackward={() => reorder(selectedShape.id, "backward")}
             onSendToBack={() => reorder(selectedShape.id, "back")}
+            onSaveAsTemplate={() => setShowTemplatesSheet(true)}
           />
         )}
       </div>
@@ -1155,27 +2070,223 @@ export default function GardenLayoutEditor({ homeId }: Props) {
         <GardenShapePanel
           tool={tool}
           viewMode={viewMode}
+          curveMode={polygonSmoothed}
           onAddPreset={addPreset}
-          onStartPolygon={() => { setTool("polygon"); setPolyPoints([]); setSelectedId(null); }}
+          onStartPolygon={() => { setTool("polygon"); setPolyPoints([]); setSelectedId(null); setPolygonSmoothed(false); }}
+          onStartCurve={() => { setTool("polygon"); setPolyPoints([]); setSelectedId(null); setPolygonSmoothed(true); }}
           isMobile
         />
       )}
 
-      {/* Mobile: properties sheet when shape selected */}
+      {/* Mobile: properties sheet when shape selected — expandable via drag handle */}
       {isMobile && selectedShape && (
-        <div className="fixed inset-x-0 bottom-0 z-50 bg-white border-t border-rhozly-outline/20 max-h-[55vh] overflow-y-auto shadow-2xl">
-          <GardenShapeProperties
-            shape={selectedShape}
-            homeId={homeId}
-            onChange={updates => updateShape(selectedShape.id, updates)}
-            onDelete={() => deleteShape(selectedShape.id)}
-            onClose={() => setSelectedId(null)}
-            onBringToFront={() => reorder(selectedShape.id, "front")}
-            onBringForward={() => reorder(selectedShape.id, "forward")}
-            onSendBackward={() => reorder(selectedShape.id, "backward")}
-            onSendToBack={() => reorder(selectedShape.id, "back")}
-          />
+        <div
+          data-testid="properties-mobile-sheet"
+          className="fixed inset-x-0 bottom-0 z-50 bg-white border-t border-rhozly-outline/20 shadow-2xl rounded-t-3xl overflow-hidden flex flex-col transition-[max-height] duration-200 animate-in slide-in-from-bottom-4 fade-in duration-300"
+          style={{ maxHeight: propertiesExpanded ? "75vh" : "32vh" }}
+        >
+          <button
+            data-testid="properties-drag-handle"
+            onClick={() => setPropertiesExpanded(v => !v)}
+            aria-label={propertiesExpanded ? "Collapse properties" : "Expand properties"}
+            aria-expanded={propertiesExpanded}
+            className="w-full pt-2 pb-1 flex items-center justify-center shrink-0"
+          >
+            <span className="block w-10 h-1.5 rounded-full bg-rhozly-on-surface/15" />
+          </button>
+          <div className="flex-1 overflow-y-auto">
+            <GardenShapeProperties
+              shape={selectedShape}
+              homeId={homeId}
+              onChange={updates => updateShape(selectedShape.id, updates)}
+              onDelete={() => deleteShape(selectedShape.id)}
+              onClose={() => setSelectedId(null)}
+              onBringToFront={() => reorder(selectedShape.id, "front")}
+              onBringForward={() => reorder(selectedShape.id, "forward")}
+              onSendBackward={() => reorder(selectedShape.id, "backward")}
+              onSendToBack={() => reorder(selectedShape.id, "back")}
+            />
+          </div>
         </div>
+      )}
+
+      {/* Plant token resize / height popup */}
+      {tokenResize && (
+        <div
+          data-testid="token-resize-popup"
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/30 backdrop-blur-sm p-4"
+          onClick={() => { setTokenResize(null); setSelectedTokenId(null); }}
+        >
+          <div
+            className="bg-white rounded-3xl w-full max-w-sm shadow-xl p-5 space-y-4"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div>
+              <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">Plant token</p>
+              <p className="font-black text-rhozly-on-surface text-sm truncate">{tokenResize.plantName}</p>
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black text-rhozly-on-surface/50 uppercase tracking-widest">Size</label>
+                <span className="text-xs font-black text-rhozly-on-surface/70 tabular-nums">{(tokenResize.size).toFixed(2)} m</span>
+              </div>
+              <input
+                data-testid="token-size-slider"
+                type="range"
+                min="0.1"
+                max="2"
+                step="0.05"
+                value={tokenResize.size}
+                onChange={(e) => setTokenResize(t => t ? { ...t, size: parseFloat(e.target.value) } : t)}
+                className="w-full accent-rhozly-primary"
+              />
+            </div>
+            <div>
+              <div className="flex items-center justify-between">
+                <label className="text-[10px] font-black text-rhozly-on-surface/50 uppercase tracking-widest">Height above soil (3D)</label>
+                <span className="text-xs font-black text-rhozly-on-surface/70 tabular-nums">{(tokenResize.height).toFixed(2)} m</span>
+              </div>
+              <input
+                data-testid="token-height-slider"
+                type="range"
+                min="0"
+                max="3"
+                step="0.05"
+                value={tokenResize.height}
+                onChange={(e) => setTokenResize(t => t ? { ...t, height: parseFloat(e.target.value) } : t)}
+                className="w-full accent-rhozly-primary"
+              />
+            </div>
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => { setTokenResize(null); setSelectedTokenId(null); }}
+                className="flex-1 min-h-[44px] rounded-2xl border border-rhozly-outline/20 text-xs font-black text-rhozly-on-surface/60"
+              >
+                Cancel
+              </button>
+              <button
+                data-testid="token-size-save"
+                onClick={async () => {
+                  await updateTokenSize(tokenResize.itemId, tokenResize.size, tokenResize.height);
+                  setTokenResize(null);
+                  setSelectedTokenId(null);
+                }}
+                className="flex-1 min-h-[44px] rounded-2xl bg-rhozly-primary text-white text-xs font-black"
+              >
+                Save
+              </button>
+            </div>
+            <button
+              data-testid="token-reset-position"
+              onClick={async () => {
+                try {
+                  await supabase.from("inventory_items")
+                    .update({ display_x_m: null, display_y_m: null, display_size_m: null, display_height_m: null })
+                    .eq("id", tokenResize.itemId);
+                  refetchLiveState();
+                  setTokenResize(null);
+                  toast.success("Reset to auto-layout");
+                } catch (err) {
+                  Logger.error("Failed to reset token", err);
+                }
+              }}
+              className="w-full text-[10px] font-black text-rhozly-on-surface/50 hover:text-rhozly-on-surface uppercase tracking-widest"
+            >
+              Reset to auto-layout
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bed Templates sheet (Wave 10C) */}
+      {showTemplatesSheet && (
+        <BedTemplatesSheet
+          saveSourceShape={shapes.find((s) => s.id === selectedId) ?? null}
+          onApply={applyTemplate}
+          onClose={() => setShowTemplatesSheet(false)}
+        />
+      )}
+
+      {/* Garden Zones sheet (Wave 9B) */}
+      {showZoneSheet && layout && (
+        <GardenZoneSheet
+          homeId={homeId}
+          layoutId={layout.id}
+          selectedShapeIds={[...(selectedId ? [selectedId] : []), ...Array.from(extraSelection)]}
+          onClose={() => setShowZoneSheet(false)}
+        />
+      )}
+
+      {/* Right-click context menu (Wave 5D) */}
+      {contextMenu && (
+        <GardenContextMenu
+          x={contextMenu.x}
+          y={contextMenu.y}
+          hasLinkedArea={!!contextMenu.shape.area_id}
+          onDuplicate={() => duplicateShape(contextMenu.shape.id)}
+          onDelete={() => deleteShape(contextMenu.shape.id)}
+          onBringToFront={() => reorder(contextMenu.shape.id, "front")}
+          onSendToBack={() => reorder(contextMenu.shape.id, "back")}
+          onQuickActions={() => setQuickActionsShape(contextMenu.shape)}
+          onSaveAsTemplate={() => { setSelectedId(contextMenu.shape.id); setShowTemplatesSheet(true); }}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
+
+      {/* Long-press Quick Actions sheet (Wave 9C) */}
+      {quickActionsShape && (
+        <ShapeQuickActions
+          shapeId={quickActionsShape.id}
+          shapeLabel={quickActionsShape.label}
+          areaId={quickActionsShape.area_id}
+          homeId={homeId}
+          onClose={() => setQuickActionsShape(null)}
+        />
+      )}
+
+      {/* North orientation sheet (Wave 6B) */}
+      {showNorthSheet && (
+        <GardenNorthSheet
+          initialOffset={northOffset}
+          onClose={() => setShowNorthSheet(false)}
+          onSave={async (newOffset) => {
+            if (!layoutId) return;
+            try {
+              const { error } = await supabase.from("garden_layouts")
+                .update({ north_offset_deg: newOffset, updated_at: new Date().toISOString() })
+                .eq("id", layoutId);
+              if (error) throw error;
+              setNorthOffset(newOffset);
+              setSettingNorthOffset(newOffset);
+              setLayout((l) => l ? { ...l, north_offset_deg: newOffset } : l);
+              setShowNorthSheet(false);
+            } catch (err) {
+              Logger.error("Failed to save north offset", err);
+              toast.error("Could not save north orientation.");
+            }
+          }}
+        />
+      )}
+
+      {/* Microclimate report modal (Wave 11B) */}
+      {showMicroclimate && (
+        <MicroclimateReportModal
+          shapes={shapes}
+          homeId={homeId}
+          sunAnalysisResults={sunAnalysisResults}
+          recentLuxByArea={(() => {
+            const out: Record<string, number | null> = {};
+            const windowMs = 30 * 60 * 1000;
+            const now = Date.now();
+            for (const r of areaLuxReadings) {
+              if (Math.abs(new Date(r.recorded_at).getTime() - now) <= windowMs && !(r.area_id in out)) {
+                out[r.area_id] = r.lux_value;
+              }
+            }
+            return out;
+          })()}
+          onClose={() => setShowMicroclimate(false)}
+        />
       )}
 
       {/* Canvas settings modal */}
@@ -1184,8 +2295,13 @@ export default function GardenLayoutEditor({ homeId }: Props) {
           <div className="bg-white rounded-3xl w-full max-w-sm shadow-xl flex flex-col max-h-[90vh]">
             <div className="flex items-center justify-between px-6 pt-5 pb-3 border-b border-rhozly-outline/10 flex-shrink-0">
               <p className="font-black text-rhozly-on-surface">Canvas Settings</p>
-              <button onClick={() => setShowSettings(false)} className="p-1.5 rounded-lg text-rhozly-on-surface/40 hover:text-rhozly-on-surface">
-                <X size={16} />
+              <button
+                data-testid="canvas-settings-close-btn"
+                onClick={() => setShowSettings(false)}
+                aria-label="Close canvas settings"
+                className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-lg text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface transition-colors"
+              >
+                <X size={18} />
               </button>
             </div>
             <div className="overflow-y-auto flex-1 px-6 py-4 space-y-4">
@@ -1228,102 +2344,18 @@ export default function GardenLayoutEditor({ homeId }: Props) {
               </div>
             </div>
 
-            {/* Garden orientation */}
-            {(() => {
-              const takeReading = async () => {
-                try {
-                  if (typeof (DeviceOrientationEvent as any).requestPermission === "function") {
-                    const perm = await (DeviceOrientationEvent as any).requestPermission();
-                    if (perm !== "granted") { setCompassReadState("idle"); return; }
-                  }
-                  setCompassReadState("ready");
-                  const onReading = (e: DeviceOrientationEvent & { webkitCompassHeading?: number }) => {
-                    let heading: number | null = null;
-                    if (e.webkitCompassHeading != null) {
-                      heading = e.webkitCompassHeading;
-                    } else if (e.absolute && e.alpha != null) {
-                      heading = (360 - e.alpha) % 360;
-                    }
-                    if (heading == null) return;
-                    setSettingNorthOffset(Math.round(heading) % 360);
-                    setCompassReadState("done");
-                    window.removeEventListener("deviceorientationabsolute", onReading as any);
-                    window.removeEventListener("deviceorientation", onReading as any);
-                  };
-                  window.addEventListener("deviceorientationabsolute", onReading as any, { once: true });
-                  window.addEventListener("deviceorientation", onReading as any, { once: true });
-                  setTimeout(() => {
-                    window.removeEventListener("deviceorientationabsolute", onReading as any);
-                    window.removeEventListener("deviceorientation", onReading as any);
-                    if (compassReadState !== "done") setCompassReadState("idle");
-                  }, 8000);
-                } catch { setCompassReadState("idle"); }
-              };
-
-              const DIRS = ["N","NE","E","SE","S","SW","W","NW"] as const;
-              const snap45 = (d: number) => DIRS[Math.round(((d % 360) + 360) % 360 / 45) % 8];
-              const northLabel = snap45(settingNorthOffset === 0 ? 0 : (360 - settingNorthOffset) % 360);
-
-              return (
-                <div>
-                  <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">Garden Orientation</p>
-                  <p className="text-xs text-rhozly-on-surface/60 mb-3 leading-relaxed">
-                    The grid has two fixed axes: <span className="font-black text-rhozly-on-surface">X</span> (left → right) and <span className="font-black text-rhozly-on-surface">Z</span> (top → bottom). Drag the <span className="font-black text-rhozly-primary">N arrow</span> on the compass below until North points in the correct direction relative to those axes.
-                  </p>
-
-                  {/* Compass on top of grid — the grid is the fixed reference */}
-                  <div className="relative w-44 h-44 mx-auto mb-3 rounded-2xl overflow-hidden bg-rhozly-bg border border-rhozly-outline/20">
-                    {/* Grid background */}
-                    <svg width="100%" height="100%" viewBox="0 0 176 176" className="absolute inset-0 pointer-events-none">
-                      {[44,88,132].map(p => (
-                        <g key={p}>
-                          <line x1={p} y1={0} x2={p} y2={176} stroke="#e5e7eb" strokeWidth={0.8} />
-                          <line x1={0} y1={p} x2={176} y2={p} stroke="#e5e7eb" strokeWidth={0.8} />
-                        </g>
-                      ))}
-                      {/* X axis */}
-                      <line x1={0} y1={88} x2={176} y2={88} stroke="#9ca3af" strokeWidth={1.5} />
-                      {/* Z axis */}
-                      <line x1={88} y1={0} x2={88} y2={176} stroke="#9ca3af" strokeWidth={1.5} />
-                      {/* Axis labels */}
-                      <text x={158} y={82} fontSize={9} fontWeight="bold" fill="#9ca3af">+X</text>
-                      <text x={92} y={168} fontSize={9} fontWeight="bold" fill="#9ca3af">+Z</text>
-                    </svg>
-                    {/* Draggable compass centred on the grid */}
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <GardenCompass value={settingNorthOffset} onChange={v => { setSettingNorthOffset(v); setCompassReadState("idle"); }} size={120} />
-                    </div>
-                  </div>
-                  <p className="text-xs text-center text-rhozly-on-surface/50 mb-3">
-                    North is <span className="font-black text-rhozly-primary">{northLabel}</span> of the grid origin
-                  </p>
-
-                  {/* Phone compass shortcut */}
-                  <div className="bg-rhozly-surface rounded-2xl p-3">
-                    <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">Auto-calibrate with phone compass</p>
-                    {compassReadState !== "done" ? (
-                      <>
-                        <p className="text-xs text-rhozly-on-surface/60 mb-2 leading-relaxed">
-                          Go to your garden. Hold the phone flat and rotate yourself until the layout on screen matches what's in front of you. Then tap <span className="font-black text-rhozly-on-surface">Read Now</span>.
-                        </p>
-                        <button
-                          data-testid="compass-read-btn"
-                          onClick={takeReading}
-                          className={`w-full py-2.5 rounded-xl text-xs font-black transition-colors ${compassReadState === "ready" ? "bg-rhozly-primary/20 text-rhozly-primary animate-pulse" : "bg-rhozly-primary text-white"}`}
-                        >
-                          {compassReadState === "ready" ? "Waiting for sensor…" : "Read Now"}
-                        </button>
-                      </>
-                    ) : (
-                      <p className="text-xs text-rhozly-primary font-black text-center py-1">
-                        ✓ Set from phone compass — drag the N arrow above to fine-tune
-                      </p>
-                    )}
-                  </div>
-                  <input type="hidden" data-testid="north-offset-input" value={settingNorthOffset} readOnly />
-                </div>
-              );
-            })()}
+            {/* Garden orientation now lives in its own focused sheet — surface a quick link here. */}
+            <button
+              data-testid="canvas-settings-open-north"
+              onClick={() => { setShowSettings(false); setShowNorthSheet(true); }}
+              className="w-full flex items-center justify-between gap-3 bg-rhozly-surface rounded-2xl px-4 py-3 hover:bg-rhozly-surface-low transition-colors"
+            >
+              <div className="text-left">
+                <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">Garden Orientation</p>
+                <p className="text-xs font-bold text-rhozly-on-surface/70">Set North relative to your garden</p>
+              </div>
+              <ChevronRight size={18} className="text-rhozly-on-surface/40 shrink-0" />
+            </button>
 
             </div>{/* end scrollable body */}
             <div className="flex gap-3 px-6 py-4 border-t border-rhozly-outline/10 flex-shrink-0">

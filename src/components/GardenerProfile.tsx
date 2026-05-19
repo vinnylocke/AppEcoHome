@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { toast } from "react-hot-toast";
-import { User, Trophy, BarChart2, Save, Loader2, Lock, Trash2, AlertTriangle, X, CheckCircle2 } from "lucide-react";
+import { User, Trophy, BarChart2, Save, Loader2, Lock, Trash2, AlertTriangle, X, CheckCircle2, Bell, Droplets, Wheat, Scissors, Cloud, Sun, Sparkles, MessageSquare } from "lucide-react";
 import { TIERS, type TierId } from "../constants/tiers";
 import { useAchievements } from "../hooks/useAchievements";
 import { ACHIEVEMENTS } from "../lib/achievements";
@@ -17,7 +18,189 @@ interface Props {
   onTierChange?: (tier: TierId, aiEnabled: boolean, perenualEnabled: boolean) => void;
 }
 
-type Tab = "account" | "achievements" | "stats";
+type Tab = "account" | "notifications" | "achievements" | "stats";
+
+// ─── Notification preferences ────────────────────────────────────────────────
+// Persisted in localStorage as a forward-looking UI surface. Wave 8 will wire
+// these to backend filtering — until then, toggles affect in-app toast routing
+// only (the "active" categories below). Toggles marked "wired" actually do
+// something today; the rest persist but don't yet influence delivery.
+
+const LS_NOTIF_PREFS = "rhozly_notif_prefs";
+
+interface NotificationPrefs {
+  master:        boolean;
+  watering:      boolean;
+  harvesting:    boolean;
+  pruning:       boolean;
+  weatherAlerts: boolean;
+  goldenHour:    boolean;
+  optimiseDigest:boolean;
+  betaPrompts:   boolean;
+}
+
+const DEFAULT_NOTIF_PREFS: NotificationPrefs = {
+  master:        true,
+  watering:      true,
+  harvesting:    true,
+  pruning:       true,
+  weatherAlerts: true,
+  goldenHour:    false,
+  optimiseDigest:false,
+  betaPrompts:   true,
+};
+
+function loadNotifPrefs(): NotificationPrefs {
+  try {
+    const raw = localStorage.getItem(LS_NOTIF_PREFS);
+    if (!raw) return DEFAULT_NOTIF_PREFS;
+    const parsed = JSON.parse(raw);
+    return { ...DEFAULT_NOTIF_PREFS, ...parsed };
+  } catch {
+    return DEFAULT_NOTIF_PREFS;
+  }
+}
+
+function saveNotifPrefs(prefs: NotificationPrefs) {
+  try { localStorage.setItem(LS_NOTIF_PREFS, JSON.stringify(prefs)); } catch { /* ignore */ }
+}
+
+function NotificationsTab() {
+  const [prefs, setPrefs] = useState<NotificationPrefs>(() => loadNotifPrefs());
+  const [permission, setPermission] = useState<NotificationPermission | "unsupported">(
+    typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
+  );
+
+  const update = (patch: Partial<NotificationPrefs>) => {
+    const next = { ...prefs, ...patch };
+    setPrefs(next);
+    saveNotifPrefs(next);
+  };
+
+  const requestBrowserPerm = async () => {
+    if (!("Notification" in window)) return;
+    const result = await Notification.requestPermission();
+    setPermission(result);
+  };
+
+  const categories: Array<{
+    key: keyof NotificationPrefs;
+    label: string;
+    sub: string;
+    icon: React.ReactNode;
+    wired: boolean;
+  }> = [
+    { key: "watering",       label: "Watering reminders",     sub: "When a watering task is due",                                          icon: <Droplets size={14} className="text-sky-500" />,    wired: true  },
+    { key: "harvesting",     label: "Harvest reminders",      sub: "When a fruit / veg / herb is ready",                                   icon: <Wheat size={14} className="text-amber-500" />,     wired: true  },
+    { key: "pruning",        label: "Pruning reminders",      sub: "When a pruning task is due",                                           icon: <Scissors size={14} className="text-rose-500" />,   wired: true  },
+    { key: "weatherAlerts",  label: "Weather alerts",         sub: "Frost · heatwave · heavy rain · strong wind",                          icon: <Cloud size={14} className="text-indigo-500" />,    wired: true  },
+    { key: "goldenHour",     label: "Golden hour reminders",  sub: "A photo nudge before sunset",                                          icon: <Sun size={14} className="text-orange-500" />,      wired: false },
+    { key: "optimiseDigest", label: "Weekly optimise digest", sub: "A summary of suggested schedule improvements",                         icon: <Sparkles size={14} className="text-violet-500" />, wired: false },
+    { key: "betaPrompts",    label: "Beta feedback prompts",  sub: "Occasional in-app surveys on new features",                            icon: <MessageSquare size={14} className="text-emerald-500" />, wired: true },
+  ];
+
+  return (
+    <div className="space-y-5" data-testid="notifications-tab">
+      {/* Browser permission status */}
+      <section className="bg-white rounded-2xl border border-rhozly-outline/10 p-4">
+        <div className="flex items-start gap-3">
+          <Bell size={18} className="text-rhozly-primary shrink-0 mt-0.5" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-black text-rhozly-on-surface">
+              Browser notification permission
+            </p>
+            {permission === "unsupported" && (
+              <p className="text-xs font-bold text-rhozly-on-surface/50 mt-0.5">
+                This browser doesn't support notifications. You'll still see in-app toasts.
+              </p>
+            )}
+            {permission === "granted" && (
+              <p className="text-xs font-bold text-emerald-600 mt-0.5 flex items-center gap-1">
+                <CheckCircle2 size={12} /> Granted — Rhozly can show OS notifications
+              </p>
+            )}
+            {permission === "denied" && (
+              <p className="text-xs font-bold text-rose-600 mt-0.5">
+                Denied — enable in your browser settings to receive OS notifications
+              </p>
+            )}
+            {permission === "default" && (
+              <div className="mt-2">
+                <button
+                  data-testid="notifications-enable-browser"
+                  onClick={requestBrowserPerm}
+                  className="flex items-center gap-1.5 bg-rhozly-primary text-white text-xs font-black px-3 py-2 min-h-[36px] rounded-xl hover:opacity-90 transition"
+                >
+                  <Bell size={12} /> Enable browser notifications
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      </section>
+
+      {/* Master switch */}
+      <section className="bg-white rounded-2xl border border-rhozly-outline/10 p-4">
+        <label className="flex items-center justify-between gap-3 cursor-pointer">
+          <div>
+            <p className="text-sm font-black text-rhozly-on-surface">All notifications</p>
+            <p className="text-[11px] font-bold text-rhozly-on-surface/50 leading-snug">
+              Turn off everything in one tap. Re-enable any time.
+            </p>
+          </div>
+          <input
+            data-testid="notifications-master-toggle"
+            type="checkbox"
+            checked={prefs.master}
+            onChange={(e) => update({ master: e.target.checked })}
+            className="w-11 h-6 shrink-0 appearance-none rounded-full bg-rhozly-outline/30 checked:bg-rhozly-primary transition-colors relative cursor-pointer
+              after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:shadow-md after:transition-transform
+              checked:after:translate-x-5"
+          />
+        </label>
+      </section>
+
+      {/* Per-category toggles */}
+      <section className={`bg-white rounded-2xl border border-rhozly-outline/10 p-4 space-y-3 transition-opacity ${prefs.master ? "" : "opacity-50 pointer-events-none"}`}>
+        <h3 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
+          Categories
+        </h3>
+        {categories.map((cat) => (
+          <label key={cat.key} className="flex items-center justify-between gap-3 cursor-pointer py-1">
+            <div className="flex items-start gap-3 min-w-0">
+              <div className="bg-rhozly-surface-low p-1.5 rounded-lg shrink-0 mt-0.5">{cat.icon}</div>
+              <div className="min-w-0">
+                <p className="text-xs font-black text-rhozly-on-surface flex items-center gap-1.5">
+                  {cat.label}
+                  {!cat.wired && (
+                    <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full bg-amber-100 text-amber-700">
+                      Coming soon
+                    </span>
+                  )}
+                </p>
+                <p className="text-[11px] font-medium text-rhozly-on-surface/55 leading-snug">{cat.sub}</p>
+              </div>
+            </div>
+            <input
+              data-testid={`notifications-toggle-${cat.key}`}
+              type="checkbox"
+              checked={(prefs[cat.key] as boolean) && prefs.master}
+              disabled={!prefs.master}
+              onChange={(e) => update({ [cat.key]: e.target.checked } as Partial<NotificationPrefs>)}
+              className="w-11 h-6 shrink-0 appearance-none rounded-full bg-rhozly-outline/30 checked:bg-rhozly-primary transition-colors relative cursor-pointer
+                after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:shadow-md after:transition-transform
+                checked:after:translate-x-5 disabled:cursor-not-allowed"
+            />
+          </label>
+        ))}
+      </section>
+
+      <p className="text-[10px] font-bold text-rhozly-on-surface/40 px-1 leading-snug">
+        Preferences are saved on this device. Categories marked "Coming soon" persist but don't yet affect delivery — wiring lands in a future release.
+      </p>
+    </div>
+  );
+}
 
 // ─── Account Tab ────────────────────────────────────────────────────────────
 
@@ -544,15 +727,26 @@ function StatsTab({ stats }: { stats: NonNullable<ReturnType<typeof useAchieveme
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function GardenerProfile({ userId, homeId, displayName, email, subscriptionTier, onDisplayNameChange, onTierChange }: Props) {
-  const [tab, setTab] = useState<Tab>("account");
+  const [params, setParams] = useSearchParams();
+  const initialTab = (params.get("tab") as Tab) ?? "account";
+  const validTab: Tab = ["account", "notifications", "achievements", "stats"].includes(initialTab) ? initialTab : "account";
+  const [tab, setTabState] = useState<Tab>(validTab);
   const { stats, unlockedKeys, unlockedAt, isLoading } = useAchievements(userId, homeId);
+
+  const setTab = (next: Tab) => {
+    setTabState(next);
+    const p = new URLSearchParams(params);
+    if (next === "account") p.delete("tab"); else p.set("tab", next);
+    setParams(p, { replace: true });
+  };
 
   const unlockedCount = unlockedKeys.length;
   const totalCount = ACHIEVEMENTS.length;
 
   const tabs: { id: Tab; label: string; icon: React.ReactNode }[] = [
     { id: "account", label: "Account", icon: <User size={14} /> },
-    { id: "achievements", label: "Achievements", icon: <Trophy size={14} /> },
+    { id: "notifications", label: "Alerts", icon: <Bell size={14} /> },
+    { id: "achievements", label: "Awards", icon: <Trophy size={14} /> },
     { id: "stats", label: "Stats", icon: <BarChart2 size={14} /> },
   ];
 
@@ -609,6 +803,10 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
           onDisplayNameChange={onDisplayNameChange}
           onTierChange={onTierChange}
         />
+      )}
+
+      {tab === "notifications" && (
+        <NotificationsTab />
       )}
 
       {tab === "achievements" && (

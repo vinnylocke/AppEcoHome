@@ -1,11 +1,13 @@
 import React, { useRef, useState, useMemo } from "react";
 import { Canvas } from "@react-three/fiber";
 import type { ThreeEvent } from "@react-three/fiber";
-import { OrbitControls, Html, GizmoHelper, GizmoViewport } from "@react-three/drei";
+import { OrbitControls, Html, GizmoHelper, GizmoViewport, Sky, Environment } from "@react-three/drei";
+import * as THREE from "three";
 import type { ShapeData } from "./GardenShapeProperties";
 import type { ShapePreset } from "./GardenShapePanel";
 import GardenShape3D from "./GardenShape3D";
 import { SUN_CLASS_COLOR, SUN_CLASS_TEXT_COLOR, type ShapeSunResult, type SunClass } from "../lib/sunAnalysis";
+import { getGrassTexture } from "../lib/garden/garden3DMaterials";
 
 interface Props {
   shapes: ShapeData[];
@@ -20,12 +22,15 @@ interface Props {
   onShapeChange: (id: string, updates: Partial<ShapeData>) => void;
   onDrawShape: (start: { x: number; y: number }, end: { x: number; y: number }) => void;
   sunPosition?: { altitude: number; azimuth: number };
-  areaPlants: Record<string, Array<{ id: string; plant_name: string; nickname: string | null }>>;
+  areaPlants: Record<string, import("../hooks/useShapeLiveState").PlantInArea[]>;
   areaLuxReadings: Array<{ area_id: string; lux_value: number; recorded_at: string }>;
   showLuxOverlay: boolean;
   sunAnalysisResults: ShapeSunResult[] | null;
   showSunOverlay: boolean;
   sunDateObj: Date;
+  selectedTokenId?: string | null;
+  onTokenSelect?: (itemId: string, plantName: string, currentSize: number, currentHeight: number) => void;
+  onTokenMove?: (itemId: string, worldX: number, worldZ: number, heightM: number) => void;
 }
 
 const SUN_DIST = 50;
@@ -97,12 +102,36 @@ export default function GardenLayout3D({
   onSelect, onShapeChange, onDrawShape, sunPosition,
   areaPlants, areaLuxReadings, showLuxOverlay,
   sunAnalysisResults, showSunOverlay, sunDateObj,
+  selectedTokenId, onTokenSelect, onTokenMove,
 }: Props) {
   const orbitRef = useRef<any>(null);
   const draw3DStart = useRef<{ x: number; z: number } | null>(null);
   const [draw3DCurrent, setDraw3DCurrent] = useState<{ x: number; z: number } | null>(null);
 
   const maxDim = Math.max(canvasW, canvasH);
+
+  // Procedural grass texture (Wave 3A)
+  const grassTexture = useMemo(() => getGrassTexture(canvasW, canvasH), [canvasW, canvasH]);
+
+  // Subtle vertex displacement for the ground plane — natural soil/grass undulation.
+  const undulatedGroundGeometry = useMemo(() => {
+    const segs = Math.max(20, Math.min(80, Math.round(Math.max(canvasW, canvasH) * 2)));
+    const geom = new THREE.PlaneGeometry(canvasW, canvasH, segs, segs);
+    const pos = geom.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i);
+      const y = pos.getY(i);
+      // Two sine bands at different frequencies + amplitudes, kept very low so shapes still sit flat.
+      const h =
+        Math.sin(x * 0.6) * 0.04 +
+        Math.cos(y * 0.45) * 0.04 +
+        Math.sin((x + y) * 0.9) * 0.025;
+      pos.setZ(i, h);
+    }
+    pos.needsUpdate = true;
+    geom.computeVertexNormals();
+    return geom;
+  }, [canvasW, canvasH]);
 
   const lightPos = useMemo<[number, number, number]>(() => {
     if (!sunPosition) return [canvasW / 2 + maxDim * 0.6, maxDim * 0.6, canvasH / 2 - maxDim * 0.3];
@@ -175,6 +204,18 @@ export default function GardenLayout3D({
         style={{ width: "100%", height: "100%" }}
       >
         <color attach="background" args={[skyColor]} />
+        {/* Sky dome + distance fog soften the canvas edges (Wave 3D) */}
+        {sunPosition && sunPosition.altitude > 0 && (
+          <Sky
+            distance={4500}
+            sunPosition={[lightPos[0], lightPos[1], lightPos[2]]}
+            inclination={Math.max(0.05, Math.min(0.5, sunPosition.altitude / Math.PI))}
+            azimuth={0.25}
+            turbidity={6}
+            rayleigh={2}
+          />
+        )}
+        <fog attach="fog" args={[skyColor, maxDim * 1.4, maxDim * 4]} />
         <ambientLight intensity={ambientIntensity} />
 
         <directionalLight
@@ -203,17 +244,20 @@ export default function GardenLayout3D({
           />
         )}
 
-        {/* Ground plane — visible surface + pointer target for draw mode */}
+        {/* Sky environment — gives pond / glass surfaces real reflections */}
+        <Environment preset="park" />
+
+        {/* Ground plane — procedural grass texture + subtle undulation (Wave 3A + 3D extras) */}
         <mesh
           receiveShadow
           rotation={[-Math.PI / 2, 0, 0]}
           position={[canvasW / 2, 0, canvasH / 2]}
+          geometry={undulatedGroundGeometry}
           onPointerDown={handleGroundDown}
           onPointerMove={handleGroundMove}
           onPointerUp={handleGroundUp}
         >
-          <planeGeometry args={[canvasW, canvasH]} />
-          <meshLambertMaterial color="#c8e6c9" />
+          <meshStandardMaterial map={grassTexture} roughness={1} metalness={0} />
         </mesh>
 
         <gridHelper
@@ -251,6 +295,9 @@ export default function GardenLayout3D({
             luxReading={showLuxOverlay && s.area_id ? (luxByArea[s.area_id] ?? null) : null}
             sunResult={sunAnalysisResults?.find(r => r.shapeId === s.id) ?? null}
             showSunOverlay={showSunOverlay}
+            selectedTokenId={selectedTokenId}
+            onTokenSelect={onTokenSelect}
+            onTokenMove={onTokenMove}
           />
         ))}
 

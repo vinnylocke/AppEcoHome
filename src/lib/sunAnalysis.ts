@@ -75,6 +75,21 @@ function isPointInBlockerShadow(
     const r = blocker.radius_m ?? 0.5;
     const dx = px - (blocker.x_m + ox);
     const dz = pz - (blocker.y_m + oz);
+    // Tree canopies are spheres — their ground shadow is an ellipse that
+    // stretches in the sun direction as the sun gets lower.
+    // Rotate (dx, dz) into the sun's reference frame: u along sun direction,
+    // v perpendicular. The shadow is then an ellipse with semi-major axis
+    // a = r / sin(alt) along the sun direction and semi-minor axis b = r.
+    if (blocker.preset_id === "tree-canopy") {
+      const sunUx = -Math.sin(sceneAz);
+      const sunUz = -Math.cos(sceneAz);
+      const u = dx * sunUx + dz * sunUz;
+      const v = dx * (-sunUz) + dz * sunUx;
+      const sinAlt = Math.max(0.1, Math.sin(alt));
+      const a = r / sinAlt;
+      const b = r;
+      return (u * u) / (a * a) + (v * v) / (b * b) <= 1;
+    }
     return dx * dx + dz * dz <= r * r;
   }
 

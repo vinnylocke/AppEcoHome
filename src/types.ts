@@ -10,6 +10,7 @@ export interface UserProfile {
   created_at: string;
   onboarding_state: Record<string, "completed" | "dismissed">;
   can_view_audit?: boolean;
+  is_beta: boolean;
 }
 
 export interface Home {

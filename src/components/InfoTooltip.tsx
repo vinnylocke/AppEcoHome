@@ -4,9 +4,29 @@ import { HelpCircle } from "lucide-react";
 interface Props {
   content: string;
   size?: number;
+  width?: "sm" | "md" | "lg";
+  align?: "left" | "center" | "right";
 }
 
-export default function InfoTooltip({ content, size = 13 }: Props) {
+const WIDTH_CLASS: Record<NonNullable<Props["width"]>, string> = {
+  sm: "w-48",
+  md: "w-64",
+  lg: "w-80",
+};
+
+const ALIGN_CLASS: Record<NonNullable<Props["align"]>, string> = {
+  left: "left-0",
+  center: "left-1/2 -translate-x-1/2",
+  right: "right-0",
+};
+
+const ARROW_ALIGN: Record<NonNullable<Props["align"]>, string> = {
+  left: "left-3",
+  center: "left-1/2 -translate-x-1/2",
+  right: "right-3",
+};
+
+export default function InfoTooltip({ content, size = 13, width = "md", align = "center" }: Props) {
   const [visible, setVisible] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -30,9 +50,9 @@ export default function InfoTooltip({ content, size = 13 }: Props) {
         <HelpCircle size={size} />
       </button>
       {visible && (
-        <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-50 w-56 bg-rhozly-on-surface text-white text-[11px] font-medium leading-snug rounded-xl px-3 py-2.5 shadow-lg pointer-events-none">
+        <div className={`absolute bottom-full mb-2 z-50 ${WIDTH_CLASS[width]} ${ALIGN_CLASS[align]} bg-rhozly-on-surface text-white text-[11px] font-medium leading-snug rounded-xl px-3 py-2.5 shadow-lg pointer-events-none`}>
           {content}
-          <div className="absolute top-full left-1/2 -translate-x-1/2 border-4 border-transparent border-t-rhozly-on-surface" />
+          <div className={`absolute top-full ${ARROW_ALIGN[align]} border-4 border-transparent border-t-rhozly-on-surface`} />
         </div>
       )}
     </div>

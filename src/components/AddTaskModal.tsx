@@ -29,6 +29,16 @@ const TASK_TYPE_HINTS: Record<string, string> = {
   Maintenance: "General care tasks — feeding, repotting, pest checks, tying back, cleaning.",
   Planting:    "Scheduling when to sow seeds or plant out seedlings at the right time of year.",
 };
+
+// Smart-default frequency (in days) for each task type when creating a recurring task.
+// Picks a sensible starting point so the user only tweaks if they have a different rhythm.
+const TASK_TYPE_DEFAULT_FREQUENCY: Record<string, number> = {
+  Watering:    4,
+  Pruning:     21,
+  Harvesting:  7,
+  Maintenance: 14,
+  Planting:    30,
+};
 export { TASK_CATEGORIES } from "../constants/taskCategories";
 
 interface Props {
@@ -77,13 +87,19 @@ export default function AddTaskModal({
       existingBlueprint?.start_date ||
       (selectedDate ? getLocalDateString(selectedDate) : ""),
     isRecurring: existingBlueprint ? true : isBlueprintMode ? true : false,
-    frequency_days: existingBlueprint?.frequency_days || 7,
+    frequency_days:
+      existingBlueprint?.frequency_days ||
+      TASK_TYPE_DEFAULT_FREQUENCY[existingBlueprint?.task_type || "Maintenance"] ||
+      7,
     end_date: existingBlueprint?.end_date || "",
     scope: (existingBlueprint?.scope as "home" | "personal") || "home",
     assigned_to: existingBlueprint?.assigned_to || "",
   });
 
   const [smartPresets, setSmartPresets] = useState<{ type: string; frequency_days: number }[]>([]);
+  // Track whether the user has manually changed the frequency. If not, we
+  // re-apply the type's default whenever the task type changes.
+  const userTouchedFrequency = useRef(!!existingBlueprint);
 
   const initialFormRef = useRef(form);
   const isDirty = () => {
@@ -706,7 +722,14 @@ export default function AddTaskModal({
               </label>
               <select
                 value={form.type}
-                onChange={(e) => setForm({ ...form, type: e.target.value })}
+                onChange={(e) => {
+                  const nextType = e.target.value;
+                  // Apply smart-default frequency unless user has manually changed it
+                  const nextFreq = !userTouchedFrequency.current
+                    ? (TASK_TYPE_DEFAULT_FREQUENCY[nextType] ?? form.frequency_days)
+                    : form.frequency_days;
+                  setForm({ ...form, type: nextType, frequency_days: nextFreq });
+                }}
                 className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold outline-none border border-transparent focus:border-rhozly-primary cursor-pointer"
               >
                 {TASK_CATEGORIES.map((t) => (
@@ -1146,12 +1169,13 @@ export default function AddTaskModal({
                     type="number"
                     min="1"
                     value={form.frequency_days}
-                    onChange={(e) =>
+                    onChange={(e) => {
+                      userTouchedFrequency.current = true;
                       setForm({
                         ...form,
                         frequency_days: parseInt(e.target.value) || 1,
-                      })
-                    }
+                      });
+                    }}
                     className="w-full p-4 bg-white rounded-2xl font-bold outline-none border border-rhozly-outline/10"
                   />
                   <p className="text-[10px] text-rhozly-on-surface/40 font-medium ml-1 mt-1 leading-snug">

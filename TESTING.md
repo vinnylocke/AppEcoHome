@@ -720,7 +720,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 273 tests across 14 files
+### Unit tests — 291 tests across 17 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -738,6 +738,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `plantProvider.test.ts` | 10 | `searchAllProviders` merge/fallback, `getProviderPlantDetails` provider dispatch, config-gate |
 | `taskOptimiser.test.ts` | 12 | `analyseArea` — all 4 scenarios (fragmentation, redundant, two-tier, pileup), non-optimisable categories, cross-area isolation; `canUndoSession` — recent/old sessions, reversed flag, edited blueprint |
 | `taskOptimiserAi.test.ts` | 9 | `analyseAreaAi` — correct edge function invocation, empty proposals, error propagation, optional body fields; `fetchNegativeFeedback` — field mapping, empty result, DB error, missing snapshot fields |
+| `garden.test.ts` | 18 | `sunFit` (parse preferences, match/adjacent/mismatch, summary), `plantTokens` (stable hash colour, initial, grid layout, max), `microclimate` (frost risk classification, wind shelter from walls/greenhouse, low-fence ignore), `companionPlants` (beneficial pairs, harmful pairs, neutrals, group precedence) |
 
 ### Edge function tests — Deno
 
@@ -758,7 +759,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `rls_isolation.test.ts` | 16 | Cross-tenant RLS — tasks, inventory, locations, plans, blueprints, ailments, weather_alerts, community_guides, home_members, yield_records, user_profiles |
 | `edge_function_auth.test.ts` | 7 | Edge function auth — plant-doctor/contact-support/scan-area/generate-guide/image-proxy reject missing/invalid JWT; scan-area 400 on missing homeId |
 
-### E2E tests — 407 tests across 25 files (+ 13 isolation tests)
+### E2E tests — 422 tests across 26 files (+ 13 isolation tests)
 
 Tests run across up to 4 parallel workers (`fullyParallel: false` — spec files run in parallel, tests within a file run sequentially).
 
@@ -793,6 +794,7 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `security-storage.spec.ts` | 6 | STG-001–006: cross-home area-scan read blocked, alien community-guides upload blocked, alien file delete, SVG MIME rejected, oversized upload rejected, area-scans bucket is private |
 | `shopping.spec.ts` | 28 | Shopping list CRUD, plant/product search (AI + Verdantly + Perenual), shed offer, add purchased plants to shed |
 | `companion-plants.spec.ts` | 7 | Companion Plants tab (CPT-001–007): tab visible in shed plant modal, Beneficial/Harmful/Neutral sections, Neutral collapsed by default, Add to Shed button on checkbox, ai_required upgrade message |
+| `garden-layout.spec.ts` | 15 | Garden Layout (GLB-001–016): list page + blank-canvas wizard, desktop toolbar single-row, Draw/Edit/Look mode rename, 2D/3D + zoom + settings buttons, sectioned shape rail (Beds/Structures/Hardscape/Features), mobile two-row toolbar + floating bubble, properties tabs (Style/Size/Link) |
 
 > **Seed note — timezone resilience:** `03_tasks_blueprints.sql` includes a "Daily Garden Check" blueprint (`freq=1`, `start_date = CURRENT_DATE - 1 day`). This ensures at least one ghost task is always visible on any date regardless of UTC/local timezone offset. Ghost task E2E tests anchor to this blueprint so they don't become flaky near midnight UTC on UTC+N machines.
 >

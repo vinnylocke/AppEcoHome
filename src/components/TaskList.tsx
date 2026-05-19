@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
+import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { supabase } from "../lib/supabase";
 import {
   CheckSquare,
@@ -70,6 +71,7 @@ export default function TaskList({
   const navigate = useNavigate();
   const { preferences } = usePlantDoctor();
   const { can } = usePermissions();
+  const { requestFeedback } = useBetaFeedbackContext();
 
   const [tasks, setTasks] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -262,6 +264,7 @@ export default function TaskList({
       toast.success(`${selectedTasks.length} tasks completed!`, {
         id: toastId,
       });
+      requestFeedback("complete_task", { task_type: selectedTasks[0]?.type });
 
       // 🚀 TRIGGER AUTOMATION ENGINE FOR PLANTING TASKS
       const plantingTasks = selectedTasks.filter(
@@ -697,7 +700,10 @@ export default function TaskList({
       if (selectedTask?.id === task.id) {
         setSelectedTask(finalData);
       }
-      if (newStatus === "Completed") toast.success("Task completed!");
+      if (newStatus === "Completed") {
+        toast.success("Task completed!");
+        requestFeedback("complete_task", { task_type: finalData.type });
+      }
 
       logEvent(
         newStatus === "Completed" ? EVENT.TASK_COMPLETED : EVENT.TASK_UNCOMPLETED,
@@ -951,6 +957,7 @@ export default function TaskList({
 
             const isCompleted = task.status === "Completed";
             const isOverdue = !isCompleted && task.due_date < todayStr;
+            const isToday = !isCompleted && !isOverdue && task.due_date === todayStr;
             const isBlocked = blockedTaskIds.has(task.id);
             const isSelected = selectedTaskIds.has(task.id);
 
@@ -962,6 +969,8 @@ export default function TaskList({
               cardStyle = "bg-rhozly-surface-low border-gray-300 opacity-80";
             } else if (isOverdue) {
               cardStyle = "bg-red-100 border-red-300 hover:border-red-500 shadow-red-100";
+            } else if (isToday) {
+              cardStyle = "bg-sky-50 border-sky-200 hover:border-sky-400";
             }
             if (isBulkEditing && isSelected) {
               cardStyle = "bg-rhozly-primary/5 border-rhozly-primary shadow-md";

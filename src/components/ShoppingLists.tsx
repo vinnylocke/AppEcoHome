@@ -1,8 +1,10 @@
-import React, { useState } from "react";
-import { ShoppingCart, Plus, ChevronDown, ChevronRight, Loader2, AlertCircle, X, Wrench, Leaf, FileText } from "lucide-react";
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { ShoppingCart, Plus, ChevronDown, ChevronRight, Loader2, AlertCircle, X, Wrench, Leaf, FileText, Sparkles } from "lucide-react";
 import toast from "react-hot-toast";
 import { logEvent, EVENT } from "../events/registry";
 import { usePermissions } from "../context/HomePermissionsContext";
+import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { useShoppingLists } from "../hooks/useShoppingLists";
 import ShoppingListCard from "./shopping/ShoppingListCard";
 import AddItemSheet from "./shopping/AddItemSheet";
@@ -65,6 +67,8 @@ interface Props {
 
 export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Props) {
   const { can } = usePermissions();
+  const navigate = useNavigate();
+  const { requestFeedback } = useBetaFeedbackContext();
   const {
     lists, items, isLoading, fetchError, refetch,
     createList, renameList, deleteList, markComplete, reopenList,
@@ -76,9 +80,33 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
   const [showTemplateModal, setShowTemplateModal] = useState(false);
   const [isCreatingFromTemplate, setIsCreatingFromTemplate] = useState(false);
   const [showCompleted, setShowCompleted] = useState(false);
+  const [activePlanCount, setActivePlanCount] = useState(0);
+  const [planSuggestDismissed, setPlanSuggestDismissed] = useState(
+    () => typeof window !== "undefined" && localStorage.getItem("rhozly_shopping_plan_suggest_dismissed") === "true",
+  );
+
+  // Fetch the user's active plan count so we can surface a "pull from plans" hint
+  useEffect(() => {
+    if (!homeId) return;
+    let cancelled = false;
+    supabase
+      .from("plans")
+      .select("id", { count: "exact", head: true })
+      .eq("home_id", homeId)
+      .in("status", ["Draft", "In Progress"])
+      .then(({ count }) => {
+        if (!cancelled) setActivePlanCount(count ?? 0);
+      });
+    return () => { cancelled = true; };
+  }, [homeId]);
 
   const activeLists = lists.filter(l => l.status === "active");
   const completedLists = lists.filter(l => l.status === "completed");
+
+  const handleToggleItem = async (itemId: string, checked: boolean) => {
+    await toggleItem(itemId, checked);
+    if (checked) requestFeedback("shopping_item_check");
+  };
 
   const handleToggleExpand = (id: string) => {
     if (expandedId === id) {
@@ -201,6 +229,46 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
           </div>
         )}
 
+        {/* Pull-from-plans suggestion banner */}
+        {!isLoading && !fetchError && activePlanCount > 0 && !planSuggestDismissed && (
+          <div
+            data-testid="shopping-plan-suggest-banner"
+            className="bg-gradient-to-br from-violet-50 to-violet-100/80 border border-violet-200 rounded-2xl px-4 py-3 flex items-start gap-3 mb-4"
+          >
+            <div className="bg-violet-200/60 p-2 rounded-xl shrink-0">
+              <Sparkles size={14} className="text-violet-700" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs font-black text-violet-900 leading-tight">
+                {activePlanCount} active plan{activePlanCount !== 1 ? "s" : ""} — pull plant + supply items in?
+              </p>
+              <p className="text-[11px] font-bold text-violet-700/80 mt-0.5 leading-snug">
+                Browse your plans for plants to add to a shopping list. Auto-add coming soon.
+              </p>
+            </div>
+            <div className="flex items-center gap-1 shrink-0">
+              <button
+                data-testid="shopping-plan-suggest-open"
+                onClick={() => navigate("/planner")}
+                className="text-[11px] font-black px-3 py-2 min-h-[36px] rounded-xl bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+              >
+                View plans
+              </button>
+              <button
+                data-testid="shopping-plan-suggest-dismiss"
+                onClick={() => {
+                  setPlanSuggestDismissed(true);
+                  try { localStorage.setItem("rhozly_shopping_plan_suggest_dismissed", "true"); } catch { /* ignore */ }
+                }}
+                aria-label="Dismiss suggestion"
+                className="p-1.5 text-violet-700/50 hover:text-violet-900 transition-colors"
+              >
+                <X size={14} />
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Empty state */}
         {!isLoading && !fetchError && lists.length === 0 && (
           <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
@@ -229,7 +297,7 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
                 onMarkComplete={() => handleMarkComplete(list.id)}
                 onReopen={() => reopenList(list.id)}
                 onAddItem={() => handleOpenAddItem(list.id)}
-                onToggleItem={toggleItem}
+                onToggleItem={handleToggleItem}
                 onDeleteItem={deleteItem}
                 onAddCheckedToShed={plants => handleAddCheckedToShed(list.id, plants)}
               />
@@ -264,7 +332,7 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
                     onMarkComplete={() => handleMarkComplete(list.id)}
                     onReopen={() => reopenList(list.id)}
                     onAddItem={() => handleOpenAddItem(list.id)}
-                    onToggleItem={toggleItem}
+                    onToggleItem={handleToggleItem}
                     onDeleteItem={deleteItem}
                   />
                 ))}

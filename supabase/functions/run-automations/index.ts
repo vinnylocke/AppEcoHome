@@ -84,62 +84,34 @@ async function checkControllingTaskDue(
   automationId: string,
   today: string,
 ): Promise<boolean> {
+  // Look at ALL linked blueprints regardless of role. If the user has any
+  // blueprint attached to the automation (controlling or driven) and that
+  // blueprint has a Pending or Postponed task for today, we fire. If the only
+  // matching task has already been completed (e.g. by the rain auto-complete
+  // rule) or skipped, we skip the run. If the automation has no linked
+  // blueprints at all, we treat it as a pure time-based trigger and allow.
   const { data: abps } = await db
     .from("automation_blueprints")
     .select("blueprint_id")
-    .eq("automation_id", automationId)
-    .eq("role", "controlling");
+    .eq("automation_id", automationId);
 
-  // No controlling blueprints = no gate; always allow
   if (!abps || abps.length === 0) return true;
 
-  const bpIds = abps.map((r: Record<string, unknown>) => r.blueprint_id as string);
+  const bpIds = (abps as Array<Record<string, unknown>>).map(
+    (r) => r.blueprint_id as string,
+  );
 
-  const { data: blueprints } = await db
-    .from("task_blueprints")
-    .select("id, start_date, end_date, frequency_days, is_recurring")
-    .in("id", bpIds);
-
-  if (!blueprints || blueprints.length === 0) return false;
-
-  const todayDate = new Date(today);
-
-  for (const bp of blueprints as Array<Record<string, unknown>>) {
-    if (!bp.is_recurring || !bp.start_date) continue;
-
-    const startDate = new Date(bp.start_date as string);
-    if (todayDate < startDate) continue;
-    if (bp.end_date && todayDate > new Date(bp.end_date as string)) continue;
-
-    const daysDiff = Math.round(
-      (todayDate.getTime() - startDate.getTime()) / 86_400_000,
-    );
-    if (daysDiff % (bp.frequency_days as number) !== 0) continue;
-
-    // Check if already completed/skipped today
-    const { data: existing } = await db
-      .from("tasks")
-      .select("id, status")
-      .eq("blueprint_id", bp.id as string)
-      .eq("due_date", today)
-      .maybeSingle();
-
-    if (existing && (existing as Record<string, unknown>).status !== "Pending") continue;
-
-    return true;
-  }
-
-  // Schedule maths didn't hit today — but a postponed task due today still
-  // counts: if any linked blueprint has a Postponed task for today, allow the run.
-  const { data: postponed } = await db
+  // Pending (or Postponed) task for today on any linked blueprint → fire.
+  // Overdue tasks (due_date < today) deliberately don't count as triggers.
+  const { data: actionable } = await db
     .from("tasks")
     .select("id")
     .in("blueprint_id", bpIds)
     .eq("due_date", today)
-    .eq("status", "Postponed")
+    .in("status", ["Pending", "Postponed"])
     .limit(1);
 
-  if (postponed && (postponed as unknown[]).length > 0) return true;
+  if (actionable && (actionable as unknown[]).length > 0) return true;
 
   return false;
 }
@@ -310,7 +282,8 @@ async function completeTasks(
       .from("tasks")
       .select("id, status, blueprint_id, title")
       .in("blueprint_id", bpIds)
-      .eq("due_date", today);
+      .lte("due_date", today)
+      .not("status", "in", "(\"Completed\",\"Skipped\")");
 
     if (!existingTasks || (existingTasks as unknown[]).length === 0) {
       // No scheduled tasks due today — insert a single generic marker task
@@ -355,79 +328,32 @@ async function completeTasks(
     return results;
   }
 
-  // ── Scheduled run: materialise + complete all linked blueprints ──────────
-  for (const abp of abps as Array<Record<string, unknown>>) {
-    const blueprintId = abp.blueprint_id as string;
+  // ── Scheduled run: complete every Pending/Postponed task (today OR overdue)
+  //                  for any linked blueprint. NEVER insert a new row — that's
+  //                  generate-tasks' job, not ours. If no rows match we simply
+  //                  return an empty list and the run status will reflect that.
+  const bpIds = (abps as Array<Record<string, unknown>>).map((r) => r.blueprint_id as string);
 
-    const { data: bp } = await db
-      .from("task_blueprints")
-      .select("id, home_id, title, description, task_type, location_id, area_id, inventory_item_ids")
-      .eq("id", blueprintId)
-      .single();
+  const { data: existingTasks } = await db
+    .from("tasks")
+    .select("id, status, blueprint_id, title")
+    .in("blueprint_id", bpIds)
+    .lte("due_date", today)
+    .not("status", "in", "(\"Completed\",\"Skipped\")");
 
-    if (!bp) continue;
-
-    const blueprint = bp as Record<string, unknown>;
-
-    // Check if task is already done/skipped today
-    const { data: existing } = await db
-      .from("tasks")
-      .select("id, status")
-      .eq("blueprint_id", blueprintId)
-      .eq("due_date", today)
-      .maybeSingle();
-
-    if (existing) {
-      const existingTask = existing as Record<string, unknown>;
-      if (["Completed", "Skipped"].includes(existingTask.status as string)) {
-        results.push({ blueprint_id: blueprintId, title: blueprint.title as string, already_done: true });
-        continue;
-      }
-      // Update existing Pending or Postponed task
-      await db.from("tasks")
-        .update({
-          status: "Completed",
-          completed_at: new Date().toISOString(),
-          auto_completed_reason: "automation",
-        })
-        .eq("id", existingTask.id as string);
-    } else {
-      // Materialise ghost task as completed
-      const { error: insertErr } = await db.from("tasks").insert({
-        home_id: blueprint.home_id ?? homeId,
-        blueprint_id: blueprintId,
-        title: blueprint.title,
-        description: blueprint.description ?? null,
-        type: blueprint.task_type,
-        due_date: today,
+  for (const t of (existingTasks ?? []) as Array<Record<string, unknown>>) {
+    await db.from("tasks")
+      .update({
         status: "Completed",
-        location_id: blueprint.location_id ?? null,
-        area_id: blueprint.area_id ?? null,
-        inventory_item_ids: blueprint.inventory_item_ids ?? [],
         completed_at: new Date().toISOString(),
         auto_completed_reason: "automation",
-      });
-
-      if (insertErr) {
-        // Race with generate_daily_tasks — update instead
-        if (insertErr.code === "23505") {
-          await db.from("tasks")
-            .update({
-              status: "Completed",
-              completed_at: new Date().toISOString(),
-              auto_completed_reason: "automation",
-            })
-            .eq("blueprint_id", blueprintId)
-            .eq("due_date", today)
-            .eq("status", "Pending");
-        } else {
-          warn(FN, "task_complete_error", { blueprintId, error: insertErr.message });
-          continue;
-        }
-      }
-    }
-
-    results.push({ blueprint_id: blueprintId, title: blueprint.title as string, already_done: false });
+      })
+      .eq("id", t.id as string);
+    results.push({
+      blueprint_id: t.blueprint_id as string,
+      title: (t.title as string) ?? "",
+      already_done: false,
+    });
   }
 
   return results;
@@ -617,6 +543,24 @@ async function runAutomation(
       });
       await db.from("automations").update({ last_run_date: today }).eq("id", automationId);
       return { status: "skipped_no_tasks" };
+    }
+  }
+
+  // ── Atomic claim guard (scheduled runs only) ─────────────────────────────
+  // Set last_run_date = today ONLY if it isn't already today. Two cron ticks
+  // racing here will see exactly one row updated; the loser bails silently.
+  // Match rows where last_run_date IS NULL OR != today — Postgres `!=` is
+  // NULL-unsafe so we need the explicit IS NULL branch.
+  if (triggeredBy === "schedule") {
+    const { data: claimed } = await db
+      .from("automations")
+      .update({ last_run_date: today })
+      .eq("id", automationId)
+      .or(`last_run_date.is.null,last_run_date.neq.${today}`)
+      .select("id");
+    if (!claimed || (claimed as unknown[]).length === 0) {
+      log(FN, "duplicate_run_blocked", { automationId, today });
+      return { status: "duplicate_blocked" };
     }
   }
 

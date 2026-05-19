@@ -17,6 +17,7 @@ import { logEvent, EVENT } from "../events/registry";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
 import { usePermissions } from "../context/HomePermissionsContext";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1405,12 +1406,14 @@ const TYPE_ICON_COLOUR: Record<AilmentType, string> = {
 
 function AilmentCard({
   ailment,
+  affectedCount,
   onClick,
   onArchiveToggle,
   onDelete,
   canDelete,
 }: {
   ailment: Ailment;
+  affectedCount: number;
   onClick: () => void;
   onArchiveToggle: () => void;
   onDelete: () => void;
@@ -1487,6 +1490,17 @@ function AilmentCard({
           <p className="text-xs font-bold italic text-rhozly-on-surface/40 truncate">{ailment.scientific_name}</p>
         )}
         <p className="text-xs text-rhozly-on-surface/60 line-clamp-2 leading-relaxed mt-2">{ailment.description}</p>
+        {affectedCount > 0 && (
+          <div className="mt-3">
+            <span
+              data-testid={`ailment-affected-count-${ailment.id}`}
+              className="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 border border-rose-200"
+            >
+              <AlertTriangle size={11} />
+              {affectedCount} plant{affectedCount !== 1 ? "s" : ""} affected
+            </span>
+          </div>
+        )}
         <div className="mt-auto pt-5 border-t border-rhozly-outline/10 flex items-center justify-between">
           <div>
             <p className="text-[10px] font-black text-rhozly-on-surface/30 uppercase tracking-widest">Steps</p>
@@ -1509,6 +1523,7 @@ export type AilmentFilter = "all" | AilmentType;
 
 export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId: string; aiEnabled?: boolean }) {
   const { can } = usePermissions();
+  const { requestFeedback } = useBetaFeedbackContext();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const openHandled = useRef(false);
@@ -1536,6 +1551,9 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
     ailment: Ailment | null;
   }>({ isOpen: false, type: "delete", ailment: null });
 
+  // Map of ailment_id → number of active plant instances affected
+  const [affectedCounts, setAffectedCounts] = useState<Record<string, number>>({});
+
   const fetchAilments = useCallback(async () => {
     setLoading(true);
     setFetchError(false);
@@ -1553,8 +1571,24 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
     setLoading(false);
   }, [homeId, retryTick]);
 
-  useEffect(() => { fetchAilments(); }, [fetchAilments]);
+  const fetchAffectedCounts = useCallback(async () => {
+    const { data } = await supabase
+      .from("plant_instance_ailments")
+      .select("ailment_id")
+      .eq("home_id", homeId)
+      .eq("status", "active");
+    if (!data) return;
+    const counts: Record<string, number> = {};
+    data.forEach((row: any) => {
+      if (!row.ailment_id) return;
+      counts[row.ailment_id] = (counts[row.ailment_id] ?? 0) + 1;
+    });
+    setAffectedCounts(counts);
+  }, [homeId]);
+
+  useEffect(() => { fetchAilments(); fetchAffectedCounts(); }, [fetchAilments, fetchAffectedCounts]);
   useHomeRealtime("ailments", fetchAilments);
+  useHomeRealtime("plant_instance_ailments", fetchAffectedCounts);
 
   const handleConfirmAction = async () => {
     const { ailment, type } = confirmState;
@@ -1717,6 +1751,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
             <AilmentCard
               key={a.id}
               ailment={a}
+              affectedCount={affectedCounts[a.id] ?? 0}
               onClick={() => setSelectedAilment(a)}
               onArchiveToggle={() => setConfirmState({ isOpen: true, type: a.is_archived ? "unarchive" : "archive", ailment: a })}
               onDelete={() => setConfirmState({ isOpen: true, type: "delete", ailment: a })}
@@ -1762,7 +1797,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
       {showAdd && createPortal(
         <AddAilmentModal
           homeId={homeId}
-          onSaved={(a) => setAilments((prev) => [a, ...prev])}
+          onSaved={(a) => { setAilments((prev) => [a, ...prev]); requestFeedback("ailment_add"); }}
           onClose={() => setShowAdd(false)}
         />,
         document.body,

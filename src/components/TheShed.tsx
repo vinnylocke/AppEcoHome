@@ -24,6 +24,9 @@ import {
   Clock,
   AlertCircle,
   RefreshCw,
+  LayoutGrid,
+  Sun,
+  Square as SquareIcon,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -110,7 +113,15 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     () => localStorage.getItem("rhozly_badge_guide_shown") === "true",
   );
   const [searchQuery, setSearchQuery] = useState("");
+  const [smartFilter, setSmartFilter] = useState<"none" | "unassigned" | "in-plan">("none");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedPlantIds, setSelectedPlantIds] = useState<Set<number>>(new Set());
+  const [bulkActionState, setBulkActionState] = useState<"idle" | "archiving" | "deleting">("idle");
   const [showBulkSearch, setShowBulkSearch] = useState(false);
+  const [planMembership, setPlanMembership] = useState<Set<number>>(new Set());
+  const [unassignedPlantIds, setUnassignedPlantIds] = useState<Set<number>>(new Set());
+  // Contextual badges per plant — built from active task data + ailments
+  const [plantTaskStatus, setPlantTaskStatus] = useState<Map<number, { overdueCount: number; dueTodayCount: number; harvestDue: boolean; ailmentCount: number }>>(new Map());
   const [initialSearchTerm, setInitialSearchTerm] = useState("");
   const [initialCartItems, setInitialCartItems] = useState<any[]>([]);
   const [showSourcePicker, setShowSourcePicker] = useState(false);
@@ -700,6 +711,68 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     setConfirmState({ isOpen: true, type: "delete", plant, inventoryCount: count ?? 0 });
   };
 
+  // ─── Multi-select helpers ───────────────────────────────────────────────────
+  const toggleSelectMode = () => {
+    setSelectMode((v) => {
+      if (v) setSelectedPlantIds(new Set());
+      return !v;
+    });
+  };
+
+  const togglePlantSelected = (plantId: number) => {
+    setSelectedPlantIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(plantId)) next.delete(plantId);
+      else next.add(plantId);
+      return next;
+    });
+  };
+
+  const exitSelectMode = () => {
+    setSelectMode(false);
+    setSelectedPlantIds(new Set());
+  };
+
+  const handleBulkArchive = async () => {
+    if (selectedPlantIds.size === 0) return;
+    setBulkActionState("archiving");
+    try {
+      const ids = Array.from(selectedPlantIds);
+      const { error } = await supabase
+        .from("plants")
+        .update({ is_archived: true })
+        .in("id", ids);
+      if (error) throw error;
+      toast.success(`Archived ${ids.length} plant${ids.length !== 1 ? "s" : ""}`);
+      setPlants((prev) => prev.map((p) => ids.includes(p.id as number) ? { ...p, is_archived: true } : p));
+      exitSelectMode();
+    } catch (err: any) {
+      Logger.error("Bulk archive failed", err, { count: selectedPlantIds.size }, "Could not archive — try again.");
+    } finally {
+      setBulkActionState("idle");
+    }
+  };
+
+  const handleBulkUnarchive = async () => {
+    if (selectedPlantIds.size === 0) return;
+    setBulkActionState("archiving");
+    try {
+      const ids = Array.from(selectedPlantIds);
+      const { error } = await supabase
+        .from("plants")
+        .update({ is_archived: false })
+        .in("id", ids);
+      if (error) throw error;
+      toast.success(`Restored ${ids.length} plant${ids.length !== 1 ? "s" : ""}`);
+      setPlants((prev) => prev.map((p) => ids.includes(p.id as number) ? { ...p, is_archived: false } : p));
+      exitSelectMode();
+    } catch (err: any) {
+      Logger.error("Bulk restore failed", err, { count: selectedPlantIds.size }, "Could not restore — try again.");
+    } finally {
+      setBulkActionState("idle");
+    }
+  };
+
   const executeDelete = async () => {
     const plant = confirmState.plant;
     if (!plant) return;
@@ -877,6 +950,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       if (viewTab === "active" && p.is_archived) return false;
       if (viewTab === "archived" && !p.is_archived) return false;
       if (filterSource !== "all" && p.source !== filterSource) return false;
+      if (smartFilter === "unassigned" && !unassignedPlantIds.has(p.id as number)) return false;
+      if (smartFilter === "in-plan" && !planMembership.has(p.id as number)) return false;
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matchesCommon = p.common_name.toLowerCase().includes(query);
@@ -896,7 +971,88 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       });
     }
     return base;
-  }, [plants, viewTab, filterSource, searchQuery, sortMode, preferences]);
+  }, [plants, viewTab, filterSource, smartFilter, searchQuery, sortMode, preferences, unassignedPlantIds, planMembership]);
+
+  // Fetch lightweight metadata for the smart-filter chips + per-plant status
+  // (unassigned = inventory items without an area · in-plan = plant_id appears
+  // on a task linked to a plan · overdue/today/harvest = derived from tasks)
+  useEffect(() => {
+    if (!homeId) return;
+    let cancelled = false;
+    (async () => {
+      const todayStr = new Date().toISOString().split("T")[0];
+      const [invRes, planTasksRes, openTasksRes, ailmentsRes] = await Promise.all([
+        supabase
+          .from("inventory_items")
+          .select("id, plant_id, area_id")
+          .eq("home_id", homeId)
+          .limit(2000),
+        supabase
+          .from("tasks")
+          .select("inventory_item_id, plan_id")
+          .eq("home_id", homeId)
+          .not("plan_id", "is", null)
+          .limit(2000),
+        supabase
+          .from("tasks")
+          .select("inventory_item_id, due_date, type, status")
+          .eq("home_id", homeId)
+          .neq("status", "Completed")
+          .neq("status", "Skipped")
+          .lte("due_date", todayStr)
+          .limit(2000),
+        supabase
+          .from("plant_instance_ailments")
+          .select("plant_instance_id")
+          .eq("home_id", homeId)
+          .eq("status", "active")
+          .limit(2000),
+      ]);
+      if (cancelled) return;
+
+      // Build lookup: inventory_item_id (uuid) → plant_id (int)
+      const itemToPlant = new Map<string, number>();
+      const unassigned = new Set<number>();
+      (invRes.data ?? []).forEach((row: any) => {
+        if (row.plant_id != null) itemToPlant.set(String(row.id), row.plant_id);
+        if (!row.area_id && row.plant_id != null) unassigned.add(row.plant_id as number);
+      });
+      setUnassignedPlantIds(unassigned);
+
+      const inPlan = new Set<number>();
+      (planTasksRes.data ?? []).forEach((row: any) => {
+        if (row.inventory_item_id == null) return;
+        const pid = itemToPlant.get(String(row.inventory_item_id));
+        if (pid != null) inPlan.add(pid);
+      });
+      setPlanMembership(inPlan);
+
+      // Build per-plant status (overdue / today / harvest due today / ailments)
+      const status = new Map<number, { overdueCount: number; dueTodayCount: number; harvestDue: boolean; ailmentCount: number }>();
+      const ensure = (pid: number) => {
+        let e = status.get(pid);
+        if (!e) { e = { overdueCount: 0, dueTodayCount: 0, harvestDue: false, ailmentCount: 0 }; status.set(pid, e); }
+        return e;
+      };
+      (openTasksRes.data ?? []).forEach((row: any) => {
+        if (!row.inventory_item_id) return;
+        const pid = itemToPlant.get(String(row.inventory_item_id));
+        if (pid == null) return;
+        const entry = ensure(pid);
+        if (row.due_date < todayStr) entry.overdueCount++;
+        else if (row.due_date === todayStr) entry.dueTodayCount++;
+        if (row.type === "Harvesting" && row.due_date <= todayStr) entry.harvestDue = true;
+      });
+      (ailmentsRes.data ?? []).forEach((row: any) => {
+        if (!row.plant_instance_id) return;
+        const pid = itemToPlant.get(String(row.plant_instance_id));
+        if (pid == null) return;
+        ensure(pid).ailmentCount++;
+      });
+      setPlantTaskStatus(status);
+    })();
+    return () => { cancelled = true; };
+  }, [homeId, plants.length]);
 
   const handleGridKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -995,7 +1151,29 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                   size={20}
                 />
               )}
-              <div className="ml-auto xl:ml-0">
+              <div className="ml-auto xl:ml-0 flex items-center gap-2">
+                <button
+                  data-testid="shed-select-mode-btn"
+                  onClick={toggleSelectMode}
+                  aria-label={selectMode ? "Exit multi-select mode" : "Enter multi-select mode"}
+                  title={selectMode ? "Exit selection mode" : "Select multiple plants"}
+                  className={`flex items-center gap-2 px-4 py-3 rounded-2xl font-black text-sm transition-colors ${
+                    selectMode
+                      ? "bg-rhozly-primary text-white"
+                      : "bg-rhozly-surface text-rhozly-on-surface/80 hover:bg-rhozly-surface-low"
+                  }`}
+                >
+                  <CheckSquare2 size={16} /> <span className="hidden sm:inline">{selectMode ? "Done" : "Select"}</span>
+                </button>
+                <button
+                  data-testid="shed-open-layout-btn"
+                  onClick={() => navigate("/garden-layout")}
+                  aria-label="Open garden layout"
+                  title="Place plants on a layout"
+                  className="flex items-center gap-2 px-4 py-3 bg-rhozly-surface text-rhozly-on-surface/80 rounded-2xl font-black text-sm hover:bg-rhozly-surface-low transition-colors"
+                >
+                  <LayoutGrid size={16} /> <span className="hidden sm:inline">Layout</span>
+                </button>
                 {can("shed.add") && (
                   <button
                     data-testid="shed-add-plant-btn"
@@ -1019,7 +1197,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               </div>
             )}
           </div>
-          <div className="flex flex-col gap-4">
+          <div className="flex flex-col gap-4 sticky top-0 z-20 bg-rhozly-bg/95 backdrop-blur-sm pt-2 pb-2 -mx-1 px-1 rounded-b-2xl">
             <div className="relative flex items-center">
               <Search
                 className="absolute left-4 text-rhozly-on-surface/40"
@@ -1076,6 +1254,42 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 <option value="preference">Best Match (based on your quiz)</option>
               </select>
             </div>
+            {/* Smart filter chips — surface plants by status */}
+            <div className="flex items-center gap-1.5 flex-wrap" data-testid="shed-smart-filters">
+              <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mr-1">
+                Quick filters:
+              </span>
+              {([
+                { id: "none",       label: "All",         count: null },
+                { id: "unassigned", label: "Unassigned",  count: unassignedPlantIds.size },
+                { id: "in-plan",    label: "In a plan",   count: planMembership.size },
+              ] as const).map((chip) => {
+                const active = smartFilter === chip.id;
+                const disabled = chip.id !== "none" && chip.count === 0;
+                return (
+                  <button
+                    key={chip.id}
+                    data-testid={`shed-filter-${chip.id}`}
+                    disabled={disabled}
+                    onClick={() => setSmartFilter(chip.id)}
+                    className={`flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-full text-xs font-black transition-colors ${
+                      active
+                        ? "bg-rhozly-primary text-white"
+                        : disabled
+                          ? "bg-rhozly-surface-low text-rhozly-on-surface/25 cursor-not-allowed"
+                          : "bg-rhozly-surface-lowest text-rhozly-on-surface/65 border border-rhozly-outline/15 hover:border-rhozly-primary/30 hover:text-rhozly-primary"
+                    }`}
+                  >
+                    {chip.label}
+                    {chip.count !== null && chip.count > 0 && (
+                      <span className={`text-[10px] font-black px-1.5 py-0.5 rounded-full ${active ? "bg-white/20" : "bg-rhozly-primary/10 text-rhozly-primary"}`}>
+                        {chip.count}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -1130,24 +1344,46 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               )}
             </div>
           ) : (
-            filteredPlants.map((plant, index) => (
+            filteredPlants.map((plant, index) => {
+              const isSelected = selectedPlantIds.has(plant.id as number);
+              return (
               <div
                 key={plant.id}
                 data-plant-card
                 data-testid={`plant-card-${plant.id}`}
                 tabIndex={index === focusedIndex ? 0 : -1}
-                onClick={() => setEditingPlant(plant)}
+                onClick={() => {
+                  if (selectMode) togglePlantSelected(plant.id as number);
+                  else setEditingPlant(plant);
+                }}
                 onFocus={() => setFocusedIndex(index)}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    setEditingPlant(plant);
+                    if (selectMode) togglePlantSelected(plant.id as number);
+                    else setEditingPlant(plant);
                   }
                 }}
                 role="button"
-                aria-label={`View details for ${plant.common_name}`}
-                className="relative bg-rhozly-surface-lowest rounded-3xl overflow-hidden border border-rhozly-outline/20 shadow-sm group flex flex-col cursor-pointer hover:border-rhozly-primary/30 focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 transition-all"
+                aria-label={selectMode ? `${isSelected ? "Deselect" : "Select"} ${plant.common_name}` : `View details for ${plant.common_name}`}
+                aria-pressed={selectMode ? isSelected : undefined}
+                className={`relative bg-rhozly-surface-lowest rounded-3xl overflow-hidden border-2 shadow-sm group flex flex-col cursor-pointer focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 transition-all ${
+                  isSelected
+                    ? "border-rhozly-primary shadow-md ring-2 ring-rhozly-primary/20"
+                    : "border-rhozly-outline/20 hover:border-rhozly-primary/30"
+                }`}
               >
+                {/* Selection mode overlay — checkbox in top-left */}
+                {selectMode && (
+                  <div
+                    className={`absolute top-3 left-3 z-30 w-9 h-9 rounded-xl flex items-center justify-center shadow-md transition-colors ${
+                      isSelected ? "bg-rhozly-primary text-white" : "bg-white/90 text-rhozly-on-surface/40 backdrop-blur-md"
+                    }`}
+                    aria-hidden="true"
+                  >
+                    {isSelected ? <CheckSquare2 size={18} /> : <SquareIcon size={18} />}
+                  </div>
+                )}
                 {archivingPlantId === plant.id && (
                   <div className="absolute inset-0 z-20 bg-white/80 rounded-3xl flex items-center justify-center">
                     <Loader2 size={22} className="animate-spin text-rhozly-primary" />
@@ -1183,7 +1419,45 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                       {plant.source === "api" ? "Perenual" : plant.source === "verdantly" ? "Verdantly" : plant.source === "ai" ? "AI" : "Manual"}
                     </span>
                   </div>
-                  <div className="absolute top-4 right-4 flex gap-2">
+                  <div className="absolute top-4 right-4 flex gap-1.5 sm:gap-2">
+                    <button
+                      data-testid={`plant-card-layout-${plant.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate("/garden-layout");
+                      }}
+                      aria-label={`View ${plant.common_name} on the garden layout`}
+                      title="View on garden layout"
+                      className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-violet-600 flex items-center justify-center shadow-md transition-all active:scale-90"
+                    >
+                      <LayoutGrid size={16} />
+                    </button>
+                    <button
+                      data-testid={`plant-card-sun-${plant.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        try {
+                          const sunlight = Array.isArray(plant.sunlight)
+                            ? (plant.sunlight[0] ?? null)
+                            : (typeof plant.sunlight === "string" ? plant.sunlight : null);
+                          sessionStorage.setItem(
+                            "rhozly:sun-tracker-plant",
+                            JSON.stringify({
+                              id: String(plant.id),
+                              name: plant.common_name || "Plant",
+                              sunlight,
+                              source: "shed",
+                            }),
+                          );
+                        } catch { /* ignore */ }
+                        navigate("/sun-trajectory?mode=garden");
+                      }}
+                      aria-label={`Find a spot for ${plant.common_name} in the Sun Tracker`}
+                      title="Find a spot in the Sun Tracker"
+                      className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-amber-500 flex items-center justify-center shadow-md transition-all active:scale-90"
+                    >
+                      <Sun size={16} />
+                    </button>
                     {can("shed.delete") && (
                       <button
                         onClick={(e) => {
@@ -1230,6 +1504,46 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                       <Sparkles size={8} className="text-rhozly-primary/70" /> Matches your taste
                     </span>
                   )}
+                  {/* Contextual status chips — overdue / due today / harvest ready / ailments */}
+                  {(() => {
+                    const status = plantTaskStatus.get(plant.id as number);
+                    if (!status) return null;
+                    const chips: React.ReactNode[] = [];
+                    if (status.ailmentCount > 0) {
+                      chips.push(
+                        <span key="ailments" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 border border-purple-200">
+                          ⚠ {status.ailmentCount} ailment{status.ailmentCount !== 1 ? "s" : ""}
+                        </span>,
+                      );
+                    }
+                    if (status.harvestDue) {
+                      chips.push(
+                        <span key="harvest" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 border border-amber-200">
+                          🌾 Harvest ready
+                        </span>,
+                      );
+                    }
+                    if (status.overdueCount > 0) {
+                      chips.push(
+                        <span key="overdue" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-rose-100 text-rose-700 border border-rose-200">
+                          ⏰ {status.overdueCount} overdue
+                        </span>,
+                      );
+                    }
+                    if (status.dueTodayCount > 0 && status.overdueCount === 0) {
+                      chips.push(
+                        <span key="today" className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full bg-sky-100 text-sky-700 border border-sky-200">
+                          {status.dueTodayCount} due today
+                        </span>,
+                      );
+                    }
+                    if (chips.length === 0) return null;
+                    return (
+                      <div className="flex flex-wrap gap-1.5 mt-2">
+                        {chips}
+                      </div>
+                    );
+                  })()}
                   <div className="mt-auto pt-5 border-t border-rhozly-outline/10 flex items-center justify-between">
                     <div>
                       <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">
@@ -1254,9 +1568,55 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                   </div>
                 </div>
               </div>
-            ))
+              );
+            })
           )}
         </div>
+
+        {/* Multi-select bottom action bar */}
+        {selectMode && selectedPlantIds.size > 0 && (
+          <div
+            data-testid="shed-bulk-action-bar"
+            className="fixed bottom-4 left-1/2 -translate-x-1/2 z-40 bg-rhozly-on-surface/95 text-white rounded-2xl shadow-2xl border border-white/10 backdrop-blur-md flex items-center gap-2 px-3 py-2 animate-in slide-in-from-bottom-4 duration-200"
+          >
+            <div className="flex items-center gap-2 px-2">
+              <CheckSquare2 size={14} className="text-rhozly-primary" />
+              <span className="text-xs font-black">
+                {selectedPlantIds.size} selected
+              </span>
+            </div>
+            <div className="w-px h-6 bg-white/15" />
+            {viewTab === "active" ? (
+              <button
+                data-testid="shed-bulk-archive"
+                onClick={handleBulkArchive}
+                disabled={bulkActionState !== "idle"}
+                className="flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl text-xs font-black hover:bg-white/10 transition-colors disabled:opacity-50"
+              >
+                {bulkActionState === "archiving" ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
+                Archive
+              </button>
+            ) : (
+              <button
+                data-testid="shed-bulk-restore"
+                onClick={handleBulkUnarchive}
+                disabled={bulkActionState !== "idle"}
+                className="flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl text-xs font-black hover:bg-white/10 transition-colors disabled:opacity-50"
+              >
+                {bulkActionState === "archiving" ? <Loader2 size={13} className="animate-spin" /> : <ArchiveRestore size={13} />}
+                Restore
+              </button>
+            )}
+            <button
+              data-testid="shed-bulk-cancel"
+              onClick={exitSelectMode}
+              className="flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl text-xs font-bold text-white/70 hover:text-white hover:bg-white/10 transition-colors"
+            >
+              <X size={13} />
+              Cancel
+            </button>
+          </div>
+        )}
       </div>
 
       {typeof document !== "undefined" &&

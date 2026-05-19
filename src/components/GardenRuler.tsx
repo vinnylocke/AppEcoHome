@@ -82,16 +82,19 @@ export default function GardenRuler({ canvasWm, canvasHm, pxPerM, offsetX, offse
     }
   }
 
-  // Canvas border
+  // Canvas border — soft soil-cream gradient gives a paper-plan feel instead of CAD-white
   const border = (
     <Rect
       x={0}
       y={0}
       width={w}
       height={h}
-      stroke="rgba(0,0,0,0.2)"
-      strokeWidth={1}
-      fill="rgba(255,255,255,0.9)"
+      stroke="rgba(120, 80, 40, 0.18)"
+      strokeWidth={1.5}
+      fillLinearGradientStartPoint={{ x: 0, y: 0 }}
+      fillLinearGradientEndPoint={{ x: w, y: h }}
+      fillLinearGradientColorStops={[0, "#fefaf0", 0.5, "#fbf3df", 1, "#f5ead0"]}
+      cornerRadius={4}
       listening={false}
     />
   );

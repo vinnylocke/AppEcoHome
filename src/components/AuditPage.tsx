@@ -503,14 +503,14 @@ export default function AuditPage({ homeId }: Props) {
                         {canViewAll && <th className="text-left px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">User</th>}
                         <th className="text-left px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">Feature</th>
                         <th className="text-left px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">Model</th>
-                        <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
+                        <th className="hidden sm:table-cell text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
                           <span className="inline-flex items-center gap-1 justify-end">Input <InfoTooltip content="Tokens in your request — the instructions, context, and image data sent to the AI model" size={11} /></span>
                         </th>
-                        <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
+                        <th className="hidden sm:table-cell text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
                           <span className="inline-flex items-center gap-1 justify-end">Output <InfoTooltip content="Tokens in the AI's reply — the response text generated" size={11} /></span>
                         </th>
                         <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 justify-end">Total <InfoTooltip content="Total tokens processed (Prompt + Output). Tokens are units of text — roughly 1 token ≈ 4 characters" size={11} /></span>
+                          <span className="inline-flex items-center gap-1 justify-end"><span className="sm:hidden">Tokens</span><span className="hidden sm:inline">Total</span> <InfoTooltip content="Total tokens processed (Prompt + Output). Tokens are units of text — roughly 1 token ≈ 4 characters" size={11} /></span>
                         </th>
                         <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
                           <span className="inline-flex items-center gap-1 justify-end">Cost <InfoTooltip content="Estimated cost in USD for this AI call, based on the model's pricing" size={11} /></span>
@@ -532,8 +532,8 @@ export default function AuditPage({ homeId }: Props) {
                           <td className="px-4 py-2.5 font-bold text-rhozly-on-surface/40 whitespace-nowrap text-[10px]">
                             {row.model ?? "—"}
                           </td>
-                          <td className="px-4 py-2.5 font-bold text-rhozly-on-surface/60 text-right tabular-nums">{fmtNum(row.prompt_tokens)}</td>
-                          <td className="px-4 py-2.5 font-bold text-rhozly-on-surface/60 text-right tabular-nums">{fmtNum(row.candidates_tokens)}</td>
+                          <td className="hidden sm:table-cell px-4 py-2.5 font-bold text-rhozly-on-surface/60 text-right tabular-nums">{fmtNum(row.prompt_tokens)}</td>
+                          <td className="hidden sm:table-cell px-4 py-2.5 font-bold text-rhozly-on-surface/60 text-right tabular-nums">{fmtNum(row.candidates_tokens)}</td>
                           <td className="px-4 py-2.5 font-bold text-rhozly-on-surface text-right tabular-nums">{fmtNum(row.total_tokens)}</td>
                           <td className="px-4 py-2.5 font-black text-rhozly-primary text-right tabular-nums whitespace-nowrap">{fmtCost(row.estimated_cost_usd)}</td>
                         </tr>

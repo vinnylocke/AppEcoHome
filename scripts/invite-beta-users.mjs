@@ -84,7 +84,7 @@ for (const email of emails) {
     continue;
   }
 
-  const { error } = await supabase.auth.admin.inviteUserByEmail(email, {
+  const { data, error } = await supabase.auth.admin.inviteUserByEmail(email, {
     redirectTo: REDIRECT_URL,
   });
 
@@ -98,6 +98,13 @@ for (const email of emails) {
       failed++;
     }
   } else {
+    if (data?.user) {
+      const { error: betaErr } = await supabase
+        .from("user_profiles")
+        .update({ is_beta: true })
+        .eq("uid", data.user.id);
+      if (betaErr) console.log(`  ⚠  ${email} — invited but failed to set beta flag: ${betaErr.message}`);
+    }
     console.log(`  ✓  ${email}`);
     sent++;
   }

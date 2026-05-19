@@ -15,15 +15,17 @@ import {
   HelpCircle,
   Leaf,
   Plus,
+  Sun,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { logEvent, EVENT } from "../events/registry";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import { IconAI, IconPlanner } from "../constants/icons";
 import NewPlanForm from "./NewPlanForm";
 import PlanStaging from "./PlanStaging";
+import { Repeat } from "lucide-react";
 
 interface PlannerDashboardProps {
   homeId: string;
@@ -33,8 +35,10 @@ interface PlannerDashboardProps {
 export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerDashboardProps) {
   const { can } = usePermissions();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const openHandled = useRef(false);
   const [plans, setPlans] = useState<any[]>([]);
+  const [planCounts, setPlanCounts] = useState<Record<string, { tasks: number; blueprints: number }>>({});
   const [loading, setLoading] = useState(true);
   const [fetchError, setFetchError] = useState(false);
   const [activeTab, setActiveTab] = useState<
@@ -72,17 +76,41 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
   const fetchPlans = async () => {
     setLoading(true);
     setFetchError(false);
-    const { data, error } = await supabase
-      .from("plans")
-      .select("*")
-      .eq("home_id", homeId)
-      .order("created_at", { ascending: false });
+    const [plansResult, tasksResult, bpResult] = await Promise.all([
+      supabase
+        .from("plans")
+        .select("*")
+        .eq("home_id", homeId)
+        .order("created_at", { ascending: false }),
+      supabase
+        .from("tasks")
+        .select("plan_id")
+        .eq("home_id", homeId)
+        .not("plan_id", "is", null),
+      supabase
+        .from("task_blueprints")
+        .select("plan_id")
+        .eq("home_id", homeId)
+        .not("plan_id", "is", null),
+    ]);
 
-    if (error) {
+    if (plansResult.error) {
       setFetchError(true);
-      Logger.error("Failed to load plans", error, {}, "Failed to load plans.");
+      Logger.error("Failed to load plans", plansResult.error, {}, "Failed to load plans.");
     } else {
-      setPlans(data || []);
+      setPlans(plansResult.data || []);
+      const counts: Record<string, { tasks: number; blueprints: number }> = {};
+      (tasksResult.data || []).forEach((row: any) => {
+        if (!row.plan_id) return;
+        counts[row.plan_id] = counts[row.plan_id] || { tasks: 0, blueprints: 0 };
+        counts[row.plan_id].tasks++;
+      });
+      (bpResult.data || []).forEach((row: any) => {
+        if (!row.plan_id) return;
+        counts[row.plan_id] = counts[row.plan_id] || { tasks: 0, blueprints: 0 };
+        counts[row.plan_id].blueprints++;
+      });
+      setPlanCounts(counts);
     }
     setLoading(false);
   };
@@ -366,6 +394,35 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
               onClick={() => setSelectedPlan(plan)}
               className="bg-white rounded-[2.5rem] border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group flex flex-col relative"
             >
+              <div className="absolute top-2 right-2 z-20 flex gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                <button
+                  data-testid={`plan-sun-tracker-${plan.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sessionStorage.setItem("rhozly:sun-tracker-plan-filter", plan.id);
+                    sessionStorage.setItem("rhozly:sun-tracker-plan-filter-name", plan.name || "");
+                    navigate("/sun-trajectory?mode=garden");
+                  }}
+                  className="min-h-[32px] min-w-[32px] flex items-center justify-center gap-1 px-2.5 rounded-xl bg-white/95 backdrop-blur-sm shadow-md border border-rhozly-outline/15 text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/70 hover:text-amber-600 transition-colors"
+                  title="Open this plan's beds in the Sun Tracker"
+                  aria-label={`Open ${plan.name} in Sun Tracker`}
+                >
+                  <Sun size={11} />
+                  <span className="hidden sm:inline">Sun</span>
+                </button>
+                <button
+                  data-testid={`plan-view-on-layout-${plan.id}`}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    sessionStorage.setItem("rhozly:plan-filter", plan.id);
+                    navigate("/garden-layout");
+                  }}
+                  className="min-h-[32px] px-3 rounded-xl bg-white/95 backdrop-blur-sm shadow-md border border-rhozly-outline/15 text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/70 hover:text-rhozly-on-surface transition-colors"
+                  title="Filter the garden layout to shapes in this plan"
+                >
+                  View on Layout
+                </button>
+              </div>
               {/* Per-card inline feedback banner */}
               {cardStatus[plan.id] && (
                 <div
@@ -501,11 +558,43 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                 {/* Content preview */}
                 {(() => {
                   const plantCount = plan.ai_blueprint?.plant_manifest?.length ?? 0;
-                  if (plantCount === 0) return null;
+                  const counts = planCounts[plan.id];
+                  const taskCount = counts?.tasks ?? 0;
+                  const bpCount = counts?.blueprints ?? 0;
+                  const parts: React.ReactNode[] = [];
+                  if (plantCount > 0) {
+                    parts.push(
+                      <span key="plants" className="flex items-center gap-1">
+                        <Leaf size={11} className="text-rhozly-primary/60" />
+                        {plantCount} plant{plantCount !== 1 ? "s" : ""}
+                      </span>,
+                    );
+                  }
+                  if (taskCount > 0) {
+                    parts.push(
+                      <span key="tasks" className="flex items-center gap-1">
+                        <CheckCircle2 size={11} className="text-rhozly-primary/60" />
+                        {taskCount} task{taskCount !== 1 ? "s" : ""}
+                      </span>,
+                    );
+                  }
+                  if (bpCount > 0) {
+                    parts.push(
+                      <span key="bp" className="flex items-center gap-1">
+                        <Repeat size={11} className="text-rhozly-primary/60" />
+                        {bpCount} schedule{bpCount !== 1 ? "s" : ""}
+                      </span>,
+                    );
+                  }
+                  if (parts.length === 0) return null;
                   return (
-                    <div className="flex items-center gap-1.5 text-[11px] font-bold text-rhozly-on-surface/40 mb-3">
-                      <Leaf size={11} className="text-rhozly-primary/60" />
-                      {plantCount} plant{plantCount !== 1 ? "s" : ""} in blueprint
+                    <div className="flex items-center gap-3 text-[11px] font-bold text-rhozly-on-surface/45 mb-3 flex-wrap">
+                      {parts.map((p, i) => (
+                        <React.Fragment key={i}>
+                          {i > 0 && <span className="text-rhozly-on-surface/20">·</span>}
+                          {p}
+                        </React.Fragment>
+                      ))}
                     </div>
                   );
                 })()}

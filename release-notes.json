@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Fixed",
-    "items": [
-      "Automations now correctly complete tasks that have been postponed to today, even when they are not scheduled for today by their usual recurring pattern"
-    ]
-  }
-]
+[]

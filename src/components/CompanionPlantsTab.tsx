@@ -489,6 +489,17 @@ export default function CompanionPlantsTab({
 
   return (
     <div className="flex flex-col gap-3 pb-24">
+      {/* What-is-companion-planting intro card */}
+      <div className="bg-emerald-50 border border-emerald-200/60 rounded-2xl px-4 py-3">
+        <p className="text-xs font-black text-emerald-800 mb-1 flex items-center gap-1.5">
+          <Sprout size={13} /> What is companion planting?
+        </p>
+        <p className="text-[11px] font-bold text-emerald-700/80 leading-relaxed">
+          Some plants help each other grow — by deterring pests, sharing nutrients, attracting pollinators, or providing shade.
+          Other plants stunt each other when planted nearby. The list below shows pairings for <span className="font-black">{plantName}</span>.
+        </p>
+      </div>
+
       <p className="text-[10px] font-semibold text-rhozly-on-surface/50 leading-relaxed">
         Tap <Info size={10} className="inline" /> to see images. Tick the checkbox next to any companion you want to add to your Shed.
       </p>

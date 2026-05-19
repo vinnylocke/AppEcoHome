@@ -292,8 +292,17 @@ export default function HabitQuiz({ homeId, userId, onComplete }: Props) {
   }
 
   if (done) {
+    // Build a readable answers summary from the latest selections
+    const answerRows = QUESTIONS.map((q) => {
+      const chosen = (answers[q.id] ?? []).map((idx) => q.options[idx]);
+      return {
+        question: q.title,
+        labels: chosen.map((c) => `${c.emoji} ${c.label}`),
+      };
+    }).filter((r) => r.labels.length > 0);
+
     return (
-      <div className="flex flex-col items-center justify-center gap-6 py-16 text-center">
+      <div className="flex flex-col items-center justify-center gap-6 py-12 text-center max-w-2xl mx-auto">
         <div className="w-20 h-20 rounded-full bg-emerald-100 flex items-center justify-center">
           <CheckCircle2 size={40} className="text-emerald-600" />
         </div>
@@ -301,13 +310,45 @@ export default function HabitQuiz({ homeId, userId, onComplete }: Props) {
           <h2 className="text-2xl font-black text-rhozly-on-surface mb-2">
             Your garden profile is set!
           </h2>
-          <p className="text-rhozly-on-surface/60 max-w-xs mx-auto">
+          <p className="text-rhozly-on-surface/60 max-w-md mx-auto">
             We'll use these insights to personalise your recommendations, tasks, and plant suggestions.
           </p>
         </div>
+
+        {/* Editable answer summary */}
+        <div
+          data-testid="habit-quiz-answer-summary"
+          className="w-full bg-white border border-rhozly-outline/20 rounded-3xl p-5 text-left space-y-3"
+        >
+          <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+            Your answers
+          </p>
+          {answerRows.map((row, i) => (
+            <div key={i} className="flex items-start gap-3 pb-2 last:pb-0 border-b last:border-b-0 border-rhozly-outline/5">
+              <div className="flex-1 min-w-0">
+                <p className="text-[11px] font-black text-rhozly-on-surface/55 mb-1">{row.question}</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {row.labels.map((label, j) => (
+                    <span key={j} className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-bold bg-rhozly-primary/8 text-rhozly-primary border border-rhozly-primary/15">
+                      {label}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          ))}
+          <button
+            data-testid="habit-quiz-edit-answers"
+            onClick={() => { setDone(false); setStep(0); }}
+            className="w-full mt-2 text-xs font-black text-rhozly-primary hover:underline py-1"
+          >
+            Edit my answers
+          </button>
+        </div>
+
         <button
           onClick={onComplete}
-          className="bg-rhozly-primary text-white font-bold px-8 py-3 rounded-full shadow-md hover:opacity-90 transition"
+          className="bg-rhozly-primary text-white font-bold px-8 py-3 min-h-[44px] rounded-full shadow-md hover:opacity-90 transition"
         >
           Let's go
         </button>

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import CommunityGuidesTab from "./CommunityGuidesTab";
 import AppHelpSearch from "./AppHelpSearch";
+import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 
 const GUIDE_TABS = [
   { id: "rhozly",    label: "Rhozly Guides",   testid: "guides-tab-rhozly" },
@@ -28,6 +29,7 @@ const GUIDE_TABS = [
 type GuideTabId = (typeof GUIDE_TABS)[number]["id"];
 
 export default function GuideList() {
+  const { requestFeedback } = useBetaFeedbackContext();
   const [searchParams, setSearchParams] = useSearchParams();
   const [activeTab, setActiveTab] = useState<GuideTabId>(() => {
     const t = searchParams.get("tab") as GuideTabId;
@@ -46,7 +48,7 @@ export default function GuideList() {
   const [fetchError, setFetchError] = useState<string | null>(null);
 
   // Filtering & Search
-  const [searchQuery, setSearchQuery] = useState("");
+  const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") ?? "");
   const [selectedLabel, setSelectedLabel] = useState<string>("All");
 
   // 🚀 NEW: Dropdown States
@@ -164,9 +166,17 @@ export default function GuideList() {
     const results = guides.filter((g) => {
       const title = g.data.title?.toLowerCase() || "";
       const subtitle = g.data.subtitle?.toLowerCase() || "";
-      const query = searchQuery.toLowerCase();
+      const query = searchQuery.toLowerCase().trim();
 
-      const matchesSearch = title.includes(query) || subtitle.includes(query);
+      // For queries of 2+ chars, also search the body (paragraph + image-caption sections)
+      let bodyMatches = false;
+      if (query.length >= 2 && Array.isArray(g.data.sections)) {
+        for (const section of g.data.sections) {
+          const content = typeof section?.content === "string" ? section.content.toLowerCase() : "";
+          if (content.includes(query)) { bodyMatches = true; break; }
+        }
+      }
+      const matchesSearch = !query || title.includes(query) || subtitle.includes(query) || bodyMatches;
       const matchesLabel =
         selectedLabel === "All" || g.labels?.includes(selectedLabel);
 
@@ -229,7 +239,7 @@ export default function GuideList() {
         </div>
 
         <button
-          onClick={() => setActiveGuide(null)}
+          onClick={() => { requestFeedback("guide_read"); setActiveGuide(null); }}
           className="flex items-center gap-2 px-4 py-2 bg-white rounded-xl shadow-sm text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low mb-6 transition-colors"
         >
           <ArrowLeft size={16} /> Back to Library
@@ -237,7 +247,7 @@ export default function GuideList() {
 
         <div className="bg-white rounded-3xl p-6 md:p-10 shadow-sm border border-rhozly-outline/10 overflow-hidden">
           <button
-            onClick={() => setActiveGuide(null)}
+            onClick={() => { requestFeedback("guide_read"); setActiveGuide(null); }}
             className="text-xs text-rhozly-primary font-bold mb-4 flex items-center gap-1 hover:underline"
           >
             <ArrowLeft size={12} /> Guides Library
@@ -629,10 +639,14 @@ export default function GuideList() {
         <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-rhozly-outline/20 shadow-sm">
           <BookOpen className="mx-auto w-12 h-12 text-rhozly-on-surface/20 mb-4" />
           <p className="font-black text-xl text-rhozly-on-surface/50 mb-2">
-            No guides found
+            {activeTab === "community" && !searchQuery && selectedLabel === "All"
+              ? "No community guides yet"
+              : "No guides found"}
           </p>
           <p className="text-sm font-bold text-rhozly-on-surface/40">
-            Try adjusting your search or tag filters.
+            {activeTab === "community" && !searchQuery && selectedLabel === "All"
+              ? "Be the first to share your garden knowledge!"
+              : "Try adjusting your search or tag filters."}
           </p>
         </div>
       ) : (

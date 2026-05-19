@@ -14,6 +14,7 @@ import OptimisationProposalCard, { type FeedbackState } from "./OptimisationProp
 import OptimisationHistory from "./OptimisationHistory";
 import { ConfirmModal } from "./ConfirmModal";
 import { logEvent, EVENT } from "../events/registry";
+import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 
 interface Location {
   id: string;
@@ -32,6 +33,7 @@ interface Props {
 }
 
 export default function OptimiseTab({ homeId, aiEnabled }: Props) {
+  const { requestFeedback } = useBetaFeedbackContext();
   const [userId, setUserId] = React.useState<string | null>(null);
 
   React.useEffect(() => {
@@ -335,6 +337,7 @@ export default function OptimiseTab({ homeId, aiEnabled }: Props) {
 
       const appliedCount = includedProposals.length;
       toast.success(`Applied ${appliedCount} optimisation${appliedCount > 1 ? "s" : ""}.`);
+      requestFeedback("optimise_apply", { count: appliedCount });
       setLastApplyCount(appliedCount);
       setProposals(null);
       setAiProposals(null);

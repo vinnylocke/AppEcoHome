@@ -373,7 +373,7 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     <div className="flex flex-col p-6 animate-in fade-in duration-500">
       <canvas ref={canvasRef} className="hidden" />
 
-      <div className="flex justify-between items-start mb-6">
+      <div className="flex justify-between items-start mb-4">
         <div>
           <h2 className="text-3xl font-black font-display text-rhozly-on-surface">
             Light Meter
@@ -444,6 +444,26 @@ export default function LightSensor({ homeId }: LightSensorProps) {
           </div>
         </div>
       )}
+
+      {/* Best-time-to-measure tip — visible when not in calibration mode */}
+      {!showCalibration && (() => {
+        const hour = new Date().getHours();
+        const inWindow = hour >= 10 && hour <= 14;
+        return (
+          <div className={`mb-4 flex items-start gap-2 px-3 py-2 rounded-2xl border ${
+            inWindow
+              ? "bg-emerald-50 border-emerald-200 text-emerald-800"
+              : "bg-amber-50 border-amber-200 text-amber-800"
+          }`}>
+            <Info size={14} className="shrink-0 mt-0.5" />
+            <p className="text-xs font-bold leading-snug">
+              {inWindow
+                ? "Good time to measure — readings between 10 am and 2 pm reflect peak conditions best."
+                : "Tip: take readings between 10 am and 2 pm for the most representative result. Outside this window readings can vary with the sun's angle."}
+            </p>
+          </div>
+        );
+      })()}
 
       <div className="bg-rhozly-surface-low p-1.5 rounded-2xl flex items-center mb-6">
         <button

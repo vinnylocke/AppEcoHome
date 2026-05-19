@@ -26,7 +26,8 @@ import toast from "react-hot-toast";
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { usePermissions } from "../context/HomePermissionsContext";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
+import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 
 interface Props {
   homeId: string;
@@ -43,7 +44,9 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
   // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
   const { can } = usePermissions();
+  const { requestFeedback } = useBetaFeedbackContext();
   const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const openHandled = useRef(false);
 
   const [locations, setLocations] = useState<any[]>([]);
@@ -65,6 +68,86 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
   // Per-item saving state
   const [savingLocationId, setSavingLocationId] = useState<string | null>(null);
   const [savingAreaId, setSavingAreaId] = useState<string | null>(null);
+
+  // Per-area cross-feature metadata: linked shape, latest lux reading, plant count
+  const [areaMeta, setAreaMeta] = useState<Map<string, {
+    plantCount: number;
+    latestLux: number | null;
+    latestLuxAt: string | null;
+    shapeId: string | null;
+    shapeLabel: string | null;
+    layoutId: string | null;
+  }>>(new Map());
+
+  useEffect(() => {
+    if (!homeId) return;
+    let cancelled = false;
+    (async () => {
+      // Fetch in parallel: garden_shapes (for shape linkage), latest lux readings,
+      // inventory counts grouped by area.
+      const [shapesRes, luxRes, plantsRes] = await Promise.all([
+        supabase
+          .from("garden_shapes")
+          .select("id, area_id, label, layout_id, garden_layouts!inner(home_id)")
+          .eq("garden_layouts.home_id", homeId)
+          .not("area_id", "is", null)
+          .limit(1000),
+        supabase
+          .from("area_lux_readings")
+          .select("area_id, lux_value, recorded_at")
+          .order("recorded_at", { ascending: false })
+          .limit(500),
+        supabase
+          .from("inventory_items")
+          .select("area_id")
+          .eq("home_id", homeId)
+          .eq("status", "Planted")
+          .limit(2000),
+      ]);
+      if (cancelled) return;
+
+      const meta = new Map<string, {
+        plantCount: number;
+        latestLux: number | null;
+        latestLuxAt: string | null;
+        shapeId: string | null;
+        shapeLabel: string | null;
+        layoutId: string | null;
+      }>();
+      const ensure = (id: string) => {
+        let e = meta.get(id);
+        if (!e) {
+          e = { plantCount: 0, latestLux: null, latestLuxAt: null, shapeId: null, shapeLabel: null, layoutId: null };
+          meta.set(id, e);
+        }
+        return e;
+      };
+      (shapesRes.data ?? []).forEach((row: any) => {
+        if (!row.area_id) return;
+        const e = ensure(row.area_id);
+        // Keep first shape we find per area (typically only one)
+        if (!e.shapeId) {
+          e.shapeId = row.id;
+          e.shapeLabel = row.label ?? null;
+          e.layoutId = row.layout_id ?? null;
+        }
+      });
+      (luxRes.data ?? []).forEach((row: any) => {
+        if (!row.area_id) return;
+        const e = ensure(row.area_id);
+        if (e.latestLux == null) {
+          e.latestLux = row.lux_value;
+          e.latestLuxAt = row.recorded_at;
+        }
+      });
+      (plantsRes.data ?? []).forEach((row: any) => {
+        if (!row.area_id) return;
+        ensure(row.area_id).plantCount++;
+      });
+      setAreaMeta(meta);
+    })();
+    return () => { cancelled = true; };
+  }, [homeId, locations.length]);
 
   useEffect(() => {
     if (openHandled.current) return;
@@ -152,6 +235,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
       setNewLoc({ name: "", is_outside: false });
       setIsAddingLoc(false);
       toast.success("Location created!");
+      requestFeedback("location_create");
       fetchHierarchy();
       onDataChanged?.();
     } catch (err: any) {
@@ -260,6 +344,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
       Logger.error("Failed to add area", error, {}, "Failed to add area.");
     } else {
       toast.success("New area added!");
+      requestFeedback("area_create");
       fetchHierarchy();
       onDataChanged?.();
     }
@@ -484,74 +569,118 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                 </div>
 
                 <div className="space-y-2">
-                  {loc.areas.map((area: any) => (
+                  {loc.areas.map((area: any) => {
+                    const meta = areaMeta.get(area.id);
+                    return (
                     <div
                       key={area.id}
-                      className="flex items-start gap-3 bg-white p-2 pl-4 rounded-xl border border-rhozly-outline/10"
+                      className="bg-white rounded-xl border border-rhozly-outline/10"
                     >
-                      <MapPin className="w-4 h-4 text-rhozly-primary/40 mt-1 shrink-0" />
-                      <textarea
-                        value={area.name}
-                        readOnly={!can("areas.edit")}
-                        rows={1}
-                        onChange={(e) => {
-                          const el = e.target;
-                          el.style.height = "auto";
-                          el.style.height = el.scrollHeight + "px";
-                          setLocations(
-                            locations.map((l) =>
-                              l.id === loc.id
-                                ? {
-                                    ...l,
-                                    areas: l.areas.map((a: any) =>
-                                      a.id === area.id
-                                        ? { ...a, name: e.target.value }
-                                        : a,
-                                    ),
-                                  }
-                                : l,
-                            ),
-                          );
-                        }}
-                        onKeyDown={(e) => {
-                          if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
-                        }}
-                        onBlur={() => can("areas.edit") && handleUpdateAreaDB(area)}
-                        ref={(el) => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }}
-                        className={`flex-1 min-w-0 text-sm font-bold text-rhozly-on-surface bg-transparent focus:outline-none resize-none overflow-hidden leading-snug ${!can("areas.edit") ? "cursor-default" : ""}`}
-                      />
-                      {savingAreaId === area.id && (
-                        <Loader2 size={14} className="animate-spin text-rhozly-primary shrink-0 self-start mt-1" />
-                      )}
-                      <div className="flex gap-1 shrink-0 self-start transition-opacity">
-                        {can("areas.edit") && (
-                          <button
-                            onClick={() => setEditingArea(area)}
-                            className="flex items-center gap-1 min-h-[44px] px-2 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-xl"
-                            aria-label="Advanced Metrics"
-                            title="Advanced Metrics"
-                          >
-                            <Settings2 size={14} />
-                            <span className="text-[10px] font-black uppercase tracking-wider hidden sm:block">Metrics</span>
-                          </button>
+                      <div className="flex items-start gap-3 p-2 pl-4">
+                        <MapPin className="w-4 h-4 text-rhozly-primary/40 mt-1 shrink-0" />
+                        <textarea
+                          value={area.name}
+                          readOnly={!can("areas.edit")}
+                          rows={1}
+                          onChange={(e) => {
+                            const el = e.target;
+                            el.style.height = "auto";
+                            el.style.height = el.scrollHeight + "px";
+                            setLocations(
+                              locations.map((l) =>
+                                l.id === loc.id
+                                  ? {
+                                      ...l,
+                                      areas: l.areas.map((a: any) =>
+                                        a.id === area.id
+                                          ? { ...a, name: e.target.value }
+                                          : a,
+                                      ),
+                                    }
+                                  : l,
+                              ),
+                            );
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+                          }}
+                          onBlur={() => can("areas.edit") && handleUpdateAreaDB(area)}
+                          ref={(el) => { if (el) { el.style.height = "auto"; el.style.height = el.scrollHeight + "px"; } }}
+                          className={`flex-1 min-w-0 text-sm font-bold text-rhozly-on-surface bg-transparent focus:outline-none resize-none overflow-hidden leading-snug ${!can("areas.edit") ? "cursor-default" : ""}`}
+                        />
+                        {savingAreaId === area.id && (
+                          <Loader2 size={14} className="animate-spin text-rhozly-primary shrink-0 self-start mt-1" />
                         )}
-                        {can("areas.delete") && (
-                          <button
-                            onClick={() =>
-                              setItemToDelete({
-                                type: "area",
-                                id: area.id,
-                                locationId: loc.id,
-                              })
-                            }
-                            className="min-w-[44px] min-h-[44px] p-2 text-rhozly-on-surface/30 hover:text-red-500 rounded-xl flex items-center justify-center"
-                          >
-                            <Trash2 size={16} />
-                          </button>
-                        )}
+                        <div className="flex gap-1 shrink-0 self-start transition-opacity">
+                          {can("areas.edit") && (
+                            <button
+                              onClick={() => setEditingArea(area)}
+                              className="flex items-center gap-1 min-h-[44px] px-2 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-xl"
+                              aria-label="Advanced Metrics"
+                              title="Advanced Metrics"
+                            >
+                              <Settings2 size={14} />
+                              <span className="text-[10px] font-black uppercase tracking-wider hidden sm:block">Metrics</span>
+                            </button>
+                          )}
+                          {can("areas.delete") && (
+                            <button
+                              onClick={() =>
+                                setItemToDelete({
+                                  type: "area",
+                                  id: area.id,
+                                  locationId: loc.id,
+                                })
+                              }
+                              className="min-w-[44px] min-h-[44px] p-2 text-rhozly-on-surface/30 hover:text-red-500 rounded-xl flex items-center justify-center"
+                            >
+                              <Trash2 size={16} />
+                            </button>
+                          )}
+                        </div>
                       </div>
+
+                      {/* Cross-feature metadata row — plant count, lux, layout link */}
+                      {meta && (meta.plantCount > 0 || meta.latestLux != null || meta.shapeId) && (
+                        <div className="px-4 pb-2 -mt-1 flex flex-wrap items-center gap-1.5">
+                          {meta.plantCount > 0 && (
+                            <span
+                              data-testid={`area-plant-count-${area.id}`}
+                              className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200"
+                            >
+                              🌱 {meta.plantCount} plant{meta.plantCount !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                          {meta.latestLux != null && (
+                            <span
+                              data-testid={`area-latest-lux-${area.id}`}
+                              className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-amber-50 text-amber-700 border border-amber-200"
+                              title={meta.latestLuxAt ? `Latest reading ${new Date(meta.latestLuxAt).toLocaleDateString("en-GB")}` : undefined}
+                            >
+                              ☀ {Math.round(meta.latestLux).toLocaleString()} lx
+                            </span>
+                          )}
+                          {meta.shapeId && (
+                            <button
+                              data-testid={`area-open-layout-${area.id}`}
+                              onClick={() => {
+                                if (meta.layoutId) {
+                                  navigate(`/garden-layout/${meta.layoutId}`);
+                                } else {
+                                  navigate("/garden-layout");
+                                }
+                              }}
+                              className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-full bg-violet-50 text-violet-700 border border-violet-200 hover:bg-violet-100 transition-colors"
+                              title="View this area's shape on the Garden Layout"
+                            >
+                              📐 On layout{meta.shapeLabel ? ` · ${meta.shapeLabel}` : ""}
+                            </button>
+                          )}
+                        </div>
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </div>
             </div>

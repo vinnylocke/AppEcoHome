@@ -282,6 +282,30 @@ export default function NewPlanForm({
                     {errors.description}
                   </p>
                 )}
+                {/* Prompt chips — clickable starter ideas */}
+                {!formData.description.trim() && (
+                  <div className="flex flex-wrap gap-1.5 pt-1" data-testid="new-plan-prompt-chips">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mr-1 self-center">
+                      Try:
+                    </span>
+                    {[
+                      "Set up a small veg patch",
+                      "Plan a cottage garden bed",
+                      "Add winter colour to my borders",
+                      "Build a kid-friendly sensory garden",
+                      "Create a low-water Mediterranean corner",
+                    ].map((suggestion) => (
+                      <button
+                        key={suggestion}
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, description: suggestion }))}
+                        className="px-3 py-1.5 min-h-[32px] rounded-full bg-rhozly-primary/5 border border-rhozly-primary/15 text-xs font-bold text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors"
+                      >
+                        {suggestion}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">

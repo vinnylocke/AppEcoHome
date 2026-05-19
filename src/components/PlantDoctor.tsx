@@ -23,6 +23,7 @@ import {
   Globe,
   BrainCircuit,
   ShieldCheck,
+  Sun,
 } from "lucide-react";
 import { IconDoctor, IconPlantDB, IconPest, IconAI, IconPlant, IconGuides, IconShopping } from "../constants/icons";
 import { toast } from "react-hot-toast";
@@ -40,6 +41,7 @@ import { usePlantDoctorSessions } from "../hooks/usePlantDoctorSessions";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import {
   PlantDoctorService,
   type DiseaseInfo,
@@ -65,6 +67,7 @@ export default function PlantDoctor({
   onTasksAdded,
 }: PlantDoctorProps) {
   const { setPageContext } = usePlantDoctor();
+  const { requestFeedback } = useBetaFeedbackContext();
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<"analyse" | "history">("analyse");
@@ -110,6 +113,37 @@ export default function PlantDoctor({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
+
+  // Photo handoff from garden layout — pre-load an image when a URL is stashed in sessionStorage.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const url = sessionStorage.getItem("rhozly:doctor-image");
+    if (!url) return;
+    sessionStorage.removeItem("rhozly:doctor-image");
+    sessionStorage.removeItem("rhozly:doctor-source");
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Image fetch failed");
+        const blob = await res.blob();
+        if (cancelled) return;
+        if (blob.size > 10 * 1024 * 1024) {
+          toast.error("Image too large for Plant Doctor");
+          return;
+        }
+        const file = new File([blob], "bed-photo.jpg", { type: blob.type || "image/jpeg" });
+        setImagePreview(URL.createObjectURL(file));
+        setSelectedFile(file);
+        setAiResult(null);
+        toast("Photo loaded — pick an action below");
+      } catch (err) {
+        Logger.error("Failed to preload Doctor image from layout", err);
+      }
+    })();
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   useEffect(() => {
     setPageContext({
@@ -441,6 +475,7 @@ export default function PlantDoctor({
         logEvent(EVENT.AI_IDENTIFY, { pest_name: data?.possible_pests?.[0]?.name ?? null });
       }
       toast.success(action === "diagnose" ? "Diagnosis complete!" : "Identification complete!");
+      requestFeedback("doctor_diagnosis", { action });
     } catch (error: any) {
       Logger.error("Plant AI analysis failed", error, { homeId, action }, error.message || "Failed to analyze plant.");
     } finally {
@@ -1087,6 +1122,51 @@ export default function PlantDoctor({
                         )}
 
                         <div className="space-y-3 pt-4 border-t border-rhozly-outline/10">
+                          {(() => {
+                            const sunKeywords = ["leggy", "etiolated", "yellow", "pale", "chlorosis", "sunburn", "scorch", "scorched", "bleached", "sunlight"];
+                            const diseaseLower = (selectedDisease ?? "").toLowerCase();
+                            const isSunRelated = sunKeywords.some(k => diseaseLower.includes(k));
+                            if (!isSunRelated) return null;
+                            const patient = sickInventoryId ? myInventory.find((i) => i.id === sickInventoryId) : null;
+                            const plantName = patient?.plants?.common_name || patient?.nickname || "this plant";
+                            return (
+                              <button
+                                data-testid="doctor-check-sun"
+                                onClick={() => {
+                                  if (patient) {
+                                    try {
+                                      const raw = patient.plants?.sunlight;
+                                      const sunlight = Array.isArray(raw) ? (raw[0] ?? null) : (typeof raw === "string" ? raw : null);
+                                      sessionStorage.setItem(
+                                        "rhozly:sun-tracker-plant",
+                                        JSON.stringify({
+                                          id: String(patient.id),
+                                          name: plantName,
+                                          sunlight,
+                                          source: "doctor",
+                                        }),
+                                      );
+                                    } catch { /* ignore */ }
+                                  }
+                                  navigate("/sun-trajectory?mode=garden");
+                                }}
+                                className="w-full flex items-center justify-center gap-2 py-3 bg-amber-500 text-white rounded-2xl font-black text-sm hover:bg-amber-600 transition-colors shadow-sm"
+                              >
+                                <Sun size={16} /> Check sun for {plantName}
+                              </button>
+                            );
+                          })()}
+                          {selectedDisease && (
+                            <button
+                              data-testid="doctor-browse-guides"
+                              onClick={() => {
+                                navigate(`/guides?q=${encodeURIComponent(selectedDisease)}`);
+                              }}
+                              className="w-full flex items-center justify-center gap-2 py-3 bg-rose-50 text-rose-700 border border-rose-200 rounded-2xl font-black text-sm hover:bg-rose-100 transition-colors"
+                            >
+                              <IconGuides size={16} /> Read more about {selectedDisease}
+                            </button>
+                          )}
                           {currentSessionId && !confirmedValue && selectedDisease && (
                             <button
                               data-testid="doctor-confirm-diagnosis"

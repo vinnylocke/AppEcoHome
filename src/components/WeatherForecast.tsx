@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import {
   Cloud, Sun, CloudRain, CloudDrizzle, CloudSnow, CloudLightning,
   Wind, Droplets, Thermometer, ChevronDown, ChevronUp,
-  CheckCircle2, AlertTriangle, AlertCircle, Info,
+  CheckCircle2, AlertTriangle, AlertCircle, Info, RefreshCw,
 } from "lucide-react";
 import {
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip,
@@ -75,6 +75,8 @@ interface Props {
   weatherData: any;
   alerts: any[];
   homeId: string | null;
+  /** Optional callback to re-fetch the dashboard (called after sync-weather completes). */
+  onRefresh?: () => void | Promise<void>;
 }
 
 // ─── WMO Code helpers ─────────────────────────────────────────────────────────
@@ -311,7 +313,19 @@ const METRICS = [
   { id: "humidity", label: "Humidity",     icon: Droplets,    color: "#f59e0b",                             unit: "%",     dataKey: "humidity" },
 ];
 
-export default function WeatherForecast({ weatherData, alerts, homeId }: Props) {
+export default function WeatherForecast({ weatherData, alerts, homeId, onRefresh }: Props) {
+  const [refreshing, setRefreshing] = useState(false);
+  async function handleRefresh() {
+    if (!homeId || refreshing) return;
+    setRefreshing(true);
+    try {
+      await supabase.functions.invoke("sync-weather", { body: { home_id: homeId } });
+      await onRefresh?.();
+    } finally {
+      setRefreshing(false);
+    }
+  }
+
   const { setPageContext } = usePlantDoctor();
 
   const today = useMemo(() => new Date().toISOString().split("T")[0], []);
@@ -516,13 +530,25 @@ export default function WeatherForecast({ weatherData, alerts, homeId }: Props) 
   return (
     <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
       {/* Header */}
-      <div>
-        <h2 className="text-3xl font-black font-display text-rhozly-on-surface tracking-tight">
-          Weather Forecast
-        </h2>
-        <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-          7-day outlook · hourly detail · garden decisions
-        </p>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <h2 className="text-3xl font-black font-display text-rhozly-on-surface tracking-tight">
+            Weather Forecast
+          </h2>
+          <p className="text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
+            7-day outlook · hourly detail · garden decisions
+          </p>
+        </div>
+        <button
+          data-testid="weather-refresh-btn"
+          onClick={handleRefresh}
+          disabled={refreshing || !homeId}
+          aria-label="Refresh weather forecast"
+          title="Refresh weather"
+          className="min-h-[44px] min-w-[44px] flex items-center justify-center rounded-2xl bg-rhozly-surface text-rhozly-on-surface/70 hover:bg-rhozly-surface-low hover:text-rhozly-on-surface transition-colors disabled:opacity-50"
+        >
+          <RefreshCw size={18} className={refreshing ? "animate-spin" : ""} />
+        </button>
       </div>
 
       {/* ── 7-day strip ───────────────────────────────────────────────────────── */}

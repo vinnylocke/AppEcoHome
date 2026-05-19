@@ -522,15 +522,39 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     -1,
   );
 
+  // First-visit pulse: show an attention-grabbing ring on the chat button
+  // until the user has opened the chat for the first time. Stored per-device.
+  const hasOpenedChat = (() => {
+    try { return localStorage.getItem("rhozly_chat_opened") === "true"; } catch { return false; }
+  })();
+  const [showPulse, setShowPulse] = useState(!hasOpenedChat);
+  useEffect(() => {
+    if (isOpen && showPulse) {
+      try { localStorage.setItem("rhozly_chat_opened", "true"); } catch { /* ignore */ }
+      setShowPulse(false);
+    }
+  }, [isOpen, showPulse]);
+
   return (
     <>
-      {/* Floating Action Button */}
-      <button
-        onClick={() => setIsOpen(!isOpen)}
-        className="fixed bottom-6 right-6 w-14 h-14 bg-rhozly-primary text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-transform z-40"
-      >
-        <MessageSquare size={24} />
-      </button>
+      {/* Floating Action Button — pulsing ring on first visit */}
+      <div className="fixed bottom-6 right-6 z-40">
+        {showPulse && !isOpen && (
+          <>
+            <span className="absolute inset-0 rounded-full bg-rhozly-primary/40 animate-ping" aria-hidden="true" />
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-amber-400 border-2 border-white shadow" aria-hidden="true" />
+          </>
+        )}
+        <button
+          data-testid="plant-doctor-chat-fab"
+          onClick={() => setIsOpen(!isOpen)}
+          aria-label={isOpen ? "Close Garden AI chat" : "Open Garden AI chat"}
+          title={showPulse ? "Try the Garden AI — ask anything" : "Garden AI"}
+          className="relative w-14 h-14 bg-rhozly-primary text-white rounded-full flex items-center justify-center shadow-2xl hover:scale-105 transition-transform"
+        >
+          <MessageSquare size={24} />
+        </button>
+      </div>
 
       {/* Chat Window */}
       {isOpen && (

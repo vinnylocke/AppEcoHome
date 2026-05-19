@@ -145,7 +145,7 @@ Deno.serve(async (req) => {
 
     // ── Tasks aggregation ───────────────────────────────────────────────────
     const tasks = tasksResult.data ?? [];
-    const taskTotal = tasks.length;
+    const taskTotal = tasks.filter((t) => t.status !== "Skipped").length;
     const taskCompleted = tasks.filter((t) => t.status === "Completed").length;
     const taskAutoCompleted = tasks.filter(
       (t) => t.status === "Completed" && t.auto_completed_reason,
@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
 
     // By category
     const taskByCategory: Record<string, number> = {};
-    for (const t of tasks) {
+    for (const t of tasks.filter((t) => t.status !== "Skipped")) {
       const cat = t.type ?? "Other";
       taskByCategory[cat] = (taskByCategory[cat] ?? 0) + 1;
     }
@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
 
     // ── Harvest aggregation ─────────────────────────────────────────────────
     const harvestTasks = tasks.filter((t) =>
-      ["Harvesting", "Harvest"].includes(t.type ?? ""),
+      ["Harvesting", "Harvest"].includes(t.type ?? "") && t.status !== "Skipped",
     );
     const harvestBlueprintsDue = new Set(
       harvestTasks.map((t) => t.id), // deduplicate by task id (blueprints may generate multiple)
@@ -237,7 +237,7 @@ Deno.serve(async (req) => {
     }
 
     // ── Pruning aggregation ─────────────────────────────────────────────────
-    const pruningTasks = tasks.filter((t) => t.type === "Pruning");
+    const pruningTasks = tasks.filter((t) => t.type === "Pruning" && t.status !== "Skipped");
     const pruningBlueprintsDue = new Set(pruningTasks.map((t) => t.id)).size;
     const pruningBlueprintsCompleted = pruningTasks.filter(
       (t) => t.status === "Completed",
@@ -308,7 +308,7 @@ Deno.serve(async (req) => {
     const stripEnd = new Date(weekEnd);
     while (stripDay <= stripEnd) {
       const ds = stripDay.toISOString().slice(0, 10);
-      const dayTasks = tasks.filter((t) => t.due_date.slice(0, 10) === ds);
+      const dayTasks = tasks.filter((t) => t.due_date.slice(0, 10) === ds && t.status !== "Skipped");
       const completedOnTime = dayTasks.filter(
         (t) => t.status === "Completed" && t.completed_at != null && t.completed_at.slice(0, 10) <= ds,
       ).length;

@@ -1,5 +1,5 @@
-import React, { useState } from "react";
-import { AlertTriangle, Home, Send, CheckCircle, Loader2 } from "lucide-react";
+import React, { useMemo, useState } from "react";
+import { AlertTriangle, Home, Send, CheckCircle, Loader2, Copy, ArrowLeft, RefreshCw, Trash2 } from "lucide-react";
 
 interface ErrorPageProps {
   error?: Error;
@@ -18,8 +18,49 @@ function collectDeviceInfo() {
   };
 }
 
+// Stable short ID for this render — gives the user something to copy / quote
+// in a support email without exposing the full stack trace.
+function generateErrorId(error?: Error): string {
+  const base = (error?.message ?? "unknown") + Date.now();
+  let hash = 0;
+  for (let i = 0; i < base.length; i++) {
+    hash = (hash * 31 + base.charCodeAt(i)) | 0;
+  }
+  const positive = Math.abs(hash).toString(36).toUpperCase().padStart(6, "0").slice(0, 6);
+  return `RZ-${positive}`;
+}
+
 export default function ErrorPage({ error, appVersion }: ErrorPageProps) {
   const [reportState, setReportState] = useState<"idle" | "sending" | "sent" | "failed">("idle");
+  const [copied, setCopied] = useState(false);
+  const errorId = useMemo(() => generateErrorId(error), [error]);
+
+  const copyErrorId = async () => {
+    try {
+      await navigator.clipboard.writeText(errorId);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch { /* ignore */ }
+  };
+
+  const goBack = () => {
+    if (window.history.length > 1) window.history.back();
+    else window.location.href = "/dashboard";
+  };
+
+  const hardReload = () => {
+    // Clear known caches that could be holding broken state, then reload
+    try {
+      sessionStorage.clear();
+      // Don't clear localStorage entirely — preserves their preferences
+      const preserve = ["rhozly_welcomed", "rhozly_notif_prefs", "rhozly_dashboard_view"];
+      const keys = Object.keys(localStorage);
+      for (const k of keys) {
+        if (!preserve.includes(k) && k.startsWith("rhozly_")) localStorage.removeItem(k);
+      }
+    } catch { /* ignore */ }
+    window.location.reload();
+  };
 
   const sendReport = async () => {
     setReportState("sending");
@@ -31,6 +72,7 @@ export default function ErrorPage({ error, appVersion }: ErrorPageProps) {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
+          errorId,
           errorMessage: error?.message ?? "Unknown error",
           errorStack: error?.stack ?? null,
           appVersion: appVersion ?? null,
@@ -60,6 +102,59 @@ export default function ErrorPage({ error, appVersion }: ErrorPageProps) {
           <p className="text-sm font-bold text-rhozly-on-surface/50 leading-snug">
             An unexpected error occurred. Your data is safe.
           </p>
+        </div>
+
+        {/* Copy-able error ID — quick reference for support */}
+        <button
+          data-testid="error-page-copy-id"
+          onClick={copyErrorId}
+          className="w-full flex items-center justify-between gap-2 px-4 py-2.5 bg-rhozly-surface-low border border-rhozly-outline/20 rounded-2xl text-xs font-bold text-rhozly-on-surface/70 hover:bg-rhozly-surface hover:border-rhozly-outline/40 transition-colors"
+          title="Copy error reference"
+        >
+          <span className="flex flex-col items-start min-w-0">
+            <span className="text-[9px] font-black uppercase tracking-widest text-rhozly-on-surface/40 leading-none">
+              Error reference
+            </span>
+            <span className="font-mono font-black text-rhozly-primary mt-0.5">{errorId}</span>
+          </span>
+          <span className="flex items-center gap-1.5 text-rhozly-on-surface/50 shrink-0">
+            {copied ? <CheckCircle size={13} className="text-emerald-600" /> : <Copy size={13} />}
+            <span className="text-[10px] font-black uppercase tracking-widest">{copied ? "Copied" : "Copy"}</span>
+          </span>
+        </button>
+
+        {/* Recovery suggestions */}
+        <div className="text-left space-y-2 bg-white border border-rhozly-outline/15 rounded-2xl p-4">
+          <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-1">
+            Try one of these
+          </p>
+          <button
+            data-testid="error-page-back"
+            onClick={goBack}
+            className="w-full flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-xl text-xs font-bold text-rhozly-on-surface/75 hover:bg-rhozly-primary/5 transition-colors"
+          >
+            <ArrowLeft size={14} className="text-rhozly-primary shrink-0" />
+            <span className="text-left">Go back to the previous screen</span>
+          </button>
+          <button
+            data-testid="error-page-reload"
+            onClick={hardReload}
+            className="w-full flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-xl text-xs font-bold text-rhozly-on-surface/75 hover:bg-rhozly-primary/5 transition-colors"
+          >
+            <RefreshCw size={14} className="text-rhozly-primary shrink-0" />
+            <span className="text-left">Reload the app (keeps your preferences)</span>
+          </button>
+          <button
+            data-testid="error-page-clear"
+            onClick={() => {
+              try { localStorage.clear(); sessionStorage.clear(); } catch { /* ignore */ }
+              window.location.href = "/dashboard";
+            }}
+            className="w-full flex items-center gap-3 px-3 py-2 min-h-[40px] rounded-xl text-xs font-bold text-rhozly-on-surface/75 hover:bg-rhozly-primary/5 transition-colors"
+          >
+            <Trash2 size={14} className="text-rhozly-on-surface/50 shrink-0" />
+            <span className="text-left">Clear local data and start fresh</span>
+          </button>
         </div>
 
         <div className="flex flex-col gap-3">
