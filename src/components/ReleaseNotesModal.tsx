@@ -1,8 +1,62 @@
 import React, { useState } from "react";
-import { X, Sparkles, Wrench, TrendingUp, Trash2, ArrowRight } from "lucide-react";
+import { X, Sparkles, Wrench, TrendingUp, Trash2, ArrowRight, AlertTriangle } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import type { ReleaseNote, ReleaseNoteSection } from "../hooks/useReleaseNotes";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+
+interface NormalisedItem {
+  text: string;
+  link: { label: string; path: string } | null;
+}
+
+/**
+ * Coerce a raw release-note item into a safe-to-render shape. Old rows in the
+ * release_notes JSONB column can plausibly contain nulls, primitives, or
+ * objects missing `.text` — anything unexpected returns null so the caller
+ * can skip the entry entirely.
+ */
+function normaliseItem(item: unknown): NormalisedItem | null {
+  if (typeof item === "string") {
+    return { text: item, link: null };
+  }
+  if (item && typeof item === "object") {
+    const obj = item as { text?: unknown; link?: unknown };
+    if (typeof obj.text === "string") {
+      let link: NormalisedItem["link"] = null;
+      if (obj.link && typeof obj.link === "object") {
+        const l = obj.link as { label?: unknown; path?: unknown };
+        if (typeof l.label === "string" && typeof l.path === "string") {
+          link = { label: l.label, path: l.path };
+        }
+      }
+      return { text: obj.text, link };
+    }
+  }
+  return null;
+}
+
+interface NoteBoundaryState { hasError: boolean }
+
+/**
+ * Tiny per-note error boundary. A single corrupt release-notes row crashes
+ * only its own card rather than the whole modal.
+ */
+class NoteBoundary extends React.Component<{ children: React.ReactNode; version: string }, NoteBoundaryState> {
+  state: NoteBoundaryState = { hasError: false };
+  static getDerivedStateFromError() { return { hasError: true }; }
+  componentDidCatch(_err: unknown) { /* swallowed — the modal stays usable */ }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="flex items-start gap-2 text-xs font-medium text-rhozly-on-surface/40 bg-rhozly-surface-low rounded-xl p-3" data-testid="release-notes-row-error">
+          <AlertTriangle size={12} className="mt-0.5 shrink-0" />
+          <span>Could not display notes for Rhozly OS {this.props.version}.</span>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 interface Props {
   notes: ReleaseNote[];
@@ -25,39 +79,47 @@ function SectionBlock({
   section: ReleaseNoteSection;
   onTryIt: (path: string) => void;
 }) {
+  // Old rows can store `items` as anything in the JSONB column — guard before
+  // mapping and drop entries we can't normalise.
+  const rawItems = Array.isArray(section?.items) ? section.items : [];
+  const items: NormalisedItem[] = [];
+  for (const raw of rawItems) {
+    const normalised = normaliseItem(raw);
+    if (normalised) items.push(normalised);
+  }
+  const label = typeof section?.label === "string" ? section.label : "Notes";
+
+  if (items.length === 0) return null;
+
   return (
     <div className="mb-3 last:mb-0">
       <div className="flex items-center gap-1.5 mb-1.5">
-        <span className="text-rhozly-primary/60">{SECTION_ICONS[section.label] ?? <Sparkles size={13} />}</span>
-        <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">{section.label}</span>
+        <span className="text-rhozly-primary/60">{SECTION_ICONS[label] ?? <Sparkles size={13} />}</span>
+        <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">{label}</span>
       </div>
       <ul className="space-y-1.5 pl-1">
-        {(section.items ?? []).map((item, i) => {
-          const text = typeof item === "string" ? item : item.text;
-          const link = typeof item === "string" ? null : item.link ?? null;
-          return (
-            <li key={i} className="flex items-start gap-2 text-sm text-rhozly-on-surface/70 font-medium leading-snug">
-              <span className="mt-1.5 w-1 h-1 rounded-full bg-rhozly-primary/40 shrink-0" />
-              <span className="flex-1">
-                {text}
-                {link && (
-                  <>
-                    {" "}
-                    <button
-                      type="button"
-                      onClick={() => onTryIt(link.path)}
-                      data-testid="release-notes-try-it-link"
-                      className="inline-flex items-center gap-0.5 ml-1 text-rhozly-primary font-black hover:underline"
-                    >
-                      {link.label}
-                      <ArrowRight size={11} className="inline" />
-                    </button>
-                  </>
-                )}
-              </span>
-            </li>
-          );
-        })}
+        {items.map((item, i) => (
+          <li key={i} className="flex items-start gap-2 text-sm text-rhozly-on-surface/70 font-medium leading-snug">
+            <span className="mt-1.5 w-1 h-1 rounded-full bg-rhozly-primary/40 shrink-0" />
+            <span className="flex-1">
+              {item.text}
+              {item.link && (
+                <>
+                  {" "}
+                  <button
+                    type="button"
+                    onClick={() => onTryIt(item.link!.path)}
+                    data-testid="release-notes-try-it-link"
+                    className="inline-flex items-center gap-0.5 ml-1 text-rhozly-primary font-black hover:underline"
+                  >
+                    {item.link.label}
+                    <ArrowRight size={11} className="inline" />
+                  </button>
+                </>
+              )}
+            </span>
+          </li>
+        ))}
       </ul>
     </div>
   );
@@ -116,8 +178,10 @@ export default function ReleaseNotesModal({ notes, currentVersion, mode: initial
         <div className="overflow-y-auto flex-1 px-6 py-5">
           {mode === "latest" ? (
             /* Latest version only */
-            latest && latest.sections?.length > 0 ? (
-              latest.sections.map((s, i) => <SectionBlock key={i} section={s} onTryIt={handleTryIt} />)
+            latest && Array.isArray(latest.sections) && latest.sections.length > 0 ? (
+              <NoteBoundary version={latest.version}>
+                {latest.sections.map((s, i) => <SectionBlock key={i} section={s} onTryIt={handleTryIt} />)}
+              </NoteBoundary>
             ) : (
               <p className="text-sm text-rhozly-on-surface/40 font-medium text-center py-4">
                 No release notes were recorded for this version.
@@ -127,7 +191,7 @@ export default function ReleaseNotesModal({ notes, currentVersion, mode: initial
             /* Full history */
             <div className="space-y-6">
               {notes.map((note) => (
-                <div key={note.version}>
+                <NoteBoundary key={note.version} version={note.version}>
                   <div className="flex items-baseline gap-2 mb-3">
                     <h3 className="text-sm font-black text-rhozly-on-surface">
                       Rhozly OS {note.version}
@@ -141,12 +205,12 @@ export default function ReleaseNotesModal({ notes, currentVersion, mode: initial
                       {formatDate(note.released_at)}
                     </span>
                   </div>
-                  {note.sections?.length > 0 ? (
+                  {Array.isArray(note.sections) && note.sections.length > 0 ? (
                     note.sections.map((s, i) => <SectionBlock key={i} section={s} onTryIt={handleTryIt} />)
                   ) : (
                     <p className="text-xs text-rhozly-on-surface/30 font-medium pl-1">No notes recorded.</p>
                   )}
-                </div>
+                </NoteBoundary>
               ))}
             </div>
           )}
