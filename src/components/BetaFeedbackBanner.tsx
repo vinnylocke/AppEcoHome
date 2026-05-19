@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { X, FlaskConical } from "lucide-react";
+import { X, FlaskConical, ThumbsUp, ThumbsDown } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { BETA_FEEDBACK_CONTEXTS } from "../constants/betaFeedbackContexts";
@@ -33,6 +33,19 @@ export default function BetaFeedbackBanner() {
     try {
       await submitGeneralFeedback(area, description.trim());
       toast.success("Thanks for your feedback!");
+      setModalOpen(false);
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const handleQuickRate = async (sentiment: "up" | "down") => {
+    if (submitting) return;
+    setSubmitting(true);
+    try {
+      const payload = sentiment === "up" ? "👍 Quick rating" : "👎 Quick rating";
+      await submitGeneralFeedback(area, payload);
+      toast.success(sentiment === "up" ? "Thanks — glad it's working!" : "Thanks — we'll take a look.");
       setModalOpen(false);
     } finally {
       setSubmitting(false);
@@ -84,6 +97,39 @@ export default function BetaFeedbackBanner() {
               >
                 <X size={18} />
               </button>
+            </div>
+
+            {/* Quick rating shortcut */}
+            <label className="block mb-1.5 text-xs font-bold text-rhozly-on-surface/60 uppercase tracking-wider">
+              Quick rate
+            </label>
+            <div className="flex gap-2 mb-4">
+              <button
+                data-testid="beta-feedback-quick-up"
+                onClick={() => handleQuickRate("up")}
+                disabled={submitting}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm font-bold hover:bg-emerald-100 transition-colors disabled:opacity-50"
+                aria-label="Thumbs up — it's working well"
+              >
+                <ThumbsUp size={16} />
+                Working well
+              </button>
+              <button
+                data-testid="beta-feedback-quick-down"
+                onClick={() => handleQuickRate("down")}
+                disabled={submitting}
+                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-rose-200 bg-rose-50 text-rose-800 text-sm font-bold hover:bg-rose-100 transition-colors disabled:opacity-50"
+                aria-label="Thumbs down — something's off"
+              >
+                <ThumbsDown size={16} />
+                Needs work
+              </button>
+            </div>
+
+            <div className="relative my-3 flex items-center gap-2 text-[10px] font-bold text-rhozly-on-surface/30 uppercase tracking-widest">
+              <div className="flex-1 h-px bg-rhozly-on-surface/10" />
+              Or describe in detail
+              <div className="flex-1 h-px bg-rhozly-on-surface/10" />
             </div>
 
             {/* Area picker */}

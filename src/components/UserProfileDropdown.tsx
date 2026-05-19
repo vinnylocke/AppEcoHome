@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useMemo } from "react";
 import {
   User,
   LogOut,
@@ -12,10 +12,15 @@ import {
   LifeBuoy,
   ClipboardList,
   Rocket,
+  Sparkles,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
 import ContactSupportModal from "./ContactSupportModal";
+
+const WHATS_NEW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+const LS_LAST_SEEN_VERSION = "rhozly_last_seen_version";
+const LS_VERSION_FIRST_SEEN_AT = "rhozly_version_first_seen_at";
 
 type SubscriptionTier = "sprout" | "botanist" | "sage" | "evergreen" | null;
 
@@ -73,8 +78,46 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
   const nameLabel = displayName || firstName || email?.split("@")[0] || tierLabel;
   const [open, setOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
+  const [whatsNewVersion, setWhatsNewVersion] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    if (!appVersion) return;
+    try {
+      const lastSeen = localStorage.getItem(LS_LAST_SEEN_VERSION);
+      if (lastSeen === appVersion) {
+        setWhatsNewVersion(null);
+        return;
+      }
+      const firstSeenRaw = localStorage.getItem(LS_VERSION_FIRST_SEEN_AT);
+      const now = Date.now();
+      if (!firstSeenRaw) {
+        localStorage.setItem(LS_VERSION_FIRST_SEEN_AT, String(now));
+        setWhatsNewVersion(appVersion);
+        return;
+      }
+      const firstSeen = parseInt(firstSeenRaw, 10);
+      if (!Number.isFinite(firstSeen) || now - firstSeen > WHATS_NEW_WINDOW_MS) {
+        setWhatsNewVersion(null);
+        return;
+      }
+      setWhatsNewVersion(appVersion);
+    } catch {
+      setWhatsNewVersion(null);
+    }
+  }, [appVersion]);
+
+  const dismissWhatsNew = () => {
+    if (!appVersion) return;
+    try {
+      localStorage.setItem(LS_LAST_SEEN_VERSION, appVersion);
+      localStorage.removeItem(LS_VERSION_FIRST_SEEN_AT);
+    } catch { /* noop */ }
+    setWhatsNewVersion(null);
+  };
+
+  const hasWhatsNew = useMemo(() => !!whatsNewVersion, [whatsNewVersion]);
 
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -117,10 +160,20 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
           {tierLabel}
         </p>
       </div>
-      <div className="w-11 h-11 rounded-full bg-white/20 p-[2px] backdrop-blur-sm">
+      <div className="relative w-11 h-11 rounded-full bg-white/20 p-[2px] backdrop-blur-sm">
         <div className="w-full h-full rounded-full border-2 border-white/30 bg-rhozly-primary-container flex items-center justify-center overflow-hidden">
           <User className="w-5 h-5 text-white" />
         </div>
+        {hasWhatsNew && (
+          <span
+            data-testid="whats-new-indicator"
+            aria-label="New release available"
+            className="absolute -top-0.5 -right-0.5 flex h-3 w-3"
+          >
+            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-300 opacity-75" />
+            <span className="relative inline-flex h-3 w-3 rounded-full bg-amber-400 border-2 border-white" />
+          </span>
+        )}
       </div>
 
       {open && (
@@ -170,6 +223,24 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
             {/* Support */}
             <div className="p-1.5 pb-0">
               <SectionLabel label="Help" />
+              {hasWhatsNew && (
+                <button
+                  data-testid="user-profile-whats-new"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setOpen(false);
+                    dismissWhatsNew();
+                    onVersionClick?.();
+                  }}
+                  className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-amber-900 bg-amber-50 hover:bg-amber-100 border border-amber-200 transition-colors group mb-0.5"
+                >
+                  <span className="text-amber-600 group-hover:text-amber-700 transition-colors">
+                    <Sparkles size={15} />
+                  </span>
+                  <span className="flex-1 text-left">What's new</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-amber-700 bg-amber-200 px-1.5 py-0.5 rounded-full">New</span>
+                </button>
+              )}
               <button
                 data-testid="user-profile-getting-started"
                 onClick={(e) => { e.stopPropagation(); go("/dashboard"); }}
@@ -210,7 +281,7 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
               <div className="px-4 pb-3 pt-1 text-center">
                 <button
                   data-testid="app-version-label"
-                  onClick={(e) => { e.stopPropagation(); setOpen(false); onVersionClick?.(); }}
+                  onClick={(e) => { e.stopPropagation(); setOpen(false); dismissWhatsNew(); onVersionClick?.(); }}
                   className="text-[9px] font-bold text-rhozly-on-surface/20 tracking-widest hover:text-rhozly-on-surface/40 transition-colors"
                 >
                   {appVersion}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { Star, X } from "lucide-react";
+import { Star, X, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { BETA_FEEDBACK_CONTEXTS } from "../constants/betaFeedbackContexts";
 
@@ -30,6 +30,17 @@ export default function BetaFeedbackSheet() {
   const handleSubmit = async () => {
     setSubmitting(true);
     await submitFeedback(ratings, description);
+    setSubmitting(false);
+  };
+
+  const handleQuickRate = async (sentiment: "up" | "down") => {
+    if (submitting) return;
+    setSubmitting(true);
+    const score = sentiment === "up" ? 5 : 1;
+    const quickRatings: Record<string, number> = {};
+    ctx.criteria.forEach((_, i) => { quickRatings[i] = score; });
+    const note = sentiment === "up" ? "👍 Quick rating" : "👎 Quick rating";
+    await submitFeedback(quickRatings, description ? `${note} — ${description}` : note);
     setSubmitting(false);
   };
 
@@ -72,6 +83,36 @@ export default function BetaFeedbackSheet() {
             >
               <X size={18} />
             </button>
+          </div>
+
+          {/* Quick rating shortcut */}
+          <div className="flex gap-2 mb-4">
+            <button
+              data-testid="beta-feedback-sheet-quick-up"
+              onClick={() => handleQuickRate("up")}
+              disabled={submitting}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-emerald-200 bg-emerald-50 text-emerald-800 text-sm font-bold hover:bg-emerald-100 transition-colors disabled:opacity-50"
+              aria-label="Thumbs up — quick positive rating"
+            >
+              <ThumbsUp size={16} />
+              Working well
+            </button>
+            <button
+              data-testid="beta-feedback-sheet-quick-down"
+              onClick={() => handleQuickRate("down")}
+              disabled={submitting}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-rose-200 bg-rose-50 text-rose-800 text-sm font-bold hover:bg-rose-100 transition-colors disabled:opacity-50"
+              aria-label="Thumbs down — quick negative rating"
+            >
+              <ThumbsDown size={16} />
+              Needs work
+            </button>
+          </div>
+
+          <div className="relative mb-4 flex items-center gap-2 text-[10px] font-bold text-rhozly-on-surface/30 uppercase tracking-widest">
+            <div className="flex-1 h-px bg-rhozly-on-surface/10" />
+            Or rate in detail
+            <div className="flex-1 h-px bg-rhozly-on-surface/10" />
           </div>
 
           {/* Rating rows */}

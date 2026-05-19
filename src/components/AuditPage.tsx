@@ -7,6 +7,8 @@ import {
   RotateCcw,
   User,
   Loader2,
+  Download,
+  TrendingUp,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { usePermissions } from "../context/HomePermissionsContext";
@@ -266,6 +268,61 @@ export default function AuditPage({ homeId }: Props) {
       .sort((a, b) => b.totalCost - a.totalCost);
   }, [aiUsage]);
 
+  // Cost forecast — projects monthly spend from the current daily run-rate
+  // across the active date range. Only meaningful when the range covers ≥1 day
+  // entirely in this calendar month.
+  const costForecast = useMemo(() => {
+    if (aiUsage.length === 0) return null;
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    const monthEnd = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const daysElapsed = Math.max(1, Math.floor((today.getTime() - monthStart.getTime()) / (1000 * 60 * 60 * 24)) + 1);
+    const daysInMonth = monthEnd.getDate();
+
+    // Sum spend that falls within the current month
+    let monthSpend = 0;
+    for (const row of aiUsage) {
+      const ts = new Date(row.created_at);
+      if (ts >= monthStart && ts <= now) {
+        monthSpend += row.estimated_cost_usd ?? 0;
+      }
+    }
+    if (monthSpend === 0) return null;
+    const dailyRate = monthSpend / daysElapsed;
+    const projected = dailyRate * daysInMonth;
+    return { monthSpend, projected, daysElapsed, daysInMonth };
+  }, [aiUsage]);
+
+  const downloadCsv = () => {
+    if (aiUsage.length === 0) return;
+    const header = ["Time", "User", "Feature", "Model", "Input tokens", "Output tokens", "Total tokens", "Cost USD"];
+    const csvEscape = (v: any) => {
+      const s = v == null ? "" : String(v);
+      return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
+    };
+    const rows = aiUsage.map((r) => [
+      r.created_at,
+      userMap[r.user_id] ?? r.user_id,
+      FUNCTION_LABELS[r.function_name] ?? r.function_name,
+      r.model ?? "",
+      r.prompt_tokens ?? 0,
+      r.candidates_tokens ?? 0,
+      r.total_tokens ?? 0,
+      (r.estimated_cost_usd ?? 0).toFixed(4),
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
+    const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `rhozly-ai-usage-${dateFrom}-to-${dateTo}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+  };
+
   const resetFilters = () => {
     const t = todayStr();
     setDateFrom(t);
@@ -477,6 +534,30 @@ export default function AuditPage({ homeId }: Props) {
             </div>
           ) : (
             <>
+              {/* Forecast + export bar */}
+              <div className="flex items-center gap-3 flex-wrap">
+                {costForecast && (
+                  <div
+                    data-testid="audit-cost-forecast"
+                    className="flex-1 min-w-[260px] flex items-center gap-2.5 bg-violet-50 border border-violet-200 rounded-2xl px-4 py-2.5"
+                  >
+                    <TrendingUp size={14} className="text-violet-700 shrink-0" />
+                    <p className="text-xs font-bold text-violet-900 leading-snug">
+                      <span className="font-black">On track for ${costForecast.projected.toFixed(2)}</span> this month
+                      <span className="text-violet-700/70"> · ${costForecast.monthSpend.toFixed(2)} spent across {costForecast.daysElapsed} of {costForecast.daysInMonth} days</span>
+                    </p>
+                  </div>
+                )}
+                <button
+                  data-testid="audit-export-csv"
+                  onClick={downloadCsv}
+                  className="flex items-center gap-1.5 bg-rhozly-primary text-white text-xs font-black px-3 py-2 min-h-[40px] rounded-xl hover:opacity-90 active:scale-95 transition"
+                >
+                  <Download size={13} />
+                  Export CSV
+                </button>
+              </div>
+
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
                 {featureSummaries.map((s) => (
                   <div key={s.functionName} className="bg-white border border-rhozly-outline/10 rounded-2xl p-4">

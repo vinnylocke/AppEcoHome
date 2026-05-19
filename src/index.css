@@ -27,6 +27,45 @@
   display: none;
 }
 
+/* =========================================
+   ♿ FOCUS-VISIBLE BASELINE
+   Every interactive element gets a primary-coloured focus ring when reached
+   by keyboard. Mouse clicks don't trigger focus-visible, so this only
+   affects keyboard users — exactly the WCAG intent.
+========================================= */
+button:focus-visible,
+a:focus-visible,
+[role="button"]:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--color-rhozly-primary);
+  outline-offset: 2px;
+}
+
+/* =========================================
+   ♿ REDUCED-MOTION SUPPORT
+   Honours the user's OS-level preference (Settings → Accessibility →
+   "Reduce motion"). Strips animations and transitions to near-zero so
+   nothing flashes, pulses, or slides for users who can't tolerate it.
+   Excludes the spinner used for loading states (motion is the message).
+========================================= */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  /* Loaders should keep spinning — motion communicates the operation */
+  .animate-spin {
+    animation: spin 1s linear infinite !important;
+  }
+}
+
 html,
 body {
   /* This prevents the native browser bounce effect so our custom pull-to-refresh handles it smoothly */

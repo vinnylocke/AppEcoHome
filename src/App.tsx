@@ -1,5 +1,5 @@
 import { Toaster, toast } from "react-hot-toast";
-import React, { useEffect, useState, useCallback, lazy, Suspense } from "react";
+import React, { useEffect, useState, useCallback, useRef, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "./lib/supabase";
 import {
@@ -336,17 +336,27 @@ function AppShell() {
   const selectedLocationId = searchParams.get("locationId");
   const dashboardView = (searchParams.get("view") as "dashboard" | "locations" | "calendar" | "weather") || "dashboard";
 
-  // Persist last selected dashboard view; restore on first visit to /dashboard with no view param
+  // Persist last selected dashboard view; restore on first visit to /dashboard with no view param.
+  // Restore only runs once per mount — otherwise clicking the "Dashboard" sub-tab from a non-default
+  // view would immediately be reverted by the saved value, making the default view unreachable.
+  const hasRestoredViewRef = useRef(false);
   useEffect(() => {
     if (routerLocation.pathname !== "/dashboard") return;
     if (selectedLocationId) return; // viewing a specific location, not switching views
     const urlView = searchParams.get("view");
     if (urlView) {
-      // User explicitly selected a view — remember it
+      // User has an explicit view — remember it and mark restore as resolved
       localStorage.setItem("rhozly_dashboard_view", urlView);
+      hasRestoredViewRef.current = true;
       return;
     }
-    // No view param — restore last preference if any (skip if "dashboard" since that's the default)
+    // No view param — only restore on first mount; subsequent clicks to "Dashboard" sub-tab must stick
+    if (hasRestoredViewRef.current) {
+      // User explicitly chose the default view this session — record it so next session opens here too
+      localStorage.setItem("rhozly_dashboard_view", "dashboard");
+      return;
+    }
+    hasRestoredViewRef.current = true;
     const saved = localStorage.getItem("rhozly_dashboard_view");
     if (saved && saved !== "dashboard" && ["locations", "calendar", "weather"].includes(saved)) {
       const next = new URLSearchParams(searchParams);

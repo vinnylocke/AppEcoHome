@@ -1,1 +1,30 @@
-[]
+[
+  {
+    "label": "Accessibility",
+    "items": [
+      "Every interactive element now shows a clear focus ring when you reach it with the keyboard.",
+      "We now honour your OS-level Reduce Motion preference — animations and transitions stay still for users who need them to."
+    ]
+  },
+  {
+    "label": "Admin & Diagnostics",
+    "items": [
+      "Audit Log: export your AI usage history to CSV for offline analysis.",
+      "Audit Log: new banner projects your monthly AI spend based on the current run-rate.",
+      "A subtle amber dot appears on your avatar when a new release ships, with a 'What's new' shortcut in the profile menu."
+    ]
+  },
+  {
+    "label": "Beta Feedback",
+    "items": [
+      "Quick 👍 / 👎 buttons let you send a one-tap reaction without typing anything.",
+      "Detailed star ratings and written feedback are still available below the shortcut."
+    ]
+  },
+  {
+    "label": "Bug Fixes",
+    "items": [
+      "Fixed dashboard sub-tab navigation — clicking the Dashboard tab from Locations / Calendar / Weather now correctly returns you to the default view."
+    ]
+  }
+]
