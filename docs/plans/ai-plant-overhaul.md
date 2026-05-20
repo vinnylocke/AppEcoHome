@@ -995,6 +995,15 @@ Verified end-to-end: a fresh `generate_care_guide('Pot Marigold')` call now retu
 
 Also improved the rate-limit toast in `PlantEditModal`. The catch path now parses the server's response body (`{ rate_limit_minutes, retry_after }`) and renders a specific message: *"You can refresh this plant once per minute. You can try again in 30s."* — adapting the cadence phrasing ("once per minute" / "once every N hours" / "once every N days") and time-remaining unit (seconds / min / hours / days) to whatever window is configured. Matches the 1-min dev cadence AND the 7-day prod default cleanly.
 
+**Fifth sub-fix — generic rate-limit response shape + dual-shape toast.** The orphan self-heal flow calls `plant-doctor` (not `manual-refresh-ai-plant`), and that function uses the shared `_shared/rateLimit.ts` middleware whose 429 response was `{"error":"Rate limit exceeded"}` with no structured retry info. Users hitting the per-hour AI quota saw an unhelpful generic toast. Fix:
+
+1. **`_shared/rateLimit.ts`** (covers `plant-doctor` and most other AI fns) now returns `{ error, retry_after, quota_per_hour, used }` in the 429 body. `enforceIpRateLimit` updated the same way for consistency.
+2. **`PlantEditModal.handleManualRefresh` catch block** matches the generic `"Rate limit exceeded"` string (case-insensitive `"rate limit"`) in addition to `"rate_limited"` and `"429"`. The toast formatter now accepts an options object `{ minutes, quotaPerHour, retryAt }` and picks the right phrasing per shape:
+   - manual-refresh shape → *"You can refresh this plant once per minute. You can try again in 30s."*
+   - shared-quota shape → *"You've used your hourly AI quota (50 calls/hour). You can try again in 23 min."*
+
+Verified: a `sprout`-tier user with `ai_enabled=true` hitting `plant-doctor` returns `{"error":"Rate limit exceeded","retry_after":"...","quota_per_hour":0,"used":0}`. The client renders a useful toast.
+
 Also improved while debugging: the client's `Couldn't refresh` toast now surfaces the underlying error message ("Couldn't refresh care guide: \<reason\>") instead of swallowing it, plus dedicated toasts for `heal_no_db_plant_id_returned`, `heal_link_update_failed`, `rate_limited`, `ai_tier_required`. The raw error is `console.error`'d for debugging.
 
 Button labels also expanded for clarity: **"Refresh" → "Refresh Care Guide"**, **"Revert" → "Revert Care Guide"** — users were unclear about scope.

@@ -116,14 +116,24 @@ export async function enforceRateLimit(
 
   if (currentCount >= maxPerHour) {
     const windowEnd = windowStart.getTime() + 3_600_000;
-    const retryAfter = Math.ceil((windowEnd - Date.now()) / 1000);
+    const retryAfterSec = Math.ceil((windowEnd - Date.now()) / 1000);
     log("_shared/rateLimit", "limit_exceeded", { userId, fnName, currentCount, maxPerHour });
-    return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
+    return new Response(JSON.stringify({
+      error: "Rate limit exceeded",
+      // ISO timestamp + structured fields so clients can render a specific
+      // "try again in N minutes" toast. The rate-limit window is hourly
+      // (calls/hour quota), so `quota_per_hour` is more informative than a
+      // single cadence. Both manual-refresh-ai-plant and this generic
+      // shared limiter now expose `retry_after` in the body.
+      retry_after: new Date(windowEnd).toISOString(),
+      quota_per_hour: maxPerHour,
+      used: currentCount,
+    }), {
       status: 429,
       headers: {
         ...CORS,
         "Content-Type": "application/json",
-        "Retry-After": String(Math.max(retryAfter, 1)),
+        "Retry-After": String(Math.max(retryAfterSec, 1)),
       },
     });
   }
@@ -176,14 +186,19 @@ export async function enforceIpRateLimit(
 
   if (currentCount >= maxPerHour) {
     const windowEnd = windowStart.getTime() + 3_600_000;
-    const retryAfter = Math.ceil((windowEnd - Date.now()) / 1000);
+    const retryAfterSec = Math.ceil((windowEnd - Date.now()) / 1000);
     log("_shared/rateLimit", "ip_limit_exceeded", { ipHash: ipHash.slice(0, 8), fnName, currentCount, maxPerHour });
-    return new Response(JSON.stringify({ error: "Rate limit exceeded" }), {
+    return new Response(JSON.stringify({
+      error: "Rate limit exceeded",
+      retry_after: new Date(windowEnd).toISOString(),
+      quota_per_hour: maxPerHour,
+      used: currentCount,
+    }), {
       status: 429,
       headers: {
         ...CORS,
         "Content-Type": "application/json",
-        "Retry-After": String(Math.max(retryAfter, 1)),
+        "Retry-After": String(Math.max(retryAfterSec, 1)),
       },
     });
   }

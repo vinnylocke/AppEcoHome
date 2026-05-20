@@ -140,7 +140,11 @@ Labelled "Refresh Care Guide" (not just "Refresh") so users know exactly what th
 
 **Error visibility.** When refresh fails, the toast surfaces the underlying error message rather than the generic "try again" string, and the raw error is `console.error`'d so developers can debug from the browser console. Specific failure modes have dedicated toasts:
 
-- `rate_limited` / `429` → Specific toast built from the server's `rate_limit_minutes` + `retry_after` payload. Example: *"You can refresh this plant once per minute. You can try again in 30s."* The cadence phrasing adapts to whichever window is configured (minutes / hours / days); the time-remaining phrase adapts likewise. Falls back to a generic message if the server omits the metadata.
+- `rate_limited` / `Rate limit exceeded` / `429` → Specific toast built from the server's payload. Two response shapes are handled:
+  - **Cadence-based** (`manual-refresh-ai-plant`): `{ rate_limit_minutes, retry_after }` → *"You can refresh this plant once per minute. You can try again in 30s."*
+  - **Quota-based** (`_shared/rateLimit`, used by `plant-doctor` and most AI fns): `{ quota_per_hour, used, retry_after }` → *"You've used your hourly AI quota (50 calls/hour). You can try again in 23 min."*
+
+  Both adapt the time-remaining unit (s / min / h / d) to whatever the server reports. Falls back to *"You've hit the AI rate limit."* if both metadata fields are missing.
 - `ai_tier_required` → "This requires Sage or Evergreen."
 - `heal_no_db_plant_id_returned` → "AI service didn't return a catalogue ID. Check the plant-doctor function is deployed."
 - `heal_link_update_failed` → "Couldn't link the plant to the catalogue — check permissions."

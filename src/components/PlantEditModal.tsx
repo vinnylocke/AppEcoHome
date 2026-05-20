@@ -30,45 +30,65 @@ function formatRelativeDate(iso: string): string {
 }
 
 /**
- * Build a user-friendly rate-limit toast string from the server's
- * `rate_limit_minutes` + `retry_after` payload. Phrases both the cadence
- * AND the time remaining so the user knows the rule AND when to try next.
+ * Build a user-friendly rate-limit toast string. Server returns one of two
+ * shapes:
+ *
+ *   - `rate_limit_minutes` (cadence-based, e.g. "once per minute") from
+ *     `manual-refresh-ai-plant`.
+ *   - `quota_per_hour` (hourly quota, e.g. "50 AI calls per hour") from
+ *     `_shared/rateLimit` used by plant-doctor and other AI functions.
+ *
+ * Both also include `retry_after` (ISO timestamp) so we can render
+ * "try again in N minutes" cleanly regardless of which mechanism fired.
  */
-function formatRateLimitMessage(rateLimitMinutes: number | undefined, retryAt: Date | null): string {
+function formatRateLimitMessage(opts: {
+  minutes?: number;
+  quotaPerHour?: number;
+  retryAt: Date | null;
+}): string {
+  const { minutes, quotaPerHour, retryAt } = opts;
+
+  // Cadence phrasing — pick whichever shape the server provided.
   const cadencePhrase = (() => {
-    if (rateLimitMinutes == null) return "You can only refresh this plant occasionally.";
-    if (rateLimitMinutes < 60) {
-      const m = Math.round(rateLimitMinutes);
-      return m === 1
-        ? "You can refresh this plant once per minute."
-        : `You can refresh this plant once every ${m} minutes.`;
+    if (minutes != null) {
+      if (minutes < 60) {
+        const m = Math.round(minutes);
+        return m === 1
+          ? "You can refresh this plant once per minute."
+          : `You can refresh this plant once every ${m} minutes.`;
+      }
+      if (minutes < 60 * 24) {
+        const h = Math.round(minutes / 60);
+        return h === 1
+          ? "You can refresh this plant once per hour."
+          : `You can refresh this plant once every ${h} hours.`;
+      }
+      const d = Math.round(minutes / (60 * 24));
+      return d === 1
+        ? "You can refresh this plant once per day."
+        : `You can refresh this plant once every ${d} days.`;
     }
-    if (rateLimitMinutes < 60 * 24) {
-      const h = Math.round(rateLimitMinutes / 60);
-      return h === 1
-        ? "You can refresh this plant once per hour."
-        : `You can refresh this plant once every ${h} hours.`;
+    if (quotaPerHour != null) {
+      return `You've used your hourly AI quota (${quotaPerHour} calls/hour).`;
     }
-    const d = Math.round(rateLimitMinutes / (60 * 24));
-    return d === 1
-      ? "You can refresh this plant once per day."
-      : `You can refresh this plant once every ${d} days.`;
+    return "You've hit the AI rate limit.";
   })();
 
-  if (!retryAt) return cadencePhrase;
-  const remainingMs = retryAt.getTime() - Date.now();
-  if (remainingMs <= 0) return cadencePhrase;
   const remainingPhrase = (() => {
+    if (!retryAt) return null;
+    const remainingMs = retryAt.getTime() - Date.now();
+    if (remainingMs <= 0) return null;
     const seconds = Math.ceil(remainingMs / 1000);
     if (seconds < 60) return `try again in ${seconds}s`;
-    const minutes = Math.ceil(seconds / 60);
-    if (minutes < 60) return `try again in ${minutes} min`;
-    const hours = Math.ceil(minutes / 60);
+    const mins = Math.ceil(seconds / 60);
+    if (mins < 60) return `try again in ${mins} min`;
+    const hours = Math.ceil(mins / 60);
     if (hours < 24) return `try again in ${hours}h`;
     const days = Math.ceil(hours / 24);
     return `try again in ${days}d`;
   })();
-  return `${cadencePhrase} You can ${remainingPhrase}.`;
+
+  return remainingPhrase ? `${cadencePhrase} You can ${remainingPhrase}.` : cadencePhrase;
 }
 
 const FIELD_LABELS: Record<string, string> = {
@@ -252,11 +272,19 @@ export default function PlantEditModal({
       }
       const code: string = body?.error ?? err?.message ?? String(err ?? "");
 
-      if (code === "rate_limited" || code.includes("429")) {
-        // Build a specific message from the server's rate_limit_minutes + retry_after.
+      if (
+        code === "rate_limited" ||
+        code === "Rate limit exceeded" ||
+        code.toLowerCase().includes("rate limit") ||
+        code.includes("429")
+      ) {
+        // manual-refresh-ai-plant returns `rate_limit_minutes` (cadence).
+        // _shared/rateLimit (used by plant-doctor + most other AI fns)
+        // returns `quota_per_hour` instead. Both expose `retry_after` ISO.
         const minutes: number | undefined = body?.rate_limit_minutes;
+        const quotaPerHour: number | undefined = body?.quota_per_hour;
         const retryAt: Date | null = body?.retry_after ? new Date(body.retry_after) : null;
-        toast.error(formatRateLimitMessage(minutes, retryAt));
+        toast.error(formatRateLimitMessage({ minutes, quotaPerHour, retryAt }));
       } else if (code.includes("ai_tier_required")) {
         toast.error("This requires Sage or Evergreen.");
       } else if (code.includes("heal_no_db_plant_id_returned")) {
