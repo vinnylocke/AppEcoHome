@@ -125,50 +125,51 @@ export default function PlantEditModal({
   /**
    * Self-heal an orphan AI plant (home-scoped row with no
    * `forked_from_plant_id`) by finding or generating the global
-   * catalogue parent, then linking this home row to it.
-   *
-   * Returns the global plant_id on success, or null on failure.
-   * Errors are toasted by the caller; we just propagate via return value.
+   * catalogue parent, then linking this home row to it. Throws on
+   * failure so the caller can log + toast a useful message.
    */
-  const healOrphan = async (): Promise<number | null> => {
-    if (!plant?.common_name) return null;
-    try {
-      // generateCareGuide on the edge fn already does "find existing global
-      // by scientific_name_key OR insert one on miss". Either way, we get
-      // back db_plant_id which is the global we want to link to.
-      const guide = await PlantDoctorService.generateCareGuide(plant.common_name, homeId);
-      const globalId = guide?.db_plant_id;
-      if (globalId == null) return null;
-
-      // Link this home row to the resolved global.
-      const { error: updErr } = await supabase
-        .from("plants")
-        .update({
-          forked_from_plant_id: globalId,
-          overridden_fields: [],
-        })
-        .eq("id", plant.id);
-      if (updErr) throw updErr;
-
-      // Seed user_plant_ack at the global's current freshness_version so
-      // the freshness chip doesn't fire immediately on the now-linked row.
-      const { data: userData } = await supabase.auth.getUser();
-      const callerId = userData?.user?.id;
-      if (callerId) {
-        await supabase.from("user_plant_ack").upsert(
-          {
-            user_id: callerId,
-            plant_id: globalId,
-            seen_freshness_version: guide.freshness_version ?? 1,
-            acked_at: new Date().toISOString(),
-          },
-          { onConflict: "user_id,plant_id" },
-        );
-      }
-      return globalId;
-    } catch {
-      return null;
+  const healOrphan = async (): Promise<number> => {
+    if (!plant?.common_name) {
+      throw new Error("heal_missing_common_name");
     }
+    // generateCareGuide on the edge fn does "find existing global by
+    // scientific_name_key OR insert one on miss". Either way, we get back
+    // db_plant_id which is the global we want to link to.
+    const guide = await PlantDoctorService.generateCareGuide(plant.common_name, homeId);
+    const globalId = guide?.db_plant_id;
+    if (globalId == null) {
+      throw new Error("heal_no_db_plant_id_returned");
+    }
+
+    // Link this home row to the resolved global.
+    const { error: updErr } = await supabase
+      .from("plants")
+      .update({
+        forked_from_plant_id: globalId,
+        overridden_fields: [],
+      })
+      .eq("id", plant.id);
+    if (updErr) throw new Error(`heal_link_update_failed: ${updErr.message}`);
+
+    // Seed user_plant_ack at the global's current freshness_version so
+    // the freshness chip doesn't fire immediately on the now-linked row.
+    const { data: userData } = await supabase.auth.getUser();
+    const callerId = userData?.user?.id;
+    if (callerId) {
+      const { error: ackErr } = await supabase.from("user_plant_ack").upsert(
+        {
+          user_id: callerId,
+          plant_id: globalId,
+          seen_freshness_version: guide.freshness_version ?? 1,
+          acked_at: new Date().toISOString(),
+        },
+        { onConflict: "user_id,plant_id" },
+      );
+      // Ack-seed failure isn't fatal — chip might flash but the link still
+      // worked. Log so we know.
+      if (ackErr) console.warn("ai-plant heal: ack-seed failed", ackErr.message);
+    }
+    return globalId;
   };
 
   const handleManualRefresh = async () => {
@@ -180,11 +181,7 @@ export default function PlantEditModal({
       // entry — so after a successful heal we can skip the explicit refresh
       // and report "up to date" directly.
       if (!freshness) {
-        const healedGlobalId = await healOrphan();
-        if (healedGlobalId == null) {
-          toast.error("Couldn't refresh — try again.");
-          return;
-        }
+        await healOrphan();
         toast.success("Care guide is up to date.");
         // Tell the parent to re-fetch so the modal re-renders with the
         // linked state. Closing + reopening matches existing reset UX.
@@ -196,6 +193,7 @@ export default function PlantEditModal({
         body: { plantId: freshness.global_plant_id },
       });
       if (error) throw error;
+      if (data?.error) throw new Error(data.error);
       if (data?.changed) {
         toast.success(
           `Care guide refreshed — ${(data.changed_fields ?? []).length} field${(data.changed_fields ?? []).length === 1 ? "" : "s"} updated.`,
@@ -207,17 +205,25 @@ export default function PlantEditModal({
       if (refreshCacheKey) window.localStorage.setItem(refreshCacheKey, String(blockUntil));
       setLocalRefreshBlockedUntil(blockUntil);
     } catch (err: any) {
-      const msg = err?.message ?? "";
+      // Always log the underlying error so we can debug from the console
+      // when the toast hides what actually went wrong.
+      console.error("ai-plant refresh failed", err);
+      const msg = err?.message ?? String(err ?? "");
       if (msg.includes("rate_limited") || msg.includes("429")) {
         toast.error("This plant was refreshed in the last 7 days — try again later.");
-        // Also lock locally for the rest of the window.
         const blockUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
         if (refreshCacheKey) window.localStorage.setItem(refreshCacheKey, String(blockUntil));
         setLocalRefreshBlockedUntil(blockUntil);
       } else if (msg.includes("ai_tier_required")) {
         toast.error("This requires Sage or Evergreen.");
+      } else if (msg.includes("heal_no_db_plant_id_returned")) {
+        toast.error("AI service didn't return a catalogue ID. Check the plant-doctor function is deployed.");
+      } else if (msg.includes("heal_link_update_failed")) {
+        toast.error("Couldn't link the plant to the catalogue — check permissions.");
       } else {
-        toast.error("Couldn't refresh — try again.");
+        // Surface the underlying error message so the user has something
+        // to act on instead of the generic "try again".
+        toast.error(`Couldn't refresh care guide: ${msg || "unknown error"}`);
       }
     } finally {
       setRefreshing(false);
@@ -667,7 +673,7 @@ export default function PlantEditModal({
                           </>
                         ) : (
                           <>
-                            <RefreshCw size={12} /> Refresh
+                            <RefreshCw size={12} /> Refresh Care Guide
                           </>
                         )}
                       </button>
@@ -678,7 +684,7 @@ export default function PlantEditModal({
                         onClick={() => setResetOpen(true)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[32px] border border-purple-300 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-purple-50 transition-colors"
                       >
-                        <RefreshCw size={12} /> Revert
+                        <RefreshCw size={12} /> Revert Care Guide
                       </button>
                     )}
                   </div>

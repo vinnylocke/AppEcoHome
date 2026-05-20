@@ -125,14 +125,24 @@ For `source = "ai"` plants, the Care tab shows a `<SourceChip>` indicating one o
 
 **No "catalogue" language anywhere in the UI** — the data model still uses the catalogue/fork concept internally, but every label users see talks about "auto-updating care guides" instead.
 
-**Refresh button — always visible for AI plants.**
+**"Refresh Care Guide" button — always visible for AI plants.**
+
+Labelled "Refresh Care Guide" (not just "Refresh") so users know exactly what they're updating.
 
 | Plant state | Button behaviour |
 |-------------|------------------|
 | AI, unedited, linked (shallow fork or true global) | Enabled. Click → `manual-refresh-ai-plant` edge fn. Toast: "Care guide is up to date" OR "Care guide refreshed — N fields updated". |
 | AI, unedited, **orphan** (`forked_from_plant_id IS NULL`) | Enabled. Click → **self-heal flow** (see below) → toast "Care guide is up to date". |
-| AI, edited (custom fork) | **Disabled.** Title attribute explains the user has edited the plant; the explanation block below the chips spells out the same thing and points to Revert. |
+| AI, edited (custom fork) | **Disabled.** Title attribute explains the user has edited the plant; the explanation block below the chips spells out the same thing and points to "Revert Care Guide". |
 | AI, locally rate-limited (refreshed within the last 7 days) | Disabled. Title: "Already refreshed in the last 7 days". |
+
+**Error visibility.** When refresh fails, the toast surfaces the underlying error message rather than the generic "try again" string, and the raw error is `console.error`'d so developers can debug from the browser console. Specific failure modes have dedicated toasts:
+
+- `rate_limited` / `429` → "This plant was refreshed in the last 7 days — try again later."
+- `ai_tier_required` → "This requires Sage or Evergreen."
+- `heal_no_db_plant_id_returned` → "AI service didn't return a catalogue ID. Check the plant-doctor function is deployed."
+- `heal_link_update_failed` → "Couldn't link the plant to the catalogue — check permissions."
+- Anything else → "Couldn't refresh care guide: \<underlying message\>"
 
 **Self-heal flow for orphans** — when an AI plant exists in a home with no `forked_from_plant_id` (typically because it was added before Wave 2's catalogue-write was deployed locally, or the catalogue-insert race-recovery failed silently), clicking Refresh:
 
@@ -147,7 +157,7 @@ User sees: a single toast saying "Care guide is up to date" — no mention of he
 
 **Saving from edited → silent merge.** No modal — new overrides merge into the existing `overridden_fields` list via `mergeOverriddenFields()`.
 
-**Revert button.** Visible only on edited (custom fork) plants. Opens `<ResetConfirmModal>` (component still named `Reset*` internally; user-facing copy says "Revert"). On confirm, calls the `revert_ai_plant_fork_in_place` RPC which restores `care_guide_data` + the editable top-level columns from the global parent, clears `overridden_fields`, and seeds `user_plant_ack` at the parent's current version. Toast: "{plant} reverted — auto-updates re-enabled."
+**"Revert Care Guide" button.** Visible only on edited (custom fork) plants. Opens `<ResetConfirmModal>` (component still named `Reset*` internally; user-facing copy says "Revert"). On confirm, calls the `revert_ai_plant_fork_in_place` RPC which restores `care_guide_data` + the editable top-level columns from the global parent, clears `overridden_fields`, and seeds `user_plant_ack` at the parent's current version. Toast: "{plant} reverted — auto-updates re-enabled."
 
 **"You've edited these fields" panel.** A small purple block above the form on edited plants lists the field names currently in `overridden_fields` plus the inline explanation: "Because you've customised this plant, its care guide no longer auto-updates. Use Revert to rejoin automatic updates (your edits will be lost)."
 
