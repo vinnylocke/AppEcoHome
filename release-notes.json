@@ -1,16 +1,1 @@
-[
-  {
-    "label": "New — Quick Access on phones",
-    "items": [
-      "Open Rhozly on your phone and you'll land on a new three-tile home page tuned for one-thumb use in the garden. Tap Visual Lens to take a photo and run the full Analyse flow — no more digging through menus while wearing gloves.",
-      "Today and Quick Capture tiles are placeholders for now — tap one and a small toast points you to the closest equivalent (the Dashboard for today's tasks, a plant's Journal tab for notes). Both ship in upcoming updates.",
-      "The side nav stays available — tap the new 'Quick' icon from anywhere to return to the shortcut home, or 'Open full dashboard' for the desktop-style view."
-    ]
-  },
-  {
-    "label": "Desktop unchanged",
-    "items": [
-      "Nothing changes for desktop users. The home page still opens to the Dashboard, the nav still has the same five entries, and all existing routes work exactly as before."
-    ]
-  }
-]
+[]
