@@ -42,14 +42,14 @@ The single source of truth for every documented screen, modal, and cross-cutting
 
 ## 04 — Planner & Shopping
 
-- [ ] [Planner Dashboard](./04-planner/01-planner-dashboard.md) — list of plans, status tabs
-- [ ] [Plan Staging](./04-planner/02-plan-staging.md) — Phase 1 / 2 / 3 stage-by-stage execution
-- [ ] [Plan Reference Photos](./04-planner/03-plan-reference-photos.md) — per-plan photo collection
-- [ ] [New Plan Form](./04-planner/04-new-plan-form.md) — create plan wizard
-- [ ] [Shopping Lists](./04-planner/05-shopping-lists.md) — list overview + completed lists
-- [ ] [Shopping List Items](./04-planner/06-shopping-list-items.md) — per-list item rows
-- [ ] [Blueprint Manager (Task Schedules)](./04-planner/07-blueprint-manager.md) — recurring task templates
-- [ ] [Optimise Tab](./04-planner/08-optimise-tab.md) — schedule consolidator + AI ideas
+- [x] [Planner Dashboard](./04-planner/01-planner-dashboard.md) — list of plans, status tabs
+- [x] [Plan Staging](./04-planner/02-plan-staging.md) — Phase 1 / 2 / 3 stage-by-stage execution
+- [x] [Plan Reference Photos](./04-planner/03-plan-reference-photos.md) — per-plan photo collection
+- [x] [New Plan Form](./04-planner/04-new-plan-form.md) — create plan wizard
+- [x] [Shopping Lists](./04-planner/05-shopping-lists.md) — list overview + completed lists
+- [x] [Shopping List Items](./04-planner/06-shopping-list-items.md) — per-list item rows
+- [x] [Blueprint Manager (Task Schedules)](./04-planner/07-blueprint-manager.md) — recurring task templates
+- [x] [Optimise Tab](./04-planner/08-optimise-tab.md) — schedule consolidator + AI ideas
 
 ## 05 — Tools
 
