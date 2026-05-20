@@ -1,8 +1,7 @@
-// AI Plant Overhaul Wave 6 — ResetConfirmModal
+// Revert confirm modal
 //
-// Shown when a user clicks "Reset to catalogue" on a custom AI fork. Warns
-// that their edits will be lost and the plant will rejoin the auto-updating
-// catalogue.
+// Shown when a user clicks "Revert" on an edited AI plant. Warns that their
+// edits will be lost and the plant will rejoin automatic care-guide updates.
 
 import React, { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -56,7 +55,7 @@ export default function ResetConfirmModal({
             </div>
             <div>
               <h3 id="reset-confirm-heading" className="text-lg font-black text-rhozly-on-surface">
-                Reset {plantName} to the catalogue?
+                Revert your edits to {plantName}?
               </h3>
               <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mt-0.5">
                 Your edits will be lost
@@ -74,12 +73,12 @@ export default function ResetConfirmModal({
 
         <div className="p-6 text-sm font-bold text-rhozly-on-surface/80 space-y-3">
           <p>
-            Your custom edits to this plant's care guide will be replaced with
-            the latest catalogue version.
+            Your edits to this plant's care guide will be replaced with the
+            latest auto-generated version.
           </p>
           <p>
-            From now on, this plant will rejoin the auto-updating catalogue and
-            your home will receive future updates again.
+            From now on, this plant's care guide will refresh automatically
+            again when new info is available.
           </p>
         </div>
 
@@ -98,7 +97,7 @@ export default function ResetConfirmModal({
             disabled={isResetting}
             className="px-4 py-2 min-h-[36px] bg-purple-600 text-white text-xs font-black uppercase tracking-widest rounded-xl hover:bg-purple-700 disabled:opacity-50 transition-colors"
           >
-            {isResetting ? "Resetting…" : "Reset and rejoin"}
+            {isResetting ? "Reverting…" : "Revert"}
           </button>
         </div>
       </div>

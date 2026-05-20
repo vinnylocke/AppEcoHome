@@ -94,15 +94,30 @@ See [AI Plant Catalogue](./33-ai-plant-catalogue.md) for the full lifecycle (pla
 |-----|---------|-------------|
 | `fork_ai_plant_for_home(plant_id, home_id, edits, overridden_fields)` | Atomic detach-and-fork: inserts home-scoped fork row, repoints inventory_items, seeds user_plant_ack. `SECURITY DEFINER`. | **Not called by Wave 6's flow** — Wave 3's bulk-add already creates a home-scoped row at catalogue-add time, so the modal flips the existing row in-place via `overridden_fields` instead. Kept for the post-D3 world where Inventory references the global directly. |
 | `reset_ai_plant_fork(fork_id)` | Repoints inventory_items back to global parent, seeds acks at the parent's current version, deletes the fork. `SECURITY DEFINER`. | **Not called by Wave 6's flow** — deletion would make the plant vanish from TheShed (D3 not done yet). Kept for the post-D3 world. |
-| `revert_ai_plant_fork_in_place(fork_id)` | **Wave 6.** In-place revert: restores `care_guide_data` + editable top-level columns from the global parent, clears `overridden_fields`, syncs `freshness_version` + seeds `user_plant_ack`. Row stays in TheShed, rejoins auto-updates. `SECURITY DEFINER`. | "Reset to catalogue" button in Plant Edit Modal. |
+| `revert_ai_plant_fork_in_place(fork_id)` | **Wave 6.** In-place revert: restores `care_guide_data` + editable top-level columns from the global parent, clears `overridden_fields`, syncs `freshness_version` + seeds `user_plant_ack`. Row stays in TheShed, rejoins auto-updates. `SECURITY DEFINER`. | **"Revert" button** in Plant Edit Modal Care tab (post-Wave-7 UX rename — was "Reset to catalogue"). |
 
-### AI plant lifecycle (Wave 6)
+### AI plant lifecycle
 
-1. **Add from catalogue** (Wave 3): bulk-add creates a home-scoped row with `forked_from_plant_id = global_id`, `overridden_fields = []`. The row is a *shallow fork* — catalogue-tracking.
-2. **Cron updates the global** (Wave 4): bumps `freshness_version` on the global if Gemini's regenerated guide differs. Home rows are not touched.
-3. **User sees the chip** (Wave 5): `useAiPlantFreshness` resolves the shallow fork's freshness via the global's version, compares against `user_plant_ack.seen_freshness_version`.
-4. **User edits a care field** (Wave 6): `<DetachConfirmModal>` warns; on confirm, the home row's `overridden_fields` is populated with the changed field names. Now a *custom fork* — opted out of auto-updates.
-5. **User resets** (Wave 6): `revert_ai_plant_fork_in_place` restores the row from the parent. Now back to shallow fork.
+> User-facing UI never says "catalogue", "fork" or "linked". All of these internal terms are mapped to the simpler "AI plant whose care guide auto-updates" and "AI plant you've edited" in the UI. See [Plant Edit Modal](../08-modals-and-overlays/06-plant-edit-modal.md#ai-editing-flow) for the user copy.
+
+1. **Add an AI plant.** Bulk-add (or PlantSearchModal single-add) creates a home-scoped row with `forked_from_plant_id = global_id`, `overridden_fields = []`. The user sees an **"AI"** chip on the row.
+2. **Cron updates the global.** Wave 4's `refresh-stale-ai-plants` bumps the global's `freshness_version` if Gemini's regenerated guide differs. Home rows are not touched.
+3. **User sees the freshness chip.** `useAiPlantFreshness` resolves home-scoped rows to their global via `forked_from_plant_id`, compares against `user_plant_ack.seen_freshness_version`. Yellow "N fields updated" chip appears on the Shed card + Plant Edit Modal callout when behind.
+4. **User clicks Refresh.** Calls `manual-refresh-ai-plant` against the global. Toast reports either "Care guide is up to date" or "Care guide refreshed — N fields updated". 7-day local + edge rate-limit per (user, plant).
+5. **User edits a care field.** `<DetachConfirmModal>` warns; on confirm, the home row's `overridden_fields` is populated. Chip flips to **"AI · Edited"**. Refresh button disables. Yellow chip stops firing for this user on this plant.
+6. **User clicks Revert.** `<ResetConfirmModal>` warns. On confirm, `revert_ai_plant_fork_in_place` restores the home row from its global parent. Chip flips back to **"AI"** and Refresh re-enables.
+
+#### Orphan rows + self-heal
+
+A home-scoped AI row with `forked_from_plant_id IS NULL` is an **orphan** — typically because Wave 2's catalogue-write wasn't yet active when the row was inserted. `useAiPlantFreshness` returns null for orphans (no chip, no freshness data); the Refresh button still renders.
+
+Clicking Refresh on an orphan triggers an inline **self-heal**:
+1. Call `PlantDoctorService.generateCareGuide(commonName, homeId)`. Edge fn finds existing global by `scientific_name_key` (cheap) or inserts a new one (one Gemini call).
+2. Update the home row: `forked_from_plant_id = db_plant_id`, `overridden_fields = []`.
+3. Seed `user_plant_ack` at the global's current `freshness_version`.
+4. Close the modal so the parent re-fetches.
+
+User sees one toast: "Care guide is up to date." Orphan state is invisible to them.
 
 ### `inventory_items` columns (subset)
 

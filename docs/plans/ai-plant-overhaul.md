@@ -955,6 +955,23 @@ Two new unit tests cover the orphan + true-global resolution paths.
 
 What this doesn't fix: existing orphan rows in users' sheds (e.g. plants added before Wave 2's catalogue-write was deployed locally). They just stop showing the chip + refresh button. To repair them would need a one-shot "relink orphans" pass — left as a backlog item if the count grows.
 
+#### Post-Wave-7 UX refinement — "kill the jargon"
+
+User feedback after the orphan hotfix: "What is this 'linked to catalogue' message? All I wanted was for an AI plant to have its care guide updated if a user hasn't amended any of the fields."
+
+The hotfix's "Not linked to catalogue" hint was implementation language leaking into the UI. The catalogue / fork architecture stays — only the labels and the Refresh button's interaction model change. See [ai-plant-ux-refinement.md](./ai-plant-ux-refinement.md) for the full plan; landed changes:
+
+- **SourceChip labels.** "AI · Auto-updating catalogue" → **"AI"**. "AI · Custom" → **"AI · Edited"**. Tooltip text rewritten to drop "catalogue" / "linked".
+- **Reset → Revert.** The button is now labelled "Revert" and ResetConfirmModal's copy is rewritten to talk about "your edits" + "automatic updates" instead of "the catalogue". Component file is still `ResetConfirmModal.tsx` (no rename of the file/testid to keep the existing E2E green).
+- **Refresh button always visible for AI plants.** It used to vanish on edited plants and orphan rows. Now:
+  - Enabled on unedited, linked rows → existing manual-refresh path.
+  - Enabled on unedited, **orphan** rows → triggers an on-demand **self-heal**: call `generate_care_guide` (which finds or generates the global), update the home row's `forked_from_plant_id`, seed `user_plant_ack`, then close so the parent re-fetches. User sees one toast: "Care guide is up to date".
+  - Disabled on edited rows. Tooltip + a purple explainer block tell the user *why* and direct them to the Revert button.
+- **"You've edited these fields" panel.** The purple summary block that was previously labelled "Your overrides" is now phrased in the user's voice and includes the explanation: "Because you've customised this plant, its care guide no longer auto-updates. Use Revert to rejoin automatic updates (your edits will be lost)."
+- **"Catalogue refreshed N days ago" → "Care guide refreshed N days ago"** in `<CareUpdateCallout>`.
+- **Toast on Revert.** "{plant} rejoined the catalogue" → "{plant} reverted — auto-updates re-enabled".
+- **No data-model changes.** No new migrations, RPCs or edge functions. The catalogue still exists; the architecture is unchanged. Only what users see is different.
+
 ---
 
 ## 13. Backfill strategy

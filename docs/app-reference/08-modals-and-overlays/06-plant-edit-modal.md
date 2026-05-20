@@ -116,20 +116,40 @@ For per-bed tweaks ("this tomato is in a shadier spot"), use Instance Edit Modal
 - **AI freshness callout (Wave 5)** — appears at the top of this tab when the plant is an AI catalogue entry whose version is ahead of your ack. Yellow banner with chips for each changed field, "Mark as reviewed" + "View changes" actions. Resolves via `forked_from_plant_id` for shallow forks added through bulk-add — the chip's source of truth is always the global catalogue row.
 - **"Refresh now" button (Sage+)** — Wave 5 button to the right of the "catalogue updated N days ago" pill. Triggers `manual-refresh-ai-plant` to re-ask Gemini against this plant; on success a toast reports how many fields changed and the chip clears. Disabled and tooltipped for 7 days after a successful refresh (or after a `rate_limited` edge response). Hidden for custom forks since they've opted out of catalogue updates.
 
-##### AI editing flow (Wave 6)
+##### AI editing flow
 
 For `source = "ai"` plants, the Care tab shows a `<SourceChip>` indicating one of two states:
 
-- **"AI · Auto-updating catalogue"** (amber) — `overridden_fields` is empty/null. Plant is tracking the catalogue.
-- **"AI · Custom (your edits)"** (purple) — `overridden_fields.length > 0`. Plant has user edits.
+- **"AI"** (amber) — `overridden_fields` is empty/null. Care guide auto-updates when the cron finds new info.
+- **"AI · Edited"** (purple) — `overridden_fields.length > 0`. User has edited a field, so the care guide no longer auto-updates.
 
-**Saving from auto-updating → DetachConfirmModal.** When the user changes an AI care field on a catalogue-tracking row and clicks Save, `<DetachConfirmModal>` opens with the list of changed fields. Cancelling keeps the form state but doesn't save. Confirming saves the row + populates `overridden_fields` with the changed field names, flipping the chip to "Custom".
+**No "catalogue" language anywhere in the UI** — the data model still uses the catalogue/fork concept internally, but every label users see talks about "auto-updating care guides" instead.
 
-**Saving from custom → silent merge.** No modal — new overrides merge into the existing `overridden_fields` list via `mergeOverriddenFields()`.
+**Refresh button — always visible for AI plants.**
 
-**Reset to catalogue.** On custom forks only, a `<ResetConfirmModal>` opens behind a "Reset to catalogue" button. On confirm, calls the `revert_ai_plant_fork_in_place` RPC which restores `care_guide_data` + the editable top-level columns from the global parent, clears `overridden_fields`, and seeds `user_plant_ack` at the parent's current version (so no freshness chip flashes immediately).
+| Plant state | Button behaviour |
+|-------------|------------------|
+| AI, unedited, linked (shallow fork or true global) | Enabled. Click → `manual-refresh-ai-plant` edge fn. Toast: "Care guide is up to date" OR "Care guide refreshed — N fields updated". |
+| AI, unedited, **orphan** (`forked_from_plant_id IS NULL`) | Enabled. Click → **self-heal flow** (see below) → toast "Care guide is up to date". |
+| AI, edited (custom fork) | **Disabled.** Title attribute explains the user has edited the plant; the explanation block below the chips spells out the same thing and points to Revert. |
+| AI, locally rate-limited (refreshed within the last 7 days) | Disabled. Title: "Already refreshed in the last 7 days". |
 
-**Overridden fields summary** — a small purple strip above the form lists the field names currently in `overridden_fields` so the user can see at a glance what they've customised.
+**Self-heal flow for orphans** — when an AI plant exists in a home with no `forked_from_plant_id` (typically because it was added before Wave 2's catalogue-write was deployed locally, or the catalogue-insert race-recovery failed silently), clicking Refresh:
+
+1. Calls `PlantDoctorService.generateCareGuide(commonName, homeId)`. The edge fn either finds the existing global by `scientific_name_key` (no Gemini call, cheap) or inserts a new one (one Gemini call).
+2. Updates the home row: `forked_from_plant_id = db_plant_id`, `overridden_fields = []`.
+3. Upserts `user_plant_ack` at the global's current `freshness_version` so no chip flashes after linking.
+4. Closes the modal so the parent re-fetches — the next open shows the plant in its proper linked state with Refresh fully working.
+
+User sees: a single toast saying "Care guide is up to date" — no mention of healing, linking, or catalogue. The orphan state is invisible.
+
+**Saving from unedited (auto-updating) → DetachConfirmModal.** When the user changes an AI care field on an unedited row and clicks Save, `<DetachConfirmModal>` opens with the list of changed fields. Cancelling keeps the form state but doesn't save. Confirming saves the row + populates `overridden_fields` with the changed field names, flipping the chip to "AI · Edited".
+
+**Saving from edited → silent merge.** No modal — new overrides merge into the existing `overridden_fields` list via `mergeOverriddenFields()`.
+
+**Revert button.** Visible only on edited (custom fork) plants. Opens `<ResetConfirmModal>` (component still named `Reset*` internally; user-facing copy says "Revert"). On confirm, calls the `revert_ai_plant_fork_in_place` RPC which restores `care_guide_data` + the editable top-level columns from the global parent, clears `overridden_fields`, and seeds `user_plant_ack` at the parent's current version. Toast: "{plant} reverted — auto-updates re-enabled."
+
+**"You've edited these fields" panel.** A small purple block above the form on edited plants lists the field names currently in `overridden_fields` plus the inline explanation: "Because you've customised this plant, its care guide no longer auto-updates. Use Revert to rejoin automatic updates (your edits will be lost)."
 
 **Per-field highlight inside the form (Wave 7 D9)** — `ManualPlantCreation` accepts two optional props that `PlantEditModal` passes down for AI plants:
 

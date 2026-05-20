@@ -17,6 +17,7 @@ import SourceChip from "./aiPlants/SourceChip";
 import DetachConfirmModal from "./aiPlants/DetachConfirmModal";
 import ResetConfirmModal from "./aiPlants/ResetConfirmModal";
 import { diffOverriddenFields, mergeOverriddenFields } from "../lib/aiPlantOverrides";
+import { PlantDoctorService } from "../services/plantDoctorService";
 
 function formatRelativeDate(iso: string): string {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / (24 * 60 * 60 * 1000));
@@ -121,10 +122,76 @@ export default function PlantEditModal({
   });
   const isLocallyBlocked = localRefreshBlockedUntil != null && Date.now() < localRefreshBlockedUntil;
 
+  /**
+   * Self-heal an orphan AI plant (home-scoped row with no
+   * `forked_from_plant_id`) by finding or generating the global
+   * catalogue parent, then linking this home row to it.
+   *
+   * Returns the global plant_id on success, or null on failure.
+   * Errors are toasted by the caller; we just propagate via return value.
+   */
+  const healOrphan = async (): Promise<number | null> => {
+    if (!plant?.common_name) return null;
+    try {
+      // generateCareGuide on the edge fn already does "find existing global
+      // by scientific_name_key OR insert one on miss". Either way, we get
+      // back db_plant_id which is the global we want to link to.
+      const guide = await PlantDoctorService.generateCareGuide(plant.common_name, homeId);
+      const globalId = guide?.db_plant_id;
+      if (globalId == null) return null;
+
+      // Link this home row to the resolved global.
+      const { error: updErr } = await supabase
+        .from("plants")
+        .update({
+          forked_from_plant_id: globalId,
+          overridden_fields: [],
+        })
+        .eq("id", plant.id);
+      if (updErr) throw updErr;
+
+      // Seed user_plant_ack at the global's current freshness_version so
+      // the freshness chip doesn't fire immediately on the now-linked row.
+      const { data: userData } = await supabase.auth.getUser();
+      const callerId = userData?.user?.id;
+      if (callerId) {
+        await supabase.from("user_plant_ack").upsert(
+          {
+            user_id: callerId,
+            plant_id: globalId,
+            seen_freshness_version: guide.freshness_version ?? 1,
+            acked_at: new Date().toISOString(),
+          },
+          { onConflict: "user_id,plant_id" },
+        );
+      }
+      return globalId;
+    } catch {
+      return null;
+    }
+  };
+
   const handleManualRefresh = async () => {
-    if (!freshness || refreshing) return;
+    if (refreshing) return;
     setRefreshing(true);
     try {
+      // For orphan rows (the freshness hook returned null), heal first then
+      // refresh. The heal call itself does the work of a fresh catalogue
+      // entry — so after a successful heal we can skip the explicit refresh
+      // and report "up to date" directly.
+      if (!freshness) {
+        const healedGlobalId = await healOrphan();
+        if (healedGlobalId == null) {
+          toast.error("Couldn't refresh — try again.");
+          return;
+        }
+        toast.success("Care guide is up to date.");
+        // Tell the parent to re-fetch so the modal re-renders with the
+        // linked state. Closing + reopening matches existing reset UX.
+        onClose();
+        return;
+      }
+
       const { data, error } = await supabase.functions.invoke("manual-refresh-ai-plant", {
         body: { plantId: freshness.global_plant_id },
       });
@@ -220,7 +287,7 @@ export default function PlantEditModal({
         p_fork_id: plant.id,
       });
       if (error) throw error;
-      toast.success(`${plant.common_name} rejoined the catalogue.`);
+      toast.success(`${plant.common_name} reverted — auto-updates re-enabled.`);
       setResetOpen(false);
       onClose();
     } catch (err: any) {
@@ -568,32 +635,30 @@ export default function PlantEditModal({
               {plant.source === "ai" && (
                 <>
                   <div className="flex flex-wrap items-center gap-2 mb-3 px-1">
-                    {/* Wave 6 — source-state chip */}
                     <SourceChip source={plant.source} overriddenFields={overriddenFields} />
                     {freshness?.last_care_generated_at && (
                       <span className="text-[10px] font-bold text-rhozly-on-surface/50">
-                        Catalogue updated {formatRelativeDate(freshness.last_care_generated_at)}
-                      </span>
-                    )}
-                    {/* Orphan AI rows (no freshness data) show a hint so the
-                        user understands why Refresh / Updated chip aren't
-                        available. Hotfix follow-up. */}
-                    {isAiCatalogueTracking && !freshness && (
-                      <span
-                        data-testid="ai-orphan-notice"
-                        className="text-[10px] font-bold text-rhozly-on-surface/50"
-                        title="This plant isn't linked to the global AI catalogue. Re-add it from search to enable updates."
-                      >
-                        Not linked to catalogue
+                        Care guide refreshed {formatRelativeDate(freshness.last_care_generated_at)}
                       </span>
                     )}
                     <div className="flex-1" />
-                    {aiEnabled && isAiCatalogueTracking && freshness && (
+                    {/* Refresh button is always visible for AI plants. It's
+                        disabled when the user has edited fields (the
+                        explanation below tells them how to rejoin via Revert)
+                        and on the local 7-day rate-limit cache. On orphan
+                        rows it triggers the self-heal flow inside the handler. */}
+                    {aiEnabled && (
                       <button
                         data-testid="ai-care-refresh-now"
                         onClick={handleManualRefresh}
-                        disabled={refreshing || isLocallyBlocked}
-                        title={isLocallyBlocked ? "Already refreshed in the last 7 days" : "Re-run the AI care guide now"}
+                        disabled={refreshing || isLocallyBlocked || isAiCustomFork}
+                        title={
+                          isAiCustomFork
+                            ? "You've edited this plant — Refresh is disabled. Use Revert to rejoin auto-updates."
+                            : isLocallyBlocked
+                              ? "Already refreshed in the last 7 days"
+                              : "Check for updates to this AI care guide"
+                        }
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[32px] border border-amber-300 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >
                         {refreshing ? (
@@ -602,7 +667,7 @@ export default function PlantEditModal({
                           </>
                         ) : (
                           <>
-                            <RefreshCw size={12} /> Refresh now
+                            <RefreshCw size={12} /> Refresh
                           </>
                         )}
                       </button>
@@ -613,17 +678,22 @@ export default function PlantEditModal({
                         onClick={() => setResetOpen(true)}
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[32px] border border-purple-300 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-purple-50 transition-colors"
                       >
-                        <RefreshCw size={12} /> Reset to catalogue
+                        <RefreshCw size={12} /> Revert
                       </button>
                     )}
                   </div>
-                  {isAiCustomFork && overriddenFields.length > 0 && (
+                  {isAiCustomFork && (
                     <div className="bg-purple-50 border border-purple-200 rounded-2xl px-3 py-2 mb-4">
                       <p className="text-[10px] font-black uppercase tracking-widest text-purple-800 mb-1">
-                        Your overrides
+                        You've edited these fields
                       </p>
-                      <p className="text-xs font-bold text-purple-900/80">
+                      <p className="text-xs font-bold text-purple-900/80 mb-2">
                         {overriddenFields.map(humanise).join(" · ")}
+                      </p>
+                      <p className="text-[11px] font-bold text-purple-900/70 leading-snug">
+                        Because you've customised this plant, its care guide no
+                        longer auto-updates. Use <span className="font-black">Revert</span> to
+                        rejoin automatic updates (your edits will be lost).
                       </p>
                     </div>
                   )}

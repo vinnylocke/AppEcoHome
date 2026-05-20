@@ -102,7 +102,7 @@ export default function CareUpdateCallout({
           <p className="text-sm font-black text-amber-900">{headline}</p>
           {refreshedAgo && (
             <p className="text-[11px] font-bold text-amber-700/80 mt-0.5">
-              Catalogue refreshed {refreshedAgo}
+              Care guide refreshed {refreshedAgo}
             </p>
           )}
           {count > 0 && (

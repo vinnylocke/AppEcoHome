@@ -19,18 +19,21 @@ describe("SourceChip", () => {
     expect(container.firstChild).toBeNull();
   });
 
-  test("renders catalogue variant when overriddenFields is null", () => {
+  test("renders 'AI' variant when overriddenFields is null", () => {
     render(React.createElement(SourceChip, { source: "ai", overriddenFields: null }));
     const chip = screen.getByTestId("ai-source-chip-catalogue");
-    expect(chip.textContent).toContain("Auto-updating");
+    expect(chip.textContent?.trim()).toContain("AI");
+    // Make sure we no longer leak the old jargon.
+    expect(chip.textContent).not.toContain("catalogue");
+    expect(chip.textContent).not.toContain("Auto-updating");
   });
 
-  test("renders catalogue variant when overriddenFields is empty array", () => {
+  test("renders 'AI' variant when overriddenFields is empty array", () => {
     render(React.createElement(SourceChip, { source: "ai", overriddenFields: [] }));
     expect(screen.getByTestId("ai-source-chip-catalogue")).toBeTruthy();
   });
 
-  test("renders custom variant when overriddenFields has entries", () => {
+  test("renders 'AI · Edited' variant when overriddenFields has entries", () => {
     render(
       React.createElement(SourceChip, {
         source: "ai",
@@ -38,6 +41,7 @@ describe("SourceChip", () => {
       }),
     );
     const chip = screen.getByTestId("ai-source-chip-custom");
-    expect(chip.textContent).toContain("Custom");
+    expect(chip.textContent).toContain("Edited");
+    expect(chip.textContent).not.toContain("Custom");
   });
 });

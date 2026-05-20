@@ -164,14 +164,16 @@ Calls `usePlantDoctor().setIsOpen(true)` with `setPageContext({ action: "Asking 
 | `pattern-scan` + `pattern-evaluate` | Feeds AssistantCard insights for this surface |
 | `refresh-stale-ai-plants` | Daily — re-checks global AI care guides every ~90 days. When a global plant's `freshness_version` advances ahead of a user's `user_plant_ack.seen_freshness_version`, the AI **Updated chip** appears on that card. Added in Wave 4 + Wave 5 of AI Plant Overhaul. |
 
-### AI freshness chip (Wave 5)
+### AI freshness chip
 
 The bottom-left of each plant card carries a small yellow chip (`data-testid="ai-updated-chip"`) when:
 
 1. The card's plant has `source = "ai"`, AND
-2. The catalogue row's `freshness_version` is ahead of the user's most recent `user_plant_ack.seen_freshness_version`.
+2. The global catalogue row's `freshness_version` is ahead of the user's most recent `user_plant_ack.seen_freshness_version`.
 
-For shallow forks (home-scoped rows from Wave 3's bulk-add with `forked_from_plant_id` set), the freshness state resolves via the global parent — so the chip lights when the global gets updated, not when the home row's data drifts. Deep forks (`overridden_fields.length > 0`) never show the chip; they've opted out of the catalogue.
+User-facing copy never mentions "catalogue", "fork" or "linked" — internally these terms drive the data model, but the user just sees an **"AI"** chip on auto-updating plants and an **"AI · Edited"** chip on plants they've customised. See [Plant Edit Modal § AI editing flow](../08-modals-and-overlays/06-plant-edit-modal.md#ai-editing-flow) for the full UX.
+
+For home-scoped rows added via the bulk-add or PlantSearchModal flow (`forked_from_plant_id` set), the freshness state resolves via the global parent — so the chip lights when the global gets updated, not when the home row's data drifts. Edited rows (`overridden_fields.length > 0`) never show the chip; they've opted out of auto-updates. Orphan rows (`source='ai'` + `home_id != null` + `forked_from_plant_id IS NULL`) also don't show the chip — they self-heal on Refresh click inside Plant Edit Modal.
 
 Tapping the chip opens the plant in Plant Edit Modal, where the full `<CareUpdateCallout>` lists the changed fields and offers "Mark as reviewed". The chip is driven by `useAiPlantFreshness` in [`src/hooks/useAiPlantFreshness.ts`](../../../src/hooks/useAiPlantFreshness.ts).
 
