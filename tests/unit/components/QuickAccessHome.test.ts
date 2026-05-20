@@ -73,12 +73,11 @@ describe("QuickAccessHome", () => {
     expect(toastFn).not.toHaveBeenCalled();
   });
 
-  test("tapping Journal tile shows a toast and does NOT navigate", () => {
+  test("tapping Journal tile navigates to /quick/journal (live in Wave 4)", () => {
     renderHome();
     fireEvent.click(screen.getByTestId("quick-tile-journal"));
-    expect(toastFn).toHaveBeenCalledTimes(1);
-    expect(toastFn.mock.calls[0][0]).toContain("Journal");
-    expect(navigateMock).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith("/quick/journal");
+    expect(toastFn).not.toHaveBeenCalled();
   });
 
   test("escape-hatch link navigates to /dashboard", () => {

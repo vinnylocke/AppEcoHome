@@ -9,7 +9,7 @@
 ```
 Buckets (Supabase Storage)
 ├── instance-photos          ← PhotoTimelineTab
-├── journal-photos           ← PlantJournalTab
+├── plant-images             ← PlantJournalTab + Quick Capture Journal (prefix: plant-photos)
 ├── plan-photos              ← PlanReferencePhotos
 ├── plan-covers              ← AI-generated plan hero
 ├── task-photos              ← Task completion photos
@@ -25,7 +25,7 @@ Buckets (Supabase Storage)
 
 DB tables that reference media:
 ├── inventory_item_photos    ← timeline rows
-├── plant_journal            ← per-entry photo_url
+├── plant_journals           ← per-entry image_url; inventory_item_id is NULLABLE (Quick Capture entries are unassigned until filed)
 ├── plan_photos              ← gallery rows
 ├── plants.default_image     ← single URL
 ├── inventory_items.cover_image_url

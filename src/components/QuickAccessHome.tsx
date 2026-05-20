@@ -1,7 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
 import { Camera, CalendarDays, NotebookPen, ArrowRight, Info } from "lucide-react";
-import { toast } from "react-hot-toast";
 
 import QuickTile from "./quick/QuickTile";
 import { useIsMobile } from "../hooks/useIsMobile";
@@ -75,13 +74,8 @@ export default function QuickAccessHome() {
           testId="quick-tile-journal"
           icon={<NotebookPen size={26} />}
           title="Quick Capture"
-          description="Snap a photo and jot a note — file it to a plant later from your desktop."
-          variant="coming-soon"
-          onClick={() =>
-            toast("Coming soon — for now, open a plant's Journal tab.", {
-              icon: "📝",
-            })
-          }
+          description="Snap a photo and jot a note — file it to a plant later, from either device."
+          onClick={() => navigate("/quick/journal")}
         />
       </div>
 

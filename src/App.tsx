@@ -76,6 +76,7 @@ const PlantDoctor         = lazy(() => import("./components/PlantDoctor"));
 const QuickAccessHome     = lazy(() => import("./components/QuickAccessHome"));
 const QuickAccessLens     = lazy(() => import("./components/QuickAccessLens"));
 const LocalizedTaskCalendar = lazy(() => import("./components/quick/LocalizedTaskCalendar"));
+const QuickCapture          = lazy(() => import("./components/quick/QuickCapture"));
 const LightSensor         = lazy(() => import("./components/LightSensor"));
 const SunTrajectoryAR     = lazy(() => import("./components/SunTrajectoryAR"));
 const GuideList           = lazy(() => import("./components/GuideList"));
@@ -170,6 +171,7 @@ export default function App() {
 const TAB_URL: Record<string, string> = {
   quick:           "/quick",
   quick_calendar:  "/quick/calendar",
+  quick_journal:   "/quick/journal",
   dashboard:       "/dashboard",
   task_management: "/schedule",
   shed:            "/shed",
@@ -1023,6 +1025,11 @@ function AppShell() {
                             homeId={profile?.home_id ?? ""}
                             aiEnabled={!!profile?.ai_enabled}
                           />
+                        </div>
+                      } />
+                      <Route path="/quick/journal" element={
+                        <div className="h-full animate-in fade-in duration-500">
+                          <QuickCapture homeId={profile?.home_id ?? ""} />
                         </div>
                       } />
 

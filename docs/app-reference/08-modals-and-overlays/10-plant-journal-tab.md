@@ -39,7 +39,7 @@ PlantJournalTab
 ### Data flow — read paths
 
 ```ts
-supabase.from("plant_journal")
+supabase.from("plant_journals")
   .select("*")
   .eq("inventory_item_id", instanceId)
   .order("created_at", desc);
@@ -49,9 +49,9 @@ supabase.from("plant_journal")
 
 | Action | DB |
 |--------|----|
-| Add | `plant_journal.insert(...)` |
-| Edit | `plant_journal.update({ body, photo_url }).eq("id", id)` |
-| Delete | `plant_journal.delete().eq("id", id)` |
+| Add | `plant_journals.insert(...)` |
+| Edit | `plant_journals.update({ body, photo_url }).eq("id", id)` |
+| Delete | `plant_journals.delete().eq("id", id)` |
 
 ### Edge functions invoked
 
@@ -133,13 +133,20 @@ Same for every tier.
 
 ---
 
+## Notes on unassigned entries (Mobile Quick Access Wave 4)
+
+The `plant_journals.inventory_item_id` column is nullable. Rows without an `inventory_item_id` are created by the [Quick Capture Journal](../02-dashboard/11-quick-capture-journal.md) screen at `/quick/journal` — capture-first, assign-later workflow.
+
+This tab is unaffected by unassigned rows because its read filters by `inventory_item_id = instanceId`, so unassigned drafts never appear here. Once a Quick Capture entry is assigned to a plant via the AssignToPlantSheet, it shows up in this tab like any other entry.
+
 ## Related reference files
 
 - [Instance Edit Modal](./08-instance-edit-modal.md)
 - [Photo Uploader](./27-photo-uploader.md)
+- [Quick Capture Journal](../02-dashboard/11-quick-capture-journal.md) — sibling capture-first surface; entries land here once assigned
 
 ## Code references for ongoing maintenance
 
 - `src/components/PlantJournalTab.tsx`
-- `supabase/migrations/*_plant_journal.sql`
+- `supabase/migrations/*_plant_journals.sql`
 - `journal-photos` bucket

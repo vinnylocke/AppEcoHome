@@ -82,6 +82,25 @@ The exclusion ensures the stale-check cron's regenerations + the SECURITY DEFINE
 
 This lets the home owner grant per-action overrides via the Members & Permissions tab.
 
+### Optional FK columns under home-scoped RLS (`plant_journals` example)
+
+A home-scoped table's RLS gates on `home_id` membership, not on any other FK. This means an optional FK like `plant_journals.inventory_item_id` can be `NULL` without breaking the policy — home members can SELECT / INSERT / UPDATE / DELETE rows whether the FK is set or not:
+
+```sql
+-- The existing plant_journals policy (from migration 20260415110152):
+CREATE POLICY "Users can manage journals for their home"
+  ON plant_journals FOR ALL
+  USING (
+    home_id IN (
+      SELECT home_id FROM user_profiles WHERE uid = auth.uid()
+      UNION
+      SELECT home_id FROM home_members WHERE user_id = auth.uid()
+    )
+  );
+```
+
+This is the pattern that made [Quick Capture Journal](../02-dashboard/11-quick-capture-journal.md) (Mobile Quick Access Wave 4) ship without a migration — `inventory_item_id` was already nullable and the policy already supported unassigned rows. Surfaces that need to filter by FK do so in their query (`.eq("inventory_item_id", instanceId)` or `.is("inventory_item_id", null)`); RLS continues to enforce the home boundary regardless.
+
 ### User-scoped tables
 
 Some tables are per-user, not per-home (e.g. `plant_doctor_sessions`, `chat_messages`, `user_devices`):

@@ -1,1 +1,23 @@
-[]
+[
+  {
+    "label": "New — Quick Capture journal on phones",
+    "items": [
+      "Tap the Quick Capture tile on your mobile Quick Access screen for a new capture-first journal mode. Snap a photo, jot a note, save — no need to pick which plant it's about while you're in the garden with gloves on.",
+      "Captures land in a Recent Captures list waiting for you to file them. When you're at your desk or back inside, tap Assign on any capture and pick the plant — the entry shows up in that plant's Journal tab like any other entry.",
+      "Save needs at least one of a photo or a note. Subject is auto-generated like 'Capture · 20 May, 14:32' so you don't have to title every quick observation."
+    ]
+  },
+  {
+    "label": "All three Quick Access tiles are now live",
+    "items": [
+      "Visual Lens (snap → comprehensive AI analysis), Today (frost-aware planting + rain-vs-watering advice + today's tasks), and Quick Capture (this update) all work from the mobile shortcut home now."
+    ]
+  },
+  {
+    "label": "Behind the scenes",
+    "items": [
+      "Quick Capture uses the same journal table the desktop Plant Journal Tab already reads from — no new schema, no migration, no data risk. Existing entries are untouched.",
+      "Fixed a stale typo in the internal app-reference docs (`plant_journal` → `plant_journals`) while we were in there."
+    ]
+  }
+]

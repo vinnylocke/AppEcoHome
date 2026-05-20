@@ -1,6 +1,6 @@
 # Quick Access Home
 
-> The mobile shortcut home. A three-tile screen tuned for one-thumb operation in the garden — Visual Lens (live), Today (live in Wave 3 — opens the Localized Task Calendar), Quick Capture (placeholder, Wave 4). Phone users land here on app open instead of the full dashboard; the full dashboard is still a tap away.
+> The mobile shortcut home. A three-tile screen tuned for one-thumb operation in the garden — Visual Lens (live), Today (live → Localized Task Calendar), Quick Capture (live → Quick Capture Journal). Phone users land here on app open instead of the full dashboard; the full dashboard is still a tap away.
 
 **Route:** `/quick`
 **Source files (entry points):**
@@ -28,7 +28,7 @@ QuickAccessHome (mounted at /quick)
 ├── QuickTile × 3
 │   ├── Visual Lens (live)        → navigate("/quick/lens")
 │   ├── Today (live)               → navigate("/quick/calendar") [LocalizedTaskCalendar]
-│   └── Quick Capture (coming-soon)→ toast pointing at a plant's Journal tab
+│   └── Quick Capture (live)       → navigate("/quick/journal") [QuickCapture]
 └── "Open full dashboard →" link  → navigate("/dashboard")
 
 QuickAccessLens (mounted at /quick/lens)
@@ -131,12 +131,12 @@ It's not a replacement for the full app — it's a fast path to the three things
 - **What happens next**: routes to `/quick/calendar` — the [Localized Task Calendar](./10-localized-task-calendar.md). Frost-aware planting helper at the top, rain-vs-watering advice in the middle, today's pending tasks at the bottom.
 - **Why a gardener cares**: this is the "what should I do today, and what's still time to plant?" screen, anchored to your home's actual climate.
 
-#### 3. Tap "Quick Capture" tile (Coming soon)
+#### 3. Tap "Quick Capture" tile (live in Wave 4)
 
-- **What you see**: similar subdued tile with a notebook icon.
+- **What you see**: a tile with a notebook icon, "Quick Capture", and a description.
 - **What you do**: tap.
-- **What happens next**: toast — *"Coming soon — for now, open a plant's Journal tab."*
-- **Why a gardener cares**: same — gentle pointer to the existing journal flow inside Instance Edit until the dedicated capture surface ships.
+- **What happens next**: routes to `/quick/journal` — the [Quick Capture Journal](./11-quick-capture-journal.md). Snap a photo + jot a note + Save. Captures land in `plant_journals` without an `inventory_item_id` and stay in the Recent Captures list until you assign them to a specific plant from any device.
+- **Why a gardener cares**: removes the friction of finding the exact plant in your Shed when you spot something in the moment. Capture first, file later.
 
 #### 4. "Open full dashboard →" link
 
