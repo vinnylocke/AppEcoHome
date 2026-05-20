@@ -57,6 +57,16 @@ scorePlantByPreferences(commonName, scientificName, preferences)
 
 - On commit, parent typically inserts into `plants` + `inventory_items`.
 
+#### `handleAddToShed` — three-way branch (Wave 7 D2)
+
+`handleAddToShed` decides the insert payload based on the previewed plant's source:
+
+- **Verdantly** (`previewPlant.source === "verdantly"`): duplicate check on `(home_id, verdantly_id)`. Skeleton includes Verdantly-specific fields (`growth_habit`, `days_to_harvest_*`, `soil_ph_*`, `planting_instructions`).
+- **AI** (`previewPlant.source === "ai" || _provider === "ai"`) — Wave 7 D2 fix: duplicate check on `(home_id, ilike(common_name))` because AI plants don't have a stable provider ID. Skeleton uses `source: "ai"`, no `perenual_id`, copies the AI top-level care fields, and (when `db_plant_id` was forwarded from the catalogue) sets `forked_from_plant_id = db_plant_id` + `overridden_fields = []` to register the row as a shallow fork — same shape Wave 3's bulk-add produces.
+- **Perenual** (else): duplicate check on `(home_id, perenual_id)`. Skeleton uses `source: "api"` + `perenual_id`.
+
+Prior to Wave 7, the AI branch fell through to the Perenual code with `perenual_id = undefined`, producing malformed rows. Wave 7 D2 closed that gap.
+
 ### Edge functions invoked
 
 - Same as BulkSearchModal.

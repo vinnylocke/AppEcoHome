@@ -72,4 +72,24 @@ test.describe("AI Plant Overhaul Wave 6 — override flow", () => {
       authenticatedPage.locator("[data-testid='ai-source-chip-custom']"),
     ).toBeVisible();
   });
+
+  // Wave 7 (D9) — per-field highlight inside ManualPlantCreation
+  test("AI-OVERRIDE-004: custom fork's overridden field renders the 'Custom' badge", async ({
+    authenticatedPage,
+  }) => {
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    await shed.plantCard("Lavender").click();
+
+    // The seeded Lavender fork has overridden_fields = ["watering_min_days"].
+    // ManualPlantCreation's Watering Interval block shares one badge for
+    // both min/max fields → form-field-overridden-watering.
+    const badge = authenticatedPage.locator(
+      "[data-testid='form-field-overridden-watering']",
+    );
+    await expect(badge).toBeVisible({ timeout: 5000 });
+    await expect(badge).toContainText("Custom");
+  });
 });

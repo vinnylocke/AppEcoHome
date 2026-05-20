@@ -906,6 +906,39 @@ Deferred (carried forward into Wave 7's register):
 | D9 | Per-field background highlight inside `ManualPlantCreation` | Optional polish |
 | D10 (new) | Edit-then-save AI flow in Instance Edit Modal Care Guide tab (currently read-only) | Optional polish |
 
+### Wave 7 — Cleanup pass + deferred-work close-out  *(shipped)*
+
+Shipped on 2026-05-20. The deferred-work register accumulated through Waves 1–6 is now closed.
+
+Items closed by this wave:
+
+- **D2** — `PlantSearchModal.handleAddToShed` now has an `isAi` branch matching Wave 3's bulk-add shallow-fork pattern. Duplicate check uses `ilike(common_name)` since AI plants have no stable provider ID. `forked_from_plant_id` set when the catalogue returned a `db_plant_id`.
+- **D7** — `scripts/seed-test-db.mjs` rewritten to a **three-pass** orchestration: (1) bootstrap all workers, (2) regular seeds per worker, (3) cross-home isolation markers once. Verified with `supabase db reset --local && node scripts/seed-test-db.mjs --workers 4` against a fresh DB.
+- **D9** — `ManualPlantCreation` accepts `highlightedFields?` (yellow + "Updated" badge) and `overriddenFields?` (purple + "Custom" badge) props. Applied to all MultiSelect fields + the Watering Interval block. `PlantEditModal` threads `freshness.updated_care_fields` + `plant.overridden_fields` down. Overridden wins over highlighted when both apply.
+- **D10** — Instance Edit Modal Care Guide tab stays read-only by design. Documented in [instance-edit-modal.md](../app-reference/08-modals-and-overlays/08-instance-edit-modal.md) so future contributors don't re-open the question.
+
+Items consciously deferred out of this feature's scope (graduate to regular product backlog if they ever return):
+
+- **D3** — `inventory_items → global plant_id` refactor. Shallow-fork model works; only worth doing if prod surfaces a data-bloat or query-perf signal.
+- **D4** — §13 Pass 2 backfill (per-home duplicate collapse). Needs real prod AI duplicates to exist before it's meaningful. Design plan §13 Pass 2 has the full algorithm if/when it's needed.
+- **D6** — RLS prod smoke test. Manual post-deploy checklist (below). Can't be automated pre-deploy.
+- **D8** — Realtime sub on globals. Page-load refresh works. Revisit only if multi-device users report stale chip behaviour.
+
+#### Post-deploy smoke-test runbook (D6)
+
+After `npm run deploy` lands the Wave 1–6 migrations on prod:
+
+1. **RLS lockdown.** Sign in as a real user, open the JS console, run:
+   ```js
+   await supabase.from("plants").update({ care_level: "test" }).eq("id", <GLOBAL_AI_ID>);
+   ```
+   Expect: empty result / RLS rejection. The Wave 1 policy tightening should prevent user-context updates on AI globals (`source = 'ai' AND home_id IS NULL`).
+2. **Stale-check cron firing.** After 03:00 UTC on the day after deploy, query `ai_usage_log` for rows with `function_name = "refresh-stale-ai-plants"`. Expect at least one row per day going forward.
+3. **Manual refresh path.** As a Sage+ user, click "Refresh now" on a global AI plant in Plant Edit Modal. Expect a toast + a new row in `plant_care_revisions` if anything changed, and `ai_plant_manual_refresh_log` updated for the rate-limit window.
+4. **Detach + reset roundtrip.** Edit a catalogue-tracking plant → confirm detach → verify `overridden_fields` populated. Click Reset → confirm → verify `overridden_fields` cleared + care fields restored from the global parent.
+
+If any of these fail, capture the error + the failing payload, then either revert via Supabase migration rollback or hotfix forward.
+
 ---
 
 ## 13. Backfill strategy

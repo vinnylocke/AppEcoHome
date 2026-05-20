@@ -252,6 +252,7 @@ export default function PlantSearchModal({
     setIsAdding(true);
 
     const isVerdantly = previewPlant.source === "verdantly";
+    const isAi = previewPlant.source === "ai" || previewPlant._provider === "ai";
 
     try {
       // Duplicate check per provider
@@ -265,6 +266,17 @@ export default function PlantSearchModal({
           .maybeSingle();
         if (error) throw new Error("Could not verify if plant exists. Try again.");
         existingPlant = data;
+      } else if (isAi) {
+        // Wave 7 (D2) — AI plants don't have a stable provider ID. Match on
+        // common_name within the home (same check Wave 3's bulk-add uses).
+        const { data, error } = await supabase
+          .from("plants")
+          .select("id")
+          .eq("home_id", homeId)
+          .ilike("common_name", previewPlant.common_name)
+          .limit(1);
+        if (error) throw new Error("Could not verify if plant exists. Try again.");
+        existingPlant = data && data.length > 0 ? data[0] : null;
       } else {
         const pId = String(previewPlant.perenual_id);
         const { data, error } = await supabase
@@ -302,31 +314,65 @@ export default function PlantSearchModal({
         }
       }
 
-      const skeletonPlant = isVerdantly
-        ? {
-            id:              Math.floor(Date.now() / 1000),
-            home_id:         homeId,
-            common_name:     previewPlant.common_name,
-            scientific_name: previewPlant.scientific_name,
-            thumbnail_url:   permanentImageUrl,
-            source:          "verdantly",
-            verdantly_id:    previewPlant.verdantly_id,
-            growth_habit:    previewPlant.growth_habit ?? null,
-            days_to_harvest_min: previewPlant.days_to_harvest_min ?? null,
-            days_to_harvest_max: previewPlant.days_to_harvest_max ?? null,
-            soil_ph_min:     previewPlant.soil_ph_min ?? null,
-            soil_ph_max:     previewPlant.soil_ph_max ?? null,
-            planting_instructions: previewPlant.planting_instructions ?? null,
-          }
-        : {
-            id:          Math.floor(Date.now() / 1000),
-            home_id:     homeId,
-            common_name: previewPlant.common_name,
-            scientific_name: previewPlant.scientific_name,
-            thumbnail_url: permanentImageUrl,
-            source:      "api",
-            perenual_id: String(previewPlant.perenual_id),
-          };
+      // Wave 7 (D2) — three-way branch: Verdantly, AI, or Perenual.
+      // AI plants follow Wave 3's shallow-fork pattern: when the catalogue
+      // returned a `db_plant_id`, we record it as `forked_from_plant_id` so
+      // the new row is registered as a shallow fork tracking the global.
+      let skeletonPlant: Record<string, unknown>;
+      if (isVerdantly) {
+        skeletonPlant = {
+          id:              Math.floor(Date.now() / 1000),
+          home_id:         homeId,
+          common_name:     previewPlant.common_name,
+          scientific_name: previewPlant.scientific_name,
+          thumbnail_url:   permanentImageUrl,
+          source:          "verdantly",
+          verdantly_id:    previewPlant.verdantly_id,
+          growth_habit:    previewPlant.growth_habit ?? null,
+          days_to_harvest_min: previewPlant.days_to_harvest_min ?? null,
+          days_to_harvest_max: previewPlant.days_to_harvest_max ?? null,
+          soil_ph_min:     previewPlant.soil_ph_min ?? null,
+          soil_ph_max:     previewPlant.soil_ph_max ?? null,
+          planting_instructions: previewPlant.planting_instructions ?? null,
+        };
+      } else if (isAi) {
+        skeletonPlant = {
+          id:              Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000),
+          home_id:         homeId,
+          common_name:     previewPlant.common_name,
+          scientific_name: previewPlant.scientific_name ?? [],
+          thumbnail_url:   permanentImageUrl,
+          source:          "ai",
+          perenual_id:     null,
+          // Sync top-level AI care fields so TheShed / Plant Edit Modal can
+          // render without re-fetching the care guide.
+          watering:           previewPlant.watering ?? null,
+          care_level:         previewPlant.care_level ?? null,
+          cycle:              previewPlant.cycle ?? null,
+          sunlight:           previewPlant.sunlight ?? [],
+          description:        previewPlant.description ?? null,
+          watering_min_days:  previewPlant.watering_min_days ?? null,
+          watering_max_days:  previewPlant.watering_max_days ?? null,
+          is_edible:          previewPlant.is_edible ?? false,
+          is_toxic_pets:      previewPlant.is_toxic_pets ?? false,
+          is_toxic_humans:    previewPlant.is_toxic_humans ?? false,
+          attracts:           previewPlant.attracts ?? [],
+        };
+        if (previewPlant.db_plant_id != null) {
+          skeletonPlant.forked_from_plant_id = previewPlant.db_plant_id;
+          skeletonPlant.overridden_fields = [];
+        }
+      } else {
+        skeletonPlant = {
+          id:          Math.floor(Date.now() / 1000),
+          home_id:     homeId,
+          common_name: previewPlant.common_name,
+          scientific_name: previewPlant.scientific_name,
+          thumbnail_url: permanentImageUrl,
+          source:      "api",
+          perenual_id: String(previewPlant.perenual_id),
+        };
+      }
 
       const { data: savedPlant, error } = await supabase
         .from("plants")
@@ -336,7 +382,11 @@ export default function PlantSearchModal({
 
       if (error) throw error;
 
-      if (!isVerdantly && previewPlant.harvest_season) {
+      // Only Perenual rows get the auto-generated harvest schedule today
+      // (it references "Perenual Database" in the description). Wave 7 (D2)
+      // explicitly excludes AI plants from this branch — their schedules
+      // come from buildAutoSeasonalSchedules in the bulk-add flow when used.
+      if (!isVerdantly && !isAi && previewPlant.harvest_season) {
         await supabase.from("plant_schedules").insert([{
           home_id:         homeId,
           plant_id:        savedPlant.id,

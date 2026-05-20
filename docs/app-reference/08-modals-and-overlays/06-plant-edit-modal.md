@@ -131,6 +131,13 @@ For `source = "ai"` plants, the Care tab shows a `<SourceChip>` indicating one o
 
 **Overridden fields summary** — a small purple strip above the form lists the field names currently in `overridden_fields` so the user can see at a glance what they've customised.
 
+**Per-field highlight inside the form (Wave 7 D9)** — `ManualPlantCreation` accepts two optional props that `PlantEditModal` passes down for AI plants:
+
+- `highlightedFields={freshness.updated_care_fields}` — yellow background + "Updated" badge next to the labels of fields the cron just changed.
+- `overriddenFields={plant.overridden_fields}` — purple background + "Custom" badge on fields the user explicitly edited.
+
+If a field is in both lists, the purple Custom indicator wins (it's the more permanent state). Currently applied to MultiSelect fields (sunlight, flowering/harvest seasons, pruning months, propagation, attracts) and the Watering Interval block (the only shared treatment for `watering_min_days` + `watering_max_days`).
+
 Components introduced this wave (all in `src/components/aiPlants/`):
 - `SourceChip` — the catalogue/custom pill.
 - `DetachConfirmModal` — the save warning.

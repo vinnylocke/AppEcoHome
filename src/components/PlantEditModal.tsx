@@ -623,6 +623,15 @@ export default function PlantEditModal({
                 submitLabel="Save Updates"
                 isSaving={isSaving}
                 isReadOnly={plant.source === "api" || plant.source === "verdantly"}
+                // Wave 7 (D9) — yellow highlight on fields the catalogue cron
+                // updated but the user hasn't ack'd, purple on fields the
+                // user has explicitly overridden. Both lists default to []
+                // for non-AI plants (the hook returns null + the prop array
+                // is empty) so the form looks unchanged.
+                highlightedFields={
+                  freshness?.has_update ? freshness.updated_care_fields : []
+                }
+                overriddenFields={overriddenFields}
               />
             </div>
           ) : activeTab === "schedules" ? (

@@ -33,6 +33,21 @@ interface ManualPlantCreationProps {
   isSaving?: boolean;
   submitLabel?: string;
   isReadOnly?: boolean;
+  /**
+   * Wave 7 (D9) — field names from `plants.updated_care_fields` that should
+   * render with a yellow "Updated" highlight (the catalogue cron changed them
+   * but the user hasn't acknowledged yet).
+   */
+  highlightedFields?: string[];
+  /**
+   * Wave 7 (D9) — field names from `plants.overridden_fields` that should
+   * render with a purple "Custom" highlight (the user has explicitly edited
+   * them away from the catalogue).
+   *
+   * If a field appears in both lists, "Custom" wins — it's the more
+   * permanent state.
+   */
+  overriddenFields?: string[];
 }
 
 const SUNLIGHT_OPTIONS = [
@@ -88,7 +103,33 @@ export default function ManualPlantCreation({
   isSaving,
   submitLabel = "Save to Shed",
   isReadOnly = false,
+  highlightedFields,
+  overriddenFields,
 }: ManualPlantCreationProps) {
+  // Wave 7 (D9) — fast lookup sets + helper to decide a field's highlight
+  // state. Overridden wins over highlighted (custom is the more permanent
+  // state). Returns { kind: "overridden" | "highlighted", className, badge }
+  // or null when the field has no special state.
+  const overrideSet = new Set(overriddenFields ?? []);
+  const highlightSet = new Set(highlightedFields ?? []);
+
+  function fieldStatus(field: string): { kind: "overridden" | "highlighted"; wrap: string; badge: { label: string; cls: string } } | null {
+    if (overrideSet.has(field)) {
+      return {
+        kind: "overridden",
+        wrap: "bg-purple-50/60 border-purple-200 ring-1 ring-purple-200/60",
+        badge: { label: "Custom", cls: "bg-purple-100 text-purple-700" },
+      };
+    }
+    if (highlightSet.has(field)) {
+      return {
+        kind: "highlighted",
+        wrap: "bg-amber-50/60 border-amber-200 ring-1 ring-amber-200/60",
+        badge: { label: "Updated", cls: "bg-amber-100 text-amber-700" },
+      };
+    }
+    return null;
+  }
   const { setPageContext } = usePlantDoctor();
 
   const [activeSection, setActiveSection] = useState<string | null>("basics");
@@ -358,13 +399,25 @@ export default function ManualPlantCreation({
     setTimeout(() => setSavedConfirm(false), 2000);
   };
 
-  const MultiSelect = ({ label, field, options, icon: Icon }: any) => (
+  const MultiSelect = ({ label, field, options, icon: Icon }: any) => {
+    const status = fieldStatus(field);
+    return (
     <div
-      className="space-y-2 relative"
+      className={`space-y-2 relative ${status ? `rounded-2xl border p-3 ${status.wrap}` : ""}`}
+      data-field={field}
+      data-field-status={status?.kind ?? undefined}
       ref={(el) => { dropdownContainerRefs.current[field] = el; }}
     >
       <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1 flex items-center gap-2">
         {Icon && <Icon size={12} />} {label}
+        {status && (
+          <span
+            data-testid={`form-field-${status.kind}-${field}`}
+            className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md ${status.badge.cls}`}
+          >
+            {status.badge.label}
+          </span>
+        )}
       </label>
       <button
         type="button"
@@ -425,7 +478,8 @@ export default function ManualPlantCreation({
         </div>
       )}
     </div>
-  );
+    );
+  };
 
   const SectionHeader = ({ id, title, icon: Icon }: any) => {
     const hasError = id === "basics" && errors.common_name;
@@ -772,9 +826,25 @@ export default function ManualPlantCreation({
                 icon={Check}
                 isReadOnly={isReadOnly}
               />
-              <div className="space-y-4">
-                <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
+              {/* Wave 7 (D9) — Watering Interval gets the per-field highlight
+                  when either min or max is in updated_care_fields or
+                  overridden_fields. Combined under a single banner since they
+                  conceptually represent one care setting. */}
+              {(() => {
+                const wateringStatus =
+                  fieldStatus("watering_min_days") ?? fieldStatus("watering_max_days");
+                return (
+              <div className={`space-y-4 ${wateringStatus ? `rounded-2xl border p-3 ${wateringStatus.wrap}` : ""}`}>
+                <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1 flex items-center gap-2">
                   Watering Interval (Days)
+                  {wateringStatus && (
+                    <span
+                      data-testid={`form-field-${wateringStatus.kind}-watering`}
+                      className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md ${wateringStatus.badge.cls}`}
+                    >
+                      {wateringStatus.badge.label}
+                    </span>
+                  )}
                 </label>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="relative">
@@ -812,6 +882,8 @@ export default function ManualPlantCreation({
                   </p>
                 )}
               </div>
+                );
+              })()}
             </div>
           )}
         </div>

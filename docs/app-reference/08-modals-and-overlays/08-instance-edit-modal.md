@@ -140,6 +140,8 @@ Each tab is a separate flow with its own reference file ([Photo Timeline](./09-p
 - Shows the master care guide for the species (read-only here — edit it from Plant Edit Modal).
 - **AI freshness callout (Wave 5)** — when this instance's parent plant is an AI catalogue row whose `freshness_version` is ahead of the user's ack, a yellow banner appears at the top of the tab listing the changed fields. "Mark as reviewed" clears the chip for every instance of this plant (since the ack is per-plant, not per-instance). Shallow forks resolve via `forked_from_plant_id` to the global parent.
 
+> **Design decision (Wave 7 D10 — wontfix).** The Care Guide tab here is intentionally read-only. Editing care fields affects the *species* record (`plants` table), not the inventory item. Having two edit entry points (this tab AND Plant Edit Modal) would confuse users about which scope they're modifying. To edit the underlying species record, open the parent plant from The Shed — that's the single, clear entry point for plant-level edits. The Wave 6 detach + reset flows live there exclusively.
+
 ### Tier-by-tier experience
 
 | Tier | Differences |
