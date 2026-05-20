@@ -18,6 +18,7 @@
 | Daily Batch Notifications | daily | `daily-batch-notifications` | Send push / email digests |
 | Weekly Digest | weekly | `weekly-digest` | Weekly summary email |
 | Purge Stale Species Cache | weekly | `purge-stale-species-cache` | Clear old provider caches |
+| Refresh Stale AI Plants | daily (03:00 UTC) | `refresh-stale-ai-plants` | Re-check global AI care guides every ~90 days; diff-based version bump |
 | Run Automations | every minute | `run-automations` | Fire due watering automations |
 | Integrations eWeLink Sync | periodic | `integrations-ewelink-sync` | Refresh device readings |
 | Integrations Ecowitt Poll | periodic | `integrations-ecowitt-poll` | Poll Ecowitt weather stations |
@@ -54,6 +55,17 @@ Cron schedules live in Supabase Dashboard. Reproducible via `supabase/cron-jobs.
 - `soil_readings` (integrations-ewelink-sync)
 - `automation_runs`, `valve_events` (run-automations)
 - `inventory_items` (update-plant-states)
+- `plants`, `plant_care_revisions`, `ai_usage_log` (refresh-stale-ai-plants)
+
+### Refresh Stale AI Plants — extra notes
+
+Cadence is "daily, but each plant is re-checked at most every 90 days." The daily fire only walks the rows whose `last_freshness_check_at` is NULL or older than 90 days. Batch capped per-run via `STALE_CHECK_BATCH_SIZE` env (default 25). Worst case: 25 plants × 365 days = 9,125 unique plant checks per year against Gemini.
+
+Filter is **always** `source='ai' AND home_id IS NULL`. Home-scoped forks have `home_id != NULL` by construction → never touched. Forks own their own care guides forever after the detach-on-edit modal confirms.
+
+Diff is via `diffCareGuide` in [`_shared/aiPlantCatalogue.ts`](../../../supabase/functions/_shared/aiPlantCatalogue.ts) — the same helper used by `manual-refresh-ai-plant`. Lowercases strings + sorts arrays before comparison so cosmetic AI variation doesn't trigger spurious version bumps.
+
+AI usage attribution is system-level: `ai_usage_log` rows for this cron have `user_id = NULL` and `home_id = NULL`. Cost shows up in the Audit Log under "System" rather than against any user's quota.
 
 ### Manual triggering
 

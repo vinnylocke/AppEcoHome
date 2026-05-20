@@ -21,6 +21,7 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 | `search-plants-ai` | Browser (BulkSearch AI tab) | Text search by name; AI synthesises matches. |
 | `plant-image-search` | Browser (DiagnosisImageGallery, MultiImageGallery) | Merged image search across Wikipedia / Pixabay / iNaturalist / Verdantly. |
 | `manual-refresh-ai-plant` | Browser ("Refresh now" button in Plant Edit Modal Care tab) | Sage+ tier-gated, rate-limited to once per (user, plant) per 7 days. Re-runs Gemini for a single global AI plant, diffs vs current `care_guide_data`, bumps `freshness_version` + writes `plant_care_revisions` row if changed. Cost lands against the user's AI quota. Added in Wave 2 of AI Plant Overhaul. |
+| `refresh-stale-ai-plants` | Cron (daily 03:00 UTC) | Walks global AI plants (`source='ai' AND home_id IS NULL`) whose `last_freshness_check_at` is NULL or older than 90 days. Re-asks Gemini, runs `diffCareGuide`, bumps `freshness_version` + writes a `plant_care_revisions` row when something changed; otherwise just resets the check timestamp. Batch size from `STALE_CHECK_BATCH_SIZE` env (default 25). System-attributed AI usage (no user/home). Forks are skipped by construction. Added in Wave 4 of AI Plant Overhaul. See also [Cron Jobs](./11-cron-jobs.md). |
 
 ### AI — Planning
 
@@ -61,6 +62,7 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 | `daily-batch-notifications` | daily | Send push / email digests. |
 | `weekly-digest` | weekly | Weekly summary email. |
 | `purge-stale-species-cache` | weekly | Clear old provider caches. |
+| `refresh-stale-ai-plants` | daily | AI Plant Overhaul Wave 4: re-check global AI care guides every ~90 days, write diff-based revisions. |
 | `run-automations` | every 1 minute | Fire due watering automations. |
 | `integrations-ewelink-sync` | periodic | Refresh device readings. |
 | `integrations-ecowitt-poll` | periodic | Ecowitt weather station poll. |

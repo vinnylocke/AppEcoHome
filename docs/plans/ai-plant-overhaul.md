@@ -827,12 +827,26 @@ User A adds tomato → User B (different home) searches → sees "In
 catalogue" pill → adds → zero Gemini calls fire (verified by absence of
 new `ai_calls` row for `action = "generate_care_guide"`).
 
-### Wave 4 — Stale-check cron + revision history
-- Deploy `refresh-stale-ai-plants` edge fn.
-- Add cron schedule (start with `STALE_CHECK_BATCH_SIZE=10` to ramp, then 25 once stable).
-- Wave 4 backfill: populate `last_care_generated_at` from `plants.created_at` for existing AI rows so the cron has a sensible starting point.
-- Visible from Audit Log → `ai_calls` table.
-- No UI for chips yet — just the data flowing.
+### Wave 4 — Stale-check cron + revision history  *(shipped)*
+
+Shipped on 2026-05-20. Scope delivered:
+
+- **Edge function** [supabase/functions/refresh-stale-ai-plants/index.ts](../../supabase/functions/refresh-stale-ai-plants/index.ts) — daily cron, batched, system-attributed AI usage. Same `CARE_GUIDE_SCHEMA` (enum-constrained seasons/months) as `manual-refresh-ai-plant`. Per-plant try/catch isolates failures.
+- **Shared logic** [supabase/functions/_shared/refreshStaleAiPlants.ts](../../supabase/functions/_shared/refreshStaleAiPlants.ts) — pure-ish function that takes a Gemini caller stub, so it's unit-testable without touching the network.
+- **Cron migration** [supabase/migrations/20260621000000_refresh_stale_ai_plants_cron.sql](../../supabase/migrations/20260621000000_refresh_stale_ai_plants_cron.sql) — `pg_cron` schedule at 03:00 UTC, named `refresh-stale-ai-plants-daily`. Verified on local DB.
+- **Backfill migration** [supabase/migrations/20260621000100_ai_plant_overhaul_wave4_backfill.sql](../../supabase/migrations/20260621000100_ai_plant_overhaul_wave4_backfill.sql) — seeds `last_care_generated_at` from `created_at` for existing global AI rows.
+- **Deno tests** [supabase/tests/refreshStaleAiPlants.test.ts](../../supabase/tests/refreshStaleAiPlants.test.ts) — 5/5 passing: changed path, unchanged path, empty batch, mid-batch crash, batch-size cap.
+- **Docs** — [edge-functions-catalogue](../app-reference/99-cross-cutting/10-edge-functions-catalogue.md), [cron-jobs](../app-reference/99-cross-cutting/11-cron-jobs.md), [data-model-plants](../app-reference/99-cross-cutting/03-data-model-plants.md) all updated in this wave.
+
+Behaviour notes recorded for future-self:
+- `STALE_CHECK_BATCH_SIZE` env on the edge function — default 25, ramp from 10 on first prod runs.
+- AI usage attribution: `{ userId: null, homeId: null }` — system, not any user's quota.
+- `cron_run_logs` table doesn't exist in this stack — we log via `log(FN, "complete", summary)` to the function's own logs instead. Sentry capture on uncaught errors.
+
+Deferred to later waves:
+- **§13 Pass 2 backfill** (per-home duplicate collapse) — only meaningful once real prod data is seeded.
+- **UI chips + per-field highlight** → Wave 5.
+- **`useAiPlantFreshness` hook** → Wave 5 (so the hook + its consumers land together).
 
 ### Wave 5 — In-app freshness UI (read-only on AI plants)
 - "Updated" chip on Shed cards.
