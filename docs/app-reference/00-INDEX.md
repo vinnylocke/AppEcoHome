@@ -8,14 +8,14 @@ The single source of truth for every documented screen, modal, and cross-cutting
 
 ## 01 — Onboarding & Auth
 
-- [ ] [Auth Screen](./01-onboarding/01-auth-screen.md) — sign in / sign up, OAuth providers, password reset
-- [ ] [Welcome Modal](./01-onboarding/02-welcome-modal.md) — first-run 4-slide carousel
-- [ ] [Home Setup](./01-onboarding/03-home-setup.md) — name / country / postcode / hemisphere flow
-- [ ] [Tier Selection](./01-onboarding/04-tier-selection.md) — Sprout / Botanist / Sage / Evergreen picker
-- [ ] [Garden Quiz (Habit Quiz)](./01-onboarding/05-garden-quiz.md) — preferences capture for personalisation
-- [ ] [Getting Started Checklist](./01-onboarding/06-getting-started-checklist.md) — dashboard onboarding card
-- [ ] [Notification Opt-In Card](./01-onboarding/07-notification-opt-in.md) — one-time browser permission ask
-- [ ] [PWA Install Prompt](./01-onboarding/08-pwa-install.md) — `beforeinstallprompt` hook
+- [x] [Auth Screen](./01-onboarding/01-auth-screen.md) — sign in / sign up, OAuth providers, password reset
+- [x] [Welcome Modal](./01-onboarding/02-welcome-modal.md) — first-run 4-slide carousel
+- [x] [Home Setup](./01-onboarding/03-home-setup.md) — name / country / postcode / hemisphere flow
+- [x] [Tier Selection](./01-onboarding/04-tier-selection.md) — Sprout / Botanist / Sage / Evergreen picker
+- [x] [Garden Quiz (Habit Quiz)](./01-onboarding/05-garden-quiz.md) — preferences capture for personalisation
+- [x] [Getting Started Checklist](./01-onboarding/06-getting-started-checklist.md) — dashboard onboarding card
+- [x] [Notification Opt-In Card](./01-onboarding/07-notification-opt-in.md) — one-time browser permission ask
+- [x] [PWA Install Prompt](./01-onboarding/08-pwa-install.md) — `beforeinstallprompt` hook
 
 ## 02 — Dashboard
 
