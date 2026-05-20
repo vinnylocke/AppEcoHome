@@ -27,8 +27,12 @@ The app is called **Rhozly** — use this name in all user-facing text and commi
 | [docs/deep-linking-plan.md](docs/deep-linking-plan.md) | Plan for native deep-link handling via Capacitor |
 | [docs/shopping-list-plan.md](docs/shopping-list-plan.md) | Build plan for the Shopping List feature — multi-list CRUD, plant/product search, Plant Doctor integration |
 | [docs/deployment.md](docs/deployment.md) | **Deployment process** — maintenance mode, Vercel pipeline, rollback procedure |
+| [docs/app-reference/00-INDEX.md](docs/app-reference/00-INDEX.md) | **Master app reference** — dual-voice docs (senior dev + expert gardener) for every UI surface, modal, and cross-cutting concern. **Must be kept in sync with every code change.** |
+| [docs/app-reference/_template.md](docs/app-reference/_template.md) | The canonical template for new app-reference files. Use it verbatim when adding a new surface. |
 
 **Always read the relevant plan document at the start of a session** before making changes to a feature area.
+
+**Always check [docs/app-reference/](docs/app-reference/) for the surfaces you're touching** — it's the canonical "what does this screen do + why" map. If the surface isn't documented there yet, your task includes creating its reference file (see the mandate below).
 
 ---
 
@@ -115,6 +119,32 @@ Every new feature or amendment **must** also update the test documentation:
 - **Any feature or flow change** → update the relevant section of [docs/e2e-test-plan.md](docs/e2e-test-plan.md): add new test rows, update Status to ✅ Passing / ❌ Failing, and note any seed or mock dependencies
 - **New spec file or Page Object** → add the file to [TESTING.md § Current Test Inventory](TESTING.md#12-current-test-inventory) and update the test counts
 - **Changed route, heading, or button label** → update any affected test rows in [docs/e2e-test-plan.md](docs/e2e-test-plan.md)
+
+### App-reference documentation is mandatory for all code changes
+
+[docs/app-reference/](docs/app-reference/) is the master "what does this screen do + why" map. It has **130 files** covering every UI surface, modal, tab, and cross-cutting concern, all written in a **dual-voice format**: Role 1 = senior developer technical breakdown, Role 2 = expert gardener UX framing. Every code change that touches the user experience or the surrounding system **must keep these docs in sync** in the same task — no exceptions.
+
+**When the change requires a doc update:**
+
+- **Touching an existing UI surface** (component, modal, tab) → update its reference file in the relevant folder (`01-onboarding/` through `09-persistent-ui/`).
+- **Touching a cross-cutting concern** (data model, edge function, cron, RLS, tier gating, weather rules, sun analysis, deployment) → update the file in `99-cross-cutting/`.
+- **Adding a brand-new UI surface** → create a new reference file using [`_template.md`](docs/app-reference/_template.md) verbatim, and add a `- [ ]` row to [`00-INDEX.md`](docs/app-reference/00-INDEX.md) in the right folder section. Tick the `[x]` once the file lands.
+- **Renaming a route, label, or button** → update both the affected reference file AND any reference files that cross-link to it.
+- **Adding / removing an edge function, cron job, or storage bucket** → update [`10-edge-functions-catalogue.md`](docs/app-reference/99-cross-cutting/10-edge-functions-catalogue.md), [`11-cron-jobs.md`](docs/app-reference/99-cross-cutting/11-cron-jobs.md), and [`07-data-model-media.md`](docs/app-reference/99-cross-cutting/07-data-model-media.md) respectively.
+- **Adding a new tier-gated, beta-gated, or permission-gated feature** → update the relevant gating reference (`17-tier-gating.md`, `18-beta-gating.md`, `19-rls-patterns.md`) AND the surface's own Role 1 "Tier gating" / "Beta gating" / "Permissions" section.
+- **Deleting a surface or function** → remove its reference file (or mark archived in the index) AND scrub any cross-links that pointed at it.
+
+**Format requirements — never deviate:**
+
+- Every file must have BOTH roles. Skipping Role 2 (gardener) because "it's a small modal" is not acceptable — every surface has a user-facing purpose worth framing.
+- Section headings inside each role match the template (`Component graph`, `Data flow — read paths`, `Edge functions invoked`, `Cron / scheduled jobs`, `Realtime channels`, `Tier gating`, `Beta gating`, `Permissions`, `Error states`, `Performance`, `Linked storage buckets` for Role 1; `Why open this`, `Every flow`, `Information on display — what every field means`, `Tier-by-tier experience`, `Common mistakes / pitfalls`, `Recommended workflows`, `What to do if something looks wrong` for Role 2).
+- Code references (`src/components/Foo.tsx`, `supabase/functions/bar/index.ts`, etc.) live in the final `Code references for ongoing maintenance` section so future readers know where to look.
+- Cross-links to related references go in the `Related reference files` section near the bottom — link liberally; the docs work as a graph.
+- Tone: Role 1 is precise + factual; Role 2 is warm + opinionated. Never blur them.
+
+**Plan-document discipline pairs with this:** if your `docs/plans/<task>.md` plan involves a UI / data model / cron / function change, the plan must list which `docs/app-reference/` files it will touch. Reviewing the plan before approval is the moment to catch missing doc updates.
+
+**When the reference drifts from the code**, the reference is wrong, not the code. Update the doc immediately in a follow-up commit; flag it in the index by changing `[x]` back to `[~]` (in progress) if the drift is significant enough that the file needs a rewrite rather than a touch-up.
 
 ### Add data-testid attributes to interactive elements
 Every new interactive or key DOM element must have a `data-testid` attribute so Playwright tests can target it without coupling to CSS classes or brittle text selectors.

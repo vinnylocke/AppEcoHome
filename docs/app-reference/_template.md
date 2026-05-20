@@ -1,3 +1,15 @@
+<!--
+  Copy this file when adding a new app-reference doc, then delete this comment block.
+
+  Rules (also in CLAUDE.md → "App-reference documentation is mandatory"):
+  1. EVERY file has BOTH Role 1 (technical) AND Role 2 (gardener). No exceptions.
+  2. Section headings inside each role match this template — don't invent new ones.
+  3. Role 1 tone: precise + factual. Role 2 tone: warm + opinionated. Never blur them.
+  4. Add this file to docs/app-reference/00-INDEX.md in the right folder section.
+  5. Code references go in the final section so future readers know where to look.
+  6. Cross-link liberally in "Related reference files".
+-->
+
 # [Area Name]
 
 > **One-line summary** describing what this surface is for. Aim for a phrase a beginner gardener and a senior dev would both nod at.

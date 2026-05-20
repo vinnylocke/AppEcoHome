@@ -6,6 +6,17 @@ The single source of truth for every documented screen, modal, and cross-cutting
 
 ---
 
+## ⚠ Read before editing code in this repo
+
+This reference is **mandatory to maintain**. Every code change that touches user-facing behaviour, data flow, edge functions, cron jobs, gating, or persistent UI **must** update the relevant file in the same PR.
+
+- The format is **non-negotiable**: every file has BOTH Role 1 (senior dev technical) AND Role 2 (expert gardener UX). Use [`_template.md`](./_template.md) for any new file.
+- The full mandate, drift-handling rules, and per-change-type checklist live in [CLAUDE.md § App-reference documentation is mandatory](../../CLAUDE.md#app-reference-documentation-is-mandatory-for-all-code-changes).
+- When in doubt: if a user could open the screen, it has a Role 2. If the code is non-trivial, it has a Role 1.
+- Update plans (`docs/plans/<task>.md`) should list which app-reference files will change as part of the task.
+
+---
+
 ## 01 — Onboarding & Auth
 
 - [x] [Auth Screen](./01-onboarding/01-auth-screen.md) — sign in / sign up, OAuth providers, password reset
@@ -179,10 +190,43 @@ The single source of truth for every documented screen, modal, and cross-cutting
 
 - Tick items as their reference file lands.
 - Cross-link liberally — UI files link into cross-cutting where relevant, and cross-cutting files link back to every UI surface that touches them.
-- When the codebase changes, the relevant reference file is the source of truth and **must be updated in the same PR**. The status here goes back to `[ ]` if a file's coverage has drifted.
+- When the codebase changes, the relevant reference file is the source of truth and **must be updated in the same PR**. The status here goes back to `[~]` (in progress) if a file's coverage has drifted enough to need a rewrite.
 
-## Contributors
+## Per-change-type checklist
+
+Use this whenever you write a `docs/plans/<task>.md` plan — list the affected files in the plan and tick them off as you ship.
+
+| Change | What to update |
+|--------|---------------|
+| New UI screen / route | Create new file from [`_template.md`](./_template.md), add `- [ ]` row to the right folder section above, update [Routing](./99-cross-cutting/21-routing.md) |
+| New modal / sheet / drawer | New file in `08-modals-and-overlays/`, update parent screen's reference, add row above |
+| New tab inside an existing surface | Update the parent's Component graph + the relevant existing reference (don't create a separate file unless the tab has its own substantial logic) |
+| Renamed route / heading / button label | Update the surface's reference + grep `docs/app-reference/` for the old name + replace in cross-links |
+| New edge function | Add row to [`10-edge-functions-catalogue.md`](./99-cross-cutting/10-edge-functions-catalogue.md); update every consuming UI surface's "Edge functions invoked" table |
+| New cron job | Add row to [`11-cron-jobs.md`](./99-cross-cutting/11-cron-jobs.md); update every surface's "Cron / scheduled jobs that affect this surface" table |
+| New table / column | Update the matching `01-data-model-*.md` cross-cutting reference; update affected surfaces' "Data flow" sections |
+| New storage bucket | Update [`07-data-model-media.md`](./99-cross-cutting/07-data-model-media.md); update consuming surfaces' "Linked storage buckets" sections |
+| New tier-gated feature | Update [`17-tier-gating.md`](./99-cross-cutting/17-tier-gating.md) gated-surfaces table; update the surface's Role 1 "Tier gating" section + Role 2 "Tier-by-tier experience" |
+| New beta-gated feature | Update [`18-beta-gating.md`](./99-cross-cutting/18-beta-gating.md); update the surface's Beta gating section |
+| New permission key | Update [`19-rls-patterns.md`](./99-cross-cutting/19-rls-patterns.md) AND [Members & Permissions](./07-management/02-members-permissions.md); update consuming surfaces' "Permissions" sections |
+| New AI call (Gemini) | Update [`13-ai-gemini.md`](./99-cross-cutting/13-ai-gemini.md) consuming-functions list + [`10-edge-functions-catalogue.md`](./99-cross-cutting/10-edge-functions-catalogue.md) |
+| New event in `events/registry.ts` | If user-facing-action, update [`08-audit-log.md`](./07-management/08-audit-log.md) `EVENT_LABELS` table; mention in any surface that fires it |
+| New realtime channel | Update [`15-realtime.md`](./99-cross-cutting/15-realtime.md) Channels-in-active-use table; update consuming surfaces' "Realtime channels" sections |
+| New offline-queue kind | Update [`16-offline-queue.md`](./99-cross-cutting/16-offline-queue.md) Kinds table |
+| Deleted surface / function / table | Remove file or mark archived in index; grep cross-cutting + UI files for the name + remove stale references |
+
+## Contributors — format rules
 
 When updating a reference file, keep both voices intact:
-- **Role 1 (Senior dev)** — every fact verifiable in the codebase.
-- **Role 2 (Expert gardener)** — every claim verifiable by actually doing it as a user.
+
+- **Role 1 (Senior dev)** — every fact verifiable in the codebase. Component graph (tree), Props (table), State (table), Data flow read paths (with table/edge-fn/RLS), Data flow write paths, Edge functions invoked (table), Cron / scheduled jobs that affect this surface (table), Realtime channels, Tier gating, Beta gating, Permissions, Error states (table), Performance, Linked storage buckets.
+- **Role 2 (Expert gardener)** — every claim verifiable by actually doing it as a user. Why open this, Every flow on this surface, Information on display — what every field means (table), Tier-by-tier experience (table), New / returning / power-user framing if relevant, Common mistakes / pitfalls (bullets), Recommended workflows (numbered), What to do if something looks wrong (bullets).
+
+**Tone discipline:**
+- Role 1 = precise + factual. Use code blocks, table headers, type signatures.
+- Role 2 = warm + opinionated. Use full sentences. Frame for both a beginner and an expert.
+- Never blur them. Don't put gardener prose in Role 1; don't put TypeScript types in Role 2.
+
+**Code references** live in the final `Code references for ongoing maintenance` section. List the actual file paths and any relevant edge-function / migration / hook files so a future maintainer knows where to look.
+
+**Cross-links** go in `Related reference files` near the bottom. Link to every doc that materially overlaps — these docs work as a graph.
