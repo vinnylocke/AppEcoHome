@@ -575,8 +575,20 @@ export default function PlantEditModal({
                         Catalogue updated {formatRelativeDate(freshness.last_care_generated_at)}
                       </span>
                     )}
+                    {/* Orphan AI rows (no freshness data) show a hint so the
+                        user understands why Refresh / Updated chip aren't
+                        available. Hotfix follow-up. */}
+                    {isAiCatalogueTracking && !freshness && (
+                      <span
+                        data-testid="ai-orphan-notice"
+                        className="text-[10px] font-bold text-rhozly-on-surface/50"
+                        title="This plant isn't linked to the global AI catalogue. Re-add it from search to enable updates."
+                      >
+                        Not linked to catalogue
+                      </span>
+                    )}
                     <div className="flex-1" />
-                    {aiEnabled && isAiCatalogueTracking && (
+                    {aiEnabled && isAiCatalogueTracking && freshness && (
                       <button
                         data-testid="ai-care-refresh-now"
                         onClick={handleManualRefresh}
