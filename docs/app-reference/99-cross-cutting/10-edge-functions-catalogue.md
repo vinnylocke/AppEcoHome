@@ -16,7 +16,7 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 
 | Function | Trigger | Purpose |
 |----------|---------|---------|
-| `plant-doctor` | Browser (PlantDoctor screen) | Multi-action: identify / diagnose / pest / search_plants_text / generate_care_guide. Wave 2 of AI Plant Overhaul added catalogue-aware behaviour: `search_plants_text` returns a sparse `hits` map of matches that already exist in the global AI catalogue (or as a home fork); `generate_care_guide` checks the catalogue before calling Gemini and INSERTs a global AI plants row on cache miss. |
+| `plant-doctor` | Browser (PlantDoctor screen) | Multi-action: identify / diagnose / pest / search_plants_text / generate_care_guide. Wave 2 of AI Plant Overhaul added catalogue-aware behaviour: `search_plants_text` returns a sparse `hits` map of matches that already exist in the global AI catalogue (or as a home fork); `generate_care_guide` checks the catalogue before calling Gemini and INSERTs a global AI plants row on cache miss. Post-Wave-7 fix: when `generate_care_guide` hits the legacy `species_cache` string cache (step 2 of the pipeline), it ALSO writes a global catalogue row from the cached payload so the response can return `db_plant_id` — eliminates the orphan AI plant case where the cache short-circuited the catalogue write. |
 | `plant-doctor-ai` | Browser (Plant Doctor Chat) | Chat with vision + tool calls. |
 | `search-plants-ai` | Browser (BulkSearch AI tab) | Text search by name; AI synthesises matches. |
 | `plant-image-search` | Browser (DiagnosisImageGallery, MultiImageGallery) | Merged image search across Wikipedia / Pixabay / iNaturalist / Verdantly. |

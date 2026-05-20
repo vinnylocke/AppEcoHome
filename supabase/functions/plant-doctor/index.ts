@@ -554,14 +554,82 @@ Each match must be a real plant species. Format each as "Common Name (Scientific
       }
 
       // 2. LEGACY STRING CACHE — transitional read for plants not yet in the
-      //    catalogue. Once Wave 7 backfill collapses all per-home duplicates
-      //    into globals, this branch becomes effectively dead code and can be
-      //    removed in a later cleanup. For now it keeps existing flows working.
+      //    catalogue. When we get a hit here, also self-heal the catalogue:
+      //    write the cached plantData as a global AI row (if `key` is usable)
+      //    so the next call resolves through the catalogue read path. This
+      //    closes the orphan-row UX bug where the client's "Refresh Care
+      //    Guide" button received the cached payload with no `db_plant_id`
+      //    attached and couldn't link the home row to a global.
       const careKey = cacheKey("care_guide", cleanName, hemisphere);
       const cached = await getCached<{ plantData: any }>(supabase, careKey);
       if (cached) {
-        log(FN, "result", { action, plant: cleanName, fromCache: true });
-        return new Response(JSON.stringify(cached), {
+        let healedPlantId: number | null = null;
+        let healedFreshnessVersion: number | null = null;
+        let healedLastGenerated: string | null = null;
+        if (key) {
+          const { data: existing } = await supabase
+            .from("plants")
+            .select("id, freshness_version, last_care_generated_at")
+            .eq("source", "ai")
+            .is("home_id", null)
+            .eq("scientific_name_key", key)
+            .maybeSingle();
+          if (existing) {
+            healedPlantId = existing.id;
+            healedFreshnessVersion = existing.freshness_version;
+            healedLastGenerated = existing.last_care_generated_at;
+          } else {
+            const insertPayload = {
+              source: "ai",
+              home_id: null,
+              common_name: cached.plantData?.common_name ?? parsed.commonName,
+              scientific_name: cached.plantData?.scientific_name ?? (parsed.scientificName ? [parsed.scientificName] : []),
+              thumbnail_url: cached.plantData?.thumbnail_url ?? null,
+              care_guide_data: cached,
+              freshness_version: 1,
+              last_care_generated_at: new Date().toISOString(),
+            };
+            const insertResult = await supabase.from("plants").insert(insertPayload).select("id, freshness_version, last_care_generated_at").maybeSingle();
+            if (insertResult.data) {
+              healedPlantId = insertResult.data.id;
+              healedFreshnessVersion = insertResult.data.freshness_version;
+              healedLastGenerated = insertResult.data.last_care_generated_at;
+              // Initial revision audit row, matching the fresh-generate path.
+              const { error: revErr } = await supabase.from("plant_care_revisions").insert({
+                plant_id: healedPlantId,
+                version: 1,
+                source: "initial",
+                care_guide_data: cached,
+                changed_fields: null,
+                diff_summary: null,
+                triggered_by: callerUserId ?? null,
+              });
+              if (revErr) warn(FN, "legacy-heal-revision-insert-failed", { error: revErr.message, plantId: healedPlantId });
+            } else if (insertResult.error) {
+              // Race: another caller inserted first. Re-read.
+              const { data: existing2 } = await supabase
+                .from("plants")
+                .select("id, freshness_version, last_care_generated_at")
+                .eq("source", "ai").is("home_id", null).eq("scientific_name_key", key)
+                .maybeSingle();
+              if (existing2) {
+                healedPlantId = existing2.id;
+                healedFreshnessVersion = existing2.freshness_version;
+                healedLastGenerated = existing2.last_care_generated_at;
+              } else {
+                warn(FN, "legacy-heal-insert-failed", { error: insertResult.error.message, key });
+              }
+            }
+          }
+        }
+        log(FN, "result", { action, plant: cleanName, fromCache: true, healedPlantId });
+        return new Response(JSON.stringify({
+          ...cached,
+          db_plant_id: healedPlantId,
+          freshness_version: healedFreshnessVersion,
+          last_care_generated_at: healedLastGenerated,
+          fromCatalogue: healedPlantId != null,
+        }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }

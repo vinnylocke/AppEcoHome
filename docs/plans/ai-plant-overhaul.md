@@ -972,6 +972,20 @@ The hotfix's "Not linked to catalogue" hint was implementation language leaking 
 - **Toast on Revert.** "{plant} rejoined the catalogue" → "{plant} reverted — auto-updates re-enabled".
 - **No data-model changes.** No new migrations, RPCs or edge functions. The catalogue still exists; the architecture is unchanged. Only what users see is different.
 
+#### Post-Wave-7 fix — legacy string cache self-heals into the catalogue
+
+Reported during testing: clicking Refresh Care Guide on an orphan AI plant toasted *"AI service didn't return a catalogue ID. Check the plant-doctor function is deployed."* Console logged `heal_no_db_plant_id_returned`.
+
+Root cause traced via edge function logs: the `generate_care_guide` action hits the **legacy `species_cache` string cache** (step 2 of the pipeline) BEFORE the catalogue write (step 4). Wave 2 left the legacy cache as a transitional fallback. When the cache hits, the function returned the cached `plantData` straight away — never reaching the catalogue write, so the response had no `db_plant_id`. The client's orphan self-heal couldn't link the home row because there was no global plant_id to link to.
+
+Fix in `supabase/functions/plant-doctor/index.ts` step 2: on a legacy cache hit, ALSO write the cached payload to the catalogue (find existing global by `scientific_name_key` first, INSERT on miss) and return its `db_plant_id` in the response. Mirrors the catalogue-write logic that already exists in step 4 for the fresh-generate path. Race-safe via the partial unique index + re-read pattern.
+
+After this fix, the next `generate_care_guide` call from any client for a previously-cached species will populate a global row + the home row's `forked_from_plant_id` will link to it. Orphan rows graduate to shallow forks invisibly to the user.
+
+Also improved while debugging: the client's `Couldn't refresh` toast now surfaces the underlying error message ("Couldn't refresh care guide: \<reason\>") instead of swallowing it, plus dedicated toasts for `heal_no_db_plant_id_returned`, `heal_link_update_failed`, `rate_limited`, `ai_tier_required`. The raw error is `console.error`'d for debugging.
+
+Button labels also expanded for clarity: **"Refresh" → "Refresh Care Guide"**, **"Revert" → "Revert Care Guide"** — users were unclear about scope.
+
 ---
 
 ## 13. Backfill strategy
