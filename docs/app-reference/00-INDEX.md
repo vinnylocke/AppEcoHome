@@ -152,6 +152,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Plant Camera View](./08-modals-and-overlays/32-plant-camera-view.md)
 - [x] [Manual Plant Creation](./08-modals-and-overlays/33-manual-plant-creation.md)
 - [x] [Wiki Image Picker](./08-modals-and-overlays/34-wiki-image-picker.md)
+- [x] [Quick Add Task Modal](./08-modals-and-overlays/35-quick-add-task-modal.md) — slim 4-field sibling of Add Task Modal mounted from the mobile Today's tasks card
 
 ## 09 — Persistent UI
 

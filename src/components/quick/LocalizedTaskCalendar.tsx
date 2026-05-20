@@ -1,11 +1,13 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, Loader2 } from "lucide-react";
+import { ChevronLeft, Loader2, Plus } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { Logger } from "../../lib/errorHandler";
+import { usePermissions } from "../../context/HomePermissionsContext";
 
 import PlantingCalendarCard from "./PlantingCalendarCard";
 import RainWaterAdvice from "./RainWaterAdvice";
+import QuickAddTaskModal from "./QuickAddTaskModal";
 import TaskList from "../TaskList";
 
 interface Props {
@@ -29,10 +31,16 @@ const DEFAULTS: ClimateThresholds = { rain_skip_mm: 5, rain_water_mm: 1 };
  */
 export default function LocalizedTaskCalendar({ homeId, aiEnabled }: Props) {
   const navigate = useNavigate();
+  const { can } = usePermissions();
   const [rain, setRain] = useState<{ today: number; tomorrow: number } | null>(null);
   const [openWateringTaskCount, setOpenWateringTaskCount] = useState(0);
   const [thresholds, setThresholds] = useState<ClimateThresholds>(DEFAULTS);
   const [loading, setLoading] = useState(true);
+  // Increment to force TaskList remount + re-fetch after a Quick Add save.
+  const [tasksRefreshKey, setTasksRefreshKey] = useState(0);
+  const [quickAddOpen, setQuickAddOpen] = useState(false);
+
+  const canCreateHomeTask = can("tasks.create_home");
 
   useEffect(() => {
     if (!homeId) return;
@@ -88,7 +96,7 @@ export default function LocalizedTaskCalendar({ homeId, aiEnabled }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [homeId]);
+  }, [homeId, tasksRefreshKey]);
 
   return (
     <div
@@ -137,12 +145,38 @@ export default function LocalizedTaskCalendar({ homeId, aiEnabled }: Props) {
           data-testid="quick-calendar-tasks"
           className="rounded-3xl bg-white border border-rhozly-outline/15 shadow-sm p-4 sm:p-5"
         >
-          <h2 className="font-black text-sm uppercase tracking-widest text-rhozly-on-surface/60 mb-3">
-            Today's tasks
-          </h2>
-          <TaskList homeId={homeId} compact targetDate={new Date()} />
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-black text-sm uppercase tracking-widest text-rhozly-on-surface/60">
+              Today's tasks
+            </h2>
+            <button
+              type="button"
+              data-testid="quick-calendar-add-task"
+              onClick={() => setQuickAddOpen(true)}
+              disabled={!canCreateHomeTask}
+              title={canCreateHomeTask ? "Add a task quickly" : "You don't have permission to add tasks here."}
+              className="inline-flex items-center gap-1 px-3 py-1.5 min-h-[36px] rounded-xl bg-rhozly-primary/10 text-rhozly-primary text-[11px] font-black uppercase tracking-widest hover:bg-rhozly-primary/15 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            >
+              <Plus size={14} />
+              Add
+            </button>
+          </div>
+          <TaskList
+            key={tasksRefreshKey}
+            homeId={homeId}
+            compact
+            targetDate={new Date()}
+          />
         </section>
       </div>
+
+      {quickAddOpen && (
+        <QuickAddTaskModal
+          homeId={homeId}
+          onClose={() => setQuickAddOpen(false)}
+          onSuccess={() => setTasksRefreshKey((k) => k + 1)}
+        />
+      )}
     </div>
   );
 }

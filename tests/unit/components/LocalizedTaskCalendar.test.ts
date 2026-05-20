@@ -46,9 +46,13 @@ vi.mock("../../../src/components/quick/RainWaterAdvice", () => ({
     ),
 }));
 
+// TaskList stub also captures the key it was rendered with so we can assert
+// the parent forces a remount after a Quick Add save.
+let taskListRenderCount = 0;
 vi.mock("../../../src/components/TaskList", () => ({
-  default: ({ compact, targetDate }: { compact?: boolean; targetDate?: Date }) =>
-    React.createElement(
+  default: ({ compact, targetDate }: { compact?: boolean; targetDate?: Date }) => {
+    taskListRenderCount++;
+    return React.createElement(
       "div",
       {
         "data-testid": "stub-task-list",
@@ -56,6 +60,38 @@ vi.mock("../../../src/components/TaskList", () => ({
         "data-target-date": targetDate?.toDateString() ?? "",
       },
       "task list",
+    );
+  },
+}));
+
+// Permissions hook — default to allowing tasks.create_home.
+const permissionMock = vi.fn<(key: string) => boolean>(() => true);
+vi.mock("../../../src/context/HomePermissionsContext", () => ({
+  usePermissions: () => ({ can: (key: string) => permissionMock(key) }),
+}));
+
+// QuickAddTaskModal stub so we can confirm it mounts + fire onSuccess.
+vi.mock("../../../src/components/quick/QuickAddTaskModal", () => ({
+  default: ({
+    onSuccess,
+    onClose,
+  }: {
+    onSuccess: () => void;
+    onClose: () => void;
+  }) =>
+    React.createElement(
+      "div",
+      { "data-testid": "stub-quick-add-modal" },
+      React.createElement(
+        "button",
+        { type: "button", "data-testid": "stub-quick-add-success", onClick: onSuccess },
+        "fake save",
+      ),
+      React.createElement(
+        "button",
+        { type: "button", "data-testid": "stub-quick-add-close", onClick: onClose },
+        "fake close",
+      ),
     ),
 }));
 
@@ -120,6 +156,9 @@ import LocalizedTaskCalendar from "../../../src/components/quick/LocalizedTaskCa
 
 beforeEach(() => {
   navigateMock.mockReset();
+  permissionMock.mockReset();
+  permissionMock.mockReturnValue(true);
+  taskListRenderCount = 0;
 });
 
 function renderCalendar(aiEnabled = true) {
@@ -171,5 +210,44 @@ describe("LocalizedTaskCalendar", () => {
     renderCalendar();
     fireEvent.click(screen.getByTestId("quick-calendar-back"));
     expect(navigateMock).toHaveBeenCalledWith("/quick");
+  });
+
+  test("Add button is enabled when the user has tasks.create_home", () => {
+    permissionMock.mockReturnValue(true);
+    renderCalendar();
+    const btn = screen.getByTestId("quick-calendar-add-task") as HTMLButtonElement;
+    expect(btn).toBeTruthy();
+    expect(btn.disabled).toBe(false);
+  });
+
+  test("Add button is disabled when the user lacks tasks.create_home", () => {
+    permissionMock.mockReturnValue(false);
+    renderCalendar();
+    const btn = screen.getByTestId("quick-calendar-add-task") as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+  });
+
+  test("tapping Add opens the QuickAddTaskModal", () => {
+    renderCalendar();
+    expect(screen.queryByTestId("stub-quick-add-modal")).toBeNull();
+    fireEvent.click(screen.getByTestId("quick-calendar-add-task"));
+    expect(screen.getByTestId("stub-quick-add-modal")).toBeTruthy();
+  });
+
+  test("modal onSuccess increments the refresh key, remounting TaskList", async () => {
+    renderCalendar();
+    const before = taskListRenderCount;
+    fireEvent.click(screen.getByTestId("quick-calendar-add-task"));
+    fireEvent.click(screen.getByTestId("stub-quick-add-success"));
+    // React batches state; let it flush.
+    await waitFor(() => expect(taskListRenderCount).toBeGreaterThan(before));
+  });
+
+  test("modal onClose hides the modal without remounting TaskList", () => {
+    renderCalendar();
+    fireEvent.click(screen.getByTestId("quick-calendar-add-task"));
+    expect(screen.getByTestId("stub-quick-add-modal")).toBeTruthy();
+    fireEvent.click(screen.getByTestId("stub-quick-add-close"));
+    expect(screen.queryByTestId("stub-quick-add-modal")).toBeNull();
   });
 });

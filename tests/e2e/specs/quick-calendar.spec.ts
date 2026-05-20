@@ -105,4 +105,30 @@ test.describe("Quick Calendar — mobile routing", () => {
     await authenticatedPage.getByTestId("quick-calendar-back").click();
     await expect(authenticatedPage).toHaveURL(/\/quick$/);
   });
+
+  test("QUICK-CAL-006: Add button opens QuickAddTaskModal and saving inserts a task", async ({ authenticatedPage }) => {
+    await mockEdgeFunction(authenticatedPage, "plant-doctor", MOCK_FROST_DATES);
+    await authenticatedPage.goto("/quick/calendar");
+
+    // Open the modal.
+    await authenticatedPage.getByTestId("quick-calendar-add-task").click();
+    await expect(authenticatedPage.getByTestId("quick-add-task-modal")).toBeVisible();
+
+    // Save is disabled until a title is entered.
+    await expect(authenticatedPage.getByTestId("quick-add-task-save")).toBeDisabled();
+
+    const title = `Playwright quick task ${Date.now()}`;
+    await authenticatedPage.getByTestId("quick-add-task-title-input").fill(title);
+    await authenticatedPage.getByTestId("quick-add-task-type-Watering").click();
+    await expect(authenticatedPage.getByTestId("quick-add-task-save")).toBeEnabled();
+
+    await authenticatedPage.getByTestId("quick-add-task-save").click();
+
+    // Toast confirms save + modal closes.
+    await expect(authenticatedPage.getByText("Task added")).toBeVisible({ timeout: 5000 });
+    await expect(authenticatedPage.getByTestId("quick-add-task-modal")).not.toBeVisible();
+
+    // The new task appears in Today's tasks via the TaskList remount.
+    await expect(authenticatedPage.getByText(title)).toBeVisible({ timeout: 10000 });
+  });
 });

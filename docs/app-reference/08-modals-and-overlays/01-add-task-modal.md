@@ -230,6 +230,7 @@ Every recurring chore + every ad-hoc task starts here. Most users open it dozens
 
 ## Related reference files
 
+- [Quick Add Task Modal](./35-quick-add-task-modal.md) — slim sibling used by the mobile [Localized Task Calendar](../02-dashboard/10-localized-task-calendar.md). Use this full modal when the task needs area/plant binding, plan linking, recurring schedule, scope toggle, or photo-to-task AI. Use the Quick sibling for one-off "log it now, file later" captures.
 - [Task Detail Modal](./02-task-modal.md)
 - [Blueprint Manager](../04-planner/07-blueprint-manager.md)
 - [Calendar Tab](../02-dashboard/03-calendar-tab.md)

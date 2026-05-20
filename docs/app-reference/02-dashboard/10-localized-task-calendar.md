@@ -31,8 +31,11 @@ LocalizedTaskCalendar (mounted at /quick/calendar)
 │   └── PlantingGuidance result (when populated)
 ├── RainWaterAdvice
 │   └── Computed verdict (skip / settled / water / info)
-└── TaskList compact (today's pending)
-    └── "View calendar →" link → /dashboard?view=calendar
+├── Today's tasks card
+│   ├── Header: "Today's tasks" + [+ Add] button (Mobile Quick Access Wave 5)
+│   └── TaskList compact (today's pending) ─ remounts via key after Add saves
+└── QuickAddTaskModal (mounted on Add tap, portal)
+    └── 4-field slim form (title / type / description / date)
 ```
 
 ### Props received
@@ -50,6 +53,9 @@ LocalizedTaskCalendar (mounted at /quick/calendar)
 | `openWateringTaskCount` | Number of today's `Pending` watering tasks for the home. |
 | `thresholds` | User-configured `rain_skip_mm` / `rain_water_mm` (defaults 5 / 1 when no `home_climate` row exists). |
 | `loading` | Truthy until the parallel reads resolve. |
+| `tasksRefreshKey` | Counter passed as `key` to `<TaskList />`. Incremented after a Quick Add save to force remount + re-fetch + recompute of the rain advice (whose `openWateringTaskCount` depends on the same query). |
+| `quickAddOpen` | Drives the `QuickAddTaskModal` mount. |
+| `canCreateHomeTask` | Derived from `usePermissions().can("tasks.create_home")`. Disables the Add button when the caller lacks the permission. |
 
 ### Data flow — read paths
 
@@ -169,10 +175,10 @@ For a beginner, it answers the "do I water?" question that gardening apps never 
 
 #### 3. Today's tasks (bottom)
 
-- **What you see**: a slim list of today's pending tasks — title + icon + checkbox.
-- **What you do**: tap to complete, or tap "View calendar →" to drop into the full calendar.
-- **What happens next**: same task-completion path as the full TaskList — tasks materialise from ghosts on first interaction, write to `tasks`, broadcast over realtime.
-- **Why a gardener cares**: you wanted *today's* tasks, not a week-view. This is the minimum surface that still keeps you in the rhythm.
+- **What you see**: a slim list of today's pending tasks — title + icon + checkbox. A **+ Add** button sits at the top right of the card.
+- **What you do**: tap to complete, tap "View calendar →" to drop into the full calendar, or tap **+ Add** to open the [Quick Add Task Modal](../08-modals-and-overlays/35-quick-add-task-modal.md).
+- **What happens next**: completions go through the same write path as the full TaskList (materialise from ghost, write to `tasks`, broadcast over realtime). A Quick Add save inserts a one-off `tasks` row with `home_id` set, then the list remounts via a `key`-prop counter and the new task appears immediately.
+- **Why a gardener cares**: you wanted *today's* tasks, not a week-view. This is the minimum surface that still keeps you in the rhythm — and Quick Add lets you log new things as you spot them without breaking flow.
 
 ### Information on display — what every field means
 
@@ -228,6 +234,8 @@ No difference.
 ## Related reference files
 
 - [Quick Access Home](./09-quick-access-home.md) — parent screen; the Today tile lives here
+- [Quick Add Task Modal](../08-modals-and-overlays/35-quick-add-task-modal.md) — the slim modal the + Add button mounts
+- [Add Task / Edit Schedule Modal](../08-modals-and-overlays/01-add-task-modal.md) — the full sibling for recurring schedules + area/plant binding
 - [Plant Doctor](../05-tools/02-plant-doctor.md) — owner of the `lookup_frost_dates` + `plant_when_to_plant` actions
 - [Weather Tab](./04-weather-tab.md) — full-Dashboard weather; shares the same `weather_snapshots` row
 - [Calendar Tab](./03-calendar-tab.md) — the "View calendar →" link's destination
