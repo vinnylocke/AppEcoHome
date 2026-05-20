@@ -28,11 +28,26 @@ CREATE TABLE IF NOT EXISTS public.verdantly_cache (
 
 ALTER TABLE public.verdantly_cache ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "deny direct client access" ON public.verdantly_cache;
 CREATE POLICY "deny direct client access"
   ON public.verdantly_cache FOR ALL TO authenticated
   USING (false);
 
--- 4. Seed plant_providers config flag (allows toggling Verdantly off)
-INSERT INTO public.app_config (key, value)
-VALUES ('plant_providers', '{"enabled": ["perenual", "verdantly"]}'::jsonb)
-ON CONFLICT (key) DO NOTHING;
+-- 4. Seed plant_providers config flag (allows toggling Verdantly off).
+--    Wrapped in IF EXISTS so this migration is safe on a fresh DB where
+--    app_config (created later in 20260527100000_app_config.sql) doesn't
+--    exist yet. The catch-up migration 20260606000000_ordering_bug_fixups.sql
+--    re-applies this seed after app_config is created.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.tables
+     WHERE table_schema = 'public' AND table_name = 'app_config'
+  ) THEN
+    INSERT INTO public.app_config (key, value)
+    VALUES ('plant_providers', '{"enabled": ["perenual", "verdantly"]}'::jsonb)
+    ON CONFLICT (key) DO NOTHING;
+  ELSE
+    RAISE NOTICE 'app_config not yet created — seed deferred to 20260606000000_ordering_bug_fixups.sql';
+  END IF;
+END $$;
