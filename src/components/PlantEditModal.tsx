@@ -158,7 +158,7 @@ export default function PlantEditModal({
 
   // Wave 5 — AI freshness state for this plant (when source = "ai").
   // Resolves shallow forks via forked_from_plant_id automatically.
-  const { byPlantId: freshnessByPlantId } = useAiPlantFreshness(
+  const { byPlantId: freshnessByPlantId, refresh: refreshFreshness } = useAiPlantFreshness(
     plant?.source === "ai"
       ? [{
           id: plant.id,
@@ -170,6 +170,13 @@ export default function PlantEditModal({
       : [],
   );
   const freshness = plant?.source === "ai" ? freshnessByPlantId[plant.id] : null;
+
+  // After a successful Refresh, hold onto the field names the server applied
+  // so we can keep highlighting them in the form until the modal closes —
+  // the freshness hook's `updated_care_fields` clears as soon as we ack, so
+  // without this the yellow highlights would disappear and the user wouldn't
+  // know what just changed.
+  const [lastRefreshChangedFields, setLastRefreshChangedFields] = useState<string[] | null>(null);
 
   // The edge function enforces the rate limit (per-env: minutes-configurable
   // via AI_REFRESH_RATE_LIMIT_MINUTES). The `refreshing` state below prevents
@@ -192,17 +199,32 @@ export default function PlantEditModal({
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
+
       if (data?.changed) {
-        const n = (data.changed_fields ?? []).length;
+        const changed: string[] = data.changed_fields ?? [];
+        const n = changed.length;
         toast.success(
           `Care guide refreshed — ${n} field${n === 1 ? "" : "s"} updated.`,
         );
+
+        // Stay open. Pull the freshly-updated home row from the DB so the
+        // form re-renders with the new top-level values, and keep the
+        // changed fields highlighted so the user can see what moved.
+        const { data: updatedRow } = await supabase
+          .from("plants")
+          .select("*")
+          .eq("id", plant.id)
+          .maybeSingle();
+        if (updatedRow) {
+          setFullPlantData((prev: any) => ({ ...prev, ...updatedRow }));
+        }
+        setLastRefreshChangedFields(changed);
+        refreshFreshness();
       } else {
         toast.success("Care guide is up to date.");
+        // Still refresh the freshness hook so the ack timestamp catches up.
+        refreshFreshness();
       }
-      // Close the modal so the parent re-fetches and the form shows any
-      // newly-applied top-level values.
-      onClose();
     } catch (err: any) {
       // Always log the underlying error so we can debug from the console
       // when the toast hides what actually went wrong.
@@ -484,6 +506,10 @@ export default function PlantEditModal({
 
   useEffect(() => {
     fetchApiDetails();
+    // Clear any post-refresh highlights when the modal switches to a
+    // different plant — the highlights only mean something for the
+    // currently-displayed row.
+    setLastRefreshChangedFields(null);
   }, [plant]);
 
   // 🚀 SSR Safety Check
@@ -732,8 +758,15 @@ export default function PlantEditModal({
                 // user has explicitly overridden. Both lists default to []
                 // for non-AI plants (the hook returns null + the prop array
                 // is empty) so the form looks unchanged.
+                //
+                // After a Refresh that applied changes, `lastRefreshChangedFields`
+                // takes precedence so the just-updated fields stay highlighted
+                // while the user is in the modal — without this, the freshness
+                // hook clears its `updated_care_fields` as soon as the ack
+                // catches up and the yellow disappears immediately.
                 highlightedFields={
-                  freshness?.has_update ? freshness.updated_care_fields : []
+                  lastRefreshChangedFields
+                    ?? (freshness?.has_update ? freshness.updated_care_fields : [])
                 }
                 overriddenFields={overriddenFields}
               />
