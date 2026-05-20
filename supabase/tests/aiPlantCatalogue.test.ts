@@ -138,30 +138,43 @@ Deno.test("diffCareGuide — boolean change is detected", () => {
   assertEquals(d.fieldNames, ["is_edible"]);
 });
 
-Deno.test("diffCareGuide — multiple changes returned together", () => {
+Deno.test("diffCareGuide — multiple visible changes returned together", () => {
   const newCare = JSON.parse(JSON.stringify(baseCare));
   newCare.plantData.watering_min_days = 1;
-  newCare.plantData.care_level = "moderate";
+  newCare.plantData.cycle = "Biennial";
   newCare.plantData.pruning_month = ["Mar", "Apr", "May"];
   const d = diffCareGuide(baseCare, newCare);
   assertEquals(d.changed, true);
-  assertEquals(d.fieldNames.sort(), ["care_level", "pruning_month", "watering_min_days"]);
+  assertEquals(d.fieldNames.sort(), ["cycle", "pruning_month", "watering_min_days"]);
+});
+
+Deno.test("diffCareGuide — care_level (not user-visible) change is ignored", () => {
+  // Wave 7 refresh-simplification: care_level, growth_rate, maintenance are
+  // not rendered to the user, so the diff must not flag them. Otherwise the
+  // Refresh toast says "N fields updated" for invisible noise.
+  const newCare = JSON.parse(JSON.stringify(baseCare));
+  newCare.plantData.care_level = "moderate";
+  newCare.plantData.growth_rate = "Slow";
+  newCare.plantData.maintenance = "High";
+  const d = diffCareGuide(baseCare, newCare);
+  assertEquals(d.changed, false);
+  assertEquals(d.fieldNames, []);
 });
 
 // ──────────────────────────────────────────────────────────────────────────
-// diffCareGuide — free-text fields
+// diffCareGuide — description is intentionally excluded (free-text noise)
 // ──────────────────────────────────────────────────────────────────────────
 
-Deno.test("diffCareGuide — description change is detected (binary, no word-diff)", () => {
+Deno.test("diffCareGuide — description change is IGNORED (Gemini-rewrite noise)", () => {
+  // Wave 7 refresh-simplification: Gemini at temp 0.2 still rewrites
+  // descriptions slightly on every call. Counting description changes
+  // produced "10 fields updated" noise on freshly-added plants. Excluded
+  // from the diff entirely.
   const newCare = JSON.parse(JSON.stringify(baseCare));
   newCare.plantData.description = "A red fruit. Tasty when ripe.";
   const d = diffCareGuide(baseCare, newCare);
-  assertEquals(d.changed, true);
-  assertEquals(d.fieldNames, ["description"]);
-  // Free-text fields ARE included in perField but the UI treats them as
-  // binary "this section changed".
-  assertEquals(typeof d.perField.description.before, "string");
-  assertEquals(typeof d.perField.description.after, "string");
+  assertEquals(d.changed, false);
+  assertEquals(d.fieldNames, []);
 });
 
 Deno.test("diffCareGuide — whitespace-only change in description doesn't trigger", () => {

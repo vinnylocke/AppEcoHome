@@ -60,17 +60,25 @@ export function parseMatchString(match: string): { commonName: string; scientifi
 // ──────────────────────────────────────────────────────────────────────────
 
 /**
- * Fields in CARE_GUIDE_SCHEMA that are structured (scalar / boolean / sortable
- * array). Diffs on these fields use deep value comparison.
+ * Care-guide fields that the user can actually see and act on in the
+ * ManualPlantCreation form. Pair this set with the form's rendered fields —
+ * if you add/remove a field from the form, update this list to match.
+ *
+ * The previous STRUCTURED_CARE_FIELDS list included `maintenance`,
+ * `care_level`, `growth_rate`, `description`, `thumbnail_url`, etc. — fields
+ * that Gemini happily varies between calls but the user never sees in the
+ * form. Diffs on those produced "10 fields updated" toasts for cosmetic
+ * Gemini noise.
+ *
+ * Kept stable / out of the diff:
+ *  - common_name / scientific_name (rarely change for the same species)
+ *  - description (free-text, Gemini rewords every call → pure noise)
+ *  - care_level / growth_rate / maintenance (not rendered in the form)
+ *  - thumbnail_url (cosmetic, not a "field change" worth flagging)
  */
-export const STRUCTURED_CARE_FIELDS = [
-  "common_name",
-  "scientific_name",
+export const USER_VISIBLE_CARE_FIELDS = [
   "plant_type",
   "cycle",
-  "care_level",
-  "growth_rate",
-  "maintenance",
   "watering_min_days",
   "watering_max_days",
   "sunlight",
@@ -87,14 +95,20 @@ export const STRUCTURED_CARE_FIELDS = [
   "tropical",
   "medicinal",
   "cuisine",
-  "thumbnail_url",
 ] as const;
 
 /**
- * Fields that are free-text. Diff is binary (changed yes/no) — the UI shows
- * a "this section changed" chip but does not highlight individual words.
+ * Backwards-compatible alias — old name retained so legacy imports keep
+ * compiling. Both names point at the same list.
  */
-export const FREE_TEXT_CARE_FIELDS = ["description"] as const;
+export const STRUCTURED_CARE_FIELDS = USER_VISIBLE_CARE_FIELDS;
+
+/**
+ * Free-text fields previously diffed binary (e.g. `description`). Removed
+ * entirely from the diff because Gemini's wording variations swamped any
+ * real signal. Kept as an exported empty array for callers that iterate it.
+ */
+export const FREE_TEXT_CARE_FIELDS: readonly string[] = [];
 
 export type CareGuideDiff = {
   changed: boolean;
@@ -103,12 +117,30 @@ export type CareGuideDiff = {
 };
 
 /**
- * Compare two care_guide_data payloads field-by-field. Both arguments are
- * `{ plantData: {...} }` (the shape we store in plants.care_guide_data).
+ * Unwrap a care-guide-shaped payload. Accepts either:
+ *  - `{ plantData: { ...fields } }` — the shape we store in `plants.care_guide_data`
+ *  - `{ ...fields }` — a flat row, e.g. the top-level columns of a plants row
+ *
+ * Returns the inner field bag in both cases. Lets the diff work uniformly
+ * across `care_guide_data` jsonb and plain table rows.
+ */
+function unwrapCarePayload(data: unknown): Record<string, unknown> {
+  if (!data || typeof data !== "object") return {};
+  const obj = data as Record<string, unknown>;
+  const inner = obj.plantData;
+  if (inner && typeof inner === "object") return inner as Record<string, unknown>;
+  return obj;
+}
+
+/**
+ * Compare two care-guide payloads field-by-field. Both arguments can be
+ * either the wrapped `{ plantData: {...} }` shape (what's stored in
+ * `plants.care_guide_data`) OR a flat row (e.g. a `plants` row's top-level
+ * columns). `unwrapCarePayload` handles both transparently.
  */
 export function diffCareGuide(oldData: unknown, newData: unknown): CareGuideDiff {
-  const oldPlant = (oldData as { plantData?: Record<string, unknown> })?.plantData ?? {};
-  const newPlant = (newData as { plantData?: Record<string, unknown> })?.plantData ?? {};
+  const oldPlant = unwrapCarePayload(oldData);
+  const newPlant = unwrapCarePayload(newData);
 
   const fieldNames: string[] = [];
   const perField: Record<string, { before: unknown; after: unknown }> = {};

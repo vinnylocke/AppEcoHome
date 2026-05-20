@@ -995,6 +995,28 @@ Verified end-to-end: a fresh `generate_care_guide('Pot Marigold')` call now retu
 
 Also improved the rate-limit toast in `PlantEditModal`. The catch path now parses the server's response body (`{ rate_limit_minutes, retry_after }`) and renders a specific message: *"You can refresh this plant once per minute. You can try again in 30s."* — adapting the cadence phrasing ("once per minute" / "once every N hours" / "once every N days") and time-remaining unit (seconds / min / hours / days) to whatever window is configured. Matches the 1-min dev cadence AND the 7-day prod default cleanly.
 
+**Refresh model simplification (post-Wave-7 fix #6).** After repeated bug reports about (a) the Refresh button hitting different endpoints for orphan vs linked plants, (b) Gemini's non-determinism producing "10 changes 30 seconds after adding" noise, and (c) the diff flagging internal fields (`maintenance`) that the user can't see, the refresh model was rewritten end-to-end.
+
+Plan: [docs/plans/ai-plant-refresh-simplification.md](./ai-plant-refresh-simplification.md).
+
+Core idea: **the cron is the only thing that calls Gemini**. The Refresh button just **pulls down** pending updates from the catalogue — no Gemini call, deterministic output, no noise.
+
+Changes:
+
+1. **`supabase/functions/manual-refresh-ai-plant/index.ts` rewritten.** Accepts `homePlantId` (or legacy `plantId`). One endpoint covers orphan / shallow-fork / pure-global states. Resolves the global parent (linking or promoting an orphan), computes the visible-field diff between the home row's top-level columns and the catalogue, applies pending updates, upserts ack. No Gemini call.
+2. **`supabase/functions/_shared/refreshStaleAiPlants.ts` also updates top-level columns.** Previously the cron only updated `care_guide_data` jsonb on the global — so manual-refresh had nothing to copy down. Now the cron syncs USER_VISIBLE_CARE_FIELDS top-level columns from the new payload.
+3. **`USER_VISIBLE_CARE_FIELDS` defined in `_shared/aiPlantCatalogue.ts`.** Mirrors exactly what `ManualPlantCreation` renders: 18 user-facing fields. Removes `maintenance`, `care_level`, `growth_rate`, `description`, `common_name`, `scientific_name`, `thumbnail_url` from the diff. `STRUCTURED_CARE_FIELDS` kept as a backwards-compat alias.
+4. **`FREE_TEXT_CARE_FIELDS` emptied** — `description` was the only entry; Gemini varies wording on every call so tracking it was pure noise.
+5. **`diffCareGuide` accepts both shapes** — wrapped `{ plantData: {...} }` (jsonb) AND flat top-level rows (plant table). The manual-refresh function uses the latter when comparing home vs global rows.
+6. **`PlantEditModal.handleManualRefresh` simplified.** Dropped the entire `healOrphan` helper + the orphan/linked branching. Always one `supabase.functions.invoke("manual-refresh-ai-plant", { body: { homePlantId } })` call. Network tab shows one request whether the plant is linked, orphan, or a deep fork.
+7. **Mirror field list in `src/lib/aiPlantOverrides.ts`** so the detach-on-edit flow only fires for user-visible field edits.
+
+Verified locally: an orphan home plant with realistic data refreshes in ONE network call, flags only 5 legitimately-missing fields (the home didn't have flowering_season / harvest_season / pruning_month / propagation / attracts that the catalogue has). No `maintenance`, no `description`, no `common_name` noise. Vitest 332/332. 28/28 catalogue + cron Deno tests pass after updating the assertions to match the trimmed field set.
+
+Trade-off: Sage+ users can no longer force-regenerate a fresh Gemini call on demand. The button strictly applies what the daily cron has produced. The user explicitly asked for this simpler model.
+
+---
+
 **Fifth sub-fix — generic rate-limit response shape + dual-shape toast.** The orphan self-heal flow calls `plant-doctor` (not `manual-refresh-ai-plant`), and that function uses the shared `_shared/rateLimit.ts` middleware whose 429 response was `{"error":"Rate limit exceeded"}` with no structured retry info. Users hitting the per-hour AI quota saw an unhelpful generic toast. Fix:
 
 1. **`_shared/rateLimit.ts`** (covers `plant-doctor` and most other AI fns) now returns `{ error, retry_after, quota_per_hour, used }` in the 429 body. `enforceIpRateLimit` updated the same way for consistency.

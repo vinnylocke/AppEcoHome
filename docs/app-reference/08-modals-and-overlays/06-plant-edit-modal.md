@@ -125,16 +125,18 @@ For `source = "ai"` plants, the Care tab shows a `<SourceChip>` indicating one o
 
 **No "catalogue" language anywhere in the UI** — the data model still uses the catalogue/fork concept internally, but every label users see talks about "auto-updating care guides" instead.
 
-**"Refresh Care Guide" button — always visible for AI plants.**
+**"Refresh Care Guide" button — always visible for AI plants. One endpoint, no Gemini call from the button.**
 
-Labelled "Refresh Care Guide" (not just "Refresh") so users know exactly what they're updating.
+The button has a single behaviour across orphan / shallow-fork / global rows: invoke `manual-refresh-ai-plant` with the home plant id. The edge function resolves the global parent (linking an orphan to an existing global OR promoting the home row's data as a brand-new global), computes the **visible-field** diff between the home row and the catalogue, and applies any pending updates. The daily cron (`refresh-stale-ai-plants`) is the only thing that ever calls Gemini — the Refresh button just **pulls down** whatever the cron has already produced.
 
 | Plant state | Button behaviour |
 |-------------|------------------|
-| AI, unedited, linked (shallow fork or true global) | Enabled. Click → `manual-refresh-ai-plant` edge fn. Toast: "Care guide is up to date" OR "Care guide refreshed — N fields updated". |
-| AI, unedited, **orphan** (`forked_from_plant_id IS NULL`) | Enabled. Click → **self-heal flow** (see below) → toast "Care guide is up to date". |
-| AI, edited (custom fork) | **Disabled.** Title attribute explains the user has edited the plant; the explanation block below the chips spells out the same thing and points to "Revert Care Guide". |
-| AI, server says rate-limited | Edge fn returns `rate_limited` → toast: "This plant was refreshed recently — try again shortly." Button re-enables on next render (no local lock). |
+| AI, unedited, linked (shallow fork or pure global) | Enabled. Click → compares the home row's top-level columns to the global's. Toast: "Care guide is up to date" OR "Care guide refreshed — N fields updated". Modal closes so the form re-fetches the new top-level values. |
+| AI, unedited, **orphan** (`forked_from_plant_id IS NULL`) | Enabled. Edge fn looks up a matching global by `scientific_name_key` then `common_name ILIKE`. If found, links + applies any field deltas. If not found, **promotes** the home row's existing data as the new global (no Gemini call) + links. Subsequent clicks treat it as a normal linked row. The user sees a single toast — they never see the "orphan" state. |
+| AI, edited (custom fork) | **Disabled.** Title attribute explains the user has edited the plant; the explanation block below the chips points to "Revert Care Guide". |
+| AI, server says rate-limited | Edge fn returns `rate_limited` → toast with cadence + retry time. Button re-enables on next render (no local lock). |
+
+**Why no Gemini in the button.** Previously the button re-ran Gemini on every click and diffed against the stored guide. Even at `temperature: 0.2`, Gemini produced minor wording variation across calls → "N fields updated" noise → users saw "10 changes" 30 seconds after adding a plant. The new model removes that: the cron handles the (rare) real changes, the button just synchronises the home row to the catalogue's current values.
 
 **Rate limit configuration.** The per-(user, plant) refresh cadence defaults to 7 days. It's overridable via the `AI_REFRESH_RATE_LIMIT_MINUTES` env var on the `manual-refresh-ai-plant` edge function — declared in `supabase/config.toml`'s `[edge_runtime.secrets]` block and sourced from `supabase/.env`. Local dev sets it to `1` so testers can re-fire Refresh every minute. The client doesn't keep its own local cache anymore (was a UX accelerator that diverged from the server's window); the `refreshing` button state during in-flight requests is the only client-side suppression.
 
@@ -146,16 +148,11 @@ Labelled "Refresh Care Guide" (not just "Refresh") so users know exactly what th
 
   Both adapt the time-remaining unit (s / min / h / d) to whatever the server reports. Falls back to *"You've hit the AI rate limit."* if both metadata fields are missing.
 - `ai_tier_required` → "This requires Sage or Evergreen."
-- `heal_no_db_plant_id_returned` → "AI service didn't return a catalogue ID. Check the plant-doctor function is deployed."
-- `heal_link_update_failed` → "Couldn't link the plant to the catalogue — check permissions."
+- `not_an_ai_plant` → "Refresh is only available for AI plants."
+- `link_to_global_failed` / `promote_to_global_failed` → "Couldn't link this plant to the catalogue — try again shortly."
 - Anything else → "Couldn't refresh care guide: \<underlying message\>"
 
-**Self-heal flow for orphans** — when an AI plant exists in a home with no `forked_from_plant_id` (typically because it was added before Wave 2's catalogue-write was deployed locally, or the catalogue-insert race-recovery failed silently), clicking Refresh:
-
-1. Calls `PlantDoctorService.generateCareGuide(commonName, homeId)`. The edge fn either finds the existing global by `scientific_name_key` (no Gemini call, cheap) or inserts a new one (one Gemini call).
-2. Updates the home row: `forked_from_plant_id = db_plant_id`, `overridden_fields = []`.
-3. Upserts `user_plant_ack` at the global's current `freshness_version` so no chip flashes after linking.
-4. Closes the modal so the parent re-fetches — the next open shows the plant in its proper linked state with Refresh fully working.
+**Visible-field diff.** The diff only counts fields the user can actually see in the form (`USER_VISIBLE_CARE_FIELDS` in `_shared/aiPlantCatalogue.ts`): `plant_type`, `cycle`, `watering_min_days`, `watering_max_days`, `sunlight`, `flowering_season`, `harvest_season`, `pruning_month`, `propagation`, `attracts`, `is_toxic_pets`, `is_toxic_humans`, `indoor`, `is_edible`, `drought_tolerant`, `tropical`, `medicinal`, `cuisine`. Excluded from the diff: `description` (free-text Gemini noise), `common_name`/`scientific_name` (rarely change), `care_level`/`growth_rate`/`maintenance` (not rendered in the form), `thumbnail_url` (cosmetic).
 
 User sees: a single toast saying "Care guide is up to date" — no mention of healing, linking, or catalogue. The orphan state is invisible.
 

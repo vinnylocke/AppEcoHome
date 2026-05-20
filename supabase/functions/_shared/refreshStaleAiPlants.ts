@@ -13,7 +13,7 @@
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import type { GeminiUsage } from "./gemini.ts";
-import { diffCareGuide } from "./aiPlantCatalogue.ts";
+import { diffCareGuide, USER_VISIBLE_CARE_FIELDS } from "./aiPlantCatalogue.ts";
 import { logAiUsage } from "./aiUsage.ts";
 
 export type GeminiCareGuideCall = (
@@ -120,6 +120,19 @@ export async function refreshStaleAiPlants(
         });
         if (revErr) throw new Error(`revision insert failed: ${revErr.message}`);
 
+        // Also sync the user-visible top-level columns on the global so that
+        // when manual-refresh-ai-plant later copies the global's values down
+        // to a home row, there ARE authoritative values to copy. Previously
+        // the cron only updated `care_guide_data` jsonb — the global's
+        // sunlight/watering/etc top-level columns stayed at their original
+        // add-time values forever, and the user's home row never received
+        // any changed data even when the chip said "N fields updated".
+        const newPlantData = (newData as { plantData?: Record<string, unknown> }).plantData ?? {};
+        const topLevelPatch: Record<string, unknown> = {};
+        for (const f of USER_VISIBLE_CARE_FIELDS) {
+          if (newPlantData[f] !== undefined) topLevelPatch[f] = newPlantData[f];
+        }
+
         const { error: updErr } = await db
           .from("plants")
           .update({
@@ -128,6 +141,7 @@ export async function refreshStaleAiPlants(
             freshness_version: newVersion,
             last_freshness_check_at: nowIso,
             last_care_generated_at: nowIso,
+            ...topLevelPatch,
           })
           .eq("id", plant.id);
         if (updErr) throw new Error(`plants update failed: ${updErr.message}`);

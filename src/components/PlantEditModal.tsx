@@ -17,7 +17,6 @@ import SourceChip from "./aiPlants/SourceChip";
 import DetachConfirmModal from "./aiPlants/DetachConfirmModal";
 import ResetConfirmModal from "./aiPlants/ResetConfirmModal";
 import { diffOverriddenFields, mergeOverriddenFields } from "../lib/aiPlantOverrides";
-import { PlantDoctorService } from "../services/plantDoctorService";
 
 function formatRelativeDate(iso: string): string {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / (24 * 60 * 60 * 1000));
@@ -178,85 +177,32 @@ export default function PlantEditModal({
   // too-soon retries with a `rate_limited` error which we toast for the user.
   const [refreshing, setRefreshing] = useState(false);
 
-  /**
-   * Self-heal an orphan AI plant (home-scoped row with no
-   * `forked_from_plant_id`) by finding or generating the global
-   * catalogue parent, then linking this home row to it. Throws on
-   * failure so the caller can log + toast a useful message.
-   */
-  const healOrphan = async (): Promise<number> => {
-    if (!plant?.common_name) {
-      throw new Error("heal_missing_common_name");
-    }
-    // generateCareGuide on the edge fn does "find existing global by
-    // scientific_name_key OR insert one on miss". Either way, we get back
-    // db_plant_id which is the global we want to link to.
-    const guide = await PlantDoctorService.generateCareGuide(plant.common_name, homeId);
-    const globalId = guide?.db_plant_id;
-    if (globalId == null) {
-      throw new Error("heal_no_db_plant_id_returned");
-    }
-
-    // Link this home row to the resolved global.
-    const { error: updErr } = await supabase
-      .from("plants")
-      .update({
-        forked_from_plant_id: globalId,
-        overridden_fields: [],
-      })
-      .eq("id", plant.id);
-    if (updErr) throw new Error(`heal_link_update_failed: ${updErr.message}`);
-
-    // Seed user_plant_ack at the global's current freshness_version so
-    // the freshness chip doesn't fire immediately on the now-linked row.
-    const { data: userData } = await supabase.auth.getUser();
-    const callerId = userData?.user?.id;
-    if (callerId) {
-      const { error: ackErr } = await supabase.from("user_plant_ack").upsert(
-        {
-          user_id: callerId,
-          plant_id: globalId,
-          seen_freshness_version: guide.freshness_version ?? 1,
-          acked_at: new Date().toISOString(),
-        },
-        { onConflict: "user_id,plant_id" },
-      );
-      // Ack-seed failure isn't fatal — chip might flash but the link still
-      // worked. Log so we know.
-      if (ackErr) console.warn("ai-plant heal: ack-seed failed", ackErr.message);
-    }
-    return globalId;
-  };
-
   const handleManualRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
     try {
-      // For orphan rows (the freshness hook returned null), heal first then
-      // refresh. The heal call itself does the work of a fresh catalogue
-      // entry — so after a successful heal we can skip the explicit refresh
-      // and report "up to date" directly.
-      if (!freshness) {
-        await healOrphan();
-        toast.success("Care guide is up to date.");
-        // Tell the parent to re-fetch so the modal re-renders with the
-        // linked state. Closing + reopening matches existing reset UX.
-        onClose();
-        return;
-      }
-
+      // ONE endpoint covers every AI plant — orphan, shallow fork, or pure
+      // global. The edge fn resolves the global parent (linking or
+      // promoting an orphan as needed), computes the visible-field diff
+      // against the home row, and applies any pending updates from the
+      // catalogue. No Gemini call is made here OR on the server — the
+      // daily cron is the only thing that produces new content.
       const { data, error } = await supabase.functions.invoke("manual-refresh-ai-plant", {
-        body: { plantId: freshness.global_plant_id },
+        body: { homePlantId: plant.id },
       });
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       if (data?.changed) {
+        const n = (data.changed_fields ?? []).length;
         toast.success(
-          `Care guide refreshed — ${(data.changed_fields ?? []).length} field${(data.changed_fields ?? []).length === 1 ? "" : "s"} updated.`,
+          `Care guide refreshed — ${n} field${n === 1 ? "" : "s"} updated.`,
         );
       } else {
         toast.success("Care guide is up to date.");
       }
+      // Close the modal so the parent re-fetches and the form shows any
+      // newly-applied top-level values.
+      onClose();
     } catch (err: any) {
       // Always log the underlying error so we can debug from the console
       // when the toast hides what actually went wrong.
@@ -287,10 +233,10 @@ export default function PlantEditModal({
         toast.error(formatRateLimitMessage({ minutes, quotaPerHour, retryAt }));
       } else if (code.includes("ai_tier_required")) {
         toast.error("This requires Sage or Evergreen.");
-      } else if (code.includes("heal_no_db_plant_id_returned")) {
-        toast.error("AI service didn't return a catalogue ID. Check the plant-doctor function is deployed.");
-      } else if (code.includes("heal_link_update_failed")) {
-        toast.error("Couldn't link the plant to the catalogue — check permissions.");
+      } else if (code.includes("not_an_ai_plant")) {
+        toast.error("Refresh is only available for AI plants.");
+      } else if (code.includes("link_to_global_failed") || code.includes("promote_to_global_failed")) {
+        toast.error("Couldn't link this plant to the catalogue — try again shortly.");
       } else {
         // Surface the underlying error message so the user has something
         // to act on instead of the generic "try again".

@@ -13,22 +13,22 @@
 // represents an opt-out signal from the user.
 
 /**
- * The fields we treat as "care guide" data on a plant. Changes to these are
- * what flip a row from catalogue-tracking to custom.
+ * Care fields the user can actually see + edit in `ManualPlantCreation`.
+ * Changes to these flip a row from catalogue-tracking to custom (the
+ * detach-on-edit flow). Pair this list with `USER_VISIBLE_CARE_FIELDS`
+ * in `supabase/functions/_shared/aiPlantCatalogue.ts` — they should
+ * stay in lockstep.
  *
- * Pair this set with `STRUCTURED_CARE_FIELDS` + `FREE_TEXT_CARE_FIELDS` in
- * `supabase/functions/_shared/aiPlantCatalogue.ts` — if you add a field
- * there, add it here.
+ * Deliberately excluded:
+ *  - common_name, scientific_name (rarely change for the same species;
+ *    edits here aren't an "override" of catalogue tracking)
+ *  - description (free-text; Gemini varies wording every call)
+ *  - care_level, growth_rate, maintenance (not rendered in the form)
+ *  - thumbnail_url (cosmetic, image source)
  */
 export const OVERRIDABLE_CARE_FIELDS = [
-  "common_name",
-  "scientific_name",
-  "description",
   "plant_type",
   "cycle",
-  "care_level",
-  "growth_rate",
-  "maintenance",
   "watering_min_days",
   "watering_max_days",
   "sunlight",
