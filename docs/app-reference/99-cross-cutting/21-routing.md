@@ -9,6 +9,9 @@
 ```
 BrowserRouter
 └── App.tsx routes
+    ├── /                  ← Conditional redirect: useIsMobile() === true → /quick, else → /dashboard
+    ├── /quick             ← QuickAccessHome (Mobile Quick Access Wave 2 — mobile home page)
+    ├── /quick/lens        ← QuickAccessLens (mounts <PlantDoctor compact />)
     ├── /dashboard         ← Home (Dashboard / Locations / Calendar / Weather sub-tabs via ?view=)
     ├── /shed              ← TheShed
     ├── /schedule          ← BlueprintManager

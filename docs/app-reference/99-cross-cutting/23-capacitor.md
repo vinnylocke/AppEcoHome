@@ -28,6 +28,7 @@ Used to branch:
 - Light sensor (native vs camera pixel analysis).
 - Push notifications (Firebase plugin vs web push).
 - PWA install prompt (hidden when native).
+- **Mobile home routing** — `useIsMobile()` in `src/hooks/useIsMobile.ts` returns true when `Capacitor.isNativePlatform()` OR viewport width < 768px. App.tsx uses this to redirect `/` to `/quick` (mobile) vs `/dashboard` (desktop) and to surface the mobile-only "Quick" nav entry. See [Quick Access Home](../02-dashboard/09-quick-access-home.md).
 
 ### Plugins in use
 

@@ -59,6 +59,13 @@ interface PlantDoctorProps {
   isPremium: boolean;
   perenualEnabled: boolean;
   onTasksAdded?: () => void;
+  /**
+   * When true (Mobile Quick Access Wave 2), the screen renders in a
+   * focused single-purpose mode — hides the header, the Analyse/History
+   * tab bar, and the secondary Identify/Diagnose/Pest row. The full
+   * `/doctor` route always passes false. `/quick/lens` passes true.
+   */
+  compact?: boolean;
 }
 
 
@@ -69,6 +76,7 @@ export default function PlantDoctor({
   isPremium,
   perenualEnabled,
   onTasksAdded,
+  compact = false,
 }: PlantDoctorProps) {
   const { setPageContext } = usePlantDoctor();
   const { requestFeedback } = useBetaFeedbackContext();
@@ -695,35 +703,37 @@ export default function PlantDoctor({
   return (
     <>
       <div className="h-full flex flex-col relative animate-in fade-in slide-in-from-bottom-4 duration-500">
-        <div className="mb-4 px-2 flex flex-wrap items-end justify-between gap-2">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-black font-display text-rhozly-on-surface tracking-tight flex items-center gap-3">
-              <IconDoctor className="w-8 h-8 text-rhozly-primary" />
-              Plant Doctor
-            </h1>
-            <p className="text-xs sm:text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-              Take a photo — Rhozly will identify your plant or spot what's wrong
-            </p>
+        {!compact && (
+          <div className="mb-4 px-2 flex flex-wrap items-end justify-between gap-2">
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-black font-display text-rhozly-on-surface tracking-tight flex items-center gap-3">
+                <IconDoctor className="w-8 h-8 text-rhozly-primary" />
+                Plant Doctor
+              </h1>
+              <p className="text-xs sm:text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
+                Take a photo — Rhozly will identify your plant or spot what's wrong
+              </p>
+            </div>
+            <div className="flex gap-1 bg-rhozly-surface-low rounded-2xl p-1 shrink-0">
+              {(["analyse", "history"] as const).map((tab) => (
+                <button
+                  key={tab}
+                  data-testid={`doctor-tab-${tab}`}
+                  onClick={() => setActiveTab(tab)}
+                  className={`px-4 min-h-[44px] rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${
+                    activeTab === tab
+                      ? "bg-white shadow-sm text-rhozly-primary"
+                      : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
           </div>
-          <div className="flex gap-1 bg-rhozly-surface-low rounded-2xl p-1 shrink-0">
-            {(["analyse", "history"] as const).map((tab) => (
-              <button
-                key={tab}
-                data-testid={`doctor-tab-${tab}`}
-                onClick={() => setActiveTab(tab)}
-                className={`px-4 min-h-[44px] rounded-xl text-xs font-black uppercase tracking-widest transition-colors ${
-                  activeTab === tab
-                    ? "bg-white shadow-sm text-rhozly-primary"
-                    : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
-                }`}
-              >
-                {tab}
-              </button>
-            ))}
-          </div>
-        </div>
+        )}
 
-        {activeTab === "history" ? (
+        {!compact && activeTab === "history" ? (
           <div className="bg-rhozly-surface-lowest/80 backdrop-blur-md rounded-3xl p-6 md:p-8 border border-rhozly-outline/10 shadow-sm flex-1 overflow-y-auto">
             <PlantDoctorHistory
               sessions={sessions}
@@ -890,50 +900,52 @@ export default function PlantDoctor({
                   </span>
                 </button>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
-                <button
-                  onClick={() => handleAiAction("identify")}
-                  disabled={isUIBusy}
-                  data-testid="doctor-btn-identify"
-                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "identify" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 disabled:opacity-50"}`}
-                >
-                  {isProcessing && activeAction === "identify" ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Search className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                  )}
-                  <span>Identify</span>
-                  <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Plant</span>
-                </button>
-                <button
-                  onClick={() => handleAiAction("diagnose")}
-                  disabled={isUIBusy}
-                  data-testid="doctor-btn-diagnose"
-                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "diagnose" ? "bg-amber-500 text-white shadow-md scale-[1.02]" : "bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 disabled:opacity-50"}`}
-                >
-                  {isProcessing && activeAction === "diagnose" ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <Activity className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                  )}
-                  <span>Diagnose</span>
-                  <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Health</span>
-                </button>
-                <button
-                  onClick={() => handleAiAction("pest")}
-                  disabled={isUIBusy}
-                  data-testid="doctor-btn-pest"
-                  className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "pest" ? "bg-rose-600 text-white shadow-md scale-[1.02]" : "bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 disabled:opacity-50"}`}
-                >
-                  {isProcessing && activeAction === "pest" ? (
-                    <Loader2 className="w-5 h-5 animate-spin" />
-                  ) : (
-                    <IconPest className="w-5 h-5 group-hover:scale-110 transition-transform" />
-                  )}
-                  <span>Identify</span>
-                  <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Pest</span>
-                </button>
-              </div>
+              {!compact && (
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                  <button
+                    onClick={() => handleAiAction("identify")}
+                    disabled={isUIBusy}
+                    data-testid="doctor-btn-identify"
+                    className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "identify" ? "bg-rhozly-primary text-white shadow-md scale-[1.02]" : "bg-emerald-50 text-emerald-800 border border-emerald-200 hover:bg-emerald-100 hover:border-emerald-300 disabled:opacity-50"}`}
+                  >
+                    {isProcessing && activeAction === "identify" ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Search className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                    )}
+                    <span>Identify</span>
+                    <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Plant</span>
+                  </button>
+                  <button
+                    onClick={() => handleAiAction("diagnose")}
+                    disabled={isUIBusy}
+                    data-testid="doctor-btn-diagnose"
+                    className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "diagnose" ? "bg-amber-500 text-white shadow-md scale-[1.02]" : "bg-amber-50 text-amber-800 border border-amber-200 hover:bg-amber-100 hover:border-amber-300 disabled:opacity-50"}`}
+                  >
+                    {isProcessing && activeAction === "diagnose" ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <Activity className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                    )}
+                    <span>Diagnose</span>
+                    <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Health</span>
+                  </button>
+                  <button
+                    onClick={() => handleAiAction("pest")}
+                    disabled={isUIBusy}
+                    data-testid="doctor-btn-pest"
+                    className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "pest" ? "bg-rose-600 text-white shadow-md scale-[1.02]" : "bg-rose-50 text-rose-800 border border-rose-200 hover:bg-rose-100 hover:border-rose-300 disabled:opacity-50"}`}
+                  >
+                    {isProcessing && activeAction === "pest" ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <IconPest className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                    )}
+                    <span>Identify</span>
+                    <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Pest</span>
+                  </button>
+                </div>
+              )}
               </div>
               )}
 

@@ -67,10 +67,11 @@ PlantDoctor
 |------|------|--------|---------|
 | `homeId` | `string` | App.tsx | Scope |
 | `userId` | `string?` | App.tsx | History scoping |
-| `aiEnabled` | `boolean` | App.tsx | Gates Identify/Diagnose/Pest |
+| `aiEnabled` | `boolean` | App.tsx | Gates Identify/Diagnose/Pest/Analyse |
 | `isPremium` | `boolean` | App.tsx | Some premium-only sub-flows |
 | `perenualEnabled` | `boolean` | App.tsx | Plant DB lookups |
 | `onTasksAdded` | `() => void` | App.tsx | Refresh dashboard after treatment plan |
+| `compact` | `boolean?` | `/quick/lens` only | Mobile Quick Access Wave 2 — hides header, Analyse/History tab bar, and the secondary Identify/Diagnose/Pest action row. Keeps photo capture, plant picker, Analyse hero, and result card. Default `false`. |
 
 ### Local state (key items)
 

@@ -52,6 +52,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [AI Assistant Card](./02-dashboard/06-assistant-card.md) — user_insights surface
 - [x] [Location Page (Drill-In)](./02-dashboard/07-location-page.md) — `?locationId=` view
 - [x] [Weather Alert Banner](./02-dashboard/08-weather-alert-banner.md) — frost / heat / wind / rain alerts
+- [x] [Quick Access Home](./02-dashboard/09-quick-access-home.md) — mobile shortcut home (`/quick`) with Visual Lens + Calendar / Quick Capture placeholder tiles
 
 ## 03 — Garden Hub
 

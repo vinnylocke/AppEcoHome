@@ -11,6 +11,7 @@ import {
   RefreshCw,
   AlertCircle,
   HelpCircle,
+  Zap,
 } from "lucide-react";
 import { IconShed, IconPlanner, IconDoctor, IconAI, IconIntegrations } from "./constants/icons";
 
@@ -52,6 +53,7 @@ import UpdateBanner from "./components/UpdateBanner";
 import MaintenanceScreen from "./components/MaintenanceScreen";
 import { useMaintenanceMode } from "./hooks/useMaintenanceMode";
 import { useAppVersion } from "./hooks/useAppVersion";
+import { useIsMobile } from "./hooks/useIsMobile";
 import PrivacyPolicyModal from "./components/PrivacyPolicyModal";
 import CookiePolicyModal from "./components/CookiePolicyModal";
 import ReleaseNotesModal from "./components/ReleaseNotesModal";
@@ -71,6 +73,8 @@ import BetaFeedbackBanner from "./components/BetaFeedbackBanner";
 const HomeDashboard       = lazy(() => import("./components/HomeDashboard"));
 const AdminGuideGenerator = lazy(() => import("./components/AdminGuideGenerator"));
 const PlantDoctor         = lazy(() => import("./components/PlantDoctor"));
+const QuickAccessHome     = lazy(() => import("./components/QuickAccessHome"));
+const QuickAccessLens     = lazy(() => import("./components/QuickAccessLens"));
 const LightSensor         = lazy(() => import("./components/LightSensor"));
 const SunTrajectoryAR     = lazy(() => import("./components/SunTrajectoryAR"));
 const GuideList           = lazy(() => import("./components/GuideList"));
@@ -163,6 +167,7 @@ export default function App() {
 }
 
 const TAB_URL: Record<string, string> = {
+  quick:           "/quick",
   dashboard:       "/dashboard",
   task_management: "/schedule",
   shed:            "/shed",
@@ -187,6 +192,7 @@ function AppShell() {
   const appVersion = useAppVersion();
   const navigate = useNavigate();
   const routerLocation = useLocation();
+  const isMobile = useIsMobile();
 
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -823,7 +829,12 @@ function AppShell() {
     badge?: number;
     badgeTone?: "amber" | "rose" | "primary";
   }> = [
-    { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", "/"], badge: overdueTaskCount, badgeTone: "rose" },
+    // "Quick" is mobile-only — the shortcut home for phone users. Hidden on
+    // desktop to keep the nav focused on the full surfaces.
+    ...(isMobile
+      ? [{ id: "quick", icon: <Zap />, label: "Quick", matchPaths: ["/quick"] }]
+      : []),
+    { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", ...(isMobile ? [] : ["/"])], badge: overdueTaskCount, badgeTone: "rose" },
     { id: "shed",      icon: <IconShed />, label: "Plants", matchPaths: ["/shed", "/watchlist"] },
     { id: "planner",   icon: <IconPlanner />, label: "Planner",    matchPaths: ["/planner", "/shopping"] },
     { id: "tools",        icon: <IconDoctor />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
@@ -986,7 +997,24 @@ function AppShell() {
                   <div className="p-4 md:p-8 pb-28 md:pb-8 min-h-full">
                     <Suspense fallback={RouteFallback}>
                     <Routes>
-                      <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                      <Route path="/" element={<Navigate to={isMobile ? "/quick" : "/dashboard"} replace />} />
+
+                      <Route path="/quick" element={
+                        <div className="h-full animate-in fade-in duration-500">
+                          <QuickAccessHome />
+                        </div>
+                      } />
+                      <Route path="/quick/lens" element={
+                        <div className="h-full animate-in fade-in duration-500">
+                          <QuickAccessLens
+                            homeId={profile?.home_id}
+                            userId={session?.user?.id}
+                            aiEnabled={profile?.ai_enabled}
+                            isPremium={profile?.enable_perenual}
+                            perenualEnabled={profile?.enable_perenual}
+                          />
+                        </div>
+                      } />
 
                       <Route path="/dashboard" element={
                         <div className="w-full animate-in fade-in slide-in-from-bottom-4 duration-500">
