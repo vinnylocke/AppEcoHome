@@ -66,15 +66,15 @@ The single source of truth for every documented screen, modal, and cross-cutting
 
 ## 06 — Account & Settings
 
-- [ ] [Account Tab](./06-account/01-account-tab.md) — name, email, password, tier, AI usage, accessibility, data export, danger zone
-- [ ] [Notifications (Alerts) Tab](./06-account/02-notifications-tab.md) — push permission + per-category toggles
-- [ ] [Awards (Achievements) Tab](./06-account/03-awards-tab.md) — unlocked badges
-- [ ] [Stats Tab](./06-account/04-stats-tab.md) — gardener stats summary
-- [ ] [My Beta Feedback Section](./06-account/05-my-feedback.md) — submission history with admin status
-- [ ] [Accessibility Section](./06-account/06-accessibility-section.md) — high contrast toggle
-- [ ] [Data Export Section](./06-account/07-data-export.md) — GDPR archive download
-- [ ] [Delete Account Modal](./06-account/08-delete-account.md) — destructive flow
-- [ ] [User Profile Dropdown](./06-account/09-user-profile-dropdown.md) — top-right menu
+- [x] [Account Tab](./06-account/01-account-tab.md) — name, email, password, tier, AI usage, accessibility, data export, danger zone
+- [x] [Notifications (Alerts) Tab](./06-account/02-notifications-tab.md) — push permission + per-category toggles
+- [x] [Awards (Achievements) Tab](./06-account/03-awards-tab.md) — unlocked badges
+- [x] [Stats Tab](./06-account/04-stats-tab.md) — gardener stats summary
+- [x] [My Beta Feedback Section](./06-account/05-my-feedback.md) — submission history with admin status
+- [x] [Accessibility Section](./06-account/06-accessibility-section.md) — high contrast toggle
+- [x] [Data Export Section](./06-account/07-data-export.md) — GDPR archive download
+- [x] [Delete Account Modal](./06-account/08-delete-account.md) — destructive flow
+- [x] [User Profile Dropdown](./06-account/09-user-profile-dropdown.md) — top-right menu
 
 ## 07 — Management & Admin
 
