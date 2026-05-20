@@ -30,15 +30,15 @@ The single source of truth for every documented screen, modal, and cross-cutting
 
 ## 03 — Garden Hub
 
-- [ ] [The Shed](./03-garden-hub/01-the-shed.md) — plant inventory, search, multi-select, contextual chips
-- [ ] [Ailment Watchlist](./03-garden-hub/02-watchlist.md) — pests, diseases, invasives tracking
-- [ ] [Location Manager](./03-garden-hub/03-location-manager.md) — locations + areas CRUD, metric editing
-- [ ] [Area Details](./03-garden-hub/04-area-details.md) — drill-in for a single area
-- [ ] [Garden Layout List](./03-garden-hub/05-garden-layout-list.md) — list of garden layouts
-- [ ] [Garden Layout Editor](./03-garden-hub/06-garden-layout-editor.md) — shape-based map editor
-- [ ] [Microclimate Report](./03-garden-hub/07-microclimate-report.md) — sun / wind / frost per area modal
-- [ ] [Sun Tracker AR](./03-garden-hub/08-sun-tracker-ar.md) — AR sun path overlay
-- [ ] [Light Sensor](./03-garden-hub/09-light-sensor.md) — lux meter + band + plant comparison
+- [x] [The Shed](./03-garden-hub/01-the-shed.md) — plant inventory, search, multi-select, contextual chips
+- [x] [Ailment Watchlist](./03-garden-hub/02-watchlist.md) — pests, diseases, invasives tracking
+- [x] [Location Manager](./03-garden-hub/03-location-manager.md) — locations + areas CRUD, metric editing
+- [x] [Area Details](./03-garden-hub/04-area-details.md) — drill-in for a single area
+- [x] [Garden Layout List](./03-garden-hub/05-garden-layout-list.md) — list of garden layouts
+- [x] [Garden Layout Editor](./03-garden-hub/06-garden-layout-editor.md) — shape-based map editor
+- [x] [Microclimate Report](./03-garden-hub/07-microclimate-report.md) — sun / wind / frost per area modal
+- [x] [Sun Tracker AR](./03-garden-hub/08-sun-tracker-ar.md) — AR sun path overlay
+- [x] [Light Sensor](./03-garden-hub/09-light-sensor.md) — lux meter + band + plant comparison
 
 ## 04 — Planner & Shopping
 
