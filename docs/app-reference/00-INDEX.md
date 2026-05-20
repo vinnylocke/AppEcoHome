@@ -127,16 +127,16 @@ The single source of truth for every documented screen, modal, and cross-cutting
 
 ## 09 — Persistent UI
 
-- [ ] [Header / Top Bar](./09-persistent-ui/01-header.md) — logo, nav toggle, home dropdown, search, quick-add, profile
-- [ ] [Sidebar Navigation](./09-persistent-ui/02-sidebar.md) — primary nav with badges
-- [ ] [Offline Badge](./09-persistent-ui/03-offline-badge.md)
-- [ ] [Queued Actions Badge](./09-persistent-ui/04-queued-actions-badge.md)
-- [ ] [Sync Indicator](./09-persistent-ui/05-sync-indicator.md)
-- [ ] [Update Banner](./09-persistent-ui/06-update-banner.md) — new SW version prompt
-- [ ] [Pull To Refresh](./09-persistent-ui/07-pull-to-refresh.md)
-- [ ] [Error Page](./09-persistent-ui/08-error-page.md) — top-level Sentry boundary
-- [ ] [Maintenance Screen](./09-persistent-ui/09-maintenance-screen.md)
-- [ ] [Toast / Toaster](./09-persistent-ui/10-toaster.md)
+- [x] [Header / Top Bar](./09-persistent-ui/01-header.md) — logo, nav toggle, home dropdown, search, quick-add, profile
+- [x] [Sidebar Navigation](./09-persistent-ui/02-sidebar.md) — primary nav with badges
+- [x] [Offline Badge](./09-persistent-ui/03-offline-badge.md)
+- [x] [Queued Actions Badge](./09-persistent-ui/04-queued-actions-badge.md)
+- [x] [Sync Indicator](./09-persistent-ui/05-sync-indicator.md)
+- [x] [Update Banner](./09-persistent-ui/06-update-banner.md) — new SW version prompt
+- [x] [Pull To Refresh](./09-persistent-ui/07-pull-to-refresh.md)
+- [x] [Error Page](./09-persistent-ui/08-error-page.md) — top-level Sentry boundary
+- [x] [Maintenance Screen](./09-persistent-ui/09-maintenance-screen.md)
+- [x] [Toast / Toaster](./09-persistent-ui/10-toaster.md)
 
 ## 99 — Cross-Cutting Concerns
 
