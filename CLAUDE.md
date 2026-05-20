@@ -87,12 +87,14 @@ docs/                      # Feature build plans
 **Every task — no matter how small — requires a written plan before any code is written.** This includes bug fixes, UI tweaks, improvements, and new features.
 
 **Workflow:**
-1. When the user asks for a change, read any relevant existing files first.
+1. When the user asks for a change, **read the relevant [docs/app-reference/](docs/app-reference/) files first** to understand how the touched surfaces are wired (component graph, data flow, gating, cron, RLS) — see the "Read app-reference before touching code" rule below. Then read the actual source files those references point to.
 2. Write a plan document to `docs/plans/<kebab-case-task-name>.md` covering:
    - What the problem or goal is
-   - Which files will change and why
+   - **Which app-reference files were consulted** (list the paths) — so the next reader can verify your mental model
+   - Which source files will change and why
    - The exact approach (what changes, not just "update X")
    - Any risks, edge cases, or alternatives considered
+   - **Which app-reference files will need updating** to reflect the change
 3. Show the user a summary of the plan and tell them where the file was saved.
 4. **Wait for explicit approval** ("yes", "go ahead", "looks good", etc.) before writing any application code.
 5. After implementing, leave the plan file in place — it serves as a permanent record of decisions made.
@@ -100,6 +102,65 @@ docs/                      # Feature build plans
 Plans for small tasks can be brief (5–10 lines). Plans for large features should be thorough. The size of the plan should match the size of the task — but the step is never skipped.
 
 Do not combine planning and implementation in the same response. Write the plan, stop, wait.
+
+### Read app-reference before touching code
+
+[docs/app-reference/](docs/app-reference/) is **the first thing to read** on any task that adds, amends, deletes, fixes, or enhances anything — not just an after-the-fact update target. Reading it first is what makes new work integrate cleanly with the existing wiring instead of bolting on duplicates, fighting the data model, or breaking invariants you didn't know existed.
+
+**The rule:** before writing any plan or code, identify every app-reference file that overlaps with the task, read it end-to-end, and follow its `Related reference files` cross-links one hop out. Your plan document must cite the files consulted (see the planning workflow above).
+
+**How to find the right files:**
+
+- **Touching a screen / modal / tab** → start at its file in the relevant folder (`01-onboarding/` through `09-persistent-ui/`). Then follow its `Related reference files` section to anything else it interacts with.
+- **Touching the data graph** (a table, a column, a relationship) → read the matching `01-data-model-*.md` cross-cutting reference first. Every surface that touches that table is cross-linked from there.
+- **Touching AI / edge function / cron / weather / sun / RLS / tier-gating / beta-gating / routing / PWA / Capacitor / offline queue / caching / realtime / notifications / pattern engine / plant providers / image sources / onboarding state / deployment / release notes** → read the matching file in `99-cross-cutting/`. These are the load-bearing concepts; ignoring them is how bugs get introduced.
+- **Don't know which file?** Start at [`docs/app-reference/00-INDEX.md`](docs/app-reference/00-INDEX.md) — the master index lists every file with a one-line description.
+
+**What to extract from each reference:**
+
+- Role 1 → the *technical* contract: component graph, props, data flow (read + write), edge functions called, cron jobs affecting it, realtime channels, tier gating, beta gating, permissions, error states, performance constraints, linked storage buckets. **Your change must respect this contract or explicitly update it.**
+- Role 2 → the *user-facing* contract: why users open the surface, every flow on it, what each field means, tier-by-tier differences, common pitfalls. **Your change must preserve or improve the gardener experience documented here.**
+- `Code references for ongoing maintenance` → the actual source files to read next.
+
+**Cross-cutting reads — when each is required:**
+
+| If your task touches… | Read these cross-cutting refs first |
+|----------------------|-------------------------------------|
+| Any home-scoped table | [Data Model — Homes](docs/app-reference/99-cross-cutting/01-data-model-home.md), [RLS Patterns](docs/app-reference/99-cross-cutting/19-rls-patterns.md) |
+| Plants / inventory | [Data Model — Plants](docs/app-reference/99-cross-cutting/03-data-model-plants.md), [Plant Providers](docs/app-reference/99-cross-cutting/25-plant-providers.md) |
+| Tasks / blueprints / ghosts | [Data Model — Tasks](docs/app-reference/99-cross-cutting/04-data-model-tasks.md) |
+| Plans / staging state | [Data Model — Plans](docs/app-reference/99-cross-cutting/05-data-model-plans.md) |
+| Ailments / Watchlist | [Data Model — Ailments](docs/app-reference/99-cross-cutting/06-data-model-ailments.md) |
+| Photos / journals / storage buckets | [Data Model — Media](docs/app-reference/99-cross-cutting/07-data-model-media.md), [Image Sources](docs/app-reference/99-cross-cutting/24-image-sources.md) |
+| Guides | [Data Model — Guides](docs/app-reference/99-cross-cutting/08-data-model-guides.md) |
+| Integrations / devices / automations | [Data Model — Integrations](docs/app-reference/99-cross-cutting/09-data-model-integrations.md) |
+| Any AI / Gemini call | [AI — Gemini](docs/app-reference/99-cross-cutting/13-ai-gemini.md), [Edge Functions Catalogue](docs/app-reference/99-cross-cutting/10-edge-functions-catalogue.md) |
+| Any cron / scheduled work | [Cron Jobs](docs/app-reference/99-cross-cutting/11-cron-jobs.md) |
+| Realtime subscriptions | [Realtime](docs/app-reference/99-cross-cutting/15-realtime.md) |
+| Offline behaviour / queue | [Offline Queue](docs/app-reference/99-cross-cutting/16-offline-queue.md) |
+| Caching / localStorage / sessionStorage | [Caching](docs/app-reference/99-cross-cutting/14-caching.md) |
+| Notifications (toast / push / browser) | [Notifications](docs/app-reference/99-cross-cutting/12-notifications.md) |
+| Tier-gated feature | [Tier Gating](docs/app-reference/99-cross-cutting/17-tier-gating.md) |
+| Beta-gated feature | [Beta Gating](docs/app-reference/99-cross-cutting/18-beta-gating.md) |
+| Permission key | [RLS Patterns](docs/app-reference/99-cross-cutting/19-rls-patterns.md), [Members & Permissions](docs/app-reference/07-management/02-members-permissions.md) |
+| Error handling / Sentry / ErrorPage | [Error Handling](docs/app-reference/99-cross-cutting/20-error-handling.md) |
+| Routing / URL state / deep links | [Routing](docs/app-reference/99-cross-cutting/21-routing.md) |
+| PWA / service worker | [PWA](docs/app-reference/99-cross-cutting/22-pwa.md) |
+| Native / Capacitor APIs | [Capacitor](docs/app-reference/99-cross-cutting/23-capacitor.md) |
+| Pattern engine / user insights | [Pattern Engine](docs/app-reference/99-cross-cutting/26-pattern-engine.md) |
+| Weather rules / snapshots / alerts | [Weather](docs/app-reference/99-cross-cutting/27-weather.md) |
+| Sun analysis / shapes / lux | [Sun Analysis](docs/app-reference/99-cross-cutting/28-sun-analysis.md) |
+| Seasonal / hemisphere logic | [Seasonality](docs/app-reference/99-cross-cutting/29-seasonality.md) |
+| Onboarding flows | [Onboarding State](docs/app-reference/99-cross-cutting/30-onboarding-state.md) |
+| Deploy / maintenance mode | [Deployment Pipeline](docs/app-reference/99-cross-cutting/31-deployment.md) |
+| Release notes / What's New | [Release Notes Pipeline](docs/app-reference/99-cross-cutting/32-release-notes.md) |
+
+**If the reference contradicts the code:** the code wins on facts (it's the running system), but the doc wins on intent (the documented behaviour is what's *meant* to be true). When you spot drift mid-task:
+1. Note it in the plan.
+2. Decide whether the code or the doc is correct.
+3. Fix the wrong side in the same task (don't leave drift to compound).
+
+**Why this matters:** these docs were written by reading every source file end-to-end. Skipping them and grepping for "similar code" is how you end up: (a) duplicating logic that already exists in `_shared/`, (b) writing a query that bypasses RLS, (c) breaking a tier gate that's enforced both client + server, (d) missing a cron job that depends on a table you just renamed, (e) creating a new modal that conflicts with the focus-trap / portal stacking of an existing one. The docs surface all of this in one place — read them first and the integration is clean.
 
 ### Tests are mandatory for all code changes
 Every new feature, bug fix, or amendment to existing code **must** include corresponding test coverage:

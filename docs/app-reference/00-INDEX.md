@@ -6,14 +6,28 @@ The single source of truth for every documented screen, modal, and cross-cutting
 
 ---
 
-## ⚠ Read before editing code in this repo
+## ⚠ Two mandatory rules — read both before editing code
 
-This reference is **mandatory to maintain**. Every code change that touches user-facing behaviour, data flow, edge functions, cron jobs, gating, or persistent UI **must** update the relevant file in the same PR.
+### 1. Read app-reference BEFORE writing any plan or code
+
+These files are the canonical "how is this wired up + how is it used" map. Read them first, every time:
+
+- Identify every reference file that overlaps with the task (UI surface + cross-cutting concerns).
+- Read them end-to-end (both Role 1 technical + Role 2 gardener) and follow `Related reference files` cross-links one hop out.
+- Your plan in `docs/plans/<task>.md` must **list the references consulted** so the next reader can verify your mental model.
+
+The "Read app-reference before touching code" rule in [CLAUDE.md](../../CLAUDE.md#read-app-reference-before-touching-code) has a per-concern lookup table — use it to know which cross-cutting files apply to your change. Skipping this step is how new code conflicts with existing wiring (duplicate logic, missed tier gates, broken RLS, orphaned cron dependencies).
+
+### 2. Update app-reference WITH the code change in the same PR
+
+When the change is shipped, update the matching reference file(s) so the docs never drift:
 
 - The format is **non-negotiable**: every file has BOTH Role 1 (senior dev technical) AND Role 2 (expert gardener UX). Use [`_template.md`](./_template.md) for any new file.
 - The full mandate, drift-handling rules, and per-change-type checklist live in [CLAUDE.md § App-reference documentation is mandatory](../../CLAUDE.md#app-reference-documentation-is-mandatory-for-all-code-changes).
+- The plan must also **list which references will be updated** by this task.
 - When in doubt: if a user could open the screen, it has a Role 2. If the code is non-trivial, it has a Role 1.
-- Update plans (`docs/plans/<task>.md`) should list which app-reference files will change as part of the task.
+
+**Read → Plan → Implement → Test → Update docs → Ship.** The docs are both an input and an output of every task.
 
 ---
 
