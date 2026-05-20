@@ -531,26 +531,43 @@ Each match must be a real plant species. Format each as "Common Name (Scientific
       // 1. CATALOGUE READ — if a global AI row exists for this species, return its
       //    care_guide_data instead of regenerating. This is the "Tomato already
       //    in the catalogue" path (zero Gemini cost).
+      //
+      //    Two-pronged lookup: by scientific_name_key (canonical when the user
+      //    typed the scientific name) AND by common_name ILIKE (covers the
+      //    common case where the user types "Pot Marigold" but the global was
+      //    keyed by its scientific name "Calendula officinalis").
+      let existing: { id: number; care_guide_data: unknown; freshness_version: number | null; last_care_generated_at: string | null } | null = null;
       if (key) {
-        const { data: existing } = await supabase
+        const r = await supabase
           .from("plants")
           .select("id, care_guide_data, freshness_version, last_care_generated_at")
           .eq("source", "ai")
           .is("home_id", null)
           .eq("scientific_name_key", key)
           .maybeSingle();
-        if (existing?.care_guide_data) {
-          log(FN, "result", { action, plant: cleanName, fromCatalogue: true, plantId: existing.id });
-          return new Response(JSON.stringify({
-            plantData: (existing.care_guide_data as Record<string, unknown>).plantData ?? existing.care_guide_data,
-            db_plant_id: existing.id,
-            freshness_version: existing.freshness_version,
-            last_care_generated_at: existing.last_care_generated_at,
-            fromCatalogue: true,
-          }), {
-            headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
+        existing = r.data ?? null;
+      }
+      if (!existing) {
+        const r = await supabase
+          .from("plants")
+          .select("id, care_guide_data, freshness_version, last_care_generated_at")
+          .eq("source", "ai")
+          .is("home_id", null)
+          .ilike("common_name", cleanName)
+          .limit(1);
+        existing = r.data?.[0] ?? null;
+      }
+      if (existing?.care_guide_data) {
+        log(FN, "result", { action, plant: cleanName, fromCatalogue: true, plantId: existing.id });
+        return new Response(JSON.stringify({
+          plantData: (existing.care_guide_data as Record<string, unknown>).plantData ?? existing.care_guide_data,
+          db_plant_id: existing.id,
+          freshness_version: existing.freshness_version,
+          last_care_generated_at: existing.last_care_generated_at,
+          fromCatalogue: true,
+        }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
       }
 
       // 2. LEGACY STRING CACHE — transitional read for plants not yet in the
@@ -609,18 +626,41 @@ Each match must be a real plant species. Format each as "Common Name (Scientific
               });
               if (revErr) warn(FN, "legacy-heal-revision-insert-failed", { error: revErr.message, plantId: healedPlantId });
             } else if (insertResult.error) {
-              // Race: another caller inserted first. Re-read.
-              const { data: existing2 } = await supabase
-                .from("plants")
-                .select("id, freshness_version, last_care_generated_at")
-                .eq("source", "ai").is("home_id", null).eq("scientific_name_key", key)
-                .maybeSingle();
+              // INSERT conflicted on the partial unique index — either a
+              // concurrent caller inserted first, OR a global already exists
+              // with the scientific-name-derived key (different from `key`
+              // which was derived from common_name). Re-read by BOTH possible
+              // keys + a common_name fallback to find the existing row.
+              const insertKey = normaliseScientificKey(
+                (insertPayload.scientific_name as string[] | null) ?? [],
+                insertPayload.common_name as string,
+              );
+              const candidateKeys = [key, insertKey].filter((k, i, arr) => k && arr.indexOf(k) === i) as string[];
+              let existing2: { id: number; freshness_version: number | null; last_care_generated_at: string | null } | null = null;
+              if (candidateKeys.length > 0) {
+                const r = await supabase
+                  .from("plants")
+                  .select("id, freshness_version, last_care_generated_at")
+                  .eq("source", "ai").is("home_id", null)
+                  .in("scientific_name_key", candidateKeys)
+                  .limit(1);
+                existing2 = r.data?.[0] ?? null;
+              }
+              if (!existing2) {
+                const r = await supabase
+                  .from("plants")
+                  .select("id, freshness_version, last_care_generated_at")
+                  .eq("source", "ai").is("home_id", null)
+                  .ilike("common_name", insertPayload.common_name as string)
+                  .limit(1);
+                existing2 = r.data?.[0] ?? null;
+              }
               if (existing2) {
                 healedPlantId = existing2.id;
                 healedFreshnessVersion = existing2.freshness_version;
                 healedLastGenerated = existing2.last_care_generated_at;
               } else {
-                warn(FN, "legacy-heal-insert-failed", { error: insertResult.error.message, key });
+                warn(FN, "legacy-heal-insert-failed", { error: insertResult.error.message, key, insertKey });
               }
             }
           }
@@ -683,12 +723,34 @@ Return all fields accurately. STRICT formatting rules:
         };
         const insertResult = await supabase.from("plants").insert(insertPayload).select("id, freshness_version, last_care_generated_at").maybeSingle();
         if (insertResult.error) {
-          // Likely the unique-index race. Re-read.
-          const { data: existing2 } = await supabase
-            .from("plants")
-            .select("id, freshness_version, last_care_generated_at")
-            .eq("source", "ai").is("home_id", null).eq("scientific_name_key", key)
-            .maybeSingle();
+          // INSERT conflicted on the unique index — either a concurrent caller
+          // or a global already exists keyed by the scientific name (which may
+          // differ from `key`, the common-name-derived lookup key). Re-read by
+          // BOTH possible keys + a common_name fallback.
+          const insertKey = normaliseScientificKey(
+            insertPayload.scientific_name,
+            insertPayload.common_name,
+          );
+          const candidateKeys = [key, insertKey].filter((k, i, arr) => k && arr.indexOf(k) === i) as string[];
+          let existing2: { id: number; freshness_version: number | null; last_care_generated_at: string | null } | null = null;
+          if (candidateKeys.length > 0) {
+            const r = await supabase
+              .from("plants")
+              .select("id, freshness_version, last_care_generated_at")
+              .eq("source", "ai").is("home_id", null)
+              .in("scientific_name_key", candidateKeys)
+              .limit(1);
+            existing2 = r.data?.[0] ?? null;
+          }
+          if (!existing2) {
+            const r = await supabase
+              .from("plants")
+              .select("id, freshness_version, last_care_generated_at")
+              .eq("source", "ai").is("home_id", null)
+              .ilike("common_name", insertPayload.common_name)
+              .limit(1);
+            existing2 = r.data?.[0] ?? null;
+          }
           if (existing2) {
             dbPlantId = existing2.id;
             dbFreshnessVersion = existing2.freshness_version;
@@ -696,7 +758,7 @@ Return all fields accurately. STRICT formatting rules:
           } else {
             // Unexpected — log but don't fail the request. The client still gets
             // the care guide data; just can't link to a global plant_id this time.
-            warn(FN, "insert-race-recovery-failed", { error: insertResult.error.message, key });
+            warn(FN, "insert-race-recovery-failed", { error: insertResult.error.message, key, insertKey });
           }
         } else if (insertResult.data) {
           dbPlantId = insertResult.data.id;

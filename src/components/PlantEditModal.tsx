@@ -29,6 +29,48 @@ function formatRelativeDate(iso: string): string {
   return `${months} months ago`;
 }
 
+/**
+ * Build a user-friendly rate-limit toast string from the server's
+ * `rate_limit_minutes` + `retry_after` payload. Phrases both the cadence
+ * AND the time remaining so the user knows the rule AND when to try next.
+ */
+function formatRateLimitMessage(rateLimitMinutes: number | undefined, retryAt: Date | null): string {
+  const cadencePhrase = (() => {
+    if (rateLimitMinutes == null) return "You can only refresh this plant occasionally.";
+    if (rateLimitMinutes < 60) {
+      const m = Math.round(rateLimitMinutes);
+      return m === 1
+        ? "You can refresh this plant once per minute."
+        : `You can refresh this plant once every ${m} minutes.`;
+    }
+    if (rateLimitMinutes < 60 * 24) {
+      const h = Math.round(rateLimitMinutes / 60);
+      return h === 1
+        ? "You can refresh this plant once per hour."
+        : `You can refresh this plant once every ${h} hours.`;
+    }
+    const d = Math.round(rateLimitMinutes / (60 * 24));
+    return d === 1
+      ? "You can refresh this plant once per day."
+      : `You can refresh this plant once every ${d} days.`;
+  })();
+
+  if (!retryAt) return cadencePhrase;
+  const remainingMs = retryAt.getTime() - Date.now();
+  if (remainingMs <= 0) return cadencePhrase;
+  const remainingPhrase = (() => {
+    const seconds = Math.ceil(remainingMs / 1000);
+    if (seconds < 60) return `try again in ${seconds}s`;
+    const minutes = Math.ceil(seconds / 60);
+    if (minutes < 60) return `try again in ${minutes} min`;
+    const hours = Math.ceil(minutes / 60);
+    if (hours < 24) return `try again in ${hours}h`;
+    const days = Math.ceil(hours / 24);
+    return `try again in ${days}d`;
+  })();
+  return `${cadencePhrase} You can ${remainingPhrase}.`;
+}
+
 const FIELD_LABELS: Record<string, string> = {
   common_name: "Plant name",
   scientific_name: "Scientific name",
@@ -199,20 +241,32 @@ export default function PlantEditModal({
       // Always log the underlying error so we can debug from the console
       // when the toast hides what actually went wrong.
       console.error("ai-plant refresh failed", err);
-      const msg = err?.message ?? String(err ?? "");
-      if (msg.includes("rate_limited") || msg.includes("429")) {
-        // Server controls the cadence. Surface its retry hint when present.
-        toast.error("This plant was refreshed recently — try again shortly.");
-      } else if (msg.includes("ai_tier_required")) {
+
+      // Supabase functions return non-2xx bodies via err.context (a Response).
+      // We parse it to surface specifics like rate_limit_minutes / retry_after.
+      let body: any = null;
+      if (err?.context && typeof err.context.json === "function") {
+        try {
+          body = await err.context.clone().json();
+        } catch { /* not json */ }
+      }
+      const code: string = body?.error ?? err?.message ?? String(err ?? "");
+
+      if (code === "rate_limited" || code.includes("429")) {
+        // Build a specific message from the server's rate_limit_minutes + retry_after.
+        const minutes: number | undefined = body?.rate_limit_minutes;
+        const retryAt: Date | null = body?.retry_after ? new Date(body.retry_after) : null;
+        toast.error(formatRateLimitMessage(minutes, retryAt));
+      } else if (code.includes("ai_tier_required")) {
         toast.error("This requires Sage or Evergreen.");
-      } else if (msg.includes("heal_no_db_plant_id_returned")) {
+      } else if (code.includes("heal_no_db_plant_id_returned")) {
         toast.error("AI service didn't return a catalogue ID. Check the plant-doctor function is deployed.");
-      } else if (msg.includes("heal_link_update_failed")) {
+      } else if (code.includes("heal_link_update_failed")) {
         toast.error("Couldn't link the plant to the catalogue — check permissions.");
       } else {
         // Surface the underlying error message so the user has something
         // to act on instead of the generic "try again".
-        toast.error(`Couldn't refresh care guide: ${msg || "unknown error"}`);
+        toast.error(`Couldn't refresh care guide: ${code || "unknown error"}`);
       }
     } finally {
       setRefreshing(false);
