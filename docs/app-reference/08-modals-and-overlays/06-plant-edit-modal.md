@@ -134,11 +134,13 @@ Labelled "Refresh Care Guide" (not just "Refresh") so users know exactly what th
 | AI, unedited, linked (shallow fork or true global) | Enabled. Click → `manual-refresh-ai-plant` edge fn. Toast: "Care guide is up to date" OR "Care guide refreshed — N fields updated". |
 | AI, unedited, **orphan** (`forked_from_plant_id IS NULL`) | Enabled. Click → **self-heal flow** (see below) → toast "Care guide is up to date". |
 | AI, edited (custom fork) | **Disabled.** Title attribute explains the user has edited the plant; the explanation block below the chips spells out the same thing and points to "Revert Care Guide". |
-| AI, locally rate-limited (refreshed within the last 7 days) | Disabled. Title: "Already refreshed in the last 7 days". |
+| AI, server says rate-limited | Edge fn returns `rate_limited` → toast: "This plant was refreshed recently — try again shortly." Button re-enables on next render (no local lock). |
+
+**Rate limit configuration.** The per-(user, plant) refresh cadence defaults to 7 days. It's overridable via the `AI_REFRESH_RATE_LIMIT_MINUTES` env var on the `manual-refresh-ai-plant` edge function — declared in `supabase/config.toml`'s `[edge_runtime.secrets]` block and sourced from `supabase/.env`. Local dev sets it to `1` so testers can re-fire Refresh every minute. The client doesn't keep its own local cache anymore (was a UX accelerator that diverged from the server's window); the `refreshing` button state during in-flight requests is the only client-side suppression.
 
 **Error visibility.** When refresh fails, the toast surfaces the underlying error message rather than the generic "try again" string, and the raw error is `console.error`'d so developers can debug from the browser console. Specific failure modes have dedicated toasts:
 
-- `rate_limited` / `429` → "This plant was refreshed in the last 7 days — try again later."
+- `rate_limited` / `429` → "This plant was refreshed recently — try again shortly." (response body also includes `rate_limit_minutes` and `retry_after` ISO timestamp; the toast keeps the copy generic so the same string covers both 7-day prod and 1-min dev cadences.)
 - `ai_tier_required` → "This requires Sage or Evergreen."
 - `heal_no_db_plant_id_returned` → "AI service didn't return a catalogue ID. Check the plant-doctor function is deployed."
 - `heal_link_update_failed` → "Couldn't link the plant to the catalogue — check permissions."

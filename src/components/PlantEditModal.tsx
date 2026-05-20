@@ -110,17 +110,11 @@ export default function PlantEditModal({
   );
   const freshness = plant?.source === "ai" ? freshnessByPlantId[plant.id] : null;
 
-  // Local rate-limit fast-path for "Refresh now". The edge function enforces
-  // the truth via ai_plant_manual_refresh_log (7-day window per user/plant);
-  // this is just a UX hint so we don't even let the user click.
-  const refreshCacheKey = freshness ? `rhozly_ai_refresh_${freshness.global_plant_id}` : null;
+  // The edge function enforces the rate limit (per-env: minutes-configurable
+  // via AI_REFRESH_RATE_LIMIT_MINUTES). The `refreshing` state below prevents
+  // double-clicks during an in-flight request. We trust the server to reject
+  // too-soon retries with a `rate_limited` error which we toast for the user.
   const [refreshing, setRefreshing] = useState(false);
-  const [localRefreshBlockedUntil, setLocalRefreshBlockedUntil] = useState<number | null>(() => {
-    if (typeof window === "undefined" || !refreshCacheKey) return null;
-    const raw = window.localStorage.getItem(refreshCacheKey);
-    return raw ? Number(raw) : null;
-  });
-  const isLocallyBlocked = localRefreshBlockedUntil != null && Date.now() < localRefreshBlockedUntil;
 
   /**
    * Self-heal an orphan AI plant (home-scoped row with no
@@ -201,19 +195,14 @@ export default function PlantEditModal({
       } else {
         toast.success("Care guide is up to date.");
       }
-      const blockUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
-      if (refreshCacheKey) window.localStorage.setItem(refreshCacheKey, String(blockUntil));
-      setLocalRefreshBlockedUntil(blockUntil);
     } catch (err: any) {
       // Always log the underlying error so we can debug from the console
       // when the toast hides what actually went wrong.
       console.error("ai-plant refresh failed", err);
       const msg = err?.message ?? String(err ?? "");
       if (msg.includes("rate_limited") || msg.includes("429")) {
-        toast.error("This plant was refreshed in the last 7 days — try again later.");
-        const blockUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
-        if (refreshCacheKey) window.localStorage.setItem(refreshCacheKey, String(blockUntil));
-        setLocalRefreshBlockedUntil(blockUntil);
+        // Server controls the cadence. Surface its retry hint when present.
+        toast.error("This plant was refreshed recently — try again shortly.");
       } else if (msg.includes("ai_tier_required")) {
         toast.error("This requires Sage or Evergreen.");
       } else if (msg.includes("heal_no_db_plant_id_returned")) {
@@ -657,13 +646,11 @@ export default function PlantEditModal({
                       <button
                         data-testid="ai-care-refresh-now"
                         onClick={handleManualRefresh}
-                        disabled={refreshing || isLocallyBlocked || isAiCustomFork}
+                        disabled={refreshing || isAiCustomFork}
                         title={
                           isAiCustomFork
                             ? "You've edited this plant — Refresh is disabled. Use Revert to rejoin auto-updates."
-                            : isLocallyBlocked
-                              ? "Already refreshed in the last 7 days"
-                              : "Check for updates to this AI care guide"
+                            : "Check for updates to this AI care guide"
                         }
                         className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[32px] border border-amber-300 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                       >

@@ -22,7 +22,18 @@ import { requireAuth } from "../_shared/requireAuth.ts";
 import { diffCareGuide } from "../_shared/aiPlantCatalogue.ts";
 
 const FN = "manual-refresh-ai-plant";
-const RATE_LIMIT_DAYS = 7;
+
+// Rate limit window per (user, plant). Default: 7 days. Override locally
+// or per-environment by setting AI_REFRESH_RATE_LIMIT_MINUTES (e.g. "1" for
+// minute-cadence testing). Stored as minutes so a single env var covers
+// both short test windows and the production 7-day cadence.
+const RATE_LIMIT_MINUTES = (() => {
+  const raw = Deno.env.get("AI_REFRESH_RATE_LIMIT_MINUTES");
+  const parsed = raw ? Number(raw) : NaN;
+  if (Number.isFinite(parsed) && parsed > 0) return parsed;
+  return 7 * 24 * 60; // 7 days
+})();
+const RATE_LIMIT_MS = RATE_LIMIT_MINUTES * 60 * 1000;
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -125,7 +136,7 @@ serve(async (req) => {
     }
 
     // 3. Rate limit: at most one refresh per (user, plant) per 7 days.
-    const cutoff = new Date(Date.now() - RATE_LIMIT_DAYS * 24 * 60 * 60 * 1000).toISOString();
+    const cutoff = new Date(Date.now() - RATE_LIMIT_MS).toISOString();
     const { data: recent, error: rateErr } = await supabase
       .from("ai_plant_manual_refresh_log")
       .select("refreshed_at")
@@ -137,10 +148,11 @@ serve(async (req) => {
       warn(FN, "rate-limit-check-failed", { error: rateErr.message });
       // Fail open — don't block a refresh because the log table glitched.
     } else if (recent && recent.length > 0) {
-      const nextEligible = new Date(new Date(recent[0].refreshed_at).getTime() + RATE_LIMIT_DAYS * 24 * 60 * 60 * 1000);
+      const nextEligible = new Date(new Date(recent[0].refreshed_at).getTime() + RATE_LIMIT_MS);
       return new Response(JSON.stringify({
         error: "rate_limited",
         retry_after: nextEligible.toISOString(),
+        rate_limit_minutes: RATE_LIMIT_MINUTES,
       }), {
         status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
