@@ -110,6 +110,15 @@ PlantDoctorService.analyzeImage({
 
 The service uploads the image to `plant-doctor-images` bucket and calls the relevant edge function (`plant-doctor-identify`, `plant-doctor-diagnose`, `plant-doctor-pest`). Returns `VisionResult` (variable schema by action).
 
+### AI Plant Overhaul integration (Wave 2)
+
+When the user picks an AI-sourced plant to add via this screen's flows, the underlying `plant-doctor` edge function action `generate_care_guide` now consults the global AI catalogue (`plants` where `source = 'ai' AND home_id IS NULL`):
+
+- **Catalogue hit** → returns the cached `care_guide_data` + `db_plant_id` + `freshness_version`. No Gemini call. Response includes `fromCatalogue: true`.
+- **Catalogue miss** → calls Gemini, then INSERTs a new global row + initial `plant_care_revisions` audit row. Response includes the new `db_plant_id` + `freshness_version: 1` + `fromCatalogue: false`.
+
+This means second-and-later users to add the same species pay zero AI cost. See [AI Plant Catalogue](../99-cross-cutting/33-ai-plant-catalogue.md) (planned, Wave 9) for the full lifecycle.
+
 ### Data flow — write paths
 
 #### Session write (initial)

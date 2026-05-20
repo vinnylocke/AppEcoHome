@@ -95,6 +95,32 @@ None.
 
 - `inventory.write` — required for the subsequent bulk-add step.
 
+### AI catalogue enrichment (Wave 2 of AI Plant Overhaul)
+
+When the AI tab queries `PlantDoctorService.searchPlantsText`, the response now includes a sparse `hits` map alongside the existing `matches: string[]`:
+
+```ts
+{
+  matches: ["Tomato (Solanum lycopersicum)", "Cherry Tomato (...)", ...],
+  hasMore: false,
+  hits: {
+    "Tomato (Solanum lycopersicum)": {
+      hit_kind: "global" | "home_fork",
+      plant_id: 123,
+      care_guide_data: {...},
+      freshness_version: 2,
+      last_care_generated_at: "2026-05-...",
+      overridden_fields: null
+    }
+    // ... sparse; only matches present in the catalogue
+  }
+}
+```
+
+Wave 3 of AI Plant Overhaul (the client UI) will render an "In catalogue" / "Your custom version" pill on each match that has a `hits` entry, and short-circuit the `generate_care_guide` call when the user picks one (using `db_plant_id` directly).
+
+The response is backward-compatible: clients that ignore `hits` continue to work exactly as before. See [AI Plant Catalogue](../99-cross-cutting/33-ai-plant-catalogue.md) (planned, Wave 9) for the full lifecycle.
+
 ### Error states
 
 | State | Result |

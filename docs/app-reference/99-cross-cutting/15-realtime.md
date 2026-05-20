@@ -46,6 +46,8 @@ Internally:
 | `integration_devices` | IntegrationsPage |
 | `automations` | AutomationsSection |
 | `home_dashboard_stats` (if subscribed) | Dashboard |
+| `plants` (Wave 1 of AI Plant Overhaul) | `useCachedShed`, `useAiPlantFreshness` — refetch when `freshness_version` bumps on a plant in the user's shed |
+| `user_plant_ack` (Wave 1 of AI Plant Overhaul) | `useAiPlantFreshness` — cross-device ack sync (acknowledging on phone clears chip on desktop) |
 
 ### Presence (`PresenceAvatars`)
 

@@ -11,6 +11,7 @@ import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
 import { getFallback } from "../_shared/fallbacks.ts";
 import { reverseGeocodeCity } from "../_shared/locationContext.ts";
+import { normaliseScientificKey, parseMatchString } from "../_shared/aiPlantCatalogue.ts";
 
 const FN = "plant-doctor";
 
@@ -47,9 +48,21 @@ const CARE_GUIDE_SCHEMA = {
         watering_min_days: { type: "NUMBER" },
         watering_max_days: { type: "NUMBER" },
         sunlight:          { type: "ARRAY", items: { type: "STRING" } },
-        flowering_season:  { type: "ARRAY", items: { type: "STRING" } },
-        harvest_season:    { type: "ARRAY", items: { type: "STRING" } },
-        pruning_month:     { type: "ARRAY", items: { type: "STRING" } },
+        flowering_season:  {
+          type: "ARRAY",
+          description: "Seasons in which the plant flowers. Each element MUST be one of: 'Spring', 'Summer', 'Autumn', 'Winter'. Use seasons appropriate for the user's hemisphere. Return an empty array if the plant does not flower or flowering is year-round.",
+          items: { type: "STRING", enum: ["Spring", "Summer", "Autumn", "Winter"] },
+        },
+        harvest_season:    {
+          type: "ARRAY",
+          description: "Seasons in which the plant is ready to harvest. Each element MUST be one of: 'Spring', 'Summer', 'Autumn', 'Winter'. Use seasons appropriate for the user's hemisphere. Return an empty array if the plant is not typically harvested.",
+          items: { type: "STRING", enum: ["Spring", "Summer", "Autumn", "Winter"] },
+        },
+        pruning_month:     {
+          type: "ARRAY",
+          description: "Abbreviated month names when pruning is appropriate. Each element MUST be one of: 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'. Use months appropriate for the user's hemisphere. Return an empty array if the plant doesn't need pruning.",
+          items: { type: "STRING", enum: ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"] },
+        },
         propagation:       { type: "ARRAY", items: { type: "STRING" } },
         attracts:          { type: "ARRAY", items: { type: "STRING" } },
         is_toxic_pets:     { type: "BOOLEAN" },
@@ -450,8 +463,9 @@ serve(async (req) => {
       if (cachedAll?.matches?.length) {
         const page = cachedAll.matches.slice(offset, offset + PAGE_SIZE);
         const hasMore = offset + PAGE_SIZE < cachedAll.matches.length;
-        log(FN, "result", { action, matchesCount: page.length, query: plantSearch ?? null, fromCache: true, offset });
-        return new Response(JSON.stringify({ matches: page, hasMore }), {
+        const hits = await lookupCatalogueHits(supabase, page, homeId ?? null);
+        log(FN, "result", { action, matchesCount: page.length, hitCount: Object.keys(hits).length, query: plantSearch ?? null, fromCache: true, offset });
+        return new Response(JSON.stringify({ matches: page, hasMore, hits }), {
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         });
       }
@@ -499,8 +513,9 @@ Each match must be a real plant species. Format each as "Common Name (Scientific
 
       const page = allMatches.slice(0, PAGE_SIZE);
       const hasMore = allMatches.length > PAGE_SIZE;
-      log(FN, "result", { action, total: allMatches.length, matchesCount: page.length, query: plantSearch ?? null, fromCache: false });
-      return new Response(JSON.stringify({ matches: page, hasMore }), {
+      const hits = await lookupCatalogueHits(supabase, page, homeId ?? null);
+      log(FN, "result", { action, total: allMatches.length, matchesCount: page.length, hitCount: Object.keys(hits).length, query: plantSearch ?? null, fromCache: false });
+      return new Response(JSON.stringify({ matches: page, hasMore, hits }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -510,8 +525,39 @@ Each match must be a real plant species. Format each as "Common Name (Scientific
     if (action === "generate_care_guide") {
       if (!targetPlant) throw new Error("No target plant provided.");
       const cleanName = targetPlant.split("(")[0].trim();
-      const careKey = cacheKey("care_guide", cleanName, hemisphere);
+      const parsed = parseMatchString(targetPlant);
+      const key = normaliseScientificKey(parsed.scientificName ? [parsed.scientificName] : [], parsed.commonName);
 
+      // 1. CATALOGUE READ — if a global AI row exists for this species, return its
+      //    care_guide_data instead of regenerating. This is the "Tomato already
+      //    in the catalogue" path (zero Gemini cost).
+      if (key) {
+        const { data: existing } = await supabase
+          .from("plants")
+          .select("id, care_guide_data, freshness_version, last_care_generated_at")
+          .eq("source", "ai")
+          .is("home_id", null)
+          .eq("scientific_name_key", key)
+          .maybeSingle();
+        if (existing?.care_guide_data) {
+          log(FN, "result", { action, plant: cleanName, fromCatalogue: true, plantId: existing.id });
+          return new Response(JSON.stringify({
+            plantData: (existing.care_guide_data as Record<string, unknown>).plantData ?? existing.care_guide_data,
+            db_plant_id: existing.id,
+            freshness_version: existing.freshness_version,
+            last_care_generated_at: existing.last_care_generated_at,
+            fromCatalogue: true,
+          }), {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
+      // 2. LEGACY STRING CACHE — transitional read for plants not yet in the
+      //    catalogue. Once Wave 7 backfill collapses all per-home duplicates
+      //    into globals, this branch becomes effectively dead code and can be
+      //    removed in a later cleanup. For now it keeps existing flows working.
+      const careKey = cacheKey("care_guide", cleanName, hemisphere);
       const cached = await getCached<{ plantData: any }>(supabase, careKey);
       if (cached) {
         log(FN, "result", { action, plant: cleanName, fromCache: true });
@@ -520,10 +566,14 @@ Each match must be a real plant species. Format each as "Common Name (Scientific
         });
       }
 
+      // 3. GEMINI GENERATE
       const prompt = `Generate a comprehensive botanical care guide for "${cleanName}".
 ${locationLine ? `Location context: ${locationLine}. Ensure seasonal advice (pruning months, flowering season, harvest season) reflects this hemisphere and location.` : ""}
 
-Return all fields accurately. For pruning_month, use the abbreviated month names appropriate for the ${hemisphere} Hemisphere.`;
+Return all fields accurately. STRICT formatting rules:
+- flowering_season + harvest_season: only one or more of "Spring", "Summer", "Autumn", "Winter". Never months. Never year-round descriptions; if year-round, return all four seasons.
+- pruning_month: only abbreviated month names from this exact set: "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec". Never full month names. Never seasons.
+- All three arrays must be tuned to the ${hemisphere} Hemisphere (e.g. summer harvest in northern hemisphere is Jun-Aug, in southern hemisphere is Dec-Feb).`;
 
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN, toMessages([prompt]),
@@ -538,6 +588,64 @@ Return all fields accurately. For pruning_month, use the abbreviated month names
         if (permanentUrl) parsedData.plantData.thumbnail_url = permanentUrl;
       }
 
+      // 4. CATALOGUE WRITE — insert the freshly-generated care guide as a global
+      //    AI row (home_id = NULL). Race-safe: if a concurrent caller inserted
+      //    the same species first, the partial unique index throws; we catch
+      //    and re-read the now-existing row.
+      let dbPlantId: number | null = null;
+      let dbFreshnessVersion: number | null = null;
+      let dbLastGenerated: string | null = null;
+      if (key) {
+        const insertPayload = {
+          source: "ai",
+          home_id: null,
+          common_name: parsedData.plantData?.common_name ?? parsed.commonName,
+          scientific_name: parsedData.plantData?.scientific_name ?? (parsed.scientificName ? [parsed.scientificName] : []),
+          thumbnail_url: parsedData.plantData?.thumbnail_url ?? null,
+          care_guide_data: parsedData,
+          freshness_version: 1,
+          last_care_generated_at: new Date().toISOString(),
+          // last_freshness_check_at stays NULL — eligible for the next stale-check cron.
+        };
+        const insertResult = await supabase.from("plants").insert(insertPayload).select("id, freshness_version, last_care_generated_at").maybeSingle();
+        if (insertResult.error) {
+          // Likely the unique-index race. Re-read.
+          const { data: existing2 } = await supabase
+            .from("plants")
+            .select("id, freshness_version, last_care_generated_at")
+            .eq("source", "ai").is("home_id", null).eq("scientific_name_key", key)
+            .maybeSingle();
+          if (existing2) {
+            dbPlantId = existing2.id;
+            dbFreshnessVersion = existing2.freshness_version;
+            dbLastGenerated = existing2.last_care_generated_at;
+          } else {
+            // Unexpected — log but don't fail the request. The client still gets
+            // the care guide data; just can't link to a global plant_id this time.
+            warn(FN, "insert-race-recovery-failed", { error: insertResult.error.message, key });
+          }
+        } else if (insertResult.data) {
+          dbPlantId = insertResult.data.id;
+          dbFreshnessVersion = insertResult.data.freshness_version;
+          dbLastGenerated = insertResult.data.last_care_generated_at;
+
+          // Initial revision audit row. Best-effort — failure here doesn't
+          // affect the user response (the data is already in plants).
+          const { error: revErr } = await supabase.from("plant_care_revisions").insert({
+            plant_id: dbPlantId,
+            version: 1,
+            source: "initial",
+            care_guide_data: parsedData,
+            changed_fields: null,
+            diff_summary: null,
+            triggered_by: callerUserId ?? null,
+          });
+          if (revErr) warn(FN, "initial-revision-insert-failed", { error: revErr.message, plantId: dbPlantId });
+        }
+      }
+
+      // Keep the string cache write for backward compat during transition.
+      // Wave 4+ will drop this once the catalogue is the canonical store.
       await setCached(supabase, careKey, FN, parsedData, 30);
       await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "generate_care_guide", usage });
       log(FN, "result", {
@@ -545,8 +653,15 @@ Return all fields accurately. For pruning_month, use the abbreviated month names
         plantType: parsedData.plantData?.plant_type,
         cycle: parsedData.plantData?.cycle,
         hasWikiImage: !!parsedData.plantData?.thumbnail_url,
+        dbPlantId,
       });
-      return new Response(JSON.stringify(parsedData), {
+      return new Response(JSON.stringify({
+        ...parsedData,
+        db_plant_id: dbPlantId,
+        freshness_version: dbFreshnessVersion,
+        last_care_generated_at: dbLastGenerated,
+        fromCatalogue: false,
+      }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -903,3 +1018,94 @@ ${locationLine ? `Gardener location: ${locationLine}. Tailor treatment and preve
     });
   }
 });
+
+// ──────────────────────────────────────────────────────────────────────────
+// AI catalogue lookup — used by search_plants_text to mark which matches
+// already exist in the global catalogue or as a home-fork. Backward-
+// compatible: the function returns a sparse map keyed by the original match
+// string; clients that ignore `hits` work as before.
+// ──────────────────────────────────────────────────────────────────────────
+
+type CatalogueHit = {
+  hit_kind: "global" | "home_fork";
+  plant_id: number;
+  care_guide_data: unknown;
+  freshness_version: number | null;
+  last_care_generated_at: string | null;
+  overridden_fields: unknown;
+};
+
+async function lookupCatalogueHits(
+  supabase: any,
+  matches: string[],
+  homeId: string | null,
+): Promise<Record<string, CatalogueHit>> {
+  if (!matches?.length) return {};
+
+  // Parse each "Common Name (Scientific Name)" → scientific_name_key.
+  const matchByKey = new Map<string, string>();   // key → original match string
+  const keys: string[] = [];
+  for (const m of matches) {
+    const { commonName, scientificName } = parseMatchString(m);
+    const k = normaliseScientificKey(scientificName ? [scientificName] : [], commonName);
+    if (k && !matchByKey.has(k)) {
+      matchByKey.set(k, m);
+      keys.push(k);
+    }
+  }
+  if (!keys.length) return {};
+
+  const hits: Record<string, CatalogueHit> = {};
+
+  // Stage 1: home fork takes precedence (this home has its own override).
+  if (homeId) {
+    const { data: homeForks } = await supabase
+      .from("plants")
+      .select("id, care_guide_data, freshness_version, last_care_generated_at, scientific_name_key, overridden_fields")
+      .eq("source", "ai")
+      .eq("home_id", homeId)
+      .in("scientific_name_key", keys);
+    for (const row of homeForks ?? []) {
+      const m = matchByKey.get(row.scientific_name_key);
+      if (m) {
+        hits[m] = {
+          hit_kind: "home_fork",
+          plant_id: row.id,
+          care_guide_data: row.care_guide_data,
+          freshness_version: row.freshness_version,
+          last_care_generated_at: row.last_care_generated_at,
+          overridden_fields: row.overridden_fields,
+        };
+      }
+    }
+  }
+
+  // Stage 2: global rows for keys we haven't matched yet.
+  const remainingKeys = keys.filter((k) => {
+    const m = matchByKey.get(k);
+    return m && !hits[m];
+  });
+  if (remainingKeys.length) {
+    const { data: globals } = await supabase
+      .from("plants")
+      .select("id, care_guide_data, freshness_version, last_care_generated_at, scientific_name_key")
+      .eq("source", "ai")
+      .is("home_id", null)
+      .in("scientific_name_key", remainingKeys);
+    for (const row of globals ?? []) {
+      const m = matchByKey.get(row.scientific_name_key);
+      if (m) {
+        hits[m] = {
+          hit_kind: "global",
+          plant_id: row.id,
+          care_guide_data: row.care_guide_data,
+          freshness_version: row.freshness_version,
+          last_care_generated_at: row.last_care_generated_at,
+          overridden_fields: null,
+        };
+      }
+    }
+  }
+
+  return hits;
+}

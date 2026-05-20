@@ -69,7 +69,8 @@ Per-tier monthly token budgets enforced server-side. When exhausted, edge functi
 ### Caching strategy
 
 - **Provider plant details** — cached in `plants` row (`data` jsonb) to avoid re-fetch.
-- **AI care guides** — cached on `inventory_items` or via `plant_care_guides` (varies).
+- **AI care guides (Wave 2+ of AI Plant Overhaul)** — stored in `plants.care_guide_data` (jsonb) on the global AI catalogue row. Replaces the legacy 30-day TTL string-keyed cache. Reads hit the catalogue first (zero AI cost on cache hit); writes happen during `generate_care_guide`. Invalidation is **freshness-version-based**, not TTL: the `refresh-stale-ai-plants` cron (Wave 4) re-checks every 90 days; the `manual-refresh-ai-plant` edge fn re-checks on user request. `freshness_version` bumps when content changes; clients compare against `user_plant_ack.seen_freshness_version` to decide whether to show the "Updated" chip. See [AI Plant Catalogue](./33-ai-plant-catalogue.md) (planned, Wave 9) for the full lifecycle.
+- **AI care guides (legacy / transitional)** — also still written to the string-keyed `getCached/setCached` for backward compatibility during the AI Plant Overhaul rollout. Removed once Wave 7 backfill completes.
 - **Image search results** — cached briefly per query.
 - **Pattern engine outputs** — `user_insights` row persists until dismissed.
 
@@ -84,6 +85,13 @@ Idempotent calls retry once on Gemini 5xx. Non-idempotent (image upload then ana
 ### Structured output
 
 Most calls use Gemini's JSON-mode with a schema (`responseMimeType: "application/json"`, `responseSchema`) for reliable parsing.
+
+**Enum constraints** on array items are honoured strictly — Gemini will only return values from the allowed list or fail the response. Used to lock enumerated values for fields where Gemini otherwise free-styles:
+
+- `CARE_GUIDE_SCHEMA.plantData.flowering_season` and `harvest_season`: enum `["Spring", "Summer", "Autumn", "Winter"]`. Without this constraint, Gemini was returning month names or comma-separated month strings.
+- `CARE_GUIDE_SCHEMA.plantData.pruning_month`: enum `["Jan", "Feb", ..., "Dec"]`. Strict abbreviated month names; never full names or seasons.
+
+Used by both `plant-doctor`'s `generate_care_guide` action and the standalone `manual-refresh-ai-plant` edge function. Hemisphere-tuning is applied by the prompt, not the schema (the enum is the same regardless of hemisphere — the choice of WHICH season/month maps to the user's hemisphere comes from the prompt instruction).
 
 ### Personalisation context
 

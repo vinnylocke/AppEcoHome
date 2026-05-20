@@ -16,10 +16,11 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 
 | Function | Trigger | Purpose |
 |----------|---------|---------|
-| `plant-doctor` | Browser (PlantDoctor screen) | Multi-action: identify / diagnose / pest. Vision via Gemini. |
+| `plant-doctor` | Browser (PlantDoctor screen) | Multi-action: identify / diagnose / pest / search_plants_text / generate_care_guide. Wave 2 of AI Plant Overhaul added catalogue-aware behaviour: `search_plants_text` returns a sparse `hits` map of matches that already exist in the global AI catalogue (or as a home fork); `generate_care_guide` checks the catalogue before calling Gemini and INSERTs a global AI plants row on cache miss. |
 | `plant-doctor-ai` | Browser (Plant Doctor Chat) | Chat with vision + tool calls. |
 | `search-plants-ai` | Browser (BulkSearch AI tab) | Text search by name; AI synthesises matches. |
 | `plant-image-search` | Browser (DiagnosisImageGallery, MultiImageGallery) | Merged image search across Wikipedia / Pixabay / iNaturalist / Verdantly. |
+| `manual-refresh-ai-plant` | Browser ("Refresh now" button in Plant Edit Modal Care tab) | Sage+ tier-gated, rate-limited to once per (user, plant) per 7 days. Re-runs Gemini for a single global AI plant, diffs vs current `care_guide_data`, bumps `freshness_version` + writes `plant_care_revisions` row if changed. Cost lands against the user's AI quota. Added in Wave 2 of AI Plant Overhaul. |
 
 ### AI — Planning
 

@@ -77,6 +77,10 @@ scorePlantByPreferences(commonName, scientificName, preferences)
 - Debounced search.
 - Result detail panel lazy-fetches via `getProviderPlantDetails`.
 
+### AI catalogue enrichment (Wave 2 of AI Plant Overhaul)
+
+When the AI tab queries `PlantDoctorService.searchPlantsText`, the response includes a sparse `hits` map alongside `matches`. Wave 3 wires the UI to show "In catalogue" / "Your custom version" pills on hit results and skip the `generate_care_guide` call on selection. See [Bulk Search Modal](./04-bulk-search-modal.md) for the response shape and [AI Plant Catalogue](../99-cross-cutting/33-ai-plant-catalogue.md) for the full lifecycle.
+
 ---
 
 ## Role 2 — Expert Gardener's Guide

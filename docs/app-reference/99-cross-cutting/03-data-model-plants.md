@@ -30,16 +30,25 @@ plants (species)
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | int (auto) | PK |
-| `home_id` | uuid | FK |
+| `home_id` | uuid (nullable) | FK. NULL for global rows (Perenual API + global AI catalogue). |
 | `source` | text | constraint allows manual / api / ai / verdantly |
 | `common_name` | text | |
-| `scientific_name` | text[] | |
+| `scientific_name` | jsonb (array) | |
 | `perenual_id`, `verdantly_id` | int / text | Provider ids |
-| `sunlight` | text[] | |
+| `sunlight` | jsonb (array) | |
 | `watering`, `cycle`, `medium`, `hardiness` | text/jsonb | |
 | `data` | jsonb | Provider full payload (legacy) |
 | `default_image` | text | URL |
 | `is_archived` | bool | |
+| **AI catalogue columns** (Wave 1 of AI Plant Overhaul — `20260620000000`): | | |
+| `scientific_name_key` | text (GENERATED) | Auto-computed lowercased + whitespace-collapsed first scientific name. Dedup key for AI globals + home forks. |
+| `care_guide_data` | jsonb | AI-generated structured care guide. Replaces the legacy 30-day TTL string cache. See `CARE_GUIDE_SCHEMA` in `supabase/functions/plant-doctor/index.ts`. Key shape: `{ plantData: { common_name, scientific_name[], description, plant_type, cycle, care_level, growth_rate, watering_min_days, watering_max_days, sunlight[], flowering_season[] ∈ [Spring/Summer/Autumn/Winter], harvest_season[] ∈ same, pruning_month[] ∈ [Jan-Dec abbrev], propagation[], attracts[], is_toxic_pets, is_toxic_humans, indoor, is_edible, ... } }`. The `flowering_season`/`harvest_season`/`pruning_month` enums are enforced server-side via Gemini's `enum` schema constraint — see [AI — Gemini](./13-ai-gemini.md#structured-output). |
+| `updated_care_fields` | jsonb (array) | Field names that changed in the most recent stale-check regeneration. Drives the per-field highlight. |
+| `freshness_version` | int | Bumps each time `care_guide_data` changes. Compared against `user_plant_ack.seen_freshness_version` to decide whether to show the "Updated" chip. Default 1. |
+| `last_freshness_check_at` | timestamptz | 90-day stale-check window driver. NULL → eligible immediately. |
+| `last_care_generated_at` | timestamptz | When the care guide was actually re-generated (vs. just verified unchanged). Shown to user as "Care guide refreshed N days ago". |
+| `forked_from_plant_id` | int (FK → plants.id) | For home-scoped AI forks: the global parent. NULL on globals. `ON DELETE SET NULL`. |
+| `overridden_fields` | jsonb (array) | For home-scoped AI forks: field names the user explicitly changed. Drives "Overridden" badges. |
 
 ### `plants_source_check` constraint
 
@@ -48,6 +57,43 @@ CHECK (source IN ('manual', 'api', 'ai', 'verdantly'))
 ```
 
 This constraint required a migration when 'ai' was added — historical reference saved in memory.
+
+### AI catalogue dedup indexes (Wave 1)
+
+```sql
+-- Global: at most one AI row per species (no overrides).
+plants_ai_global_dedup_idx (scientific_name_key)
+  WHERE source = 'ai' AND home_id IS NULL AND scientific_name_key IS NOT NULL;
+
+-- Per-home fork: at most one fork per (home, species).
+plants_ai_home_fork_dedup_idx (home_id, scientific_name_key)
+  WHERE source = 'ai' AND home_id IS NOT NULL AND scientific_name_key IS NOT NULL;
+
+-- Stale-check cron's primary scan.
+plants_ai_global_stale_idx (last_freshness_check_at NULLS FIRST)
+  WHERE source = 'ai' AND home_id IS NULL;
+
+-- Reset / orphan-repair lookup.
+plants_forked_from_idx (forked_from_plant_id)
+  WHERE forked_from_plant_id IS NOT NULL;
+```
+
+### New tables introduced by Wave 1 of AI Plant Overhaul
+
+| Table | Purpose | Key columns |
+|-------|---------|-------------|
+| `plant_care_revisions` | Append-only audit trail of every AI care-guide change. One row per `(plant_id, version)`. | `plant_id`, `version`, `source` (`initial`/`stale_check`/`manual_refresh`/`backfill`), `care_guide_data`, `changed_fields`, `diff_summary`, `triggered_by` |
+| `user_plant_ack` | Per-user, per-plant "I've seen version N" tracking. Drives the "Updated" chip. | PK `(user_id, plant_id)`, `seen_freshness_version`, `acked_at` |
+| `ai_plant_manual_refresh_log` | One row per Sage+ user-triggered manual refresh. Drives the 7-day rate limit. | `user_id`, `plant_id`, `refreshed_at` |
+
+See [AI Plant Catalogue](./33-ai-plant-catalogue.md) for the full lifecycle (planned doc, Wave 9).
+
+### RPCs introduced by Wave 1 of AI Plant Overhaul
+
+| RPC | Purpose | Called from |
+|-----|---------|-------------|
+| `fork_ai_plant_for_home(plant_id, home_id, edits, overridden_fields)` | Atomic detach-and-fork: inserts home-scoped fork row, repoints inventory_items, seeds user_plant_ack. `SECURITY DEFINER`. | DetachConfirmModal on save in Plant Edit Modal (Wave 6) |
+| `reset_ai_plant_fork(fork_id)` | Repoints inventory back to global parent, seeds acks at the parent's current version, deletes the fork. `SECURITY DEFINER`. | "Reset to catalogue" button in Plant Edit Modal (Wave 6) |
 
 ### `inventory_items` columns (subset)
 

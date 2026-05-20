@@ -49,6 +49,37 @@ WHERE user_id = auth.uid()
   )
 ```
 
+### Source-aware global-row policy (`plants` table)
+
+The `plants` table is special: it allows `home_id IS NULL` rows as global catalogue entries (Perenual API + AI catalogue). The UPDATE policy must permit normal write paths while preventing users from tampering with the new global AI catalogue (Wave 1 of AI Plant Overhaul, migration `20260620000100`):
+
+```sql
+CREATE POLICY "Users can update plants for their homes"
+  ON plants
+  FOR UPDATE
+  TO authenticated
+  USING (
+    home_id IN (SELECT home_id FROM home_members WHERE user_id = auth.uid())
+    -- Global non-AI plants (Perenual etc.) stay user-writable.
+    -- AI globals are locked down — only service_role + SECURITY DEFINER RPCs can update.
+    OR (home_id IS NULL AND source <> 'ai')
+  )
+  WITH CHECK (
+    home_id IN (SELECT home_id FROM home_members WHERE user_id = auth.uid())
+    OR (home_id IS NULL AND source <> 'ai')
+  );
+```
+
+The exclusion ensures the stale-check cron's regenerations + the two RPCs (`fork_ai_plant_for_home`, `reset_ai_plant_fork`) are the only paths that can modify global AI rows. RPCs use `SECURITY DEFINER` so they bypass the user's RLS context.
+
+### Wave 1 RLS policies for new AI catalogue tables
+
+| Table | Policy | Access |
+|-------|--------|--------|
+| `plant_care_revisions` | `Read care revisions` | Authenticated users can SELECT if they can read the parent plant. No client INSERT / UPDATE / DELETE — only service_role (cron) or SECURITY DEFINER RPCs. |
+| `user_plant_ack` | `Own ack rows` | Per-user. `user_id = auth.uid()` on all operations. |
+| `ai_plant_manual_refresh_log` | `Own refresh log rows` | Per-user. Clients only SELECT (history view). Writes go through the `manual_refresh_ai_plant` edge function with service role. |
+
 This lets the home owner grant per-action overrides via the Members & Permissions tab.
 
 ### User-scoped tables

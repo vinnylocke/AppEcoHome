@@ -83,6 +83,10 @@ None.
 - AI tab visible if `isAiEnabled`.
 - Verdantly always shown.
 
+### AI catalogue enrichment (Wave 2 of AI Plant Overhaul)
+
+The AI tab calls `PlantDoctorService.searchPlantsText` under the hood, which now returns a `hits` map flagging which matches already exist in the global AI catalogue (or as a home fork). Wave 3 wires the UI to show "In catalogue" / "Your custom version" pills + skip the `generate_care_guide` call on hit. See [Bulk Search Modal](./04-bulk-search-modal.md) for the response shape and [AI Plant Catalogue](../99-cross-cutting/33-ai-plant-catalogue.md) for the full lifecycle.
+
 ### Beta gating
 
 None.
