@@ -53,16 +53,16 @@ The single source of truth for every documented screen, modal, and cross-cutting
 
 ## 05 — Tools
 
-- [ ] [Tools Hub](./05-tools/01-tools-hub.md) — grouped tile launcher
-- [ ] [Plant Doctor](./05-tools/02-plant-doctor.md) — identify / diagnose / pest scan
-- [ ] [Plant Doctor Chat](./05-tools/03-plant-doctor-chat.md) — sticky AI chat overlay
-- [ ] [Plant Doctor History](./05-tools/04-plant-doctor-history.md) — past sessions with filters
-- [ ] [Plant Visualiser](./05-tools/05-plant-visualiser.md) — AR / 2D plant view
-- [ ] [Sprite Wizard](./05-tools/06-sprite-wizard.md) — assign plant icons for visualiser
-- [ ] [Guides List](./05-tools/07-guides-list.md) — Rhozly + Community guides with bookmarks
-- [ ] [Community Guide Reader](./05-tools/08-community-guide-reader.md) — single-guide view
-- [ ] [Community Guide Editor](./05-tools/09-community-guide-editor.md) — user authoring
-- [ ] [Garden Profile / Habit Quiz](./05-tools/10-garden-profile.md) — preferences editor
+- [x] [Tools Hub](./05-tools/01-tools-hub.md) — grouped tile launcher
+- [x] [Plant Doctor](./05-tools/02-plant-doctor.md) — identify / diagnose / pest scan
+- [x] [Plant Doctor Chat](./05-tools/03-plant-doctor-chat.md) — sticky AI chat overlay
+- [x] [Plant Doctor History](./05-tools/04-plant-doctor-history.md) — past sessions with filters
+- [x] [Plant Visualiser](./05-tools/05-plant-visualiser.md) — AR / 2D plant view
+- [x] [Sprite Wizard](./05-tools/06-sprite-wizard.md) — assign plant icons for visualiser
+- [x] [Guides List](./05-tools/07-guides-list.md) — Rhozly + Community guides with bookmarks
+- [x] [Community Guide Reader](./05-tools/08-community-guide-reader.md) — single-guide view
+- [x] [Community Guide Editor](./05-tools/09-community-guide-editor.md) — user authoring
+- [x] [Garden Profile / Habit Quiz](./05-tools/10-garden-profile.md) — preferences editor
 
 ## 06 — Account & Settings
 
