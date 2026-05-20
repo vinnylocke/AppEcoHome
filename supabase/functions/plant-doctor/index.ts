@@ -579,7 +579,10 @@ Each match must be a real plant species. Format each as "Common Name (Scientific
             healedFreshnessVersion = existing.freshness_version;
             healedLastGenerated = existing.last_care_generated_at;
           } else {
+            // plants.id has no DB default — every insert must supply one.
+            // Use timestamp + jitter, matching the client's convention.
             const insertPayload = {
+              id: Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000),
               source: "ai",
               home_id: null,
               common_name: cached.plantData?.common_name ?? parsed.commonName,
@@ -664,7 +667,10 @@ Return all fields accurately. STRICT formatting rules:
       let dbFreshnessVersion: number | null = null;
       let dbLastGenerated: string | null = null;
       if (key) {
+        // plants.id has no DB default — every insert must supply one.
+        // Use timestamp + jitter, matching the client's convention.
         const insertPayload = {
+          id: Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000),
           source: "ai",
           home_id: null,
           common_name: parsedData.plantData?.common_name ?? parsed.commonName,
