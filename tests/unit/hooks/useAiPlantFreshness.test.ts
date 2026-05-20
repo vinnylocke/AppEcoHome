@@ -222,4 +222,57 @@ describe("useAiPlantFreshness", () => {
 
     expect(result.current.byPlantId[9]).toBeNull();
   });
+
+  test("orphan home-scoped AI (home_id set, no forked_from) returns null", async () => {
+    // Simulates a plant added before Wave 2's catalogue-write was active, or
+    // when the catalogue-insert race-recovery failed. The row is AI + lives
+    // in a home but has no global parent link → no chip, no refresh button.
+    supabaseState.plants = [];
+
+    const { result } = renderHook(() =>
+      useAiPlantFreshness([
+        {
+          id: 42,
+          source: "ai",
+          home_id: "home-abc",
+          forked_from_plant_id: null,
+          overridden_fields: [],
+        },
+      ]),
+    );
+
+    await waitFor(() => expect(result.current.loading).toBe(false));
+
+    expect(result.current.byPlantId[42]).toBeNull();
+  });
+
+  test("true global AI (home_id null, no forked_from) resolves to itself", async () => {
+    // Defensive — confirms the pure-global case still works after the
+    // home_id-aware resolveGlobalId change.
+    supabaseState.plants = [
+      {
+        id: 200,
+        freshness_version: 2,
+        updated_care_fields: ["cycle"],
+        last_care_generated_at: null,
+      },
+    ];
+    supabaseState.user_plant_ack = [{ plant_id: 200, seen_freshness_version: 1 }];
+
+    const { result } = renderHook(() =>
+      useAiPlantFreshness([
+        {
+          id: 200,
+          source: "ai",
+          home_id: null,
+          forked_from_plant_id: null,
+          overridden_fields: [],
+        },
+      ]),
+    );
+
+    await waitFor(() => expect(result.current.byPlantId[200]?.has_update).toBe(true));
+
+    expect(result.current.byPlantId[200]?.global_plant_id).toBe(200);
+  });
 });

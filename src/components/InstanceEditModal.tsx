@@ -710,6 +710,7 @@ function InstanceCareFreshnessSection({ plantRecord }: { plantRecord: any }) {
           {
             id: plantRecord.id as number,
             source: plantRecord.source,
+            home_id: plantRecord.home_id ?? null,
             forked_from_plant_id: plantRecord.forked_from_plant_id ?? null,
             overridden_fields: plantRecord.overridden_fields ?? null,
           },

@@ -101,6 +101,7 @@ export default function PlantEditModal({
       ? [{
           id: plant.id,
           source: plant.source,
+          home_id: plant.home_id ?? null,
           forked_from_plant_id: plant.forked_from_plant_id ?? null,
           overridden_fields: plant.overridden_fields ?? null,
         }]

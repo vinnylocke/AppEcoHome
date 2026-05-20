@@ -108,7 +108,13 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   // shallow forks via `forked_from_plant_id` so the chip's source of truth
   // is always the global catalogue row.
   const { byPlantId: freshnessByPlantId } = useAiPlantFreshness(
-    plants as Array<{ id: number; source: string | null; forked_from_plant_id: number | null; overridden_fields: string[] | null }>,
+    plants as Array<{
+      id: number;
+      source: string | null;
+      home_id: string | null;
+      forked_from_plant_id: number | null;
+      overridden_fields: string[] | null;
+    }>,
   );
 
   const [actionLoading, setActionLoading] = useState(false);
@@ -460,6 +466,26 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             aiSkeleton.overridden_fields = [];
           }
           await savePlantToDB(aiSkeleton, extracted);
+          // Post-Wave-7 hotfix — seed user_plant_ack at the global's current
+          // freshness_version so the freshness chip doesn't fire on a
+          // just-added plant. Mirrors what fork_ai_plant_for_home does
+          // internally; we have to do it client-side because Wave 3 chose to
+          // create the home-scoped row directly rather than via the RPC.
+          if (pd?.db_plant_id != null) {
+            const { data: userData } = await supabase.auth.getUser();
+            const callerId = userData?.user?.id;
+            if (callerId) {
+              await supabase.from("user_plant_ack").upsert(
+                {
+                  user_id: callerId,
+                  plant_id: pd.db_plant_id,
+                  seen_freshness_version: pd.freshness_version ?? 1,
+                  acked_at: new Date().toISOString(),
+                },
+                { onConflict: "user_id,plant_id" },
+              );
+            }
+          }
         }
         setBulkQueue((prev) =>
           prev.map((q) => (q.id === item.id ? { ...q, status: "success" } : q)),

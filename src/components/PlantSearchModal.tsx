@@ -382,6 +382,26 @@ export default function PlantSearchModal({
 
       if (error) throw error;
 
+      // Post-Wave-7 hotfix — for AI plants where the catalogue is known,
+      // seed user_plant_ack at the global's current freshness_version so
+      // the freshness chip doesn't fire on a freshly-added plant. Mirrors
+      // the same step in TheShed.handleProceedToBulkAdd.
+      if (isAi && previewPlant.db_plant_id != null) {
+        const { data: userData } = await supabase.auth.getUser();
+        const callerId = userData?.user?.id;
+        if (callerId) {
+          await supabase.from("user_plant_ack").upsert(
+            {
+              user_id: callerId,
+              plant_id: previewPlant.db_plant_id,
+              seen_freshness_version: previewPlant.freshness_version ?? 1,
+              acked_at: new Date().toISOString(),
+            },
+            { onConflict: "user_id,plant_id" },
+          );
+        }
+      }
+
       // Only Perenual rows get the auto-generated harvest schedule today
       // (it references "Perenual Database" in the description). Wave 7 (D2)
       // explicitly excludes AI plants from this branch — their schedules

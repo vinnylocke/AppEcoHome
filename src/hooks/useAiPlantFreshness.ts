@@ -24,6 +24,12 @@ import { Logger } from "../lib/errorHandler";
 type PlantRow = {
   id: number;
   source: string | null;
+  /**
+   * NULL → row is the global catalogue entry (pure global).
+   * Non-NULL → row is home-scoped (shallow fork, deep fork, or orphan).
+   * Optional so non-AI callers don't have to plumb it.
+   */
+  home_id?: string | null;
   forked_from_plant_id: number | null;
   overridden_fields: string[] | null;
 };
@@ -50,16 +56,26 @@ export interface UseAiPlantFreshnessResult {
  * Decide whether a plant row should look up freshness via itself or via its
  * global parent. Returns the global plant id to query, or null when the row
  * is not eligible for the freshness chip.
+ *
+ *   - Non-AI row                                            → null
+ *   - Deep fork (overridden_fields non-empty)               → null (user opted out)
+ *   - Shallow fork (forked_from_plant_id set)               → its parent
+ *   - True global (home_id NULL, no forked_from)            → itself
+ *   - Orphan home-scoped AI (home_id != null, no parent)    → null
+ *
+ * The orphan case appears when an AI plant was added before the Wave 2
+ * catalogue-write code was active, or when the catalogue insert race-recovery
+ * failed silently. Treating them as ineligible keeps the chip + Refresh-now
+ * button hidden, which is correct — we have no global to compare against or
+ * refresh.
  */
 function resolveGlobalId(p: PlantRow): number | null {
   if (p.source !== "ai") return null;
   const overrides = p.overridden_fields ?? [];
-  if (overrides.length > 0) {
-    // Deep fork — user has diverged from the catalogue. No chip.
-    return null;
-  }
-  // Shallow fork → resolve to its parent. Otherwise it's a global itself.
-  return p.forked_from_plant_id ?? p.id;
+  if (overrides.length > 0) return null;
+  if (p.forked_from_plant_id != null) return p.forked_from_plant_id;
+  if (p.home_id == null) return p.id;
+  return null;
 }
 
 export function useAiPlantFreshness(
@@ -74,7 +90,9 @@ export function useAiPlantFreshness(
   const fingerprint = useMemo(
     () =>
       plants
-        .map((p) => `${p.id}:${p.source ?? ""}:${p.forked_from_plant_id ?? ""}:${(p.overridden_fields ?? []).length}`)
+        .map((p) =>
+          `${p.id}:${p.source ?? ""}:${p.home_id ?? ""}:${p.forked_from_plant_id ?? ""}:${(p.overridden_fields ?? []).length}`,
+        )
         .sort()
         .join("|"),
     [plants],

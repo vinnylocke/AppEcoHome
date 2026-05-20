@@ -939,6 +939,22 @@ After `npm run deploy` lands the Wave 1–6 migrations on prod:
 
 If any of these fail, capture the error + the failing payload, then either revert via Supabase migration rollback or hotfix forward.
 
+#### Post-Wave-7 hotfix — freshly-added AI plant chip + refresh button
+
+Reported during local testing right after Wave 7 shipped:
+
+1. Adding an AI plant immediately showed the yellow "Care guide updated" callout — because `user_plant_ack` was never seeded on add, so `seen_version = 0` and the global's `freshness_version = 1` always triggered `has_update`.
+2. Clicking "Refresh now" on the same plant returned `not_a_global_ai_plant` — because for orphan home-scoped AI rows (no `forked_from_plant_id` set), `resolveGlobalId` fell back to `p.id`, and the edge fn correctly rejected the home row.
+
+Two-part fix:
+
+- **`useAiPlantFreshness.resolveGlobalId`** now takes the row's `home_id` into account. Orphan rows (`source='ai'` + `home_id != null` + `forked_from_plant_id IS NULL`) return null — no chip, no refresh button. Callers `TheShed`, `PlantEditModal`, `InstanceEditModal` updated to pass `home_id`.
+- **`TheShed.handleProceedToBulkAdd`** and **`PlantSearchModal.handleAddToShed`** now upsert a `user_plant_ack` row at the global's current `freshness_version` immediately after the AI plant insert (whenever `db_plant_id` is known). Mirrors what `fork_ai_plant_for_home` does internally — Wave 3 had skipped this step when it chose to do client-side shallow-fork inserts instead of going through the RPC.
+
+Two new unit tests cover the orphan + true-global resolution paths.
+
+What this doesn't fix: existing orphan rows in users' sheds (e.g. plants added before Wave 2's catalogue-write was deployed locally). They just stop showing the chip + refresh button. To repair them would need a one-shot "relink orphans" pass — left as a backlog item if the count grows.
+
 ---
 
 ## 13. Backfill strategy
