@@ -101,25 +101,33 @@ export function useShapeLiveState(homeId: string, areaIds: string[]) {
         const todayISO = today.toISOString();
         const todayDateOnly = todayISO.slice(0, 10);
 
+        // tasks.inventory_item_ids is a uuid[] (a task can link to multiple
+        // instances). Use `overlaps` to find any task whose array intersects
+        // the items in scope, then explode each row's array on the JS side.
         const { data: taskRows } = await supabase
           .from("tasks")
-          .select("inventory_item_id, due_date, status")
+          .select("inventory_item_ids, due_date, status")
           .eq("home_id", homeId)
-          .in("inventory_item_id", itemIds)
+          .overlaps("inventory_item_ids", itemIds)
           .neq("status", "Completed")
           .neq("status", "Skipped")
           .lte("due_date", todayISO);
 
         const taskMap: Record<string, AreaTaskCounts> = {};
         for (const t of taskRows ?? []) {
-          if (!t.inventory_item_id) continue;
-          const areaId = itemToArea[t.inventory_item_id];
-          if (!areaId) continue;
+          const ids = (t as any).inventory_item_ids as string[] | null;
+          if (!ids?.length) continue;
           const due = (t.due_date ?? "").slice(0, 10);
-          const bucket = taskMap[areaId] ?? { overdue: 0, today: 0 };
-          if (due < todayDateOnly) bucket.overdue += 1;
-          else if (due === todayDateOnly) bucket.today += 1;
-          taskMap[areaId] = bucket;
+          const seenAreasForRow = new Set<string>();
+          for (const itemId of ids) {
+            const areaId = itemToArea[itemId];
+            if (!areaId || seenAreasForRow.has(areaId)) continue;
+            seenAreasForRow.add(areaId);
+            const bucket = taskMap[areaId] ?? { overdue: 0, today: 0 };
+            if (due < todayDateOnly) bucket.overdue += 1;
+            else if (due === todayDateOnly) bucket.today += 1;
+            taskMap[areaId] = bucket;
+          }
         }
         if (cancelled) return;
         setTasks(taskMap);

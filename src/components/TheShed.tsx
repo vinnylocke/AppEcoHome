@@ -988,15 +988,17 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
           .select("id, plant_id, area_id")
           .eq("home_id", homeId)
           .limit(2000),
+        // tasks.inventory_item_ids is a uuid[] — a single task can link to
+        // multiple instances. Select the array, then explode it on the JS side.
         supabase
           .from("tasks")
-          .select("inventory_item_id, plan_id")
+          .select("inventory_item_ids, plan_id")
           .eq("home_id", homeId)
           .not("plan_id", "is", null)
           .limit(2000),
         supabase
           .from("tasks")
-          .select("inventory_item_id, due_date, type, status")
+          .select("inventory_item_ids, due_date, type, status")
           .eq("home_id", homeId)
           .neq("status", "Completed")
           .neq("status", "Skipped")
@@ -1022,9 +1024,12 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
 
       const inPlan = new Set<number>();
       (planTasksRes.data ?? []).forEach((row: any) => {
-        if (row.inventory_item_id == null) return;
-        const pid = itemToPlant.get(String(row.inventory_item_id));
-        if (pid != null) inPlan.add(pid);
+        const ids = row.inventory_item_ids as string[] | null;
+        if (!ids?.length) return;
+        for (const itemId of ids) {
+          const pid = itemToPlant.get(String(itemId));
+          if (pid != null) inPlan.add(pid);
+        }
       });
       setPlanMembership(inPlan);
 
@@ -1036,13 +1041,18 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         return e;
       };
       (openTasksRes.data ?? []).forEach((row: any) => {
-        if (!row.inventory_item_id) return;
-        const pid = itemToPlant.get(String(row.inventory_item_id));
-        if (pid == null) return;
-        const entry = ensure(pid);
-        if (row.due_date < todayStr) entry.overdueCount++;
-        else if (row.due_date === todayStr) entry.dueTodayCount++;
-        if (row.type === "Harvesting" && row.due_date <= todayStr) entry.harvestDue = true;
+        const ids = row.inventory_item_ids as string[] | null;
+        if (!ids?.length) return;
+        const seenPlantsForRow = new Set<number>();
+        for (const itemId of ids) {
+          const pid = itemToPlant.get(String(itemId));
+          if (pid == null || seenPlantsForRow.has(pid)) continue;
+          seenPlantsForRow.add(pid);
+          const entry = ensure(pid);
+          if (row.due_date < todayStr) entry.overdueCount++;
+          else if (row.due_date === todayStr) entry.dueTodayCount++;
+          if (row.type === "Harvesting" && row.due_date <= todayStr) entry.harvestDue = true;
+        }
       });
       (ailmentsRes.data ?? []).forEach((row: any) => {
         if (!row.plant_instance_id) return;
