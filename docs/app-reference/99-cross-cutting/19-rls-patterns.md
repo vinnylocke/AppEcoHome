@@ -70,7 +70,7 @@ CREATE POLICY "Users can update plants for their homes"
   );
 ```
 
-The exclusion ensures the stale-check cron's regenerations + the two RPCs (`fork_ai_plant_for_home`, `reset_ai_plant_fork`) are the only paths that can modify global AI rows. RPCs use `SECURITY DEFINER` so they bypass the user's RLS context.
+The exclusion ensures the stale-check cron's regenerations + the SECURITY DEFINER RPCs (`fork_ai_plant_for_home`, `reset_ai_plant_fork`, `revert_ai_plant_fork_in_place`) are the only paths that can modify global AI rows. RPCs use `SECURITY DEFINER` so they bypass the user's RLS context, but each verifies caller membership via `home_members` before doing anything destructive. `revert_ai_plant_fork_in_place` was added in Wave 6 as the in-place alternative to `reset_ai_plant_fork`'s "delete + repoint inventory" behaviour, suitable for today's data model where TheShed reads plants by `home_id` and so a deletion would make the plant vanish from the shed.
 
 ### Wave 1 RLS policies for new AI catalogue tables
 

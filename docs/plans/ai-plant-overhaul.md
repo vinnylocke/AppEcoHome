@@ -872,12 +872,39 @@ Deferred to later waves (carry forward into Wave 7's register):
 - D2 / D3 / D4 / D6 from Wave 5's plan are unchanged (still owned by Wave 6 / 7).
 - **D7 (new):** Seed script orchestration bug — `09_cross_home_markers.sql` references W2's home from W1's pass. Fix by either making it W2-only or running all bootstraps before all other seeds. Likely a 5-line fix in `scripts/seed-test-db.mjs`.
 
-### Wave 6 — Override flow (detach-on-edit + reset)
-- Plant Edit Modal: `<DetachConfirmModal>` on save when editing an AI plant.
-- Plant Edit Modal: "Reset to catalogue" button + `<ResetConfirmModal>` on fork rows.
-- Source chip ("AI · Auto-updating catalogue" vs "AI · Custom (your home's edits)").
-- Per-field "✎ Overridden" badges in Case B.
-- Update app-reference docs across all touched surfaces.
+### Wave 6 — Override flow (detach-on-edit + reset)  *(shipped)*
+
+Shipped on 2026-05-20. Scope delivered:
+
+- **New RPC** [supabase/migrations/20260622000000_ai_plant_revert_in_place.sql](../../supabase/migrations/20260622000000_ai_plant_revert_in_place.sql) — `revert_ai_plant_fork_in_place(p_fork_id)`. SECURITY DEFINER with caller-membership check. Restores `care_guide_data` + editable top-level columns from the global parent, clears `overridden_fields`, syncs `freshness_version`, seeds `user_plant_ack`. Verified on local DB.
+- **`<SourceChip>`** [src/components/aiPlants/SourceChip.tsx](../../src/components/aiPlants/SourceChip.tsx) — pill rendering "AI · Auto-updating catalogue" vs "AI · Custom (your edits)" based on `overridden_fields` emptiness. 5 unit tests.
+- **`<DetachConfirmModal>`** [src/components/aiPlants/DetachConfirmModal.tsx](../../src/components/aiPlants/DetachConfirmModal.tsx) — warning before saving edits to a catalogue-tracking AI plant. Lists changed fields as chips. Cancel auto-focused so accidental Enter doesn't confirm.
+- **`<ResetConfirmModal>`** [src/components/aiPlants/ResetConfirmModal.tsx](../../src/components/aiPlants/ResetConfirmModal.tsx) — warning before reset; calls `revert_ai_plant_fork_in_place` on confirm.
+- **`diffOverriddenFields` + `mergeOverriddenFields`** [src/lib/aiPlantOverrides.ts](../../src/lib/aiPlantOverrides.ts) — pure helpers. Lowercase strings + sort arrays before comparison so cosmetic differences don't trigger detach. 12 unit tests.
+- **PlantEditModal save interception** in [src/components/PlantEditModal.tsx](../../src/components/PlantEditModal.tsx) — `handleSaveWithOverride()` decides: detach-confirm flow / silent merge for custom forks / pass-through for non-AI. Reset button visible only on custom forks. Refresh-now button hidden on custom forks (already gated correctly in Wave 5).
+- **Overridden-field summary strip** above the form on custom forks — purple panel listing humanised field names.
+- **TheShed `handleUpdatePlant`** — no change needed; `overridden_fields` rides along in the existing `...cleanPayload` pass-through.
+- **Seed extension** [supabase/seeds/13_ai_freshness.sql](../../supabase/seeds/13_ai_freshness.sql) — added Lavender (global 1000012 + custom fork 1000013) so the E2E has a pre-customised plant to reset.
+- **Playwright spec** [tests/e2e/specs/ai-plant-override.spec.ts](../../tests/e2e/specs/ai-plant-override.spec.ts) — three flows: catalogue-tracking chip, custom-fork chip + Reset button, Reset modal cancel keeps state.
+
+Design reconciliation recorded:
+- The original §8.6 Case A / B split assumed pure globals would appear in TheShed. They don't — Wave 3's shallow forks made every catalogue-add a home-scoped row. Wave 6 redefines:
+  - **Catalogue-tracking** = `source = 'ai'` AND `overridden_fields` empty/null (includes both pure globals and shallow forks).
+  - **Custom fork** = `source = 'ai'` AND `overridden_fields.length > 0`.
+- The Wave 1 RPCs `fork_ai_plant_for_home` and `reset_ai_plant_fork` are **not on the active path** in Wave 6. Wave 3 already created the home-scoped row at catalogue-add time, so editing just flips `overridden_fields` on the existing row. Reset uses the new in-place RPC because deletion would make the plant vanish from TheShed pre-D3. Both Wave 1 RPCs are kept for the post-D3 world.
+
+Deferred (carried forward into Wave 7's register):
+
+| # | Item | Status |
+|---|------|--------|
+| D2 | `PlantSearchModal` single-add AI branch pre-existing broken | Wave 7 |
+| D3 | `inventory_items → global plant_id` refactor | Wave 7 decision |
+| D4 | §13 Pass 2 backfill (per-home AI duplicate collapse) | Wave 7 |
+| D6 | RLS prod smoke test after first deploy | Wave 7 |
+| D7 | Seed orchestration bug (`09_cross_home_markers.sql`) | Wave 7 |
+| D8 | Realtime sub on global AI plants for cross-device sync | Wave 7 |
+| D9 | Per-field background highlight inside `ManualPlantCreation` | Optional polish |
+| D10 (new) | Edit-then-save AI flow in Instance Edit Modal Care Guide tab (currently read-only) | Optional polish |
 
 ---
 

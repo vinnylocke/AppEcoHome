@@ -23,6 +23,14 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 | `manual-refresh-ai-plant` | Browser ("Refresh now" button in Plant Edit Modal Care tab) | Sage+ tier-gated, rate-limited to once per (user, plant) per 7 days. Re-runs Gemini for a single global AI plant, diffs vs current `care_guide_data`, bumps `freshness_version` + writes `plant_care_revisions` row if changed. Cost lands against the user's AI quota. Added in Wave 2 of AI Plant Overhaul. |
 | `refresh-stale-ai-plants` | Cron (daily 03:00 UTC) | Walks global AI plants (`source='ai' AND home_id IS NULL`) whose `last_freshness_check_at` is NULL or older than 90 days. Re-asks Gemini, runs `diffCareGuide`, bumps `freshness_version` + writes a `plant_care_revisions` row when something changed; otherwise just resets the check timestamp. Batch size from `STALE_CHECK_BATCH_SIZE` env (default 25). System-attributed AI usage (no user/home). Forks are skipped by construction. Added in Wave 4 of AI Plant Overhaul. See also [Cron Jobs](./11-cron-jobs.md). |
 
+### Postgres RPCs (called via supabase.rpc)
+
+| RPC | Purpose | Trigger |
+|-----|---------|---------|
+| `fork_ai_plant_for_home(plant_id, home_id, edits, overridden_fields)` | Wave 1 — atomic detach-and-fork (insert + inventory repoint + ack seed). Held for the post-D3 world; not on the active path today. | (none — kept for future) |
+| `reset_ai_plant_fork(fork_id)` | Wave 1 — deletes fork + repoints inventory at global + seeds ack. Held for post-D3 world. | (none — kept for future) |
+| `revert_ai_plant_fork_in_place(fork_id)` | **Wave 6** — restores fork row in place from its global parent. Used by "Reset to catalogue" button in Plant Edit Modal. SECURITY DEFINER with caller-membership check. | Plant Edit Modal Reset button |
+
 ### AI — Planning
 
 | Function | Trigger | Purpose |

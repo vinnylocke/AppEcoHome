@@ -720,7 +720,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 313 tests across 20 files
+### Unit tests — 330 tests across 22 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -741,6 +741,8 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `garden.test.ts` | 18 | `sunFit` (parse preferences, match/adjacent/mismatch, summary), `plantTokens` (stable hash colour, initial, grid layout, max), `microclimate` (frost risk classification, wind shelter from walls/greenhouse, low-fence ignore), `companionPlants` (beneficial pairs, harmful pairs, neutrals, group precedence) |
 | `useAiPlantFreshness.test.ts` | 7 | Wave 5 — resolves globals vs shallow forks vs deep forks, ack semantics target global plant_id, empty input, missing parent (RLS/deleted) returns null |
 | `UpdatedChip.test.ts` | 6 | Wave 5 — renders nothing for count≤0, singular vs plural label, button when onClick provided, span otherwise, fires onClick |
+| `aiPlantOverrides.test.ts` | 12 | Wave 6 — `diffOverriddenFields` (no-change, scalar, array, sort/case-insensitive, null/empty equivalence, ignores non-overridable fields) + `mergeOverriddenFields` (union, dedup, null/empty handling) |
+| `SourceChip.test.ts` | 5 | Wave 6 — renders nothing for non-AI, catalogue variant when overrides empty/null, custom variant when overrides non-empty |
 
 ### Edge function tests — Deno
 

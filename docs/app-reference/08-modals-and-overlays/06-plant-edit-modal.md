@@ -114,7 +114,30 @@ For per-bed tweaks ("this tomato is in a shadier spot"), use Instance Edit Modal
 
 - Edit common name, scientific names, sun/water/soil, cycle, hardiness range.
 - **AI freshness callout (Wave 5)** — appears at the top of this tab when the plant is an AI catalogue entry whose version is ahead of your ack. Yellow banner with chips for each changed field, "Mark as reviewed" + "View changes" actions. Resolves via `forked_from_plant_id` for shallow forks added through bulk-add — the chip's source of truth is always the global catalogue row.
-- **"Refresh now" button (Sage+)** — Wave 5 button to the right of the "catalogue updated N days ago" pill. Triggers `manual-refresh-ai-plant` to re-ask Gemini against this plant; on success a toast reports how many fields changed and the chip clears. Disabled and tooltipped for 7 days after a successful refresh (or after a `rate_limited` edge response). Hidden for deep forks since they've opted out of catalogue updates.
+- **"Refresh now" button (Sage+)** — Wave 5 button to the right of the "catalogue updated N days ago" pill. Triggers `manual-refresh-ai-plant` to re-ask Gemini against this plant; on success a toast reports how many fields changed and the chip clears. Disabled and tooltipped for 7 days after a successful refresh (or after a `rate_limited` edge response). Hidden for custom forks since they've opted out of catalogue updates.
+
+##### AI editing flow (Wave 6)
+
+For `source = "ai"` plants, the Care tab shows a `<SourceChip>` indicating one of two states:
+
+- **"AI · Auto-updating catalogue"** (amber) — `overridden_fields` is empty/null. Plant is tracking the catalogue.
+- **"AI · Custom (your edits)"** (purple) — `overridden_fields.length > 0`. Plant has user edits.
+
+**Saving from auto-updating → DetachConfirmModal.** When the user changes an AI care field on a catalogue-tracking row and clicks Save, `<DetachConfirmModal>` opens with the list of changed fields. Cancelling keeps the form state but doesn't save. Confirming saves the row + populates `overridden_fields` with the changed field names, flipping the chip to "Custom".
+
+**Saving from custom → silent merge.** No modal — new overrides merge into the existing `overridden_fields` list via `mergeOverriddenFields()`.
+
+**Reset to catalogue.** On custom forks only, a `<ResetConfirmModal>` opens behind a "Reset to catalogue" button. On confirm, calls the `revert_ai_plant_fork_in_place` RPC which restores `care_guide_data` + the editable top-level columns from the global parent, clears `overridden_fields`, and seeds `user_plant_ack` at the parent's current version (so no freshness chip flashes immediately).
+
+**Overridden fields summary** — a small purple strip above the form lists the field names currently in `overridden_fields` so the user can see at a glance what they've customised.
+
+Components introduced this wave (all in `src/components/aiPlants/`):
+- `SourceChip` — the catalogue/custom pill.
+- `DetachConfirmModal` — the save warning.
+- `ResetConfirmModal` — the reset warning.
+
+Helpers:
+- `src/lib/aiPlantOverrides.ts` exports `diffOverriddenFields` (form vs row diff) and `mergeOverriddenFields` (sorted/de-duplicated union).
 
 #### 2. Schedule tab
 

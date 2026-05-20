@@ -1230,3 +1230,16 @@ Edge function mock via `mockEdgeFunction(page, "companion-planting", ...)`.
 | AI-FRESH-003 | ✅ | Mark as reviewed dismisses the callout | Click `ai-care-mark-reviewed` → callout no longer visible (optimistic local clear) | ⏳ Not yet verified — blocked by seed orchestration bug |
 
 **Pre-existing blocker:** `npm run test:seed` from a fresh local DB fails on `09_cross_home_markers.sql` because that seed expects worker 2's home to exist mid-worker-1 pass. Wave 5's seed runs fine in isolation (verified via node script). Tracked as Wave 7 deferred-work item D7.
+
+---
+
+## Section 24 — AI Plant Override Flow (Wave 6)
+
+**File:** [`tests/e2e/specs/ai-plant-override.spec.ts`](../tests/e2e/specs/ai-plant-override.spec.ts)
+**Seed:** `supabase/seeds/13_ai_freshness.sql` — extended in Wave 6 to add Lavender (global 1000012 + custom fork 1000013 with `overridden_fields = ["watering_min_days"]`).
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| AI-OVERRIDE-001 | ✅ | Catalogue-tracking plant shows 'Auto-updating' chip in modal | Open Cherry Tomato → `ai-source-chip-catalogue` visible; `ai-source-chip-custom` not visible | ⏳ Not yet verified — blocked by seed orchestration bug |
+| AI-OVERRIDE-002 | ✅ | Custom fork shows 'Custom' chip + Reset button | Open Lavender → `ai-source-chip-custom` visible + `ai-care-reset` visible; Refresh-now hidden | ⏳ Not yet verified — blocked by seed orchestration bug |
+| AI-OVERRIDE-003 | ✅ | Reset opens confirm modal; cancel keeps fork custom | Click Reset → modal opens → Cancel → modal closes, chip still 'Custom' | ⏳ Not yet verified — blocked by seed orchestration bug |

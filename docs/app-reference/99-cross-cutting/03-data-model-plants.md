@@ -88,12 +88,21 @@ plants_forked_from_idx (forked_from_plant_id)
 
 See [AI Plant Catalogue](./33-ai-plant-catalogue.md) for the full lifecycle (planned doc, Wave 9).
 
-### RPCs introduced by Wave 1 of AI Plant Overhaul
+### RPCs introduced by Wave 1 + Wave 6 of AI Plant Overhaul
 
 | RPC | Purpose | Called from |
 |-----|---------|-------------|
-| `fork_ai_plant_for_home(plant_id, home_id, edits, overridden_fields)` | Atomic detach-and-fork: inserts home-scoped fork row, repoints inventory_items, seeds user_plant_ack. `SECURITY DEFINER`. | DetachConfirmModal on save in Plant Edit Modal (Wave 6) |
-| `reset_ai_plant_fork(fork_id)` | Repoints inventory back to global parent, seeds acks at the parent's current version, deletes the fork. `SECURITY DEFINER`. | "Reset to catalogue" button in Plant Edit Modal (Wave 6) |
+| `fork_ai_plant_for_home(plant_id, home_id, edits, overridden_fields)` | Atomic detach-and-fork: inserts home-scoped fork row, repoints inventory_items, seeds user_plant_ack. `SECURITY DEFINER`. | **Not called by Wave 6's flow** — Wave 3's bulk-add already creates a home-scoped row at catalogue-add time, so the modal flips the existing row in-place via `overridden_fields` instead. Kept for the post-D3 world where Inventory references the global directly. |
+| `reset_ai_plant_fork(fork_id)` | Repoints inventory_items back to global parent, seeds acks at the parent's current version, deletes the fork. `SECURITY DEFINER`. | **Not called by Wave 6's flow** — deletion would make the plant vanish from TheShed (D3 not done yet). Kept for the post-D3 world. |
+| `revert_ai_plant_fork_in_place(fork_id)` | **Wave 6.** In-place revert: restores `care_guide_data` + editable top-level columns from the global parent, clears `overridden_fields`, syncs `freshness_version` + seeds `user_plant_ack`. Row stays in TheShed, rejoins auto-updates. `SECURITY DEFINER`. | "Reset to catalogue" button in Plant Edit Modal. |
+
+### AI plant lifecycle (Wave 6)
+
+1. **Add from catalogue** (Wave 3): bulk-add creates a home-scoped row with `forked_from_plant_id = global_id`, `overridden_fields = []`. The row is a *shallow fork* — catalogue-tracking.
+2. **Cron updates the global** (Wave 4): bumps `freshness_version` on the global if Gemini's regenerated guide differs. Home rows are not touched.
+3. **User sees the chip** (Wave 5): `useAiPlantFreshness` resolves the shallow fork's freshness via the global's version, compares against `user_plant_ack.seen_freshness_version`.
+4. **User edits a care field** (Wave 6): `<DetachConfirmModal>` warns; on confirm, the home row's `overridden_fields` is populated with the changed field names. Now a *custom fork* — opted out of auto-updates.
+5. **User resets** (Wave 6): `revert_ai_plant_fork_in_place` restores the row from the parent. Now back to shallow fork.
 
 ### `inventory_items` columns (subset)
 

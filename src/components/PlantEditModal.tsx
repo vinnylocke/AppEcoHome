@@ -13,6 +13,10 @@ import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import { useAiPlantFreshness } from "../hooks/useAiPlantFreshness";
 import CareUpdateCallout from "./aiPlants/CareUpdateCallout";
+import SourceChip from "./aiPlants/SourceChip";
+import DetachConfirmModal from "./aiPlants/DetachConfirmModal";
+import ResetConfirmModal from "./aiPlants/ResetConfirmModal";
+import { diffOverriddenFields, mergeOverriddenFields } from "../lib/aiPlantOverrides";
 
 function formatRelativeDate(iso: string): string {
   const days = Math.floor((Date.now() - new Date(iso).getTime()) / (24 * 60 * 60 * 1000));
@@ -22,6 +26,37 @@ function formatRelativeDate(iso: string): string {
   const months = Math.floor(days / 30);
   if (months === 1) return "a month ago";
   return `${months} months ago`;
+}
+
+const FIELD_LABELS: Record<string, string> = {
+  common_name: "Plant name",
+  scientific_name: "Scientific name",
+  description: "Description",
+  plant_type: "Plant type",
+  cycle: "Life cycle",
+  care_level: "Care level",
+  growth_rate: "Growth rate",
+  maintenance: "Maintenance",
+  watering_min_days: "Watering — min days",
+  watering_max_days: "Watering — max days",
+  sunlight: "Sunlight",
+  flowering_season: "Flowering season",
+  harvest_season: "Harvest season",
+  pruning_month: "Pruning months",
+  propagation: "Propagation",
+  attracts: "Attracts",
+  is_toxic_pets: "Toxic to pets",
+  is_toxic_humans: "Toxic to humans",
+  indoor: "Suitable indoors",
+  is_edible: "Edible",
+  drought_tolerant: "Drought tolerant",
+  tropical: "Tropical",
+  medicinal: "Medicinal",
+  cuisine: "Culinary use",
+};
+
+function humanise(field: string): string {
+  return FIELD_LABELS[field] ?? field.replace(/_/g, " ").replace(/^./, (c) => c.toUpperCase());
 }
 
 // 🧠 IMPORT THE AI CONTEXT
@@ -118,6 +153,86 @@ export default function PlantEditModal({
       }
     } finally {
       setRefreshing(false);
+    }
+  };
+
+  // Wave 6 — override-on-edit + reset state
+  const [pendingDetach, setPendingDetach] = useState<{
+    payload: Record<string, unknown>;
+    changedFields: string[];
+  } | null>(null);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  const overriddenFields: string[] = Array.isArray(plant?.overridden_fields)
+    ? (plant.overridden_fields as string[])
+    : [];
+  const isAiCustomFork = plant?.source === "ai" && overriddenFields.length > 0;
+  const isAiCatalogueTracking = plant?.source === "ai" && overriddenFields.length === 0;
+
+  /**
+   * Intercept the form's Save. For catalogue-tracking AI plants where the
+   * user actually changed an AI care field, we open the DetachConfirmModal
+   * before calling the parent `onSave`. For custom forks, we merge any new
+   * overrides into the existing list and save without a modal. Non-AI plants
+   * pass straight through.
+   */
+  const handleSaveWithOverride = (payload: Record<string, unknown>) => {
+    if (plant?.source !== "ai") {
+      onSave(payload);
+      return;
+    }
+
+    const changed = diffOverriddenFields(plant, payload);
+
+    if (isAiCatalogueTracking && changed.length > 0) {
+      setPendingDetach({ payload, changedFields: changed });
+      return;
+    }
+
+    if (isAiCustomFork && changed.length > 0) {
+      onSave({
+        ...payload,
+        overridden_fields: mergeOverriddenFields(overriddenFields, changed),
+      });
+      return;
+    }
+
+    // No care-field change OR already custom but no new overrides
+    onSave(payload);
+  };
+
+  const confirmDetach = () => {
+    if (!pendingDetach) return;
+    onSave({
+      ...pendingDetach.payload,
+      overridden_fields: mergeOverriddenFields(overriddenFields, pendingDetach.changedFields),
+    });
+    setPendingDetach(null);
+  };
+
+  const handleReset = async () => {
+    if (!plant?.id) return;
+    setResetting(true);
+    try {
+      const { error } = await supabase.rpc("revert_ai_plant_fork_in_place", {
+        p_fork_id: plant.id,
+      });
+      if (error) throw error;
+      toast.success(`${plant.common_name} rejoined the catalogue.`);
+      setResetOpen(false);
+      onClose();
+    } catch (err: any) {
+      const msg = err?.message ?? "";
+      if (msg.includes("parent_unavailable")) {
+        toast.error("Catalogue version is unavailable. Try again later.");
+      } else if (msg.includes("not_a_home_member")) {
+        toast.error("You don't have permission to reset this plant.");
+      } else {
+        toast.error("Couldn't reset — try again.");
+      }
+    } finally {
+      setResetting(false);
     }
   };
 
@@ -450,39 +565,61 @@ export default function PlantEditModal({
                 />
               )}
               {plant.source === "ai" && (
-                <div className="flex items-center justify-between gap-3 mb-4 px-1">
-                  <div className="text-[10px] font-bold text-rhozly-on-surface/50">
-                    {freshness?.last_care_generated_at ? (
-                      <>Catalogue updated {formatRelativeDate(freshness.last_care_generated_at)}.</>
-                    ) : (
-                      <>Auto-updating AI catalogue.</>
+                <>
+                  <div className="flex flex-wrap items-center gap-2 mb-3 px-1">
+                    {/* Wave 6 — source-state chip */}
+                    <SourceChip source={plant.source} overriddenFields={overriddenFields} />
+                    {freshness?.last_care_generated_at && (
+                      <span className="text-[10px] font-bold text-rhozly-on-surface/50">
+                        Catalogue updated {formatRelativeDate(freshness.last_care_generated_at)}
+                      </span>
+                    )}
+                    <div className="flex-1" />
+                    {aiEnabled && isAiCatalogueTracking && (
+                      <button
+                        data-testid="ai-care-refresh-now"
+                        onClick={handleManualRefresh}
+                        disabled={refreshing || isLocallyBlocked}
+                        title={isLocallyBlocked ? "Already refreshed in the last 7 days" : "Re-run the AI care guide now"}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[32px] border border-amber-300 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                      >
+                        {refreshing ? (
+                          <>
+                            <Loader2 size={12} className="animate-spin" /> Refreshing…
+                          </>
+                        ) : (
+                          <>
+                            <RefreshCw size={12} /> Refresh now
+                          </>
+                        )}
+                      </button>
+                    )}
+                    {isAiCustomFork && (
+                      <button
+                        data-testid="ai-care-reset"
+                        onClick={() => setResetOpen(true)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[32px] border border-purple-300 text-purple-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-purple-50 transition-colors"
+                      >
+                        <RefreshCw size={12} /> Reset to catalogue
+                      </button>
                     )}
                   </div>
-                  {aiEnabled && (!plant.forked_from_plant_id || (plant.overridden_fields ?? []).length === 0) && (
-                    <button
-                      data-testid="ai-care-refresh-now"
-                      onClick={handleManualRefresh}
-                      disabled={refreshing || isLocallyBlocked}
-                      title={isLocallyBlocked ? "Already refreshed in the last 7 days" : "Re-run the AI care guide now"}
-                      className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[32px] border border-amber-300 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-                    >
-                      {refreshing ? (
-                        <>
-                          <Loader2 size={12} className="animate-spin" /> Refreshing…
-                        </>
-                      ) : (
-                        <>
-                          <RefreshCw size={12} /> Refresh now
-                        </>
-                      )}
-                    </button>
+                  {isAiCustomFork && overriddenFields.length > 0 && (
+                    <div className="bg-purple-50 border border-purple-200 rounded-2xl px-3 py-2 mb-4">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-purple-800 mb-1">
+                        Your overrides
+                      </p>
+                      <p className="text-xs font-bold text-purple-900/80">
+                        {overriddenFields.map(humanise).join(" · ")}
+                      </p>
+                    </div>
                   )}
-                </div>
+                </>
               )}
 
               <ManualPlantCreation
                 initialData={fullPlantData}
-                onSave={onSave}
+                onSave={handleSaveWithOverride}
                 submitLabel="Save Updates"
                 isSaving={isSaving}
                 isReadOnly={plant.source === "api" || plant.source === "verdantly"}
@@ -517,6 +654,23 @@ export default function PlantEditModal({
           )}
         </div>
       </div>
+      {/* Wave 6 — confirm modals for fork-on-edit + reset */}
+      {pendingDetach && (
+        <DetachConfirmModal
+          changedFields={pendingDetach.changedFields}
+          isSaving={!!isSaving}
+          onCancel={() => setPendingDetach(null)}
+          onConfirm={confirmDetach}
+        />
+      )}
+      {resetOpen && (
+        <ResetConfirmModal
+          plantName={plant.common_name || "this plant"}
+          isResetting={resetting}
+          onCancel={() => setResetOpen(false)}
+          onConfirm={handleReset}
+        />
+      )}
     </div>,
     document.body,
   );

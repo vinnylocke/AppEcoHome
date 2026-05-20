@@ -39,11 +39,15 @@ for (let w = 1; w <= workerCount; w++) {
     for (let n = 1; n <= 6; n++) {
       sql = sql.replaceAll(`100000${n}`, `${w + 1}00000${n}`);
     }
-    // Wave 5 — AI freshness seed (13_ai_freshness.sql) uses 1000010 (global,
-    // shared across workers) and 1000011 (per-home shallow fork). The fork id
-    // is substituted per worker; the global stays at 1000010 by design (the
-    // catalogue is shared).
+    // Wave 5 + 6 — AI freshness seed (13_ai_freshness.sql) uses:
+    //   1000010 — Cherry Tomato global (shared across workers)
+    //   1000011 — Cherry Tomato per-home shallow fork (per-worker)
+    //   1000012 — Lavender global (shared across workers)
+    //   1000013 — Lavender per-home CUSTOM fork (per-worker, Wave 6)
+    // Globals stay at their canonical id; home-scoped forks get substituted
+    // per worker so foreign-key home_id stays unique.
     sql = sql.replaceAll("1000011", `${w + 1}00011`);
+    sql = sql.replaceAll("1000013", `${w + 1}00013`);
     await client.query(sql);
   }
 }
