@@ -12,6 +12,7 @@ import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
 import { getFallback } from "../_shared/fallbacks.ts";
 import { reverseGeocodeCity } from "../_shared/locationContext.ts";
 import { normaliseScientificKey, parseMatchString } from "../_shared/aiPlantCatalogue.ts";
+import { buildEnvBlock } from "../_shared/visionEnvContext.ts";
 
 const FN = "plant-doctor";
 
@@ -183,6 +184,110 @@ const REMEDIAL_PLAN_SCHEMA = {
     },
   },
   required: ["remedial_schedules"],
+};
+
+// Combined comprehensive analysis — returns identification, health, pruning,
+// propagation, edibility, optional disease/pest, and a list of suggested_tasks
+// in the same shape PlantDoctorChat already produces (consumed by
+// `TaskActionButtons.tsx`). One Gemini call, full payload.
+const ANALYSE_COMPREHENSIVE_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    identification: {
+      type: "OBJECT",
+      properties: {
+        common_name:     { type: "STRING" },
+        scientific_name: { type: "ARRAY", items: { type: "STRING" } },
+        confidence:      { type: "INTEGER", description: "0-100" },
+      },
+      required: ["common_name", "scientific_name", "confidence"],
+    },
+    health: {
+      type: "OBJECT",
+      properties: {
+        state: {
+          type: "STRING",
+          enum: ["healthy", "stressed", "diseased", "pest_damaged"],
+        },
+        notes:                        { type: "STRING" },
+        sunlight_appears_appropriate: { type: "BOOLEAN", nullable: true },
+        sunlight_notes:               { type: "STRING",  nullable: true },
+      },
+      required: ["state", "notes"],
+    },
+    pruning: {
+      type: "OBJECT",
+      properties: {
+        method:       { type: "STRING" },
+        where_to_cut: { type: "STRING" },
+        how_to_cut:   { type: "STRING" },
+        tips:         { type: "ARRAY", items: { type: "STRING" } },
+      },
+      required: ["method", "where_to_cut", "how_to_cut", "tips"],
+    },
+    propagation: {
+      type: "OBJECT",
+      properties: {
+        method: { type: "STRING" },
+        when:   { type: "STRING", description: "Relative to user's hemisphere — e.g. 'late spring', 'now'" },
+        steps:  { type: "ARRAY", items: { type: "STRING" } },
+      },
+      required: ["method", "when", "steps"],
+    },
+    edibility: {
+      type: "OBJECT",
+      nullable: true,
+      properties: {
+        is_edible: { type: "BOOLEAN" },
+        ripeness: {
+          type: "STRING",
+          nullable: true,
+          enum: ["not_yet", "near_ripe", "ripe", "overripe"],
+        },
+        estimated_days_until_ripe: { type: "INTEGER", nullable: true },
+        notes:                     { type: "STRING",  nullable: true },
+      },
+      required: ["is_edible"],
+    },
+    disease: {
+      type: "OBJECT",
+      nullable: true,
+      properties: {
+        name:               { type: "STRING" },
+        cure_methods:       { type: "ARRAY", items: { type: "STRING" } },
+        prevention_methods: { type: "ARRAY", items: { type: "STRING" } },
+      },
+      required: ["name", "cure_methods", "prevention_methods"],
+    },
+    pest: {
+      type: "OBJECT",
+      nullable: true,
+      properties: {
+        name:               { type: "STRING" },
+        removal_methods:    { type: "ARRAY", items: { type: "STRING" } },
+        prevention_methods: { type: "ARRAY", items: { type: "STRING" } },
+      },
+      required: ["name", "removal_methods", "prevention_methods"],
+    },
+    suggested_tasks: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          title:            { type: "STRING" },
+          description:      { type: "STRING" },
+          task_type:        { type: "STRING", enum: ["Planting", "Watering", "Harvesting", "Maintenance"] },
+          due_in_days:      { type: "INTEGER", description: "0 = today, N = N days from now" },
+          is_recurring:     { type: "BOOLEAN" },
+          frequency_days:   { type: "INTEGER", nullable: true },
+          end_offset_days:  { type: "INTEGER", nullable: true },
+          depends_on_index: { type: "INTEGER", nullable: true },
+        },
+        required: ["title", "description", "task_type", "due_in_days", "is_recurring"],
+      },
+    },
+  },
+  required: ["identification", "health", "pruning", "propagation", "suggested_tasks"],
 };
 
 const IDENTIFY_PEST_SCHEMA = {
@@ -897,105 +1002,7 @@ Also return a brief observation in notes.`;
       if (!imageBase64) throw new Error("No image data provided.");
       const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
 
-      // ── Environmental enrichment (parallel, only when IDs provided) ────────
-      let envBlock = "";
-      if (inventoryItemId || areaId) {
-        const fourteenDaysAgo = new Date(Date.now() - 14 * 864e5).toISOString().split("T")[0];
-
-        const [tasksRes, areaRes, luxRes, companionRes, weatherRes] = await Promise.all([
-          inventoryItemId
-            ? supabase.from("tasks")
-                .select("type, title, status, due_date")
-                .contains("inventory_item_ids", [inventoryItemId])
-                .gte("due_date", fourteenDaysAgo)
-                .order("due_date", { ascending: false })
-                .limit(10)
-            : Promise.resolve({ data: [] }),
-
-          areaId
-            ? supabase.from("areas")
-                .select("name, is_outside, sunlight, growing_medium, medium_ph, medium_texture, water_movement, nutrient_source")
-                .eq("id", areaId)
-                .maybeSingle()
-            : Promise.resolve({ data: null }),
-
-          areaId
-            ? supabase.from("area_lux_readings")
-                .select("lux_value")
-                .eq("area_id", areaId)
-                .order("recorded_at", { ascending: false })
-                .limit(5)
-            : Promise.resolve({ data: [] }),
-
-          areaId && inventoryItemId
-            ? supabase.from("inventory_items")
-                .select("plant_name")
-                .eq("area_id", areaId)
-                .neq("id", inventoryItemId)
-                .eq("status", "Planted")
-                .limit(10)
-            : Promise.resolve({ data: [] }),
-
-          homeId
-            ? supabase.from("weather_snapshots")
-                .select("data")
-                .eq("home_id", homeId)
-                .maybeSingle()
-            : Promise.resolve({ data: null }),
-        ]);
-
-        const lines: string[] = [];
-
-        const area = areaRes.data;
-        if (area) {
-          lines.push(`GROWING ENVIRONMENT:`);
-          lines.push(`  Area: ${area.name} (${area.is_outside ? "Outdoor" : "Indoor"})`);
-          if (area.sunlight) lines.push(`  Sunlight: ${area.sunlight}`);
-          if (area.growing_medium) lines.push(`  Growing medium: ${area.growing_medium}`);
-          if (area.medium_ph) lines.push(`  Soil pH: ${area.medium_ph}`);
-          if (area.medium_texture) lines.push(`  Texture: ${area.medium_texture}`);
-          if (area.water_movement) lines.push(`  Drainage: ${area.water_movement}`);
-          if (area.nutrient_source) lines.push(`  Nutrients: ${area.nutrient_source}`);
-        }
-
-        const luxRows = (luxRes.data ?? []) as any[];
-        if (luxRows.length > 0) {
-          const avgLux = Math.round(luxRows.reduce((s: number, r: any) => s + r.lux_value, 0) / luxRows.length);
-          lines.push(`  Light (recent avg): ${avgLux.toLocaleString()} lux`);
-        }
-
-        const companions = (companionRes.data ?? []) as any[];
-        if (companions.length > 0) {
-          lines.push(`COMPANION PLANTS IN SAME AREA: ${companions.map((c: any) => c.plant_name).join(", ")}`);
-        }
-
-        const recentTasks = (tasksRes.data ?? []) as any[];
-        if (recentTasks.length > 0) {
-          lines.push(`RECENT CARE (last 14 days):`);
-          for (const t of recentTasks) {
-            lines.push(`  • [${t.status}] ${t.type}: ${t.title} (due ${t.due_date})`);
-          }
-        } else if (inventoryItemId) {
-          lines.push(`RECENT CARE: No tasks logged for this plant in the last 14 days.`);
-        }
-
-        const weatherData = weatherRes.data?.data;
-        if (weatherData) {
-          const current = weatherData.current ?? weatherData.currently ?? null;
-          if (current) {
-            const tempC = current.temperature_2m ?? current.temp ?? null;
-            const humidity = current.relative_humidity_2m ?? current.humidity ?? null;
-            const condition = current.weather_description ?? current.condition ?? null;
-            const parts: string[] = [];
-            if (tempC != null) parts.push(`${Math.round(tempC)}°C`);
-            if (humidity != null) parts.push(`${humidity}% humidity`);
-            if (condition) parts.push(condition);
-            if (parts.length > 0) lines.push(`CURRENT WEATHER: ${parts.join(", ")}`);
-          }
-        }
-
-        if (lines.length > 0) envBlock = "\n\n" + lines.join("\n");
-      }
+      const envBlock = await buildEnvBlock(supabase, { inventoryItemId, areaId, homeId });
 
       const plantContext = targetPlant
         ? `This plant is a "${targetPlant}". Use this to improve your diagnosis accuracy.`
@@ -1027,6 +1034,77 @@ Set possible_names to null always.`;
         severity: parsed.severity ?? null,
         possibleDiseases: parsed.possible_diseases ?? null,
         healthy: !parsed.possible_diseases?.length,
+        hasEnvContext: !!envBlock,
+      });
+      return new Response(rawText, {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── action: analyse_comprehensive ──────────────────────────────────────
+
+    if (action === "analyse_comprehensive") {
+      if (!imageBase64) throw new Error("No image data provided.");
+      const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+
+      const envBlock = await buildEnvBlock(supabase, { inventoryItemId, areaId, homeId });
+
+      const plantContext = targetPlant
+        ? `This plant is a "${targetPlant}". Use this to ground your identification.`
+        : "The plant species is unknown — identify it from the image.";
+
+      const promptText = `${plantContext}
+${locationLine ? `Gardener location: ${locationLine}. Use regional climate to time pruning, propagation, and harvest windows.` : ""}${envBlock}
+${prefsBlock}
+
+You are doing a COMPREHENSIVE analysis of the plant in this photo. Fill in EVERY section of the response schema based on what you can see + the context above.
+
+IDENTIFICATION: Best guess at common + scientific name; confidence 0-100 reflecting how clearly the plant is identifiable from the image.
+
+HEALTH: Overall state (healthy / stressed / diseased / pest_damaged). Notes explain what you see. Sunlight check: based on the leaf colour, posture, and the area's sunlight context above, is the light level appropriate for this plant? Set sunlight_appears_appropriate to null if unclear from the photo alone.
+
+PRUNING: How would an experienced gardener prune this specific plant? Where on the plant to make cuts, how to make the cut (angle, tool, sealing), and 2-4 concrete tips. Tailor to the plant's growth habit (e.g. coppice vs tip-pinch vs deadhead).
+
+PROPAGATION: Best propagation method for this plant (softwood cuttings / division / seed / layering / etc), when to do it relative to the user's hemisphere — current hemisphere is '${hemisphere}', current month is ${currentMonth} — and 3-5 ordered steps.
+
+EDIBILITY: Is any part of this plant edible? If so, what does the ripeness look like in the photo (or null if not visible / not applicable)? If 'not_yet' or 'near_ripe', estimate days_until_ripe. Set the whole edibility object to null only if the plant has no edible parts at all.
+
+DISEASE: ONLY fill if you see clear disease symptoms (leaf spots, mildew, rot, wilt with discoloration, etc). Include 2-4 cure methods and 2-4 prevention methods. Set to null otherwise — do not invent diseases.
+
+PEST: ONLY fill if you see actual pests (insects, mites, slugs) or unmistakable pest damage (holes, frass, webbing). Include 2-4 removal methods and 2-4 prevention methods. Set to null otherwise — do not invent pests.
+
+SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar based on EVERYTHING above. CRITICAL RULES:
+1. task_type MUST be exactly one of: 'Planting' | 'Watering' | 'Harvesting' | 'Maintenance'. Pruning, propagation prep, fertilising, and pest/disease treatments all map to 'Maintenance'.
+2. due_in_days: 0 = today, N = N days from now. For pruning, pick a date inside the plant's correct pruning month for '${hemisphere}' (today's month is ${currentMonth}). For propagation, pick a date inside the recommended window.
+3. is_recurring=true ONLY for active ongoing treatments (e.g. spray neem weekly for 21 days, foliar feed weekly for 14 days). NEVER for normal watering routines — if watering needs adjustment, create ONE one-off Maintenance task explaining the new cadence.
+4. For recurring tasks: end_offset_days MUST be <= 21. frequency_days set; null for one-offs.
+5. depends_on_index: null unless one task naturally chains from another (e.g. "take cuttings" then "transplant cuttings in 6 weeks" → second task's depends_on_index = the first task's index in this array).
+6. If the plant looks ripe or near-ripe, include a 'Harvesting' task with appropriate due_in_days.
+7. If a disease or pest is present, prioritise treatment tasks first in the array.
+8. If the plant is healthy and no immediate care is required, you can still suggest forward-looking tasks (e.g. a future pruning reminder, a propagation prompt at the right time).`;
+
+      const { text: rawText, usage } = await callGeminiCascade(
+        apiKey, FN,
+        toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
+        { responseSchema: ANALYSE_COMPREHENSIVE_SCHEMA, logContext: { action } },
+      );
+      const parsed = JSON.parse(rawText);
+      await logAiUsage(supabase, {
+        homeId: homeId ?? null,
+        userId: callerUserId,
+        functionName: FN,
+        action: "analyse_comprehensive",
+        usage,
+      });
+      log(FN, "result", {
+        action,
+        identifiedAs: parsed.identification?.common_name ?? null,
+        confidence: parsed.identification?.confidence ?? null,
+        healthState: parsed.health?.state ?? null,
+        hasDisease: !!parsed.disease,
+        hasPest: !!parsed.pest,
+        isEdible: parsed.edibility?.is_edible ?? null,
+        suggestedTasksCount: (parsed.suggested_tasks ?? []).length,
         hasEnvContext: !!envBlock,
       });
       return new Response(rawText, {

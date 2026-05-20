@@ -40,12 +40,14 @@ import type { ShoppingList } from "../types/shopping";
 import PlantDoctorHistory from "./PlantDoctorHistory";
 import { usePlantDoctorSessions } from "../hooks/usePlantDoctorSessions";
 import PhotoAnnotationOverlay, { type PhotoAnnotation } from "./PhotoAnnotationOverlay";
+import AnalyseResultCard from "./lens/AnalyseResultCard";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import {
   PlantDoctorService,
+  type AnalyseResult,
   type DiseaseInfo,
   type VisionResult,
 } from "../services/plantDoctorService";
@@ -87,7 +89,7 @@ export default function PlantDoctor({
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   const [isGeneratingTreatment, setIsGeneratingTreatment] = useState(false);
   const [activeAction, setActiveAction] = useState<
-    "identify" | "diagnose" | "pest" | null
+    "identify" | "diagnose" | "pest" | "analyse" | null
   >(null);
 
   const [myInventory, setMyInventory] = useState<any[]>([]);
@@ -95,6 +97,7 @@ export default function PlantDoctor({
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   const [aiResult, setAiResult] = useState<VisionResult | null>(null);
+  const [analyseResult, setAnalyseResult] = useState<AnalyseResult | null>(null);
 
   const [selectedPlantName, setSelectedPlantName] = useState<string | null>(null);
   const [selectedPlantScientific, setSelectedPlantScientific] = useState<string | null>(null);
@@ -319,6 +322,7 @@ export default function PlantDoctor({
     setPlantSearch("");
     setActiveAction(null);
     setAiResult(null);
+    setAnalyseResult(null);
     setSelectedPlantName(null);
     setSelectedPlantScientific(null);
     setSelectedDisease(null);
@@ -446,6 +450,7 @@ export default function PlantDoctor({
     setIsProcessing(true);
     setActiveAction(action);
     setAiResult(null);
+    setAnalyseResult(null);
     setSelectedPlantName(null);
     setSelectedPlantScientific(null);
     setSelectedDisease(null);
@@ -485,6 +490,81 @@ export default function PlantDoctor({
       requestFeedback("doctor_diagnosis", { action });
     } catch (error: any) {
       Logger.error("Plant AI analysis failed", error, { homeId, action }, error.message || "Failed to analyze plant.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleAnalyse = async () => {
+    if (!aiEnabled) return toast.error("AI features are disabled.");
+    if (!selectedFile) return toast.error("Upload an image first.");
+
+    setIsProcessing(true);
+    setActiveAction("analyse");
+    setAiResult(null);
+    setAnalyseResult(null);
+    setSelectedPlantName(null);
+    setSelectedPlantScientific(null);
+    setSelectedDisease(null);
+    setSelectedPest(null);
+
+    try {
+      const base64Data = await compressImage(selectedFile);
+      const sickPlantName = sickInventoryId
+        ? myInventory.find((i) => i.id === sickInventoryId)?.plants?.common_name
+        : undefined;
+      const sickItem = sickInventoryId ? myInventory.find((i) => i.id === sickInventoryId) : null;
+
+      const data = await PlantDoctorService.analyseComprehensive({
+        homeId,
+        imageBase64: base64Data,
+        mimeType: "image/jpeg",
+        targetPlant: sickPlantName ?? (plantSearch || undefined),
+        inventoryItemId: sickInventoryId ?? undefined,
+        areaId: sickItem?.area_id ?? undefined,
+        deviceLat: deviceLocation?.lat,
+        deviceLng: deviceLocation?.lng,
+      });
+
+      setAnalyseResult(data);
+
+      // Persist to history — analyse sessions are first-class alongside identify/diagnose/pest.
+      if (userId) {
+        setSessionSaveError(false);
+        try {
+          const sessionId = crypto.randomUUID();
+          const path = `${userId}/${sessionId}.jpg`;
+          const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
+          const blob = new Blob([bytes], { type: "image/jpeg" });
+          await supabase.storage.from("doctor-sessions").upload(path, blob);
+          const { data: sessionRow } = await supabase
+            .from("plant_doctor_sessions")
+            .insert({
+              user_id: userId,
+              home_id: homeId,
+              action: "analyse",
+              image_path: path,
+              results: data,
+              annotations,
+            })
+            .select("id")
+            .single();
+          if (sessionRow) setCurrentSessionId(sessionRow.id);
+        } catch (err) {
+          setSessionSaveError(true);
+          Logger.error("Failed to save analyse session", err, { action: "analyse" }, "Session could not be saved — results won't appear in History.");
+        }
+      }
+
+      logEvent(EVENT.AI_DIAGNOSE, {
+        analyse: true,
+        plant_name: data?.identification?.common_name ?? null,
+        health_state: data?.health?.state ?? null,
+      });
+      toast.success("Analysis complete!");
+      requestFeedback("doctor_diagnosis", { action: "analyse" });
+    } catch (error: any) {
+      Logger.error("Comprehensive analysis failed", error, { homeId }, error.message || "Failed to analyse plant.");
     } finally {
       setIsProcessing(false);
     }
@@ -785,6 +865,31 @@ export default function PlantDoctor({
               ) : (
               <div>
                 <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-2">Select analysis type</p>
+
+                {/* Analyse — primary, full-width hero button */}
+                <button
+                  onClick={handleAnalyse}
+                  disabled={isUIBusy}
+                  data-testid="doctor-btn-analyse"
+                  className={`w-full flex items-center justify-center gap-3 p-4 min-h-[56px] rounded-2xl font-black text-sm transition-all group mb-3 ${
+                    activeAction === "analyse"
+                      ? "bg-rhozly-primary text-white shadow-md scale-[1.01]"
+                      : "bg-gradient-to-br from-rhozly-primary to-rhozly-primary/80 text-white shadow-md hover:shadow-lg hover:scale-[1.005] disabled:opacity-50"
+                  }`}
+                >
+                  {isProcessing && activeAction === "analyse" ? (
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                  ) : (
+                    <IconAI className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                  )}
+                  <span className="flex flex-col items-start leading-tight">
+                    <span>Analyse</span>
+                    <span className="text-[10px] opacity-80 font-bold normal-case tracking-normal">
+                      Tell me everything — recommended
+                    </span>
+                  </span>
+                </button>
+
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
                 <button
                   onClick={() => handleAiAction("identify")}
@@ -832,7 +937,17 @@ export default function PlantDoctor({
               </div>
               )}
 
-              {aiResult && (
+              {activeAction === "analyse" && analyseResult && (
+                <div className="animate-in fade-in slide-in-from-top-4">
+                  <AnalyseResultCard
+                    result={analyseResult}
+                    homeId={homeId}
+                    onTasksAdded={onTasksAdded}
+                  />
+                </div>
+              )}
+
+              {activeAction !== "analyse" && aiResult && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
                   <div className="bg-white border border-rhozly-primary/20 rounded-3xl p-6 shadow-sm">
                     <div className="flex items-center gap-2 mb-3">

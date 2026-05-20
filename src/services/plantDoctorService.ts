@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import type { SuggestedTask } from "../components/TaskActionButtons";
 
 export interface DiseaseInfo {
   description: string;
@@ -72,6 +73,57 @@ export interface CareGuideResponse {
   fromCatalogue?: boolean;
 }
 
+/**
+ * Full payload returned by the `analyse_comprehensive` action — a single
+ * Gemini call that combines identification, health, pruning, propagation,
+ * edibility, optional disease/pest, and a list of suggested tasks in the
+ * same shape PlantDoctorChat already produces.
+ *
+ * The `suggested_tasks` array is consumed verbatim by `TaskActionButtons`
+ * so there's no second AI round-trip and no new task-writing code path.
+ */
+export interface AnalyseResult {
+  identification: {
+    common_name: string;
+    scientific_name: string[];
+    confidence: number;
+  };
+  health: {
+    state: "healthy" | "stressed" | "diseased" | "pest_damaged";
+    notes: string;
+    sunlight_appears_appropriate: boolean | null;
+    sunlight_notes: string | null;
+  };
+  pruning: {
+    method: string;
+    where_to_cut: string;
+    how_to_cut: string;
+    tips: string[];
+  };
+  propagation: {
+    method: string;
+    when: string;
+    steps: string[];
+  };
+  edibility: {
+    is_edible: boolean;
+    ripeness: "not_yet" | "near_ripe" | "ripe" | "overripe" | null;
+    estimated_days_until_ripe: number | null;
+    notes: string | null;
+  } | null;
+  disease: {
+    name: string;
+    cure_methods: string[];
+    prevention_methods: string[];
+  } | null;
+  pest: {
+    name: string;
+    removal_methods: string[];
+    prevention_methods: string[];
+  } | null;
+  suggested_tasks: SuggestedTask[];
+}
+
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("plant-doctor", {
     body,
@@ -95,6 +147,19 @@ export const PlantDoctorService = {
     deviceLng?: number;
   }): Promise<VisionResult> {
     return invoke(params);
+  },
+
+  analyseComprehensive(params: {
+    homeId?: string;
+    imageBase64: string;
+    mimeType: string;
+    targetPlant?: string;
+    inventoryItemId?: string;
+    areaId?: string;
+    deviceLat?: number;
+    deviceLng?: number;
+  }): Promise<AnalyseResult> {
+    return invoke({ action: "analyse_comprehensive", ...params });
   },
 
   fetchPestDetails(params: {

@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "label": "New — Visual Lens (Analyse)",
+    "items": [
+      "Plant Doctor gets a new headline action: Analyse. One photo, one tap — and you get identification, a health & light read, pruning method, propagation steps, edibility & ripeness check, plus disease and pest workups if anything's wrong.",
+      "Suggested Tasks are generated in the same payload. Review the pre-checked list at the bottom of the result, deselect anything you don't want, and add the rest to your calendar with a single tap — watering, pruning, harvesting reminders, treatment schedules, and propagation prompts all use the same task system you already know.",
+      "Analyse uses your area context (sunlight, soil, drainage, recent care) and the local weather to make recommendations that actually fit your garden — not generic plant-care advice."
+    ]
+  },
+  {
+    "label": "Behind the scenes",
+    "items": [
+      "Plant Doctor now reuses one shared environmental-context helper across Diagnose and Analyse, so both actions see the same area, lux, companion plants, recent tasks, and current weather when making their call.",
+      "Suggested Tasks from Analyse use the exact same write path the AI Chat already uses for its task suggestions — no new code paths, no divergent behaviour."
+    ]
+  }
+]

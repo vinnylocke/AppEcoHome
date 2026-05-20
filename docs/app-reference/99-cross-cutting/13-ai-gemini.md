@@ -27,7 +27,7 @@ Models used:
 (see [Edge Functions Catalogue](./10-edge-functions-catalogue.md) for full list)
 
 Highlights:
-- `plant-doctor` (identify / diagnose / pest)
+- `plant-doctor` (identify / diagnose / pest / **analyse_comprehensive** — combined Gemini call returning structured analysis + `suggested_tasks[]` for one-tap calendar commit)
 - `plant-doctor-ai` (chat)
 - `generate-landscape-plan` (blueprint)
 - `generate-task-from-photo`

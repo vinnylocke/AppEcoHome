@@ -1,18 +1,19 @@
 # Plant Doctor
 
-> The AI vision tool for plants — identify what a plant is, diagnose what's wrong with it, or scan for pests. Photo in → AI analysis → care plan, treatment, or pest workup → optional follow-up actions (save to Shed, create treatment plan, add supplies to shopping).
+> The AI vision tool for plants — point a camera, get a comprehensive analysis (the primary path) or run a single targeted action (identify / diagnose / pest). Photo in → AI analysis → care plan, treatment, pest workup → optional follow-up actions (save to Shed, generate task schedule, add supplies to shopping). The new **Analyse** path is the recommended default and also produces a list of suggested tasks ready to drop into the user's calendar in one tap.
 
 **Route:** `/doctor`
-**Source file:** `src/components/PlantDoctor.tsx` (~1,670 lines)
+**Source file:** `src/components/PlantDoctor.tsx` (~1,800 lines)
 
 ---
 
 ## Quick Summary
 
-Three actions powered by Gemini Vision via `PlantDoctorService`:
+Four actions powered by Gemini Vision via `PlantDoctorService`:
 
 | Action | API action | What you get |
 |--------|-----------|--------------|
+| **Analyse** ✨ (primary) | `analyse_comprehensive` | Identification + health + sunlight check + pruning + propagation + edibility/ripeness + (optional) disease + (optional) pest + `suggested_tasks[]` ready for `TaskActionButtons` |
 | Identify | `identify_vision` | Plant name(s), scientific name, care snapshot |
 | Diagnose | `diagnose` | Diseases possible, treatments, severity, plant-instance link |
 | Pest Scan | `identify_pest` | Possible pests, control measures |
@@ -34,8 +35,19 @@ PlantDoctor
 │   │   ├── Choose from Library
 │   │   └── Image preview + annotation overlay
 │   ├── (Optional) Plant Instance Picker
-│   ├── Action buttons (Identify · Diagnose · Pest Scan)
+│   ├── Action buttons
+│   │   ├── ✨ Analyse (primary, full-width hero)
+│   │   └── Identify · Diagnose · Pest Scan (secondary row)
 │   ├── Result panel
+│   │   ├── AnalyseResultCard (when activeAction === "analyse")
+│   │   │   ├── Identification (always open)
+│   │   │   ├── Health & Light (always open) — health pill + sunlight check
+│   │   │   ├── Pruning (collapsible)
+│   │   │   ├── Propagation & Cuttings (collapsible)
+│   │   │   ├── Edibility & Ripeness (only when is_edible)
+│   │   │   ├── Disease (open by default, red accent — only when present)
+│   │   │   ├── Pest (open by default, red accent — only when present)
+│   │   │   └── TaskActionButtons (chat's existing task-commit UI — drop-in)
 │   │   ├── DiagnosisImageGallery (Perenual / Verdantly / Unsplash thumbnails)
 │   │   ├── Diagnosis details (per disease)
 │   │   ├── Pest details (per pest)
@@ -96,6 +108,7 @@ Both buttons surface separately on mobile (no "select source" prompt — direct)
 ### Action handler
 
 ```ts
+// identify / diagnose / pest (legacy)
 PlantDoctorService.analyzeImage({
   image: File,
   action: "identify_vision" | "diagnose" | "identify_pest",
@@ -106,9 +119,21 @@ PlantDoctorService.analyzeImage({
   inventoryItemId?,     // for diagnose (link result)
   areaId?,              // for diagnose
 });
+
+// Analyse (Mobile Quick Access Wave 1)
+PlantDoctorService.analyseComprehensive({
+  homeId,
+  imageBase64,
+  mimeType,
+  targetPlant?,         // optional grounding
+  inventoryItemId?,     // optional — enriches env context
+  areaId?,              // optional — enriches env context
+  deviceLat?, deviceLng?,
+});
+// → AnalyseResult: identification, health, pruning, propagation, edibility?, disease?, pest?, suggested_tasks[]
 ```
 
-The service uploads the image to `plant-doctor-images` bucket and calls the relevant edge function (`plant-doctor-identify`, `plant-doctor-diagnose`, `plant-doctor-pest`). Returns `VisionResult` (variable schema by action).
+All actions route through the single `plant-doctor` edge function (action-discriminated). The service uploads the image to `plant-doctor-images` bucket. Returns `VisionResult` for legacy actions, `AnalyseResult` for `analyse_comprehensive`. The `analyse_comprehensive` action emits `suggested_tasks` in the same shape the chat already produces, so the result card drops `<TaskActionButtons />` straight in — no new task-writing path.
 
 ### AI Plant Overhaul integration (Wave 2)
 
@@ -142,14 +167,20 @@ supabase.from("plant_doctor_sessions").insert({
 
 ### Edge functions invoked
 
-| Function | When |
+All actions go through the single `plant-doctor` edge function, discriminated by the `action` field in the request body:
+
+| Action value | When |
 |----------|------|
-| `plant-doctor-identify` | Identify action |
-| `plant-doctor-diagnose` | Diagnose action |
-| `plant-doctor-pest` | Pest scan |
-| `plant-doctor-disease-details` | After diagnosis, drill into a specific disease |
-| `plant-doctor-pest-details` | After pest scan, drill into a specific pest |
-| `generate-treatment-plan` | Create Treatment Plan flow |
+| `analyse_comprehensive` | ✨ Analyse button (Mobile Quick Access Wave 1) — one Gemini call returns the full structured analysis + `suggested_tasks` |
+| `identify_vision` | Identify button |
+| `diagnose` | Diagnose button |
+| `identify_pest` | Pest Scan button |
+| `get_ai_disease_info` | After diagnosis, drill into a specific disease (AI) |
+| `fetch_perenual_disease` | After diagnosis, drill into a specific disease (Perenual lookup) |
+| `generate_remedial_plan` | Used by the legacy "Create Treatment Plan" flow |
+| `generate_care_guide` | Save to Shed → care guide generation |
+
+The shared `_shared/visionEnvContext.ts::buildEnvBlock` helper provides environmental enrichment (area, lux, companions, recent tasks, weather) for `diagnose` and `analyse_comprehensive`. Both Sage+ tier-gated and rate-limited.
 
 ### Cron / scheduled jobs
 
@@ -207,13 +238,14 @@ On mount, the component calls `setPageContext({ page: "plant-doctor", currentTas
 
 ### Why open this tool
 
-This is Rhozly's heaviest AI hitter. Three jobs you couldn't easily do before:
+This is Rhozly's heaviest AI hitter. Four jobs you couldn't easily do before:
 
-1. **Identify** — "What is this plant?" Snap it, get its name + a care snapshot.
-2. **Diagnose** — "What's wrong with this plant?" Snap the affected area, get likely diseases + treatments.
-3. **Pest Scan** — "Is there a pest in this photo?" Snap the leaf, get a workup.
+1. **Analyse** ✨ — "Tell me everything about this plant." Snap it once, get identification, health & light read, pruning method, propagation technique, edibility & ripeness check, plus optional disease and pest sections if anything's wrong — and a pre-checked list of tasks ready to add to your calendar in one tap. **The recommended default for most users**, especially the in-the-garden moment when you don't know what you're looking at.
+2. **Identify** — "What is this plant?" Snap it, get its name + a care snapshot. Best when you already know it's healthy and you just need a name.
+3. **Diagnose** — "What's wrong with this plant?" Snap the affected area, get likely diseases + treatments. Best when you have a known plant that looks unwell.
+4. **Pest Scan** — "Is there a pest in this photo?" Snap the leaf, get a workup. Best when you can see insects or damage.
 
-For new gardeners, this is where the app earns its keep. For experts, it's a quick second opinion.
+For new gardeners, **Analyse** is where the app earns its keep — one tap, one full answer. For experts, the three targeted actions are a faster path when you already know what you're checking for.
 
 ### Every flow on this screen
 
@@ -233,12 +265,14 @@ For new gardeners, this is where the app earns its keep. For experts, it's a qui
 
 #### 4. Run an action
 
-- **Identify** — for unknown plants.
-- **Diagnose** — when something looks off.
+- **Analyse** ✨ — when you want the full picture (default choice for most users).
+- **Identify** — for unknown plants where you only need a name.
+- **Diagnose** — when something looks off on a known plant.
 - **Pest Scan** — when you can see bugs / damage.
 
 #### 5. Read the result
 
+- **Analyse**: scrollable card with all sections. Identification + Health open by default; Pruning, Propagation, Edibility/Disease/Pest sections expand on tap. A pre-checked **Suggested Tasks** block sits at the bottom — review, deselect anything you don't want, and one tap commits them to your calendar.
 - Identification: plant name, scientific name, care snapshot.
 - Diagnosis: list of possible diseases ranked by likelihood, treatments per disease.
 - Pest: list of possible pests, control measures.
@@ -282,6 +316,7 @@ For new gardeners, this is where the app earns its keep. For experts, it's a qui
 
 ### Recommended workflows
 
+- **In the garden, unknown plant, "tell me everything":** Analyse → review pre-checked tasks → tap to add. One-tap result; the rich one.
 - **New plant on the windowsill:** Identify → Save to Shed → done.
 - **Sick plant:** Diagnose with plant picked → Create Treatment Plan → tasks fire daily.
 - **Bug damage:** Pest Scan → Add Supplies to Shopping → buy treatments → tick off list.
@@ -306,12 +341,14 @@ For new gardeners, this is where the app earns its keep. For experts, it's a qui
 ## Code references for ongoing maintenance
 
 - `src/components/PlantDoctor.tsx` — orchestrator
-- `src/services/plantDoctorService.ts` — API + storage upload
+- `src/components/lens/AnalyseResultCard.tsx` — comprehensive analysis result rendering (Mobile Quick Access Wave 1)
+- `src/components/TaskActionButtons.tsx` — shared task-commit UI (writes `task_blueprints` / `tasks` / `task_dependencies`). Consumed by both PlantDoctorChat and AnalyseResultCard.
+- `src/services/plantDoctorService.ts` — API + storage upload; defines `AnalyseResult` type + `analyseComprehensive` method
 - `src/hooks/usePlantDoctorSessions.ts` — history
 - `src/components/PlantInstancePicker.tsx` — pick from Shed
 - `src/components/DiagnosisImageGallery.tsx` — reference images
 - `src/components/PhotoAnnotationOverlay.tsx` — annotate before send
-- `supabase/functions/plant-doctor-identify/index.ts`
-- `supabase/functions/plant-doctor-diagnose/index.ts`
-- `supabase/functions/plant-doctor-pest/index.ts`
-- `supabase/functions/generate-treatment-plan/index.ts`
+- `supabase/functions/plant-doctor/index.ts` — all action handlers (identify_vision / diagnose / identify_pest / analyse_comprehensive / etc.)
+- `supabase/functions/_shared/visionEnvContext.ts` — `buildEnvBlock` helper shared by diagnose + analyse_comprehensive
+- `supabase/tests/visionEnvContext.test.ts` — Deno tests for the env-block helper
+- `tests/unit/components/AnalyseResultCard.test.ts` — Vitest tests for the result card rendering

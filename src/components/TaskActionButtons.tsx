@@ -17,7 +17,7 @@ import {
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 
-interface SuggestedTask {
+export interface SuggestedTask {
   title: string;
   description: string;
   task_type: "Planting" | "Watering" | "Harvesting" | "Maintenance";
