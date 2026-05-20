@@ -78,15 +78,15 @@ The single source of truth for every documented screen, modal, and cross-cutting
 
 ## 07 — Management & Admin
 
-- [ ] [Home Management — Overview](./07-management/01-home-management-overview.md)
-- [ ] [Members & Permissions Tab](./07-management/02-members-permissions.md)
-- [ ] [Multiple Homes Tab](./07-management/03-multiple-homes.md)
-- [ ] [Home Climate Settings Tab](./07-management/04-climate-settings.md)
-- [ ] [Integrations — Devices Tab](./07-management/05-integrations-devices.md)
-- [ ] [Integrations — Automations Tab](./07-management/06-integrations-automations.md)
-- [ ] [Integrations — Soil Readings](./07-management/07-integrations-readings.md)
-- [ ] [Audit Log](./07-management/08-audit-log.md) — admin-only AI usage + activity
-- [ ] [Admin Guide Generator](./07-management/09-admin-guide-generator.md) — AI-authored guide drafting
+- [x] [Home Management — Overview](./07-management/01-home-management-overview.md)
+- [x] [Members & Permissions Tab](./07-management/02-members-permissions.md)
+- [x] [Multiple Homes Tab](./07-management/03-multiple-homes.md)
+- [x] [Home Climate Settings Tab](./07-management/04-climate-settings.md)
+- [x] [Integrations — Devices Tab](./07-management/05-integrations-devices.md)
+- [x] [Integrations — Automations Tab](./07-management/06-integrations-automations.md)
+- [x] [Integrations — Soil Readings](./07-management/07-integrations-readings.md)
+- [x] [Audit Log](./07-management/08-audit-log.md) — admin-only AI usage + activity
+- [x] [Admin Guide Generator](./07-management/09-admin-guide-generator.md) — AI-authored guide drafting
 
 ## 08 — Modals & Overlays
 
