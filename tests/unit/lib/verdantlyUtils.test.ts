@@ -72,8 +72,8 @@ describe("getProviderLabel", () => {
     expect(getProviderLabel("manual")).toBeNull();
   });
 
-  test("'ai' returns null", () => {
-    expect(getProviderLabel("ai")).toBeNull();
+  test("'ai' returns 'Rhozly AI'", () => {
+    expect(getProviderLabel("ai")).toBe("Rhozly AI");
   });
 
   test("unknown string returns null", () => {

@@ -24,7 +24,7 @@ import { getProviderLabel } from "../lib/verdantlyUtils";
 import type { PlantDetails } from "../lib/verdantlyUtils";
 import toast from "react-hot-toast";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
-import { PlantDoctorService } from "../services/plantDoctorService";
+import { PlantDoctorService, type CatalogueHit } from "../services/plantDoctorService";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantInfoPanel from "./PlantInfoPanel";
 
@@ -117,6 +117,10 @@ export default function BulkSearchModal({
 
   const [apiResults, setApiResults] = useState<any[]>([]);
   const [aiResults, setAiResults] = useState<string[]>([]);
+  // Wave 3 — sparse map keyed by AI match string for results that already exist
+  // in the global AI catalogue (or as a home-scoped fork). Drives the "In
+  // catalogue" / "Your custom version" pill in the result row.
+  const [aiHits, setAiHits] = useState<Record<string, CatalogueHit>>({});
   const [canShowMoreAi, setCanShowMoreAi] = useState(false);
   const [canShowMoreVerdantly, setCanShowMoreVerdantly] = useState(false);
   const [isLoadingMoreVerdantly, setIsLoadingMoreVerdantly] = useState(false);
@@ -238,6 +242,13 @@ export default function BulkSearchModal({
         const cleanName = id.split("(")[0].trim();
         const aiData = await PlantDoctorService.generateCareGuide(cleanName, homeId);
         details = careGuideToPlantDetails(aiData?.plantData ?? aiData, cleanName);
+        // Wave 3 — forward catalogue metadata so the bulk-add processor can
+        // skip the per-home plants INSERT and point inventory at the global row.
+        if (aiData?.db_plant_id != null) {
+          details.db_plant_id = aiData.db_plant_id;
+          details.freshness_version = aiData.freshness_version ?? null;
+          details.from_catalogue = aiData.fromCatalogue ?? false;
+        }
       }
       setDetailsCache((prev) => new Map(prev).set(id, details));
     } catch {
@@ -260,6 +271,7 @@ export default function BulkSearchModal({
     setExpandedResultId(null);
     setAiResults([]);
     setApiResults([]);
+    setAiHits({});
     setCanShowMoreAi(false);
     setCanShowMoreVerdantly(false);
     setVerdantlyNextPage(2);
@@ -276,6 +288,7 @@ export default function BulkSearchModal({
         })
           .then((data) => {
             setAiResults(data.matches || []);
+            if (data.hits) setAiHits(data.hits);
             setCanShowMoreAi(data.hasMore);
           })
           .catch(() => {}),
@@ -348,6 +361,7 @@ export default function BulkSearchModal({
         homeId,
       });
       setAiResults((prev) => [...prev, ...(data.matches || [])]);
+      if (data.hits) setAiHits((prev) => ({ ...prev, ...data.hits }));
       setCanShowMoreAi(data.hasMore);
     } catch {
       toast.error("Could not load more AI suggestions.");
@@ -1013,6 +1027,12 @@ export default function BulkSearchModal({
                       {deduplicatedAiResults.map((match: string, i) => {
                         const isSelected = selectedPlantsMap.has(match);
                         const cachedThumb = detailsCache.get(match)?.thumbnail_url;
+                        const hit = aiHits[match];
+                        const cataloguePill = hit
+                          ? hit.hit_kind === "home_fork"
+                            ? { label: "Your custom version", cls: "text-purple-700 bg-purple-100" }
+                            : { label: "In catalogue", cls: "text-emerald-700 bg-emerald-100" }
+                          : null;
 
                         return (
                           <div
@@ -1038,9 +1058,19 @@ export default function BulkSearchModal({
 
                               <div className="flex-1 min-w-0">
                                 <span className="font-bold text-rhozly-on-surface truncate block">{match}</span>
-                                <span className="text-[8px] font-black uppercase tracking-widest text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded-md inline-block mt-0.5">
-                                  AI
-                                </span>
+                                <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                  <span className="text-[8px] font-black uppercase tracking-widest text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded-md inline-block">
+                                    AI
+                                  </span>
+                                  {cataloguePill && (
+                                    <span
+                                      data-testid="ai-catalogue-pill"
+                                      className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md inline-block ${cataloguePill.cls}`}
+                                    >
+                                      {cataloguePill.label}
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                               <button
                                 onClick={() => handleExpandResult(match)}

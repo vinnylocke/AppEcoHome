@@ -436,10 +436,21 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
           if (!imageUrl) imageUrl = await fetchFirstAvailableImage(cleanName);
           extracted.thumbnail_url = imageUrl;
 
-          await savePlantToDB(
-            { ...extracted, source: "ai", perenual_id: null },
-            extracted,
-          );
+          // Wave 3 — when the AI care guide came from (or was just written to)
+          // the global catalogue, record the parent link on this home-scoped
+          // row so later waves can collapse "shallow forks" (no user edits) and
+          // repoint inventory at the global plant instead.
+          const aiSkeleton: Record<string, unknown> = {
+            ...extracted,
+            source: "ai",
+            perenual_id: null,
+          };
+          const pd = (item as any).preloadedDetails;
+          if (pd?.db_plant_id != null) {
+            aiSkeleton.forked_from_plant_id = pd.db_plant_id;
+            aiSkeleton.overridden_fields = [];
+          }
+          await savePlantToDB(aiSkeleton, extracted);
         }
         setBulkQueue((prev) =>
           prev.map((q) => (q.id === item.id ? { ...q, status: "success" } : q)),

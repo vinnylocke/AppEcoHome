@@ -47,8 +47,8 @@ plants (species)
 | `freshness_version` | int | Bumps each time `care_guide_data` changes. Compared against `user_plant_ack.seen_freshness_version` to decide whether to show the "Updated" chip. Default 1. |
 | `last_freshness_check_at` | timestamptz | 90-day stale-check window driver. NULL → eligible immediately. |
 | `last_care_generated_at` | timestamptz | When the care guide was actually re-generated (vs. just verified unchanged). Shown to user as "Care guide refreshed N days ago". |
-| `forked_from_plant_id` | int (FK → plants.id) | For home-scoped AI forks: the global parent. NULL on globals. `ON DELETE SET NULL`. |
-| `overridden_fields` | jsonb (array) | For home-scoped AI forks: field names the user explicitly changed. Drives "Overridden" badges. |
+| `forked_from_plant_id` | int (FK → plants.id) | For home-scoped AI forks: the global parent. NULL on globals. `ON DELETE SET NULL`. As of Wave 3, also set on **shallow forks** — home-scoped AI rows created by the bulk-add flow where the catalogue already had a global row. Shallow forks have `forked_from_plant_id != NULL` AND `overridden_fields = []`. Wave 4+ may collapse them. |
+| `overridden_fields` | jsonb (array) | For home-scoped AI forks: field names the user explicitly changed. Drives "Overridden" badges. Empty array (`[]`) on shallow forks (Wave 3 + later). |
 
 ### `plants_source_check` constraint
 

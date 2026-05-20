@@ -36,6 +36,42 @@ export interface VisionResult {
   immediate_actions?: string[] | null;
 }
 
+/**
+ * AI plant catalogue hit returned by `search_plants_text` for matches that
+ * already exist in the global catalogue (`hit_kind: "global"`) or as the
+ * current home's fork (`hit_kind: "home_fork"`).
+ *
+ * When present, the client should:
+ *  - Render an "In catalogue" / "Your custom version" pill on the result.
+ *  - Skip the `generate_care_guide` call on add — use `plant_id` directly.
+ *
+ * Added in Wave 2 of AI Plant Overhaul; consumed in Wave 3.
+ */
+export interface CatalogueHit {
+  hit_kind: "global" | "home_fork";
+  plant_id: number;
+  care_guide_data: { plantData?: any } | null;
+  freshness_version: number | null;
+  last_care_generated_at: string | null;
+  overridden_fields: string[] | null;
+}
+
+/**
+ * Extended `generate_care_guide` response (Wave 2 of AI Plant Overhaul).
+ * Backward-compatible — old clients only consume `plantData`.
+ *
+ *  - `db_plant_id` is set whenever the catalogue store succeeded (either
+ *    the global row existed already, or the edge fn just inserted it).
+ *  - `fromCatalogue` is true when no Gemini call was made.
+ */
+export interface CareGuideResponse {
+  plantData: any;
+  db_plant_id?: number | null;
+  freshness_version?: number | null;
+  last_care_generated_at?: string | null;
+  fromCatalogue?: boolean;
+}
+
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("plant-doctor", {
     body,
@@ -81,7 +117,10 @@ export const PlantDoctorService = {
     });
   },
 
-  generateCareGuide(targetPlant: string, homeId?: string): Promise<{ plantData: any }> {
+  generateCareGuide(
+    targetPlant: string,
+    homeId?: string,
+  ): Promise<CareGuideResponse> {
     return invoke({ action: "generate_care_guide", targetPlant, homeId });
   },
 
@@ -118,7 +157,7 @@ export const PlantDoctorService = {
       offset?: number;
       homeId?: string;
     },
-  ): Promise<{ matches: any[]; hasMore: boolean }> {
+  ): Promise<{ matches: string[]; hasMore: boolean; hits?: Record<string, CatalogueHit> }> {
     return invoke({
       action: "search_plants_text",
       plantSearch,

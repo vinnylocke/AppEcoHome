@@ -122,13 +122,25 @@ export async function searchAllProviders(
   if (wantAi) {
     calls.push(
       PlantDoctorService.searchPlantsText(query, options?.homeId ? { homeId: options.homeId } : undefined)
-        .then((d) => (d.matches || []).slice(0, 5).map<ProviderSearchResult>((name, idx) => ({
-          id:              `ai-${idx}-${name}`,
-          common_name:     name,
-          scientific_name: [],
-          thumbnail_url:   null,
-          _provider:       "ai",
-        })))
+        .then((d) => (d.matches || []).slice(0, 5).map<ProviderSearchResult>((name, idx) => {
+          const hit = d.hits?.[name];
+          return {
+            id:              `ai-${idx}-${name}`,
+            common_name:     name,
+            scientific_name: [],
+            thumbnail_url:   null,
+            _provider:       "ai",
+            ...(hit && {
+              catalogue_hit: {
+                hit_kind:               hit.hit_kind,
+                plant_id:               hit.plant_id,
+                freshness_version:      hit.freshness_version,
+                last_care_generated_at: hit.last_care_generated_at,
+                overridden_fields:      hit.overridden_fields,
+              },
+            }),
+          };
+        }))
         .catch(() => [] as ProviderSearchResult[]),
     );
   }

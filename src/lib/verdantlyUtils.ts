@@ -71,6 +71,13 @@ export interface PlantDetails {
   soil_ph_max?: number | null;
   planting_instructions?: any | null;
   source: "api" | "verdantly" | "ai";
+  // Wave 2/3 of AI Plant Overhaul — set on AI plants when the response came
+  // from (or was just written to) the global catalogue. When db_plant_id is
+  // present, the add-to-shed flow skips its per-home plants INSERT and
+  // points inventory_items at the global row instead.
+  db_plant_id?: number | null;
+  freshness_version?: number | null;
+  from_catalogue?: boolean;
 }
 
 // Unified search result used in PlantSearchModal and BulkSearchModal.
@@ -83,6 +90,18 @@ export interface ProviderSearchResult {
   // Extra for pre-filling when the user picks a result
   verdantly_id?: string;
   perenual_id?: number;
+  // Wave 3 of AI Plant Overhaul — populated on `_provider === "ai"` results when
+  // the species already exists in the global catalogue (`hit_kind: "global"`)
+  // or as a home-scoped fork (`hit_kind: "home_fork"`). Drives the "In
+  // catalogue" / "Your custom version" pill in search UIs and lets the add-to-
+  // shed flow skip the per-home plants INSERT in favour of the catalogue ID.
+  catalogue_hit?: {
+    hit_kind: "global" | "home_fork";
+    plant_id: number;
+    freshness_version: number | null;
+    last_care_generated_at: string | null;
+    overridden_fields: string[] | null;
+  };
 }
 
 export function getProviderLabel(source: string): "Perenual" | "Verdantly" | "Rhozly AI" | null {

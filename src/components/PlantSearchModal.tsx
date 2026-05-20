@@ -192,6 +192,13 @@ export default function PlantSearchModal({
         // AI suggestions don't have provider IDs — synthesise a care guide instead.
         const guide = await PlantDoctorService.generateCareGuide(searchResultPlant.common_name, homeId);
         fullPlantData = careGuideToPlantDetails(guide?.plantData ?? guide, searchResultPlant.common_name);
+        // Wave 3 — propagate catalogue identity so add-to-shed can point at the
+        // global plant row instead of creating a per-home duplicate.
+        if (guide?.db_plant_id != null) {
+          fullPlantData.db_plant_id = guide.db_plant_id;
+          fullPlantData.freshness_version = guide.freshness_version ?? null;
+          fullPlantData.from_catalogue = guide.fromCatalogue ?? false;
+        }
       } else {
         fullPlantData = await getProviderPlantDetails({
           source: searchResultPlant._provider === "verdantly" ? "verdantly" : "api",
@@ -531,6 +538,11 @@ export default function PlantSearchModal({
                   const isSelected = index === selectedResultIndex;
                   const thumb = plant.thumbnail_url?.includes("upgrade_access") ? null : plant.thumbnail_url;
                   const providerLabel = getProviderLabel(plant._provider);
+                  const cataloguePill = plant.catalogue_hit
+                    ? plant.catalogue_hit.hit_kind === "home_fork"
+                      ? { label: "Your custom version", cls: "bg-purple-100 text-purple-700" }
+                      : { label: "In catalogue", cls: "bg-emerald-100 text-emerald-700" }
+                    : null;
                   return (
                     <div
                       key={`${plant._provider}-${plant.id}`}
@@ -580,9 +592,19 @@ export default function PlantSearchModal({
                               <span className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${
                                 providerLabel === "Verdantly"
                                   ? "bg-emerald-100 text-emerald-700"
-                                  : "bg-blue-100 text-blue-700"
+                                  : providerLabel === "Rhozly AI"
+                                    ? "bg-amber-100 text-amber-700"
+                                    : "bg-blue-100 text-blue-700"
                               }`}>
                                 {providerLabel}
+                              </span>
+                            )}
+                            {cataloguePill && (
+                              <span
+                                data-testid="ai-catalogue-pill"
+                                className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${cataloguePill.cls}`}
+                              >
+                                {cataloguePill.label}
                               </span>
                             )}
                           </div>

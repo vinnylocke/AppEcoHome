@@ -3,7 +3,7 @@ import { X, Loader2, ListPlus, Leaf, Info, ChevronUp, AlertCircle } from "lucide
 import { IconPlantDB, IconAI } from "../constants/icons";
 import { PerenualService } from "../lib/perenualService";
 import { VerdantlyService } from "../lib/verdantlyService";
-import { PlantDoctorService } from "../services/plantDoctorService";
+import { PlantDoctorService, type CatalogueHit } from "../services/plantDoctorService";
 import { getProviderPlantDetails, careGuideToPlantDetails } from "../lib/plantProvider";
 import type { PlantDetails } from "../lib/verdantlyUtils";
 import PlantInfoPanel from "./PlantInfoPanel";
@@ -13,6 +13,9 @@ interface PlantResult {
   ai: string[];
   api: any[];
   verdantly: any[];
+  /** Wave 3 — sparse map keyed by AI match string for matches that exist in the
+   * global catalogue or as the home's fork. Drives "In catalogue" pill. */
+  aiHits?: Record<string, CatalogueHit>;
   verdantlyFailed?: boolean;
   loading: boolean;
 }
@@ -64,6 +67,13 @@ export default function PlantSourcePicker({
         const cleanName = id.split("(")[0].trim();
         const aiData = await PlantDoctorService.generateCareGuide(cleanName, homeId);
         details = careGuideToPlantDetails(aiData?.plantData ?? aiData, cleanName);
+        // Wave 3 — forward catalogue metadata so the bulk-add processor can
+        // skip the per-home plants INSERT and point inventory at the global row.
+        if (aiData?.db_plant_id != null) {
+          details.db_plant_id = aiData.db_plant_id;
+          details.freshness_version = aiData.freshness_version ?? null;
+          details.from_catalogue = aiData.fromCatalogue ?? false;
+        }
       }
       setDetailsCache((prev) => new Map(prev).set(id, details));
     } catch {
@@ -76,16 +86,19 @@ export default function PlantSourcePicker({
 
   useEffect(() => {
     plants.forEach(async (name) => {
-      const [ai, api, verdantlyResult] = await Promise.all([
+      const [aiResult, api, verdantlyResult] = await Promise.all([
         isAiEnabled
           ? PlantDoctorService.searchPlantsText(name, { homeId })
               .then((d) => {
                 const matches = (d.matches || []).slice(0, 3);
                 // Plant was AI-suggested by the planner — always surface at least the name itself
-                return matches.length > 0 ? matches : [name];
+                return {
+                  matches: matches.length > 0 ? matches : [name],
+                  hits: d.hits ?? {},
+                };
               })
-              .catch(() => [name] as string[])
-          : ([] as string[]),
+              .catch(() => ({ matches: [name] as string[], hits: {} as Record<string, CatalogueHit> }))
+          : Promise.resolve({ matches: [] as string[], hits: {} as Record<string, CatalogueHit> }),
         isPremium
           ? PerenualService.searchPlants(name)
               .then((d) => (d || []).slice(0, 3))
@@ -99,7 +112,8 @@ export default function PlantSourcePicker({
       setResults((prev) => ({
         ...prev,
         [name]: {
-          ai,
+          ai: aiResult.matches,
+          aiHits: aiResult.hits,
           api,
           verdantly: verdantlyResult.results,
           verdantlyFailed: verdantlyResult.failed,
@@ -109,8 +123,8 @@ export default function PlantSourcePicker({
 
       // Auto-select: AI first, then Verdantly, then Perenual
       const auto: Selection | null =
-        ai.length > 0
-          ? { type: "ai", data: ai[0] }
+        aiResult.matches.length > 0
+          ? { type: "ai", data: aiResult.matches[0] }
           : verdantlyResult.results.length > 0
             ? { type: "verdantly", data: verdantlyResult.results[0] }
             : api.length > 0
@@ -257,6 +271,12 @@ export default function PlantSourcePicker({
                             const active = isSelected(name, sel);
                             const cachedThumb = detailsCache.get(match)?.thumbnail_url;
                             const isExpanded = expandedId === match;
+                            const hit = r.aiHits?.[match];
+                            const cataloguePill = hit
+                              ? hit.hit_kind === "home_fork"
+                                ? { label: "Your custom version", cls: "text-purple-700 bg-purple-100" }
+                                : { label: "In catalogue", cls: "text-emerald-700 bg-emerald-100" }
+                              : null;
 
                             return (
                               <div
@@ -278,7 +298,17 @@ export default function PlantSourcePicker({
                                   </button>
                                   <button onClick={() => select(name, sel)} className="flex-1 min-w-0 text-left">
                                     <span className="text-xs font-bold text-rhozly-on-surface leading-tight block truncate">{match}</span>
-                                    <span className="text-[8px] font-black uppercase tracking-widest text-amber-500 bg-amber-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">AI</span>
+                                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                      <span className="text-[8px] font-black uppercase tracking-widest text-amber-500 bg-amber-100 px-1.5 py-0.5 rounded-full inline-block">AI</span>
+                                      {cataloguePill && (
+                                        <span
+                                          data-testid="ai-catalogue-pill"
+                                          className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full inline-block ${cataloguePill.cls}`}
+                                        >
+                                          {cataloguePill.label}
+                                        </span>
+                                      )}
+                                    </div>
                                   </button>
                                   <button
                                     onClick={() => toggleExpand(match)}

@@ -786,11 +786,46 @@ Six waves, each independently deployable and rollback-safe.
 - Add `manual_refresh_ai_plant` edge function (Sage+, rate-limited).
 - Existing 30-day TTL cache continues to work as a transitional fallback.
 
-### Wave 3 — Client UI for hit-detection + reuse
-- Bulk Search + Plant Source Picker show "In catalogue" / "Your custom version" pill on `db_hit` candidates.
-- Pick flow uses `db_plant_id` instead of regenerating.
-- New: `useAiPlantFreshness` hook (returns freshness state per plant_id).
-- Test: User A adds tomato → User B (different home) searches → sees "In catalogue" → adds → zero AI calls fire.
+### Wave 3 — Client UI for hit-detection + reuse  *(shipped)*
+
+Shipped in commit `<wave3-commit>` (date 2026-05-20). Scope delivered:
+
+- `PlantDoctorService.searchPlantsText` / `generateCareGuide` typed via new
+  `CatalogueHit` + `CareGuideResponse` interfaces (see [src/services/plantDoctorService.ts](../../src/services/plantDoctorService.ts)).
+- `PlantDetails` (in [src/lib/verdantlyUtils.ts](../../src/lib/verdantlyUtils.ts)) gains optional
+  `db_plant_id`, `freshness_version`, `from_catalogue` fields.
+- `ProviderSearchResult` (same file) gains optional `catalogue_hit` for AI
+  search results, populated by `searchAllProviders` in
+  [src/lib/plantProvider.ts](../../src/lib/plantProvider.ts).
+- **BulkSearchModal** ([src/components/BulkSearchModal.tsx](../../src/components/BulkSearchModal.tsx)) —
+  captures the `hits` map from `searchPlantsText` and renders an "In
+  catalogue" / "Your custom version" pill on AI matches. The bulk fetcher
+  forwards `db_plant_id` into the details cache.
+- **PlantSourcePicker** ([src/components/PlantSourcePicker.tsx](../../src/components/PlantSourcePicker.tsx)) —
+  per-name search now stores `aiHits` alongside `ai` so the pill renders on
+  any AI candidate that matched the catalogue. Care-guide prefetch forwards
+  `db_plant_id` too.
+- **PlantSearchModal** ([src/components/PlantSearchModal.tsx](../../src/components/PlantSearchModal.tsx)) —
+  the single-result rows show the same pill via the new `catalogue_hit`
+  field on the merged result. Preview path forwards `db_plant_id` onto
+  `previewPlant` (the single-plant add-to-shed branch for AI is still a
+  pre-existing gap and is not part of Wave 3).
+- **TheShed bulk-add** ([src/components/TheShed.tsx](../../src/components/TheShed.tsx)) — when
+  `preloadedDetails.db_plant_id` is present, the home-scoped `plants` row
+  inserted for the AI plant now also records `forked_from_plant_id =
+  db_plant_id` and `overridden_fields = []`. This marks the row as a
+  *shallow fork* (no user edits yet) so Wave 4+ can detect and collapse
+  these into pure `inventory_items` references against the global parent.
+
+Not in Wave 3 (kept for Wave 5):
+- `useAiPlantFreshness` hook. (Doc'd in §9 as Wave 5 work — needs the
+  realtime + freshness UI in Plant Edit / Instance Edit modals to land
+  alongside it. Adding the hook alone would create dead code.)
+
+Manual smoke test (deferred to staging — local DB has no second home):
+User A adds tomato → User B (different home) searches → sees "In
+catalogue" pill → adds → zero Gemini calls fire (verified by absence of
+new `ai_calls` row for `action = "generate_care_guide"`).
 
 ### Wave 4 — Stale-check cron + revision history
 - Deploy `refresh-stale-ai-plants` edge fn.
