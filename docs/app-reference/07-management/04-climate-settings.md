@@ -21,15 +21,17 @@ The home's lat/lng comes from the postcode/geocoding step during HomeSetup; if m
 
 ### Fields
 
-| Field | Type | Purpose |
-|-------|------|---------|
-| name | text | Display label |
-| address | text | Free-text |
-| country | dropdown (COUNTRIES) | Drives some defaults |
-| timezone | dropdown (`Intl.supportedValuesOf("timeZone")`) | Time-aware logic |
-| lat / lng | hidden (read-only display) | Geocoded |
-| hardiness_zone | string (auto + manual recalc) | USDA zone code |
-| climate_zone | read-only | Köppen e.g. "Cfb" |
+| Field | Type | Purpose | Storage |
+|-------|------|---------|---------|
+| name | text | Display label | `homes.name` |
+| address | text | Free-text | `homes.address` |
+| country | dropdown (COUNTRIES) | Drives some defaults | `homes.country` |
+| timezone | dropdown (`Intl.supportedValuesOf("timeZone")`) | Time-aware logic | `homes.timezone` |
+| lat / lng | hidden (read-only display) | Geocoded | `homes.lat`, `homes.lng` |
+| hardiness_zone | string (auto + manual recalc) | USDA zone code | `homes.hardiness_zone` |
+| climate_zone | read-only | Köppen e.g. "Cfb" | `homes.climate_zone` |
+| **rain_skip_mm** ✨ | numeric input | Skip-watering threshold (defaults to 5mm). Mobile Quick Access Wave 3. | `home_climate.rain_skip_mm` |
+| **rain_water_mm** ✨ | numeric input | Water-today threshold (defaults to 1mm). Wave 3. | `home_climate.rain_water_mm` |
 
 ### Local state (relevant subset)
 
@@ -39,6 +41,14 @@ The home's lat/lng comes from the postcode/geocoding step during HomeSetup; if m
 | `savingHomeId` | Save in flight |
 | `recalculatingZones` | Set of home IDs with hardiness recalc in progress |
 | `debounceRef` | Debounce save on text input |
+| `rainConfigMap` | Persisted rain thresholds per home (loaded after homes; Wave 3) |
+| `editingRain` | Active rain-threshold edit form per home (Wave 3) |
+| `rainSavingHomeId` | Rain save in flight |
+| `rainErrorByHome` | Per-home validation error (water > skip, negative numbers, etc.) |
+
+### Rain advice thresholds section (Mobile Quick Access Wave 3)
+
+Below the USDA Hardiness Zone block, a new "Rain advice thresholds" section exposes the two numeric inputs that drive the [Localized Task Calendar](../02-dashboard/10-localized-task-calendar.md)'s `RainWaterAdvice` tile. Defaults shown until first save (5mm skip, 1mm water). Tap **Edit** to open numeric inputs + Save; client-side validation enforces `water ≤ skip` and non-negative values. Save upserts into `home_climate`.
 
 ### Data flow — write paths
 

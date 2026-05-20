@@ -18,6 +18,13 @@ Four actions powered by Gemini Vision via `PlantDoctorService`:
 | Diagnose | `diagnose` | Diseases possible, treatments, severity, plant-instance link |
 | Pest Scan | `identify_pest` | Possible pests, control measures |
 
+The `plant-doctor` edge function also exposes **two non-screen actions** consumed by the [Localized Task Calendar](../02-dashboard/10-localized-task-calendar.md):
+
+| Action | What it returns | Tier gate |
+|--------|----------------|-----------|
+| `lookup_frost_dates` | Cached frost dates for the home (writes `home_climate` on first miss). One Gemini call per home per 6-month TTL. | Open to all tiers |
+| `plant_when_to_plant` | Per-plant planting guidance (earliest/latest outdoor dates, indoor-start, spacing, depth, tips), anchored to the home's frost dates. | Sage+ only |
+
 Photo capture supports Capacitor camera (mobile native), browser camera, or file upload. Optional plant-instance picker pre-scopes the request. The annotation overlay lets the user circle a specific leaf/area. Each session writes to `plant_doctor_sessions` for the History tab.
 
 ---
@@ -176,6 +183,8 @@ All actions go through the single `plant-doctor` edge function, discriminated by
 | `identify_vision` | Identify button |
 | `diagnose` | Diagnose button |
 | `identify_pest` | Pest Scan button |
+| `lookup_frost_dates` | Mobile Quick Access Wave 3 — cached frost-date lookup (open to all tiers). Reads/writes `home_climate`. |
+| `plant_when_to_plant` | Mobile Quick Access Wave 3 — per-plant planting guidance anchored to the home's frost dates. Sage+ only. |
 | `get_ai_disease_info` | After diagnosis, drill into a specific disease (AI) |
 | `fetch_perenual_disease` | After diagnosis, drill into a specific disease (Perenual lookup) |
 | `generate_remedial_plan` | Used by the legacy "Create Treatment Plan" flow |

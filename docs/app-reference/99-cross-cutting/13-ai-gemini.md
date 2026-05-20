@@ -27,7 +27,7 @@ Models used:
 (see [Edge Functions Catalogue](./10-edge-functions-catalogue.md) for full list)
 
 Highlights:
-- `plant-doctor` (identify / diagnose / pest / **analyse_comprehensive** — combined Gemini call returning structured analysis + `suggested_tasks[]` for one-tap calendar commit)
+- `plant-doctor` (identify / diagnose / pest / **analyse_comprehensive** — combined Gemini call returning structured analysis + `suggested_tasks[]` for one-tap calendar commit / **lookup_frost_dates** — open to all tiers, caches into `home_climate` for 6 months / **plant_when_to_plant** — Sage+ per-plant guidance anchored to cached frost dates)
 - `plant-doctor-ai` (chat)
 - `generate-landscape-plan` (blueprint)
 - `generate-task-from-photo`

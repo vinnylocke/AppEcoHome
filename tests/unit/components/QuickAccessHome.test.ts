@@ -66,12 +66,11 @@ describe("QuickAccessHome", () => {
     expect(navigateMock).toHaveBeenCalledWith("/quick/lens");
   });
 
-  test("tapping Calendar tile shows a toast and does NOT navigate", () => {
+  test("tapping Calendar tile navigates to /quick/calendar (live in Wave 3)", () => {
     renderHome();
     fireEvent.click(screen.getByTestId("quick-tile-calendar"));
-    expect(toastFn).toHaveBeenCalledTimes(1);
-    expect(toastFn.mock.calls[0][0]).toContain("Dashboard");
-    expect(navigateMock).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith("/quick/calendar");
+    expect(toastFn).not.toHaveBeenCalled();
   });
 
   test("tapping Journal tile shows a toast and does NOT navigate", () => {

@@ -68,13 +68,8 @@ export default function QuickAccessHome() {
           testId="quick-tile-calendar"
           icon={<CalendarDays size={26} />}
           title="Today"
-          description="Your tasks for today plus the rain forecast — so you know whether to skip watering."
-          variant="coming-soon"
-          onClick={() =>
-            toast("Coming soon — for now, view today's tasks on the Dashboard.", {
-              icon: "📅",
-            })
-          }
+          description="Your tasks, the rain forecast, and a frost-aware planting helper — all on one screen."
+          onClick={() => navigate("/quick/calendar")}
         />
         <QuickTile
           testId="quick-tile-journal"

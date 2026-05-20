@@ -53,6 +53,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Location Page (Drill-In)](./02-dashboard/07-location-page.md) — `?locationId=` view
 - [x] [Weather Alert Banner](./02-dashboard/08-weather-alert-banner.md) — frost / heat / wind / rain alerts
 - [x] [Quick Access Home](./02-dashboard/09-quick-access-home.md) — mobile shortcut home (`/quick`) with Visual Lens + Calendar / Quick Capture placeholder tiles
+- [x] [Localized Task Calendar](./02-dashboard/10-localized-task-calendar.md) — mobile `/quick/calendar` with frost-aware planting helper, rain-vs-watering advice, and today's pending tasks
 
 ## 03 — Garden Hub
 

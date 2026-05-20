@@ -124,6 +124,41 @@ export interface AnalyseResult {
   suggested_tasks: SuggestedTask[];
 }
 
+/**
+ * Cached frost-date payload returned by `lookup_frost_dates` (Mobile Quick
+ * Access Wave 3). Open to all tiers; cached per-home with a 6-month TTL.
+ * Server validates AI output before persisting — invalid responses return
+ * a 422 with `{ error: "frost_lookup_validation_failed", reason }`.
+ */
+export interface FrostDates {
+  last_frost_iso: string;
+  first_frost_iso: string;
+  growing_season_days: number;
+  notes: string | null;
+  rain_skip_mm: number;
+  rain_water_mm: number;
+  from_cache: boolean;
+}
+
+/**
+ * Per-plant planting guidance returned by `plant_when_to_plant`. Threaded
+ * with the home's cached frost dates so timing is anchored to the user's
+ * climate. Sage+ AI-tier-gated.
+ */
+export interface PlantingGuidance {
+  plant_name: string;
+  scientific_name: string | null;
+  can_plant_outdoors_now: boolean;
+  earliest_outdoor_date: string;
+  latest_outdoor_date: string;
+  indoor_start_recommended: boolean;
+  indoor_start_date: string | null;
+  spacing_cm: number | null;
+  depth_cm: number | null;
+  sun_requirement: string;
+  tips: string[];
+}
+
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("plant-doctor", {
     body,
@@ -160,6 +195,14 @@ export const PlantDoctorService = {
     deviceLng?: number;
   }): Promise<AnalyseResult> {
     return invoke({ action: "analyse_comprehensive", ...params });
+  },
+
+  lookupFrostDates(homeId: string): Promise<FrostDates> {
+    return invoke({ action: "lookup_frost_dates", homeId });
+  },
+
+  plantWhenToPlant(plantName: string, homeId: string): Promise<PlantingGuidance> {
+    return invoke({ action: "plant_when_to_plant", targetPlant: plantName, homeId });
   },
 
   fetchPestDetails(params: {

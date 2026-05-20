@@ -52,6 +52,13 @@ interface TaskListProps {
   preloadedTasks?: any[];
   preloadedInventoryDict?: Record<string, any>;
   preloadedBlockedTaskIds?: Set<string>;
+  /**
+   * Mobile Quick Access Wave 3 — slim variant used by /quick/calendar.
+   * Hides the Pending/Completed tab bar, scope filter, and bulk-edit
+   * toolbar. Filters to today's pending tasks only. Renders a tappable
+   * "View calendar →" link at the bottom. Default false.
+   */
+  compact?: boolean;
 }
 
 
@@ -68,6 +75,7 @@ export default function TaskList({
   preloadedTasks,
   preloadedInventoryDict,
   preloadedBlockedTaskIds,
+  compact = false,
 }: TaskListProps) {
   const navigate = useNavigate();
   const { preferences } = usePlantDoctor();
@@ -888,7 +896,7 @@ export default function TaskList({
 
   return (
     <>
-      {tasks.length > 0 && (
+      {tasks.length > 0 && !compact && (
         <div className="flex flex-col gap-3 mb-4 animate-in fade-in">
           <div className="flex flex-wrap sm:flex-row sm:items-center justify-between gap-2">
             <div className="flex bg-rhozly-surface-low p-1.5 rounded-2xl border border-rhozly-outline/5 min-w-0">
@@ -1172,6 +1180,19 @@ export default function TaskList({
               </div>
             );
           })}
+        </div>
+      )}
+
+      {compact && tasks.length > 0 && (
+        <div className="mt-3 flex justify-end">
+          <button
+            type="button"
+            data-testid="task-list-compact-view-calendar"
+            onClick={() => navigate("/dashboard?view=calendar")}
+            className="text-xs font-black uppercase tracking-widest text-rhozly-primary hover:underline px-2 py-1"
+          >
+            View calendar →
+          </button>
         </div>
       )}
 

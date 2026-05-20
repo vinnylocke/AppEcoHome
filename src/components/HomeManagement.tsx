@@ -162,6 +162,17 @@ export default function HomeManagement({
   const [savingHomeId, setSavingHomeId] = useState<string | null>(null);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  // Mobile Quick Access Wave 3 — rain-advice thresholds from home_climate.
+  // Loaded after homes; defaults shown until first save.
+  const [rainConfigMap, setRainConfigMap] = useState<
+    Record<string, { rain_skip_mm: number; rain_water_mm: number }>
+  >({});
+  const [editingRain, setEditingRain] = useState<
+    Record<string, { rain_skip_mm: string; rain_water_mm: string }>
+  >({});
+  const [rainSavingHomeId, setRainSavingHomeId] = useState<string | null>(null);
+  const [rainErrorByHome, setRainErrorByHome] = useState<Record<string, string | null>>({});
+
   const fetchHomes = useCallback(async () => {
     setLoading(true);
     try {
@@ -208,10 +219,102 @@ export default function HomeManagement({
       }
 
       setHomes(homeList.map((h) => ({ ...h, members: membersByHome[h.id] ?? [] })));
+
+      // Wave 3 — load rain-advice thresholds. Missing rows fall back to
+      // hard-coded defaults (5/1) in the UI.
+      const { data: climateRows } = await supabase
+        .from("home_climate")
+        .select("home_id, rain_skip_mm, rain_water_mm")
+        .in("home_id", homeIds);
+      const rainMap: Record<string, { rain_skip_mm: number; rain_water_mm: number }> = {};
+      for (const row of climateRows ?? []) {
+        rainMap[row.home_id] = {
+          rain_skip_mm: Number(row.rain_skip_mm ?? 5),
+          rain_water_mm: Number(row.rain_water_mm ?? 1),
+        };
+      }
+      setRainConfigMap(rainMap);
     } finally {
       setLoading(false);
     }
   }, [userId]);
+
+  const rainConfigFor = useCallback(
+    (homeId: string): { rain_skip_mm: number; rain_water_mm: number } =>
+      rainConfigMap[homeId] ?? { rain_skip_mm: 5, rain_water_mm: 1 },
+    [rainConfigMap],
+  );
+
+  const startEditingRain = useCallback(
+    (homeId: string) => {
+      const current = rainConfigFor(homeId);
+      setEditingRain((prev) => ({
+        ...prev,
+        [homeId]: {
+          rain_skip_mm: String(current.rain_skip_mm),
+          rain_water_mm: String(current.rain_water_mm),
+        },
+      }));
+      setRainErrorByHome((prev) => ({ ...prev, [homeId]: null }));
+    },
+    [rainConfigFor],
+  );
+
+  const cancelEditingRain = useCallback((homeId: string) => {
+    setEditingRain((prev) => {
+      const { [homeId]: _omit, ...rest } = prev;
+      return rest;
+    });
+    setRainErrorByHome((prev) => ({ ...prev, [homeId]: null }));
+  }, []);
+
+  const saveRainConfig = useCallback(
+    async (homeId: string) => {
+      const draft = editingRain[homeId];
+      if (!draft) return;
+
+      const skip = Number(draft.rain_skip_mm);
+      const water = Number(draft.rain_water_mm);
+
+      if (!Number.isFinite(skip) || skip < 0) {
+        setRainErrorByHome((prev) => ({ ...prev, [homeId]: "Skip threshold must be 0 or higher." }));
+        return;
+      }
+      if (!Number.isFinite(water) || water < 0) {
+        setRainErrorByHome((prev) => ({ ...prev, [homeId]: "Water threshold must be 0 or higher." }));
+        return;
+      }
+      if (water > skip) {
+        setRainErrorByHome((prev) => ({ ...prev, [homeId]: "Water threshold must be at or below the skip threshold." }));
+        return;
+      }
+
+      setRainSavingHomeId(homeId);
+      try {
+        const { error } = await supabase
+          .from("home_climate")
+          .upsert(
+            { home_id: homeId, rain_skip_mm: skip, rain_water_mm: water },
+            { onConflict: "home_id" },
+          );
+        if (error) throw error;
+        setRainConfigMap((prev) => ({
+          ...prev,
+          [homeId]: { rain_skip_mm: skip, rain_water_mm: water },
+        }));
+        setEditingRain((prev) => {
+          const { [homeId]: _omit, ...rest } = prev;
+          return rest;
+        });
+        setRainErrorByHome((prev) => ({ ...prev, [homeId]: null }));
+      } catch (err: any) {
+        setRainErrorByHome((prev) => ({ ...prev, [homeId]: err?.message ?? "Couldn't save." }));
+      } finally {
+        setRainSavingHomeId(null);
+      }
+    },
+    [editingRain],
+  );
 
   useEffect(() => { fetchHomes(); }, [fetchHomes]);
 
@@ -705,6 +808,126 @@ export default function HomeManagement({
                           </div>
                         )}
                       </div>
+                    </div>
+
+                    {/* Rain advice thresholds (Mobile Quick Access Wave 3) */}
+                    <div className="sm:col-span-2 pt-2 border-t border-rhozly-outline/10">
+                      <label className={labelClass}>Rain advice thresholds</label>
+                      <p className="text-[11px] text-rhozly-on-surface/45 mb-3 leading-snug">
+                        Used by the Quick Access calendar to decide whether to suggest skipping today's watering.
+                      </p>
+
+                      {editingRain[home.id] ? (
+                        <div
+                          data-testid={`home-mgmt-rain-edit-${home.id}`}
+                          className="space-y-3"
+                        >
+                          <div className="grid grid-cols-2 gap-3">
+                            <div>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/45 mb-1 block">
+                                Skip-watering ≥ (mm)
+                              </label>
+                              <input
+                                data-testid={`home-mgmt-rain-skip-${home.id}`}
+                                type="number"
+                                inputMode="decimal"
+                                step="0.5"
+                                min="0"
+                                value={editingRain[home.id].rain_skip_mm}
+                                onChange={(e) =>
+                                  setEditingRain((prev) => ({
+                                    ...prev,
+                                    [home.id]: { ...prev[home.id], rain_skip_mm: e.target.value },
+                                  }))
+                                }
+                                className="w-full px-3 py-2 min-h-[40px] rounded-xl border border-rhozly-outline/20 text-sm font-bold text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary"
+                              />
+                            </div>
+                            <div>
+                              <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/45 mb-1 block">
+                                Water-today &lt; (mm)
+                              </label>
+                              <input
+                                data-testid={`home-mgmt-rain-water-${home.id}`}
+                                type="number"
+                                inputMode="decimal"
+                                step="0.5"
+                                min="0"
+                                value={editingRain[home.id].rain_water_mm}
+                                onChange={(e) =>
+                                  setEditingRain((prev) => ({
+                                    ...prev,
+                                    [home.id]: { ...prev[home.id], rain_water_mm: e.target.value },
+                                  }))
+                                }
+                                className="w-full px-3 py-2 min-h-[40px] rounded-xl border border-rhozly-outline/20 text-sm font-bold text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary"
+                              />
+                            </div>
+                          </div>
+                          {rainErrorByHome[home.id] && (
+                            <p
+                              data-testid={`home-mgmt-rain-error-${home.id}`}
+                              className="text-xs font-bold text-red-600"
+                            >
+                              {rainErrorByHome[home.id]}
+                            </p>
+                          )}
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              type="button"
+                              data-testid={`home-mgmt-rain-cancel-${home.id}`}
+                              onClick={() => cancelEditingRain(home.id)}
+                              className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/50 hover:text-rhozly-on-surface px-3 py-2 min-h-[36px] transition"
+                            >
+                              Cancel
+                            </button>
+                            <button
+                              type="button"
+                              data-testid={`home-mgmt-rain-save-${home.id}`}
+                              onClick={() => saveRainConfig(home.id)}
+                              disabled={rainSavingHomeId === home.id}
+                              className="px-4 py-2 min-h-[36px] rounded-xl bg-rhozly-primary text-white text-[10px] font-black uppercase tracking-widest hover:opacity-90 disabled:opacity-50 transition"
+                            >
+                              {rainSavingHomeId === home.id ? "Saving…" : "Save"}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-3">
+                          <div className="flex-1 grid grid-cols-2 gap-2">
+                            <div className="px-3 py-2 rounded-xl bg-sky-50 border border-sky-100">
+                              <div className="text-[10px] font-black uppercase tracking-widest text-sky-700 mb-0.5">
+                                Skip ≥
+                              </div>
+                              <p
+                                data-testid={`home-mgmt-rain-skip-display-${home.id}`}
+                                className="text-sm font-black text-rhozly-on-surface"
+                              >
+                                {rainConfigFor(home.id).rain_skip_mm} mm
+                              </p>
+                            </div>
+                            <div className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-100">
+                              <div className="text-[10px] font-black uppercase tracking-widest text-amber-700 mb-0.5">
+                                Water &lt;
+                              </div>
+                              <p
+                                data-testid={`home-mgmt-rain-water-display-${home.id}`}
+                                className="text-sm font-black text-rhozly-on-surface"
+                              >
+                                {rainConfigFor(home.id).rain_water_mm} mm
+                              </p>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            data-testid={`home-mgmt-rain-edit-btn-${home.id}`}
+                            onClick={() => startEditingRain(home.id)}
+                            className="text-[10px] font-black uppercase tracking-widest text-rhozly-primary hover:opacity-80 px-2 py-1 transition"
+                          >
+                            Edit
+                          </button>
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>

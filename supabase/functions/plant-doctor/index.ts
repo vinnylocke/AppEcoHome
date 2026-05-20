@@ -13,6 +13,7 @@ import { getFallback } from "../_shared/fallbacks.ts";
 import { reverseGeocodeCity } from "../_shared/locationContext.ts";
 import { normaliseScientificKey, parseMatchString } from "../_shared/aiPlantCatalogue.ts";
 import { buildEnvBlock } from "../_shared/visionEnvContext.ts";
+import { validateFrostPayload } from "../_shared/frostValidation.ts";
 
 const FN = "plant-doctor";
 
@@ -329,6 +330,45 @@ const PEST_INFO_SCHEMA = {
   required: ["pestInfo"],
 };
 
+// Mobile Quick Access Wave 3 — frost dates returned by `lookup_frost_dates`.
+const LOOKUP_FROST_DATES_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    last_frost_iso:      { type: "STRING",  description: "ISO date (YYYY-MM-DD) of the average LAST spring frost for this location, in the current year." },
+    first_frost_iso:     { type: "STRING",  description: "ISO date (YYYY-MM-DD) of the average FIRST autumn frost for this location, in the current year (or next year if already past)." },
+    growing_season_days: { type: "INTEGER", description: "Days between last and first frost. 30-365." },
+    notes:               { type: "STRING",  nullable: true, description: "Optional one-line caveat — e.g. 'highly variable in coastal microclimates' or 'no meaningful frost risk'." },
+  },
+  required: ["last_frost_iso", "first_frost_iso", "growing_season_days"],
+};
+
+// Mobile Quick Access Wave 3 — per-plant planting guidance returned by `plant_when_to_plant`.
+const PLANT_WHEN_TO_PLANT_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    plant_name:               { type: "STRING" },
+    scientific_name:          { type: "STRING", nullable: true },
+    can_plant_outdoors_now:   { type: "BOOLEAN" },
+    earliest_outdoor_date:    { type: "STRING", description: "ISO date — earliest safe outdoor planting based on the home's frost dates." },
+    latest_outdoor_date:      { type: "STRING", description: "ISO date — latest sensible outdoor planting given growing-season days." },
+    indoor_start_recommended: { type: "BOOLEAN" },
+    indoor_start_date:        { type: "STRING", nullable: true, description: "ISO date — when to start seeds indoors if recommended." },
+    spacing_cm:               { type: "INTEGER", nullable: true },
+    depth_cm:                 { type: "NUMBER",  nullable: true },
+    sun_requirement:          { type: "STRING",  description: "e.g. 'full sun' / 'partial shade' / 'shade-tolerant'" },
+    tips:                     { type: "ARRAY",   items: { type: "STRING" }, description: "2-4 concrete tips tailored to this plant + this home's climate." },
+  },
+  required: [
+    "plant_name",
+    "can_plant_outdoors_now",
+    "earliest_outdoor_date",
+    "latest_outdoor_date",
+    "indoor_start_recommended",
+    "sun_requirement",
+    "tips",
+  ],
+};
+
 // ── Image helpers ───────────────────────────────────────────────────────────
 
 async function fetchAndUploadImage(url: string, plantName: string, supabase: any) {
@@ -479,7 +519,12 @@ serve(async (req) => {
     const rateLimitErr = await enforceRateLimit(supabase, callerUserId, rateLimitFn);
     if (rateLimitErr) return rateLimitErr;
 
-    if (homeId) {
+    // `lookup_frost_dates` is open to all tiers — the cached row is treated
+    // as a fact, not a generation. First-time miss still pays a Gemini call,
+    // but that's amortised across the home's members and a 6-month TTL.
+    const skipAiGate = action === "lookup_frost_dates";
+
+    if (homeId && !skipAiGate) {
       const guardErr = await guardAiByHome(supabase, homeId);
       if (guardErr) return guardErr;
     }
@@ -1106,6 +1151,170 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
         isEdible: parsed.edibility?.is_edible ?? null,
         suggestedTasksCount: (parsed.suggested_tasks ?? []).length,
         hasEnvContext: !!envBlock,
+      });
+      return new Response(rawText, {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── action: lookup_frost_dates ─────────────────────────────────────────
+    //
+    // Returns the cached home_climate row, refreshing if missing or older
+    // than 180 days. Open to all tiers; rate-limited like every other action.
+    // Validates Gemini output server-side before writing.
+
+    if (action === "lookup_frost_dates") {
+      if (!homeId) throw new Error("homeId is required for lookup_frost_dates.");
+
+      const STALE_DAYS = 180;
+      const staleThresholdIso = new Date(Date.now() - STALE_DAYS * 864e5).toISOString();
+
+      const { data: existing } = await supabase
+        .from("home_climate")
+        .select("*")
+        .eq("home_id", homeId)
+        .maybeSingle();
+
+      const isFresh =
+        existing?.last_frost_iso &&
+        existing?.first_frost_iso &&
+        existing?.last_frost_lookup_at &&
+        existing.last_frost_lookup_at >= staleThresholdIso;
+
+      if (isFresh) {
+        log(FN, "result", { action, fromCache: true });
+        return new Response(
+          JSON.stringify({
+            last_frost_iso:      existing.last_frost_iso,
+            first_frost_iso:     existing.first_frost_iso,
+            growing_season_days: existing.growing_season_days,
+            notes:               existing.notes,
+            rain_skip_mm:        Number(existing.rain_skip_mm ?? 5),
+            rain_water_mm:       Number(existing.rain_water_mm ?? 1),
+            from_cache:          true,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // Cache miss or stale — call Gemini and validate.
+      const promptText = `You are a horticultural reference. Return the AVERAGE last spring frost date and AVERAGE first autumn frost date for the location below, plus the growing-season length in days.
+${locationLine ? `Location: ${locationLine}.` : ""}
+Use ISO 8601 dates (YYYY-MM-DD) for the current year (${new Date().getFullYear()}). For the first autumn frost, use the current year if it hasn't happened yet, otherwise the next year. For frost-free climates, choose the historical edges (e.g. "no meaningful frost — using climatological boundaries") and set growing_season_days near 365.
+Hemisphere: ${hemisphere}. Constraints: last frost must precede first frost. For Northern hemisphere, last frost is in Jan-May, first frost is in Aug-Dec. For Southern hemisphere, last frost is in Jul-Nov, first frost is in Feb-Jun.
+Notes: optional one-line caveat about regional variability or microclimate considerations.`;
+
+      const { text: rawText, usage } = await callGeminiCascade(
+        apiKey, FN, toMessages([promptText]),
+        { responseSchema: LOOKUP_FROST_DATES_SCHEMA, logContext: { action } },
+      );
+      const parsed = JSON.parse(rawText);
+      await logAiUsage(supabase, {
+        homeId, userId: callerUserId, functionName: FN,
+        action: "lookup_frost_dates", usage,
+      });
+
+      const validation = validateFrostPayload(parsed, hemisphere);
+      if (!validation.ok) {
+        warn(FN, "frost_validation_failed", { reason: validation.reason, parsed });
+        return new Response(
+          JSON.stringify({ error: "frost_lookup_validation_failed", reason: validation.reason }),
+          { status: 422, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // Upsert into home_climate. Preserve any user-edited rain thresholds.
+      const upsertRow = {
+        home_id:              homeId,
+        last_frost_iso:       parsed.last_frost_iso,
+        first_frost_iso:      parsed.first_frost_iso,
+        growing_season_days:  parsed.growing_season_days,
+        notes:                parsed.notes ?? null,
+        last_frost_lookup_at: new Date().toISOString(),
+        // Only seed defaults if the row didn't already exist.
+        ...(existing ? {} : { rain_skip_mm: 5, rain_water_mm: 1 }),
+      };
+
+      const { error: upsertErr } = await supabase
+        .from("home_climate")
+        .upsert(upsertRow, { onConflict: "home_id" });
+
+      if (upsertErr) {
+        logError(FN, "home_climate_upsert_failed", { error: upsertErr.message });
+        // Still return the parsed payload to the client — the lookup worked,
+        // just the cache write failed. Next call will retry the write.
+      }
+
+      log(FN, "result", { action, fromCache: false });
+      return new Response(
+        JSON.stringify({
+          last_frost_iso:      parsed.last_frost_iso,
+          first_frost_iso:     parsed.first_frost_iso,
+          growing_season_days: parsed.growing_season_days,
+          notes:               parsed.notes ?? null,
+          rain_skip_mm:        Number(existing?.rain_skip_mm ?? 5),
+          rain_water_mm:       Number(existing?.rain_water_mm ?? 1),
+          from_cache:          false,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+
+    // ── action: plant_when_to_plant ────────────────────────────────────────
+    //
+    // Uses the cached home_climate frost dates as context to produce
+    // per-plant planting guidance. Sage+ AI-tier-gated (already enforced
+    // upstream — this action is not in the `skipAiGate` list).
+
+    if (action === "plant_when_to_plant") {
+      if (!homeId) throw new Error("homeId is required for plant_when_to_plant.");
+      if (!targetPlant) throw new Error("targetPlant (plant name) is required.");
+
+      // Read the cached frost dates. If missing, the client should have
+      // called lookup_frost_dates first; we still proceed with a generic
+      // prompt rather than failing hard.
+      const { data: climate } = await supabase
+        .from("home_climate")
+        .select("last_frost_iso, first_frost_iso, growing_season_days, notes")
+        .eq("home_id", homeId)
+        .maybeSingle();
+
+      const climateContext = climate?.last_frost_iso && climate?.first_frost_iso
+        ? `Last frost (avg): ${climate.last_frost_iso}. First frost (avg): ${climate.first_frost_iso}. Growing season: ${climate.growing_season_days ?? "unknown"} days.${climate.notes ? ` Note: ${climate.notes}` : ""}`
+        : "Frost dates not yet looked up for this home — use seasonal common sense for the hemisphere.";
+
+      const today = new Date().toISOString().split("T")[0];
+
+      const promptText = `You are a horticultural reference. The user wants to plant: "${targetPlant}".
+${locationLine ? `Gardener location: ${locationLine}.` : ""}
+${climateContext}
+Today's date: ${today}.
+${prefsBlock}
+
+Return precise planting guidance for THIS plant in THIS location:
+- can_plant_outdoors_now: based on today vs the last frost date, is it safe to plant outdoors now?
+- earliest_outdoor_date / latest_outdoor_date: the safe outdoor planting window for this year, anchored to the home's frost dates.
+- indoor_start_recommended: if the growing season is short, should seeds be started indoors first?
+- indoor_start_date: when to start indoors (only if recommended).
+- spacing_cm / depth_cm: typical sowing/transplanting numbers.
+- sun_requirement: 'full sun' / 'partial shade' / 'shade-tolerant' / similar.
+- tips: 2-4 concrete tips tailored to this plant + climate. Reference the frost dates if relevant.`;
+
+      const { text: rawText, usage } = await callGeminiCascade(
+        apiKey, FN, toMessages([promptText]),
+        { responseSchema: PLANT_WHEN_TO_PLANT_SCHEMA, logContext: { action } },
+      );
+      const parsed = JSON.parse(rawText);
+      await logAiUsage(supabase, {
+        homeId, userId: callerUserId, functionName: FN,
+        action: "plant_when_to_plant", usage,
+      });
+
+      log(FN, "result", {
+        action,
+        plant: targetPlant,
+        canPlantNow: parsed.can_plant_outdoors_now,
+        hasClimateContext: !!climate?.last_frost_iso,
       });
       return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

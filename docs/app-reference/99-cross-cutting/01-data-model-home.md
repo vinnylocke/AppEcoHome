@@ -11,6 +11,7 @@ homes
 ├── home_members (N) ─► auth.users
 │   ├── role: "owner" | "editor" | "viewer"
 │   └── permissions: jsonb (overrides ROLE_DEFAULTS)
+├── home_climate (0..1) ─ frost dates (AI-cached, 6mo TTL) + rain-advice thresholds (user-editable)
 └── (cascades to)
     ├── locations / areas
     ├── plants / inventory_items

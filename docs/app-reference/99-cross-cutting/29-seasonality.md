@@ -53,6 +53,7 @@ Generates per-plant seasonal blueprints (e.g. "plant in spring", "prune after fr
 - PlantAssignmentModal → smart schedules.
 - generate-tasks cron → respects seasonal windows.
 - update-plant-states cron → growth state transitions tied to seasons.
+- `lookup_frost_dates` edge fn action (Mobile Quick Access Wave 3) → hemisphere derivation drives the frost-date prompt + the server-side validation in `_shared/frostValidation.ts`. Cached frost dates live in `home_climate` per home with a 6-month TTL. See [Localized Task Calendar](../02-dashboard/10-localized-task-calendar.md).
 
 ### Edge cases
 

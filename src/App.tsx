@@ -75,6 +75,7 @@ const AdminGuideGenerator = lazy(() => import("./components/AdminGuideGenerator"
 const PlantDoctor         = lazy(() => import("./components/PlantDoctor"));
 const QuickAccessHome     = lazy(() => import("./components/QuickAccessHome"));
 const QuickAccessLens     = lazy(() => import("./components/QuickAccessLens"));
+const LocalizedTaskCalendar = lazy(() => import("./components/quick/LocalizedTaskCalendar"));
 const LightSensor         = lazy(() => import("./components/LightSensor"));
 const SunTrajectoryAR     = lazy(() => import("./components/SunTrajectoryAR"));
 const GuideList           = lazy(() => import("./components/GuideList"));
@@ -168,6 +169,7 @@ export default function App() {
 
 const TAB_URL: Record<string, string> = {
   quick:           "/quick",
+  quick_calendar:  "/quick/calendar",
   dashboard:       "/dashboard",
   task_management: "/schedule",
   shed:            "/shed",
@@ -1012,6 +1014,14 @@ function AppShell() {
                             aiEnabled={profile?.ai_enabled}
                             isPremium={profile?.enable_perenual}
                             perenualEnabled={profile?.enable_perenual}
+                          />
+                        </div>
+                      } />
+                      <Route path="/quick/calendar" element={
+                        <div className="h-full animate-in fade-in duration-500">
+                          <LocalizedTaskCalendar
+                            homeId={profile?.home_id ?? ""}
+                            aiEnabled={!!profile?.ai_enabled}
                           />
                         </div>
                       } />

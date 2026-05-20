@@ -1,6 +1,6 @@
 # Quick Access Home
 
-> The mobile shortcut home. A three-tile screen tuned for one-thumb operation in the garden — Visual Lens (live), Today (placeholder, Wave 3), Quick Capture (placeholder, Wave 4). Phone users land here on app open instead of the full dashboard; the full dashboard is still a tap away.
+> The mobile shortcut home. A three-tile screen tuned for one-thumb operation in the garden — Visual Lens (live), Today (live in Wave 3 — opens the Localized Task Calendar), Quick Capture (placeholder, Wave 4). Phone users land here on app open instead of the full dashboard; the full dashboard is still a tap away.
 
 **Route:** `/quick`
 **Source files (entry points):**
@@ -27,7 +27,7 @@ QuickAccessHome (mounted at /quick)
 ├── Hero ("What can I help with?" + subtitle)
 ├── QuickTile × 3
 │   ├── Visual Lens (live)        → navigate("/quick/lens")
-│   ├── Today (coming-soon)        → toast pointing at the Dashboard
+│   ├── Today (live)               → navigate("/quick/calendar") [LocalizedTaskCalendar]
 │   └── Quick Capture (coming-soon)→ toast pointing at a plant's Journal tab
 └── "Open full dashboard →" link  → navigate("/dashboard")
 
@@ -124,12 +124,12 @@ It's not a replacement for the full app — it's a fast path to the three things
 - **Why a gardener cares**: this is the "snap a photo and tell me everything" moment — the heart of why someone holds their phone over a plant.
 - **Beginner framing**: "I don't know what this is — tell me." **Expert framing**: "Quick second opinion on this leaf without scrolling through the full Plant Doctor."
 
-#### 2. Tap "Today" tile (Coming soon)
+#### 2. Tap "Today" tile (live in Wave 3)
 
-- **What you see**: a subdued tile with a calendar icon, "Today", a "Coming soon" badge, and a description of what's coming.
+- **What you see**: a tile with a calendar icon, "Today", and a description of what you'll find.
 - **What you do**: tap.
-- **What happens next**: a toast — *"Coming soon — for now, view today's tasks on the Dashboard."* You stay on Quick Access.
-- **Why a gardener cares**: signals what's coming without dead-ending you. Today, you find this on the Dashboard.
+- **What happens next**: routes to `/quick/calendar` — the [Localized Task Calendar](./10-localized-task-calendar.md). Frost-aware planting helper at the top, rain-vs-watering advice in the middle, today's pending tasks at the bottom.
+- **Why a gardener cares**: this is the "what should I do today, and what's still time to plant?" screen, anchored to your home's actual climate.
 
 #### 3. Tap "Quick Capture" tile (Coming soon)
 
