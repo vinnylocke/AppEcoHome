@@ -62,7 +62,9 @@ PlantEditModal (Portal, focus-trapped)
 
 ### Edge functions invoked
 
-None directly; sub-tabs may invoke their own (e.g. AI care guide fetch from Guides tab).
+- `manual-refresh-ai-plant` — Wave 5 "Refresh now" button on the Care tab (Sage+ only). Re-asks Gemini for the global AI plant's care guide, diffs vs current, bumps `freshness_version` if anything changed. Rate-limited at the edge (1 per (user, plant) per 7 days) + client-side fast-path cache in `localStorage[`rhozly_ai_refresh_${plant_id}`]`.
+
+Sub-tabs may invoke their own (e.g. AI care guide fetch from Guides tab).
 
 ### Realtime channels
 
@@ -111,6 +113,8 @@ For per-bed tweaks ("this tomato is in a shadier spot"), use Instance Edit Modal
 #### 1. Care tab
 
 - Edit common name, scientific names, sun/water/soil, cycle, hardiness range.
+- **AI freshness callout (Wave 5)** — appears at the top of this tab when the plant is an AI catalogue entry whose version is ahead of your ack. Yellow banner with chips for each changed field, "Mark as reviewed" + "View changes" actions. Resolves via `forked_from_plant_id` for shallow forks added through bulk-add — the chip's source of truth is always the global catalogue row.
+- **"Refresh now" button (Sage+)** — Wave 5 button to the right of the "catalogue updated N days ago" pill. Triggers `manual-refresh-ai-plant` to re-ask Gemini against this plant; on success a toast reports how many fields changed and the chip clears. Disabled and tooltipped for 7 days after a successful refresh (or after a `rate_limited` edge response). Hidden for deep forks since they've opted out of catalogue updates.
 
 #### 2. Schedule tab
 

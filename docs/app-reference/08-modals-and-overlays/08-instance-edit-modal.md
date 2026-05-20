@@ -135,6 +135,11 @@ Each tab is a separate flow with its own reference file ([Photo Timeline](./09-p
 - Growth state, propagation, planted date, location/area picker.
 - Cover image inherits from pinned photo.
 
+#### Care Guide
+
+- Shows the master care guide for the species (read-only here — edit it from Plant Edit Modal).
+- **AI freshness callout (Wave 5)** — when this instance's parent plant is an AI catalogue row whose `freshness_version` is ahead of the user's ack, a yellow banner appears at the top of the tab listing the changed fields. "Mark as reviewed" clears the chip for every instance of this plant (since the ack is per-plant, not per-instance). Shallow forks resolve via `forked_from_plant_id` to the global parent.
+
 ### Tier-by-tier experience
 
 | Tier | Differences |

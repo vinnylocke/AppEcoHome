@@ -1215,3 +1215,18 @@ Edge function mock via `mockEdgeFunction(page, "companion-planting", ...)`.
 |----|------|-------------|------------|--------|
 | CPT-006 | ✅ | Add to Shed button appears when a companion is checked; clicking opens PlantSourcePicker | click `companion-plant-verd-123` → `companion-add-to-shed` visible | ✅ Passing |
 | CPT-007 | ✅ | ai_required response shows upgrade message | mock returns `{ error: "ai_required" }` → "AI Add-on Required" text visible | ✅ Passing |
+
+---
+
+## Section 23 — AI Plant Freshness Chip (Wave 5)
+
+**File:** [`tests/e2e/specs/ai-plant-freshness.spec.ts`](../tests/e2e/specs/ai-plant-freshness.spec.ts)
+**Seed:** `supabase/seeds/13_ai_freshness.sql` — adds one global AI plant `Cherry Tomato` (id 1000010, `freshness_version=2`, `updated_care_fields=["sunlight","watering_min_days"]`) + a per-home shallow fork (id substituted per worker) + a `user_plant_ack` at version 1 so the chip fires on load.
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| AI-FRESH-001 | ✅ | Shed card shows the Updated chip on the Cherry Tomato | `plant-card` containing "Cherry Tomato" → `ai-updated-chip` visible and contains "fields updated" | ⏳ Not yet verified — blocked by seed orchestration bug |
+| AI-FRESH-002 | ✅ | Opening the plant shows the yellow callout | Click card → `ai-care-update-callout` visible; contains "Sunlight" + "watering" labels | ⏳ Not yet verified — blocked by seed orchestration bug |
+| AI-FRESH-003 | ✅ | Mark as reviewed dismisses the callout | Click `ai-care-mark-reviewed` → callout no longer visible (optimistic local clear) | ⏳ Not yet verified — blocked by seed orchestration bug |
+
+**Pre-existing blocker:** `npm run test:seed` from a fresh local DB fails on `09_cross_home_markers.sql` because that seed expects worker 2's home to exist mid-worker-1 pass. Wave 5's seed runs fine in isolation (verified via node script). Tracked as Wave 7 deferred-work item D7.

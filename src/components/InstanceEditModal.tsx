@@ -31,6 +31,8 @@ import InstanceStatsTab from "./InstanceStatsTab";
 import CompanionPlantsTab from "./CompanionPlantsTab";
 import { getProviderPlantDetails } from "../lib/plantProvider";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { useAiPlantFreshness } from "../hooks/useAiPlantFreshness";
+import CareUpdateCallout from "./aiPlants/CareUpdateCallout";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -593,6 +595,7 @@ export default function InstanceEditModal({
               </div>
             ) : careGuideData ? (
               <div>
+                <InstanceCareFreshnessSection plantRecord={careGuideData} />
                 <ManualPlantCreation
                   initialData={careGuideData}
                   isReadOnly={true}
@@ -691,5 +694,35 @@ export default function InstanceEditModal({
       </div>
     </div>,
     document.body,
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────────────
+// Wave 5 — Inline subcomponent that runs `useAiPlantFreshness` only when the
+// Care Guide tab is open + a plant record is loaded. Keeps the hook out of
+// the parent's render tree when the user isn't on this tab.
+// ──────────────────────────────────────────────────────────────────────────
+
+function InstanceCareFreshnessSection({ plantRecord }: { plantRecord: any }) {
+  const { byPlantId } = useAiPlantFreshness(
+    plantRecord?.source === "ai"
+      ? [
+          {
+            id: plantRecord.id as number,
+            source: plantRecord.source,
+            forked_from_plant_id: plantRecord.forked_from_plant_id ?? null,
+            overridden_fields: plantRecord.overridden_fields ?? null,
+          },
+        ]
+      : [],
+  );
+  const fresh = plantRecord?.source === "ai" ? byPlantId[plantRecord.id] : null;
+  if (!fresh?.has_update) return null;
+  return (
+    <CareUpdateCallout
+      updatedFields={fresh.updated_care_fields}
+      lastGeneratedAt={fresh.last_care_generated_at}
+      onAcknowledge={fresh.acknowledge}
+    />
   );
 }

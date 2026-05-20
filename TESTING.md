@@ -720,7 +720,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 291 tests across 17 files
+### Unit tests — 313 tests across 20 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -739,6 +739,8 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `taskOptimiser.test.ts` | 12 | `analyseArea` — all 4 scenarios (fragmentation, redundant, two-tier, pileup), non-optimisable categories, cross-area isolation; `canUndoSession` — recent/old sessions, reversed flag, edited blueprint |
 | `taskOptimiserAi.test.ts` | 9 | `analyseAreaAi` — correct edge function invocation, empty proposals, error propagation, optional body fields; `fetchNegativeFeedback` — field mapping, empty result, DB error, missing snapshot fields |
 | `garden.test.ts` | 18 | `sunFit` (parse preferences, match/adjacent/mismatch, summary), `plantTokens` (stable hash colour, initial, grid layout, max), `microclimate` (frost risk classification, wind shelter from walls/greenhouse, low-fence ignore), `companionPlants` (beneficial pairs, harmful pairs, neutrals, group precedence) |
+| `useAiPlantFreshness.test.ts` | 7 | Wave 5 — resolves globals vs shallow forks vs deep forks, ack semantics target global plant_id, empty input, missing parent (RLS/deleted) returns null |
+| `UpdatedChip.test.ts` | 6 | Wave 5 — renders nothing for count≤0, singular vs plural label, button when onClick provided, span otherwise, fires onClick |
 
 ### Edge function tests — Deno
 
@@ -758,6 +760,8 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `yield/predictYield.test.ts` | 6 | `buildYieldPrompt` — includes plant name, planted date, harvest date, no-history text, past yields, weather summary |
 | `rls_isolation.test.ts` | 16 | Cross-tenant RLS — tasks, inventory, locations, plans, blueprints, ailments, weather_alerts, community_guides, home_members, yield_records, user_profiles |
 | `edge_function_auth.test.ts` | 7 | Edge function auth — plant-doctor/contact-support/scan-area/generate-guide/image-proxy reject missing/invalid JWT; scan-area 400 on missing homeId |
+| `aiPlantCatalogue.test.ts` | 22 | Wave 2 of AI Plant Overhaul — `normaliseScientificKey`, `parseMatchString`, `diffCareGuide` |
+| `refreshStaleAiPlants.test.ts` | 5 | Wave 4 of AI Plant Overhaul — changed/unchanged paths, empty batch, mid-batch crash isolation, batch-size cap |
 
 ### E2E tests — 422 tests across 26 files (+ 13 isolation tests)
 

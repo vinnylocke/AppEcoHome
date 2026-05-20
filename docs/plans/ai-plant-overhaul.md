@@ -848,11 +848,29 @@ Deferred to later waves:
 - **UI chips + per-field highlight** → Wave 5.
 - **`useAiPlantFreshness` hook** → Wave 5 (so the hook + its consumers land together).
 
-### Wave 5 — In-app freshness UI (read-only on AI plants)
-- "Updated" chip on Shed cards.
-- Per-field highlight + "Mark as reviewed" in Plant Edit Modal Care tab (Case A from §8.6).
-- Per-field highlight + acknowledge in Instance Edit Modal Care Guide tab.
-- "Refresh now" button (Sage+) for global AI plants.
+### Wave 5 — In-app freshness UI (read-only on AI plants)  *(shipped)*
+
+Shipped on 2026-05-20. Scope delivered:
+
+- **`useAiPlantFreshness` hook** [src/hooks/useAiPlantFreshness.ts](../../src/hooks/useAiPlantFreshness.ts) — resolves shallow forks via `forked_from_plant_id` so the chip's source of truth is always the global. Returns per-row `has_update` + an `acknowledge()` that upserts `user_plant_ack` against the global plant id. 7 unit tests (`tests/unit/hooks/useAiPlantFreshness.test.ts`) covering global, shallow fork, deep fork, non-AI, ack semantics, empty input, and missing-parent paths.
+- **`<UpdatedChip>`** [src/components/aiPlants/UpdatedChip.tsx](../../src/components/aiPlants/UpdatedChip.tsx) — small yellow pill with click handler. 6 unit tests in `tests/unit/components/UpdatedChip.test.ts`.
+- **`<CareUpdateCallout>`** [src/components/aiPlants/CareUpdateCallout.tsx](../../src/components/aiPlants/CareUpdateCallout.tsx) — yellow banner with field chips and "Mark as reviewed" + "View changes" actions. Field labels live in `FIELD_LABELS` here.
+- **Shed card chip** in [src/components/TheShed.tsx](../../src/components/TheShed.tsx) — bottom-left of each card. Tapping opens the plant in Plant Edit Modal.
+- **Plant Edit Modal Care tab** in [src/components/PlantEditModal.tsx](../../src/components/PlantEditModal.tsx) — callout at top + "Refresh now" button wired to `manual-refresh-ai-plant` edge fn (Sage+). Local 7-day rate-limit cache in `localStorage[rhozly_ai_refresh_<id>]`; edge fn enforces the truth.
+- **Instance Edit Modal Care Guide tab** in [src/components/InstanceEditModal.tsx](../../src/components/InstanceEditModal.tsx) — same callout, ack syncs across all instances of the same plant for this user.
+- **Seed + Playwright spec** — `supabase/seeds/13_ai_freshness.sql` seeds one global (`1000010`, v=2, `updated_care_fields=["sunlight","watering_min_days"]`) + a per-home shallow fork (`1000011`, substituted per worker by `scripts/seed-test-db.mjs`) + an ack at v=1. `tests/e2e/specs/ai-plant-freshness.spec.ts` exercises chip-visible → callout-visible → mark-reviewed-clears-chip.
+- **Docs** — [the-shed](../app-reference/03-garden-hub/01-the-shed.md), [plant-edit-modal](../app-reference/08-modals-and-overlays/06-plant-edit-modal.md), [instance-edit-modal](../app-reference/08-modals-and-overlays/08-instance-edit-modal.md), [realtime](../app-reference/99-cross-cutting/15-realtime.md), [data-model-plants](../app-reference/99-cross-cutting/03-data-model-plants.md), and the deferred-work register in [ai-plant-overhaul-wave5.md](./ai-plant-overhaul-wave5.md).
+
+Behaviour notes recorded:
+- Realtime subscription on the globals table is **deferred** — `useHomeRealtime` filters by `home_id`, and globals have `home_id IS NULL`, so it wouldn't fire anyway. Wave 5 ships a fetch-on-mount model. Cross-device ack sync (acknowledging on phone clears chip on desktop instantly) is a Wave 7 enhancement.
+- No per-field background highlight inside `ManualPlantCreation` — the callout lists changed fields as chips; we judged that sufficient for Wave 5. Per-field highlighting would require a form refactor that doesn't justify the cost yet.
+- Pre-existing seed orchestration bug in `09_cross_home_markers.sql` (expects W2's home to exist mid-W1 pass) blocks fresh local `npm run test:seed` runs. Not caused by Wave 5; Wave 5's seed file works in isolation. Tracked as D7 in Wave 7's cleanup list.
+
+Deferred to later waves (carry forward into Wave 7's register):
+- Realtime sub on globals + `user_plant_ack` cross-device sync.
+- Per-field background highlight inside the form.
+- D2 / D3 / D4 / D6 from Wave 5's plan are unchanged (still owned by Wave 6 / 7).
+- **D7 (new):** Seed script orchestration bug — `09_cross_home_markers.sql` references W2's home from W1's pass. Fix by either making it W2-only or running all bootstraps before all other seeds. Likely a 5-line fix in `scripts/seed-test-db.mjs`.
 
 ### Wave 6 — Override flow (detach-on-edit + reset)
 - Plant Edit Modal: `<DetachConfirmModal>` on save when editing an AI plant.

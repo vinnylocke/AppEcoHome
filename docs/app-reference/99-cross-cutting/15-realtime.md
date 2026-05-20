@@ -46,8 +46,8 @@ Internally:
 | `integration_devices` | IntegrationsPage |
 | `automations` | AutomationsSection |
 | `home_dashboard_stats` (if subscribed) | Dashboard |
-| `plants` (Wave 1 of AI Plant Overhaul) | `useCachedShed`, `useAiPlantFreshness` — refetch when `freshness_version` bumps on a plant in the user's shed |
-| `user_plant_ack` (Wave 1 of AI Plant Overhaul) | `useAiPlantFreshness` — cross-device ack sync (acknowledging on phone clears chip on desktop) |
+| `plants` (Wave 1 of AI Plant Overhaul) | `useCachedShed` only — refetch when home-scoped rows change. `useAiPlantFreshness` does NOT yet subscribe to realtime because `useHomeRealtime` filters by `home_id` and global AI plants have `home_id IS NULL`. Wave 5 ships a fetch-on-mount model; freshness only refreshes on page navigation. Realtime on globals is deferred to Wave 7 if cross-device freshness sync becomes important. |
+| `user_plant_ack` (Wave 1 of AI Plant Overhaul) | Published in the `supabase_realtime` table set so the channel is available, but no client currently subscribes. Wave 5 uses optimistic local updates from `useAiPlantFreshness.acknowledge()` instead of waiting for a realtime echo. Wave 7 could add a sub for cross-device sync (acknowledging on phone clears chip on desktop immediately). |
 
 ### Presence (`PresenceAvatars`)
 

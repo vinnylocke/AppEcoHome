@@ -11,6 +11,18 @@ import { getProviderPlantDetails } from "../lib/plantProvider";
 import { getProviderLabel } from "../lib/verdantlyUtils";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
+import { useAiPlantFreshness } from "../hooks/useAiPlantFreshness";
+import CareUpdateCallout from "./aiPlants/CareUpdateCallout";
+
+function formatRelativeDate(iso: string): string {
+  const days = Math.floor((Date.now() - new Date(iso).getTime()) / (24 * 60 * 60 * 1000));
+  if (days < 1) return "today";
+  if (days === 1) return "yesterday";
+  if (days < 30) return `${days} days ago`;
+  const months = Math.floor(days / 30);
+  if (months === 1) return "a month ago";
+  return `${months} months ago`;
+}
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -46,6 +58,68 @@ export default function PlantEditModal({
   const [fetchError, setFetchError] = useState(false);
   const [loadSuccess, setLoadSuccess] = useState(false);
   const liveRegionRef = useRef<HTMLSpanElement>(null);
+
+  // Wave 5 — AI freshness state for this plant (when source = "ai").
+  // Resolves shallow forks via forked_from_plant_id automatically.
+  const { byPlantId: freshnessByPlantId } = useAiPlantFreshness(
+    plant?.source === "ai"
+      ? [{
+          id: plant.id,
+          source: plant.source,
+          forked_from_plant_id: plant.forked_from_plant_id ?? null,
+          overridden_fields: plant.overridden_fields ?? null,
+        }]
+      : [],
+  );
+  const freshness = plant?.source === "ai" ? freshnessByPlantId[plant.id] : null;
+
+  // Local rate-limit fast-path for "Refresh now". The edge function enforces
+  // the truth via ai_plant_manual_refresh_log (7-day window per user/plant);
+  // this is just a UX hint so we don't even let the user click.
+  const refreshCacheKey = freshness ? `rhozly_ai_refresh_${freshness.global_plant_id}` : null;
+  const [refreshing, setRefreshing] = useState(false);
+  const [localRefreshBlockedUntil, setLocalRefreshBlockedUntil] = useState<number | null>(() => {
+    if (typeof window === "undefined" || !refreshCacheKey) return null;
+    const raw = window.localStorage.getItem(refreshCacheKey);
+    return raw ? Number(raw) : null;
+  });
+  const isLocallyBlocked = localRefreshBlockedUntil != null && Date.now() < localRefreshBlockedUntil;
+
+  const handleManualRefresh = async () => {
+    if (!freshness || refreshing) return;
+    setRefreshing(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("manual-refresh-ai-plant", {
+        body: { plantId: freshness.global_plant_id },
+      });
+      if (error) throw error;
+      if (data?.changed) {
+        toast.success(
+          `Care guide refreshed — ${(data.changed_fields ?? []).length} field${(data.changed_fields ?? []).length === 1 ? "" : "s"} updated.`,
+        );
+      } else {
+        toast.success("Care guide is up to date.");
+      }
+      const blockUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
+      if (refreshCacheKey) window.localStorage.setItem(refreshCacheKey, String(blockUntil));
+      setLocalRefreshBlockedUntil(blockUntil);
+    } catch (err: any) {
+      const msg = err?.message ?? "";
+      if (msg.includes("rate_limited") || msg.includes("429")) {
+        toast.error("This plant was refreshed in the last 7 days — try again later.");
+        // Also lock locally for the rest of the window.
+        const blockUntil = Date.now() + 7 * 24 * 60 * 60 * 1000;
+        if (refreshCacheKey) window.localStorage.setItem(refreshCacheKey, String(blockUntil));
+        setLocalRefreshBlockedUntil(blockUntil);
+      } else if (msg.includes("ai_tier_required")) {
+        toast.error("This requires Sage or Evergreen.");
+      } else {
+        toast.error("Couldn't refresh — try again.");
+      }
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   // Contextual at-a-glance data: instance count, areas covered, latest lux, open tasks
   const [glance, setGlance] = useState<{
@@ -366,6 +440,46 @@ export default function PlantEditModal({
                   Read-only — data sourced from {getProviderLabel(plant.source) ?? "the plant encyclopedia"}
                 </p>
               )}
+
+              {/* Wave 5 — AI catalogue freshness callout + Refresh now action */}
+              {freshness?.has_update && (
+                <CareUpdateCallout
+                  updatedFields={freshness.updated_care_fields}
+                  lastGeneratedAt={freshness.last_care_generated_at}
+                  onAcknowledge={freshness.acknowledge}
+                />
+              )}
+              {plant.source === "ai" && (
+                <div className="flex items-center justify-between gap-3 mb-4 px-1">
+                  <div className="text-[10px] font-bold text-rhozly-on-surface/50">
+                    {freshness?.last_care_generated_at ? (
+                      <>Catalogue updated {formatRelativeDate(freshness.last_care_generated_at)}.</>
+                    ) : (
+                      <>Auto-updating AI catalogue.</>
+                    )}
+                  </div>
+                  {aiEnabled && (!plant.forked_from_plant_id || (plant.overridden_fields ?? []).length === 0) && (
+                    <button
+                      data-testid="ai-care-refresh-now"
+                      onClick={handleManualRefresh}
+                      disabled={refreshing || isLocallyBlocked}
+                      title={isLocallyBlocked ? "Already refreshed in the last 7 days" : "Re-run the AI care guide now"}
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[32px] border border-amber-300 text-amber-700 text-[10px] font-black uppercase tracking-widest rounded-xl hover:bg-amber-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    >
+                      {refreshing ? (
+                        <>
+                          <Loader2 size={12} className="animate-spin" /> Refreshing…
+                        </>
+                      ) : (
+                        <>
+                          <RefreshCw size={12} /> Refresh now
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              )}
+
               <ManualPlantCreation
                 initialData={fullPlantData}
                 onSave={onSave}

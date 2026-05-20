@@ -83,7 +83,7 @@ plants_forked_from_idx (forked_from_plant_id)
 | Table | Purpose | Key columns |
 |-------|---------|-------------|
 | `plant_care_revisions` | Append-only audit trail of every AI care-guide change. One row per `(plant_id, version)`. | `plant_id`, `version`, `source` (`initial`/`stale_check`/`manual_refresh`/`backfill`), `care_guide_data`, `changed_fields`, `diff_summary`, `triggered_by` |
-| `user_plant_ack` | Per-user, per-plant "I've seen version N" tracking. Drives the "Updated" chip. | PK `(user_id, plant_id)`, `seen_freshness_version`, `acked_at` |
+| `user_plant_ack` | Per-user, per-plant "I've seen version N" tracking. Drives the "Updated" chip. | PK `(user_id, plant_id)`, `seen_freshness_version`, `acked_at`. **Important (Wave 5):** `plant_id` always references the GLOBAL AI plant row (`home_id IS NULL`), even when the user only has a home-scoped shallow fork in their shed. `useAiPlantFreshness` resolves `forked_from_plant_id → global_id` before reading or writing this table, so the same user with the same global in multiple homes sees consistent ack state. |
 | `ai_plant_manual_refresh_log` | One row per Sage+ user-triggered manual refresh. Drives the 7-day rate limit. | `user_id`, `plant_id`, `refreshed_at` |
 
 See [AI Plant Catalogue](./33-ai-plant-catalogue.md) for the full lifecycle (planned doc, Wave 9).

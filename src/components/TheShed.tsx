@@ -42,6 +42,8 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 import SmartImage from "./SmartImage";
 import MultiImageGallery from "./MultiImageGallery";
 import { useCachedShed } from "../hooks/useCachedShed";
+import { useAiPlantFreshness } from "../hooks/useAiPlantFreshness";
+import UpdatedChip from "./aiPlants/UpdatedChip";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { PlantDoctorService } from "../services/plantDoctorService";
 import { logEvent, EVENT } from "../events/registry";
@@ -101,6 +103,13 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     mutate: refreshShed, // Renamed to refreshShed for clarity in action handlers
     setPlants,
   } = useCachedShed(homeId);
+
+  // Wave 5 — AI catalogue freshness state, keyed by shed plant id. Resolves
+  // shallow forks via `forked_from_plant_id` so the chip's source of truth
+  // is always the global catalogue row.
+  const { byPlantId: freshnessByPlantId } = useAiPlantFreshness(
+    plants as Array<{ id: number; source: string | null; forked_from_plant_id: number | null; overridden_fields: string[] | null }>,
+  );
 
   const [actionLoading, setActionLoading] = useState(false);
   const [archivingPlantId, setArchivingPlantId] = useState<number | null>(null);
@@ -1433,6 +1442,24 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                     label={plant.common_name}
                     existingImageUrl={plant.thumbnail_url}
                   />
+                  {(() => {
+                    // Wave 5 — AI freshness chip on the card image (bottom-left)
+                    const fresh = freshnessByPlantId[plant.id as number];
+                    if (!fresh?.has_update) return null;
+                    return (
+                      <div className="absolute bottom-3 left-3 z-10">
+                        <UpdatedChip
+                          count={fresh.updated_care_fields.length}
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setEditingPlant(plant);
+                          }}
+                          className="shadow-sm"
+                        />
+                      </div>
+                    );
+                  })()}
                   <div className="absolute top-4 left-4">
                     <span className={`bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-black uppercase flex items-center gap-1.5 shadow-sm border border-white/20 ${
                       plant.source === "api"       ? "text-rhozly-primary" :
