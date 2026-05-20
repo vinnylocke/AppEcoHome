@@ -24,7 +24,8 @@ import { getProviderLabel } from "../lib/verdantlyUtils";
 import type { PlantDetails } from "../lib/verdantlyUtils";
 import toast from "react-hot-toast";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
-import { PlantDoctorService, type CatalogueHit } from "../services/plantDoctorService";
+import { PlantDoctorService } from "../services/plantDoctorService";
+import { useShedPlantMatcher } from "../hooks/useShedPlantMatcher";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantInfoPanel from "./PlantInfoPanel";
 
@@ -117,11 +118,11 @@ export default function BulkSearchModal({
 
   const [apiResults, setApiResults] = useState<any[]>([]);
   const [aiResults, setAiResults] = useState<string[]>([]);
-  // Wave 3 — sparse map keyed by AI match string for results that already exist
-  // in the global AI catalogue (or as a home-scoped fork). Drives the "In
-  // catalogue" / "Your custom version" pill in the result row.
-  const [aiHits, setAiHits] = useState<Record<string, CatalogueHit>>({});
   const [canShowMoreAi, setCanShowMoreAi] = useState(false);
+
+  // "Already in your shed" matcher — loads the home's existing plants once
+  // and checks every search result against them.
+  const { findMatch: findShedMatch } = useShedPlantMatcher(homeId);
   const [canShowMoreVerdantly, setCanShowMoreVerdantly] = useState(false);
   const [isLoadingMoreVerdantly, setIsLoadingMoreVerdantly] = useState(false);
   const [verdantlyNextPage, setVerdantlyNextPage] = useState(2);
@@ -271,7 +272,6 @@ export default function BulkSearchModal({
     setExpandedResultId(null);
     setAiResults([]);
     setApiResults([]);
-    setAiHits({});
     setCanShowMoreAi(false);
     setCanShowMoreVerdantly(false);
     setVerdantlyNextPage(2);
@@ -288,7 +288,6 @@ export default function BulkSearchModal({
         })
           .then((data) => {
             setAiResults(data.matches || []);
-            if (data.hits) setAiHits(data.hits);
             setCanShowMoreAi(data.hasMore);
           })
           .catch(() => {}),
@@ -361,7 +360,6 @@ export default function BulkSearchModal({
         homeId,
       });
       setAiResults((prev) => [...prev, ...(data.matches || [])]);
-      if (data.hits) setAiHits((prev) => ({ ...prev, ...data.hits }));
       setCanShowMoreAi(data.hasMore);
     } catch {
       toast.error("Could not load more AI suggestions.");
@@ -1027,12 +1025,8 @@ export default function BulkSearchModal({
                       {deduplicatedAiResults.map((match: string, i) => {
                         const isSelected = selectedPlantsMap.has(match);
                         const cachedThumb = detailsCache.get(match)?.thumbnail_url;
-                        const hit = aiHits[match];
-                        const cataloguePill = hit
-                          ? hit.hit_kind === "home_fork"
-                            ? { label: "Your custom version", cls: "text-purple-700 bg-purple-100" }
-                            : { label: "In catalogue", cls: "text-emerald-700 bg-emerald-100" }
-                          : null;
+                        const aiCommonName = match.split("(")[0].trim();
+                        const inShed = findShedMatch({ source: "ai", common_name: aiCommonName });
 
                         return (
                           <div
@@ -1062,12 +1056,13 @@ export default function BulkSearchModal({
                                   <span className="text-[8px] font-black uppercase tracking-widest text-amber-500 bg-amber-50 px-1.5 py-0.5 rounded-md inline-block">
                                     AI
                                   </span>
-                                  {cataloguePill && (
+                                  {inShed && (
                                     <span
-                                      data-testid="ai-catalogue-pill"
-                                      className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md inline-block ${cataloguePill.cls}`}
+                                      data-testid="search-result-in-shed"
+                                      title="This plant is already in your shed"
+                                      className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md inline-block bg-emerald-100 text-emerald-700"
                                     >
-                                      {cataloguePill.label}
+                                      In your shed
                                     </span>
                                   )}
                                 </div>
@@ -1127,6 +1122,12 @@ export default function BulkSearchModal({
                         const thumb = plant.thumbnail_url?.includes("upgrade_access") ? null : plant.thumbnail_url;
                         const providerLabel = getProviderLabel(plant._provider === "verdantly" ? "verdantly" : "api");
                         const itemType = plant._provider === "verdantly" ? "verdantly" : "api";
+                        const inShed = findShedMatch({
+                          source: itemType,
+                          perenual_id: itemType === "api" ? (plant.perenual_id ?? plant.id) : undefined,
+                          verdantly_id: itemType === "verdantly" ? (plant.verdantly_id ?? plant.id) : undefined,
+                          common_name: plant.common_name,
+                        });
                         return (
                           <div
                             key={`${plant._provider ?? "api"}-${plant.id}`}
@@ -1160,13 +1161,24 @@ export default function BulkSearchModal({
                                 <p className="text-[10px] font-bold text-rhozly-on-surface/50 italic truncate">
                                   {plant.scientific_name?.[0]}
                                 </p>
-                                <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md inline-block mt-0.5 ${
-                                  providerLabel === "Verdantly"
-                                    ? "text-emerald-700 bg-emerald-100"
-                                    : "text-rhozly-primary bg-rhozly-primary/10"
-                                }`}>
-                                  {providerLabel ?? "Database"}
-                                </span>
+                                <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                  <span className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md inline-block ${
+                                    providerLabel === "Verdantly"
+                                      ? "text-emerald-700 bg-emerald-100"
+                                      : "text-rhozly-primary bg-rhozly-primary/10"
+                                  }`}>
+                                    {providerLabel ?? "Database"}
+                                  </span>
+                                  {inShed && (
+                                    <span
+                                      data-testid="search-result-in-shed"
+                                      title="This plant is already in your shed"
+                                      className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md inline-block bg-emerald-100 text-emerald-700"
+                                    >
+                                      In your shed
+                                    </span>
+                                  )}
+                                </div>
                               </div>
                               <button
                                 onClick={() => handleExpandResult(String(plant.id), plant)}

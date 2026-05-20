@@ -87,9 +87,11 @@ Prior to Wave 7, the AI branch fell through to the Perenual code with `perenual_
 - Debounced search.
 - Result detail panel lazy-fetches via `getProviderPlantDetails`.
 
-### AI catalogue enrichment (Wave 2 of AI Plant Overhaul)
+### "Already in your shed" pill
 
-When the AI tab queries `PlantDoctorService.searchPlantsText`, the response includes a sparse `hits` map alongside `matches`. Wave 3 wires the UI to show "In catalogue" / "Your custom version" pills on hit results and skip the `generate_care_guide` call on selection. See [Bulk Search Modal](./04-bulk-search-modal.md) for the response shape and [AI Plant Catalogue](../99-cross-cutting/33-ai-plant-catalogue.md) for the full lifecycle.
+Every search result (Perenual, Verdantly, AI) is checked against the user's home plants and shown with a small emerald **"In your shed"** pill next to the provider badge when there's a match. Driven by [`src/hooks/useShedPlantMatcher.ts`](../../../src/hooks/useShedPlantMatcher.ts) — loads the home's plants once per modal open and indexes them by `perenual_id`, `verdantly_id`, and case-insensitive common name (for AI plants which lack a stable provider id).
+
+Replaces the older "In catalogue" / "Your custom version" pills that were exposing internal catalogue/fork mechanics to users who had no concept of either. The new pill answers the question the user is actually asking — "do I already have this?" — without any reference to the catalogue model.
 
 ---
 

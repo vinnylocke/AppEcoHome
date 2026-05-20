@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import { IconPlantDB, IconAI } from "../constants/icons";
 import { supabase } from "../lib/supabase";
+import { useShedPlantMatcher } from "../hooks/useShedPlantMatcher";
 import { searchAllProviders, getProviderPlantDetails, careGuideToPlantDetails } from "../lib/plantProvider";
 import { PlantDoctorService } from "../services/plantDoctorService";
 import { getProviderLabel, type ProviderSearchResult } from "../lib/verdantlyUtils";
@@ -40,6 +41,8 @@ export default function PlantSearchModal({
   initialScientificName,
 }: Props) {
   const { setPageContext, preferences } = usePlantDoctor();
+
+  const { findMatch: findShedMatch } = useShedPlantMatcher(homeId);
 
   const [query, setQuery] = useState(initialSearchTerm || "");
   const [searchMode, setSearchMode] = useState<"common" | "scientific">("common");
@@ -608,11 +611,12 @@ export default function PlantSearchModal({
                   const isSelected = index === selectedResultIndex;
                   const thumb = plant.thumbnail_url?.includes("upgrade_access") ? null : plant.thumbnail_url;
                   const providerLabel = getProviderLabel(plant._provider);
-                  const cataloguePill = plant.catalogue_hit
-                    ? plant.catalogue_hit.hit_kind === "home_fork"
-                      ? { label: "Your custom version", cls: "bg-purple-100 text-purple-700" }
-                      : { label: "In catalogue", cls: "bg-emerald-100 text-emerald-700" }
-                    : null;
+                  const inShed = findShedMatch({
+                    source: plant._provider === "verdantly" ? "verdantly" : plant._provider === "ai" ? "ai" : "api",
+                    perenual_id: plant._provider !== "verdantly" && plant._provider !== "ai" ? (plant.perenual_id ?? plant.id) : undefined,
+                    verdantly_id: plant._provider === "verdantly" ? (plant.verdantly_id ?? plant.id) : undefined,
+                    common_name: plant.common_name,
+                  });
                   return (
                     <div
                       key={`${plant._provider}-${plant.id}`}
@@ -669,12 +673,13 @@ export default function PlantSearchModal({
                                 {providerLabel}
                               </span>
                             )}
-                            {cataloguePill && (
+                            {inShed && (
                               <span
-                                data-testid="ai-catalogue-pill"
-                                className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${cataloguePill.cls}`}
+                                data-testid="search-result-in-shed"
+                                title="This plant is already in your shed"
+                                className="text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 bg-emerald-100 text-emerald-700"
                               >
-                                {cataloguePill.label}
+                                In your shed
                               </span>
                             )}
                           </div>

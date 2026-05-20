@@ -3,7 +3,8 @@ import { X, Loader2, ListPlus, Leaf, Info, ChevronUp, AlertCircle } from "lucide
 import { IconPlantDB, IconAI } from "../constants/icons";
 import { PerenualService } from "../lib/perenualService";
 import { VerdantlyService } from "../lib/verdantlyService";
-import { PlantDoctorService, type CatalogueHit } from "../services/plantDoctorService";
+import { PlantDoctorService } from "../services/plantDoctorService";
+import { useShedPlantMatcher } from "../hooks/useShedPlantMatcher";
 import { getProviderPlantDetails, careGuideToPlantDetails } from "../lib/plantProvider";
 import type { PlantDetails } from "../lib/verdantlyUtils";
 import PlantInfoPanel from "./PlantInfoPanel";
@@ -13,9 +14,6 @@ interface PlantResult {
   ai: string[];
   api: any[];
   verdantly: any[];
-  /** Wave 3 — sparse map keyed by AI match string for matches that exist in the
-   * global catalogue or as the home's fork. Drives "In catalogue" pill. */
-  aiHits?: Record<string, CatalogueHit>;
   verdantlyFailed?: boolean;
   loading: boolean;
 }
@@ -46,6 +44,7 @@ export default function PlantSourcePicker({
     ),
   );
   const [selections, setSelections] = useState<Record<string, Selection | null>>({});
+  const { findMatch: findShedMatch } = useShedPlantMatcher(homeId);
   const [detailsCache, setDetailsCache] = useState<Map<string, PlantDetails>>(new Map());
   const [loadingDetailsIds, setLoadingDetailsIds] = useState<Set<string>>(new Set());
   const fetchingDetailsRef = useRef<Set<string>>(new Set());
@@ -86,19 +85,16 @@ export default function PlantSourcePicker({
 
   useEffect(() => {
     plants.forEach(async (name) => {
-      const [aiResult, api, verdantlyResult] = await Promise.all([
+      const [aiMatches, api, verdantlyResult] = await Promise.all([
         isAiEnabled
           ? PlantDoctorService.searchPlantsText(name, { homeId })
               .then((d) => {
                 const matches = (d.matches || []).slice(0, 3);
                 // Plant was AI-suggested by the planner — always surface at least the name itself
-                return {
-                  matches: matches.length > 0 ? matches : [name],
-                  hits: d.hits ?? {},
-                };
+                return matches.length > 0 ? matches : [name];
               })
-              .catch(() => ({ matches: [name] as string[], hits: {} as Record<string, CatalogueHit> }))
-          : Promise.resolve({ matches: [] as string[], hits: {} as Record<string, CatalogueHit> }),
+              .catch(() => [name] as string[])
+          : Promise.resolve([] as string[]),
         isPremium
           ? PerenualService.searchPlants(name)
               .then((d) => (d || []).slice(0, 3))
@@ -112,8 +108,7 @@ export default function PlantSourcePicker({
       setResults((prev) => ({
         ...prev,
         [name]: {
-          ai: aiResult.matches,
-          aiHits: aiResult.hits,
+          ai: aiMatches,
           api,
           verdantly: verdantlyResult.results,
           verdantlyFailed: verdantlyResult.failed,
@@ -123,8 +118,8 @@ export default function PlantSourcePicker({
 
       // Auto-select: AI first, then Verdantly, then Perenual
       const auto: Selection | null =
-        aiResult.matches.length > 0
-          ? { type: "ai", data: aiResult.matches[0] }
+        aiMatches.length > 0
+          ? { type: "ai", data: aiMatches[0] }
           : verdantlyResult.results.length > 0
             ? { type: "verdantly", data: verdantlyResult.results[0] }
             : api.length > 0
@@ -271,12 +266,8 @@ export default function PlantSourcePicker({
                             const active = isSelected(name, sel);
                             const cachedThumb = detailsCache.get(match)?.thumbnail_url;
                             const isExpanded = expandedId === match;
-                            const hit = r.aiHits?.[match];
-                            const cataloguePill = hit
-                              ? hit.hit_kind === "home_fork"
-                                ? { label: "Your custom version", cls: "text-purple-700 bg-purple-100" }
-                                : { label: "In catalogue", cls: "text-emerald-700 bg-emerald-100" }
-                              : null;
+                            const aiCommonName = match.split("(")[0].trim();
+                            const inShed = findShedMatch({ source: "ai", common_name: aiCommonName });
 
                             return (
                               <div
@@ -300,12 +291,13 @@ export default function PlantSourcePicker({
                                     <span className="text-xs font-bold text-rhozly-on-surface leading-tight block truncate">{match}</span>
                                     <div className="flex flex-wrap items-center gap-1 mt-0.5">
                                       <span className="text-[8px] font-black uppercase tracking-widest text-amber-500 bg-amber-100 px-1.5 py-0.5 rounded-full inline-block">AI</span>
-                                      {cataloguePill && (
+                                      {inShed && (
                                         <span
-                                          data-testid="ai-catalogue-pill"
-                                          className={`text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full inline-block ${cataloguePill.cls}`}
+                                          data-testid="search-result-in-shed"
+                                          title="This plant is already in your shed"
+                                          className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full inline-block bg-emerald-100 text-emerald-700"
                                         >
-                                          {cataloguePill.label}
+                                          In your shed
                                         </span>
                                       )}
                                     </div>
@@ -340,6 +332,11 @@ export default function PlantSourcePicker({
                             const isExpandedItem = expandedId === verdantlyKey;
                             const thumb = plant.thumbnail_url ?? null;
                             const sciName = plant.scientific_name?.[0] ?? null;
+                            const inShed = findShedMatch({
+                              source: "verdantly",
+                              verdantly_id: plant.verdantly_id ?? plant.id,
+                              common_name: plant.common_name,
+                            });
 
                             return (
                               <div
@@ -364,7 +361,18 @@ export default function PlantSourcePicker({
                                     {sciName && (
                                       <span className="text-[9px] italic text-rhozly-on-surface/50 block truncate">{sciName}</span>
                                     )}
-                                    <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full inline-block mt-0.5">Verdantly</span>
+                                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                      <span className="text-[8px] font-black uppercase tracking-widest text-emerald-600 bg-emerald-100 px-1.5 py-0.5 rounded-full inline-block">Verdantly</span>
+                                      {inShed && (
+                                        <span
+                                          data-testid="search-result-in-shed"
+                                          title="This plant is already in your shed"
+                                          className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full inline-block bg-emerald-100 text-emerald-700"
+                                        >
+                                          In your shed
+                                        </span>
+                                      )}
+                                    </div>
                                   </button>
                                   <button
                                     onClick={() => toggleExpand(verdantlyKey, { ...plant, _provider: "verdantly" })}
@@ -407,6 +415,11 @@ export default function PlantSourcePicker({
                               !plant.default_image.thumbnail.includes("upgrade_access")
                                 ? plant.default_image.thumbnail
                                 : null;
+                            const inShed = findShedMatch({
+                              source: "api",
+                              perenual_id: plant.id,
+                              common_name: plant.common_name,
+                            });
 
                             return (
                               <div
@@ -431,7 +444,18 @@ export default function PlantSourcePicker({
                                     {plant.scientific_name?.[0] && (
                                       <span className="text-[9px] italic text-rhozly-on-surface/50 block truncate">{plant.scientific_name[0]}</span>
                                     )}
-                                    <span className="text-[8px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary/10 px-1.5 py-0.5 rounded-full inline-block mt-0.5">Perenual</span>
+                                    <div className="flex flex-wrap items-center gap-1 mt-0.5">
+                                      <span className="text-[8px] font-black uppercase tracking-widest text-rhozly-primary bg-rhozly-primary/10 px-1.5 py-0.5 rounded-full inline-block">Perenual</span>
+                                      {inShed && (
+                                        <span
+                                          data-testid="search-result-in-shed"
+                                          title="This plant is already in your shed"
+                                          className="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-full inline-block bg-emerald-100 text-emerald-700"
+                                        >
+                                          In your shed
+                                        </span>
+                                      )}
+                                    </div>
                                   </button>
                                   <button
                                     onClick={() => toggleExpand(cacheKey, { ...plant, _provider: "perenual" })}
