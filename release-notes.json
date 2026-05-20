@@ -1,17 +1,1 @@
-[
-  {
-    "label": "New — Add tasks on the fly from Today's screen",
-    "items": [
-      "Your mobile Today's Calendar gets a new + Add button in the Today's tasks card. Tap it for a slim modal — type the task name, pick a type, optionally add notes, set the date (pre-filled to today), Save. Two taps and you're back on the calendar.",
-      "Area, plants, plans, and recurring schedules are deliberately not in this modal — speed first. Open the task later from the desktop calendar to fill in those details.",
-      "The new task appears immediately in the Today's tasks list after Save."
-    ]
-  },
-  {
-    "label": "Behind the scenes",
-    "items": [
-      "Quick Add inserts the same row shape the full Add Task modal uses, so the new task behaves identically in the rest of the app — calendar, filters, completion flow, notifications all work the same.",
-      "The button is permission-aware: home members without `tasks.create_home` see it disabled with a tooltip."
-    ]
-  }
-]
+[]
