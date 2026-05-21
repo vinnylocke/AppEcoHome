@@ -19,6 +19,7 @@
 | Weekly Digest | weekly | `weekly-digest` | Weekly summary email |
 | Purge Stale Species Cache | weekly | `purge-stale-species-cache` | Clear old provider caches |
 | Refresh Stale AI Plants | daily (03:00 UTC) | `refresh-stale-ai-plants` | Re-check global AI care guides every ~90 days; diff-based version bump |
+| Refresh Stale Grow Guides | daily (03:30 UTC) | `refresh-stale-grow-guides` | Re-check `plant_grow_guides` every ~90 days; diff-based `freshness_version` bump. Batch capped at 25/run. System-attributed AI usage. See [Grow Guide Tab](../08-modals-and-overlays/36-grow-guide-tab.md). |
 | Run Automations | every minute | `run-automations` | Fire due watering automations |
 | Integrations eWeLink Sync | periodic | `integrations-ewelink-sync` | Refresh device readings |
 | Integrations Ecowitt Poll | periodic | `integrations-ecowitt-poll` | Poll Ecowitt weather stations |

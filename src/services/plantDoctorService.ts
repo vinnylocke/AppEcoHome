@@ -140,6 +140,41 @@ export interface FrostDates {
   from_cache: boolean;
 }
 
+// ---------------------------------------------------------------------------
+// Plant Grow Guides (comprehensive multi-section AI guide per plant species)
+// ---------------------------------------------------------------------------
+
+export type GrowGuideCategory =
+  | "water" | "soil" | "sunlight" | "propagation" | "germination"
+  | "pruning" | "flowering" | "harvesting" | "senescence";
+
+export interface GrowGuideSection {
+  category: GrowGuideCategory;
+  applicable: boolean;
+  title: string;
+  summary: string;
+  key_facts: { label: string; value: string }[];
+  steps: { step: number; title: string; detail: string }[];
+  tips: string[];
+  notes: string | null;
+}
+
+export interface PlantGrowGuide {
+  schema_version: number;
+  generated_at: string;
+  sections: GrowGuideSection[];
+}
+
+/** Full envelope returned by the `generate_grow_guide` action. */
+export interface GrowGuideResponse {
+  guide_data: PlantGrowGuide;
+  schema_version: number;
+  freshness_version: number;
+  last_generated_at: string;
+  updated_fields: GrowGuideCategory[];
+  from_cache: boolean;
+}
+
 /**
  * Per-plant planting guidance returned by `plant_when_to_plant`. Threaded
  * with the home's cached frost dates so timing is anchored to the user's
@@ -203,6 +238,19 @@ export const PlantDoctorService = {
 
   plantWhenToPlant(plantName: string, homeId: string): Promise<PlantingGuidance> {
     return invoke({ action: "plant_when_to_plant", targetPlant: plantName, homeId });
+  },
+
+  generateGrowGuide(
+    plantId: number,
+    homeId: string,
+    opts?: { forceRegen?: boolean },
+  ): Promise<GrowGuideResponse> {
+    return invoke({
+      action: "generate_grow_guide",
+      plantId,
+      homeId,
+      forceRegen: !!opts?.forceRegen,
+    });
   },
 
   fetchPestDetails(params: {

@@ -14,6 +14,12 @@ import { reverseGeocodeCity } from "../_shared/locationContext.ts";
 import { normaliseScientificKey, parseMatchString } from "../_shared/aiPlantCatalogue.ts";
 import { buildEnvBlock } from "../_shared/visionEnvContext.ts";
 import { validateFrostPayload } from "../_shared/frostValidation.ts";
+import {
+  GROW_GUIDE_SCHEMA,
+  buildGrowGuidePrompt,
+  diffGrowGuide,
+  type PlantGrowGuide,
+} from "../_shared/growGuide.ts";
 
 const FN = "plant-doctor";
 
@@ -1155,6 +1161,141 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
       return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
+    }
+
+    // ── action: generate_grow_guide ────────────────────────────────────────
+    //
+    // Generates the comprehensive 9-section grow guide for one plant.
+    // Cached in plant_grow_guides (1:1 with plants.id). On cache hit and
+    // !forceRegen, returns the existing row without calling Gemini. The
+    // 90-day refresh cron is the other writer.
+
+    if (action === "generate_grow_guide") {
+      const plantId = (body as { plantId?: number }).plantId;
+      const forceRegen = !!(body as { forceRegen?: boolean }).forceRegen;
+      if (typeof plantId !== "number") {
+        throw new Error("plantId (number) is required for generate_grow_guide.");
+      }
+
+      // Cache check — return existing without spending Gemini.
+      const { data: existing } = await supabase
+        .from("plant_grow_guides")
+        .select("*")
+        .eq("plant_id", plantId)
+        .maybeSingle();
+
+      if (existing && !forceRegen) {
+        log(FN, "result", { action, plantId, fromCache: true });
+        return new Response(
+          JSON.stringify({
+            guide_data: existing.guide_data,
+            schema_version: existing.schema_version,
+            freshness_version: existing.freshness_version,
+            last_generated_at: existing.last_generated_at,
+            updated_fields: existing.updated_fields ?? [],
+            from_cache: true,
+          }),
+          { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+
+      // Load the plant species record to thread name + source + manual notes
+      // into the prompt.
+      const { data: plantRow, error: plantErr } = await supabase
+        .from("plants")
+        .select("id, common_name, scientific_name, source, data")
+        .eq("id", plantId)
+        .maybeSingle();
+      if (plantErr) throw plantErr;
+      if (!plantRow) throw new Error(`Plant ${plantId} not found.`);
+
+      // Extract a scientific name string from the jsonb array, if any.
+      let sciName: string | null = null;
+      if (Array.isArray(plantRow.scientific_name) && plantRow.scientific_name.length > 0) {
+        sciName = String(plantRow.scientific_name[0]).trim() || null;
+      } else if (typeof plantRow.scientific_name === "string") {
+        sciName = plantRow.scientific_name.trim() || null;
+      }
+
+      // Pull manual notes from the plants.data jsonb (best-effort).
+      let manualNotes: string | null = null;
+      if (plantRow.source === "manual" && plantRow.data && typeof plantRow.data === "object") {
+        const d = plantRow.data as Record<string, unknown>;
+        const candidate = d.description ?? d.notes ?? d.manual_notes ?? null;
+        if (typeof candidate === "string" && candidate.trim()) {
+          manualNotes = candidate.trim();
+        }
+      }
+
+      const promptText = buildGrowGuidePrompt({
+        commonName: plantRow.common_name ?? "Unknown plant",
+        scientificName: sciName,
+        source: plantRow.source as "manual" | "api" | "ai" | "verdantly",
+        manualNotes,
+        hemisphere,
+        currentDate: new Date().toISOString().split("T")[0],
+      });
+
+      const { text: rawText, usage } = await callGeminiCascade(
+        apiKey, FN, toMessages([promptText]),
+        { responseSchema: GROW_GUIDE_SCHEMA, logContext: { action, plantId } },
+      );
+      const parsed = JSON.parse(rawText) as PlantGrowGuide;
+      await logAiUsage(supabase, {
+        homeId: homeId ?? null,
+        userId: callerUserId,
+        functionName: FN,
+        action: "generate_grow_guide",
+        usage,
+      });
+
+      // Diff against the existing row (if any) to compute changed_fields.
+      const previousGuide = (existing?.guide_data ?? null) as PlantGrowGuide | null;
+      const changedCategories = diffGrowGuide(previousGuide, parsed);
+
+      // Bump freshness_version only when content actually changed.
+      const newFreshnessVersion = existing
+        ? changedCategories.length > 0
+          ? (existing.freshness_version ?? 1) + 1
+          : existing.freshness_version ?? 1
+        : 1;
+
+      const upsertRow = {
+        plant_id: plantId,
+        guide_data: parsed,
+        schema_version: parsed.schema_version ?? 1,
+        freshness_version: newFreshnessVersion,
+        last_generated_at: new Date().toISOString(),
+        last_freshness_check_at: new Date().toISOString(),
+        updated_fields: changedCategories,
+      };
+
+      const { error: upsertErr } = await supabase
+        .from("plant_grow_guides")
+        .upsert(upsertRow, { onConflict: "plant_id" });
+      if (upsertErr) {
+        logError(FN, "grow_guide_upsert_failed", { plantId, error: upsertErr.message });
+        throw upsertErr;
+      }
+
+      log(FN, "result", {
+        action,
+        plantId,
+        fromCache: false,
+        changedCategories,
+        newFreshnessVersion,
+      });
+      return new Response(
+        JSON.stringify({
+          guide_data: parsed,
+          schema_version: parsed.schema_version ?? 1,
+          freshness_version: newFreshnessVersion,
+          last_generated_at: upsertRow.last_generated_at,
+          updated_fields: changedCategories,
+          from_cache: false,
+        }),
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
 
     // ── action: lookup_frost_dates ─────────────────────────────────────────

@@ -1,6 +1,6 @@
 # Instance Edit Modal
 
-> The deepest plant-level view in Rhozly — opens for a single `inventory_items` row (one specific plant in one specific area). 10 tabs covering details, routine, journal, photos, care guide, guides, yield, light, stats, companions.
+> The deepest plant-level view in Rhozly — opens for a single `inventory_items` row (one specific plant in one specific area). 11 tabs covering details, routine, journal, photos, care guide, **grow guide** (Wave 1 AI 9-section comprehensive guide; see [Grow Guide Tab](./36-grow-guide-tab.md)), community (was "guides"; renamed for clarity), yield, light, stats, companions.
 
 **Source file:** `src/components/InstanceEditModal.tsx` (~700 lines)
 

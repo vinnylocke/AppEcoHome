@@ -25,6 +25,8 @@ import PlantJournalTab from "./PlantJournalTab";
 import PhotoTimelineTab from "./PhotoTimelineTab";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantGuidesTab from "./PlantGuidesTab";
+import GrowGuideTab from "./GrowGuideTab";
+import { BookOpenCheck } from "lucide-react";
 import YieldTab from "./YieldTab";
 import LightTab from "./LightTab";
 import InstanceStatsTab from "./InstanceStatsTab";
@@ -76,7 +78,7 @@ export default function InstanceEditModal({
   const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   const [activeTab, setActiveTab] = useState<
-    "details" | "routine" | "journal" | "photos" | "care_guide" | "guides" | "yield" | "light" | "stats" | "companions"
+    "details" | "routine" | "journal" | "photos" | "care_guide" | "grow_guide" | "guides" | "yield" | "light" | "stats" | "companions"
   >("details");
 
   // Cover image — pinned via the Photo Timeline tab. Refetched when the user
@@ -371,11 +373,19 @@ export default function InstanceEditModal({
           </button>
 
           <button
+            data-testid="instance-modal-tab-grow-guide"
+            onClick={() => setActiveTab("grow_guide")}
+            className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "grow_guide" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+          >
+            <BookOpenCheck size={14} /> Grow Guide
+          </button>
+
+          <button
             data-testid="instance-modal-tab-guides"
             onClick={() => setActiveTab("guides")}
             className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "guides" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
-            <IconPlantDB size={14} /> Guides
+            <IconPlantDB size={14} /> Community
           </button>
 
           <button
@@ -631,6 +641,18 @@ export default function InstanceEditModal({
         {activeTab === "photos" && (
           <div className="animate-in slide-in-from-right-4">
             <PhotoTimelineTab inventoryItemId={instance.id} />
+          </div>
+        )}
+
+        {activeTab === "grow_guide" && (
+          <div className="animate-in slide-in-from-right-4">
+            <GrowGuideTab
+              plantId={instance.plant_id}
+              commonName={instance.plant_name}
+              source={(instance.plants?.source ?? "ai") as "manual" | "api" | "ai" | "verdantly"}
+              homeId={homeId}
+              aiEnabled={aiEnabled}
+            />
           </div>
         )}
 

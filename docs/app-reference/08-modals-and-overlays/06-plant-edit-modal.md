@@ -1,6 +1,8 @@
 # Plant Edit Modal
 
-> The full plant detail / edit modal opened from the Shed grid. Multi-tab: Care details, Schedule, Guides, Light, Companions. Manual edit of plant-level metadata; per-instance edits live in InstanceEditModal.
+> The full plant detail / edit modal opened from the Shed grid. Multi-tab: Care Guide, Automations, Light, **Grow Guide** (Wave 1 — AI 9-section comprehensive guide), Community (formerly "Guides" — user-written articles), Companions. Manual edit of plant-level metadata; per-instance edits live in InstanceEditModal.
+>
+> See [Grow Guide Tab](./36-grow-guide-tab.md) for the new tab's full contract.
 
 **Source file:** `src/components/PlantEditModal.tsx`
 

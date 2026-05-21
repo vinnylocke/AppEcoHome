@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
-import { X, Droplets, Calendar, Database, Loader2, RefreshCw, BookOpen, Sun, Sprout, Activity, MapPin } from "lucide-react";
+import { X, Droplets, Calendar, Database, Loader2, RefreshCw, BookOpen, BookOpenCheck, Sun, Sprout, Activity, MapPin } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantScheduleTab from "./PlantScheduleTab";
 import PlantGuidesTab from "./PlantGuidesTab";
 import LightTab from "./LightTab";
 import CompanionPlantsTab from "./CompanionPlantsTab";
+import GrowGuideTab from "./GrowGuideTab";
 import { getProviderPlantDetails } from "../lib/plantProvider";
 import { getProviderLabel } from "../lib/verdantlyUtils";
 import { supabase } from "../lib/supabase";
@@ -425,7 +426,8 @@ export default function PlantEditModal({
     { id: "care", label: "Care Guide", icon: Droplets },
     { id: "schedules", label: "Automations", icon: Calendar },
     { id: "light", label: "Light", icon: Sun },
-    { id: "guides", label: "Guides", icon: BookOpen },
+    { id: "grow_guide", label: "Grow Guide", icon: BookOpenCheck },
+    { id: "guides", label: "Community", icon: BookOpen },
     { id: "companions", label: "Companions", icon: Sprout },
   ];
 
@@ -778,6 +780,16 @@ export default function PlantEditModal({
           ) : activeTab === "light" ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
               <LightTab plantId={plant.id} plantName={plant.common_name} />
+            </div>
+          ) : activeTab === "grow_guide" ? (
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <GrowGuideTab
+                plantId={plant.id}
+                commonName={plant.common_name}
+                source={plant.source as "manual" | "api" | "ai" | "verdantly"}
+                homeId={homeId}
+                aiEnabled={aiEnabled}
+              />
             </div>
           ) : activeTab === "guides" ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
