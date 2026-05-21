@@ -177,14 +177,15 @@ describe("QuickAccessHome", () => {
     ).toBe("container");
   });
 
-  // ─── Wave 9 ─ green page wash ───────────────────────────────────────────
+  // ─── Wave 9/10 ─ full-bleed page wrapper ─────────────────────────────
+  // The green-wash gradient now lives on the App.tsx screen container so it
+  // covers the pull-to-refresh area and route padding. The wrapper here is
+  // just a transparent layout container; we only assert it mounts.
 
-  test("renders the full-bleed page wrapper with the green wash gradient", () => {
+  test("renders the full-bleed page wrapper", () => {
     renderHome({ firstName: "Vinny" });
     const page = screen.getByTestId("quick-access-page");
     expect(page).toBeTruthy();
-    // Outer wrapper applies the gradient using the primary-container token.
-    expect(page.className).toContain("from-rhozly-primary-container");
-    expect(page.className).toContain("via-rhozly-bg");
+    expect(page.className).toContain("min-h-full");
   });
 });

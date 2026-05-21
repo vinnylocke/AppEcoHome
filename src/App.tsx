@@ -888,7 +888,11 @@ function AppShell() {
           >
             Skip to main content
           </a>
-          <div className="h-screen bg-rhozly-bg text-rhozly-on-surface font-body flex flex-col relative selection:bg-rhozly-primary/20">
+          <div className={`h-screen text-rhozly-on-surface font-body flex flex-col relative selection:bg-rhozly-primary/20 ${
+            isFocusMode
+              ? "bg-gradient-to-b from-rhozly-primary-container/[0.07] via-rhozly-bg to-rhozly-bg"
+              : "bg-rhozly-bg"
+          }`}>
             <div className="fixed top-0 left-1/4 w-96 h-96 bg-rhozly-primary/5 rounded-full blur-3xl pointer-events-none" />
 
             {!isFocusMode && (

@@ -48,10 +48,10 @@ export default function QuickAccessHome({ firstName }: Props) {
     <div
       data-testid="quick-access-page"
       // Wave 9 — soft green page wash so the canvas itself feels brand-grounded
-      // rather than reading as plain white. Primary-container at ~7% at the
-      // top, fading into the warm rhozly-bg below. Stays inside the existing
-      // theme palette.
-      className="min-h-full w-full bg-gradient-to-b from-rhozly-primary-container/[0.07] via-rhozly-bg to-rhozly-bg"
+      // rather than reading as plain white. Now lives on the screen-level
+      // container in App.tsx (gated on isFocusMode) so it also covers the
+      // pull-to-refresh area + route padding above this wrapper.
+      className="min-h-full w-full"
     >
     <main
       data-testid="quick-access-home"
