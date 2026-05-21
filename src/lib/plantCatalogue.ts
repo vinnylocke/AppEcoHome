@@ -28,6 +28,7 @@ import { VerdantlyService } from "./verdantlyService";
 import { PlantDoctorService } from "../services/plantDoctorService";
 import { derivePlantLabels } from "./plantLabels";
 import { careGuideToPlantDetails } from "./plantProvider";
+import { saveToShed, type SaveToShedSkeleton } from "./saveToShed";
 import type { PlantDetails, ProviderSearchResult } from "./verdantlyUtils";
 
 /** What the helper hands back to the caller. */
@@ -384,4 +385,150 @@ export function plantRowToPlantDetails(row: Record<string, any>): PlantDetails {
     verdantly_id:       row.verdantly_id ?? null,
     source:             (row.source as any) ?? "ai",
   };
+}
+
+// ───────────────────────────────────────────────────────────────────────
+// "Is this catalogue plant already in the user's Shed?" + "Save it"
+//
+// Used by AddToCalendarSheet on the Grow Guide. When the user taps Add
+// to calendar on a Library plant they haven't yet added to their Shed,
+// we offer to save it alongside the task creation. The catalogue plant
+// might be:
+//   - a direct home-scoped row (rare; only orphan AI plants),
+//   - already forked into the home (AI: `forked_from_plant_id`
+//     pointing at the catalogue id; Perenual/Verdantly: same provider
+//     id on a home-scoped row),
+//   - or genuinely absent.
+// ───────────────────────────────────────────────────────────────────────
+
+export interface HomePlantMatch {
+  homePlantId: number;
+}
+
+/**
+ * Returns the home-scoped plant row id that represents this catalogue
+ * plant in the user's Shed, or null if none exists yet.
+ */
+export async function findHomePlantForCatalogue(
+  catalogueId: number,
+  homeId: string,
+): Promise<HomePlantMatch | null> {
+  // 1. Read the catalogue plant's identifying fields. Could be a global
+  //    row (home_id = null) OR an orphan home row that we're treating
+  //    as a catalogue.
+  const { data: catalogue, error: catalogueErr } = await supabase
+    .from("plants")
+    .select("id, home_id, source, perenual_id, verdantly_id")
+    .eq("id", catalogueId)
+    .maybeSingle();
+  if (catalogueErr) {
+    Logger.error("findHomePlantForCatalogue lookup failed", catalogueErr, { catalogueId });
+    return null;
+  }
+  if (!catalogue) return null;
+
+  // 1a. Catalogue id IS already a home plant in THIS home — fast exit.
+  if (catalogue.home_id === homeId) {
+    return { homePlantId: catalogue.id };
+  }
+
+  // 2. Look for an existing match in this home. Match key depends on
+  //    the catalogue source.
+  let query = supabase
+    .from("plants")
+    .select("id")
+    .eq("home_id", homeId);
+
+  if (catalogue.source === "api" && catalogue.perenual_id) {
+    query = query.eq("perenual_id", catalogue.perenual_id);
+  } else if (catalogue.source === "verdantly" && catalogue.verdantly_id) {
+    query = query.eq("verdantly_id", catalogue.verdantly_id);
+  } else if (catalogue.source === "ai") {
+    query = query.eq("forked_from_plant_id", catalogueId);
+  } else {
+    // Unknown source — nothing to match against safely.
+    return null;
+  }
+
+  const { data: match, error: matchErr } = await query.limit(1).maybeSingle();
+  if (matchErr) {
+    Logger.error("findHomePlantForCatalogue match query failed", matchErr, {
+      catalogueId,
+      homeId,
+    });
+    return null;
+  }
+  return match ? { homePlantId: match.id } : null;
+}
+
+/**
+ * Save the catalogue plant into the user's Shed (creates a home-scoped
+ * `plants` row + auto-seasonal schedules). Idempotent — if a matching
+ * row already exists, returns it without writing.
+ *
+ * Returns the home plant id so callers can attach tasks / inventory
+ * items to it.
+ */
+export async function saveCataloguePlantToShed(
+  catalogueId: number,
+  homeId: string,
+): Promise<HomePlantMatch> {
+  // Idempotency — bail early if already in this home's Shed.
+  const existing = await findHomePlantForCatalogue(catalogueId, homeId);
+  if (existing) return existing;
+
+  // Load full catalogue details (PlantDetails shape) so the new home
+  // plant has every flat care field populated for auto-scheduling.
+  const catalogue = await loadCataloguePlant(catalogueId);
+  const { source, details } = catalogue;
+
+  let skeleton: SaveToShedSkeleton;
+  if (source === "api") {
+    skeleton = {
+      common_name: details.common_name,
+      scientific_name: details.scientific_name,
+      thumbnail_url: details.thumbnail_url ?? null,
+      source: "api",
+      perenual_id: details.perenual_id ?? null,
+      sunlight: details.sunlight,
+      watering_min_days: details.watering_min_days,
+      watering_max_days: details.watering_max_days,
+      harvest_season: details.harvest_season,
+      pruning_month: details.pruning_month,
+    };
+  } else if (source === "verdantly") {
+    skeleton = {
+      common_name: details.common_name,
+      scientific_name: details.scientific_name,
+      thumbnail_url: details.thumbnail_url ?? null,
+      source: "verdantly",
+      verdantly_id: details.verdantly_id ?? null,
+      perenual_id: null,
+      sunlight: details.sunlight,
+      watering_min_days: details.watering_min_days,
+      watering_max_days: details.watering_max_days,
+      harvest_season: details.harvest_season,
+      pruning_month: details.pruning_month,
+    };
+  } else {
+    // AI catalogue plant — fork to the home with a parent pointer so
+    // the existing AI freshness flow works (Wave 3 of AI Plant Overhaul).
+    skeleton = {
+      common_name: details.common_name,
+      scientific_name: details.scientific_name,
+      thumbnail_url: details.thumbnail_url ?? null,
+      source: "ai",
+      perenual_id: null,
+      forked_from_plant_id: catalogueId,
+      overridden_fields: [],
+      sunlight: details.sunlight,
+      watering_min_days: details.watering_min_days,
+      watering_max_days: details.watering_max_days,
+      harvest_season: details.harvest_season,
+      pruning_month: details.pruning_month,
+    };
+  }
+
+  const { plantId: homePlantId } = await saveToShed(skeleton, details as unknown as Record<string, unknown>, homeId);
+  return { homePlantId };
 }

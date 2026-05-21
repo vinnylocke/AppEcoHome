@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Grow Guide — Add to your Shed alongside tasks",
+    "items": [
+      "When you tap Add to Calendar on a plant in The Library that isn't already in your Shed, the sheet now asks: \"Also add {plant} to your Shed?\" — defaults to yes.",
+      "Tapping Add then saves the plant to your Shed AND drops the tasks onto your calendar in one go. Tasks for a plant you don't own no longer feel orphaned.",
+      "Also fixed: the instance picker for plants already in your Shed now correctly matches by source / provider id (instead of failing on the catalogue id mismatch) — so Roma in the back bed shows up in the dropdown."
+    ]
+  }
+]

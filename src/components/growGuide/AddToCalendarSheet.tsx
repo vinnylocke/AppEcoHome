@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { X, Loader2, MapPin, ChevronDown, Check } from "lucide-react";
+import { X, Loader2, MapPin, ChevronDown, Check, Sprout } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { Logger } from "../../lib/errorHandler";
 import {
@@ -10,7 +10,12 @@ import {
   findLikelyDuplicates,
   type BlueprintRow,
 } from "../../lib/blueprintDuplicateCheck";
+import {
+  findHomePlantForCatalogue,
+  saveCataloguePlantToShed,
+} from "../../lib/plantCatalogue";
 import { TaskActionButtons } from "../TaskActionButtons";
+import toast from "react-hot-toast";
 
 interface InventoryItemOption {
   id: string;
@@ -59,6 +64,21 @@ export default function AddToCalendarSheet({
   const [loadingMeta, setLoadingMeta] = useState(false);
   const [existingBlueprints, setExistingBlueprints] = useState<BlueprintRow[]>([]);
   /**
+   * Whether the user already has this catalogue plant in their Shed
+   * (any matching home-scoped `plants` row — direct catalogue id, AI
+   * fork via `forked_from_plant_id`, or provider id match for
+   * Perenual/Verdantly). null = still loading.
+   */
+  const [inShed, setInShed] = useState<boolean | null>(null);
+  /**
+   * Default-checked toggle that, when set, also saves the catalogue
+   * plant into the user's Shed before creating the tasks. Only
+   * meaningful when `inShed === false`.
+   */
+  const [alsoAddToShed, setAlsoAddToShed] = useState<boolean>(true);
+  /** True while the Save-to-Shed network call is in flight. */
+  const [savingPlant, setSavingPlant] = useState(false);
+  /**
    * Post-save success state — keeps the sheet open with a checkmark
    * for ~1.5s so the user gets clear visual confirmation in the same
    * place they were tapping. Without this they sometimes don't see
@@ -69,24 +89,39 @@ export default function AddToCalendarSheet({
   // Hydrate inventory items + existing blueprints once when the sheet opens.
   useEffect(() => {
     if (!open) return;
-    // Reset the success state on every fresh open — a sheet that
-    // closed on a successful save should reopen clean.
+    // Reset every per-open piece of state on a fresh open so a previous
+    // save doesn't leave a stale checkmark / picker behind.
     setSavedCount(null);
+    setInShed(null);
+    setAlsoAddToShed(true);
+    setPickedInstance("home_wide");
     let cancelled = false;
     setLoadingMeta(true);
 
     (async () => {
       try {
+        // 1. Resolve the home plant id for this catalogue (if any).
+        //    The Library hands us a catalogue plant id; the Shed hands
+        //    us a home plant id directly. Either way this returns the
+        //    home plant id we should query inventory_items against.
+        const homePlantMatch = await findHomePlantForCatalogue(plantId, homeId);
+        if (cancelled) return;
+        const effectiveHomePlantId = homePlantMatch?.homePlantId ?? null;
+        setInShed(!!homePlantMatch);
+
+        // 2. Inventory items for that home plant + existing blueprints
+        //    for duplicate detection — in parallel.
+        const inventoryQ = effectiveHomePlantId == null
+          ? Promise.resolve({ data: [], error: null })
+          : supabase
+              .from("inventory_items")
+              .select("id, plant_name, nickname, area_name")
+              .eq("home_id", homeId)
+              .eq("plant_id", String(effectiveHomePlantId))
+              .neq("status", "Archived");
+
         const [instancesRes, blueprintsRes] = await Promise.all([
-          // inventory_items.plant_id is text (holds the integer catalogue id
-          // as a string). The Library / Shed insert paths convert before
-          // writing, so matching string-on-string here is correct.
-          supabase
-            .from("inventory_items")
-            .select("id, plant_name, nickname, area_name")
-            .eq("home_id", homeId)
-            .eq("plant_id", String(plantId))
-            .neq("status", "Archived"),
+          inventoryQ,
           supabase
             .from("task_blueprints")
             .select("id, title, task_type, frequency_days, is_recurring")
@@ -214,6 +249,39 @@ export default function AddToCalendarSheet({
                 Home-wide tasks live on your calendar without a specific plant link — useful when you haven't decided where this one will go yet.
               </p>
             </div>
+          ) : inShed === false ? (
+            // Plant isn't in the Shed yet — offer to add it alongside
+            // the tasks. Default checked because tasks for a plant the
+            // user doesn't own are mildly odd otherwise.
+            <label
+              data-testid="add-to-calendar-also-add-to-shed"
+              className="mb-4 flex items-start gap-3 rounded-2xl bg-rhozly-primary/[0.06] border border-rhozly-primary/20 p-3 cursor-pointer"
+            >
+              <input
+                type="checkbox"
+                checked={alsoAddToShed}
+                onChange={(e) => setAlsoAddToShed(e.target.checked)}
+                className="sr-only"
+              />
+              <div
+                className={`shrink-0 w-5 h-5 mt-0.5 rounded flex items-center justify-center border transition-colors ${
+                  alsoAddToShed
+                    ? "bg-rhozly-primary border-rhozly-primary text-white"
+                    : "border-rhozly-outline/40 bg-white"
+                }`}
+              >
+                {alsoAddToShed && <Check size={14} strokeWidth={4} />}
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-black text-rhozly-on-surface flex items-center gap-1.5">
+                  <Sprout size={13} className="text-rhozly-primary" />
+                  Also add to your Shed
+                </p>
+                <p className="text-[11px] text-rhozly-on-surface/65 leading-snug mt-0.5">
+                  You don't have {plantName} in your Shed yet. Adding it now means the tasks will be linked to a real plant in your garden.
+                </p>
+              </div>
+            </label>
           ) : null}
 
           {/* Task list + add button (delegates to TaskActionButtons).
@@ -225,6 +293,28 @@ export default function AddToCalendarSheet({
             inventoryItemIds={inventoryItemIds}
             duplicateIndices={duplicateIndices}
             suppressToast
+            onBeforeSave={async () => {
+              // Save the catalogue plant to the user's Shed first when
+              // the toggle is set + the plant isn't already there.
+              // Failures here propagate up to TaskActionButtons which
+              // aborts the whole save (no tasks land).
+              if (alsoAddToShed && inShed === false) {
+                setSavingPlant(true);
+                try {
+                  await saveCataloguePlantToShed(plantId, homeId);
+                  toast.success(`${plantName} added to your Shed.`);
+                } catch (err) {
+                  Logger.error("AddToCalendarSheet save-to-shed failed", err, {
+                    plantId,
+                  });
+                  throw err instanceof Error
+                    ? err
+                    : new Error("Couldn't save the plant to your Shed.");
+                } finally {
+                  setSavingPlant(false);
+                }
+              }
+            }}
             onSuccess={(count) => {
               setSavedCount(count);
               onSaved?.();
@@ -242,7 +332,7 @@ export default function AddToCalendarSheet({
         {savedCount !== null && (
           <div
             data-testid="add-to-calendar-success"
-            className="absolute inset-0 bg-white/90 backdrop-blur-sm rounded-t-3xl sm:rounded-3xl flex flex-col items-center justify-center gap-3 z-10"
+            className="absolute inset-0 bg-white/95 backdrop-blur-sm rounded-t-3xl sm:rounded-3xl flex flex-col items-center justify-center gap-3 z-10 px-6 text-center"
           >
             <div className="w-14 h-14 rounded-full bg-rhozly-primary text-white flex items-center justify-center shadow-lg">
               <Check size={28} strokeWidth={3} />
@@ -252,6 +342,11 @@ export default function AddToCalendarSheet({
                 ? "1 task added to your calendar"
                 : `${savedCount} tasks added to your calendar`}
             </p>
+            {alsoAddToShed && inShed === false && (
+              <p className="text-xs font-bold text-rhozly-on-surface/60 leading-snug">
+                {plantName} was also added to your Shed.
+              </p>
+            )}
           </div>
         )}
       </div>

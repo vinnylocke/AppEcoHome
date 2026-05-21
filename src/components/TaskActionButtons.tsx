@@ -57,6 +57,13 @@ interface TaskActionProps {
    * instead and doesn't want a duplicate top-of-screen toast.
    */
   suppressToast?: boolean;
+  /**
+   * Optional async hook that runs BEFORE any task inserts. Used by the
+   * Grow Guide's "Also add to your Shed" toggle to save the catalogue
+   * plant first. If it throws, the whole save is aborted with an error
+   * toast — no tasks land.
+   */
+  onBeforeSave?: () => Promise<void>;
 }
 
 const getTaskIcon = (type: string) => {
@@ -83,6 +90,7 @@ export const TaskActionButtons = ({
   inventoryItemIds,
   duplicateIndices,
   suppressToast,
+  onBeforeSave,
 }: TaskActionProps) => {
   // Start with all tasks selected by default, EXCEPT those flagged as
   // likely duplicates — those start unchecked so the user has to opt in.
@@ -108,6 +116,21 @@ export const TaskActionButtons = ({
     const toastId = suppressToast
       ? null
       : toast.loading("Adding tasks to your calendar...");
+
+    // Run any caller-supplied prelude (e.g., "Also add this catalogue
+    // plant to my Shed"). Failures here abort the whole save so we
+    // don't end up with a half-finished outcome.
+    if (onBeforeSave) {
+      try {
+        await onBeforeSave();
+      } catch (err: any) {
+        Logger.error("TaskActionButtons onBeforeSave threw", err);
+        if (toastId) toast.dismiss(toastId);
+        toast.error(err?.message ?? "Couldn't finish that — try again.");
+        setIsProcessing(false);
+        return;
+      }
+    }
 
     try {
       const today = new Date();
