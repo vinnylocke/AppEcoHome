@@ -1486,7 +1486,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                       </div>
                     );
                   })()}
-                  <div className="absolute top-4 left-4">
+                  <div className="absolute bottom-3 right-3 z-10">
                     <span className={`bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-black uppercase flex items-center gap-1.5 shadow-sm border border-white/20 ${
                       plant.source === "api"       ? "text-rhozly-primary" :
                       plant.source === "verdantly" ? "text-emerald-600" :

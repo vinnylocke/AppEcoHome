@@ -1203,7 +1203,7 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
       // into the prompt.
       const { data: plantRow, error: plantErr } = await supabase
         .from("plants")
-        .select("id, common_name, scientific_name, source, data")
+        .select("id, common_name, scientific_name, source, description, maintenance_notes")
         .eq("id", plantId)
         .maybeSingle();
       if (plantErr) throw plantErr;
@@ -1217,14 +1217,19 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
         sciName = plantRow.scientific_name.trim() || null;
       }
 
-      // Pull manual notes from the plants.data jsonb (best-effort).
+      // Pull manual notes from the dedicated columns on the plants table.
+      // Manual plants get description + maintenance_notes merged into the prompt
+      // so Gemini can use whatever the user wrote about the plant.
       let manualNotes: string | null = null;
-      if (plantRow.source === "manual" && plantRow.data && typeof plantRow.data === "object") {
-        const d = plantRow.data as Record<string, unknown>;
-        const candidate = d.description ?? d.notes ?? d.manual_notes ?? null;
-        if (typeof candidate === "string" && candidate.trim()) {
-          manualNotes = candidate.trim();
+      if (plantRow.source === "manual") {
+        const parts: string[] = [];
+        if (typeof plantRow.description === "string" && plantRow.description.trim()) {
+          parts.push(plantRow.description.trim());
         }
+        if (typeof plantRow.maintenance_notes === "string" && plantRow.maintenance_notes.trim()) {
+          parts.push(plantRow.maintenance_notes.trim());
+        }
+        manualNotes = parts.length > 0 ? parts.join("\n\n") : null;
       }
 
       const promptText = buildGrowGuidePrompt({

@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Fixes",
+    "items": [
+      "Grow Guide — Generate now works on every plant. A bad column reference was making the server fall back to \"service temporarily unavailable\" before it ever reached the AI. Manual plants now use your Description and Maintenance Notes as the seed context for the guide.",
+      "The Shed — source badge (AI / Manual / Perenual / Verdantly) moved to the bottom-right of each plant card so it no longer hides behind the quick-action buttons on mobile."
+    ]
+  }
+]
