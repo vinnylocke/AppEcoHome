@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "label": "Quick Access landing — brand-stamped + breathing room",
+    "items": [
+      "The mobile Quick Access screen now starts well below the floating menu button so nothing crowds the top of the page.",
+      "Your greeting, eyebrow pill, and subtitle now live inside a green-tinted hero card with a soft border — breaks up the white expanse and grounds the screen in the brand.",
+      "The Rhozly logo + wordmark now sit at the top of that hero card as a small, restrained brand stamp."
+    ]
+  },
+  {
+    "label": "Behind the scenes",
+    "items": [
+      "Hero card uses a gradient of the three existing theme tokens — primary-container green, white, and tertiary peach — strictly within the design system.",
+      "Top padding accounts for device safe-area-inset-top so notched and dynamic-island phones still look right."
+    ]
+  }
+]

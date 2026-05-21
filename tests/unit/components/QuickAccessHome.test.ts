@@ -137,6 +137,33 @@ describe("QuickAccessHome", () => {
     expect(screen.getByTestId("quick-access-hero-sprout")).toBeTruthy();
   });
 
+  // ─── Wave 8 ─ green hero card + Rhozly brand stamp ─────────────────────
+
+  test("renders the hero card wrapper (Wave 8)", () => {
+    renderHome({ firstName: "Vinny" });
+    expect(screen.getByTestId("quick-access-hero-card")).toBeTruthy();
+  });
+
+  test("renders the Rhozly logo + wordmark inside the hero", () => {
+    renderHome({ firstName: "Vinny" });
+    const brand = screen.getByTestId("quick-access-hero-brand");
+    expect(brand).toBeTruthy();
+    const logo = screen.getByTestId("quick-access-hero-logo") as HTMLImageElement;
+    expect(logo.tagName).toBe("IMG");
+    expect(logo.getAttribute("alt")).toBe("Rhozly");
+    expect(logo.getAttribute("src")).toContain("logo_small_rhozly");
+    // Wordmark text lives inside the brand container
+    expect(brand.textContent).toContain("Rhozly");
+  });
+
+  test("logo + greeting still render when firstName is missing", () => {
+    renderHome({ firstName: null });
+    expect(screen.getByTestId("quick-access-hero-logo")).toBeTruthy();
+    expect(screen.getByTestId("quick-access-hero-greeting").textContent).toBe(
+      "What can I help with?",
+    );
+  });
+
   test("each tile receives a distinct theme accent (primary / tertiary / container)", () => {
     renderHome({ firstName: "Vinny" });
     expect(

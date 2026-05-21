@@ -32,9 +32,10 @@ function getTimeGreeting(now: Date = new Date()): string {
  * banner explains it's the mobile shortcut), but their `/` redirect still
  * lands them on `/dashboard`.
  *
- * Wave 7 redesign: vertically-centred layout, personalised time-aware
- * greeting, decorative leaf motif, per-tile colour accents drawing on the
- * full Rhozly palette (primary green / tertiary peach / container green).
+ * Wave 7 added the personalised greeting + per-tile colour accents.
+ * Wave 8 adds: top safe-area padding so the menu button stops crowding the
+ * hero, a green-tinted hero card with a border to break up the white, and
+ * the Rhozly logo + wordmark inside the hero as a restrained brand stamp.
  */
 export default function QuickAccessHome({ firstName }: Props) {
   const navigate = useNavigate();
@@ -46,7 +47,11 @@ export default function QuickAccessHome({ firstName }: Props) {
   return (
     <main
       data-testid="quick-access-home"
-      className="min-h-full w-full max-w-2xl mx-auto px-4 sm:px-6 py-6 flex flex-col justify-center"
+      // Top padding clears the Wave 6 floating menu button (top-right) +
+      // device safe-area (notches / dynamic islands). 5rem = 80px above the
+      // hero card, plus env(safe-area-inset-top) for native devices.
+      style={{ paddingTop: "calc(5rem + env(safe-area-inset-top, 0px))" }}
+      className="min-h-full w-full max-w-2xl mx-auto px-4 sm:px-6 pb-8 flex flex-col justify-center"
     >
       {/* Desktop preview banner */}
       {!isMobile && (
@@ -69,16 +74,19 @@ export default function QuickAccessHome({ firstName }: Props) {
         </div>
       )}
 
-      {/* Hero — personalised greeting + decorative motif */}
-      <header className="relative mb-7 mt-2">
-        {/* Soft radial gradients — peach + green theme tokens */}
+      {/* Hero card — green-tinted, brand-stamped, decorated */}
+      <header
+        data-testid="quick-access-hero-card"
+        className="relative mb-6 rounded-3xl border border-rhozly-primary-container/20 bg-gradient-to-br from-rhozly-primary-container/[0.08] via-white/40 to-rhozly-tertiary/25 overflow-hidden p-6 sm:p-7 shadow-[0_2px_12px_-4px_rgba(7,87,55,0.10),0_18px_36px_-20px_rgba(7,87,55,0.10)]"
+      >
+        {/* Soft radial gradients layered on top of the card gradient for depth */}
         <div
           aria-hidden
           data-testid="quick-access-hero-glow"
-          className="absolute -inset-x-6 -top-8 h-44 pointer-events-none"
+          className="absolute inset-0 pointer-events-none"
           style={{
             background:
-              "radial-gradient(circle at 22% 35%, rgba(7,87,55,0.08), transparent 55%), radial-gradient(circle at 88% 60%, rgba(255,218,216,0.55), transparent 55%)",
+              "radial-gradient(circle at 18% 30%, rgba(7,87,55,0.06), transparent 55%), radial-gradient(circle at 92% 70%, rgba(255,218,216,0.35), transparent 55%)",
           }}
         />
 
@@ -86,13 +94,31 @@ export default function QuickAccessHome({ firstName }: Props) {
         <Sprout
           aria-hidden
           data-testid="quick-access-hero-sprout"
-          size={88}
-          className="absolute -top-2 right-0 text-rhozly-primary-container/15 -rotate-12 pointer-events-none"
+          size={92}
+          className="absolute -top-3 -right-3 text-rhozly-primary-container/15 -rotate-12 pointer-events-none"
           strokeWidth={1.4}
         />
 
+        {/* Brand stamp — logo + wordmark */}
+        <div
+          data-testid="quick-access-hero-brand"
+          className="relative flex items-center gap-2.5 mb-4"
+        >
+          <div className="bg-white rounded-xl p-1.5 shadow-sm border border-rhozly-outline/10">
+            <img
+              src="/images/logo_small_rhozly.png"
+              alt="Rhozly"
+              data-testid="quick-access-hero-logo"
+              className="h-7 w-auto block"
+            />
+          </div>
+          <span className="font-display font-black text-rhozly-primary text-lg tracking-tight">
+            Rhozly
+          </span>
+        </div>
+
         {/* Eyebrow pill */}
-        <div className="relative inline-flex items-center gap-1.5 bg-rhozly-primary/10 text-rhozly-primary px-3 py-1 rounded-full mb-3">
+        <div className="relative inline-flex items-center gap-1.5 bg-white/70 backdrop-blur-sm text-rhozly-primary px-3 py-1 rounded-full mb-3 border border-rhozly-primary/15">
           <Sparkles size={11} strokeWidth={2.5} />
           <span className="text-[11px] font-black uppercase tracking-widest">
             Quick Access
@@ -115,7 +141,7 @@ export default function QuickAccessHome({ firstName }: Props) {
         </h1>
 
         {/* Sub */}
-        <p className="relative text-sm text-rhozly-on-surface/55 mt-2 leading-relaxed max-w-md">
+        <p className="relative text-sm text-rhozly-on-surface/65 mt-2 leading-relaxed max-w-md">
           {trimmedName
             ? "Pick a quick action to get started — the essentials for when you're out in the garden."
             : "The essentials for when you're out in the garden."}
@@ -150,7 +176,7 @@ export default function QuickAccessHome({ firstName }: Props) {
         />
       </div>
 
-      {/* Power-user escape hatch — now a deliberate pill, not a hidden link */}
+      {/* Power-user escape hatch — deliberate pill, not a hidden link */}
       <div className="flex justify-center">
         <button
           type="button"
