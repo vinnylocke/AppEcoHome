@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Fix",
-    "items": [
-      "Library — fixed \"Invalid plant id\" when tapping a search result. The static `/library/plant/preview` route was shadowing the dynamic one, so the preview-mode sentinel wasn't being detected."
-    ]
-  }
-]
+[]
