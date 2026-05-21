@@ -257,7 +257,24 @@ export default function GardenWalk({ homeId, userId, aiEnabled }: Props) {
   }
 
   // state.kind === "walking"
+  // When the user advances past the last card, `currentIndex` overshoots
+  // by one tick before the finish effect dispatches. Show a tiny
+  // wrapping-up placeholder for that frame instead of feeding an
+  // undefined `plant` into WalkPlantCard.
   const current = state.list[state.currentIndex];
+  if (!current) {
+    return (
+      <div
+        data-testid="garden-walk-wrapping-up"
+        className="h-full w-full flex items-center justify-center bg-rhozly-bg"
+      >
+        <div className="flex items-center gap-2 text-sm font-bold text-rhozly-on-surface/60">
+          <Loader2 className="animate-spin" size={18} />
+          Wrapping up your walk…
+        </div>
+      </div>
+    );
+  }
   return (
     <WalkPlantCard
       homeId={homeId}
