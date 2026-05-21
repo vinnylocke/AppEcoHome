@@ -28,10 +28,15 @@ export const AutomationEngine = {
 
   async applyPlantedAutomations(
     itemsToPlant: any[],
-    targetAreaId: string,
+    targetAreaId: string | null,
     baseDateStr: string,
   ) {
     if (!itemsToPlant.length) return;
+    // Unassigned planted instances ("in the garden, area unknown") have
+    // no area to anchor blueprints against. Area-bound automations only
+    // make sense once the user places the plant. Short-circuit so the
+    // caller doesn't have to special-case this.
+    if (!targetAreaId) return;
 
     try {
       const grouped = itemsToPlant.reduce(

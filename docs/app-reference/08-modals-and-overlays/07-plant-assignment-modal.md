@@ -1,6 +1,6 @@
 # Plant Assignment Modal
 
-> Assigns a plant from the Shed (the species record) into a specific area as an `inventory_items` row. Captures growth state, quantity, planted date, propagation, smart schedule opt-in, and area binding.
+> Assigns a plant from the Shed (the species record) into a specific area as an `inventory_items` row. Captures growth state, quantity, planted date, propagation, smart schedule opt-in, and area binding. **Or** — adds the plant to the user's garden without picking an area at all (the resulting instance is "in the garden, area unknown" — the user places it later via InstanceEditModal).
 
 **Source file:** `src/components/PlantAssignmentModal.tsx`
 
@@ -8,7 +8,7 @@
 
 ## Quick Summary
 
-Opens after picking a plant — typically from BulkSearch → "Add to Shed" or from the Shed's Assign button. The user picks Location → Area, fills growth state (optional), quantity, planted date, propagation, and ticks "Smart Schedules" to auto-generate watering/pruning blueprints via `AutomationEngine`.
+Opens after picking a plant — typically from BulkSearch → "Add to Shed" or from the Shed's Assign button. The user picks Location → Area, fills growth state (optional), quantity, planted date, propagation, and ticks "Smart Schedules" to auto-generate watering/pruning blueprints via `AutomationEngine`. A secondary CTA at the bottom of Step 1 — **Add to garden, area unknown** — skips the area picker entirely and produces an instance with `area_id = NULL`. Smart-schedule UI is hidden on the no-area path because the engine needs an area to anchor against; the user can wire schedules later when they place the plant.
 
 ---
 
@@ -19,15 +19,22 @@ Opens after picking a plant — typically from BulkSearch → "Add to Shed" or f
 ```
 PlantAssignmentModal (Portal, focus-trapped)
 ├── Header (close, plant name)
-├── Location → Area chained dropdowns
-├── Growth state dropdown (optional)
-├── Is established checkbox
-├── Quantity input
-├── Planted date picker
-├── Propagation method dropdown
-├── Smart Schedules toggle
+├── Step 1
+│   ├── Location → Area chained dropdowns
+│   ├── Quantity input
+│   ├── Next button (disabled until areaId set)
+│   └── "Add to garden, area unknown" secondary CTA → handleAddToGarden
+│         (skips area; advances to Step 2 with areaId = "")
+├── Step 2
+│   ├── Planted / Unplanted toggle
+│   ├── Growth state dropdown (optional)
+│   ├── Is established checkbox
+│   ├── Planted date picker
+│   ├── Propagation method dropdown
+│   ├── Smart Schedules block — hidden when areaId is empty (replaced
+│   │   with a small "Smart planting schedules need an area" hint)
+│   ├── Back / Confirm Assignment
 ├── InfoTooltip × N (per field)
-├── Cancel / Assign
 ```
 
 ### Props

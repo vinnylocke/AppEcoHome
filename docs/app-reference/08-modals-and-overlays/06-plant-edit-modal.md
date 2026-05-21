@@ -1,6 +1,6 @@
 # Plant Edit Modal
 
-> The full plant detail / edit modal opened from the Shed grid. Multi-tab: Care Guide, Automations, Light, **Grow Guide** (Wave 1 — AI 9-section comprehensive guide), Community (formerly "Guides" — user-written articles), Companions. Manual edit of plant-level metadata; per-instance edits live in InstanceEditModal.
+> The full plant detail / edit modal opened from the Shed grid. Multi-tab: Care Guide, Automations, Light, **Grow Guide** (Wave 1 — AI 9-section comprehensive guide), Community (formerly "Guides" — user-written articles), Companions, **Instances** (per-plant list of every inventory item with one-tap area placement). Manual edit of plant-level metadata; per-instance edits live in InstanceEditModal.
 >
 > See [Grow Guide Tab](./36-grow-guide-tab.md) for the new tab's full contract.
 
@@ -18,6 +18,7 @@ Tabs:
 - **Guides** — `PlantGuidesTab` shows AI care guides + linked guides
 - **Light** — `LightTab` shows lux history for areas hosting this plant
 - **Companions** — `CompanionPlantsTab` shows companion / antagonist data
+- **Instances** — `PlantInstancesTab` lists every active inventory item for this species in the home (area-assigned + unassigned alike). One-tap row opens the InstanceEditModal; an *Add another* button creates a new unassigned-but-planted instance in a single tap.
 
 ---
 
@@ -34,7 +35,8 @@ PlantEditModal (Portal, focus-trapped)
 │   ├── Schedule → PlantScheduleTab
 │   ├── Guides → PlantGuidesTab
 │   ├── Light → LightTab
-│   └── Companions → CompanionPlantsTab
+│   ├── Companions → CompanionPlantsTab
+│   └── Instances → PlantInstancesTab (list + Add another + opens InstanceEditModal on tap)
 ├── Active tab body
 ├── Provider info chip (Perenual / Verdantly / AI / Manual)
 ├── Refresh from provider (re-fetch care details)

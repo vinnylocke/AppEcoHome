@@ -140,6 +140,22 @@ export default function PlantAssignmentModal({
     }, 300);
   };
 
+  /**
+   * Skip the location + area picker and proceed straight to planting
+   * details. The resulting inventory_items row will have area_id /
+   * location_id null — "in the garden, area unknown". Users can place
+   * it later by editing the instance and picking an area.
+   */
+  const handleAddToGarden = () => {
+    setIsStepTransitioning(true);
+    setSelectedLoc("");
+    setFormData((p) => ({ ...p, areaId: "" }));
+    setTimeout(() => {
+      setStep(2);
+      setIsStepTransitioning(false);
+    }, 300);
+  };
+
   const handleSmartSchedule = async () => {
     setIsAiLoading(true);
 
@@ -427,6 +443,38 @@ export default function PlantAssignmentModal({
                 "Next: Planting Details"
               )}
             </button>
+
+            {/* OR divider + "Add to garden" secondary path — for plants
+                the user owns but hasn't placed yet. Skips the area
+                picker; the resulting instance has area_id null. */}
+            <div className="flex items-center gap-3 my-2">
+              <div className="flex-1 h-px bg-rhozly-outline/20" />
+              <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">
+                or
+              </span>
+              <div className="flex-1 h-px bg-rhozly-outline/20" />
+            </div>
+
+            <button
+              type="button"
+              onClick={handleAddToGarden}
+              disabled={isStepTransitioning}
+              data-testid="plant-assignment-add-to-garden"
+              aria-label="Add to garden without picking an area"
+              className="w-full p-4 bg-white border border-rhozly-primary/25 rounded-2xl text-left hover:bg-rhozly-primary/[0.04] transition-colors disabled:opacity-50 flex items-start gap-3"
+            >
+              <div className="shrink-0 w-10 h-10 rounded-xl bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center">
+                <IconGrowth size={18} />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-rhozly-on-surface text-sm">
+                  Add to garden, area unknown
+                </p>
+                <p className="text-[11px] font-bold text-rhozly-on-surface/55 mt-0.5 leading-snug">
+                  Not sure where it'll go yet? Add it to your garden anyway. You can place it in an area later by editing the instance.
+                </p>
+              </div>
+            </button>
           </div>
         )}
 
@@ -450,7 +498,16 @@ export default function PlantAssignmentModal({
               </button>
             </div>
 
-            {!formData.isPlanted && (
+            {!formData.isPlanted && !formData.areaId && (
+              <div className="bg-rhozly-surface-low/60 border border-rhozly-outline/15 rounded-2xl p-4 flex items-start gap-3">
+                <Info size={16} className="text-rhozly-on-surface/40 shrink-0 mt-0.5" />
+                <p className="text-[12px] font-bold text-rhozly-on-surface/60 leading-snug">
+                  Smart planting schedules need an area to anchor against. Add the plant to your garden now and set up reminders once you place it.
+                </p>
+              </div>
+            )}
+
+            {!formData.isPlanted && formData.areaId && (
               <div className="space-y-4 animate-in fade-in zoom-in-95">
                 {!aiResult ? (
                   !aiEnabled ? (

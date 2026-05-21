@@ -1,6 +1,6 @@
 # Instance Edit Modal
 
-> The deepest plant-level view in Rhozly — opens for a single `inventory_items` row (one specific plant in one specific area). 11 tabs covering details, routine, journal, photos, care guide, **grow guide** (Wave 1 AI 9-section comprehensive guide; see [Grow Guide Tab](./36-grow-guide-tab.md)), community (was "guides"; renamed for clarity), yield, light, stats, companions.
+> The deepest plant-level view in Rhozly — opens for a single `inventory_items` row. The row may be area-assigned ("Roma in the back bed") OR unassigned ("in the garden, area unknown"). 11 tabs covering details, routine, journal, photos, care guide, **grow guide** (Wave 1 AI 9-section comprehensive guide; see [Grow Guide Tab](./36-grow-guide-tab.md)), community (was "guides"; renamed for clarity), yield, light, stats, companions. The Details tab's location + area pickers are both optional — leaving them blank keeps the instance unassigned; filling both moves it into that area and fires `AutomationEngine.applyPlantedAutomations` so any area-anchored blueprints pick up the now-placed instance.
 
 **Source file:** `src/components/InstanceEditModal.tsx` (~700 lines)
 
@@ -12,7 +12,7 @@ A focus-trapped portal with a tabbed layout:
 
 | Tab | Purpose |
 |-----|---------|
-| Details | Growth state, propagation, planted date, location/area, cover image |
+| Details | Growth state, propagation, planted date, **optional** location/area picker (leave blank to keep the instance unassigned), cover image |
 | Routine | Per-instance care schedule (InstanceCareRoutine) |
 | Journal | Free-text notes timeline (PlantJournalTab) |
 | Photos | Photo timeline (PhotoTimelineTab) |

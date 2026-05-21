@@ -199,12 +199,20 @@ export default function InstanceEditModal({
       const loc = locations.find((l) => l.id === editForm.location_id);
       const areaObj = loc?.areas.find((a: any) => a.id === editForm.area_id);
 
+      // Both location and area are optional. The user might be saving
+      // an unassigned-but-planted instance ("in the garden, area
+      // unknown") or moving an already-placed instance back to
+      // unassigned. If EITHER picker is empty, null out BOTH so we
+      // never end up in a weird intermediate "location set, no area"
+      // state that the rest of the app doesn't expect.
+      const hasFullPlacement = !!editForm.location_id && !!editForm.area_id && !!loc && !!areaObj;
+
       const payload = {
         identifier: editForm.identifier,
-        location_id: editForm.location_id,
-        location_name: loc?.name,
-        area_id: editForm.area_id,
-        area_name: areaObj?.name,
+        location_id: hasFullPlacement ? editForm.location_id : null,
+        location_name: hasFullPlacement ? loc.name : null,
+        area_id: hasFullPlacement ? editForm.area_id : null,
+        area_name: hasFullPlacement ? areaObj.name : null,
         status: editForm.status,
         growth_state:
           editForm.status === "Planted" ? editForm.growth_state : null,
@@ -226,14 +234,32 @@ export default function InstanceEditModal({
       // 🚀 NEW: WIRED TO AUTOMATION ENGINE
       const wasPlanted = instance.status === "Planted";
       const isNowPlanted = payload.status === "Planted";
+      const wasAreaAssigned = !!instance.area_id;
+      const isNowAreaAssigned = !!payload.area_id;
 
       if (isNowPlanted && !wasPlanted) {
         logEvent(EVENT.PLANT_INSTANCE_PLANTED, { identifier: instance.identifier, plant_name: instance.plant_name });
         // Just planted! Let the Engine generate/append its blueprints.
+        // `applyPlantedAutomations` short-circuits gracefully if the
+        // area_id is null (unassigned-but-planted) — schedules will
+        // attach later when the user places the plant.
         const baseDateStr = payload.is_established
           ? new Date().toISOString().split("T")[0]
           : payload.planted_at || new Date().toISOString().split("T")[0];
 
+        const updatedItem = { ...instance, ...payload };
+        await AutomationEngine.applyPlantedAutomations(
+          [updatedItem],
+          updatedItem.area_id,
+          baseDateStr,
+        );
+      } else if (isNowPlanted && wasPlanted && !wasAreaAssigned && isNowAreaAssigned) {
+        // Same Planted status but moved from unassigned → assigned.
+        // Pick up the area-anchored automations now that we have an
+        // area to attach to.
+        const baseDateStr = payload.is_established
+          ? new Date().toISOString().split("T")[0]
+          : payload.planted_at || new Date().toISOString().split("T")[0];
         const updatedItem = { ...instance, ...payload };
         await AutomationEngine.applyPlantedAutomations(
           [updatedItem],
@@ -443,7 +469,7 @@ export default function InstanceEditModal({
                   <MapPin size={14} /> Location
                 </label>
                 <select
-                  value={editForm.location_id}
+                  value={editForm.location_id ?? ""}
                   onChange={(e) =>
                     setEditForm({
                       ...editForm,
@@ -453,6 +479,7 @@ export default function InstanceEditModal({
                   }
                   className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-transparent focus:border-rhozly-primary outline-none cursor-pointer text-sm"
                 >
+                  <option value="">Not placed yet</option>
                   {locations.map((loc) => (
                     <option key={loc.id} value={loc.id}>
                       {loc.name}
@@ -465,14 +492,15 @@ export default function InstanceEditModal({
                   <Navigation size={14} /> Area
                 </label>
                 <select
-                  value={editForm.area_id}
+                  value={editForm.area_id ?? ""}
                   onChange={(e) =>
                     setEditForm({ ...editForm, area_id: e.target.value })
                   }
-                  className={`w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border focus:border-rhozly-primary outline-none cursor-pointer text-sm ${!editForm.area_id ? "border-red-400/60" : "border-transparent"}`}
+                  disabled={!editForm.location_id}
+                  className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-transparent focus:border-rhozly-primary outline-none cursor-pointer text-sm disabled:opacity-50"
                 >
-                  <option value="" disabled>
-                    Select Area...
+                  <option value="">
+                    {editForm.location_id ? "Select Area..." : "Pick a location first"}
                   </option>
                   {availableAreas.map((area: any) => (
                     <option key={area.id} value={area.id}>
@@ -481,8 +509,11 @@ export default function InstanceEditModal({
                   ))}
                 </select>
                 {!editForm.area_id && (
-                  <p className="text-xs font-bold text-red-400 ml-1 flex items-center gap-1">
-                    <Info size={12} /> An area is required before saving.
+                  <p className="text-xs font-bold text-rhozly-on-surface/50 ml-1 flex items-center gap-1">
+                    <Info size={12} />
+                    {editForm.location_id
+                      ? "Pick an area or leave both blank — the instance stays \"in the garden\"."
+                      : "Just in your garden — pick a location + area to place it."}
                   </p>
                 )}
               </div>
@@ -577,7 +608,7 @@ export default function InstanceEditModal({
 
             <button
               onClick={handleUpdateInstance}
-              disabled={savingInstance || !editForm.area_id}
+              disabled={savingInstance}
               className="w-full py-5 mt-4 bg-rhozly-primary text-white rounded-2xl font-black text-lg shadow-xl shadow-rhozly-primary/20 flex items-center justify-center gap-2 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50"
             >
               {savingInstance ? (

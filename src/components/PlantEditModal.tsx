@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom"; // 🚀 IMPORT THE PORTAL
-import { X, Droplets, Calendar, Database, Loader2, RefreshCw, BookOpen, BookOpenCheck, Sun, Sprout, Activity, MapPin } from "lucide-react";
+import { X, Droplets, Calendar, Database, Loader2, RefreshCw, BookOpen, BookOpenCheck, Sun, Sprout, Activity, MapPin, Boxes } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantScheduleTab from "./PlantScheduleTab";
@@ -8,6 +8,7 @@ import PlantGuidesTab from "./PlantGuidesTab";
 import LightTab from "./LightTab";
 import CompanionPlantsTab from "./CompanionPlantsTab";
 import GrowGuideTab from "./GrowGuideTab";
+import PlantInstancesTab from "./plant/PlantInstancesTab";
 import { getProviderPlantDetails } from "../lib/plantProvider";
 import { getProviderLabel } from "../lib/verdantlyUtils";
 import { supabase } from "../lib/supabase";
@@ -429,6 +430,7 @@ export default function PlantEditModal({
     { id: "grow_guide", label: "Grow Guide", icon: BookOpenCheck },
     { id: "guides", label: "Community", icon: BookOpen },
     { id: "companions", label: "Companions", icon: Sprout },
+    { id: "instances", label: "Instances", icon: Boxes },
   ];
 
   // 🧠 LIVE AI SYNC: Update the AI on the Master Plant Template being viewed/edited
@@ -798,13 +800,23 @@ export default function PlantEditModal({
                 commonName={plant.common_name}
               />
             </div>
-          ) : (
+          ) : activeTab === "companions" ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
               <CompanionPlantsTab
                 source={plant.source}
                 verdantlyId={plant.verdantly_id ?? null}
                 plantName={plant.common_name}
                 homeId={homeId}
+                aiEnabled={aiEnabled}
+                isPremium={isPremium}
+              />
+            </div>
+          ) : (
+            <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+              <PlantInstancesTab
+                homeId={homeId}
+                plantId={plant.id}
+                plantName={plant.common_name}
                 aiEnabled={aiEnabled}
                 isPremium={isPremium}
               />

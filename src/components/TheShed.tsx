@@ -845,12 +845,35 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     if (!selectedPlant) return;
     setActionLoading(true);
     try {
-      const { data: areaData, error: areaError } = await supabase
-        .from("areas")
-        .select("name, location_id, locations(name)")
-        .eq("id", assignmentData.areaId)
-        .single();
-      if (areaError) throw areaError;
+      // areaId can be empty/null when the user picks "Add to garden"
+      // — an instance "in the garden, area unknown". In that case we
+      // skip the area lookup and null out the location/area columns.
+      const noArea = !assignmentData.areaId;
+      let areaContext: {
+        location_id: string | null;
+        location_name: string | null;
+        area_id: string | null;
+        area_name: string | null;
+      } = {
+        location_id: null,
+        location_name: null,
+        area_id: null,
+        area_name: null,
+      };
+      if (!noArea) {
+        const { data: areaData, error: areaError } = await supabase
+          .from("areas")
+          .select("name, location_id, locations(name)")
+          .eq("id", assignmentData.areaId)
+          .single();
+        if (areaError) throw areaError;
+        areaContext = {
+          area_id: assignmentData.areaId,
+          area_name: areaData.name,
+          location_id: areaData.location_id,
+          location_name: (areaData.locations as any)?.name || "Unknown Location",
+        };
+      }
 
       const recordsToInsert = Array.from({
         length: assignmentData.quantity,
@@ -859,10 +882,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         plant_id: selectedPlant.id,
         plant_name: selectedPlant.common_name,
         status: assignmentData.status,
-        location_id: areaData.location_id,
-        location_name: areaData.locations?.name || "Unknown Location",
-        area_id: assignmentData.areaId,
-        area_name: areaData.name,
+        ...areaContext,
         planted_at:
           assignmentData.isPlanted && !assignmentData.isEstablished
             ? assignmentData.plantedDate
@@ -886,7 +906,13 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
 
       const newInventoryIds = insertedItems.map((item: any) => item.id);
 
+      // Smart-schedule tasks are area-anchored — only attach them when
+      // we actually have an area to anchor against. Unassigned planted
+      // instances can pick up schedules later when the user places them
+      // (the same automation engine fires on InstanceEditModal's
+      // area-changed transition).
       if (
+        !noArea &&
         assignmentData.smartSchedules &&
         assignmentData.smartSchedules.length > 0 &&
         insertedItems
@@ -899,8 +925,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               .join("\n");
             tasksToInsert.push({
               home_id: homeId,
-              location_id: areaData.location_id,
-              area_id: assignmentData.areaId,
+              location_id: areaContext.location_id,
+              area_id: areaContext.area_id,
               inventory_item_ids: newInventoryIds,
               type: "Planting",
               title: `${phase.phase_name} (${selectedPlant.common_name} x${assignmentData.quantity})`,
@@ -914,7 +940,11 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         if (taskError) Logger.warn("Failed to create smart schedule tasks", { taskError });
       }
 
-      toast.success(`Successfully assigned ${assignmentData.quantity} plants!`);
+      toast.success(
+        noArea
+          ? `${selectedPlant.common_name} added to your garden — assign an area when you place it.`
+          : `Successfully assigned ${assignmentData.quantity} plants!`,
+      );
       requestFeedback("plant_assign_area");
       refreshShed(); // 🚀 BACKGROUND SYNC
       setSelectedPlant(null);

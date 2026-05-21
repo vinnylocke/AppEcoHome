@@ -1,1 +1,23 @@
-[]
+[
+  {
+    "label": "Plants — Add to garden without picking an area",
+    "items": [
+      "When you tap Assign on a plant in The Shed, there's now an \"Add to garden, area unknown\" option below the area picker. Use it when you've got the plant but haven't decided where it'll live yet.",
+      "Unassigned-but-planted instances live on the calendar as \"Just in your garden\". Whenever you're ready, open the instance and pick a location + area — area-anchored automations (smart schedules, etc.) kick in at that point."
+    ]
+  },
+  {
+    "label": "New — Instances tab on every plant",
+    "items": [
+      "The Plant Edit Modal has a new Instances tab that lists every individual plant of that species you own. Area pill shows where it lives, or \"Just in your garden\" if it isn't placed yet.",
+      "Tap any row to open the existing instance editor — change the area, add a journal note, snap a photo, log a harvest.",
+      "An Add another button at the top creates a fresh unassigned instance in one tap — handy when you propagate cuttings and want to track each one."
+    ]
+  },
+  {
+    "label": "Instance Edit Modal — area is now optional",
+    "items": [
+      "Location + area on the Details tab are no longer required to save. Leave both blank to keep the instance unassigned; set both to place it. Setting an area on a previously-unassigned instance triggers any matching area-anchored blueprints to attach automatically."
+    ]
+  }
+]
