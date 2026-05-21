@@ -184,10 +184,12 @@ describe("GrowGuideTab", () => {
     expect(screen.queryByTestId("guide-section-harvesting")).toBeNull();
   });
 
-  test("Refresh button calls the service with forceRegen true", async () => {
+  test("Refresh button calls the service with forceRegen true (once cool-down has passed)", async () => {
+    // Cool-down is 90 days — set lastGeneratedAt to 100 days ago so the
+    // button is enabled.
     supabaseState.cachedRow = {
       guide_data: makeGuidePayload(),
-      last_generated_at: new Date().toISOString(),
+      last_generated_at: new Date(Date.now() - 100 * 864e5).toISOString(),
       freshness_version: 1,
     };
     generateGrowGuideMock.mockResolvedValueOnce({
@@ -209,6 +211,52 @@ describe("GrowGuideTab", () => {
     expect(toastSuccessFn).toHaveBeenCalledWith(
       expect.stringContaining("1 section updated"),
     );
+  });
+
+  test("Refresh button is disabled within the 90-day cool-down", async () => {
+    // Generated 10 days ago — well inside the cool-down. Button is
+    // shown but disabled, and its label reads "Next refresh in Xd".
+    supabaseState.cachedRow = {
+      guide_data: makeGuidePayload(),
+      last_generated_at: new Date(Date.now() - 10 * 864e5).toISOString(),
+      freshness_version: 1,
+    };
+    renderTab();
+    await waitFor(() => screen.getByTestId("grow-guide-loaded"));
+    const btn = screen.getByTestId("grow-guide-refresh") as HTMLButtonElement;
+    expect(btn.disabled).toBe(true);
+    expect(btn.textContent ?? "").toMatch(/next refresh in/i);
+    fireEvent.click(btn);
+    expect(generateGrowGuideMock).not.toHaveBeenCalled();
+  });
+
+  test("server refused (within cool-down) shows the friendly toast and keeps existing state", async () => {
+    supabaseState.cachedRow = {
+      guide_data: makeGuidePayload(),
+      last_generated_at: new Date(Date.now() - 100 * 864e5).toISOString(),
+      freshness_version: 1,
+    };
+    generateGrowGuideMock.mockResolvedValueOnce({
+      guide_data: makeGuidePayload(),
+      schema_version: 1,
+      freshness_version: 1,
+      last_generated_at: new Date(Date.now() - 100 * 864e5).toISOString(),
+      updated_fields: [],
+      from_cache: true,
+      refused: true,
+      days_remaining: 30,
+      next_available_at: new Date(Date.now() + 30 * 864e5).toISOString(),
+    });
+    renderTab();
+    await waitFor(() => screen.getByTestId("grow-guide-refresh"));
+    fireEvent.click(screen.getByTestId("grow-guide-refresh"));
+
+    await waitFor(() =>
+      expect(generateGrowGuideMock).toHaveBeenCalledWith(42, "home-1", { forceRegen: true }),
+    );
+    // Friendly toast, not success-style.
+    expect(toastSuccessFn).not.toHaveBeenCalled();
+    expect(screen.getByTestId("grow-guide-loaded")).toBeTruthy();
   });
 
   test("stale (>90 days old) loaded guide shows a 'may be out of date' indicator", async () => {
@@ -242,9 +290,10 @@ describe("GrowGuideTab", () => {
   });
 
   test("generate failure shows an error banner without losing existing data", async () => {
+    // Past the cool-down so the Refresh button is clickable.
     supabaseState.cachedRow = {
       guide_data: makeGuidePayload(),
-      last_generated_at: new Date().toISOString(),
+      last_generated_at: new Date(Date.now() - 100 * 864e5).toISOString(),
       freshness_version: 1,
     };
     generateGrowGuideMock.mockRejectedValueOnce(new Error("Rate limited"));

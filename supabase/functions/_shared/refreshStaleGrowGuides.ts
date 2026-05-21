@@ -23,6 +23,9 @@ export type GeminiGrowGuideCall = (params: {
   scientificName: string | null;
   source: "manual" | "api" | "ai" | "verdantly";
   manualNotes: string | null;
+  /** Existing guide — the cron threads this in so Gemini re-emits
+   *  unchanged sections verbatim instead of paraphrasing. */
+  existingGuide: PlantGrowGuide | null;
 }) => Promise<{ guide: PlantGrowGuide; usage: GeminiUsage }>;
 
 export interface RefreshGrowGuidesOptions {
@@ -142,6 +145,7 @@ export async function refreshStaleGrowGuides(
         scientificName: extractScientificName(plantInfo.scientific_name),
         source: plantInfo.source as "manual" | "api" | "ai" | "verdantly",
         manualNotes: extractManualNotes(plantInfo.source, plantInfo.data),
+        existingGuide: (row.guide_data ?? null) as PlantGrowGuide | null,
       });
 
       await logAiUsage(db, {

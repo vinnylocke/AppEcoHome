@@ -1199,6 +1199,52 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
         );
       }
 
+      // Rate-limit forced regenerations to once per 90 days, matching the
+      // background cron's cadence. Stops button-mashing from burning
+      // Gemini quota on a guide the AI just produced. The cron is the
+      // automatic 90-day refresh; this rate limit only blocks MANUAL
+      // refreshes — the no-existing first-time generate falls through.
+      const GROW_GUIDE_MANUAL_REFRESH_DAYS = 90;
+      if (existing && forceRegen) {
+        const lastCheckIso = (existing.last_freshness_check_at as string | null)
+          ?? (existing.last_generated_at as string | null)
+          ?? null;
+        if (lastCheckIso) {
+          const ageMs = Date.now() - new Date(lastCheckIso).getTime();
+          const ageDays = ageMs / 86_400_000;
+          if (ageDays < GROW_GUIDE_MANUAL_REFRESH_DAYS) {
+            const nextAvailableAt = new Date(
+              new Date(lastCheckIso).getTime() +
+                GROW_GUIDE_MANUAL_REFRESH_DAYS * 86_400_000,
+            ).toISOString();
+            const daysRemaining = Math.max(
+              0,
+              Math.ceil(GROW_GUIDE_MANUAL_REFRESH_DAYS - ageDays),
+            );
+            log(FN, "result", {
+              action,
+              plantId,
+              refused: true,
+              daysRemaining,
+            });
+            return new Response(
+              JSON.stringify({
+                guide_data: existing.guide_data,
+                schema_version: existing.schema_version,
+                freshness_version: existing.freshness_version,
+                last_generated_at: existing.last_generated_at,
+                updated_fields: existing.updated_fields ?? [],
+                from_cache: true,
+                refused: true,
+                next_available_at: nextAvailableAt,
+                days_remaining: daysRemaining,
+              }),
+              { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+            );
+          }
+        }
+      }
+
       // Load the plant species record to thread name + source + manual notes
       // into the prompt.
       const { data: plantRow, error: plantErr } = await supabase
@@ -1239,6 +1285,11 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
         manualNotes,
         hemisphere,
         currentDate: new Date().toISOString().split("T")[0],
+        // Pass the existing guide into the prompt so Gemini re-emits
+        // unchanged sections verbatim instead of paraphrasing — kills
+        // cosmetic diff churn that previously flagged every section
+        // on every refresh.
+        existingGuide: (existing?.guide_data as PlantGrowGuide | null) ?? null,
       });
 
       const { text: rawText, usage } = await callGeminiCascade(

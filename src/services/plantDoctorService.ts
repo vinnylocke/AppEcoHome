@@ -192,6 +192,16 @@ export interface GrowGuideResponse {
   last_generated_at: string;
   updated_fields: GrowGuideCategory[];
   from_cache: boolean;
+  /**
+   * True when the user tapped Refresh within the 90-day cool-down. The
+   * server returned the cached payload unchanged — no Gemini call was
+   * made. The client shows a toast + keeps the existing state.
+   */
+  refused?: boolean;
+  /** ISO timestamp of when the next manual refresh becomes available. */
+  next_available_at?: string;
+  /** Days remaining until the next manual refresh is allowed. */
+  days_remaining?: number;
 }
 
 /**

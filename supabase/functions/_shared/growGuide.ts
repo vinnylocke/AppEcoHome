@@ -225,6 +225,14 @@ export interface PromptContext {
   manualNotes?: string | null;
   hemisphere: "Northern" | "Southern";
   currentDate: string;       // ISO YYYY-MM-DD
+  /**
+   * When provided, the prompt asks the model to compare against this
+   * existing guide and re-emit unchanged sections verbatim. This stops
+   * spurious diff bumps from cosmetic paraphrasing on each refresh.
+   * Used by both the manual `generate_grow_guide` refresh path AND the
+   * 90-day stale-check cron.
+   */
+  existingGuide?: PlantGrowGuide | null;
 }
 
 export function buildGrowGuidePrompt(ctx: PromptContext): string {
@@ -235,6 +243,22 @@ export function buildGrowGuidePrompt(ctx: PromptContext): string {
     ctx.source === "manual" && ctx.manualNotes?.trim()
       ? `User notes about this plant: ${ctx.manualNotes.trim()}`
       : "";
+
+  const existingBlock = ctx.existingGuide
+    ? `
+
+EXISTING GROW GUIDE FOR THIS PLANT (your previous output — DO NOT regenerate sections that are still accurate):
+\`\`\`json
+${JSON.stringify(ctx.existingGuide)}
+\`\`\`
+
+REGENERATION RULES:
+  - Re-emit every section.
+  - For sections where the existing content is still accurate AND complete: COPY THE EXISTING SECTION VERBATIM. Same title, same summary, same key_facts, same steps, same tips, same notes, same schedulable_tasks. Byte-identical when possible.
+  - Only modify a section when your current knowledge contradicts the existing content or genuinely improves it (e.g., a missing key fact, an incorrect month range, an updated frequency).
+  - Do NOT paraphrase, rewrite, or reorder content "for clarity". Cosmetic edits create spurious version bumps for users who already have the guide.
+  - If the existing guide has \`schedulable_tasks\` with concrete \`active_months\`, keep those months unless they are objectively wrong.`
+    : "";
 
   return `You are an expert horticulturalist writing a comprehensive grow guide for "${ctx.commonName}".
 ${sciLine}
@@ -289,7 +313,7 @@ CRITICAL:
   - For "applicable: false" sections, still return ALL the other fields with empty/null content
     so the schema is uniform.
   - "schema_version" must be 1. "generated_at" must be the current ISO 8601 timestamp.
-  - No emoji. No HTML. Plain text only.`;
+  - No emoji. No HTML. Plain text only.${existingBlock}`;
 }
 
 // ---------------------------------------------------------------------------

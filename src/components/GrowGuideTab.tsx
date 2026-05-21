@@ -165,13 +165,26 @@ export default function GrowGuideTab({
         lastGeneratedAt: result.last_generated_at,
         freshnessVersion: result.freshness_version,
       });
-      toast.success(
-        forceRegen
-          ? result.updated_fields.length > 0
-            ? `Grow guide refreshed — ${result.updated_fields.length} section${result.updated_fields.length === 1 ? "" : "s"} updated.`
-            : "Grow guide is up to date."
-          : "Grow guide generated.",
-      );
+      if (result.refused) {
+        // Server refused the manual refresh — within the 90-day
+        // cool-down window. Surface the friendly message + drive the
+        // chip below with `days_remaining`.
+        const days = result.days_remaining ?? 0;
+        toast(
+          days > 0
+            ? `Grow guide refreshed recently — next refresh in ${days} day${days === 1 ? "" : "s"}.`
+            : "Grow guide refreshed recently.",
+          { icon: "🌿" },
+        );
+      } else {
+        toast.success(
+          forceRegen
+            ? result.updated_fields.length > 0
+              ? `Grow guide refreshed — ${result.updated_fields.length} section${result.updated_fields.length === 1 ? "" : "s"} updated.`
+              : "Grow guide is up to date."
+            : "Grow guide generated.",
+        );
+      }
     } catch (err: any) {
       Logger.error("Grow guide generation failed", err, { plantId });
       setError(err?.message ?? "Couldn't generate the grow guide.");
@@ -275,6 +288,18 @@ export default function GrowGuideTab({
   const stale = isStale(loaded.lastGeneratedAt);
   const visibleSections = loaded.guide.sections.filter((s) => s.applicable);
 
+  // Manual-refresh cool-down — matches the server's 90-day limit so the
+  // Refresh button greys out client-side instead of round-tripping just
+  // to be told no. The 90-day cron is the source of truth for staleness;
+  // this only gates the manual button.
+  const COOL_DOWN_DAYS = 90;
+  const generatedMs = new Date(loaded.lastGeneratedAt).getTime();
+  const daysSinceGen = (Date.now() - generatedMs) / 864e5;
+  const refreshDisabled = daysSinceGen < COOL_DOWN_DAYS;
+  const daysUntilRefresh = refreshDisabled
+    ? Math.max(1, Math.ceil(COOL_DOWN_DAYS - daysSinceGen))
+    : 0;
+
   // Bulk "Add all" surface — flatten schedulable_tasks across every
   // applicable section. Order matches the guide's natural section order
   // so the sheet feels predictable.
@@ -295,15 +320,22 @@ export default function GrowGuideTab({
             type="button"
             data-testid="grow-guide-refresh"
             onClick={() => handleGenerate(true)}
-            disabled={generating}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rhozly-primary/10 text-rhozly-primary text-[10px] font-black uppercase tracking-widest hover:bg-rhozly-primary/15 disabled:opacity-50 transition"
+            disabled={generating || refreshDisabled}
+            title={
+              refreshDisabled
+                ? `Grow guides refresh automatically every 90 days. Next refresh in ${daysUntilRefresh} day${daysUntilRefresh === 1 ? "" : "s"}.`
+                : "Re-run the AI to check for updates"
+            }
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-rhozly-primary/10 text-rhozly-primary text-[10px] font-black uppercase tracking-widest hover:bg-rhozly-primary/15 disabled:opacity-40 disabled:cursor-not-allowed transition"
           >
             {generating ? (
               <Loader2 className="animate-spin" size={12} />
             ) : (
               <RefreshCw size={12} />
             )}
-            Refresh
+            {refreshDisabled
+              ? `Next refresh in ${daysUntilRefresh}d`
+              : "Refresh"}
           </button>
         )}
       </div>

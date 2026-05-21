@@ -56,7 +56,7 @@ serve(async (req) => {
 
     const summary = await refreshStaleGrowGuides(
       supabase,
-      async ({ commonName, scientificName, source, manualNotes }) => {
+      async ({ commonName, scientificName, source, manualNotes, existingGuide }) => {
         // No hemisphere available from the cron context — guides include a
         // default Northern-hemisphere calibration. Users in the Southern
         // hemisphere see the same guide; future improvement is to store
@@ -69,6 +69,10 @@ serve(async (req) => {
           manualNotes,
           hemisphere: "Northern",
           currentDate: todayIso,
+          // Pass the cached guide so Gemini re-emits unchanged sections
+          // verbatim — keeps freshness_version stable when nothing
+          // meaningful changed (the cron is the dominant write path).
+          existingGuide,
         });
 
         const { text: rawText, usage } = await callGeminiCascade(

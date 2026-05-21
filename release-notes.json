@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Grow Guide — 90-day refresh cadence + smarter regen",
+    "items": [
+      "The Refresh button now follows the same 90-day rhythm as the background cron — no more burning AI quota on a guide that was just generated. While you're inside the window, the button shows \"Next refresh in Xd\" and is disabled.",
+      "Even when a refresh does run (automatic 90-day cron OR your first manual refresh after the cool-down), the AI now sees your existing guide and is instructed to re-emit unchanged sections verbatim. Cosmetic paraphrasing no longer triggers spurious \"X sections updated\" notices on every refresh — only real content changes count."
+    ]
+  }
+]
