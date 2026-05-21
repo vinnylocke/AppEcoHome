@@ -1,12 +1,1 @@
-[
-  {
-    "label": "New — The Library",
-    "items": [
-      "A new mobile Quick Access tile that lets you look up any plant by name across Perenual, Verdantly, and Rhozly AI — without first adding it to your Shed.",
-      "Tap a result to open a full preview with four tabs: Care Guide (sunlight, watering, edibility, toxicity, gallery), Grow Guide (the 9-section AI guide), Companions (beneficial / harmful neighbours), and Light (optimal lux range).",
-      "Each preview has a Save button that adds the plant to your Shed in one tap. If it's already there, the button reads \"In your Shed\" and is disabled — no duplicates.",
-      "A Saved tab on The Library screen shows the plants currently in your Shed, filterable by name. Tap any of them to open the same preview view.",
-      "Generated data (grow guides, companion suggestions) is persisted to the catalogue — so the next person to look up the same plant gets an instant cached read instead of waiting for AI."
-    ]
-  }
-]
+[]
