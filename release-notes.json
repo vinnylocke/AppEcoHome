@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Fix",
-    "items": [
-      "Library — fixed a crash when opening the search screen. Two stale references to the old loading-spinner state slipped through the instant-open refactor."
-    ]
-  }
-]
+[]
