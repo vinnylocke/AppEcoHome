@@ -179,36 +179,36 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
       >
         <QuickTile
           testId="quick-tile-lens"
-          accent="primary"
+          accent="forest"
           layout="compact"
-          icon={<Camera size={22} strokeWidth={2} />}
+          icon={<Camera strokeWidth={2.25} />}
           title="Visual Lens"
           description="Identify, diagnose, get tasks from a photo."
           onClick={() => navigate("/quick/lens")}
         />
         <QuickTile
           testId="quick-tile-calendar"
-          accent="tertiary"
+          accent="amber"
           layout="compact"
-          icon={<CalendarDays size={22} strokeWidth={2} />}
+          icon={<CalendarDays strokeWidth={2.25} />}
           title="Today"
           description="Tasks, rain forecast, planting helper."
           onClick={handleTodayTap}
         />
         <QuickTile
           testId="quick-tile-journal"
-          accent="container"
+          accent="rose"
           layout="compact"
-          icon={<NotebookPen size={22} strokeWidth={2} />}
+          icon={<NotebookPen strokeWidth={2.25} />}
           title="Quick Capture"
           description="Snap a photo and jot a note — file later."
           onClick={() => navigate("/quick/journal")}
         />
         <QuickTile
           testId="quick-tile-library"
-          accent="primary"
+          accent="indigo"
           layout="compact"
-          icon={<BookOpen size={22} strokeWidth={2} />}
+          icon={<BookOpen strokeWidth={2.25} />}
           title="The Library"
           description="Search any plant — care guide, grow guide, save."
           onClick={() => navigate("/library/search")}

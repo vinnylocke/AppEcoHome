@@ -168,17 +168,22 @@ describe("QuickAccessHome", () => {
     );
   });
 
-  test("each tile receives a distinct theme accent (primary / tertiary / container)", () => {
+  // Wave 12 — solid-coloured launcher tiles. Each of the four shortcuts
+  // owns its own signature colour for instant differentiation.
+  test("each tile receives its own signature launcher accent", () => {
     renderHome({ firstName: "Vinny" });
     expect(
       screen.getByTestId("quick-tile-lens").getAttribute("data-accent"),
-    ).toBe("primary");
+    ).toBe("forest");
     expect(
       screen.getByTestId("quick-tile-calendar").getAttribute("data-accent"),
-    ).toBe("tertiary");
+    ).toBe("amber");
     expect(
       screen.getByTestId("quick-tile-journal").getAttribute("data-accent"),
-    ).toBe("container");
+    ).toBe("rose");
+    expect(
+      screen.getByTestId("quick-tile-library").getAttribute("data-accent"),
+    ).toBe("indigo");
   });
 
   // ─── Phase 2 ─ Today tile prefetch ────────────────────────────────────
