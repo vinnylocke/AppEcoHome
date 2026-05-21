@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { X, Loader2, MapPin, ChevronDown } from "lucide-react";
+import { X, Loader2, MapPin, ChevronDown, Check } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { Logger } from "../../lib/errorHandler";
 import {
@@ -58,10 +58,20 @@ export default function AddToCalendarSheet({
   const [pickedInstance, setPickedInstance] = useState<string | "home_wide">("home_wide");
   const [loadingMeta, setLoadingMeta] = useState(false);
   const [existingBlueprints, setExistingBlueprints] = useState<BlueprintRow[]>([]);
+  /**
+   * Post-save success state — keeps the sheet open with a checkmark
+   * for ~1.5s so the user gets clear visual confirmation in the same
+   * place they were tapping. Without this they sometimes don't see
+   * the global toast and tap Add again, double-adding tasks.
+   */
+  const [savedCount, setSavedCount] = useState<number | null>(null);
 
   // Hydrate inventory items + existing blueprints once when the sheet opens.
   useEffect(() => {
     if (!open) return;
+    // Reset the success state on every fresh open — a sheet that
+    // closed on a successful save should reopen clean.
+    setSavedCount(null);
     let cancelled = false;
     setLoadingMeta(true);
 
@@ -138,7 +148,7 @@ export default function AddToCalendarSheet({
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-lg bg-rhozly-bg rounded-t-3xl sm:rounded-3xl shadow-2xl border border-rhozly-outline/15 flex flex-col max-h-[90vh]"
+        className="relative w-full sm:max-w-lg bg-rhozly-bg rounded-t-3xl sm:rounded-3xl shadow-2xl border border-rhozly-outline/15 flex flex-col max-h-[90vh] overflow-hidden"
         style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
       >
         {/* Header */}
@@ -206,18 +216,44 @@ export default function AddToCalendarSheet({
             </div>
           ) : null}
 
-          {/* Task list + add button (delegates to TaskActionButtons) */}
+          {/* Task list + add button (delegates to TaskActionButtons).
+              Toast suppressed — we render an in-modal success state
+              instead so the user gets clear visual confirmation. */}
           <TaskActionButtons
             tasks={converted}
             homeId={homeId}
             inventoryItemIds={inventoryItemIds}
             duplicateIndices={duplicateIndices}
-            onSuccess={() => {
+            suppressToast
+            onSuccess={(count) => {
+              setSavedCount(count);
               onSaved?.();
-              onClose();
+              // Hold the success state for 1.6s so the user clearly
+              // sees the checkmark before the sheet disappears. They
+              // were tapping the Add button — keep their attention
+              // pinned there.
+              window.setTimeout(() => onClose(), 1600);
             }}
           />
         </div>
+
+        {/* Success overlay — covers the sheet body with a centred
+            checkmark + count. Stays for the dwell time above. */}
+        {savedCount !== null && (
+          <div
+            data-testid="add-to-calendar-success"
+            className="absolute inset-0 bg-white/90 backdrop-blur-sm rounded-t-3xl sm:rounded-3xl flex flex-col items-center justify-center gap-3 z-10"
+          >
+            <div className="w-14 h-14 rounded-full bg-rhozly-primary text-white flex items-center justify-center shadow-lg">
+              <Check size={28} strokeWidth={3} />
+            </div>
+            <p className="font-display font-black text-rhozly-on-surface text-lg">
+              {savedCount === 1
+                ? "1 task added to your calendar"
+                : `${savedCount} tasks added to your calendar`}
+            </p>
+          </div>
+        )}
       </div>
     </div>
   );

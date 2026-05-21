@@ -203,7 +203,7 @@ export const GROW_GUIDE_SCHEMA = {
                   description: "Zero-based index into THIS section's schedulable_tasks array when this task must happen after another (e.g. 'transplant seedlings' depends on 'sow seeds'). One-offs only. null otherwise.",
                 },
               },
-              required: ["title", "description", "task_type", "is_recurring", "priority"],
+              required: ["title", "description", "task_type", "is_recurring", "active_months", "priority"],
             },
           },
         },
@@ -266,8 +266,8 @@ For EACH section:
   - "notes": optional one-line caveat. null when nothing useful to add.
   - "schedulable_tasks": concrete calendar-bound tasks for this section. EXPECTED PER CATEGORY:
        • water → ONE recurring "Water {plant}" task; frequency_days from key_facts; active_months = growing season.
-       • soil → optional ONE Fertilizing one-off (or recurring 28d) for feeding; pass active_months for the feeding window.
-       • sunlight → usually empty (informational).
+       • soil → ONE Fertilizing task (one-off in early spring OR recurring 28d through the growing season); active_months = feeding window.
+       • sunlight → empty (informational).
        • propagation → ONE OR TWO one-offs for taking cuttings / dividing; active_months = the right propagation window.
        • germination → ONE one-off "Sow {plant} seeds"; active_months = sowing window. Optionally a follow-up "Transplant seedlings" with depends_on_index pointing at the sow task.
        • pruning → ONE pruning task (one-off or low-cadence recurring); active_months = the pruning window.
@@ -275,8 +275,12 @@ For EACH section:
        • harvesting → ONE recurring "Check {plant} for ripeness" task; frequency_days small (1-3); active_months = harvest window.
        • senescence → usually empty. Optional one-off "Cut back" / "Mulch for winter" at end-of-season.
     For "applicable: false" sections, return [].
-    Calibrate every active_months array to ${ctx.hemisphere} hemisphere — spring = Mar/Apr/May for Northern, Sep/Oct/Nov for Southern.
-    For year-round tasks (rare), set active_months: null (NOT a 12-month array).
+    **TIMING RULE (CRITICAL):**
+       For every emitted schedulable_task, active_months is the SINGLE source of truth for WHEN the task should fire. The client converts active_months into a concrete calendar date; nothing else feeds the date.
+       - Do NOT put timing into the description ("in late spring", "after the last frost", "during summer"). Encode that in active_months instead. The description must describe the ACTION (e.g., "Pinch out the soft side shoots between each pair of leaves").
+       - Calibrate active_months to ${ctx.hemisphere} hemisphere — spring = Mar/Apr/May for Northern, Sep/Oct/Nov for Southern; summer = Jun/Jul/Aug for Northern, Dec/Jan/Feb for Southern.
+       - For genuinely year-round tasks (e.g., indoor houseplant watering with no seasonal variation), set active_months: null. This is rare — most outdoor tasks DO have a season; pick the months they're active even if it's most of the year.
+       - NEVER return active_months as an empty array. Use null for year-round, or specific months otherwise.
 
 CRITICAL:
   - Calibrate timing to ${ctx.hemisphere} hemisphere. "Late spring" means

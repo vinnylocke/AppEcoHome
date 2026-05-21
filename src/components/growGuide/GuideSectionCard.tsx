@@ -11,12 +11,62 @@ import {
   ChevronDown,
   ChevronUp,
   CalendarPlus,
+  CalendarDays,
 } from "lucide-react";
 import type {
   GrowGuideCategory,
   GrowGuideSection,
+  GrowGuideSchedulableTask,
 } from "../../services/plantDoctorService";
 import AddToCalendarSheet from "./AddToCalendarSheet";
+
+const MONTH_ORDER = [
+  "Jan","Feb","Mar","Apr","May","Jun",
+  "Jul","Aug","Sep","Oct","Nov","Dec",
+] as const;
+
+/**
+ * Format the union of `active_months` across this section's
+ * schedulable tasks as a short human-readable "when" string. Examples:
+ *   ["Mar","Apr","May"]                     → "Mar – May"
+ *   ["Mar","May"]                            → "Mar, May"
+ *   null in any task                         → "Year-round"
+ *   empty union                              → null (caller hides line)
+ */
+function formatActiveWindow(
+  tasks: GrowGuideSchedulableTask[] | undefined,
+): string | null {
+  if (!tasks || tasks.length === 0) return null;
+  let anyYearRound = false;
+  const months = new Set<string>();
+  for (const t of tasks) {
+    if (t.active_months == null) {
+      anyYearRound = true;
+      continue;
+    }
+    for (const m of t.active_months) months.add(m);
+  }
+  if (anyYearRound && months.size === 0) return "Year-round";
+  if (months.size === 0) return null;
+
+  const sorted = MONTH_ORDER.filter((m) => months.has(m));
+  if (sorted.length === 0) return null;
+
+  // Try to detect a contiguous run (handles Mar–May, Apr–Sep etc).
+  const indices = sorted.map((m) => MONTH_ORDER.indexOf(m as (typeof MONTH_ORDER)[number]));
+  let contiguous = true;
+  for (let i = 1; i < indices.length; i++) {
+    if (indices[i] - indices[i - 1] !== 1) {
+      contiguous = false;
+      break;
+    }
+  }
+  if (contiguous && sorted.length > 1) {
+    return `${sorted[0]} – ${sorted[sorted.length - 1]}`;
+  }
+  if (sorted.length === 1) return sorted[0];
+  return sorted.join(", ");
+}
 
 interface Props {
   section: GrowGuideSection;
@@ -84,6 +134,7 @@ export default function GuideSectionCard({
   const schedulable = section.schedulable_tasks ?? [];
   const canAddToCalendar =
     !!homeId && !!plantId && !!plantName && schedulable.length > 0;
+  const whenLine = formatActiveWindow(schedulable);
 
   return (
     <section
@@ -122,6 +173,16 @@ export default function GuideSectionCard({
           data-testid={`${testId}-body`}
           className="px-4 pb-4 space-y-3 text-sm text-rhozly-on-surface/80"
         >
+          {whenLine && (
+            <div
+              data-testid={`${testId}-when`}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rhozly-primary/10 border border-rhozly-primary/20 text-rhozly-primary text-[11px] font-black uppercase tracking-widest"
+            >
+              <CalendarDays size={11} />
+              When: {whenLine}
+            </div>
+          )}
+
           <p className="text-rhozly-on-surface/85 leading-relaxed">{section.summary}</p>
 
           {hasFacts && (

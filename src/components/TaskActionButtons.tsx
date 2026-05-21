@@ -31,7 +31,13 @@ export interface SuggestedTask {
 interface TaskActionProps {
   tasks: SuggestedTask[];
   homeId: string;
-  onSuccess?: () => void;
+  /**
+   * Fires after a successful Add. Receives the count of rows that
+   * landed (selected count, excluding the user's unchecked rows). Used
+   * by the Grow Guide's AddToCalendarSheet to render an in-modal
+   * "✓ Added N tasks" before closing.
+   */
+  onSuccess?: (count: number) => void;
   /**
    * When supplied, recurring blueprints write `inventory_item_ids` so
    * the resulting task_blueprints row is scoped to specific plant
@@ -45,6 +51,12 @@ interface TaskActionProps {
    * exist" chip so the user can confirm before adding.
    */
   duplicateIndices?: number[];
+  /**
+   * When true, suppresses the global "Tasks added to your calendar!"
+   * toast. The Grow Guide sheet shows its own in-modal success state
+   * instead and doesn't want a duplicate top-of-screen toast.
+   */
+  suppressToast?: boolean;
 }
 
 const getTaskIcon = (type: string) => {
@@ -70,6 +82,7 @@ export const TaskActionButtons = ({
   onSuccess,
   inventoryItemIds,
   duplicateIndices,
+  suppressToast,
 }: TaskActionProps) => {
   // Start with all tasks selected by default, EXCEPT those flagged as
   // likely duplicates — those start unchecked so the user has to opt in.
@@ -92,7 +105,9 @@ export const TaskActionButtons = ({
     if (selectedIndices.length === 0) return;
     setIsProcessing(true);
 
-    const toastId = toast.loading("Adding tasks to your calendar...");
+    const toastId = suppressToast
+      ? null
+      : toast.loading("Adding tasks to your calendar...");
 
     try {
       const today = new Date();
@@ -200,11 +215,15 @@ export const TaskActionButtons = ({
         }
       }
 
-      toast.success("Tasks added to your calendar!", { id: toastId });
-      if (onSuccess) onSuccess();
+      if (!suppressToast && toastId) {
+        toast.success("Tasks added to your calendar!", { id: toastId });
+      } else if (toastId) {
+        toast.dismiss(toastId);
+      }
+      if (onSuccess) onSuccess(selectedIndices.length);
     } catch (error: any) {
       Logger.error("Failed to save tasks to calendar", error, {}, "Failed to save some tasks.");
-      toast.dismiss(toastId);
+      if (toastId) toast.dismiss(toastId);
     } finally {
       setIsProcessing(false);
     }
