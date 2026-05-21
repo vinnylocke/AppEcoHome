@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Quick Access — green frame moved to the screen edge",
+    "items": [
+      "The green border now wraps the entire Quick Access screen at the viewport edge, not just the content card. Reads as a deliberate framed view rather than a card-on-canvas.",
+      "Content underneath is back to its clean, unframed layout — the screen-edge frame is doing the work now."
+    ]
+  }
+]
