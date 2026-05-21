@@ -6,6 +6,7 @@ import {
   CheckSquare2,
   TriangleAlert,
   ArrowRight,
+  Footprints,
 } from "lucide-react";
 import type { WalkSessionSummary } from "../../services/walkService";
 
@@ -13,6 +14,14 @@ interface Props {
   durationMs: number;
   summary: WalkSessionSummary;
   onDone: () => void;
+  /**
+   * Optional — when supplied, the summary card renders a "Walk what's
+   * left" button that re-runs the walk. The walk-list query already
+   * filters out plants the user actioned today, so this naturally
+   * surfaces just the remainder (or lands on the friendly empty state
+   * if there's nothing left to walk).
+   */
+  onWalkAgain?: () => void;
 }
 
 function formatDuration(ms: number): string {
@@ -28,7 +37,7 @@ function formatDuration(ms: number): string {
  * session in a single, restrained card — no fireworks. The user
  * presses Done to return to Quick Access.
  */
-export default function WalkSummaryCard({ durationMs, summary, onDone }: Props) {
+export default function WalkSummaryCard({ durationMs, summary, onDone, onWalkAgain }: Props) {
   const stats: { icon: React.ReactNode; label: string; value: number; tone: string }[] = [
     { icon: <Camera size={16} />,         label: "Photos taken",     value: summary.photosTaken,     tone: "text-rhozly-primary" },
     { icon: <NotebookPen size={16} />,    label: "Notes added",      value: summary.notesAdded,      tone: "text-violet-700" },
@@ -81,7 +90,18 @@ export default function WalkSummaryCard({ durationMs, summary, onDone }: Props) 
           ))}
         </ul>
 
-        <div className="mt-auto pt-5">
+        <div className="mt-auto pt-5 space-y-2">
+          {onWalkAgain && (
+            <button
+              type="button"
+              data-testid="walk-summary-again"
+              onClick={onWalkAgain}
+              className="w-full min-h-[48px] rounded-2xl bg-white border border-rhozly-primary/25 text-rhozly-primary text-sm font-black uppercase tracking-widest flex items-center justify-center gap-2 hover:bg-rhozly-primary/5 transition"
+            >
+              <Footprints size={16} />
+              Walk what's left
+            </button>
+          )}
           <button
             type="button"
             data-testid="walk-summary-done"

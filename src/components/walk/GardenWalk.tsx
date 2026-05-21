@@ -46,7 +46,8 @@ type WalkAction =
   | { type: "empty" }
   | { type: "error"; message: string }
   | { type: "outcome"; outcome: WalkVisitOutcome }
-  | { type: "finish"; durationMs: number };
+  | { type: "finish"; durationMs: number }
+  | { type: "restart" };
 
 const EMPTY_SUMMARY: WalkSessionSummary = {
   plantsVisited: 0,
@@ -95,6 +96,12 @@ function reducer(state: WalkState, action: WalkAction): WalkState {
       summary: state.summary,
     };
   }
+  if (action.type === "restart") {
+    // Drop to loading; the bootstrap callback will fire again, re-query
+    // the walk list (today's same-day-visited filter naturally excludes
+    // anything already actioned), and open a fresh session.
+    return { kind: "loading" };
+  }
   return state;
 }
 
@@ -109,7 +116,10 @@ function reducer(state: WalkState, action: WalkAction): WalkState {
 export default function GardenWalk({ homeId, userId, aiEnabled }: Props) {
   const navigate = useNavigate();
   const [state, dispatch] = useReducer(reducer, { kind: "loading" } as WalkState);
-  const [startedAtMs] = useState<number>(() => Date.now());
+  // `startedAtMs` is tracked per-walk-instance — re-set on Walk Again so
+  // the new session's duration starts at zero, not from the original
+  // walk's start.
+  const [startedAtMs, setStartedAtMs] = useState<number>(() => Date.now());
 
   // Settings live in localStorage so the user's choices persist across walks.
   const [settings] = useState<WalkSettings>(() => {
@@ -122,30 +132,33 @@ export default function GardenWalk({ homeId, userId, aiEnabled }: Props) {
     return DEFAULT_WALK_SETTINGS;
   });
 
-  // Bootstrap: start a session + build the walk list in parallel. If
-  // the list is empty, we still create the session (zero-plant walks
-  // do happen on brand-new homes — the empty state CTA handles that).
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const [session, list] = await Promise.all([
-          walkService.startSession(homeId, userId),
-          buildWalkList(homeId, userId, settings),
-        ]);
-        if (cancelled) return;
-        dispatch({ type: "loaded", sessionId: session.id, list });
-      } catch (err: unknown) {
-        if (cancelled) return;
-        const message = err instanceof Error ? err.message : "Couldn't start your walk.";
-        Logger.error("GardenWalk bootstrap failed", err, { homeId });
-        dispatch({ type: "error", message });
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
+  // Bootstrap — start a session + build the walk list in parallel.
+  // Wrapped in a callback so the "Walk again" path on the summary card
+  // can re-trigger it. Today's same-day-visited filter inside
+  // buildWalkList means a second walk naturally surfaces just what's
+  // left.
+  const bootstrap = useCallback(async () => {
+    dispatch({ type: "restart" });
+    setStartedAtMs(Date.now());
+    try {
+      const [session, list] = await Promise.all([
+        walkService.startSession(homeId, userId),
+        buildWalkList(homeId, userId, settings),
+      ]);
+      dispatch({ type: "loaded", sessionId: session.id, list });
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : "Couldn't start your walk.";
+      Logger.error("GardenWalk bootstrap failed", err, { homeId });
+      dispatch({ type: "error", message });
+    }
   }, [homeId, userId, settings]);
+
+  // Fire bootstrap once on mount + whenever the underlying inputs
+  // change. The bootstrap itself is idempotent — calling it again from
+  // the summary card's "Walk again" button does the right thing.
+  useEffect(() => {
+    bootstrap();
+  }, [bootstrap]);
 
   const handleOutcome = useCallback(
     (outcome: WalkVisitOutcome) => {
@@ -252,6 +265,7 @@ export default function GardenWalk({ homeId, userId, aiEnabled }: Props) {
         durationMs={state.durationMs}
         summary={state.summary}
         onDone={() => navigate("/quick")}
+        onWalkAgain={bootstrap}
       />
     );
   }

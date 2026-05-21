@@ -44,6 +44,9 @@ GardenWalk  (mounted at /walk, under the focus-mode shell)
 └── finished
     └── WalkSummaryCard
         ├── Walk metrics list (photos / notes / tasks / ailments)
+        ├── Walk-what's-left button → re-fires the bootstrap callback,
+        │   opens a new session, surfaces just the plants the user
+        │   hasn't actioned today
         └── Done button → navigate("/quick")
 ```
 
@@ -188,6 +191,7 @@ When you advance past the last card (or hit Stop):
 
 - *"You walked N plants in X minutes Y seconds."*
 - Stats: photos taken, notes added, tasks completed, ailments flagged.
+- **Walk what's left** → re-fires the walk with the same-day-visited filter on, so it naturally surfaces just the plants you haven't actioned today. If there's nothing left, you land on the friendly *"Nothing to walk today"* empty state — a satisfying signal that the garden's covered.
 - **Done** → back to Quick Access.
 
 ### Information on display — what every field means
