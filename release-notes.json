@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Fix",
-    "items": [
-      "Garden Walk — fixed a crash when finishing a walk. The render between the last card and the summary screen was reading an undefined plant for one frame; now shows a brief \"Wrapping up your walk…\" placeholder instead."
-    ]
-  }
-]
+[]
