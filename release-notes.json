@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "label": "The Library — faster end to end",
+    "items": [
+      "Tabs pre-warm in the background — the moment you open a plant, Grow Guide and Companions both start loading even before you tap the tab. By the time you switch, the data is usually already there.",
+      "Search now uses the saved snapshot when you re-submit the same query — no more re-firing every provider for a query you just ran.",
+      "Companion lookups now share a single network call across the preview-screen pre-warm AND the Companions tab itself (was firing twice and burning AI quota)."
+    ]
+  },
+  {
+    "label": "Bug fixes",
+    "items": [
+      "Light tab — sunlight requirements now show for AI plants. Was reading the empty flat column instead of the rich care_guide_data blob."
+    ]
+  }
+]

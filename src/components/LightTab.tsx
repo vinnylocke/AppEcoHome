@@ -30,12 +30,23 @@ export default function LightTab({ plantId, plantName, areaId, homeId, areaName 
     (async () => {
       const { data } = await supabase
         .from("plants")
-        .select("sunlight, source, perenual_id")
+        .select("sunlight, source, perenual_id, verdantly_id, care_guide_data")
         .eq("id", plantId)
         .single();
       if (cancelled) return;
 
       let sunlight: string[] = Array.isArray(data?.sunlight) ? data.sunlight : [];
+
+      // AI plants store the rich care data inside care_guide_data; the
+      // flat `sunlight` column is left null at insert time. Pull from
+      // the blob before falling through to the provider lookup.
+      if (sunlight.length === 0 && data?.source === "ai" && data.care_guide_data) {
+        const blob = data.care_guide_data as Record<string, unknown>;
+        const plantData =
+          (blob.plantData as Record<string, unknown> | undefined) ?? blob;
+        const blobSunlight = (plantData?.sunlight as unknown) ?? [];
+        if (Array.isArray(blobSunlight)) sunlight = blobSunlight as string[];
+      }
 
       if (
         sunlight.length === 0 &&

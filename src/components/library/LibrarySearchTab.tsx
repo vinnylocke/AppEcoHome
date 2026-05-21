@@ -250,6 +250,35 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
         setError("Type at least two characters.");
         return;
       }
+
+      // Cache hit — same query as last submitted, results still in
+      // sessionStorage. Hydrate state from the snapshot instead of
+      // re-firing all three providers. Slashes search latency on
+      // re-submitting the same query (or returning to the Library
+      // mid-session).
+      const cached = readCachedSnapshot(q);
+      if (cached) {
+        setError(null);
+        setSubmitted(cached.query);
+        setAiResults(cached.aiResults);
+        setAiHasMore(cached.aiHasMore);
+        setPerenualResults(cached.perenualResults);
+        setPerenualPage(cached.perenualPage);
+        setPerenualNextPage(cached.perenualNextPage);
+        setPerenualHasMore(cached.perenualHasMore);
+        setVerdantlyResults(cached.verdantlyResults);
+        setVerdantlyNextPage(cached.verdantlyNextPage);
+        setVerdantlyHasMore(cached.verdantlyHasMore);
+        // Re-fire thumbnail lookups for restored AI rows. The ref-based
+        // dedupe skips ones we already have.
+        if (cached.aiResults.length > 0) {
+          prefetchAiThumbnails(cached.aiResults);
+        }
+        sessionStorage.setItem("library:lastQuery", q);
+        setSearchParams({ q }, { replace: true });
+        return;
+      }
+
       setError(null);
       setSearching(true);
       setSubmitted(q);

@@ -20,6 +20,8 @@ import {
 } from "../../lib/plantCatalogue";
 import { saveToShed } from "../../lib/saveToShed";
 import { useShedPlantMatcher } from "../../hooks/useShedPlantMatcher";
+import { PlantDoctorService } from "../../services/plantDoctorService";
+import { fetchCompanions as prefetchCompanions } from "../../lib/companionCache";
 import ManualPlantCreation from "../ManualPlantCreation";
 import GrowGuideTab from "../GrowGuideTab";
 import CompanionPlantsTab from "../CompanionPlantsTab";
@@ -236,6 +238,33 @@ export default function PlantPreview({ homeId, aiEnabled, isPremium }: Props) {
     // changes; navigating to a real plantId tears the component down.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isPreviewRoute, stateResult?.id, stateResult?._provider]);
+
+  // ── Pre-warm the per-tab edge functions in the background ─────────────
+  // The moment we have a real catalogue id, fire the Grow Guide and
+  // Companions requests so the data is ready (or already arrived) by the
+  // time the user taps either tab. Both go through cache layers — Grow
+  // Guide is cached server-side in `plant_grow_guides`; Companions is
+  // cached client-side via `companionCache` so this and the tab's own
+  // mount-fetch share one network call.
+  useEffect(() => {
+    if (!plant || plant.plantId <= 0) return;
+    // Grow Guide: only worth pre-warming for Sage+ users (the edge fn
+    // returns a 402-equivalent for non-AI tiers); fire-and-forget.
+    if (aiEnabled) {
+      PlantDoctorService.generateGrowGuide(plant.plantId, homeId).catch(() => {
+        // ignore — the tab will surface any real error when the user opens it
+      });
+    }
+    // Companions: kicked off via the shared promise cache so the tab's
+    // own fetchCompanions() call resolves instantly from the same
+    // in-flight promise.
+    prefetchCompanions({
+      source: plant.source,
+      verdantlyId: plant.details.verdantly_id ?? null,
+      plantName: plant.details.common_name,
+      aiEnabled,
+    }).catch(() => { /* silent */ });
+  }, [plant?.plantId, plant?.source, plant?.details.verdantly_id, plant?.details.common_name, homeId, aiEnabled]);
 
   const inShed = useMemo(() => {
     if (!plant) return null;

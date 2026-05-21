@@ -4,6 +4,7 @@ import {
   Sprout, ShieldAlert, Minus, Lock, Info, X,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { fetchCompanions as fetchCompanionsCached } from "../lib/companionCache";
 import toast from "react-hot-toast";
 import PlantSourcePicker from "./PlantSourcePicker";
 import BulkSearchModal from "./BulkSearchModal";
@@ -240,20 +241,19 @@ export default function CompanionPlantsTab({
     setLoading(true);
     setError(null);
     try {
-      const { data, error: fnErr } = await supabase.functions.invoke("companion-planting", {
-        body: {
-          source,
-          verdantly_id: verdantlyId ?? null,
-          plant_name: plantName,
-          ai_enabled: aiEnabled,
-        },
+      // Goes via the shared promise cache so a Library "pre-warm" call
+      // (fired the moment the plant page opens) and this mount-fetch
+      // both await the same network request — single Gemini call per
+      // plant viewed instead of two.
+      const data = await fetchCompanionsCached({
+        source,
+        verdantlyId: verdantlyId ?? null,
+        plantName,
+        aiEnabled,
       });
-
-      if (fnErr) throw new Error(fnErr.message);
-      if (data?.error === "ai_required") { setError("ai_required"); return; }
-      if (data?.error) throw new Error(data.error);
-
-      setCompanions(data as CompanionResult);
+      if (data.error === "ai_required") { setError("ai_required"); return; }
+      if (data.error) throw new Error(data.error);
+      setCompanions({ beneficial: data.beneficial, harmful: data.harmful, neutral: data.neutral });
     } catch {
       setError("fetch_failed");
     } finally {
