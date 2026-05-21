@@ -1,1 +1,18 @@
-[]
+[
+  {
+    "label": "Mobile Quick Access — calmer, full-bleed",
+    "items": [
+      "On phones, the four Quick Access screens (/quick, Visual Lens, Today, Quick Capture) now run in focus mode: the top bar and side nav are hidden by default, so the three tiles and your task screens get the full screen to themselves.",
+      "A small menu button (☰) sits in the top-right of every Quick Access screen — tap it any time to slide in the full navigation drawer. Picking a destination closes the drawer automatically.",
+      "First-visit only: the button shows a 'Menu' label alongside the icon so you know where the nav went. After you tap it once, it stays as a minimal hamburger forever on that device.",
+      "Desktop is completely unchanged."
+    ]
+  },
+  {
+    "label": "Behind the scenes",
+    "items": [
+      "The drawer reuses the same navigation links you already see on the side nav — no duplicated link list, no parallel UI to maintain.",
+      "Backdrop tap, Escape key, route change, and viewport resize all close the drawer cleanly."
+    ]
+  }
+]

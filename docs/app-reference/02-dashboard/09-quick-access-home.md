@@ -22,6 +22,10 @@ A focused, opinionated mobile home page that surfaces the three in-the-garden ta
 
 ```
 QuickAccessHome (mounted at /quick)
+├── Focus-mode chrome (mobile only, Wave 6) — see App.tsx isFocusMode branch
+│   ├── (no top bar / no persistent side nav — both hidden on /quick/*)
+│   ├── QuickAccessMenuButton (floating top-right hamburger; first-visit "Menu" label)
+│   └── MobileNavDrawer (slide-in from left when the button is tapped)
 ├── Desktop preview banner (visible when useIsMobile() === false)
 │   └── "This is the mobile shortcut screen — your full dashboard is at /dashboard"
 ├── Hero ("What can I help with?" + subtitle)
@@ -200,8 +204,12 @@ No difference.
 
 - [Plant Doctor](../05-tools/02-plant-doctor.md) — the underlying Analyse flow; `/quick/lens` mounts it in `compact` mode
 - [Home Dashboard](./01-home-dashboard.md) — the desktop home; reachable from Quick Access via "Open full dashboard"
-- [Routing](../99-cross-cutting/21-routing.md) — `/`, `/quick`, `/quick/lens` route definitions
+- [Routing](../99-cross-cutting/21-routing.md) — `/`, `/quick`, `/quick/lens` route definitions; documents the Wave 6 focus-mode exclusion of the persistent chrome
 - [Capacitor](../99-cross-cutting/23-capacitor.md) — `Capacitor.isNativePlatform()` usage in `useIsMobile`
+
+**Focus-mode components (Wave 6):**
+- `src/components/MobileNavDrawer.tsx` — slide-in nav drawer, reuses `navLinks`
+- `src/components/QuickAccessMenuButton.tsx` — floating hamburger top-right with first-visit "Menu" label
 
 ## Code references for ongoing maintenance
 

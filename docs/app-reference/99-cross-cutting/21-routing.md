@@ -14,6 +14,10 @@ BrowserRouter
     ├── /quick/lens        ← QuickAccessLens (mounts <PlantDoctor compact />)
     ├── /quick/calendar    ← LocalizedTaskCalendar (Mobile Quick Access Wave 3 — planting + rain advice + today's tasks)
     ├── /quick/journal     ← QuickCapture (Mobile Quick Access Wave 4 — capture-first journal, assign to plant later)
+    │
+    │   (Wave 6: on mobile, the four /quick/* routes render in focus mode —
+    │    persistent top bar + side nav hidden; QuickAccessMenuButton +
+    │    MobileNavDrawer provide nav access on demand. Desktop unchanged.)
     ├── /dashboard         ← Home (Dashboard / Locations / Calendar / Weather sub-tabs via ?view=)
     ├── /shed              ← TheShed
     ├── /schedule          ← BlueprintManager

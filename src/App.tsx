@@ -77,6 +77,8 @@ const QuickAccessHome     = lazy(() => import("./components/QuickAccessHome"));
 const QuickAccessLens     = lazy(() => import("./components/QuickAccessLens"));
 const LocalizedTaskCalendar = lazy(() => import("./components/quick/LocalizedTaskCalendar"));
 const QuickCapture          = lazy(() => import("./components/quick/QuickCapture"));
+const MobileNavDrawer       = lazy(() => import("./components/MobileNavDrawer"));
+const QuickAccessMenuButton = lazy(() => import("./components/QuickAccessMenuButton"));
 const LightSensor         = lazy(() => import("./components/LightSensor"));
 const SunTrajectoryAR     = lazy(() => import("./components/SunTrajectoryAR"));
 const GuideList           = lazy(() => import("./components/GuideList"));
@@ -197,6 +199,20 @@ function AppShell() {
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const isMobile = useIsMobile();
+  // Mobile Quick Access Wave 6 — focus-mode shell on /quick/* mobile routes:
+  // hide the top bar + persistent side nav, expose nav via an overlay drawer.
+  const isFocusMode = isMobile && routerLocation.pathname.startsWith("/quick");
+  const [quickDrawerOpen, setQuickDrawerOpen] = useState(false);
+
+  // Close the drawer whenever the route changes (e.g. after picking a link).
+  useEffect(() => {
+    setQuickDrawerOpen(false);
+  }, [routerLocation.pathname]);
+
+  // Close the drawer if the viewport stops being mobile.
+  useEffect(() => {
+    if (!isFocusMode) setQuickDrawerOpen(false);
+  }, [isFocusMode]);
 
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<UserProfile | null>(null);
@@ -875,6 +891,7 @@ function AppShell() {
           <div className="h-screen bg-rhozly-bg text-rhozly-on-surface font-body flex flex-col relative selection:bg-rhozly-primary/20">
             <div className="fixed top-0 left-1/4 w-96 h-96 bg-rhozly-primary/5 rounded-full blur-3xl pointer-events-none" />
 
+            {!isFocusMode && (
             <header className="sticky top-0 z-30 bg-rhozly-primary border-b border-rhozly-primary-container px-4 md:px-8 py-4 flex justify-between items-center shadow-md">
               <div className="flex items-center gap-3 font-display font-black text-2xl tracking-tight text-white">
                 <button
@@ -918,10 +935,12 @@ function AppShell() {
                 onVersionClick={() => setReleaseNotesMode("history")}
               />
             </header>
+            )}
 
             <BetaFeedbackBanner />
 
             <div className="flex flex-1 overflow-hidden relative z-10 w-full">
+              {!isFocusMode && (
               <nav
                 aria-label="Primary navigation"
                 className={`flex flex-col justify-between transition-all duration-300 border-r border-rhozly-primary/20 bg-rhozly-primary-container shrink-0 h-full overflow-hidden
@@ -971,6 +990,7 @@ function AppShell() {
                   </div>
                 </div>
               </nav>
+              )}
 
               <main id="main-content" aria-label="Main content" className="flex-1 relative w-full overflow-hidden">
                 {/* Full-bleed routes that must escape the padded PullToRefresh wrapper */}
@@ -1473,6 +1493,28 @@ function AppShell() {
               )}
             </div>
           </div>
+
+          {isFocusMode && (
+            <Suspense fallback={null}>
+              <QuickAccessMenuButton onClick={() => setQuickDrawerOpen(true)} />
+              <MobileNavDrawer
+                open={quickDrawerOpen}
+                navLinks={navLinks}
+                activePath={routerLocation.pathname}
+                onClose={() => setQuickDrawerOpen(false)}
+                onNavigate={(path) => {
+                  setQuickDrawerOpen(false);
+                  navigate(path);
+                }}
+                pathFor={(id) => TAB_URL[id] ?? "/"}
+                onOpenHelp={() => setHelpCenterOpen(true)}
+                onOpenPrivacy={() => setShowPrivacy(true)}
+                onOpenCookies={() => setShowCookies(true)}
+                appVersion={appVersion ?? undefined}
+                onVersionClick={() => setReleaseNotesMode("history")}
+              />
+            </Suspense>
+          )}
 
           {canUsePortal &&
             createPortal(

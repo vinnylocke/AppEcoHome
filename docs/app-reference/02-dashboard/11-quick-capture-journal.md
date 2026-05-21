@@ -12,6 +12,8 @@
 
 ## Quick Summary
 
+**Wave 6 focus-mode chrome**: on mobile, the persistent top bar + side nav are hidden by App.tsx (`isFocusMode`); the `QuickAccessMenuButton` floats top-right and opens the `MobileNavDrawer` on tap. The back chrome ("← Quick" + "Quick Capture" label) sits top-left and never collides with the menu button.
+
 A focused mobile screen with two halves stacked vertically:
 
 1. **Composer (top)** — a `PhotoUploader` + a textarea + a Save button. Save is enabled when *either* a photo or a description is present. On Save, inserts a `plant_journals` row with `inventory_item_id = NULL` and an auto-generated subject like `"Capture · 20 May, 14:32"` (editable inline later via the Plant Journal Tab once assigned).

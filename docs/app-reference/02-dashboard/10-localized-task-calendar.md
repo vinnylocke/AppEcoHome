@@ -22,6 +22,8 @@ The screen is **additive** — `/dashboard` and `/dashboard?view=calendar` are u
 
 ### Component graph
 
+**Wave 6 focus-mode chrome**: on mobile (`useIsMobile() === true`), the persistent top bar + side nav are hidden by App.tsx (`isFocusMode`); the `QuickAccessMenuButton` floats top-right and opens the `MobileNavDrawer` on tap. The back chrome below sits top-left and never collides with the menu button.
+
 ```
 LocalizedTaskCalendar (mounted at /quick/calendar)
 ├── Back chrome (chevron-left "Quick" + "Today's Calendar" label)
