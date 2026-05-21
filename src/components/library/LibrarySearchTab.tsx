@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import {
   Search,
@@ -116,45 +116,52 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
   const [verdantlyLoadingMore, setVerdantlyLoadingMore] = useState(false);
 
   const [searching, setSearching] = useState(false);
-  const [opening, setOpening] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  // Lazy thumbnails per AI common name — keyed lowercase so cache hits
-  // ignore case. Empty string = looked up, no image found.
+  // Lazy thumbnails per AI common name — keyed lowercase. State drives the
+  // re-render, the ref tracks what's currently in-flight so StrictMode's
+  // intentional double-invoke doesn't make us think a fetch already
+  // started when it actually hasn't yet committed.
   const [aiThumbs, setAiThumbs] = useState<Map<string, string>>(new Map());
+  const aiInflightRef = useRef<Set<string>>(new Set());
+  const aiThumbsRef = useRef<Map<string, string>>(new Map());
 
   const { findMatch } = useShedPlantMatcher(homeId);
 
-  // Look up a Wikipedia/Pixabay thumbnail per AI common name. Cached in
-  // local state so we never re-fire for the same name in the same session.
+  /**
+   * Look up a Wikipedia/Pixabay thumbnail per AI common name. The result is
+   * cached in `aiThumbsRef` (mirror of `aiThumbs` state) so re-renders or
+   * StrictMode double-invocations don't re-fire the same fetch. Empty
+   * string = "looked up, found nothing" → UI falls back to the Sparkles
+   * icon. Missing key = not yet looked up.
+   */
   const prefetchAiThumbnails = useCallback(async (matches: string[]) => {
-    const toFetch: string[] = [];
-    setAiThumbs((prev) => {
-      const next = new Map(prev);
-      for (const match of matches) {
-        const name = match.split("(")[0].trim();
+    const toFetch = matches
+      .map((m) => m.split("(")[0].trim())
+      .filter((name) => {
         const key = name.toLowerCase();
-        if (!next.has(key)) {
-          next.set(key, ""); // mark in-flight so a parallel call doesn't double-fire
-          toFetch.push(name);
-        }
-      }
-      return next;
-    });
+        if (aiThumbsRef.current.has(key)) return false;
+        if (aiInflightRef.current.has(key)) return false;
+        aiInflightRef.current.add(key);
+        return true;
+      });
+
     if (toFetch.length === 0) return;
+
     await Promise.all(
       toFetch.map(async (name) => {
+        const key = name.toLowerCase();
         try {
           const { data } = await supabase.functions.invoke("plant-image-search", {
             body: { query: name, count: 1 },
           });
-          const thumb = data?.images?.[0]?.thumb_url ?? "";
-          setAiThumbs((prev) => {
-            const next = new Map(prev);
-            next.set(name.toLowerCase(), thumb);
-            return next;
-          });
+          const thumb = (data?.images?.[0]?.thumb_url as string | undefined) ?? "";
+          aiThumbsRef.current.set(key, thumb);
+          setAiThumbs(new Map(aiThumbsRef.current));
         } catch {
-          // leave the empty-string sentinel — UI falls back to the icon
+          aiThumbsRef.current.set(key, "");
+          setAiThumbs(new Map(aiThumbsRef.current));
+        } finally {
+          aiInflightRef.current.delete(key);
         }
       }),
     );
@@ -392,26 +399,30 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
     }
   };
 
-  const handleResultTap = async (result: ProviderSearchResult) => {
-    const resultKey = `${result._provider}:${result.id}`;
-    if (opening) return;
-    setOpening(resultKey);
-    try {
-      const plant = await ensureCataloguePlantFromSearchResult(result, { homeId });
-      navigate(`/library/plant/${plant.plantId}`);
-    } catch (err: unknown) {
-      Logger.error("LibrarySearch open failed", err, {
-        provider: result._provider,
-        common_name: result.common_name,
-      });
-      toast.error(
-        err instanceof Error
-          ? err.message
-          : "Couldn't open this plant — try again.",
-      );
-    } finally {
-      setOpening(null);
-    }
+  /**
+   * Instant navigation: jump to the preview screen with the search result
+   * carried in `location.state`. PlantPreview renders a hero from that
+   * data immediately and fires `ensureCataloguePlantFromSearchResult` in
+   * the background — by the time the user notices the page swap, the
+   * Care Guide is already loading rather than waiting on a blocking
+   * promise here.
+   *
+   * The route uses `plant/preview` as a sentinel — once ensure resolves,
+   * PlantPreview replaces the URL with the real `/library/plant/:id` so
+   * Back / refresh behaves normally.
+   */
+  const handleResultTap = (result: ProviderSearchResult) => {
+    // Cached thumb for AI results — we already looked one up via the
+    // lookup helper, so feed it into the preview so the hero image
+    // isn't blank for the first 200ms.
+    const aiThumbCandidate =
+      result._provider === "ai"
+        ? aiThumbsRef.current.get(result.common_name.toLowerCase()) ?? null
+        : null;
+    const hydrated: ProviderSearchResult = aiThumbCandidate
+      ? { ...result, thumbnail_url: aiThumbCandidate }
+      : result;
+    navigate("/library/plant/preview", { state: { result: hydrated } });
   };
 
   // De-duplicate AI results against Perenual common names (same heuristic
@@ -517,14 +528,12 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
               _provider: "ai",
             };
             const resultKey = `${result._provider}:${result.id}`;
-            const isOpening = opening === resultKey;
             return (
               <button
                 key={resultKey}
                 type="button"
                 data-testid={`library-search-result-${resultKey}`}
                 onClick={() => handleResultTap(result)}
-                disabled={isOpening}
                 className="w-full text-left rounded-2xl bg-white border border-rhozly-outline/15 hover:border-amber-400 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center gap-3 p-3"
               >
                 <div className="w-12 h-12 shrink-0 rounded-2xl overflow-hidden bg-amber-50 flex items-center justify-center text-amber-500">
@@ -561,11 +570,7 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
                   </div>
                 </div>
                 <div className="shrink-0 text-rhozly-on-surface/40">
-                  {isOpening ? (
-                    <Loader2 size={16} className="animate-spin text-rhozly-primary" />
-                  ) : (
-                    <ArrowRight size={16} />
-                  )}
+                  <ArrowRight size={16} />
                 </div>
               </button>
             );
@@ -602,7 +607,6 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
               common_name: r.common_name,
             });
             const resultKey = `${r._provider}:${r.id}`;
-            const isOpening = opening === resultKey;
             return (
               <button
                 key={resultKey}
@@ -653,11 +657,7 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
                   </div>
                 </div>
                 <div className="shrink-0 text-rhozly-on-surface/40">
-                  {isOpening ? (
-                    <Loader2 size={16} className="animate-spin text-rhozly-primary" />
-                  ) : (
-                    <ArrowRight size={16} />
-                  )}
+                  <ArrowRight size={16} />
                 </div>
               </button>
             );
@@ -703,7 +703,6 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
               common_name: r.common_name,
             });
             const resultKey = `${r._provider}:${r.id}`;
-            const isOpening = opening === resultKey;
             return (
               <button
                 key={resultKey}
@@ -754,11 +753,7 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
                   </div>
                 </div>
                 <div className="shrink-0 text-rhozly-on-surface/40">
-                  {isOpening ? (
-                    <Loader2 size={16} className="animate-spin text-rhozly-primary" />
-                  ) : (
-                    <ArrowRight size={16} />
-                  )}
+                  <ArrowRight size={16} />
                 </div>
               </button>
             );

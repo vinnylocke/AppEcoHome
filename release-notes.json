@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "The Library — fixes",
+    "items": [
+      "Instant open — tapping a search result now jumps to the plant page immediately, with a placeholder showing the name and thumbnail. The full care guide, grow guide, companions and light data load in the background, so by the time you tap a tab the data is already on the way (or arrived).",
+      "AI plant care guide is no longer empty — the comprehensive Gemini-generated care data is now read out of the catalogue blob and rendered into the same form layout The Shed uses (sunlight, watering, propagation, pruning, edibility, toxicity, wildlife, description, etc.).",
+      "AI search results now reliably show a thumbnail in the list — a StrictMode double-invoke was skipping the lookup before."
+    ]
+  }
+]

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   Loader2,
@@ -14,6 +14,7 @@ import {
 import toast from "react-hot-toast";
 import { Logger } from "../../lib/errorHandler";
 import {
+  ensureCataloguePlantFromSearchResult,
   loadCataloguePlant,
   type CataloguePlant,
 } from "../../lib/plantCatalogue";
@@ -23,6 +24,7 @@ import ManualPlantCreation from "../ManualPlantCreation";
 import GrowGuideTab from "../GrowGuideTab";
 import CompanionPlantsTab from "../CompanionPlantsTab";
 import LightTab from "../LightTab";
+import type { ProviderSearchResult } from "../../lib/verdantlyUtils";
 
 interface Props {
   homeId: string;
@@ -56,14 +58,32 @@ const TABS: { id: Tab; label: string; icon: React.ReactNode }[] = [
  */
 export default function PlantPreview({ homeId, aiEnabled, isPremium }: Props) {
   const navigate = useNavigate();
+  const location = useLocation();
   const { plantId: rawId } = useParams<{ plantId: string }>();
-  const plantId = Number(rawId);
+
+  // The route accepts either:
+  //   /library/plant/12345    → load by catalogue id (Saved-tab / share link)
+  //   /library/plant/preview  → instant-render path, search result in state.
+  const isPreviewRoute = rawId === "preview";
+  const plantId = isPreviewRoute ? NaN : Number(rawId);
+  const stateResult = (location.state as { result?: ProviderSearchResult } | null)
+    ?.result;
 
   const [plant, setPlant] = useState<CataloguePlant | null>(null);
+  // `loading` only blocks the screen until we have *something* to show.
+  // Once we have a search-result hero we flip to false even if the
+  // catalogue ensure is still running in the background; that fires the
+  // Care Guide tab into its own "ensuring..." state instead of blanking
+  // the whole page.
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<Tab>("care");
   const [saving, setSaving] = useState(false);
+  // True while we're firing `ensureCataloguePlantFromSearchResult` in the
+  // background after an instant-preview navigation. The Care Guide tab
+  // uses this to show a skeleton; the other tabs gate their content on
+  // having a real `plant.plantId` (>= 1).
+  const [ensuring, setEnsuring] = useState(false);
   // Set true the moment a save succeeds. The Shed matcher hook caches its
   // table read on mount, so we can't rely on it to flip immediately after
   // an insert; this local flag bridges the gap until the next visit.
@@ -71,8 +91,9 @@ export default function PlantPreview({ homeId, aiEnabled, isPremium }: Props) {
 
   const { findMatch, loading: matcherLoading } = useShedPlantMatcher(homeId);
 
-  // ── Load the plant row on mount ────────────────────────────────────────
+  // ── Load path 1: numeric plant id (Saved tab / share link) ────────────
   useEffect(() => {
+    if (isPreviewRoute) return;
     if (!Number.isFinite(plantId)) {
       setError("Invalid plant id.");
       setLoading(false);
@@ -97,7 +118,124 @@ export default function PlantPreview({ homeId, aiEnabled, isPremium }: Props) {
     return () => {
       cancelled = true;
     };
-  }, [plantId]);
+  }, [plantId, isPreviewRoute]);
+
+  // ── Load path 2: instant-preview from a search result ─────────────────
+  // Renders a placeholder plant from the search-result data immediately
+  // (so the hero, common name, scientific name and thumbnail show
+  // straight away), then fires `ensureCataloguePlantFromSearchResult` in
+  // the background. Once it resolves the URL is swapped to the real
+  // catalogue id so Back / refresh land on the canonical route.
+  useEffect(() => {
+    if (!isPreviewRoute) return;
+    if (!stateResult) {
+      // Hard navigation to /library/plant/preview without state — nothing
+      // we can render. Redirect back to search.
+      navigate("/library/search", { replace: true });
+      return;
+    }
+    // Synthesize a placeholder CataloguePlant from the search-result data
+    // so the hero + the (empty) Care Guide form render instantly.
+    const placeholder: CataloguePlant = {
+      plantId: -1, // sentinel — tabs wait until this becomes a real id
+      source:
+        stateResult._provider === "ai"
+          ? "ai"
+          : stateResult._provider === "verdantly"
+          ? "verdantly"
+          : "api",
+      details: {
+        common_name: stateResult.common_name,
+        scientific_name: stateResult.scientific_name ?? [],
+        other_names: [],
+        family: null,
+        plant_type: null,
+        cycle: null,
+        image_url: stateResult.thumbnail_url ?? null,
+        thumbnail_url: stateResult.thumbnail_url ?? null,
+        watering: null,
+        watering_benchmark: null,
+        watering_min_days: null,
+        watering_max_days: null,
+        sunlight: [],
+        care_level: null,
+        hardiness_min: null,
+        hardiness_max: null,
+        is_edible: false,
+        is_toxic_pets: false,
+        is_toxic_humans: false,
+        attracts: [],
+        description: null,
+        maintenance: null,
+        growth_rate: null,
+        growth_habit: null,
+        drought_tolerant: false,
+        salt_tolerant: false,
+        thorny: false,
+        invasive: false,
+        tropical: false,
+        indoor: false,
+        pest_susceptibility: [],
+        flowers: false,
+        cones: false,
+        fruits: false,
+        edible_leaf: false,
+        cuisine: false,
+        medicinal: false,
+        leaf: false,
+        flowering_season: null,
+        harvest_season: null,
+        pruning_month: [],
+        propagation: [],
+        perenual_id: stateResult.perenual_id ?? null,
+        verdantly_id: stateResult.verdantly_id ?? null,
+        source:
+          stateResult._provider === "ai"
+            ? "ai"
+            : stateResult._provider === "verdantly"
+            ? "verdantly"
+            : "api",
+      },
+      fromCache: false,
+    };
+
+    setPlant(placeholder);
+    setLoading(false);
+    setEnsuring(true);
+    setError(null);
+
+    let cancelled = false;
+    ensureCataloguePlantFromSearchResult(stateResult, { homeId })
+      .then((real) => {
+        if (cancelled) return;
+        setPlant(real);
+        // Replace the URL so Back/refresh land on the canonical route and
+        // a re-search of the same result doesn't recreate the row.
+        navigate(`/library/plant/${real.plantId}`, { replace: true });
+      })
+      .catch((err: unknown) => {
+        if (cancelled) return;
+        Logger.error("PlantPreview ensure failed", err, {
+          provider: stateResult._provider,
+          name: stateResult.common_name,
+        });
+        toast.error(
+          err instanceof Error
+            ? err.message
+            : "Couldn't load the full plant details.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setEnsuring(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+    // We intentionally only re-run this when the search result identity
+    // changes; navigating to a real plantId tears the component down.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isPreviewRoute, stateResult?.id, stateResult?._provider]);
 
   const inShed = useMemo(() => {
     if (!plant) return null;
@@ -225,14 +363,15 @@ export default function PlantPreview({ homeId, aiEnabled, isPremium }: Props) {
           type="button"
           data-testid="plant-preview-save"
           onClick={handleSave}
-          disabled={showAsSaved || saving || matcherLoading}
+          disabled={showAsSaved || saving || matcherLoading || ensuring}
           className={`inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-2xl text-xs font-black uppercase tracking-widest transition ${
             showAsSaved
               ? "bg-rhozly-surface-low text-rhozly-on-surface/45 cursor-default"
               : "bg-rhozly-primary text-white hover:opacity-90 disabled:opacity-50"
           }`}
+          title={ensuring ? "Loading the full plant details before saving…" : undefined}
         >
-          {saving ? (
+          {saving || ensuring ? (
             <Loader2 size={14} className="animate-spin" />
           ) : showAsSaved ? (
             <>
@@ -291,10 +430,15 @@ export default function PlantPreview({ homeId, aiEnabled, isPremium }: Props) {
       {/* Active tab body — only the active tab is rendered so we don't
           auto-generate everything on first mount. Tabs ARE remounted when
           switched away/back; the GrowGuideTab and CompanionPlantsTab both
-          cache-first so this is cheap. */}
+          cache-first so this is cheap. The Grow Guide / Companions /
+          Light tabs gate their content on having a real catalogue id —
+          while the background `ensureCataloguePlantFromSearchResult` is
+          running, plant.plantId is -1 and these tabs show a "Loading
+          plant…" placeholder instead of firing edge-fn calls against a
+          bogus id. */}
       <div data-testid="plant-preview-tab-body" className="mt-2">
         {activeTab === "care" && (
-          <div className="rounded-3xl bg-white border border-rhozly-outline/15 overflow-hidden p-4">
+          <div className="rounded-3xl bg-white border border-rhozly-outline/15 overflow-hidden p-4 relative">
             {/* Library uses the same read-only ManualPlantCreation form that
                 The Shed's Care Guide tab uses, so the field layout (sunlight,
                 cycle, watering, propagation, pruning, edibility, toxicity,
@@ -304,34 +448,75 @@ export default function PlantPreview({ homeId, aiEnabled, isPremium }: Props) {
               isReadOnly={true}
               submitLabel=""
             />
+            {ensuring && (
+              <div
+                data-testid="plant-preview-care-ensuring"
+                className="absolute inset-0 bg-white/85 backdrop-blur-sm flex items-center justify-center"
+              >
+                <div className="flex items-center gap-2 text-sm font-bold text-rhozly-on-surface/65">
+                  <Loader2 size={16} className="animate-spin text-rhozly-primary" />
+                  Loading the care guide…
+                </div>
+              </div>
+            )}
           </div>
         )}
         {activeTab === "grow" && (
-          <GrowGuideTab
-            plantId={plant.plantId}
-            commonName={plant.details.common_name}
-            source={plant.source}
-            homeId={homeId}
-            aiEnabled={aiEnabled}
-            autoGenerate
-          />
+          plant.plantId > 0 ? (
+            <GrowGuideTab
+              plantId={plant.plantId}
+              commonName={plant.details.common_name}
+              source={plant.source}
+              homeId={homeId}
+              aiEnabled={aiEnabled}
+              autoGenerate
+            />
+          ) : (
+            <div
+              data-testid="plant-preview-grow-waiting"
+              className="rounded-3xl bg-white border border-rhozly-outline/15 p-6 text-center text-sm font-bold text-rhozly-on-surface/55 flex items-center justify-center gap-2"
+            >
+              <Loader2 size={16} className="animate-spin text-rhozly-primary" />
+              Preparing the plant…
+            </div>
+          )
         )}
         {activeTab === "companions" && (
-          <CompanionPlantsTab
-            source={plant.source}
-            verdantlyId={plant.details.verdantly_id ?? null}
-            plantName={plant.details.common_name}
-            homeId={homeId}
-            aiEnabled={aiEnabled}
-            isPremium={isPremium}
-          />
+          plant.plantId > 0 ? (
+            <CompanionPlantsTab
+              source={plant.source}
+              verdantlyId={plant.details.verdantly_id ?? null}
+              plantName={plant.details.common_name}
+              homeId={homeId}
+              aiEnabled={aiEnabled}
+              isPremium={isPremium}
+            />
+          ) : (
+            <div
+              data-testid="plant-preview-companions-waiting"
+              className="rounded-3xl bg-white border border-rhozly-outline/15 p-6 text-center text-sm font-bold text-rhozly-on-surface/55 flex items-center justify-center gap-2"
+            >
+              <Loader2 size={16} className="animate-spin text-rhozly-primary" />
+              Preparing the plant…
+            </div>
+          )
         )}
         {activeTab === "light" && (
-          <LightTab
-            plantId={plant.plantId}
-            plantName={plant.details.common_name}
-            homeId={homeId}
-          />
+          plant.plantId > 0 ? (
+            <LightTab
+              plantId={plant.plantId}
+              plantName={plant.details.common_name}
+              homeId={homeId}
+            />
+          ) : (
+            <div
+              data-testid="plant-preview-light-waiting"
+              className="rounded-3xl bg-white border border-rhozly-outline/15 p-6 text-center text-sm font-bold text-rhozly-on-surface/55 flex items-center justify-center gap-2"
+            >
+              <Loader2 size={16} className="animate-spin text-rhozly-primary" />
+              Preparing the plant…
+            </div>
+          )
         )}
       </div>
     </div>

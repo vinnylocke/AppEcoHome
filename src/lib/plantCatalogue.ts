@@ -27,6 +27,7 @@ import { PerenualService } from "./perenualService";
 import { VerdantlyService } from "./verdantlyService";
 import { PlantDoctorService } from "../services/plantDoctorService";
 import { derivePlantLabels } from "./plantLabels";
+import { careGuideToPlantDetails } from "./plantProvider";
 import type { PlantDetails, ProviderSearchResult } from "./verdantlyUtils";
 
 /** What the helper hands back to the caller. */
@@ -255,22 +256,15 @@ export async function ensureCataloguePlantFromSearchResult(
   try {
     if (result._provider === "ai") {
       // Wave 3 fast path — when the search result already carries a
-      // catalogue hit, skip Gemini and read the existing row.
+      // catalogue hit, skip Gemini and read the existing row directly.
+      // `loadCataloguePlant` handles the AI care_guide_data adapter so
+      // the Care Guide tab has every field, not just the flat columns.
       if (result.catalogue_hit?.plant_id) {
-        const { data: existing, error } = await supabase
-          .from("plants")
-          .select("*")
-          .eq("id", result.catalogue_hit.plant_id)
-          .maybeSingle();
-        if (error) throw error;
-        if (existing) {
-          const details = plantRowToPlantDetails(existing);
-          return {
-            plantId: existing.id,
-            source: "ai",
-            details,
-            fromCache: true,
-          };
+        try {
+          return await loadCataloguePlant(result.catalogue_hit.plant_id);
+        } catch {
+          // Catalogue hit went stale (the row was deleted) — fall through
+          // to the Gemini path below.
         }
       }
       return ensureAiCataloguePlant(result.common_name, options?.homeId);
@@ -293,7 +287,15 @@ export async function ensureCataloguePlantFromSearchResult(
 
 /**
  * Load a catalogue (or home-scoped) plant row by id and adapt to PlantDetails.
- * Used when the preview screen is opened from the Saved tab.
+ * Used when the preview screen is opened from the Saved tab — or by The
+ * Library after `ensureCataloguePlantFromSearchResult` resolves.
+ *
+ * AI plants are special-cased: the AI catalogue insert path stores the rich
+ * care data inside `care_guide_data` jsonb rather than the flat columns
+ * (sunlight / cycle / watering / description / etc.). For those rows we
+ * extract that blob via `careGuideToPlantDetails` so the Care Guide form
+ * has every field populated. For Perenual/Verdantly rows the flat columns
+ * are already set, so `plantRowToPlantDetails` works.
  */
 export async function loadCataloguePlant(plantId: number): Promise<CataloguePlant> {
   const { data: row, error } = await supabase
@@ -305,9 +307,22 @@ export async function loadCataloguePlant(plantId: number): Promise<CataloguePlan
   if (!row) throw new Error(`Plant ${plantId} not found.`);
 
   const source = (row.source as "ai" | "api" | "verdantly" | "manual") || "ai";
-  // Manual plants don't have a provider-side details fetch — render whatever
-  // the row carries.
-  const details = plantRowToPlantDetails(row);
+
+  let details: PlantDetails;
+  if (source === "ai" && row.care_guide_data) {
+    const blob = row.care_guide_data as Record<string, unknown>;
+    const plantData = (blob.plantData as Record<string, unknown> | undefined) ?? blob;
+    details = careGuideToPlantDetails(plantData, row.common_name ?? "");
+    // The flat columns can still hold a stable thumbnail (the edge fn writes
+    // it after generation); prefer that over whatever the blob carried.
+    if (row.thumbnail_url) {
+      details.thumbnail_url = row.thumbnail_url;
+      details.image_url = row.image_url ?? row.thumbnail_url;
+    }
+  } else {
+    details = plantRowToPlantDetails(row);
+  }
+
   return {
     plantId: row.id,
     source: source === "manual" ? "ai" : source,

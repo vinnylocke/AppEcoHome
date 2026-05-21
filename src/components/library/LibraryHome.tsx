@@ -119,6 +119,16 @@ export default function LibraryHome({ homeId, aiEnabled, isPremium }: Props) {
           element={<LibrarySavedTab homeId={homeId} />}
         />
         <Route
+          path="plant/preview"
+          element={
+            <PlantPreview
+              homeId={homeId}
+              aiEnabled={aiEnabled}
+              isPremium={isPremium}
+            />
+          }
+        />
+        <Route
           path="plant/:plantId"
           element={
             <PlantPreview
