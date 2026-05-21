@@ -1,18 +1,1 @@
-[
-  {
-    "label": "Quick Access — faster Today screen + greener frame",
-    "items": [
-      "Opening Today (the planting + rain + tasks calendar) now loads frost dates straight from the cache instead of going through an edge function — a ~300-800ms speed-up on every visit after the first. The slow Gemini path only runs once per home per six months, exactly as before.",
-      "The whole Quick Access page now sits inside a thin green-bordered card with a soft white tint — gives the screen a more deliberate 'main page' feel.",
-      "Each Quick Access tile now has a faint green hairline border that matches the brand.",
-      "Visual Lens, Today, and Quick Capture sub-screens now start lower on the page so the back arrow and content aren't crowded by the floating menu button."
-    ]
-  },
-  {
-    "label": "Behind the scenes",
-    "items": [
-      "PlantingCalendarCard tries a direct Supabase read of `home_climate` on mount; only falls back to the edge function when the row is missing or older than 180 days. Same Gemini-backed refresh behaviour, much snappier feel on the common case.",
-      "All four /quick screens now use a consistent top padding that respects device safe-area-inset-top, so notched and dynamic-island phones look right out of the box."
-    ]
-  }
-]
+[]
