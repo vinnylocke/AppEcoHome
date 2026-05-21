@@ -466,3 +466,188 @@ describe("TaskEngine.fetchTasksWithGhosts — error propagation", () => {
     await expect(TaskEngine.fetchTasksWithGhosts(PARAMS)).rejects.toThrow("inventory DB error");
   });
 });
+
+// ---- Phase 2 — cache + dedup + onTasksReady ----
+//
+// Each test invalidates the cache up-front so it starts from a clean slate.
+// (The cache is module-level so it persists across tests by default.)
+
+describe("TaskEngine.peekCache + invalidateCache", () => {
+  beforeEach(() => {
+    setupMock();
+    TaskEngine.invalidateCache();
+  });
+
+  test("returns null when no entry exists for the key", () => {
+    expect(TaskEngine.peekCache(PARAMS)).toBeNull();
+  });
+
+  test("returns the entry after a successful fetch", async () => {
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", []);
+
+    await TaskEngine.fetchTasksWithGhosts(PARAMS);
+    const cached = TaskEngine.peekCache(PARAMS);
+    expect(cached).not.toBeNull();
+    expect(Array.isArray(cached!.tasks)).toBe(true);
+  });
+
+  test("peekCache returns null for a different homeId / window", async () => {
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", []);
+
+    await TaskEngine.fetchTasksWithGhosts(PARAMS);
+    expect(TaskEngine.peekCache({ ...PARAMS, homeId: "different-home" })).toBeNull();
+    expect(TaskEngine.peekCache({ ...PARAMS, startDateStr: "2026-06-01", endDateStr: "2026-06-14" })).toBeNull();
+  });
+
+  test("invalidateCache(homeId) clears only that home's entries", async () => {
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", []);
+    await TaskEngine.fetchTasksWithGhosts(PARAMS);
+
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", []);
+    await TaskEngine.fetchTasksWithGhosts({ ...PARAMS, homeId: "home-2" });
+
+    expect(TaskEngine.peekCache(PARAMS)).not.toBeNull();
+    expect(TaskEngine.peekCache({ ...PARAMS, homeId: "home-2" })).not.toBeNull();
+
+    TaskEngine.invalidateCache("home-1");
+
+    expect(TaskEngine.peekCache(PARAMS)).toBeNull();
+    expect(TaskEngine.peekCache({ ...PARAMS, homeId: "home-2" })).not.toBeNull();
+  });
+
+  test("bare invalidateCache() clears everything", async () => {
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", []);
+    await TaskEngine.fetchTasksWithGhosts(PARAMS);
+
+    TaskEngine.invalidateCache();
+    expect(TaskEngine.peekCache(PARAMS)).toBeNull();
+  });
+});
+
+describe("TaskEngine.fetchTasksWithGhosts — onTasksReady callback", () => {
+  beforeEach(() => {
+    setupMock();
+    TaskEngine.invalidateCache();
+  });
+
+  test("fires once with the materialised tasks before the full result resolves", async () => {
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", [makeBlueprint()]);
+
+    const seen: Array<{ taskCount: number; bpCount: number }> = [];
+    const result = await TaskEngine.fetchTasksWithGhosts({
+      ...PARAMS,
+      onTasksReady: (snapshot) => {
+        seen.push({ taskCount: snapshot.tasks.length, bpCount: snapshot.blueprints.length });
+      },
+    });
+
+    expect(seen.length).toBe(1);
+    // Snapshot contains the ghosted tasks + blueprints
+    expect(seen[0].taskCount).toBeGreaterThan(0);
+    expect(seen[0].bpCount).toBe(1);
+    // Final result is the same task count (enrichment doesn't add tasks)
+    expect(result.tasks.length).toBe(seen[0].taskCount);
+  });
+
+  test("snapshot has tasks but the final result also has inventory + dependency info", async () => {
+    const task = makeTask({ id: "real-1", blueprint_id: null, inventory_item_ids: ["inv-1"] });
+    const invItem = { id: "inv-1", plant_name: "Tomato", identifier: "T1", location_name: "Garden", area_name: "Bed", plants: null };
+
+    queueTable("tasks", [task], []);
+    queueTable("task_blueprints", []);
+    queueTable("inventory_items", [invItem]);
+    queueTable("task_dependencies", []);
+
+    let snapshotTaskCount = 0;
+    const result = await TaskEngine.fetchTasksWithGhosts({
+      ...PARAMS,
+      onTasksReady: (s) => { snapshotTaskCount = s.tasks.length; },
+    });
+
+    expect(snapshotTaskCount).toBe(1);
+    expect(result.inventoryDict["inv-1"]).toEqual(invItem);
+  });
+
+  test("a callback that throws does not break the fetch", async () => {
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", []);
+
+    await expect(
+      TaskEngine.fetchTasksWithGhosts({
+        ...PARAMS,
+        onTasksReady: () => {
+          throw new Error("boom");
+        },
+      }),
+    ).resolves.toBeDefined();
+  });
+});
+
+describe("TaskEngine.fetchTasksWithGhosts — in-flight dedup", () => {
+  beforeEach(() => {
+    setupMock();
+    TaskEngine.invalidateCache();
+  });
+
+  test("two parallel fetches with identical args share the same promise", async () => {
+    let supabaseCallCount = 0;
+    vi.mocked(supabase.from).mockImplementation((tableName: string) => {
+      supabaseCallCount++;
+      const queue = mockQueues.get(tableName);
+      const data = queue && queue.length > 0 ? queue.shift()! : [];
+      return makeChain(data);
+    });
+
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", []);
+
+    const callsBefore = supabaseCallCount;
+    const [r1, r2] = await Promise.all([
+      TaskEngine.fetchTasksWithGhosts(PARAMS),
+      TaskEngine.fetchTasksWithGhosts(PARAMS),
+    ]);
+    const callsAfter = supabaseCallCount;
+
+    // The second caller should reuse the in-flight promise — only one
+    // round of supabase.from() calls happens.
+    // (Round 1 = 3 calls: tasks + blueprints + tombstones)
+    expect(callsAfter - callsBefore).toBeLessThanOrEqual(3);
+    expect(r1).toBe(r2); // same promise resolution
+  });
+
+  test("a second caller's onTasksReady fires with the dedup'd snapshot", async () => {
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", [makeBlueprint()]);
+
+    const callback1 = vi.fn();
+    const callback2 = vi.fn();
+
+    const [, ] = await Promise.all([
+      TaskEngine.fetchTasksWithGhosts({ ...PARAMS, onTasksReady: callback1 }),
+      TaskEngine.fetchTasksWithGhosts({ ...PARAMS, onTasksReady: callback2 }),
+    ]);
+
+    expect(callback1).toHaveBeenCalledTimes(1);
+    expect(callback2).toHaveBeenCalledTimes(1);
+    // Both got the same snapshot shape
+    expect(callback1.mock.calls[0][0]).toEqual(callback2.mock.calls[0][0]);
+  });
+
+  test("prefetch + later fetch within the same tick dedupes", async () => {
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", []);
+
+    TaskEngine.prefetch(PARAMS);
+    // Immediately call fetch — should reuse the pending prefetch.
+    const result = await TaskEngine.fetchTasksWithGhosts(PARAMS);
+    expect(result).toBeDefined();
+    // Cache is now populated.
+    expect(TaskEngine.peekCache(PARAMS)).not.toBeNull();
+  });
+});

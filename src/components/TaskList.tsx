@@ -136,48 +136,67 @@ export default function TaskList({
 
   const fetchTasksAndGhosts = useCallback(
     async (silent = false) => {
-      if (!silent) setLoading(true);
-      try {
-        const result = await TaskEngine.fetchTasksWithGhosts({
-          homeId,
-          startDateStr: dateStr,
-          endDateStr: dateStr,
-          includeOverdue: showOverdue || dateStr <= todayStr,
-          todayStr,
-        });
+      const args = {
+        homeId,
+        startDateStr: dateStr,
+        endDateStr: dateStr,
+        includeOverdue: showOverdue || dateStr <= todayStr,
+        todayStr,
+      };
 
-        setInventoryDict(result.inventoryDict);
-        setBlockedTaskIds(result.blockedTaskIds);
-
-        let filteredTasks = result.tasks;
-
-        // Apply Local Component Filters
-        if (areaId)
-          filteredTasks = filteredTasks.filter((t) => t.area_id === areaId);
-        if (planId)
-          filteredTasks = filteredTasks.filter((t) => t.plan_id === planId);
-        if (locationId && locationId !== "all")
-          filteredTasks = filteredTasks.filter(
-            (t) => t.location_id === locationId,
-          );
-        if (inventoryItemId)
-          filteredTasks = filteredTasks.filter((t) =>
-            t.inventory_item_ids?.includes(inventoryItemId),
-          );
+      // Local filter + sort applied to the engine's raw task list before
+      // we hand it to React. Called from both the phase-1 callback (no
+      // inventory yet) and the final resolution (full enrichment).
+      const filterAndSort = (rawTasks: any[]): any[] => {
+        let next = rawTasks;
+        if (areaId) next = next.filter((t) => t.area_id === areaId);
+        if (planId) next = next.filter((t) => t.plan_id === planId);
+        if (locationId && locationId !== "all") {
+          next = next.filter((t) => t.location_id === locationId);
+        }
+        if (inventoryItemId) {
+          next = next.filter((t) => t.inventory_item_ids?.includes(inventoryItemId));
+        }
         if (typesFilterStr) {
           const typesArray = typesFilterStr.split(",");
-          filteredTasks = filteredTasks.filter((t) =>
-            typesArray.includes(t.type),
-          );
+          next = next.filter((t) => typesArray.includes(t.type));
         }
-
-        filteredTasks.sort((a, b) => {
+        return [...next].sort((a, b) => {
           if (a.status === "Completed" && b.status !== "Completed") return 1;
           if (a.status !== "Completed" && b.status === "Completed") return -1;
           return a.due_date.localeCompare(b.due_date);
         });
+      };
 
-        setTasks(filteredTasks);
+      // Stale-while-revalidate — hydrate immediately from the cache if a
+      // recent fetch landed within the TTL. Lets navigation back to a
+      // TaskList feel instant.
+      const cached = TaskEngine.peekCache(args);
+      if (cached) {
+        setInventoryDict(cached.inventoryDict);
+        setBlockedTaskIds(cached.blockedTaskIds);
+        setTasks(filterAndSort(cached.tasks));
+        setLoading(false);
+      } else if (!silent) {
+        setLoading(true);
+      }
+
+      try {
+        const result = await TaskEngine.fetchTasksWithGhosts({
+          ...args,
+          // Incremental paint — once Round 1 + ghost materialisation lands
+          // (~150ms typical), render the list with titles/types/dates.
+          // Inventory thumbnails + dependency badges fill in when the
+          // full promise resolves.
+          onTasksReady: (snapshot) => {
+            setTasks(filterAndSort(snapshot.tasks));
+            setLoading(false);
+          },
+        });
+
+        setInventoryDict(result.inventoryDict);
+        setBlockedTaskIds(result.blockedTaskIds);
+        setTasks(filterAndSort(result.tasks));
       } catch (err) {
         Logger.error("Failed", err);
         toast.error("Failed to load tasks. Please try again.");
@@ -216,7 +235,13 @@ export default function TaskList({
     fetchTasksAndGhosts();
   }, [fetchTasksAndGhosts, preloadedTasks]);
 
-  const fetchTasksAndGhostsSilent = useCallback(() => fetchTasksAndGhosts(true), [fetchTasksAndGhosts]);
+  const fetchTasksAndGhostsSilent = useCallback(() => {
+    // Realtime ticks mean someone changed tasks/blueprints elsewhere. Drop
+    // the home's cached entries so any other TaskList instances (and the
+    // background revalidation here) start from a clean slate.
+    TaskEngine.invalidateCache(homeId);
+    return fetchTasksAndGhosts(true);
+  }, [fetchTasksAndGhosts, homeId]);
   useHomeRealtime("tasks", fetchTasksAndGhostsSilent);
   useHomeRealtime("task_blueprints", fetchTasksAndGhostsSilent);
 

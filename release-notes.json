@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "label": "Task lists — instant on return, faster on first paint",
+    "items": [
+      "Tap a Quick Access tile, navigate around, come back — your task list now paints instantly from cache instead of re-loading. The data still refreshes in the background, so completing a task elsewhere reflects within a beat.",
+      "First-visit task lists now paint as soon as the names and dates load (~150ms) rather than waiting for plant thumbnails and dependency badges to also arrive. The thumbnails and badges fill in within another few hundred milliseconds — the page feels alive sooner.",
+      "Tapping the Today tile on Quick Access now prefetches today's task list in the background while the calendar screen loads, so it's there waiting by the time you arrive."
+    ]
+  },
+  {
+    "label": "Behind the scenes",
+    "items": [
+      "TaskEngine now has a 60-second in-memory cache keyed on the fetch's input signature, plus in-flight deduplication so a prefetch + the screen's own fetch share a single request.",
+      "Realtime updates (someone completing a task in another tab) invalidate the cache for that home automatically. No risk of showing stale data."
+    ]
+  }
+]

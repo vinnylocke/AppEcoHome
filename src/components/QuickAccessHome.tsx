@@ -12,11 +12,16 @@ import {
 
 import QuickTile from "./quick/QuickTile";
 import { useIsMobile } from "../hooks/useIsMobile";
+import { TaskEngine, getLocalDateString } from "../lib/taskEngine";
 
 interface Props {
   /** Optional first-name for the personalised greeting. Falls back to a
    *  generic copy when null. */
   firstName?: string | null;
+  /** Optional home id — when supplied, tapping the Today tile fires a
+   *  background prefetch of today's task list so the calendar screen can
+   *  paint instantly on mount. */
+  homeId?: string | null;
 }
 
 function getTimeGreeting(now: Date = new Date()): string {
@@ -37,12 +42,33 @@ function getTimeGreeting(now: Date = new Date()): string {
  * hero, a green-tinted hero card with a border to break up the white, and
  * the Rhozly logo + wordmark inside the hero as a restrained brand stamp.
  */
-export default function QuickAccessHome({ firstName }: Props) {
+export default function QuickAccessHome({ firstName, homeId }: Props) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
 
   const greeting = getTimeGreeting();
   const trimmedName = firstName?.trim() || null;
+
+  /**
+   * Fire-and-forget prefetch of today's task list before navigating to
+   * /quick/calendar. By the time TaskList mounts (~30-50ms later) the
+   * fetch is either already in-flight (and gets de-duped) or just
+   * landed in cache → instant paint.
+   */
+  const handleTodayTap = () => {
+    if (homeId) {
+      const today = new Date();
+      const todayStr = getLocalDateString(today);
+      TaskEngine.prefetch({
+        homeId,
+        startDateStr: todayStr,
+        endDateStr: todayStr,
+        includeOverdue: true,
+        todayStr,
+      });
+    }
+    navigate("/quick/calendar");
+  };
 
   return (
     <div
@@ -170,7 +196,7 @@ export default function QuickAccessHome({ firstName }: Props) {
           icon={<CalendarDays size={26} strokeWidth={2} />}
           title="Today"
           description="Your tasks, the rain forecast, and a frost-aware planting helper — all on one screen."
-          onClick={() => navigate("/quick/calendar")}
+          onClick={handleTodayTap}
         />
         <QuickTile
           testId="quick-tile-journal"

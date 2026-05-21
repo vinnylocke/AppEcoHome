@@ -30,9 +30,22 @@ vi.mock("react-hot-toast", () => ({
   }),
 }));
 
+// Mock TaskEngine — we only need to assert the prefetch call shape for the
+// Today tile.
+const { prefetchMock } = vi.hoisted(() => ({ prefetchMock: vi.fn() }));
+vi.mock("../../../src/lib/taskEngine", () => ({
+  TaskEngine: { prefetch: prefetchMock },
+  getLocalDateString: (d: Date) => {
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  },
+}));
+
 import QuickAccessHome from "../../../src/components/QuickAccessHome";
 
-function renderHome(props?: { firstName?: string | null }) {
+function renderHome(props?: { firstName?: string | null; homeId?: string | null }) {
   return render(
     React.createElement(
       MemoryRouter,
@@ -46,6 +59,7 @@ describe("QuickAccessHome", () => {
   beforeEach(() => {
     navigateMock.mockReset();
     toastFn.mockReset();
+    prefetchMock.mockReset();
     isMobileMock.mockReturnValue(true);
   });
 
@@ -175,6 +189,32 @@ describe("QuickAccessHome", () => {
     expect(
       screen.getByTestId("quick-tile-journal").getAttribute("data-accent"),
     ).toBe("container");
+  });
+
+  // ─── Phase 2 ─ Today tile prefetch ────────────────────────────────────
+
+  test("tapping Today fires TaskEngine.prefetch with today's date before navigating", () => {
+    renderHome({ firstName: "Vinny", homeId: "home-1" });
+    fireEvent.click(screen.getByTestId("quick-tile-calendar"));
+
+    expect(prefetchMock).toHaveBeenCalledTimes(1);
+    const args = prefetchMock.mock.calls[0][0];
+    expect(args.homeId).toBe("home-1");
+    expect(args.includeOverdue).toBe(true);
+    // start + end + today should all be today's local YYYY-MM-DD.
+    expect(args.startDateStr).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+    expect(args.startDateStr).toBe(args.endDateStr);
+    expect(args.startDateStr).toBe(args.todayStr);
+
+    // Navigation still happens.
+    expect(navigateMock).toHaveBeenCalledWith("/quick/calendar");
+  });
+
+  test("Today tile tap skips the prefetch when homeId is absent", () => {
+    renderHome({ firstName: "Vinny" });
+    fireEvent.click(screen.getByTestId("quick-tile-calendar"));
+    expect(prefetchMock).not.toHaveBeenCalled();
+    expect(navigateMock).toHaveBeenCalledWith("/quick/calendar");
   });
 
   // ─── Wave 9/10 ─ full-bleed page wrapper ─────────────────────────────
