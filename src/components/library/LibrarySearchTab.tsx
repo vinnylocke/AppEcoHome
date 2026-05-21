@@ -613,7 +613,6 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
                 type="button"
                 data-testid={`library-search-result-${resultKey}`}
                 onClick={() => handleResultTap(r)}
-                disabled={isOpening}
                 className="w-full text-left rounded-2xl bg-white border border-rhozly-outline/15 hover:border-rhozly-primary/40 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center gap-3 p-3"
               >
                 <div className="w-12 h-12 shrink-0 rounded-2xl overflow-hidden bg-rhozly-primary/5">
@@ -709,7 +708,6 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
                 type="button"
                 data-testid={`library-search-result-${resultKey}`}
                 onClick={() => handleResultTap(r)}
-                disabled={isOpening}
                 className="w-full text-left rounded-2xl bg-white border border-rhozly-outline/15 hover:border-emerald-400 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center gap-3 p-3"
               >
                 <div className="w-12 h-12 shrink-0 rounded-2xl overflow-hidden bg-emerald-50">
