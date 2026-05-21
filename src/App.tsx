@@ -1027,7 +1027,10 @@ function AppShell() {
                   {isRefreshing && (
                     <div className="h-0.5 bg-rhozly-primary animate-pulse w-full" />
                   )}
-                  <div className="p-4 md:p-8 pb-28 md:pb-8 min-h-full">
+                  {/* Focus mode (Quick Access + Library on mobile) draws to
+                      the screen edge so the surface can size itself with
+                      h-full; non-focus routes get the standard page padding. */}
+                  <div className={isFocusMode ? "h-full" : "p-4 md:p-8 pb-28 md:pb-8 min-h-full"}>
                     <Suspense fallback={RouteFallback}>
                     <Routes>
                       <Route path="/" element={<Navigate to={isMobile ? "/quick" : "/dashboard"} replace />} />

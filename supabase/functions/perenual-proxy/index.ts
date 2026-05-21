@@ -95,16 +95,16 @@ serve(async (req) => {
       const waterings = filters?.watering?.length ? filters.watering : [undefined];
       const sunlights = filters?.sunlight?.length ? filters.sunlight : [undefined];
 
-      const calls: Promise<any[]>[] = [];
+      const calls: Promise<{ items: any[]; lastPage: number }>[] = [];
       for (const c of cycles) {
         for (const w of waterings) {
           for (const s of sunlights) {
             calls.push(
               fetch(`https://perenual.com/api/v2/species-list?${buildParams(c, w, s)}`, { signal: AbortSignal.timeout(12_000) })
                 .then(async (r) => {
-                  if (!r.ok) return [];
+                  if (!r.ok) return { items: [], lastPage: 0 };
                   const d = await r.json();
-                  return d.data ?? [];
+                  return { items: d.data ?? [], lastPage: Number(d.last_page ?? 0) };
                 }),
             );
           }
@@ -114,17 +114,28 @@ serve(async (req) => {
       const batches = await Promise.all(calls);
       const seen = new Set<number>();
       const merged: unknown[] = [];
-      for (const batch of batches) {
-        for (const plant of batch) {
+      // Pagination signal: any underlying fan-out call with last_page > current
+      // page means there's more to fetch. Caller increments `page` to load it.
+      let maxLastPage = 0;
+      for (const { items, lastPage } of batches) {
+        if (lastPage > maxLastPage) maxLastPage = lastPage;
+        for (const plant of items) {
           if (!seen.has(plant.id)) {
             seen.add(plant.id);
             merged.push(plant);
           }
         }
       }
+      const hasMore = maxLastPage > page;
 
-      await setCached(db, searchCacheKey, "perenual-proxy", { data: merged }, 1);
-      return json({ data: merged });
+      const payload = {
+        data: merged,
+        current_page: page,
+        last_page: maxLastPage,
+        has_more: hasMore,
+      };
+      await setCached(db, searchCacheKey, "perenual-proxy", payload, 1);
+      return json(payload);
     }
 
     // ── Species details ───────────────────────────────────────────────────────

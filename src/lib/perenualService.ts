@@ -58,29 +58,65 @@ async function invoke<T>(body: Record<string, unknown>): Promise<T> {
   return data as T;
 }
 
+export interface PerenualSearchFilters {
+  cycle?: string[];
+  watering?: string[];
+  sunlight?: string[];
+  edible?: 0 | 1;
+  poisonous?: 0 | 1;
+  indoor?: 0 | 1;
+  hardinessMin?: number;
+  hardinessMax?: number;
+}
+
+export interface PerenualSearchPage {
+  /** Raw Perenual records for this page. */
+  data: any[];
+  /** True when the API reports more pages beyond `page`. */
+  hasMore: boolean;
+  /** Page number to fetch next if `hasMore`. */
+  nextPage: number;
+}
+
 export const PerenualService = {
-  // 1. Live Search (Always hits the API via edge function)
-  // cycle/watering/sunlight accept arrays; fan-out and dedup happen server-side.
-  searchPlants: async (
+  /**
+   * Paged Perenual search. Use this when the caller needs "Show more"
+   * pagination — both BulkSearchModal and The Library do.
+   */
+  searchPlantsPaged: async (
     query: string,
-    filters?: {
-      cycle?: string[];
-      watering?: string[];
-      sunlight?: string[];
-      edible?: 0 | 1;
-      poisonous?: 0 | 1;
-      indoor?: 0 | 1;
-      hardinessMin?: number;
-      hardinessMax?: number;
-    },
-  ) => {
+    page = 1,
+    filters?: PerenualSearchFilters,
+  ): Promise<PerenualSearchPage> => {
     try {
-      const result = await invoke<{ data: any[] }>({ action: "search", query, filters });
-      return result.data ?? [];
+      const result = await invoke<{
+        data: any[];
+        has_more?: boolean;
+        current_page?: number;
+        last_page?: number;
+      }>({ action: "search", query, page, filters });
+      return {
+        data: result.data ?? [],
+        hasMore: !!result.has_more,
+        nextPage: (result.current_page ?? page) + 1,
+      };
     } catch (error) {
       Logger.error("Perenual Search Failed", error);
       throw error;
     }
+  },
+
+  /**
+   * Backwards-compatible single-page search — returns just `data` for the
+   * first page. Callers that don't need pagination keep their existing
+   * signature.
+   */
+  searchPlants: async (
+    query: string,
+    filters?: PerenualSearchFilters,
+  ): Promise<any[]> => {
+    const { data } = await PerenualService.searchPlantsPaged(query, 1, filters);
+    return data;
   },
 
   // 2. Get Details (Checks Cache -> Then API via edge function)

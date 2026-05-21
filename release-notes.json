@@ -1,1 +1,23 @@
-[]
+[
+  {
+    "label": "Quick Access — fixed layout",
+    "items": [
+      "The mobile Quick Access screen is now fixed to one viewport — all four shortcuts (Visual Lens, Today, Quick Capture, The Library) sit in a 2×2 grid with no scrolling.",
+      "Trimmed the hero so the tiles always have room, even on smaller phones."
+    ]
+  },
+  {
+    "label": "The Library — better search",
+    "items": [
+      "Search now waits for you — type your query and press the Search button (or Enter). No more auto-firing on every keystroke.",
+      "Results are grouped by source — AI suggestions first, then Perenual, then Verdantly — matching The Shed's plant search.",
+      "Each section has its own \"Show more\" button, capped at 10 results per page so the screen stays scannable."
+    ]
+  },
+  {
+    "label": "The Shed — Perenual pagination",
+    "items": [
+      "The Shed's Add Plant search now shows the first 10 Perenual results with a \"Show more\" button to load the next page, just like the AI and Verdantly sections already had."
+    ]
+  }
+]
