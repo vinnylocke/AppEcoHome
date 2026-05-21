@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Sparkles,
   Loader2,
@@ -6,6 +6,7 @@ import {
   Lock,
   BookOpenCheck,
   AlertCircle,
+  CalendarPlus,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
@@ -15,6 +16,8 @@ import {
   type PlantGrowGuide,
 } from "../services/plantDoctorService";
 import GuideSectionCard from "./growGuide/GuideSectionCard";
+import AddToCalendarSheet from "./growGuide/AddToCalendarSheet";
+import type { SchedulableTask } from "../lib/scheduleFromSchedulableTask";
 
 interface Props {
   plantId: number;
@@ -86,6 +89,10 @@ export default function GrowGuideTab({
   // Fire-once guard for autoGenerate — without this, a re-render after the
   // generate fails would loop and retry forever.
   const [autoGenAttempted, setAutoGenAttempted] = useState(false);
+  // Bulk "Add all to calendar" sheet open state. Lives at the top of
+  // the component so the rules of hooks don't trip when the loaded
+  // branch returns early.
+  const [bulkOpen, setBulkOpen] = useState(false);
 
   // Initial cache check — direct table read, no edge fn invocation needed.
   useEffect(() => {
@@ -268,6 +275,14 @@ export default function GrowGuideTab({
   const stale = isStale(loaded.lastGeneratedAt);
   const visibleSections = loaded.guide.sections.filter((s) => s.applicable);
 
+  // Bulk "Add all" surface — flatten schedulable_tasks across every
+  // applicable section. Order matches the guide's natural section order
+  // so the sheet feels predictable.
+  const allSchedulable: SchedulableTask[] = visibleSections.flatMap(
+    (s) => (s.schedulable_tasks as SchedulableTask[] | undefined) ?? [],
+  );
+  const totalSchedulable = allSchedulable.length;
+
   return (
     <div data-testid="grow-guide-loaded" className="space-y-3">
       <div className="flex items-center justify-between gap-3 px-1 mb-1">
@@ -311,16 +326,43 @@ export default function GrowGuideTab({
           The AI couldn't find any applicable guidance for this plant. Try refreshing.
         </p>
       ) : (
-        <div className="space-y-3">
-          {visibleSections.map((section, i) => (
-            <GuideSectionCard
-              key={section.category}
-              section={section}
-              defaultOpen={i === 0}
-              testIdPrefix="guide-section"
+        <>
+          {totalSchedulable > 0 && (
+            <button
+              type="button"
+              data-testid="grow-guide-add-all"
+              onClick={() => setBulkOpen(true)}
+              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 min-h-[44px] rounded-2xl bg-rhozly-primary/10 border border-rhozly-primary/20 text-rhozly-primary text-xs font-black uppercase tracking-widest hover:bg-rhozly-primary/15 transition"
+            >
+              <CalendarPlus size={14} />
+              Add all {totalSchedulable} tasks to calendar
+            </button>
+          )}
+          <div className="space-y-3">
+            {visibleSections.map((section, i) => (
+              <GuideSectionCard
+                key={section.category}
+                section={section}
+                defaultOpen={i === 0}
+                testIdPrefix="guide-section"
+                homeId={homeId}
+                plantId={plantId}
+                plantName={commonName}
+              />
+            ))}
+          </div>
+          {bulkOpen && (
+            <AddToCalendarSheet
+              open={bulkOpen}
+              homeId={homeId}
+              plantId={plantId}
+              plantName={commonName}
+              schedulableTasks={allSchedulable}
+              heading={`Add all tasks for ${commonName}`}
+              onClose={() => setBulkOpen(false)}
             />
-          ))}
-        </div>
+          )}
+        </>
       )}
     </div>
   );

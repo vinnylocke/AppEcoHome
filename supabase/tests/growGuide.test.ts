@@ -286,3 +286,94 @@ Deno.test("diffGrowGuide — notes null→string is a change", () => {
   const b = makeGuide([makeSection({ category: "water", notes: "Coastal microclimate" })]);
   assertEquals(diffGrowGuide(a, b), ["water"]);
 });
+
+// ─────────────────────────────────────────────────────────────────────────
+// schedulable_tasks diff behaviour — additive field; missing/empty parity
+// ─────────────────────────────────────────────────────────────────────────
+
+Deno.test("diffGrowGuide — undefined vs empty schedulable_tasks is NOT a change", () => {
+  const a = makeGuide([makeSection({ category: "water" })]); // no schedulable_tasks
+  const b = makeGuide([makeSection({ category: "water", schedulable_tasks: [] })]);
+  assertEquals(diffGrowGuide(a, b), []);
+});
+
+Deno.test("diffGrowGuide — adding a schedulable_task IS a change", () => {
+  const a = makeGuide([makeSection({ category: "water", schedulable_tasks: [] })]);
+  const b = makeGuide([
+    makeSection({
+      category: "water",
+      schedulable_tasks: [
+        {
+          title: "Water Roma",
+          description: "Deep water every 3 days.",
+          task_type: "Watering",
+          is_recurring: true,
+          frequency_days: 3,
+          active_months: ["Apr", "May", "Jun", "Jul", "Aug", "Sep"],
+          duration_days: null,
+          priority: "Medium",
+          depends_on_index: null,
+        },
+      ],
+    }),
+  ]);
+  assertEquals(diffGrowGuide(a, b), ["water"]);
+});
+
+Deno.test("diffGrowGuide — schedulable_tasks reordering is NOT a change", () => {
+  const task1 = {
+    title: "Water Roma",
+    description: "Deep water every 3 days.",
+    task_type: "Watering" as const,
+    is_recurring: true,
+    frequency_days: 3,
+    active_months: ["Apr", "May"] as ("Apr" | "May")[],
+    duration_days: null,
+    priority: "Medium" as const,
+    depends_on_index: null,
+  };
+  const task2 = {
+    title: "Feed Roma",
+    description: "Weekly tomato feed.",
+    task_type: "Fertilizing" as const,
+    is_recurring: true,
+    frequency_days: 7,
+    active_months: ["May", "Jun"] as ("May" | "Jun")[],
+    duration_days: null,
+    priority: "Medium" as const,
+    depends_on_index: null,
+  };
+  const a = makeGuide([
+    makeSection({ category: "water", schedulable_tasks: [task1, task2] }),
+  ]);
+  const b = makeGuide([
+    makeSection({ category: "water", schedulable_tasks: [task2, task1] }),
+  ]);
+  assertEquals(diffGrowGuide(a, b), []);
+});
+
+Deno.test("diffGrowGuide — schedulable_tasks active_months change IS a change", () => {
+  const base = {
+    title: "Water Roma",
+    description: "Deep water every 3 days.",
+    task_type: "Watering" as const,
+    is_recurring: true,
+    frequency_days: 3,
+    duration_days: null,
+    priority: "Medium" as const,
+    depends_on_index: null,
+  };
+  const a = makeGuide([
+    makeSection({
+      category: "water",
+      schedulable_tasks: [{ ...base, active_months: ["Apr", "May", "Jun"] }],
+    }),
+  ]);
+  const b = makeGuide([
+    makeSection({
+      category: "water",
+      schedulable_tasks: [{ ...base, active_months: ["Mar", "Apr", "May"] }],
+    }),
+  ]);
+  assertEquals(diffGrowGuide(a, b), ["water"]);
+});

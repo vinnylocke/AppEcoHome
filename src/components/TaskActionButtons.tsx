@@ -32,6 +32,19 @@ interface TaskActionProps {
   tasks: SuggestedTask[];
   homeId: string;
   onSuccess?: () => void;
+  /**
+   * When supplied, recurring blueprints write `inventory_item_ids` so
+   * the resulting task_blueprints row is scoped to specific plant
+   * instances (the Grow Guide's Add-to-calendar flow uses this when
+   * the user picks "Attach to: Roma in the back bed").
+   */
+  inventoryItemIds?: string[];
+  /**
+   * Indices into `tasks` that look like duplicates of an existing
+   * blueprint. Pre-unchecked on render and labelled with a "may already
+   * exist" chip so the user can confirm before adding.
+   */
+  duplicateIndices?: number[];
 }
 
 const getTaskIcon = (type: string) => {
@@ -55,10 +68,17 @@ export const TaskActionButtons = ({
   tasks,
   homeId,
   onSuccess,
+  inventoryItemIds,
+  duplicateIndices,
 }: TaskActionProps) => {
-  // Start with all tasks selected by default
+  // Start with all tasks selected by default, EXCEPT those flagged as
+  // likely duplicates — those start unchecked so the user has to opt in.
+  const dupSet = React.useMemo(
+    () => new Set(duplicateIndices ?? []),
+    [duplicateIndices],
+  );
   const [selectedIndices, setSelectedIndices] = useState<number[]>(
-    tasks.map((_, i) => i),
+    tasks.map((_, i) => i).filter((i) => !dupSet.has(i)),
   );
   const [isProcessing, setIsProcessing] = useState(false);
 
@@ -99,6 +119,9 @@ export const TaskActionButtons = ({
             .from("task_blueprints")
             .insert({
               home_id: homeId,
+              ...(inventoryItemIds && inventoryItemIds.length > 0
+                ? { inventory_item_ids: inventoryItemIds }
+                : {}),
               title: task.title,
               description: task.description,
               task_type: task.task_type,
@@ -114,11 +137,16 @@ export const TaskActionButtons = ({
           if (error) throw error;
           idMap.set(i, data.id);
         } else {
-          // It's a One-Off Task
+          // It's a One-Off Task. When the caller picked specific
+          // instances, attach the first one via tasks.inventory_item_id
+          // (singular — that's what the tasks table accepts).
           const { data, error } = await supabase
             .from("tasks")
             .insert({
               home_id: homeId,
+              ...(inventoryItemIds && inventoryItemIds.length > 0
+                ? { inventory_item_id: inventoryItemIds[0] }
+                : {}),
               title: task.title,
               description: task.description,
               type: task.task_type,
@@ -197,6 +225,7 @@ export const TaskActionButtons = ({
         {tasks.map((task, idx) => {
           const isSelected = selectedIndices.includes(idx);
           const hasDependency = task.depends_on_index != null;
+          const isLikelyDuplicate = dupSet.has(idx);
 
           return (
             <label
@@ -224,13 +253,22 @@ export const TaskActionButtons = ({
               </div>
 
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 mb-1">
+                <div className="flex items-center gap-2 mb-1 flex-wrap">
                   <span className="bg-white px-1.5 py-0.5 rounded shadow-sm border border-gray-100 inline-flex items-center">
                     {getTaskIcon(task.task_type)}
                   </span>
                   <span className="font-bold text-sm text-gray-900 leading-tight truncate">
                     {task.title}
                   </span>
+                  {isLikelyDuplicate && (
+                    <span
+                      data-testid={`task-duplicate-${idx}`}
+                      title="Looks similar to a blueprint you already have"
+                      className="inline-flex items-center gap-1 text-[9px] font-black uppercase tracking-widest text-amber-800 bg-amber-100 border border-amber-200 px-1.5 py-0.5 rounded-md"
+                    >
+                      May already exist
+                    </span>
+                  )}
                 </div>
 
                 <p className="text-xs text-gray-600 font-medium leading-snug">

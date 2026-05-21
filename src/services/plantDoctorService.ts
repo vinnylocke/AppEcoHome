@@ -148,6 +148,23 @@ export type GrowGuideCategory =
   | "water" | "soil" | "sunlight" | "propagation" | "germination"
   | "pruning" | "flowering" | "harvesting" | "senescence";
 
+/** AI-emitted task suggestion per section. See `lib/scheduleFromSchedulableTask.ts`
+ *  for how `active_months` (hemisphere-aware) is converted into the
+ *  `SuggestedTask` shape `TaskActionButtons` consumes. */
+export interface GrowGuideSchedulableTask {
+  title: string;
+  description: string;
+  task_type:
+    | "Watering" | "Pruning" | "Harvesting" | "Planting"
+    | "Maintenance" | "Fertilizing" | "Inspection";
+  is_recurring: boolean;
+  frequency_days: number | null;
+  active_months: string[] | null;
+  duration_days: number | null;
+  priority: "Low" | "Medium" | "High";
+  depends_on_index: number | null;
+}
+
 export interface GrowGuideSection {
   category: GrowGuideCategory;
   applicable: boolean;
@@ -157,6 +174,8 @@ export interface GrowGuideSection {
   steps: { step: number; title: string; detail: string }[];
   tips: string[];
   notes: string | null;
+  /** Optional — older cached payloads predate this field. UI tolerates absence. */
+  schedulable_tasks?: GrowGuideSchedulableTask[];
 }
 
 export interface PlantGrowGuide {

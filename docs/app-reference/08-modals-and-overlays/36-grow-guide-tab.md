@@ -6,6 +6,9 @@
 **Source files:**
 - `src/components/GrowGuideTab.tsx` — orchestrator
 - `src/components/growGuide/GuideSectionCard.tsx` — one collapsible section
+- `src/components/growGuide/AddToCalendarSheet.tsx` — sheet hosting the per-instance picker + TaskActionButtons
+- `src/lib/scheduleFromSchedulableTask.ts` — pure helper: `SchedulableTask` (months) → `SuggestedTask` (day offsets)
+- `src/lib/blueprintDuplicateCheck.ts` — heuristic duplicate detection against existing blueprints
 - `src/services/plantDoctorService.ts` — `generateGrowGuide` service method
 - `supabase/functions/plant-doctor/index.ts` — `generate_grow_guide` edge fn action
 - `supabase/functions/refresh-stale-grow-guides/index.ts` — daily cron
@@ -39,6 +42,7 @@ GrowGuideTab
 ├── Loaded state
 │   ├── Header chip (Updated N days ago / may be out of date)
 │   ├── Refresh button (Sage+)
+│   ├── "Add all N tasks to calendar" bulk button (when totalSchedulable > 0)
 │   └── GuideSectionCard × N (filtered to applicable: true)
 │       ├── Collapsed header (icon + title + summary preview)
 │       └── Expanded body
@@ -46,7 +50,12 @@ GrowGuideTab
 │           ├── key_facts grid (label + value)
 │           ├── Ordered steps (numbered)
 │           ├── Tips list
-│           └── Notes (peach-tinted caveat)
+│           ├── Notes (peach-tinted caveat)
+│           └── Add-to-calendar button (when schedulable_tasks.length > 0)
+│               └── AddToCalendarSheet
+│                   ├── Per-instance picker (or home-wide)
+│                   ├── Converted SuggestedTask[] via scheduleFromSchedulableTask
+│                   └── TaskActionButtons (duplicates pre-unchecked + chipped)
 └── Error states (cache-load failure / regenerate failure)
 ```
 
@@ -171,6 +180,18 @@ The guide is the same for every gardener growing this species — generated once
 #### 5. Manual plant
 
 - **What you see**: empty-state hint that manual plants get a best-effort guide. Use Visual Lens to identify the species for sharper data.
+
+#### 6. Add tasks to your calendar (per section)
+
+- **What you see**: when a section has schedulable tasks, an **Add to calendar** button sits at the bottom of the expanded section.
+- **What you do**: tap.
+- **What happens next**: a sheet rises with each suggested task in the section. If you have the plant in your Shed, a picker lets you attach the tasks to a specific instance (or leave them home-wide). Tasks that look similar to a blueprint you already have are flagged "may already exist" and pre-unchecked. Tap **Add tasks**; everything lands in your calendar with the AI's recommended timing converted into concrete dates for your hemisphere.
+
+#### 7. Bulk-add all schedulable tasks
+
+- **What you see**: when the guide has tasks across multiple sections, a single **Add all N tasks to calendar** button at the top of the section list.
+- **What you do**: tap.
+- **What happens next**: the same sheet but pre-filled with every schedulable task across every applicable section. Useful when you want to set up the full year of care for a plant in one go (Marcus's workflow).
 
 ### Information on display — what every field means
 

@@ -10,11 +10,13 @@ import {
   Hourglass,
   ChevronDown,
   ChevronUp,
+  CalendarPlus,
 } from "lucide-react";
 import type {
   GrowGuideCategory,
   GrowGuideSection,
 } from "../../services/plantDoctorService";
+import AddToCalendarSheet from "./AddToCalendarSheet";
 
 interface Props {
   section: GrowGuideSection;
@@ -22,6 +24,13 @@ interface Props {
   defaultOpen?: boolean;
   /** Test-id namespace so multiple sections render cleanly in a list. */
   testIdPrefix?: string;
+  /**
+   * Required for the Add-to-calendar affordance. When absent, the button
+   * is hidden (read-only contexts pass nothing).
+   */
+  homeId?: string;
+  plantId?: number;
+  plantName?: string;
 }
 
 const CATEGORY_ICON: Record<GrowGuideCategory, React.ReactNode> = {
@@ -57,8 +66,12 @@ export default function GuideSectionCard({
   section,
   defaultOpen = false,
   testIdPrefix = "guide-section",
+  homeId,
+  plantId,
+  plantName,
 }: Props) {
   const [open, setOpen] = useState(defaultOpen);
+  const [sheetOpen, setSheetOpen] = useState(false);
 
   const testId = `${testIdPrefix}-${section.category}`;
   const tint = CATEGORY_TINT[section.category];
@@ -68,6 +81,9 @@ export default function GuideSectionCard({
   const hasSteps = section.steps.length > 0;
   const hasTips = section.tips.length > 0;
   const hasNotes = !!section.notes?.trim();
+  const schedulable = section.schedulable_tasks ?? [];
+  const canAddToCalendar =
+    !!homeId && !!plantId && !!plantName && schedulable.length > 0;
 
   return (
     <section
@@ -163,7 +179,31 @@ export default function GuideSectionCard({
               {section.notes}
             </p>
           )}
+
+          {canAddToCalendar && (
+            <button
+              type="button"
+              data-testid={`${testId}-add-to-calendar`}
+              onClick={() => setSheetOpen(true)}
+              className="w-full inline-flex items-center justify-center gap-2 px-3 py-2.5 min-h-[44px] rounded-2xl bg-rhozly-primary text-white text-xs font-black uppercase tracking-widest hover:opacity-95 transition"
+            >
+              <CalendarPlus size={14} />
+              Add {schedulable.length === 1 ? "task" : `${schedulable.length} tasks`} to calendar
+            </button>
+          )}
         </div>
+      )}
+
+      {canAddToCalendar && (
+        <AddToCalendarSheet
+          open={sheetOpen}
+          homeId={homeId!}
+          plantId={plantId!}
+          plantName={plantName!}
+          schedulableTasks={schedulable}
+          heading={`Add ${section.title.toLowerCase()} tasks`}
+          onClose={() => setSheetOpen(false)}
+        />
       )}
     </section>
   );
