@@ -75,8 +75,18 @@ serve(async (req) => {
           apiKey,
           FN,
           toMessages([prompt]),
-          { responseSchema: GROW_GUIDE_SCHEMA, temperature: 0.2, logContext: { commonName } },
+          {
+            responseSchema: GROW_GUIDE_SCHEMA,
+            temperature: 0.2,
+            // 9 structured sections with key_facts + steps + tips easily exceed
+            // the default 2048 cap; truncation breaks JSON.parse downstream.
+            maxOutputTokens: 8192,
+            logContext: { commonName },
+          },
         );
+        if (!rawText || !rawText.trim()) {
+          throw new Error("Gemini returned empty text for the grow guide.");
+        }
         const guide = JSON.parse(rawText) as PlantGrowGuide;
         return { guide, usage };
       },

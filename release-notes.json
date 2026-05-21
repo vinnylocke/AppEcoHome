@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Fix",
+    "items": [
+      "Grow Guide — generation was timing out on the AI side because the 9-section guide is bigger than the default response budget. Raised the token cap so the full guide comes back intact every time."
+    ]
+  }
+]

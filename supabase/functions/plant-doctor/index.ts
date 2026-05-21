@@ -1243,8 +1243,17 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
 
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN, toMessages([promptText]),
-        { responseSchema: GROW_GUIDE_SCHEMA, logContext: { action, plantId } },
+        {
+          responseSchema: GROW_GUIDE_SCHEMA,
+          // 9 structured sections with key_facts + steps + tips easily exceed
+          // the default 2048 cap; truncation breaks JSON.parse downstream.
+          maxOutputTokens: 8192,
+          logContext: { action, plantId },
+        },
       );
+      if (!rawText || !rawText.trim()) {
+        throw new Error("Gemini returned empty text for the grow guide.");
+      }
       const parsed = JSON.parse(rawText) as PlantGrowGuide;
       await logAiUsage(supabase, {
         homeId: homeId ?? null,
