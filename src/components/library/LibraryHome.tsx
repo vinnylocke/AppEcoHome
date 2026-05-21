@@ -1,6 +1,6 @@
 import React from "react";
 import { Routes, Route, useLocation, useNavigate, Navigate } from "react-router-dom";
-import { Search, Bookmark, BookOpen } from "lucide-react";
+import { Search, Bookmark, BookOpen, ArrowLeft } from "lucide-react";
 import LibrarySearchTab from "./LibrarySearchTab";
 import LibrarySavedTab from "./LibrarySavedTab";
 import PlantPreview from "./PlantPreview";
@@ -42,6 +42,19 @@ export default function LibraryHome({ homeId, aiEnabled, isPremium }: Props) {
     >
       {!onPreview && (
         <>
+          {/* Back-to-Quick link — small pill sat above the header so users
+              can return to the Quick Access home without using the device
+              back button or the menu drawer. */}
+          <button
+            type="button"
+            data-testid="library-back-to-quick"
+            onClick={() => navigate("/quick")}
+            className="inline-flex items-center gap-1.5 mb-3 px-3 py-1.5 min-h-[36px] rounded-full bg-white border border-rhozly-outline/15 text-[11px] font-black uppercase tracking-widest text-rhozly-on-surface/60 hover:text-rhozly-primary hover:border-rhozly-primary/30 transition"
+          >
+            <ArrowLeft size={12} />
+            Quick Menu
+          </button>
+
           {/* Header — wordmark + sub */}
           <header data-testid="library-header" className="mb-5">
             <div className="inline-flex items-center gap-1.5 bg-white/70 backdrop-blur-sm text-rhozly-primary px-3 py-1 rounded-full mb-2.5 border border-rhozly-primary/15">

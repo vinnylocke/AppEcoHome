@@ -168,22 +168,23 @@ describe("QuickAccessHome", () => {
     );
   });
 
-  // Wave 12 — solid-coloured launcher tiles. Each of the four shortcuts
-  // owns its own signature colour for instant differentiation.
+  // Wave 13 — soft tinted launcher tiles. Accents map onto colours already
+  // used elsewhere in the app: green (brand), amber (warmth), red
+  // (notebook/urgent), blue (info/lookup).
   test("each tile receives its own signature launcher accent", () => {
     renderHome({ firstName: "Vinny" });
     expect(
       screen.getByTestId("quick-tile-lens").getAttribute("data-accent"),
-    ).toBe("forest");
+    ).toBe("green");
     expect(
       screen.getByTestId("quick-tile-calendar").getAttribute("data-accent"),
     ).toBe("amber");
     expect(
       screen.getByTestId("quick-tile-journal").getAttribute("data-accent"),
-    ).toBe("rose");
+    ).toBe("red");
     expect(
       screen.getByTestId("quick-tile-library").getAttribute("data-accent"),
-    ).toBe("indigo");
+    ).toBe("blue");
   });
 
   // ─── Phase 2 ─ Today tile prefetch ────────────────────────────────────
@@ -225,12 +226,13 @@ describe("QuickAccessHome", () => {
     expect(page.className).toContain("overflow-hidden");
   });
 
-  test("tiles render inside a 2x2 grid (Wave 11)", () => {
+  // Wave 13 — tiles auto-size to their content (no grid-rows-2) so the
+  // small launcher tiles don't have to stretch to fill the viewport.
+  test("tiles render inside a 2-column grid", () => {
     renderHome({ firstName: "Vinny" });
     const grid = screen.getByTestId("quick-tiles-grid");
     expect(grid).toBeTruthy();
     expect(grid.className).toContain("grid-cols-2");
-    expect(grid.className).toContain("grid-rows-2");
     expect(screen.getByTestId("quick-tile-library")).toBeTruthy();
   });
 

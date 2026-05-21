@@ -1,1 +1,22 @@
-[]
+[
+  {
+    "label": "The Library — fixes & polish",
+    "items": [
+      "Care Guide tab now shows the full read-only care form (sunlight, watering, propagation, pruning, edibility, toxicity, wildlife, etc.) — the same layout you see in The Shed.",
+      "Grow Guide auto-generates the moment you tap the tab — no separate Generate button anymore.",
+      "AI search results now show a thumbnail (sourced from Wikipedia / Pixabay) instead of just a sparkles icon.",
+      "Tapping Back from a plant preview restores your previous search results instantly — no more re-searching.",
+      "Added a Quick Menu link at the top of The Library so you can return to the Quick Access home in one tap.",
+      "Fixed a 500 error when opening some Perenual plants — the proxy now falls back to v1 when v2 fails, and surfaces clearer errors when both upstream endpoints break."
+    ]
+  },
+  {
+    "label": "Quick Access — softer tiles & app-colour palette",
+    "items": [
+      "Lightened the tile colours — softer, more see-through, less shouty than the previous solid blocks.",
+      "Brought back the short description under each title and shrunk the tiles to content size so they no longer feel empty.",
+      "Aligned the tile colours with the rest of the app: green (Visual Lens), amber (Today), red (Quick Capture), blue (The Library).",
+      "The greeting card at the top is now tappable — opens Account Settings."
+    ]
+  }
+]

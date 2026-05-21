@@ -22,6 +22,16 @@ interface Props {
   source: "manual" | "api" | "ai" | "verdantly";
   homeId: string;
   aiEnabled: boolean;
+  /**
+   * When true, the tab fires `handleGenerate` automatically the first
+   * time it mounts and the plant has no cached guide. Used by The Library
+   * preview screen so users don't have to tap a separate Generate button
+   * after they've already tapped the tab.
+   *
+   * The Plant Edit Modal keeps the manual button-driven flow (default
+   * false) so users with many plants don't burn AI credit on every visit.
+   */
+  autoGenerate?: boolean;
 }
 
 interface LoadedGuide {
@@ -67,11 +77,15 @@ export default function GrowGuideTab({
   source,
   homeId,
   aiEnabled,
+  autoGenerate = false,
 }: Props) {
   const [loaded, setLoaded] = useState<LoadedGuide | null>(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Fire-once guard for autoGenerate — without this, a re-render after the
+  // generate fails would loop and retry forever.
+  const [autoGenAttempted, setAutoGenAttempted] = useState(false);
 
   // Initial cache check — direct table read, no edge fn invocation needed.
   useEffect(() => {
@@ -107,6 +121,26 @@ export default function GrowGuideTab({
       cancelled = true;
     };
   }, [plantId]);
+
+  // Auto-fire generation once on first mount when:
+  //   - the host (e.g. The Library) asked for it (`autoGenerate`),
+  //   - we've finished the initial cache check and found nothing,
+  //   - the user's tier allows AI generation,
+  //   - we haven't already attempted (so a failed gen doesn't loop).
+  useEffect(() => {
+    if (
+      autoGenerate &&
+      !loading &&
+      !loaded &&
+      !generating &&
+      !autoGenAttempted &&
+      aiEnabled
+    ) {
+      setAutoGenAttempted(true);
+      handleGenerate(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoGenerate, loading, loaded, generating, autoGenAttempted, aiEnabled]);
 
   const handleGenerate = async (forceRegen = false) => {
     if (!aiEnabled) {

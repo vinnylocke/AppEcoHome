@@ -17,6 +17,7 @@ import { VerdantlyService } from "../../lib/verdantlyService";
 import { PlantDoctorService } from "../../services/plantDoctorService";
 import { useShedPlantMatcher } from "../../hooks/useShedPlantMatcher";
 import { Logger } from "../../lib/errorHandler";
+import { supabase } from "../../lib/supabase";
 import type { ProviderSearchResult } from "../../lib/verdantlyUtils";
 
 interface Props {
@@ -25,6 +26,40 @@ interface Props {
 }
 
 const PAGE_SIZE = 10;
+const SNAPSHOT_KEY = "library:search:snapshot";
+
+interface SearchSnapshot {
+  query: string;
+  aiResults: string[];
+  aiHasMore: boolean;
+  perenualResults: ProviderSearchResult[];
+  perenualPage: number;
+  perenualNextPage: number;
+  perenualHasMore: boolean;
+  verdantlyResults: ProviderSearchResult[];
+  verdantlyNextPage: number;
+  verdantlyHasMore: boolean;
+}
+
+function readCachedSnapshot(query: string): SearchSnapshot | null {
+  try {
+    const raw = sessionStorage.getItem(SNAPSHOT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as SearchSnapshot;
+    if (parsed.query?.trim().toLowerCase() !== query.trim().toLowerCase()) return null;
+    return parsed;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedSnapshot(snap: SearchSnapshot): void {
+  try {
+    sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snap));
+  } catch {
+    // session storage is best-effort; ignore quota errors
+  }
+}
 
 function fromPerenualSearchItem(item: any): ProviderSearchResult {
   return {
@@ -83,15 +118,73 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
   const [searching, setSearching] = useState(false);
   const [opening, setOpening] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  // Lazy thumbnails per AI common name — keyed lowercase so cache hits
+  // ignore case. Empty string = looked up, no image found.
+  const [aiThumbs, setAiThumbs] = useState<Map<string, string>>(new Map());
 
   const { findMatch } = useShedPlantMatcher(homeId);
 
-  // Restore the last search on mount when a query is present in the URL
-  // so navigating back from a preview shows the same results.
+  // Look up a Wikipedia/Pixabay thumbnail per AI common name. Cached in
+  // local state so we never re-fire for the same name in the same session.
+  const prefetchAiThumbnails = useCallback(async (matches: string[]) => {
+    const toFetch: string[] = [];
+    setAiThumbs((prev) => {
+      const next = new Map(prev);
+      for (const match of matches) {
+        const name = match.split("(")[0].trim();
+        const key = name.toLowerCase();
+        if (!next.has(key)) {
+          next.set(key, ""); // mark in-flight so a parallel call doesn't double-fire
+          toFetch.push(name);
+        }
+      }
+      return next;
+    });
+    if (toFetch.length === 0) return;
+    await Promise.all(
+      toFetch.map(async (name) => {
+        try {
+          const { data } = await supabase.functions.invoke("plant-image-search", {
+            body: { query: name, count: 1 },
+          });
+          const thumb = data?.images?.[0]?.thumb_url ?? "";
+          setAiThumbs((prev) => {
+            const next = new Map(prev);
+            next.set(name.toLowerCase(), thumb);
+            return next;
+          });
+        } catch {
+          // leave the empty-string sentinel — UI falls back to the icon
+        }
+      }),
+    );
+  }, []);
+
+  // On first mount: if there's a sessionStorage snapshot for the current
+  // ?q=, hydrate state from it so Back from a preview is instant — no
+  // re-search. Otherwise, if there's a query, run a fresh search.
   useEffect(() => {
-    if (initialQuery && !submitted) {
-      runSearch(initialQuery);
+    if (!initialQuery || submitted) return;
+    const snapshot = readCachedSnapshot(initialQuery);
+    if (snapshot) {
+      setSubmitted(snapshot.query);
+      setAiResults(snapshot.aiResults);
+      setAiHasMore(snapshot.aiHasMore);
+      setPerenualResults(snapshot.perenualResults);
+      setPerenualPage(snapshot.perenualPage);
+      setPerenualNextPage(snapshot.perenualNextPage);
+      setPerenualHasMore(snapshot.perenualHasMore);
+      setVerdantlyResults(snapshot.verdantlyResults);
+      setVerdantlyNextPage(snapshot.verdantlyNextPage);
+      setVerdantlyHasMore(snapshot.verdantlyHasMore);
+      // Re-prefetch thumbnails for restored AI rows. plant-image-search is
+      // cheap and the helper de-dupes so already-loaded ones are skipped.
+      if (snapshot.aiResults.length > 0) {
+        prefetchAiThumbnails(snapshot.aiResults);
+      }
+      return;
     }
+    runSearch(initialQuery);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -107,8 +200,41 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
       setVerdantlyHasMore(false);
       setSubmitted("");
       setError(null);
+      try { sessionStorage.removeItem(SNAPSHOT_KEY); } catch { /* ignore */ }
     }
   }, [input, submitted]);
+
+  // Persist the search snapshot whenever any provider state changes after a
+  // submitted query. Lets Back from a preview restore everything verbatim
+  // — no re-search, no flicker.
+  useEffect(() => {
+    if (!submitted) return;
+    if (searching) return;
+    writeCachedSnapshot({
+      query: submitted,
+      aiResults,
+      aiHasMore,
+      perenualResults,
+      perenualPage,
+      perenualNextPage,
+      perenualHasMore,
+      verdantlyResults,
+      verdantlyNextPage,
+      verdantlyHasMore,
+    });
+  }, [
+    submitted,
+    searching,
+    aiResults,
+    aiHasMore,
+    perenualResults,
+    perenualPage,
+    perenualNextPage,
+    perenualHasMore,
+    verdantlyResults,
+    verdantlyNextPage,
+    verdantlyHasMore,
+  ]);
 
   const runSearch = useCallback(
     async (rawQuery: string) => {
@@ -142,8 +268,14 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
         calls.push(
           PlantDoctorService.searchPlantsText(q, { offset: 0, homeId })
             .then((data) => {
-              setAiResults(data.matches ?? []);
+              const matches = data.matches ?? [];
+              setAiResults(matches);
               setAiHasMore(!!data.hasMore);
+              // Fire-and-forget image lookups so each AI row gets a
+              // thumbnail without blocking the search render. Wikipedia
+              // and Pixabay both have free, fast endpoints; the edge fn
+              // is the same one PlantInfoPanel uses for galleries.
+              prefetchAiThumbnails(matches);
             })
             .catch((err) => {
               Logger.error("Library AI search failed", err, { q });
@@ -376,11 +508,12 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
           {dedupedAi.map((match, i) => {
             const aiCommonName = match.split("(")[0].trim();
             const inShed = findMatch({ source: "ai", common_name: aiCommonName });
+            const cachedThumb = aiThumbs.get(aiCommonName.toLowerCase());
             const result: ProviderSearchResult = {
               id: `ai-${i}-${aiCommonName}`,
               common_name: aiCommonName,
               scientific_name: [],
-              thumbnail_url: null,
+              thumbnail_url: cachedThumb || null,
               _provider: "ai",
             };
             const resultKey = `${result._provider}:${result.id}`;
@@ -395,7 +528,17 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
                 className="w-full text-left rounded-2xl bg-white border border-rhozly-outline/15 hover:border-amber-400 active:scale-[0.99] disabled:opacity-60 transition-all flex items-center gap-3 p-3"
               >
                 <div className="w-12 h-12 shrink-0 rounded-2xl overflow-hidden bg-amber-50 flex items-center justify-center text-amber-500">
-                  <Sparkles size={20} />
+                  {cachedThumb ? (
+                    <img
+                      src={cachedThumb}
+                      alt={aiCommonName}
+                      loading="lazy"
+                      decoding="async"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Sparkles size={20} />
+                  )}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="font-display font-black text-rhozly-on-surface text-sm leading-tight truncate">

@@ -19,7 +19,7 @@ import {
 } from "../../lib/plantCatalogue";
 import { saveToShed } from "../../lib/saveToShed";
 import { useShedPlantMatcher } from "../../hooks/useShedPlantMatcher";
-import PlantInfoPanel from "../PlantInfoPanel";
+import ManualPlantCreation from "../ManualPlantCreation";
 import GrowGuideTab from "../GrowGuideTab";
 import CompanionPlantsTab from "../CompanionPlantsTab";
 import LightTab from "../LightTab";
@@ -294,11 +294,15 @@ export default function PlantPreview({ homeId, aiEnabled, isPremium }: Props) {
           cache-first so this is cheap. */}
       <div data-testid="plant-preview-tab-body" className="mt-2">
         {activeTab === "care" && (
-          <div className="rounded-3xl bg-white border border-rhozly-outline/15 overflow-hidden">
-            <PlantInfoPanel
-              details={plant.details}
-              loading={false}
-              plantName={plant.details.common_name}
+          <div className="rounded-3xl bg-white border border-rhozly-outline/15 overflow-hidden p-4">
+            {/* Library uses the same read-only ManualPlantCreation form that
+                The Shed's Care Guide tab uses, so the field layout (sunlight,
+                cycle, watering, propagation, pruning, edibility, toxicity,
+                wildlife, etc.) is consistent across both surfaces. */}
+            <ManualPlantCreation
+              initialData={plant.details}
+              isReadOnly={true}
+              submitLabel=""
             />
           </div>
         )}
@@ -309,6 +313,7 @@ export default function PlantPreview({ homeId, aiEnabled, isPremium }: Props) {
             source={plant.source}
             homeId={homeId}
             aiEnabled={aiEnabled}
+            autoGenerate
           />
         )}
         {activeTab === "companions" && (

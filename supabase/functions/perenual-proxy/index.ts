@@ -139,12 +139,41 @@ serve(async (req) => {
     }
 
     // ── Species details ───────────────────────────────────────────────────────
+    //
+    // Tries the v2 endpoint first (richer data). When v2 returns 5xx OR a
+    // non-JSON payload (Perenual's paywall HTML), falls back to v1. v1 is
+    // available on every Perenual plan and rarely 500s, so this gives us a
+    // reliable lookup for every plant id without paywall friction.
     if (action === "details") {
       if (!id) return json({ error: "id is required" }, 400);
-      const res = await fetch(`https://perenual.com/api/v2/species/details/${id}?key=${apiKey}`, { signal: AbortSignal.timeout(12_000) });
-      if (!res.ok) throw new Error(`Perenual details error: ${res.status}`);
-      const data = await res.json();
-      return json(data);
+
+      const tryEndpoint = async (url: string): Promise<{ ok: boolean; data?: any; reason?: string }> => {
+        try {
+          const res = await fetch(url, { signal: AbortSignal.timeout(12_000) });
+          const text = await res.text();
+          const contentType = res.headers.get("content-type") ?? "";
+          // Perenual occasionally returns 200 with HTML paywall text — check both.
+          if (!res.ok || !contentType.includes("application/json") || text.trimStart().startsWith("<")) {
+            return { ok: false, reason: `${res.status} ${contentType || "unknown content-type"}` };
+          }
+          return { ok: true, data: JSON.parse(text) };
+        } catch (err) {
+          return { ok: false, reason: err instanceof Error ? err.message : String(err) };
+        }
+      };
+
+      const v2 = await tryEndpoint(`https://perenual.com/api/v2/species/details/${id}?key=${apiKey}`);
+      if (v2.ok) return json(v2.data);
+
+      console.warn(`[perenual-proxy] v2 details failed for ${id}: ${v2.reason}; trying v1`);
+      const v1 = await tryEndpoint(`https://perenual.com/api/species/details/${id}?key=${apiKey}`);
+      if (v1.ok) return json(v1.data);
+
+      // Both endpoints failed — surface a useful message rather than a raw 500.
+      return json({
+        error: "Perenual didn't return details for this plant. It may be a temporary upstream issue, or this plant is restricted on the current plan.",
+        upstream: { v2: v2.reason, v1: v1.reason },
+      }, 502);
     }
 
     // ── Pest & disease search ─────────────────────────────────────────────────

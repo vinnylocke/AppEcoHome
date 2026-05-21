@@ -113,10 +113,15 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
       )}
 
       {/* Hero card — trimmed for one-screen fit (Wave 11). Brand stamp
-          dropped on mobile so the greeting and sub can breathe. */}
-      <header
+          dropped on mobile so the greeting and sub can breathe. Wave 13:
+          the whole card is now a button → Account Settings, so users can
+          tap the greeting to manage their profile. */}
+      <button
+        type="button"
         data-testid="quick-access-hero-card"
-        className="relative mb-4 rounded-3xl border border-rhozly-primary-container/20 bg-gradient-to-br from-rhozly-primary-container/[0.08] via-white/40 to-rhozly-tertiary/25 overflow-hidden p-5 shadow-[0_2px_12px_-4px_rgba(7,87,55,0.10),0_18px_36px_-20px_rgba(7,87,55,0.10)]"
+        onClick={() => navigate("/gardener")}
+        aria-label="Open Account Settings"
+        className="relative w-full text-left mb-4 rounded-3xl border border-rhozly-primary-container/20 bg-gradient-to-br from-rhozly-primary-container/[0.08] via-white/40 to-rhozly-tertiary/25 overflow-hidden p-5 shadow-[0_2px_12px_-4px_rgba(7,87,55,0.10),0_18px_36px_-20px_rgba(7,87,55,0.10)] transition-all hover:shadow-[0_4px_16px_-4px_rgba(7,87,55,0.14),0_18px_36px_-20px_rgba(7,87,55,0.14)] hover:-translate-y-0.5 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary/30"
       >
         {/* Soft radial gradients layered on top of the card gradient for depth */}
         <div
@@ -167,19 +172,20 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
             ? "Pick a quick action to get started."
             : "The essentials for when you're out in the garden."}
         </p>
-      </header>
+      </button>
 
-      {/* Tiles — 2×2 compact grid (Wave 11). Each tile uses the compact
-          layout: icon on top, title + short description below. The grid
-          expands to fill remaining vertical space so the four tiles
-          balance the hero card. */}
+      {/* Tiles — 2×2 compact grid. Wave 13 shrinks tiles to content size
+          (icon + title + short description) instead of stretching them
+          full-screen — the visible whitespace was making them feel empty.
+          The dashboard escape pill is pushed to the bottom via mt-auto on
+          the wrapper below. */}
       <div
         data-testid="quick-tiles-grid"
-        className="grid grid-cols-2 grid-rows-2 gap-3 flex-1 min-h-0 mb-3"
+        className="grid grid-cols-2 gap-3 mb-3"
       >
         <QuickTile
           testId="quick-tile-lens"
-          accent="forest"
+          accent="green"
           layout="compact"
           icon={<Camera strokeWidth={2.25} />}
           title="Visual Lens"
@@ -197,7 +203,7 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
         />
         <QuickTile
           testId="quick-tile-journal"
-          accent="rose"
+          accent="red"
           layout="compact"
           icon={<NotebookPen strokeWidth={2.25} />}
           title="Quick Capture"
@@ -206,7 +212,7 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
         />
         <QuickTile
           testId="quick-tile-library"
-          accent="indigo"
+          accent="blue"
           layout="compact"
           icon={<BookOpen strokeWidth={2.25} />}
           title="The Library"
@@ -215,8 +221,10 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
         />
       </div>
 
-      {/* Power-user escape hatch — sits at the bottom of the fixed screen */}
-      <div className="flex justify-center shrink-0">
+      {/* Power-user escape hatch — pinned to the bottom of the fixed
+          screen via mt-auto so the (now smaller) tile grid sits closer to
+          the hero. */}
+      <div className="flex justify-center shrink-0 mt-auto">
         <button
           type="button"
           data-testid="quick-access-open-dashboard"

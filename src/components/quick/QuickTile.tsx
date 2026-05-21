@@ -2,19 +2,25 @@ import React from "react";
 import { ChevronRight, Clock } from "lucide-react";
 
 /**
- * Accent keys. The legacy three (`primary | tertiary | container`) drive the
- * subtle row-card look. The four launcher accents
- * (`forest | amber | rose | indigo`) drive the new solid-coloured compact
- * tile look — one signature colour per Quick Access shortcut.
+ * Accent keys.
+ *
+ * Legacy three (`primary | tertiary | container`) drive the wide
+ * row-card look (still in use anywhere a thick white card is wanted).
+ *
+ * The four launcher accents (`green | amber | red | blue`) drive the
+ * compact 2×2 launcher tiles on Quick Access. They map onto colours
+ * already used elsewhere in the app — green = brand (also leaves /
+ * growth / Verdantly), amber = warm states / sunlight, red = urgent /
+ * notebook accent, blue = sky / lux / info.
  */
 export type QuickTileAccent =
   | "primary"
   | "tertiary"
   | "container"
-  | "forest"
+  | "green"
   | "amber"
-  | "rose"
-  | "indigo";
+  | "red"
+  | "blue";
 
 interface Props {
   icon: React.ReactNode;
@@ -82,61 +88,83 @@ const ROW_ACCENT_MAP: Record<"primary" | "tertiary" | "container", RowAccentToke
   },
 };
 
-interface SolidTileTokens {
-  /** Solid background — the launcher tile's signature colour. */
+interface SoftTileTokens {
+  /** Light tinted background (the visible tile surface). */
   bg: string;
-  /** Subtle darker overlay used for the active / pressed state ring. */
+  /** Soft tinted border so the tile reads as a card even on a light page. */
+  border: string;
+  /** Hover border — slightly stronger tint. */
+  hoverBorder: string;
+  /** Icon container background — a hair stronger than the tile bg. */
+  iconBg: string;
+  /** Icon glyph colour (the lucide stroke). */
+  iconText: string;
+  /** Title colour (bold). */
+  titleText: string;
+  /** Description colour (muted). */
+  descText: string;
+  /** Focus ring colour. */
   ring: string;
-  /** Decorative "depth" gradient layered on top of the solid bg. */
-  glow: string;
-  /** Decorative corner blob colour (faint white-tinted highlight). */
-  blob: string;
-  /** Coloured shadow under the tile so it floats off the page. */
-  shadow: string;
 }
 
 /**
- * Solid launcher-tile palette. Four distinct signature colours so the four
- * tiles read clearly even at a glance:
- *   - forest → Rhozly brand green (Visual Lens — camera + AI).
- *   - amber  → warm sun           (Today — daily plan + rain forecast).
- *   - rose   → notebook accent    (Quick Capture — journal entries).
- *   - indigo → knowledge          (The Library — plant database).
+ * Soft launcher-tile palette (Wave 13). Lighter, more see-through than
+ * the saturated solid tiles of Wave 12 — readable at a glance but blends
+ * with the app's existing chip palette instead of standing apart.
+ *
+ *   green  → Visual Lens   (Rhozly brand green — camera + AI).
+ *   amber  → Today          (warm sun, daily plan).
+ *   red    → Quick Capture (notebook accent, snap-and-capture).
+ *   blue   → The Library    (sky / lookup / depth).
  */
-const SOLID_TILE_MAP: Record<"forest" | "amber" | "rose" | "indigo" | "primary" | "tertiary" | "container", SolidTileTokens> = {
-  forest: {
-    bg: "bg-rhozly-primary",
-    ring: "ring-rhozly-primary/40",
-    glow: "from-white/20 to-transparent",
-    blob: "bg-white/10",
-    shadow: "shadow-[0_8px_22px_-8px_rgba(7,87,55,0.55)]",
+const SOFT_TILE_MAP: Record<
+  "green" | "amber" | "red" | "blue" | "primary" | "tertiary" | "container",
+  SoftTileTokens
+> = {
+  green: {
+    bg: "bg-rhozly-primary/10",
+    border: "border-rhozly-primary/20",
+    hoverBorder: "hover:border-rhozly-primary/40",
+    iconBg: "bg-rhozly-primary/15",
+    iconText: "text-rhozly-primary",
+    titleText: "text-rhozly-on-surface",
+    descText: "text-rhozly-on-surface/55",
+    ring: "ring-rhozly-primary/30",
   },
   amber: {
-    bg: "bg-amber-500",
-    ring: "ring-amber-400/50",
-    glow: "from-white/25 to-transparent",
-    blob: "bg-white/15",
-    shadow: "shadow-[0_8px_22px_-8px_rgba(245,158,11,0.50)]",
+    bg: "bg-amber-100",
+    border: "border-amber-200",
+    hoverBorder: "hover:border-amber-300",
+    iconBg: "bg-amber-200/70",
+    iconText: "text-amber-700",
+    titleText: "text-amber-950",
+    descText: "text-amber-900/65",
+    ring: "ring-amber-300",
   },
-  rose: {
-    bg: "bg-rose-500",
-    ring: "ring-rose-400/50",
-    glow: "from-white/25 to-transparent",
-    blob: "bg-white/15",
-    shadow: "shadow-[0_8px_22px_-8px_rgba(244,63,94,0.50)]",
+  red: {
+    bg: "bg-rose-100",
+    border: "border-rose-200",
+    hoverBorder: "hover:border-rose-300",
+    iconBg: "bg-rose-200/70",
+    iconText: "text-rose-700",
+    titleText: "text-rose-950",
+    descText: "text-rose-900/65",
+    ring: "ring-rose-300",
   },
-  indigo: {
-    bg: "bg-indigo-600",
-    ring: "ring-indigo-400/50",
-    glow: "from-white/25 to-transparent",
-    blob: "bg-white/12",
-    shadow: "shadow-[0_8px_22px_-8px_rgba(79,70,229,0.55)]",
+  blue: {
+    bg: "bg-sky-100",
+    border: "border-sky-200",
+    hoverBorder: "hover:border-sky-300",
+    iconBg: "bg-sky-200/70",
+    iconText: "text-sky-700",
+    titleText: "text-sky-950",
+    descText: "text-sky-900/65",
+    ring: "ring-sky-300",
   },
-  // Legacy accents — map them onto the closest solid tone so older call sites
-  // that pass `accent="primary"` still render a coloured launcher tile.
-  primary:   { bg: "bg-rhozly-primary",            ring: "ring-rhozly-primary/40",            glow: "from-white/20 to-transparent", blob: "bg-white/10",  shadow: "shadow-[0_8px_22px_-8px_rgba(7,87,55,0.55)]" },
-  tertiary:  { bg: "bg-amber-500",                 ring: "ring-amber-400/50",                 glow: "from-white/25 to-transparent", blob: "bg-white/15",  shadow: "shadow-[0_8px_22px_-8px_rgba(245,158,11,0.50)]" },
-  container: { bg: "bg-rhozly-primary-container",  ring: "ring-rhozly-primary-container/40",  glow: "from-white/20 to-transparent", blob: "bg-white/12",  shadow: "shadow-[0_8px_22px_-8px_rgba(42,112,77,0.50)]" },
+  // Legacy accents — map onto the closest soft tone.
+  primary:   { bg: "bg-rhozly-primary/10",          border: "border-rhozly-primary/20",          hoverBorder: "hover:border-rhozly-primary/40",          iconBg: "bg-rhozly-primary/15",          iconText: "text-rhozly-primary",          titleText: "text-rhozly-on-surface", descText: "text-rhozly-on-surface/55", ring: "ring-rhozly-primary/30" },
+  tertiary:  { bg: "bg-amber-100",                   border: "border-amber-200",                   hoverBorder: "hover:border-amber-300",                   iconBg: "bg-amber-200/70",                iconText: "text-amber-700",                titleText: "text-amber-950",          descText: "text-amber-900/65",          ring: "ring-amber-300" },
+  container: { bg: "bg-rhozly-primary-container/10", border: "border-rhozly-primary-container/20", hoverBorder: "hover:border-rhozly-primary-container/40", iconBg: "bg-rhozly-primary-container/15", iconText: "text-rhozly-primary-container", titleText: "text-rhozly-on-surface", descText: "text-rhozly-on-surface/55", ring: "ring-rhozly-primary-container/30" },
 };
 
 export default function QuickTile({
@@ -153,11 +181,12 @@ export default function QuickTile({
   const isCompact = layout === "compact";
 
   // ────────────────────────────────────────────────────────────────────────
-  // COMPACT (launcher) tile — solid coloured background, big white icon,
-  // bold white title. Used only on the Quick Access 2×2 grid.
+  // COMPACT (launcher) tile — light tinted background, coloured icon
+  // medallion, bold title and short description. Used only on the Quick
+  // Access 2×2 grid.
   // ────────────────────────────────────────────────────────────────────────
   if (isCompact) {
-    const solid = SOLID_TILE_MAP[accent] ?? SOLID_TILE_MAP.forest;
+    const soft = SOFT_TILE_MAP[accent] ?? SOFT_TILE_MAP.green;
     return (
       <button
         type="button"
@@ -166,51 +195,30 @@ export default function QuickTile({
         data-accent={isLive ? accent : "disabled"}
         data-layout={layout}
         aria-label={`${title} — ${description}`}
-        className={`group relative w-full h-full rounded-3xl text-left overflow-hidden transition-all duration-200 active:scale-[0.97] ${
+        className={`group relative w-full h-full rounded-2xl text-left transition-all duration-200 active:scale-[0.98] border ${
           isLive
-            ? `${solid.bg} ${solid.shadow} hover:-translate-y-0.5 focus:outline-none focus-visible:ring-4 ${solid.ring}`
-            : "bg-rhozly-surface-low/70 opacity-70"
+            ? `${soft.bg} ${soft.border} ${soft.hoverBorder} hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 ${soft.ring}`
+            : "bg-rhozly-surface-low/70 border-rhozly-outline/20 opacity-70"
         }`}
       >
-        {/* Soft top-edge highlight — gives the solid tile a hint of depth. */}
-        {isLive && (
-          <span
-            aria-hidden
-            data-testid={`${testId}-glow`}
-            className={`pointer-events-none absolute inset-x-0 top-0 h-2/3 bg-gradient-to-b ${solid.glow}`}
-          />
-        )}
-
-        {/* Decorative corner blob — a faint white circle drifting off the
-            top-right edge. Adds visual interest without being noisy. */}
-        {isLive && (
-          <span
-            aria-hidden
-            className={`pointer-events-none absolute -top-8 -right-8 w-28 h-28 rounded-full ${solid.blob} blur-md`}
-          />
-        )}
-
-        {/* Inner content — icon top, title bottom. h-full flex column with
-            justify-between so the title pins to the bottom regardless of
-            tile aspect ratio. */}
-        <div className="relative h-full flex flex-col p-4 sm:p-5">
+        <div className="h-full flex flex-col p-3 gap-1.5">
+          {/* Icon medallion — small coloured square holding the lucide
+              glyph. Cleaner than a "naked" icon on a tinted background. */}
           <div
-            className={`shrink-0 ${
-              isLive ? "text-white" : "text-rhozly-on-surface/40"
+            className={`shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-xl ${
+              isLive ? `${soft.iconBg} ${soft.iconText}` : "bg-rhozly-on-surface/5 text-rhozly-on-surface/40"
             }`}
             aria-hidden
           >
-            {/* The caller passes the icon at a moderate size; scale it up
-                here for the launcher look — keeps each call site simple. */}
-            <div className="[&>svg]:w-9 [&>svg]:h-9 sm:[&>svg]:w-10 sm:[&>svg]:h-10">
+            <div className="[&>svg]:w-5 [&>svg]:h-5">
               {icon}
             </div>
           </div>
 
-          <div className="mt-auto flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
             <h2
-              className={`font-display font-black tracking-tight text-base sm:text-lg leading-tight ${
-                isLive ? "text-white" : "text-rhozly-on-surface/60"
+              className={`font-display font-black tracking-tight text-sm leading-tight ${
+                isLive ? soft.titleText : "text-rhozly-on-surface/60"
               }`}
             >
               {title}
@@ -225,6 +233,14 @@ export default function QuickTile({
               </span>
             )}
           </div>
+
+          <p
+            className={`text-[11px] leading-snug line-clamp-2 ${
+              isLive ? soft.descText : "text-rhozly-on-surface/45"
+            }`}
+          >
+            {description}
+          </p>
         </div>
       </button>
     );
