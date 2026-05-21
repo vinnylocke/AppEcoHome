@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import QuickTile from "./quick/QuickTile";
+import WalkStartTile from "./walk/WalkStartTile";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { TaskEngine, getLocalDateString } from "../lib/taskEngine";
 
@@ -221,9 +222,15 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
         />
       </div>
 
+      {/* Wide tile — the "morning ritual" CTA, deliberately a different
+          shape from the four utility tiles above. The walk's own empty
+          state handles the no-plants case gracefully. */}
+      <div className="shrink-0 mb-3">
+        <WalkStartTile enabled={true} />
+      </div>
+
       {/* Power-user escape hatch — pinned to the bottom of the fixed
-          screen via mt-auto so the (now smaller) tile grid sits closer to
-          the hero. */}
+          screen via mt-auto so the tile grid sits closer to the hero. */}
       <div className="flex justify-center shrink-0 mt-auto">
         <button
           type="button"

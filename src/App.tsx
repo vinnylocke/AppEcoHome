@@ -78,6 +78,7 @@ const QuickAccessLens     = lazy(() => import("./components/QuickAccessLens"));
 const LocalizedTaskCalendar = lazy(() => import("./components/quick/LocalizedTaskCalendar"));
 const QuickCapture          = lazy(() => import("./components/quick/QuickCapture"));
 const LibraryHome           = lazy(() => import("./components/library/LibraryHome"));
+const GardenWalk            = lazy(() => import("./components/walk/GardenWalk"));
 const MobileNavDrawer       = lazy(() => import("./components/MobileNavDrawer"));
 const QuickAccessMenuButton = lazy(() => import("./components/QuickAccessMenuButton"));
 const LightSensor         = lazy(() => import("./components/LightSensor"));
@@ -202,11 +203,13 @@ function AppShell() {
   const isMobile = useIsMobile();
   // Mobile Quick Access Wave 6 — focus-mode shell on /quick/* mobile routes:
   // hide the top bar + persistent side nav, expose nav via an overlay drawer.
-  // The Library lives at /library/* and gets the same focus-mode treatment.
+  // The Library lives at /library/* and Garden Walk at /walk; both share
+  // the focus-mode treatment.
   const isFocusMode =
     isMobile &&
     (routerLocation.pathname.startsWith("/quick") ||
-      routerLocation.pathname.startsWith("/library"));
+      routerLocation.pathname.startsWith("/library") ||
+      routerLocation.pathname.startsWith("/walk"));
   const [quickDrawerOpen, setQuickDrawerOpen] = useState(false);
 
   // Close the drawer whenever the route changes (e.g. after picking a link).
@@ -1074,6 +1077,16 @@ function AppShell() {
                             homeId={profile?.home_id ?? ""}
                             aiEnabled={!!profile?.ai_enabled}
                             isPremium={!!profile?.enable_perenual}
+                          />
+                        </div>
+                      } />
+
+                      <Route path="/walk" element={
+                        <div className="h-full animate-in fade-in duration-500">
+                          <GardenWalk
+                            homeId={profile?.home_id ?? ""}
+                            userId={session?.user?.id ?? ""}
+                            aiEnabled={!!profile?.ai_enabled}
                           />
                         </div>
                       } />

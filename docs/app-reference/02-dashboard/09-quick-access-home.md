@@ -29,11 +29,12 @@ QuickAccessHome (mounted at /quick)
 ├── Desktop preview banner (visible when useIsMobile() === false)
 │   └── "This is the mobile shortcut screen — your full dashboard is at /dashboard"
 ├── Hero ("What can I help with?" + subtitle)
-├── QuickTile × 4
+├── QuickTile × 4 (compact 2×2 grid)
 │   ├── Visual Lens (live)        → navigate("/quick/lens")
 │   ├── Today (live)               → navigate("/quick/calendar") [LocalizedTaskCalendar]
 │   ├── Quick Capture (live)       → navigate("/quick/journal") [QuickCapture]
 │   └── The Library (live)         → navigate("/library/search") [LibraryHome — see ./12-the-library.md]
+├── WalkStartTile (wide tile under the grid) → navigate("/walk") [GardenWalk — see ./13-garden-walk.md]
 └── "Open full dashboard →" link  → navigate("/dashboard")
 
 QuickAccessLens (mounted at /quick/lens)

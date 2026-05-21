@@ -18,10 +18,12 @@ BrowserRouter
     │     ├── /library/search        ← LibrarySearchTab (multi-provider search, ?q= persists query)
     │     ├── /library/saved         ← LibrarySavedTab  (filterable list of Shed plants)
     │     └── /library/plant/:plantId ← PlantPreview     (Care / Grow / Companions / Light tabs + Save CTA)
+    ├── /walk              ← GardenWalk (guided card-per-plant inspection)
     │
-    │   (Wave 6: on mobile, the /quick/* AND /library/* routes render in focus
-    │    mode — persistent top bar + side nav hidden; QuickAccessMenuButton +
-    │    MobileNavDrawer provide nav access on demand. Desktop unchanged.)
+    │   (Wave 6: on mobile, the /quick/* AND /library/* AND /walk routes
+    │    render in focus mode — persistent top bar + side nav hidden;
+    │    QuickAccessMenuButton + MobileNavDrawer provide nav access on
+    │    demand. Desktop unchanged.)
     ├── /dashboard         ← Home (Dashboard / Locations / Calendar / Weather sub-tabs via ?view=)
     ├── /shed              ← TheShed
     ├── /schedule          ← BlueprintManager
