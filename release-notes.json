@@ -1,1 +1,15 @@
-[]
+[
+  {
+    "label": "Quick Access — softer green canvas",
+    "items": [
+      "The mobile Quick Access screen now sits on a soft green-tinted page background that fades into the warm Rhozly off-white as you scroll. Replaces the 'mostly white' feel with something that reads more like a calm, brand-grounded main screen.",
+      "The hero card, white tiles, and 'Open full dashboard' pill all still pop against the slightly-tinted canvas — same content layout, just better-grounded visually."
+    ]
+  },
+  {
+    "label": "Behind the scenes",
+    "items": [
+      "The page wash uses the existing `rhozly-primary-container` token at ~7% opacity at the top, fading into `rhozly-bg`. Strictly inside the theme palette."
+    ]
+  }
+]

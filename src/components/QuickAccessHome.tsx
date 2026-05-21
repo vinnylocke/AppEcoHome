@@ -45,6 +45,14 @@ export default function QuickAccessHome({ firstName }: Props) {
   const trimmedName = firstName?.trim() || null;
 
   return (
+    <div
+      data-testid="quick-access-page"
+      // Wave 9 — soft green page wash so the canvas itself feels brand-grounded
+      // rather than reading as plain white. Primary-container at ~7% at the
+      // top, fading into the warm rhozly-bg below. Stays inside the existing
+      // theme palette.
+      className="min-h-full w-full bg-gradient-to-b from-rhozly-primary-container/[0.07] via-rhozly-bg to-rhozly-bg"
+    >
     <main
       data-testid="quick-access-home"
       // Top padding clears the Wave 6 floating menu button (top-right) +
@@ -189,5 +197,6 @@ export default function QuickAccessHome({ firstName }: Props) {
         </button>
       </div>
     </main>
+    </div>
   );
 }

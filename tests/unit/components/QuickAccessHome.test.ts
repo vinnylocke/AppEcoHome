@@ -176,4 +176,15 @@ describe("QuickAccessHome", () => {
       screen.getByTestId("quick-tile-journal").getAttribute("data-accent"),
     ).toBe("container");
   });
+
+  // ─── Wave 9 ─ green page wash ───────────────────────────────────────────
+
+  test("renders the full-bleed page wrapper with the green wash gradient", () => {
+    renderHome({ firstName: "Vinny" });
+    const page = screen.getByTestId("quick-access-page");
+    expect(page).toBeTruthy();
+    // Outer wrapper applies the gradient using the primary-container token.
+    expect(page.className).toContain("from-rhozly-primary-container");
+    expect(page.className).toContain("via-rhozly-bg");
+  });
 });
