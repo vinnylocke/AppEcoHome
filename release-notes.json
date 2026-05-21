@@ -1,17 +1,1 @@
-[
-  {
-    "label": "New — Add Grow Guide tasks to your calendar",
-    "items": [
-      "Each section of a plant's Grow Guide (Water, Pruning, Harvesting, Sowing, Feeding, etc.) now has an \"Add to calendar\" button — one tap turns the AI's seasonal advice into real recurring blueprints or one-off tasks on your schedule.",
-      "Hemisphere-aware: the AI's \"spring\" lands in Mar–May for Northern hemisphere users and Sep–Nov for Southern; the start dates and end dates on your calendar are computed accordingly. If you're past this year's window, the task is scheduled for next year's window automatically.",
-      "Per-instance attach: if you already have the plant in your Shed, the sheet lets you attach the tasks to a specific inventory item (e.g. \"Sungold in the back bed\"). Otherwise tasks land home-wide.",
-      "Duplicate-aware: tasks that look similar to a blueprint you already have are flagged \"may already exist\" and pre-unchecked, so you don't accidentally double up on a watering schedule."
-    ]
-  },
-  {
-    "label": "Bulk add",
-    "items": [
-      "At the top of every Grow Guide there's now an \"Add all N tasks to calendar\" button — useful for setting up the full year of care for a plant in one go."
-    ]
-  }
-]
+[]
