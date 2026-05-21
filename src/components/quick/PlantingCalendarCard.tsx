@@ -2,11 +2,53 @@ import React, { useEffect, useState } from "react";
 import { Sprout, Snowflake, Sun, Ruler, Calendar, Loader2, AlertCircle } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../../lib/errorHandler";
+import { supabase } from "../../lib/supabase";
 import {
   PlantDoctorService,
   type FrostDates,
   type PlantingGuidance,
 } from "../../services/plantDoctorService";
+
+const FROST_TTL_MS = 180 * 864e5; // 180 days
+
+/**
+ * Try a direct read of `home_climate` first — RLS lets home members SELECT
+ * the row without the edge function. On a fresh cache hit this avoids the
+ * 300-800ms edge-fn cold-start penalty. Falls back to the edge fn when the
+ * row is missing or stale (so the cache-miss path still hits Gemini through
+ * the existing infrastructure).
+ */
+async function loadFrostDates(homeId: string): Promise<FrostDates> {
+  const { data: row } = await supabase
+    .from("home_climate")
+    .select(
+      "last_frost_iso, first_frost_iso, growing_season_days, notes, rain_skip_mm, rain_water_mm, last_frost_lookup_at",
+    )
+    .eq("home_id", homeId)
+    .maybeSingle();
+
+  const isFresh =
+    !!row?.last_frost_iso &&
+    !!row?.first_frost_iso &&
+    !!row?.last_frost_lookup_at &&
+    Date.now() - new Date(row.last_frost_lookup_at as string).getTime() < FROST_TTL_MS;
+
+  if (isFresh && row) {
+    return {
+      last_frost_iso: row.last_frost_iso as string,
+      first_frost_iso: row.first_frost_iso as string,
+      growing_season_days: Number(row.growing_season_days ?? 0),
+      notes: (row.notes as string | null) ?? null,
+      rain_skip_mm: Number(row.rain_skip_mm ?? 5),
+      rain_water_mm: Number(row.rain_water_mm ?? 1),
+      from_cache: true,
+    };
+  }
+
+  // Missing or stale — fall through to the edge fn, which will refresh
+  // via Gemini and write the row back.
+  return PlantDoctorService.lookupFrostDates(homeId);
+}
 
 interface Props {
   homeId: string;
@@ -37,7 +79,7 @@ export default function PlantingCalendarCard({ homeId, aiEnabled }: Props) {
     let cancelled = false;
     setFrostLoading(true);
     setFrostError(null);
-    PlantDoctorService.lookupFrostDates(homeId)
+    loadFrostDates(homeId)
       .then((data) => {
         if (cancelled) return;
         setFrost(data);

@@ -15,6 +15,24 @@ vi.mock("../../../src/services/plantDoctorService", () => ({
   },
 }));
 
+// Mock supabase for the direct home_climate read added in Phase 1 of the
+// frost-dates optimisation. Tests set `cachedRow` to control the response.
+const { supabaseState } = vi.hoisted(() => ({
+  supabaseState: { cachedRow: null as Record<string, unknown> | null },
+}));
+
+vi.mock("../../../src/lib/supabase", () => ({
+  supabase: {
+    from: (_table: string) => ({
+      select: () => ({
+        eq: () => ({
+          maybeSingle: () => Promise.resolve({ data: supabaseState.cachedRow, error: null }),
+        }),
+      }),
+    }),
+  },
+}));
+
 // Stub toast so the AI-gated path can be asserted.
 const { toastFn, toastErrorFn } = vi.hoisted(() => ({
   toastFn: vi.fn(),
@@ -71,6 +89,10 @@ beforeEach(() => {
   plantWhenToPlantMock.mockReset();
   toastFn.mockReset();
   toastErrorFn.mockReset();
+  // Default: no cached row → component falls back to the edge fn (mocked
+  // via lookupFrostDatesMock). Individual tests override this to exercise
+  // the direct-read fast path.
+  supabaseState.cachedRow = null;
 });
 
 describe("PlantingCalendarCard", () => {
@@ -152,5 +174,110 @@ describe("PlantingCalendarCard", () => {
     expect(plantWhenToPlantMock).not.toHaveBeenCalled();
     expect(toastErrorFn).toHaveBeenCalled();
     expect(toastErrorFn.mock.calls[0][0]).toContain("AI tier");
+  });
+
+  // ─── Direct cache-read optimisation (Phase 1) ───────────────────────────
+
+  test("fresh cached row skips the edge fn entirely", async () => {
+    // Cached row is fresh (lookup_at = now)
+    supabaseState.cachedRow = {
+      last_frost_iso: "2026-04-01",
+      first_frost_iso: "2026-11-01",
+      growing_season_days: 214,
+      notes: null,
+      rain_skip_mm: 5,
+      rain_water_mm: 1,
+      last_frost_lookup_at: new Date().toISOString(),
+    };
+
+    render(
+      React.createElement(PlantingCalendarCard, {
+        homeId: "home-1",
+        aiEnabled: true,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("planting-calendar-last-frost")).toBeTruthy();
+    });
+
+    // The whole point: edge fn was NEVER called because the cache was fresh.
+    expect(lookupFrostDatesMock).not.toHaveBeenCalled();
+    expect(screen.getByTestId("planting-calendar-last-frost").textContent).toContain(
+      "1",
+    );
+  });
+
+  test("stale cached row falls back to the edge fn", async () => {
+    // Cached row exists but lookup_at is older than 180 days
+    const oldDate = new Date(Date.now() - 200 * 864e5).toISOString();
+    supabaseState.cachedRow = {
+      last_frost_iso: "2025-04-01",
+      first_frost_iso: "2025-11-01",
+      growing_season_days: 214,
+      notes: null,
+      rain_skip_mm: 5,
+      rain_water_mm: 1,
+      last_frost_lookup_at: oldDate,
+    };
+    lookupFrostDatesMock.mockResolvedValueOnce(FROST_RESPONSE);
+
+    render(
+      React.createElement(PlantingCalendarCard, {
+        homeId: "home-1",
+        aiEnabled: true,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("planting-calendar-last-frost")).toBeTruthy();
+    });
+
+    // Falls back to edge fn for a refresh.
+    expect(lookupFrostDatesMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("missing cached row falls back to the edge fn", async () => {
+    supabaseState.cachedRow = null;
+    lookupFrostDatesMock.mockResolvedValueOnce(FROST_RESPONSE);
+
+    render(
+      React.createElement(PlantingCalendarCard, {
+        homeId: "home-1",
+        aiEnabled: true,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("planting-calendar-last-frost")).toBeTruthy();
+    });
+    expect(lookupFrostDatesMock).toHaveBeenCalledTimes(1);
+  });
+
+  test("cached row with NULL frost dates (rain-thresholds-only) falls back", async () => {
+    // User saved rain thresholds in Climate Settings BEFORE the first frost
+    // lookup ever ran. The row exists but frost columns are NULL.
+    supabaseState.cachedRow = {
+      last_frost_iso: null,
+      first_frost_iso: null,
+      growing_season_days: null,
+      notes: null,
+      rain_skip_mm: 8,
+      rain_water_mm: 2,
+      last_frost_lookup_at: null,
+    };
+    lookupFrostDatesMock.mockResolvedValueOnce(FROST_RESPONSE);
+
+    render(
+      React.createElement(PlantingCalendarCard, {
+        homeId: "home-1",
+        aiEnabled: true,
+      }),
+    );
+
+    await waitFor(() => {
+      expect(screen.getByTestId("planting-calendar-last-frost")).toBeTruthy();
+    });
+    expect(lookupFrostDatesMock).toHaveBeenCalledTimes(1);
   });
 });

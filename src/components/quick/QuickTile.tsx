@@ -83,8 +83,8 @@ export default function QuickTile({
       data-accent={isLive ? accent : "disabled"}
       className={`group relative w-full flex items-center gap-4 p-5 min-h-[120px] rounded-3xl border text-left overflow-hidden transition-all duration-200 active:scale-[0.99] ${
         isLive
-          ? `bg-white border-rhozly-outline/15 shadow-[0_2px_8px_-2px_rgba(7,87,55,0.08),0_8px_24px_-12px_rgba(7,87,55,0.06)] hover:shadow-[0_4px_12px_-2px_rgba(7,87,55,0.12),0_16px_32px_-16px_rgba(7,87,55,0.10)] ${a.hoverBorder} hover:-translate-y-0.5`
-          : "bg-rhozly-surface-low/60 border-rhozly-outline/10 opacity-70 hover:opacity-90"
+          ? `bg-white border-rhozly-primary/15 shadow-[0_2px_8px_-2px_rgba(7,87,55,0.08),0_8px_24px_-12px_rgba(7,87,55,0.06)] hover:shadow-[0_4px_12px_-2px_rgba(7,87,55,0.12),0_16px_32px_-16px_rgba(7,87,55,0.10)] ${a.hoverBorder} hover:-translate-y-0.5`
+          : "bg-rhozly-surface-low/60 border-rhozly-primary/10 opacity-70 hover:opacity-90"
       }`}
     >
       {/* Top-edge accent highlight — subtle gradient that hints at the tile's

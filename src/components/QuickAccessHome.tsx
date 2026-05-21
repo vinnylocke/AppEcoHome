@@ -47,19 +47,16 @@ export default function QuickAccessHome({ firstName }: Props) {
   return (
     <div
       data-testid="quick-access-page"
-      // Wave 9 — soft green page wash so the canvas itself feels brand-grounded
-      // rather than reading as plain white. Now lives on the screen-level
-      // container in App.tsx (gated on isFocusMode) so it also covers the
-      // pull-to-refresh area + route padding above this wrapper.
-      className="min-h-full w-full"
+      // Wave 9 — soft green page wash on the App.tsx shell.
+      // Wave 10 — outer padding here gives breathing room for the inset green
+      // frame on <main>. Top padding clears the Wave 6 floating menu button
+      // + device safe-area (notches / dynamic islands).
+      style={{ paddingTop: "calc(3rem + env(safe-area-inset-top, 0px))" }}
+      className="min-h-full w-full px-3 sm:px-4 pb-4"
     >
     <main
       data-testid="quick-access-home"
-      // Top padding clears the Wave 6 floating menu button (top-right) +
-      // device safe-area (notches / dynamic islands). 5rem = 80px above the
-      // hero card, plus env(safe-area-inset-top) for native devices.
-      style={{ paddingTop: "calc(5rem + env(safe-area-inset-top, 0px))" }}
-      className="min-h-full w-full max-w-2xl mx-auto px-4 sm:px-6 pb-8 flex flex-col justify-center"
+      className="w-full max-w-2xl mx-auto px-4 sm:px-6 py-7 flex flex-col justify-center rounded-3xl border border-rhozly-primary/25 bg-white/30 shadow-[0_2px_12px_-4px_rgba(7,87,55,0.08),0_16px_36px_-20px_rgba(7,87,55,0.10)] backdrop-blur-sm"
     >
       {/* Desktop preview banner */}
       {!isMobile && (

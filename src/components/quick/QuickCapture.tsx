@@ -124,7 +124,9 @@ export default function QuickCapture({ homeId }: Props) {
   return (
     <div
       data-testid="quick-capture-screen"
-      className="h-full w-full max-w-2xl mx-auto px-4 sm:px-6 py-4 flex flex-col"
+      // Wave 10 — push content past the floating menu button.
+      style={{ paddingTop: "calc(4rem + env(safe-area-inset-top, 0px))" }}
+      className="h-full w-full max-w-2xl mx-auto px-4 sm:px-6 pb-4 flex flex-col"
     >
       {/* Back chrome */}
       <header className="flex items-center justify-between mb-3">
