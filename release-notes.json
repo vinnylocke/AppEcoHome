@@ -1,10 +1,1 @@
-[
-  {
-    "label": "Grow Guide — clearer Add to Calendar",
-    "items": [
-      "Visible \"When\" line on each Grow Guide section — shows the exact months the AI thinks the task should happen (e.g. \"Mar – May\"). Now you know what window will be used before you tap Add.",
-      "Sheet stays open with a green ✓ \"N tasks added to your calendar\" for a moment after saving, instead of closing silently. No more accidental double-adds.",
-      "Tightened the AI prompt so the timing always lands in the structured month field, not hidden in the description text. Refresh a guide to pull the new format."
-    ]
-  }
-]
+[]
