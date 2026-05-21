@@ -1,6 +1,8 @@
 import React from "react";
 import { ChevronRight, Clock } from "lucide-react";
 
+export type QuickTileAccent = "primary" | "tertiary" | "container";
+
 interface Props {
   icon: React.ReactNode;
   title: string;
@@ -12,8 +14,54 @@ interface Props {
    * parent can show a toast pointing the user to the existing equivalent.
    */
   variant?: "live" | "coming-soon";
+  /**
+   * Colour accent that telegraphs the tile's purpose. Stays inside the
+   * Rhozly theme palette:
+   *   - primary   → deep forest green (Visual Lens / vision + AI)
+   *   - tertiary  → peachy warm tone   (Today / sunlit, plan-of-day)
+   *   - container → softer green       (Quick Capture / notebook, organic)
+   */
+  accent?: QuickTileAccent;
   onClick: () => void;
 }
+
+interface AccentTokens {
+  iconBg: string;
+  iconHoverBg: string;
+  iconText: string;
+  chevronHover: string;
+  topGlow: string;
+  hoverBorder: string;
+}
+
+const ACCENT_MAP: Record<QuickTileAccent, AccentTokens> = {
+  primary: {
+    iconBg: "bg-rhozly-primary/12",
+    iconHoverBg: "group-hover:bg-rhozly-primary/18",
+    iconText: "text-rhozly-primary",
+    chevronHover: "group-hover:text-rhozly-primary",
+    topGlow: "from-rhozly-primary/10 via-rhozly-primary/[0.03]",
+    hoverBorder: "group-hover:border-rhozly-primary/40",
+  },
+  tertiary: {
+    // tertiary = #ffdad8 (peachy). Pair with warm amber text for contrast.
+    iconBg: "bg-rhozly-tertiary",
+    iconHoverBg: "group-hover:brightness-95",
+    iconText: "text-amber-800",
+    chevronHover: "group-hover:text-amber-700",
+    topGlow: "from-rhozly-tertiary/60 via-rhozly-tertiary/15",
+    hoverBorder: "group-hover:border-amber-300",
+  },
+  container: {
+    // primary-container = #2a704d (lighter forest green).
+    iconBg: "bg-rhozly-primary-container/15",
+    iconHoverBg: "group-hover:bg-rhozly-primary-container/22",
+    iconText: "text-rhozly-primary-container",
+    chevronHover: "group-hover:text-rhozly-primary-container",
+    topGlow: "from-rhozly-primary-container/12 via-rhozly-primary-container/[0.04]",
+    hoverBorder: "group-hover:border-rhozly-primary-container/40",
+  },
+};
 
 export default function QuickTile({
   icon,
@@ -21,35 +69,48 @@ export default function QuickTile({
   description,
   testId,
   variant = "live",
+  accent = "primary",
   onClick,
 }: Props) {
   const isLive = variant === "live";
+  const a = ACCENT_MAP[accent];
 
   return (
     <button
       type="button"
       onClick={onClick}
       data-testid={testId}
-      className={`group relative w-full flex items-center gap-4 p-5 min-h-[120px] rounded-3xl border text-left transition-all active:scale-[0.99] ${
+      data-accent={isLive ? accent : "disabled"}
+      className={`group relative w-full flex items-center gap-4 p-5 min-h-[120px] rounded-3xl border text-left overflow-hidden transition-all duration-200 active:scale-[0.99] ${
         isLive
-          ? "bg-white border-rhozly-outline/15 shadow-sm hover:shadow-md hover:border-rhozly-primary/40"
+          ? `bg-white border-rhozly-outline/15 shadow-[0_2px_8px_-2px_rgba(7,87,55,0.08),0_8px_24px_-12px_rgba(7,87,55,0.06)] hover:shadow-[0_4px_12px_-2px_rgba(7,87,55,0.12),0_16px_32px_-16px_rgba(7,87,55,0.10)] ${a.hoverBorder} hover:-translate-y-0.5`
           : "bg-rhozly-surface-low/60 border-rhozly-outline/10 opacity-70 hover:opacity-90"
       }`}
     >
+      {/* Top-edge accent highlight — subtle gradient that hints at the tile's
+          accent without overpowering the white card. */}
+      {isLive && (
+        <span
+          aria-hidden
+          data-testid={`${testId}-glow`}
+          className={`pointer-events-none absolute inset-x-0 top-0 h-16 bg-gradient-to-b ${a.topGlow} to-transparent`}
+        />
+      )}
+
       <div
-        className={`shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center ${
+        className={`relative shrink-0 w-14 h-14 rounded-2xl flex items-center justify-center transition-colors duration-200 ${
           isLive
-            ? "bg-rhozly-primary/10 text-rhozly-primary group-hover:bg-rhozly-primary/15"
+            ? `${a.iconBg} ${a.iconText} ${a.iconHoverBg}`
             : "bg-rhozly-on-surface/5 text-rhozly-on-surface/40"
         }`}
       >
         {icon}
       </div>
 
-      <div className="flex-1 min-w-0">
+      <div className="relative flex-1 min-w-0">
         <div className="flex items-center gap-2 mb-1">
           <h2
-            className={`font-black text-base sm:text-lg tracking-tight ${
+            className={`font-display font-black text-base sm:text-lg tracking-tight ${
               isLive ? "text-rhozly-on-surface" : "text-rhozly-on-surface/60"
             }`}
           >
@@ -77,7 +138,7 @@ export default function QuickTile({
       {isLive && (
         <ChevronRight
           size={20}
-          className="shrink-0 text-rhozly-on-surface/30 group-hover:text-rhozly-primary transition-colors"
+          className={`relative shrink-0 text-rhozly-on-surface/25 transition-colors ${a.chevronHover}`}
         />
       )}
     </button>

@@ -1025,7 +1025,7 @@ function AppShell() {
 
                       <Route path="/quick" element={
                         <div className="h-full animate-in fade-in duration-500">
-                          <QuickAccessHome />
+                          <QuickAccessHome firstName={profile?.first_name ?? null} />
                         </div>
                       } />
                       <Route path="/quick/lens" element={

@@ -1,1 +1,17 @@
-[]
+[
+  {
+    "label": "Quick Access landing — friendlier, more on-brand",
+    "items": [
+      "Your mobile Quick Access screen now greets you by name (\"Good morning, Vinny\") with a time-of-day-aware welcome, and the whole layout sits comfortably in the centre of the screen rather than crammed at the top.",
+      "Each of the three quick actions now has its own theme-aware colour accent — deep forest green for Visual Lens, peachy warmth for Today, soft container green for Quick Capture — so you can pick the one you want at a glance.",
+      "Subtle decorative touches throughout: soft gradient behind the hero, a faded sprout motif, layered card shadows, and a deliberate 'Open full dashboard' pill at the bottom instead of a hidden link."
+    ]
+  },
+  {
+    "label": "Behind the scenes",
+    "items": [
+      "Strictly within the existing Rhozly theme palette — no new colours invented. The redesign reuses the unused tertiary peach and container green tokens that were sitting in the design system already.",
+      "Tile component now accepts a typed `accent` prop so other Quick Access screens can use the same per-action colour treatment in the future."
+    ]
+  }
+]

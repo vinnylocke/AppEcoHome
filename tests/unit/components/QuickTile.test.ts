@@ -66,4 +66,72 @@ describe("QuickTile", () => {
     fireEvent.click(screen.getByTestId("quick-tile-journal"));
     expect(onClick).toHaveBeenCalledTimes(1);
   });
+
+  test("defaults to the primary accent when no accent prop is provided", () => {
+    render(
+      React.createElement(QuickTile, {
+        icon: React.createElement("span", null, "🌿"),
+        title: "Visual Lens",
+        description: "Analyse a plant from a photo",
+        testId: "quick-tile-lens",
+        onClick: () => {},
+      }),
+    );
+    expect(screen.getByTestId("quick-tile-lens").getAttribute("data-accent")).toBe(
+      "primary",
+    );
+    expect(screen.getByTestId("quick-tile-lens-glow")).toBeTruthy();
+  });
+
+  test("tertiary accent renders the peachy top-glow", () => {
+    render(
+      React.createElement(QuickTile, {
+        icon: React.createElement("span", null, "📅"),
+        title: "Today",
+        description: "Tasks + weather",
+        testId: "quick-tile-calendar",
+        accent: "tertiary",
+        onClick: () => {},
+      }),
+    );
+    const tile = screen.getByTestId("quick-tile-calendar");
+    expect(tile.getAttribute("data-accent")).toBe("tertiary");
+    const glow = screen.getByTestId("quick-tile-calendar-glow");
+    expect(glow.className).toContain("rhozly-tertiary");
+  });
+
+  test("container accent renders the lighter-green top-glow", () => {
+    render(
+      React.createElement(QuickTile, {
+        icon: React.createElement("span", null, "📝"),
+        title: "Quick Capture",
+        description: "Capture and file later",
+        testId: "quick-tile-journal",
+        accent: "container",
+        onClick: () => {},
+      }),
+    );
+    const tile = screen.getByTestId("quick-tile-journal");
+    expect(tile.getAttribute("data-accent")).toBe("container");
+    const glow = screen.getByTestId("quick-tile-journal-glow");
+    expect(glow.className).toContain("rhozly-primary-container");
+  });
+
+  test("coming-soon tiles have data-accent='disabled' and no glow", () => {
+    render(
+      React.createElement(QuickTile, {
+        icon: React.createElement("span", null, "🧪"),
+        title: "Future",
+        description: "Not ready yet",
+        testId: "quick-tile-future",
+        variant: "coming-soon",
+        accent: "tertiary",
+        onClick: () => {},
+      }),
+    );
+    expect(
+      screen.getByTestId("quick-tile-future").getAttribute("data-accent"),
+    ).toBe("disabled");
+    expect(screen.queryByTestId("quick-tile-future-glow")).toBeNull();
+  });
 });

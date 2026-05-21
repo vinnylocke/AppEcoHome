@@ -32,12 +32,12 @@ vi.mock("react-hot-toast", () => ({
 
 import QuickAccessHome from "../../../src/components/QuickAccessHome";
 
-function renderHome() {
+function renderHome(props?: { firstName?: string | null }) {
   return render(
     React.createElement(
       MemoryRouter,
       null,
-      React.createElement(QuickAccessHome, null),
+      React.createElement(QuickAccessHome, props ?? {}),
     ),
   );
 }
@@ -96,5 +96,57 @@ describe("QuickAccessHome", () => {
     isMobileMock.mockReturnValue(true);
     renderHome();
     expect(screen.queryByTestId("quick-access-desktop-banner")).toBeNull();
+  });
+
+  // ─── Wave 7 redesign ────────────────────────────────────────────────────
+
+  test("falls back to generic greeting when firstName is null", () => {
+    renderHome({ firstName: null });
+    expect(screen.getByTestId("quick-access-hero-greeting").textContent).toBe(
+      "What can I help with?",
+    );
+  });
+
+  test("renders the personalised greeting when firstName is provided", () => {
+    renderHome({ firstName: "Vinny" });
+    const heading = screen.getByTestId("quick-access-hero-greeting");
+    // Includes one of "Good morning" / "Good afternoon" / "Good evening" + "Vinny".
+    expect(heading.textContent).toMatch(/Good (morning|afternoon|evening), Vinny/);
+  });
+
+  test("trims whitespace from firstName before greeting", () => {
+    renderHome({ firstName: "  Marcus  " });
+    expect(screen.getByTestId("quick-access-hero-greeting").textContent).toContain(
+      "Marcus",
+    );
+    expect(
+      screen.getByTestId("quick-access-hero-greeting").textContent,
+    ).not.toContain("  ");
+  });
+
+  test("treats empty firstName as missing (falls back to generic copy)", () => {
+    renderHome({ firstName: "   " });
+    expect(screen.getByTestId("quick-access-hero-greeting").textContent).toBe(
+      "What can I help with?",
+    );
+  });
+
+  test("mounts the hero decoration (glow + sprout) for the redesigned landing", () => {
+    renderHome({ firstName: "Vinny" });
+    expect(screen.getByTestId("quick-access-hero-glow")).toBeTruthy();
+    expect(screen.getByTestId("quick-access-hero-sprout")).toBeTruthy();
+  });
+
+  test("each tile receives a distinct theme accent (primary / tertiary / container)", () => {
+    renderHome({ firstName: "Vinny" });
+    expect(
+      screen.getByTestId("quick-tile-lens").getAttribute("data-accent"),
+    ).toBe("primary");
+    expect(
+      screen.getByTestId("quick-tile-calendar").getAttribute("data-accent"),
+    ).toBe("tertiary");
+    expect(
+      screen.getByTestId("quick-tile-journal").getAttribute("data-accent"),
+    ).toBe("container");
   });
 });
