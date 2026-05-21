@@ -1,12 +1,1 @@
-[
-  {
-    "label": "New — Garden Walk",
-    "items": [
-      "A guided card-by-card tour of every plant in your garden. Tap the new \"Start a Garden Walk\" tile at the bottom of Quick Access to begin.",
-      "Each plant gets a full-screen card with a recent photo, your last note, status chips (overdue tasks, due today, ailments, new insights from the pattern engine), and quick stats.",
-      "One-tap actions per card: Snap a photo, Note something you noticed, mark All good, Skip, or Stop the walk.",
-      "Smart ordering — plants needing attention come first (active ailments, then overdue, then due today, then anything the AI has flagged). Plants you tagged \"all good\" recently drop out of your walks for 7 days.",
-      "End-of-walk summary shows photos taken, notes added, tasks completed, and ailments flagged. Comes back to Quick Access in one tap."
-    ]
-  }
-]
+[]
