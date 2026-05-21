@@ -118,16 +118,11 @@ export default function LibraryHome({ homeId, aiEnabled, isPremium }: Props) {
           path="saved"
           element={<LibrarySavedTab homeId={homeId} />}
         />
-        <Route
-          path="plant/preview"
-          element={
-            <PlantPreview
-              homeId={homeId}
-              aiEnabled={aiEnabled}
-              isPremium={isPremium}
-            />
-          }
-        />
+        {/* `plant/:plantId` handles both real catalogue ids and the
+            sentinel `preview` value (passed by the instant-open flow with
+            the search result in location.state). A separate static route
+            for `plant/preview` would shadow this and useParams would not
+            carry plantId at all — keep one route. */}
         <Route
           path="plant/:plantId"
           element={
