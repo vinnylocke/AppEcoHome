@@ -1,6 +1,6 @@
 # Quick Access Home
 
-> The mobile shortcut home. A three-tile screen tuned for one-thumb operation in the garden — Visual Lens (live), Today (live → Localized Task Calendar), Quick Capture (live → Quick Capture Journal). Phone users land here on app open instead of the full dashboard; the full dashboard is still a tap away.
+> The mobile shortcut home. A four-tile screen tuned for one-thumb operation in the garden — Visual Lens (live), Today (live → Localized Task Calendar), Quick Capture (live → Quick Capture Journal), and The Library (live → /library/*). Phone users land here on app open instead of the full dashboard; the full dashboard is still a tap away.
 
 **Route:** `/quick`
 **Source files (entry points):**
@@ -29,10 +29,11 @@ QuickAccessHome (mounted at /quick)
 ├── Desktop preview banner (visible when useIsMobile() === false)
 │   └── "This is the mobile shortcut screen — your full dashboard is at /dashboard"
 ├── Hero ("What can I help with?" + subtitle)
-├── QuickTile × 3
+├── QuickTile × 4
 │   ├── Visual Lens (live)        → navigate("/quick/lens")
 │   ├── Today (live)               → navigate("/quick/calendar") [LocalizedTaskCalendar]
-│   └── Quick Capture (live)       → navigate("/quick/journal") [QuickCapture]
+│   ├── Quick Capture (live)       → navigate("/quick/journal") [QuickCapture]
+│   └── The Library (live)         → navigate("/library/search") [LibraryHome — see ./12-the-library.md]
 └── "Open full dashboard →" link  → navigate("/dashboard")
 
 QuickAccessLens (mounted at /quick/lens)

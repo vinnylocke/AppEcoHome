@@ -14,9 +14,13 @@ BrowserRouter
     ├── /quick/lens        ← QuickAccessLens (mounts <PlantDoctor compact />)
     ├── /quick/calendar    ← LocalizedTaskCalendar (Mobile Quick Access Wave 3 — planting + rain advice + today's tasks)
     ├── /quick/journal     ← QuickCapture (Mobile Quick Access Wave 4 — capture-first journal, assign to plant later)
+    ├── /library/*         ← LibraryHome (The Library — plant database)
+    │     ├── /library/search        ← LibrarySearchTab (multi-provider search, ?q= persists query)
+    │     ├── /library/saved         ← LibrarySavedTab  (filterable list of Shed plants)
+    │     └── /library/plant/:plantId ← PlantPreview     (Care / Grow / Companions / Light tabs + Save CTA)
     │
-    │   (Wave 6: on mobile, the four /quick/* routes render in focus mode —
-    │    persistent top bar + side nav hidden; QuickAccessMenuButton +
+    │   (Wave 6: on mobile, the /quick/* AND /library/* routes render in focus
+    │    mode — persistent top bar + side nav hidden; QuickAccessMenuButton +
     │    MobileNavDrawer provide nav access on demand. Desktop unchanged.)
     ├── /dashboard         ← Home (Dashboard / Locations / Calendar / Weather sub-tabs via ?view=)
     ├── /shed              ← TheShed

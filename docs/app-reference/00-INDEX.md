@@ -55,6 +55,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Quick Access Home](./02-dashboard/09-quick-access-home.md) — mobile shortcut home (`/quick`) with Visual Lens + Calendar / Quick Capture placeholder tiles
 - [x] [Localized Task Calendar](./02-dashboard/10-localized-task-calendar.md) — mobile `/quick/calendar` with frost-aware planting helper, rain-vs-watering advice, and today's pending tasks
 - [x] [Quick Capture Journal](./02-dashboard/11-quick-capture-journal.md) — mobile `/quick/journal` capture-first journal mode; entries land unassigned and get filed to plants later
+- [x] [The Library](./02-dashboard/12-the-library.md) — `/library/*` plant database — search any species, preview care / grow guide / companions / light, save to Shed
 
 ## 03 — Garden Hub
 

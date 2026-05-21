@@ -48,6 +48,7 @@ import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { PlantDoctorService } from "../services/plantDoctorService";
 import { logEvent, EVENT } from "../events/registry";
 import { derivePlantLabels } from "../lib/plantLabels";
+import { saveToShed as saveToShedLib } from "../lib/saveToShed";
 import { usePermissions } from "../context/HomePermissionsContext";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
@@ -184,73 +185,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   ]);
 
   const savePlantToDB = async (skeleton: any, fullCareData?: any) => {
-    const manualId =
-      Math.floor(Date.now() / 1000) + Math.floor(Math.random() * 1000);
-    skeleton.id = manualId;
-    skeleton.home_id = homeId;
-
-    // Auto-derive labels for API and AI plants from care data.
-    // Manual plants carry their user-supplied labels from the form already.
-    if (skeleton.source === "api" || skeleton.source === "ai" || skeleton.source === "verdantly") {
-      skeleton.labels = derivePlantLabels(fullCareData ?? {});
-      if (!skeleton.sunlight && fullCareData?.sunlight?.length) {
-        skeleton.sunlight = fullCareData.sunlight;
-      }
-    }
-
-    const { data: savedPlant, error } = await supabase
-      .from("plants")
-      .insert([skeleton])
-      .select()
-      .single();
-    if (error) throw error;
-
-    const { data: homeData } = await supabase
-      .from("homes")
-      .select("country, timezone")
-      .eq("id", homeId)
-      .single();
-    const hemisphere = getHemisphere(homeData?.country, homeData?.timezone);
-
-    const newSchedules = buildAutoSeasonalSchedules({
-      plantId: savedPlant.id,
-      homeId,
-      hemisphere,
-      harvestPeriods: normalizePeriods(
-        fullCareData?.harvest_season || skeleton.harvest_season,
-      ),
-      pruningPeriods: normalizePeriods(
-        fullCareData?.pruning_month || skeleton.pruning_month,
-      ),
-      wateringMinDays:
-        fullCareData?.watering_min_days || skeleton?.watering_min_days || 3,
-      wateringMaxDays:
-        fullCareData?.watering_max_days || skeleton?.watering_max_days || 14,
-    });
-
-    if (newSchedules.length > 0)
-      await supabase.from("plant_schedules").insert(newSchedules);
-
-    // Auto-create harvest-check schedule for Verdantly edible plants
-    const harvestMeta = (fullCareData as any)?.plant_metadata ?? skeleton.plant_metadata;
-    if (harvestMeta?.harvest_days_min && skeleton.source === "verdantly") {
-      await supabase.from("plant_schedules").insert({
-        plant_id: savedPlant.id,
-        home_id: homeId,
-        title: "Check for harvest",
-        task_type: "Harvest",
-        trigger_event: "Planted",
-        start_reference: "Trigger Date",
-        start_offset_days: harvestMeta.harvest_days_min,
-        end_reference: "Trigger Date",
-        end_offset_days: harvestMeta.harvest_days_max ?? harvestMeta.harvest_days_min,
-        frequency_days: 1,
-        is_recurring: true,
-        is_auto_generated: true,
-      });
-    }
-
-    return savedPlant;
+    const { row } = await saveToShedLib(skeleton, fullCareData, homeId);
+    return row;
   };
 
   const handleProceedToBulkAdd = async (selectedItems: any[]) => {

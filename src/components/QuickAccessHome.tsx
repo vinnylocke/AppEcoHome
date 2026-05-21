@@ -8,6 +8,7 @@ import {
   Info,
   Sparkles,
   Sprout,
+  BookOpen,
 } from "lucide-react";
 
 import QuickTile from "./quick/QuickTile";
@@ -205,6 +206,14 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
           title="Quick Capture"
           description="Snap a photo and jot a note — file it to a plant later, from either device."
           onClick={() => navigate("/quick/journal")}
+        />
+        <QuickTile
+          testId="quick-tile-library"
+          accent="primary"
+          icon={<BookOpen size={26} strokeWidth={2} />}
+          title="The Library"
+          description="Look up any plant by name — see its care guide, grow guide, companions, and light, then save the ones you want."
+          onClick={() => navigate("/library/search")}
         />
       </div>
 
