@@ -1,17 +1,1 @@
-[
-  {
-    "label": "New — Grow Guides on every plant",
-    "items": [
-      "A new Grow Guide tab on every plant species card in the Shed and on every plant instance. Generate a comprehensive AI guide covering nine areas: watering, soil, sunlight, propagation, germination, pruning, flowering, harvesting, and the plant's life cycle.",
-      "Each section has a summary, concrete key facts (frequency, depth, spacing), step-by-step how-to where it applies, tips, and an optional caveat. Sections that don't apply to a plant (e.g. harvesting on an ornamental) are gracefully hidden.",
-      "Generated once per species and cached — every visit after the first loads instantly. A daily background job re-checks each guide every 90 days and refreshes only the sections that actually changed.",
-      "Available across all plant sources: AI, Manual, Perenual, and Verdantly. Manual plants get a best-effort guide built from the name + your notes. Generating requires the AI tier; viewing existing guides is open to all tiers."
-    ]
-  },
-  {
-    "label": "Small rename",
-    "items": [
-      "The existing \"Guides\" tab (community user-written guides) is now labelled \"Community\" so it's clearly distinct from the new Grow Guide tab. Content is unchanged."
-    ]
-  }
-]
+[]
