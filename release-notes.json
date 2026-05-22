@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Fixes",
-    "items": [
-      "Error reports — \"Send report\" on the error screen now actually sends. The function was being blocked by JWT enforcement at the gateway before the handler could run; now it's openly callable (still IP rate-limited) so we receive the email even when sign-in itself crashed."
-    ]
-  }
-]
+[]
