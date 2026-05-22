@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from "react";
+import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import {
   X,
@@ -11,8 +11,10 @@ import {
 import { IconPlantDB, IconAI } from "../constants/icons";
 import { supabase } from "../lib/supabase";
 import { useShedPlantMatcher } from "../hooks/useShedPlantMatcher";
-import { searchAllProviders, getProviderPlantDetails, careGuideToPlantDetails } from "../lib/plantProvider";
+import { getProviderPlantDetails, careGuideToPlantDetails } from "../lib/plantProvider";
 import { PlantDoctorService } from "../services/plantDoctorService";
+import { PerenualService } from "../lib/perenualService";
+import { VerdantlyService } from "../lib/verdantlyService";
 import { getProviderLabel, type ProviderSearchResult } from "../lib/verdantlyUtils";
 import toast from "react-hot-toast";
 import ManualPlantCreation from "./ManualPlantCreation";
@@ -54,16 +56,50 @@ export default function PlantSearchModal({
 
   const [query, setQuery] = useState(initialSearchTerm || "");
   const [searchMode, setSearchMode] = useState<"common" | "scientific">("common");
-  const [results, setResults] = useState<ProviderSearchResult[]>([]);
 
-  const rankedResults = useMemo(() => {
-    if (!preferences.length) return results;
-    return [...results].sort((a, b) => {
-      const scoreA = scorePlantByPreferences(a.common_name || "", a.scientific_name?.[0] || "", preferences);
-      const scoreB = scorePlantByPreferences(b.common_name || "", b.scientific_name?.[0] || "", preferences);
-      return scoreB - scoreA;
-    });
-  }, [results, preferences]);
+  // ─── Per-provider result buckets ────────────────────────────────────────
+  // Order on screen mirrors the Library search: AI → Perenual → Verdantly.
+  // Each bucket carries its own paging state so "Show more" expands one
+  // provider without disturbing the others.
+  const [aiResults, setAiResults] = useState<ProviderSearchResult[]>([]);
+  const [aiHasMore, setAiHasMore] = useState(false);
+  const [aiOffset, setAiOffset] = useState(0);
+  const [aiLoadingMore, setAiLoadingMore] = useState(false);
+
+  const [perenualResults, setPerenualResults] = useState<ProviderSearchResult[]>([]);
+  const [perenualHasMore, setPerenualHasMore] = useState(false);
+  const [perenualNextPage, setPerenualNextPage] = useState(2);
+  const [perenualLoadingMore, setPerenualLoadingMore] = useState(false);
+
+  const [verdantlyResults, setVerdantlyResults] = useState<ProviderSearchResult[]>([]);
+  const [verdantlyHasMore, setVerdantlyHasMore] = useState(false);
+  const [verdantlyNextPage, setVerdantlyNextPage] = useState(2);
+  const [verdantlyLoadingMore, setVerdantlyLoadingMore] = useState(false);
+
+  // Sort each bucket independently by the user's preferences — keeps the
+  // bucket order stable but rotates within-bucket so favourites bubble up.
+  const sortByPrefs = useCallback(
+    (arr: ProviderSearchResult[]) => {
+      if (!preferences.length) return arr;
+      return [...arr].sort((a, b) => {
+        const scoreA = scorePlantByPreferences(a.common_name || "", a.scientific_name?.[0] || "", preferences);
+        const scoreB = scorePlantByPreferences(b.common_name || "", b.scientific_name?.[0] || "", preferences);
+        return scoreB - scoreA;
+      });
+    },
+    [preferences],
+  );
+
+  const rankedAi        = useMemo(() => sortByPrefs(aiResults),        [aiResults, sortByPrefs]);
+  const rankedPerenual  = useMemo(() => sortByPrefs(perenualResults),  [perenualResults, sortByPrefs]);
+  const rankedVerdantly = useMemo(() => sortByPrefs(verdantlyResults), [verdantlyResults, sortByPrefs]);
+
+  // Flattened in render order — drives keyboard nav (`selectedResultIndex`).
+  const visibleResults = useMemo(
+    () => [...rankedAi, ...rankedPerenual, ...rankedVerdantly],
+    [rankedAi, rankedPerenual, rankedVerdantly],
+  );
+
   const [isSearching, setIsSearching] = useState(false);
   const [hasSearched, setHasSearched] = useState(false);
   const [searchError, setSearchError] = useState(false);
@@ -130,8 +166,8 @@ export default function PlantSearchModal({
         : "Searching Global Plant Database",
       searchContext: {
         currentQuery: query,
-        hasResults: results.length > 0,
-        resultCount: results.length,
+        hasResults: visibleResults.length > 0,
+        resultCount: visibleResults.length,
       },
       previewedPlant: previewPlant
         ? {
@@ -146,7 +182,51 @@ export default function PlantSearchModal({
     });
 
     return () => setPageContext(null);
-  }, [query, results, previewPlant, setPageContext]);
+  }, [query, visibleResults, previewPlant, setPageContext]);
+
+  /** Convert a raw Perenual search item to the shared `ProviderSearchResult`
+   *  shape. Local copy — the shared helper inside `plantProvider.ts` isn't
+   *  exported. Kept identical to the one in `LibrarySearchTab`. */
+  const fromPerenualSearchItem = (item: any): ProviderSearchResult => ({
+    id: item.id,
+    common_name: item.common_name ?? "Unknown",
+    scientific_name: Array.isArray(item.scientific_name)
+      ? item.scientific_name
+      : item.scientific_name
+      ? [item.scientific_name]
+      : [],
+    thumbnail_url: item.default_image?.thumbnail ?? null,
+    _provider: "perenual",
+    perenual_id: item.id,
+  });
+
+  /** Map AI `matches` string[] back to ProviderSearchResults with
+   *  catalogue-hit metadata when available. Same shape the legacy
+   *  `searchAllProviders` produced. */
+  const fromAiMatches = (
+    matches: string[],
+    hits: Record<string, any> | undefined,
+    offset: number,
+  ): ProviderSearchResult[] =>
+    matches.map((name, idx) => {
+      const hit = hits?.[name];
+      return {
+        id: `ai-${offset + idx}-${name}`,
+        common_name: name,
+        scientific_name: [],
+        thumbnail_url: null,
+        _provider: "ai",
+        ...(hit && {
+          catalogue_hit: {
+            hit_kind: hit.hit_kind,
+            plant_id: hit.plant_id,
+            freshness_version: hit.freshness_version,
+            last_care_generated_at: hit.last_care_generated_at,
+            overridden_fields: hit.overridden_fields,
+          },
+        }),
+      } as ProviderSearchResult;
+    });
 
   const performSearch = async (searchQuery: string) => {
     if (!searchQuery.trim()) return;
@@ -155,20 +235,114 @@ export default function PlantSearchModal({
     setSearchError(false);
     setPreviewPlant(null);
     setSelectedResultIndex(-1);
+
+    // Clear all three buckets up-front so the loading state isn't
+    // mixed with stale results from the previous query.
+    setAiResults([]);
+    setAiHasMore(false);
+    setAiOffset(0);
+    setPerenualResults([]);
+    setPerenualHasMore(false);
+    setPerenualNextPage(2);
+    setVerdantlyResults([]);
+    setVerdantlyHasMore(false);
+    setVerdantlyNextPage(2);
+
+    // Fan out into the three providers in parallel. Each settles
+    // independently — a slow Verdantly call doesn't delay Perenual
+    // results from rendering.
+    const aiPromise = isAiEnabled
+      ? PlantDoctorService.searchPlantsText(searchQuery, { homeId, offset: 0 })
+          .then((res) => {
+            setAiResults(fromAiMatches(res.matches ?? [], res.hits, 0));
+            setAiHasMore(!!res.hasMore);
+            setAiOffset(res.matches?.length ?? 0);
+          })
+          .catch(() => {
+            // AI failures shouldn't surface as a hard search error — the
+            // other two providers can still produce results. Just leave
+            // the bucket empty.
+          })
+      : Promise.resolve();
+
+    const perenualPromise = PerenualService.searchPlantsPaged(searchQuery, 1)
+      .then((page) => {
+        setPerenualResults(page.data.map(fromPerenualSearchItem));
+        setPerenualHasMore(page.hasMore);
+        setPerenualNextPage(page.nextPage);
+      })
+      .catch(() => {
+        // Same rationale — soft fail per provider, hard fail only when all three throw.
+      });
+
+    const verdantlyPromise = VerdantlyService.searchPlants(searchQuery, 1)
+      .then((page) => {
+        setVerdantlyResults(page.results);
+        setVerdantlyHasMore(page.hasMore);
+        setVerdantlyNextPage(page.nextPage);
+      })
+      .catch(() => {});
+
     try {
-      const data = await searchAllProviders(
-        searchQuery,
-        undefined,
-        undefined,
-        { includeAi: isAiEnabled, homeId },
-      );
-      setResults(data);
+      await Promise.all([aiPromise, perenualPromise, verdantlyPromise]);
       setHasSearched(true);
-    } catch (err) {
+    } catch {
       setSearchError(true);
       toast.error("Search failed. Check your connection.");
     } finally {
       setIsSearching(false);
+    }
+  };
+
+  /** Append the next page of AI matches. The offset is what the AI
+   *  endpoint pages on; we keep the running offset client-side and pass
+   *  it forward each call. */
+  const loadMoreAi = async () => {
+    if (aiLoadingMore || !aiHasMore) return;
+    setAiLoadingMore(true);
+    try {
+      const res = await PlantDoctorService.searchPlantsText(query, {
+        homeId,
+        offset: aiOffset,
+      });
+      const next = fromAiMatches(res.matches ?? [], res.hits, aiOffset);
+      setAiResults((prev) => [...prev, ...next]);
+      setAiHasMore(!!res.hasMore);
+      setAiOffset((prev) => prev + (res.matches?.length ?? 0));
+    } catch {
+      toast.error("Couldn't load more AI suggestions.");
+    } finally {
+      setAiLoadingMore(false);
+    }
+  };
+
+  const loadMorePerenual = async () => {
+    if (perenualLoadingMore || !perenualHasMore) return;
+    setPerenualLoadingMore(true);
+    try {
+      const page = await PerenualService.searchPlantsPaged(query, perenualNextPage);
+      setPerenualResults((prev) => [...prev, ...page.data.map(fromPerenualSearchItem)]);
+      setPerenualHasMore(page.hasMore);
+      setPerenualNextPage(page.nextPage);
+    } catch {
+      toast.error("Couldn't load more Perenual results.");
+    } finally {
+      setPerenualLoadingMore(false);
+    }
+  };
+
+  const loadMoreVerdantly = async () => {
+    if (verdantlyLoadingMore || !verdantlyHasMore) return;
+    setVerdantlyLoadingMore(true);
+    try {
+      const page = await VerdantlyService.searchPlants(query, verdantlyNextPage);
+      setVerdantlyResults((prev) => [...prev, ...page.results]);
+      setVerdantlyHasMore(page.hasMore);
+      setVerdantlyNextPage(page.nextPage);
+    } catch {
+      toast.error("Couldn't load more Verdantly results.");
+    } finally {
+      setVerdantlyLoadingMore(false);
     }
   };
 
@@ -242,19 +416,19 @@ export default function PlantSearchModal({
 
   // Keyboard navigation for search results
   const handleResultsKeyDown = (e: React.KeyboardEvent) => {
-    if (rankedResults.length === 0 || previewPlant) return;
+    if (visibleResults.length === 0 || previewPlant) return;
 
     if (e.key === "ArrowDown") {
       e.preventDefault();
       setSelectedResultIndex((prev) =>
-        prev < rankedResults.length - 1 ? prev + 1 : prev
+        prev < visibleResults.length - 1 ? prev + 1 : prev
       );
     } else if (e.key === "ArrowUp") {
       e.preventDefault();
       setSelectedResultIndex((prev) => (prev > 0 ? prev - 1 : -1));
     } else if (e.key === "Enter" && selectedResultIndex >= 0) {
       e.preventDefault();
-      handlePreviewPlant(rankedResults[selectedResultIndex]);
+      handlePreviewPlant(visibleResults[selectedResultIndex]);
     }
   };
 
@@ -609,107 +783,188 @@ export default function PlantSearchModal({
                   />
                   <p className="font-bold text-sm">Searching Database...</p>
                 </div>
-              ) : rankedResults.length > 0 ? (
-                rankedResults.map((plant, index) => {
-                  const prefScore = scorePlantByPreferences(
-                    plant.common_name || "",
-                    plant.scientific_name?.[0] || "",
-                    preferences,
-                  );
-                  const isSelected = index === selectedResultIndex;
-                  const thumb = plant.thumbnail_url?.includes("upgrade_access") ? null : plant.thumbnail_url;
-                  const providerLabel = getProviderLabel(plant._provider);
-                  const inShed = findShedMatch({
-                    source: plant._provider === "verdantly" ? "verdantly" : plant._provider === "ai" ? "ai" : "api",
-                    perenual_id: plant._provider !== "verdantly" && plant._provider !== "ai" ? (plant.perenual_id ?? plant.id) : undefined,
-                    verdantly_id: plant._provider === "verdantly" ? (plant.verdantly_id ?? plant.id) : undefined,
-                    common_name: plant.common_name,
-                  });
-                  return (
-                    <div
-                      key={`${plant._provider}-${plant.id}`}
-                      tabIndex={0}
-                      role="button"
-                      aria-label={`View ${plant.common_name}`}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter" || e.key === " ") {
-                          e.preventDefault();
-                          handlePreviewPlant(plant);
-                        }
-                      }}
-                      onClick={() => handlePreviewPlant(plant)}
-                      className={`bg-rhozly-surface-lowest p-4 rounded-2xl border shadow-sm flex items-center justify-between group transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-rhozly-primary/40 ${
-                        isSelected
-                          ? "border-rhozly-primary ring-2 ring-rhozly-primary/20"
-                          : "border-rhozly-outline/10 hover:border-rhozly-primary/30"
-                      }`}
-                    >
-                      <div className="flex items-center gap-4">
-                        <div className="relative w-16 h-16 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0">
-                          {thumb ? (
-                            <img
-                              src={thumb}
-                              alt={plant.common_name}
-                              className="w-full h-full object-cover"
-                            />
-                          ) : (
-                            <div className="w-full h-full flex items-center justify-center text-rhozly-on-surface/20">
-                              <IconPlantDB size={24} />
-                            </div>
-                          )}
-                          <MultiImageGallery
-                            query={`${plant.common_name} ${plant.scientific_name?.[0] ?? ""} plant`}
-                            label={plant.common_name}
-                            existingImageUrl={thumb}
-                            triggerClassName="absolute bottom-1 right-1"
-                            compact
-                          />
+              ) : visibleResults.length > 0 ? (
+                (() => {
+                  // Build sections in the canonical order. `flatIndex`
+                  // tracks the running position across all three buckets
+                  // so the keyboard-nav highlight maps correctly.
+                  const sections: Array<{
+                    key: "ai" | "perenual" | "verdantly";
+                    label: string;
+                    chipBg: string;
+                    chipText: string;
+                    items: ProviderSearchResult[];
+                    hasMore: boolean;
+                    loadingMore: boolean;
+                    onLoadMore: () => void;
+                  }> = [
+                    {
+                      key: "ai",
+                      label: "Rhozly AI suggestions",
+                      chipBg: "bg-amber-100",
+                      chipText: "text-amber-700",
+                      items: rankedAi,
+                      hasMore: aiHasMore,
+                      loadingMore: aiLoadingMore,
+                      onLoadMore: loadMoreAi,
+                    },
+                    {
+                      key: "perenual",
+                      label: "Perenual",
+                      chipBg: "bg-blue-100",
+                      chipText: "text-blue-700",
+                      items: rankedPerenual,
+                      hasMore: perenualHasMore,
+                      loadingMore: perenualLoadingMore,
+                      onLoadMore: loadMorePerenual,
+                    },
+                    {
+                      key: "verdantly",
+                      label: "Verdantly",
+                      chipBg: "bg-emerald-100",
+                      chipText: "text-emerald-700",
+                      items: rankedVerdantly,
+                      hasMore: verdantlyHasMore,
+                      loadingMore: verdantlyLoadingMore,
+                      onLoadMore: loadMoreVerdantly,
+                    },
+                  ];
+
+                  let flatIndex = -1;
+                  return sections
+                    .filter((section) => section.items.length > 0)
+                    .map((section) => (
+                      <div key={section.key} className="space-y-3">
+                        <div className="flex items-center justify-between px-1">
+                          <span
+                            className={`text-[10px] font-black uppercase tracking-widest px-2.5 py-0.5 rounded-full ${section.chipBg} ${section.chipText}`}
+                          >
+                            {section.label}
+                          </span>
+                          <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/35">
+                            {section.items.length}{section.hasMore ? "+" : ""} results
+                          </span>
                         </div>
-                        <div>
-                          <div className="flex items-center gap-2 mb-0.5">
-                            <h4 className="font-black text-lg text-rhozly-on-surface leading-tight">
-                              {plant.common_name}
-                            </h4>
-                            {providerLabel && (
-                              <span className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${
-                                providerLabel === "Verdantly"
-                                  ? "bg-emerald-100 text-emerald-700"
-                                  : providerLabel === "Rhozly AI"
-                                    ? "bg-amber-100 text-amber-700"
-                                    : "bg-blue-100 text-blue-700"
-                              }`}>
-                                {providerLabel}
-                              </span>
-                            )}
-                            {inShed && (
-                              <span
-                                data-testid="search-result-in-shed"
-                                title="This plant is already in your shed"
-                                className="text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 bg-emerald-100 text-emerald-700"
+                        {section.items.map((plant) => {
+                          flatIndex += 1;
+                          const prefScore = scorePlantByPreferences(
+                            plant.common_name || "",
+                            plant.scientific_name?.[0] || "",
+                            preferences,
+                          );
+                          const isSelected = flatIndex === selectedResultIndex;
+                          const thumb = plant.thumbnail_url?.includes("upgrade_access") ? null : plant.thumbnail_url;
+                          const providerLabel = getProviderLabel(plant._provider);
+                          const inShed = findShedMatch({
+                            source: plant._provider === "verdantly" ? "verdantly" : plant._provider === "ai" ? "ai" : "api",
+                            perenual_id: plant._provider !== "verdantly" && plant._provider !== "ai" ? (plant.perenual_id ?? plant.id) : undefined,
+                            verdantly_id: plant._provider === "verdantly" ? (plant.verdantly_id ?? plant.id) : undefined,
+                            common_name: plant.common_name,
+                          });
+                          return (
+                            <div
+                              key={`${plant._provider}-${plant.id}`}
+                              tabIndex={0}
+                              role="button"
+                              aria-label={`View ${plant.common_name}`}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter" || e.key === " ") {
+                                  e.preventDefault();
+                                  handlePreviewPlant(plant);
+                                }
+                              }}
+                              onClick={() => handlePreviewPlant(plant)}
+                              className={`bg-rhozly-surface-lowest p-4 rounded-2xl border shadow-sm flex items-center justify-between group transition-colors cursor-pointer focus:outline-none focus:ring-2 focus:ring-rhozly-primary/40 ${
+                                isSelected
+                                  ? "border-rhozly-primary ring-2 ring-rhozly-primary/20"
+                                  : "border-rhozly-outline/10 hover:border-rhozly-primary/30"
+                              }`}
+                            >
+                              <div className="flex items-center gap-4">
+                                <div className="relative w-16 h-16 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0">
+                                  {thumb ? (
+                                    <img
+                                      src={thumb}
+                                      alt={plant.common_name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-rhozly-on-surface/20">
+                                      <IconPlantDB size={24} />
+                                    </div>
+                                  )}
+                                  <MultiImageGallery
+                                    query={`${plant.common_name} ${plant.scientific_name?.[0] ?? ""} plant`}
+                                    label={plant.common_name}
+                                    existingImageUrl={thumb}
+                                    triggerClassName="absolute bottom-1 right-1"
+                                    compact
+                                  />
+                                </div>
+                                <div>
+                                  <div className="flex items-center gap-2 mb-0.5">
+                                    <h4 className="font-black text-lg text-rhozly-on-surface leading-tight">
+                                      {plant.common_name}
+                                    </h4>
+                                    {providerLabel && (
+                                      <span className={`text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 ${
+                                        providerLabel === "Verdantly"
+                                          ? "bg-emerald-100 text-emerald-700"
+                                          : providerLabel === "Rhozly AI"
+                                            ? "bg-amber-100 text-amber-700"
+                                            : "bg-blue-100 text-blue-700"
+                                      }`}>
+                                        {providerLabel}
+                                      </span>
+                                    )}
+                                    {inShed && (
+                                      <span
+                                        data-testid="search-result-in-shed"
+                                        title="This plant is already in your shed"
+                                        className="text-[10px] font-black px-2 py-0.5 rounded-full shrink-0 bg-emerald-100 text-emerald-700"
+                                      >
+                                        In your shed
+                                      </span>
+                                    )}
+                                  </div>
+                                  <p className="text-xs font-bold text-rhozly-on-surface/50 italic">
+                                    {plant.scientific_name?.[0]}
+                                  </p>
+                                  {prefScore > 0 && (
+                                    <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
+                                      <IconAI size={9} /> Matches your preference
+                                    </span>
+                                  )}
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => handlePreviewPlant(plant)}
+                                className="px-4 py-2 bg-rhozly-primary/10 text-rhozly-primary font-black text-xs uppercase tracking-widest rounded-xl hover:bg-rhozly-primary hover:text-white transition-all active:scale-95"
                               >
-                                In your shed
-                              </span>
+                                View
+                              </button>
+                            </div>
+                          );
+                        })}
+                        {section.hasMore && (
+                          <button
+                            type="button"
+                            data-testid={`plant-search-load-more-${section.key}`}
+                            onClick={section.onLoadMore}
+                            disabled={section.loadingMore}
+                            className="w-full py-2.5 rounded-2xl bg-rhozly-primary/5 hover:bg-rhozly-primary/10 text-rhozly-primary text-xs font-black uppercase tracking-widest inline-flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                          >
+                            {section.loadingMore ? (
+                              <Loader2 size={13} className="animate-spin" />
+                            ) : (
+                              <Plus size={13} />
                             )}
-                          </div>
-                          <p className="text-xs font-bold text-rhozly-on-surface/50 italic">
-                            {plant.scientific_name?.[0]}
-                          </p>
-                          {prefScore > 0 && (
-                            <span className="inline-flex items-center gap-1 mt-1 text-[10px] font-black text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">
-                              <IconAI size={9} /> Matches your preference
-                            </span>
-                          )}
-                        </div>
+                            Show more {section.label.replace("Rhozly AI suggestions", "AI suggestions")}
+                          </button>
+                        )}
                       </div>
-                      <button
-                        onClick={() => handlePreviewPlant(plant)}
-                        className="px-4 py-2 bg-rhozly-primary/10 text-rhozly-primary font-black text-xs uppercase tracking-widest rounded-xl hover:bg-rhozly-primary hover:text-white transition-all active:scale-95"
-                      >
-                        View
-                      </button>
-                    </div>
-                  );
-                })
+                    ));
+                })()
               ) : hasSearched ? (
                 <div className="h-full flex flex-col items-center justify-center text-center px-4">
                   <Search
