@@ -20,7 +20,10 @@ export type QuickTileAccent =
   | "green"
   | "amber"
   | "red"
-  | "blue";
+  | "blue"
+  | "purple"
+  | "teal"
+  | "slate";
 
 interface Props {
   icon: React.ReactNode;
@@ -124,7 +127,16 @@ interface SoftTileTokens {
  *   blue   → The Library    (sky / lookup / depth).
  */
 const SOFT_TILE_MAP: Record<
-  "green" | "amber" | "red" | "blue" | "primary" | "tertiary" | "container",
+  | "green"
+  | "amber"
+  | "red"
+  | "blue"
+  | "purple"
+  | "teal"
+  | "slate"
+  | "primary"
+  | "tertiary"
+  | "container",
   SoftTileTokens
 > = {
   green: {
@@ -166,6 +178,36 @@ const SOFT_TILE_MAP: Record<
     titleText: "text-sky-950",
     descText: "text-sky-900/65",
     ring: "ring-sky-300",
+  },
+  purple: {
+    bg: "bg-violet-100",
+    border: "border-violet-200",
+    hoverBorder: "hover:border-violet-300",
+    iconBg: "bg-violet-200/70",
+    iconText: "text-violet-700",
+    titleText: "text-violet-950",
+    descText: "text-violet-900/65",
+    ring: "ring-violet-300",
+  },
+  teal: {
+    bg: "bg-teal-100",
+    border: "border-teal-200",
+    hoverBorder: "hover:border-teal-300",
+    iconBg: "bg-teal-200/70",
+    iconText: "text-teal-700",
+    titleText: "text-teal-950",
+    descText: "text-teal-900/65",
+    ring: "ring-teal-300",
+  },
+  slate: {
+    bg: "bg-slate-100",
+    border: "border-slate-200",
+    hoverBorder: "hover:border-slate-300",
+    iconBg: "bg-slate-200/70",
+    iconText: "text-slate-700",
+    titleText: "text-slate-950",
+    descText: "text-slate-900/65",
+    ring: "ring-slate-300",
   },
   // Legacy accents — map onto the closest soft tone.
   primary:   { bg: "bg-rhozly-primary/10",          border: "border-rhozly-primary/20",          hoverBorder: "hover:border-rhozly-primary/40",          iconBg: "bg-rhozly-primary/15",          iconText: "text-rhozly-primary",          titleText: "text-rhozly-on-surface", descText: "text-rhozly-on-surface/55", ring: "ring-rhozly-primary/30" },

@@ -1,20 +1,17 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Camera,
-  CalendarDays,
-  NotebookPen,
-  ArrowRight,
-  Info,
-  Sparkles,
-  BookOpen,
-} from "lucide-react";
+import { ArrowRight, Info, Sparkles, Settings2 } from "lucide-react";
 
 import QuickTile from "./quick/QuickTile";
 import WalkStartTile from "./walk/WalkStartTile";
 import SeasonalPicksCard from "./seasonal/SeasonalPicksCard";
 import { useIsMobile } from "../hooks/useIsMobile";
-import { TaskEngine, getLocalDateString } from "../lib/taskEngine";
+import { useQuickLauncherPins } from "../hooks/useQuickLauncherPins";
+import {
+  resolvePins,
+  type QuickLauncherAvailabilityCtx,
+  type SubscriptionTier,
+} from "../lib/quickLauncherCatalogue";
 
 interface Props {
   /** Optional first-name for the personalised greeting. Falls back to a
@@ -24,6 +21,14 @@ interface Props {
    *  background prefetch of today's task list so the calendar screen can
    *  paint instantly on mount. */
   homeId?: string | null;
+  /** Active user id — drives the cross-device sync of pinned launcher tiles. */
+  userId?: string | null;
+  /** Subscription tier — drives availability gating in the launcher. */
+  subscriptionTier?: SubscriptionTier | null;
+  /** Whether the user has an AI-enabled tier. */
+  aiEnabled?: boolean;
+  /** Whether the user is a beta participant — gates beta-only destinations. */
+  isBeta?: boolean;
 }
 
 function getTimeGreeting(now: Date = new Date()): string {
@@ -44,33 +49,33 @@ function getTimeGreeting(now: Date = new Date()): string {
  * hero, a green-tinted hero card with a border to break up the white, and
  * the Rhozly logo + wordmark inside the hero as a restrained brand stamp.
  */
-export default function QuickAccessHome({ firstName, homeId }: Props) {
+export default function QuickAccessHome({
+  firstName,
+  homeId,
+  userId,
+  subscriptionTier,
+  aiEnabled = false,
+  isBeta = false,
+}: Props) {
   const navigate = useNavigate();
   const isMobile = useIsMobile();
+  const { pins } = useQuickLauncherPins(userId ?? null);
 
   const greeting = getTimeGreeting();
   const trimmedName = firstName?.trim() || null;
 
-  /**
-   * Fire-and-forget prefetch of today's task list before navigating to
-   * /quick/calendar. By the time TaskList mounts (~30-50ms later) the
-   * fetch is either already in-flight (and gets de-duped) or just
-   * landed in cache → instant paint.
-   */
-  const handleTodayTap = () => {
-    if (homeId) {
-      const today = new Date();
-      const todayStr = getLocalDateString(today);
-      TaskEngine.prefetch({
-        homeId,
-        startDateStr: todayStr,
-        endDateStr: todayStr,
-        includeOverdue: true,
-        todayStr,
-      });
-    }
-    navigate("/quick/calendar");
+  const availabilityCtx: QuickLauncherAvailabilityCtx = {
+    subscriptionTier: subscriptionTier ?? null,
+    aiEnabled,
+    isBeta,
+    homeId: homeId ?? null,
   };
+  const tiles = resolvePins(pins, availabilityCtx);
+  // 1-4 pinned → 2 cols (1 or 2 rows). 5-6 pinned → 2 cols 3 rows. Dense
+  // styling stays on for the 4-tile case where each cell is small; relax
+  // to non-dense for ≥5 since the screen is now showing one extra row.
+  const useDenseTiles = tiles.length <= 4;
+  const gridRowsClass = tiles.length <= 2 ? "grid-rows-1" : tiles.length <= 4 ? "grid-rows-2" : "grid-rows-3";
 
   return (
     <div
@@ -86,12 +91,15 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
       data-testid="quick-access-home"
       // Top padding clears the Wave 6 floating menu button (top-right) +
       // device safe-area (notches / dynamic islands). Bottom padding
-      // honours the home-indicator safe area.
+      // honours the home-indicator safe area, with extra breathing room
+      // so the "Open full dashboard" pill is never clipped on shorter
+      // phones. `min-h-0` lets the flex column shrink correctly inside
+      // the scroll wrapper.
       style={{
         paddingTop: "calc(4rem + env(safe-area-inset-top, 0px))",
-        paddingBottom: "calc(1rem + env(safe-area-inset-bottom, 0px))",
+        paddingBottom: "calc(2rem + env(safe-area-inset-bottom, 0px))",
       }}
-      className="h-full w-full max-w-2xl mx-auto px-4 sm:px-6 flex flex-col"
+      className="min-h-0 w-full max-w-2xl mx-auto px-4 sm:px-6 flex flex-col"
     >
       {/* Desktop preview banner */}
       {!isMobile && (
@@ -125,7 +133,10 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
         data-testid="quick-access-hero-card"
         onClick={() => navigate("/gardener")}
         aria-label="Open Account Settings"
-        className="shrink-0 relative w-full text-left mb-3 rounded-2xl border border-rhozly-primary-container/20 bg-gradient-to-br from-rhozly-primary-container/[0.08] via-white/40 to-rhozly-tertiary/25 overflow-hidden px-4 py-3 shadow-[0_2px_12px_-4px_rgba(7,87,55,0.10)] transition-all hover:shadow-[0_4px_16px_-4px_rgba(7,87,55,0.14)] active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary/30 flex items-center gap-3"
+        // `pr-16` on mobile reserves space for the floating menu button
+        // (top-right, `z-[105]`) so the ArrowRight + helper line never
+        // get covered when the page scrolls beneath the button.
+        className="shrink-0 relative z-0 w-full text-left mb-3 rounded-2xl border border-rhozly-primary-container/20 bg-gradient-to-br from-rhozly-primary-container/[0.08] via-white/40 to-rhozly-tertiary/25 overflow-hidden px-4 py-3 pr-16 sm:pr-4 shadow-[0_2px_12px_-4px_rgba(7,87,55,0.10)] transition-all hover:shadow-[0_4px_16px_-4px_rgba(7,87,55,0.14)] active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary/30 flex items-center gap-3"
       >
         <div className="shrink-0 w-9 h-9 rounded-xl bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center">
           <Sparkles size={15} strokeWidth={2.4} />
@@ -151,55 +162,50 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
         <ArrowRight size={14} className="shrink-0 text-rhozly-on-surface/40" />
       </button>
 
-      {/* Tiles — 2×2 compact grid. Wave 13 shrinks tiles to content size
-          (icon + title + short description) instead of stretching them
-          full-screen — the visible whitespace was making them feel empty.
-          The dashboard escape pill is pushed to the bottom via mt-auto on
-          the wrapper below. */}
+      {/* Tiles — customisable launcher (Wave 16). Renders the user's
+          pinned destinations from the catalogue. 1-4 pins → 2 cols,
+          1-2 rows. 5-6 pins → 2 cols, 3 rows. Each tile uses the
+          accent + icon defined in `quickLauncherCatalogue.ts`. */}
       <div
         data-testid="quick-tiles-grid"
-        className="grid grid-cols-4 gap-2 mb-3 shrink-0"
+        data-pinned-count={tiles.length}
+        className={`grid grid-cols-2 ${gridRowsClass} gap-2 mb-2 shrink-0`}
       >
-        <QuickTile
-          testId="quick-tile-lens"
-          accent="green"
-          layout="compact"
-          dense
-          icon={<Camera strokeWidth={2.25} />}
-          title="Lens"
-          description="Identify, diagnose, get tasks from a photo."
-          onClick={() => navigate("/quick/lens")}
-        />
-        <QuickTile
-          testId="quick-tile-calendar"
-          accent="amber"
-          layout="compact"
-          dense
-          icon={<CalendarDays strokeWidth={2.25} />}
-          title="Today"
-          description="Tasks, rain forecast, planting helper."
-          onClick={handleTodayTap}
-        />
-        <QuickTile
-          testId="quick-tile-journal"
-          accent="red"
-          layout="compact"
-          dense
-          icon={<NotebookPen strokeWidth={2.25} />}
-          title="Capture"
-          description="Snap a photo and jot a note — file later."
-          onClick={() => navigate("/quick/journal")}
-        />
-        <QuickTile
-          testId="quick-tile-library"
-          accent="blue"
-          layout="compact"
-          dense
-          icon={<BookOpen strokeWidth={2.25} />}
-          title="Library"
-          description="Search any plant — care guide, grow guide, save."
-          onClick={() => navigate("/library/search")}
-        />
+        {tiles.map((dest) => {
+          const Icon = dest.icon;
+          return (
+            <QuickTile
+              key={dest.id}
+              testId={`quick-tile-${dest.id}`}
+              accent={dest.accent}
+              layout="compact"
+              dense={useDenseTiles}
+              icon={<Icon strokeWidth={2.25} />}
+              title={dest.label}
+              description={dest.description}
+              onClick={() => {
+                dest.onTap?.({ homeId: homeId ?? null });
+                navigate(dest.route);
+              }}
+            />
+          );
+        })}
+      </div>
+
+      {/* Customise link — small button below the launcher that deep-links
+          to the picker section of Account Settings. Keeps the feature
+          discoverable for users who never open Settings on their own. */}
+      <div className="flex justify-end shrink-0 mb-3">
+        <button
+          type="button"
+          data-testid="quick-access-customise-launcher"
+          onClick={() => navigate("/gardener?section=quick-launcher")}
+          className="inline-flex items-center gap-1.5 text-[11px] font-bold text-rhozly-on-surface/55 hover:text-rhozly-primary transition-colors px-2 py-1 rounded-full"
+          aria-label="Customise the Quick Launcher"
+        >
+          <Settings2 size={12} />
+          Customise
+        </button>
       </div>
 
       {/* Wide tile — the "morning ritual" CTA, deliberately a different
@@ -221,8 +227,10 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
 
       {/* Power-user escape hatch — pinned to the bottom via mt-auto so
           when there's vertical space the picks/walk strip sits up near
-          the tile grid and the dashboard pill stays at the foot. */}
-      <div className="flex justify-center shrink-0 mt-auto">
+          the tile grid and the dashboard pill stays at the foot. The
+          `pb-2` adds extra breathing room above the home-indicator on
+          shorter phones, so the pill is never clipped. */}
+      <div className="flex justify-center shrink-0 mt-auto pb-2">
         <button
           type="button"
           data-testid="quick-access-open-dashboard"

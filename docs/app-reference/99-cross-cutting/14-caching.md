@@ -38,6 +38,8 @@
 | `rhozly_queue` | Offline queue (see [Offline Queue](./16-offline-queue.md)) |
 | `rhozly_shopping_plan_suggest_dismissed` | Shopping banner |
 | `rhozly:dashboard:v1:{home_id}` | Local-first dashboard snapshot (see Dashboard snapshot below) |
+| `rhozly_quick_launcher_v1` | Quick Launcher pin order — `{ pinned: string[] }`. Synced to `user_profiles.quick_launcher_pins`. Cleared on sign-out. |
+| `rhozly_quick_menu_seen` | Has the user seen the floating menu hint on `/quick` (boolean string) |
 | `ewelink_oauth_*` | eWeLink OAuth dance |
 
 ### Dashboard snapshot (`rhozly:dashboard:v1:{home_id}`)
@@ -141,7 +143,10 @@ The app feels instant for warm sessions because so much is cached, and on cold o
 
 - `src/hooks/useCachedShed.ts`
 - `src/lib/dashboardCache.ts` — local-first dashboard snapshot read/write/clear
-- `src/App.tsx` — `fetchDashboardData` snapshot accumulator + read-on-mount wiring
+- `src/lib/quickLauncherPrefs.ts` — local-first launcher pins (mirrors Supabase via `user_profiles.quick_launcher_pins`)
+- `src/hooks/useQuickLauncherPins.ts` — local-first hook for launcher pins (same pattern as dashboard)
+- `src/App.tsx` — `fetchDashboardData` snapshot accumulator + read-on-mount wiring, sign-out clears both caches
 - `tests/unit/lib/dashboardCache.test.ts`
+- `tests/unit/lib/quickLauncherPrefs.test.ts`
 - `vite.config.ts` — PWA runtime caching config
 - `supabase/functions/image-proxy/index.ts`

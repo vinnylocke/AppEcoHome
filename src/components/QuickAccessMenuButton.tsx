@@ -46,7 +46,7 @@ export default function QuickAccessMenuButton({ onClick }: Props) {
       onClick={handleClick}
       data-testid="quick-access-menu-button"
       aria-label="Open navigation menu"
-      className={`fixed top-3 right-3 z-[105] flex items-center gap-2 min-h-[44px] rounded-2xl bg-rhozly-primary text-white shadow-lg hover:opacity-90 active:scale-95 transition-all ${
+      className={`fixed top-3 right-3 z-[105] flex items-center gap-2 min-h-[44px] rounded-2xl bg-rhozly-primary text-white shadow-lg ring-2 ring-white/40 hover:opacity-90 active:scale-95 transition-all ${
         showLabel ? "px-4 py-2.5" : "px-3 py-2.5 w-11 justify-center"
       }`}
       style={{

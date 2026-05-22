@@ -1,11 +1,15 @@
 # Quick Access Home
 
-> The mobile shortcut home. A four-tile screen tuned for one-thumb operation in the garden — Visual Lens (live), Today (live → Localized Task Calendar), Quick Capture (live → Quick Capture Journal), and The Library (live → /library/*). Phone users land here on app open instead of the full dashboard; the full dashboard is still a tap away.
+> The mobile shortcut home. A customisable launcher tuned for one-thumb operation in the garden — by default Lens, Today (Localized Task Calendar), Capture (Quick Capture Journal), and Library, but users can swap in any of the catalogue's destinations (Plants, Planner, Walk, Doctor, Shopping) and reorder them from Account Settings. Phone users land here on app open instead of the full dashboard; the full dashboard is still a tap away.
 
 **Route:** `/quick`
 **Source files (entry points):**
 - `src/components/QuickAccessHome.tsx`
 - `src/components/quick/QuickTile.tsx`
+- `src/components/quick/QuickLauncherPicker.tsx` (the Account-Settings picker for the customisable launcher)
+- `src/lib/quickLauncherCatalogue.ts` (catalogue of pinnable destinations)
+- `src/lib/quickLauncherPrefs.ts` (localStorage + Supabase pin storage)
+- `src/hooks/useQuickLauncherPins.ts` (local-first hook)
 - `src/components/QuickAccessLens.tsx` (the `/quick/lens` mounting wrapper)
 
 ---
@@ -28,19 +32,46 @@ QuickAccessHome (mounted at /quick)
 │   └── MobileNavDrawer (slide-in from left when the button is tapped)
 ├── Desktop preview banner (visible when useIsMobile() === false)
 │   └── "This is the mobile shortcut screen — your full dashboard is at /dashboard"
-├── Hero ("What can I help with?" + subtitle)
-├── QuickTile × 4 (compact 2×2 grid)
-│   ├── Visual Lens (live)        → navigate("/quick/lens")
-│   ├── Today (live)               → navigate("/quick/calendar") [LocalizedTaskCalendar]
-│   ├── Quick Capture (live)       → navigate("/quick/journal") [QuickCapture]
-│   └── The Library (live)         → navigate("/library/search") [LibraryHome — see ./12-the-library.md]
-├── WalkStartTile (wide tile under the grid) → navigate("/walk") [GardenWalk — see ./13-garden-walk.md]
-└── "Open full dashboard →" link  → navigate("/dashboard")
+├── Hero card → navigate("/gardener")
+├── QuickTile × n (customisable launcher — 2 cols, 1-3 rows)
+│   └── Renders from `useQuickLauncherPins()` against `QUICK_LAUNCHER_CATALOGUE`.
+│       Default pins: lens / today / capture / library. User can swap in
+│       any catalogue entry (plants / planner / walk / doctor / shopping)
+│       up to QUICK_LAUNCHER_MAX (6) total. Tiles render in the user's
+│       chosen order; tap fires the destination's optional `onTap` hook
+│       (e.g. Today prefetches the calendar) then navigate(route).
+├── "Customise" link → navigate("/gardener?section=quick-launcher")
+├── WalkStartTile (wide tile under the grid) → navigate("/walk")
+├── SeasonalPicksCard (carousel variant — one pick at a time)
+└── "Open full dashboard →" pill → navigate("/dashboard")
+
+QuickLauncherPicker (mounted inside GardenerProfile AccountTab)
+├── Pinned list (count of MAX) — ↑↓ reorder + ✕ remove per row
+├── Available list — ➕ add per row
+└── Reset to defaults
 
 QuickAccessLens (mounted at /quick/lens)
 ├── Back chrome (chevron-left "Quick" + "Visual Lens" label)
 └── PlantDoctor compact   ← the existing /doctor screen, in compact mode
 ```
+
+### Quick Launcher catalogue & pins
+
+The launcher is data-driven. Every pinnable destination has a stable id, label, description, icon, accent and route in `QUICK_LAUNCHER_CATALOGUE` (`src/lib/quickLauncherCatalogue.ts`). User preference is `string[]` of ids stored in two places:
+
+| Layer | Key | Role |
+|-------|-----|------|
+| localStorage | `rhozly_quick_launcher_v1` | Source-of-truth for the first paint on `/quick` (synchronous read) |
+| Supabase | `user_profiles.quick_launcher_pins jsonb` | Cross-device sync — read in the background on mount, written on save |
+
+`useQuickLauncherPins(userId)` orchestrates: synchronous local read, async remote revalidation that overwrites local when they diverge, `save(next)` that writes both stores (local always succeeds — toast on remote failure). Same local-first + revalidate pattern as the dashboard cache.
+
+Constraints:
+- **Min**: 1 pinned destination (picker disables `✕` on the last item).
+- **Max**: 6 pinned destinations (picker disables `➕` once at max).
+- **Order**: explicit, set via `↑↓` buttons in the picker.
+
+Catalogue entries have an optional `isAvailable(ctx)` predicate (tier / beta / aiEnabled / homeId). The picker filters out unavailable entries; the launcher's render-time `resolvePins` filters them out silently too — so pinning a Sage-only destination then downgrading hides the tile without breaking the layout, and re-upgrading makes it reappear.
 
 ### Props received
 
@@ -215,13 +246,21 @@ No difference.
 
 ## Code references for ongoing maintenance
 
-- `src/components/QuickAccessHome.tsx` — the three-tile home
-- `src/components/quick/QuickTile.tsx` — reusable tile (live / coming-soon variants)
+- `src/components/QuickAccessHome.tsx` — the customisable launcher home
+- `src/components/quick/QuickTile.tsx` — reusable tile (live / coming-soon variants); 7 launcher accents (green / amber / red / blue / purple / teal / slate) + 3 legacy row accents
+- `src/components/quick/QuickLauncherPicker.tsx` — the Account-Settings picker (pinned / available / reset)
+- `src/lib/quickLauncherCatalogue.ts` — `QUICK_LAUNCHER_CATALOGUE`, `QUICK_LAUNCHER_BY_ID`, `resolvePins`, `partitionForPicker`, `DEFAULT_QUICK_LAUNCHER_PINS`
+- `src/lib/quickLauncherPrefs.ts` — `readLocalPins` / `writeLocalPins` / `clearLocalPins` / `fetchRemotePins` / `saveRemotePins`
+- `src/hooks/useQuickLauncherPins.ts` — local-first hook (pins / isRevalidating / save / resetToDefaults)
 - `src/components/QuickAccessLens.tsx` — `/quick/lens` wrapper around PlantDoctor (compact mode)
 - `src/components/PlantDoctor.tsx` — accepts a `compact?: boolean` prop; when true, hides the tab bar + secondary action row
+- `src/components/GardenerProfile.tsx` — Account tab mounts `<QuickLauncherPicker>` below the existing account form
 - `src/hooks/useIsMobile.ts` — `Capacitor.isNativePlatform() || viewport < 768px`
-- `src/App.tsx` — conditional `/` redirect, `/quick` + `/quick/lens` routes, mobile-only "Quick" nav entry
+- `src/App.tsx` — conditional `/` redirect, `/quick` + `/quick/lens` routes, mobile-only "Quick" nav entry, sign-out clear via `clearLocalPins`
+- `supabase/migrations/20260624000700_user_profiles_quick_launcher_pins.sql` — adds the jsonb column
 - `tests/unit/hooks/useIsMobile.test.ts` — hook unit tests
+- `tests/unit/lib/quickLauncherCatalogue.test.ts` — catalogue resolve + picker partition
+- `tests/unit/lib/quickLauncherPrefs.test.ts` — local read/write/clear + sanitisation
 - `tests/unit/components/QuickTile.test.ts` — tile unit tests
 - `tests/unit/components/QuickAccessHome.test.ts` — home screen unit tests
 - `tests/e2e/specs/quick-access.spec.ts` — routing + nav visibility E2E

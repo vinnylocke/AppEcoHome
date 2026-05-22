@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "label": "New",
+    "items": [
+      "Customisable Quick Launcher — pin up to 6 shortcuts to your phone's Quick Access menu. Open Account Settings → Quick Launcher to choose between Lens, Today, Capture, Library, Plants, Planner, Walk, Doctor and Shopping, then reorder them with the up/down arrows. Your choices sync across devices.",
+      "Quick \"Customise\" link below the launcher on /quick — taps straight through to the picker, so you don't have to dig through Settings."
+    ]
+  },
+  {
+    "label": "Polish",
+    "items": [
+      "Quick Access — the \"Open full dashboard\" pill no longer clips off the bottom of the screen on shorter phones.",
+      "Quick Access — the welcome card's text stops sliding under the floating menu button when you scroll. The menu button itself now reads as deliberate floating chrome with a subtle white ring."
+    ]
+  }
+]

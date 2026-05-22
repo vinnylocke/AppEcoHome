@@ -67,29 +67,30 @@ describe("QuickAccessHome", () => {
     vi.clearAllMocks();
   });
 
-  test("renders all three tiles", () => {
+  test("renders the four default tiles", () => {
     renderHome();
     expect(screen.getByTestId("quick-tile-lens")).toBeTruthy();
-    expect(screen.getByTestId("quick-tile-calendar")).toBeTruthy();
-    expect(screen.getByTestId("quick-tile-journal")).toBeTruthy();
+    expect(screen.getByTestId("quick-tile-today")).toBeTruthy();
+    expect(screen.getByTestId("quick-tile-capture")).toBeTruthy();
+    expect(screen.getByTestId("quick-tile-library")).toBeTruthy();
   });
 
-  test("tapping Visual Lens navigates to /quick/lens", () => {
+  test("tapping Lens navigates to /quick/lens", () => {
     renderHome();
     fireEvent.click(screen.getByTestId("quick-tile-lens"));
     expect(navigateMock).toHaveBeenCalledWith("/quick/lens");
   });
 
-  test("tapping Calendar tile navigates to /quick/calendar (live in Wave 3)", () => {
+  test("tapping Today tile navigates to /quick/calendar", () => {
     renderHome();
-    fireEvent.click(screen.getByTestId("quick-tile-calendar"));
+    fireEvent.click(screen.getByTestId("quick-tile-today"));
     expect(navigateMock).toHaveBeenCalledWith("/quick/calendar");
     expect(toastFn).not.toHaveBeenCalled();
   });
 
-  test("tapping Journal tile navigates to /quick/journal (live in Wave 4)", () => {
+  test("tapping Capture tile navigates to /quick/journal", () => {
     renderHome();
-    fireEvent.click(screen.getByTestId("quick-tile-journal"));
+    fireEvent.click(screen.getByTestId("quick-tile-capture"));
     expect(navigateMock).toHaveBeenCalledWith("/quick/journal");
     expect(toastFn).not.toHaveBeenCalled();
   });
@@ -178,10 +179,10 @@ describe("QuickAccessHome", () => {
       screen.getByTestId("quick-tile-lens").getAttribute("data-accent"),
     ).toBe("green");
     expect(
-      screen.getByTestId("quick-tile-calendar").getAttribute("data-accent"),
+      screen.getByTestId("quick-tile-today").getAttribute("data-accent"),
     ).toBe("amber");
     expect(
-      screen.getByTestId("quick-tile-journal").getAttribute("data-accent"),
+      screen.getByTestId("quick-tile-capture").getAttribute("data-accent"),
     ).toBe("red");
     expect(
       screen.getByTestId("quick-tile-library").getAttribute("data-accent"),
@@ -192,7 +193,7 @@ describe("QuickAccessHome", () => {
 
   test("tapping Today fires TaskEngine.prefetch with today's date before navigating", () => {
     renderHome({ firstName: "Vinny", homeId: "home-1" });
-    fireEvent.click(screen.getByTestId("quick-tile-calendar"));
+    fireEvent.click(screen.getByTestId("quick-tile-today"));
 
     expect(prefetchMock).toHaveBeenCalledTimes(1);
     const args = prefetchMock.mock.calls[0][0];
@@ -209,7 +210,7 @@ describe("QuickAccessHome", () => {
 
   test("Today tile tap skips the prefetch when homeId is absent", () => {
     renderHome({ firstName: "Vinny" });
-    fireEvent.click(screen.getByTestId("quick-tile-calendar"));
+    fireEvent.click(screen.getByTestId("quick-tile-today"));
     expect(prefetchMock).not.toHaveBeenCalled();
     expect(navigateMock).toHaveBeenCalledWith("/quick/calendar");
   });
@@ -231,14 +232,16 @@ describe("QuickAccessHome", () => {
     expect(page.className).toMatch(/overflow-(y-auto|hidden)/);
   });
 
-  // Wave 15 — tiles collapsed from 2x2 onto a single 4-col row so the
-  // hero + tiles + walk tile + seasonal-picks strip all fit in one phone
-  // viewport.
-  test("tiles render inside a 4-column grid", () => {
+  // Wave 16 — customisable launcher. The grid now renders the user's
+  // pinned destinations from the catalogue. Tile order, count and
+  // accents are pin-driven. With no saved preference the four default
+  // pins (lens / today / capture / library) land in a 2×2 grid.
+  test("tiles render inside a 2-column grid with a pinned-count attribute", () => {
     renderHome({ firstName: "Vinny" });
     const grid = screen.getByTestId("quick-tiles-grid");
     expect(grid).toBeTruthy();
-    expect(grid.className).toContain("grid-cols-4");
+    expect(grid.className).toContain("grid-cols-2");
+    expect(grid.getAttribute("data-pinned-count")).toBe("4");
     expect(screen.getByTestId("quick-tile-library")).toBeTruthy();
   });
 
@@ -246,11 +249,21 @@ describe("QuickAccessHome", () => {
     renderHome({ firstName: "Vinny" });
     for (const id of [
       "quick-tile-lens",
-      "quick-tile-calendar",
-      "quick-tile-journal",
+      "quick-tile-today",
+      "quick-tile-capture",
       "quick-tile-library",
     ]) {
       expect(screen.getByTestId(id).getAttribute("data-layout")).toBe("compact");
     }
+  });
+
+  test("renders a Customise link that deep-links to the picker", () => {
+    renderHome({ firstName: "Vinny" });
+    const link = screen.getByTestId("quick-access-customise-launcher");
+    expect(link).toBeTruthy();
+    fireEvent.click(link);
+    expect(navigateMock).toHaveBeenCalledWith(
+      "/gardener?section=quick-launcher",
+    );
   });
 });

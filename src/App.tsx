@@ -35,6 +35,7 @@ import {
   writeDashboardCache,
   clearAllDashboardCaches,
 } from "./lib/dashboardCache";
+import { clearLocalPins as clearQuickLauncherPins } from "./lib/quickLauncherPrefs";
 import * as Sentry from "@sentry/react";
 import WeatherForecast from "./components/WeatherForecast";
 import { WeatherAlertBanner } from "./components/WeatherAlertBanner";
@@ -901,10 +902,11 @@ function AppShell() {
       if (session) loadProfile(session.user.id).catch(() => {});
       else {
         setProfile(null);
-        // Sign-out: nuke every cached dashboard snapshot so a different
-        // account opening the app on the same device never sees the
-        // previous user's data flash on screen.
+        // Sign-out: nuke every cached dashboard snapshot + per-device
+        // launcher pins so a different account opening the app on the
+        // same device never sees the previous user's data or shortcuts.
         clearAllDashboardCaches();
+        clearQuickLauncherPins();
       }
     });
 
@@ -1172,6 +1174,10 @@ function AppShell() {
                           <QuickAccessHome
                             firstName={profile?.first_name ?? null}
                             homeId={profile?.home_id ?? null}
+                            userId={session?.user?.id ?? null}
+                            subscriptionTier={profile?.subscription_tier ?? null}
+                            aiEnabled={!!profile?.ai_enabled}
+                            isBeta={!!profile?.is_beta}
                           />
                         </div>
                       } />
@@ -1542,6 +1548,8 @@ function AppShell() {
                               displayName={profile.display_name ?? null}
                               email={session.user.email ?? null}
                               subscriptionTier={profile.subscription_tier ?? null}
+                              aiEnabled={!!profile.ai_enabled}
+                              isBeta={!!profile.is_beta}
                               onDisplayNameChange={(name) =>
                                 setProfile((prev: any) => prev ? { ...prev, display_name: name } : prev)
                               }

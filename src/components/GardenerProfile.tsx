@@ -7,6 +7,7 @@ import { TIERS, type TierId } from "../constants/tiers";
 import { useAchievements } from "../hooks/useAchievements";
 import { ACHIEVEMENTS } from "../lib/achievements";
 import AIUsagePanel from "./AIUsagePanel";
+import QuickLauncherPicker from "./quick/QuickLauncherPicker";
 import { useHighContrast } from "../hooks/useHighContrast";
 
 interface Props {
@@ -15,6 +16,8 @@ interface Props {
   displayName: string | null;
   email: string | null;
   subscriptionTier: TierId | null;
+  aiEnabled?: boolean;
+  isBeta?: boolean;
   onDisplayNameChange?: (name: string) => void;
   onTierChange?: (tier: TierId, aiEnabled: boolean, perenualEnabled: boolean) => void;
 }
@@ -918,7 +921,7 @@ function StatsTab({ stats }: { stats: NonNullable<ReturnType<typeof useAchieveme
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export default function GardenerProfile({ userId, homeId, displayName, email, subscriptionTier, onDisplayNameChange, onTierChange }: Props) {
+export default function GardenerProfile({ userId, homeId, displayName, email, subscriptionTier, aiEnabled = false, isBeta = false, onDisplayNameChange, onTierChange }: Props) {
   const [params, setParams] = useSearchParams();
   const initialTab = (params.get("tab") as Tab) ?? "account";
   const validTab: Tab = ["account", "notifications", "achievements", "stats"].includes(initialTab) ? initialTab : "account";
@@ -1057,15 +1060,31 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
 
       {/* Tab content */}
       {tab === "account" && (
-        <AccountTab
-          userId={userId}
-          homeId={homeId}
-          displayName={displayName}
-          email={email}
-          subscriptionTier={subscriptionTier}
-          onDisplayNameChange={onDisplayNameChange}
-          onTierChange={onTierChange}
-        />
+        <div className="space-y-5">
+          <AccountTab
+            userId={userId}
+            homeId={homeId}
+            displayName={displayName}
+            email={email}
+            subscriptionTier={subscriptionTier}
+            onDisplayNameChange={onDisplayNameChange}
+            onTierChange={onTierChange}
+          />
+          <QuickLauncherPicker
+            userId={userId}
+            homeId={homeId ?? null}
+            subscriptionTier={
+              (subscriptionTier as
+                | "sprout"
+                | "botanist"
+                | "sage"
+                | "evergreen"
+                | null) ?? null
+            }
+            aiEnabled={aiEnabled}
+            isBeta={isBeta}
+          />
+        </div>
       )}
 
       {tab === "notifications" && (
