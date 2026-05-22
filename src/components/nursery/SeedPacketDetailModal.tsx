@@ -289,7 +289,7 @@ export default function SeedPacketDetailModal({
               type="button"
               data-testid="packet-detail-edit"
               onClick={() => setEditing({ focusLink: false })}
-              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl text-rhozly-on-surface/65 hover:text-rhozly-primary text-[10px] font-black uppercase tracking-widest border border-rhozly-outline/15 hover:border-rhozly-primary/30"
+              className="inline-flex items-center gap-1.5 px-3.5 py-2 min-h-[40px] rounded-xl bg-rhozly-primary/10 text-rhozly-primary border border-rhozly-primary/30 text-[10px] font-black uppercase tracking-widest hover:bg-rhozly-primary/15 hover:border-rhozly-primary/50 transition-colors"
             >
               <Pencil size={12} />
               Edit
