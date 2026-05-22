@@ -70,6 +70,15 @@ export default function PlantPreview({ homeId, aiEnabled, isPremium }: Props) {
   const plantId = isPreviewRoute ? NaN : Number(rawId);
   const stateResult = (location.state as { result?: ProviderSearchResult } | null)
     ?.result;
+  /**
+   * Originating route — set by callers that aren't the library search
+   * (e.g. SeasonalPickTile from Dashboard / Today / Quick Access). The
+   * in-page back button uses this when present so a Sarah who taps a
+   * pick on `/dashboard` ends up back on `/dashboard` rather than on a
+   * Library search screen she never visited.
+   */
+  const backTo =
+    (location.state as { from?: string } | null)?.from?.trim() || "/library/search";
 
   const [plant, setPlant] = useState<CataloguePlant | null>(null);
   // `loading` only blocks the screen until we have *something* to show.
@@ -369,9 +378,9 @@ export default function PlantPreview({ homeId, aiEnabled, isPremium }: Props) {
         <button
           type="button"
           data-testid="plant-preview-back"
-          onClick={() => navigate("/library/search")}
+          onClick={() => navigate(backTo)}
           className="w-10 h-10 rounded-2xl bg-white border border-rhozly-outline/15 text-rhozly-on-surface/70 hover:text-rhozly-primary hover:border-rhozly-primary/30 flex items-center justify-center transition"
-          aria-label="Back to search"
+          aria-label={backTo === "/library/search" ? "Back to search" : "Back"}
         >
           <ArrowLeft size={18} />
         </button>

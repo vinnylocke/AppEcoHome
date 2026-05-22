@@ -51,7 +51,7 @@ export type ShapeTaskRow = {
   type: string;
   status: string;
   due_date: string;
-  inventory_item_id: string | null;
+  inventory_item_ids: string[] | null;
 };
 
 export type ShapeAilmentRow = {
@@ -140,9 +140,9 @@ export default function GardenShapeProperties({
       todayEnd.setHours(23, 59, 59, 999);
       const { data: tasks } = await supabase
         .from("tasks")
-        .select("id, title, type, status, due_date, inventory_item_id")
+        .select("id, title, type, status, due_date, inventory_item_ids")
         .eq("home_id", homeId)
-        .in("inventory_item_id", plantIds)
+        .overlaps("inventory_item_ids", plantIds)
         .neq("status", "Completed")
         .neq("status", "Skipped")
         .lte("due_date", todayEnd.toISOString())

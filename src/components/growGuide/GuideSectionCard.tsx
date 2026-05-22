@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useMemo, useState } from "react";
 import {
   Droplets,
   Mountain,
@@ -19,6 +19,7 @@ import type {
   GrowGuideSchedulableTask,
 } from "../../services/plantDoctorService";
 import AddToCalendarSheet from "./AddToCalendarSheet";
+import { flattenSectionsForCalendar } from "../../lib/scheduleFromSchedulableTask";
 
 const MONTH_ORDER = [
   "Jan","Feb","Mar","Apr","May","Jun",
@@ -135,6 +136,14 @@ export default function GuideSectionCard({
   const canAddToCalendar =
     !!homeId && !!plantId && !!plantName && schedulable.length > 0;
   const whenLine = formatActiveWindow(schedulable);
+  // Fold this section's how-to steps into the first schedulable task's
+  // description so the calendar entry carries the full instructions —
+  // the gardener tapping the reminder days later sees what to do without
+  // re-opening the grow guide.
+  const enrichedTasks = useMemo(
+    () => flattenSectionsForCalendar([section]),
+    [section],
+  );
 
   return (
     <section
@@ -261,7 +270,7 @@ export default function GuideSectionCard({
           homeId={homeId!}
           plantId={plantId!}
           plantName={plantName!}
-          schedulableTasks={schedulable}
+          schedulableTasks={enrichedTasks}
           heading={`Add ${section.title.toLowerCase()} tasks`}
           onClose={() => setSheetOpen(false)}
         />

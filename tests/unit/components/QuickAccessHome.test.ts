@@ -114,10 +114,13 @@ describe("QuickAccessHome", () => {
 
   // ─── Wave 7 redesign ────────────────────────────────────────────────────
 
-  test("falls back to generic greeting when firstName is null", () => {
+  test("falls back to time-of-day greeting when firstName is null", () => {
+    // Wave 15 compaction — the hero card became a single row, the
+    // longer fallback copy was dropped in favour of just the
+    // time-of-day greeting (matches the named variant minus the name).
     renderHome({ firstName: null });
-    expect(screen.getByTestId("quick-access-hero-greeting").textContent).toBe(
-      "What can I help with?",
+    expect(screen.getByTestId("quick-access-hero-greeting").textContent).toMatch(
+      /^Good (morning|afternoon|evening)$/,
     );
   });
 
@@ -138,17 +141,14 @@ describe("QuickAccessHome", () => {
     ).not.toContain("  ");
   });
 
-  test("treats empty firstName as missing (falls back to generic copy)", () => {
+  test("treats empty firstName as missing (falls back to time-of-day greeting)", () => {
+    // Wave 15 compaction dropped the long fallback line — when there's
+    // no name the hero shows just the time-of-day greeting so the card
+    // stays a single row on shorter phones.
     renderHome({ firstName: "   " });
-    expect(screen.getByTestId("quick-access-hero-greeting").textContent).toBe(
-      "What can I help with?",
+    expect(screen.getByTestId("quick-access-hero-greeting").textContent).toMatch(
+      /^Good (morning|afternoon|evening)$/,
     );
-  });
-
-  test("mounts the hero decoration (glow + sprout) for the redesigned landing", () => {
-    renderHome({ firstName: "Vinny" });
-    expect(screen.getByTestId("quick-access-hero-glow")).toBeTruthy();
-    expect(screen.getByTestId("quick-access-hero-sprout")).toBeTruthy();
   });
 
   // ─── Wave 8 ─ green hero card + Rhozly brand stamp ─────────────────────
@@ -159,12 +159,13 @@ describe("QuickAccessHome", () => {
   });
 
   // Wave 11 trimmed the hero to fit four tiles in one viewport — the logo
-  // + wordmark brand stamp was dropped to free vertical space. The eyebrow
-  // pill + greeting remain.
-  test("greeting falls back to the generic copy when firstName is missing", () => {
+  // + wordmark brand stamp was dropped to free vertical space (Wave 11),
+  // then Wave 15 compacted the hero into a single row and dropped the
+  // longer fallback copy as well.
+  test("greeting falls back to the time-of-day copy when firstName is missing", () => {
     renderHome({ firstName: null });
-    expect(screen.getByTestId("quick-access-hero-greeting").textContent).toBe(
-      "What can I help with?",
+    expect(screen.getByTestId("quick-access-hero-greeting").textContent).toMatch(
+      /^Good (morning|afternoon|evening)$/,
     );
   });
 
@@ -218,21 +219,26 @@ describe("QuickAccessHome", () => {
   // pins the contents so the four tiles always fit without scrolling. The
   // 2×2 grid below the hero is what makes that work.
 
-  test("renders a fixed-height page wrapper (no scroll)", () => {
+  test("renders a full-height page wrapper", () => {
+    // Post-Nursery we added the Seasonal Picks strip below the walk
+    // tile, which can push the footer off-screen on shorter phones —
+    // the wrapper switched from `overflow-hidden` to `overflow-y-auto`
+    // so the picks stay reachable via scroll on those devices.
     renderHome({ firstName: "Vinny" });
     const page = screen.getByTestId("quick-access-page");
     expect(page).toBeTruthy();
     expect(page.className).toContain("h-full");
-    expect(page.className).toContain("overflow-hidden");
+    expect(page.className).toMatch(/overflow-(y-auto|hidden)/);
   });
 
-  // Wave 13 — tiles auto-size to their content (no grid-rows-2) so the
-  // small launcher tiles don't have to stretch to fill the viewport.
-  test("tiles render inside a 2-column grid", () => {
+  // Wave 15 — tiles collapsed from 2x2 onto a single 4-col row so the
+  // hero + tiles + walk tile + seasonal-picks strip all fit in one phone
+  // viewport.
+  test("tiles render inside a 4-column grid", () => {
     renderHome({ firstName: "Vinny" });
     const grid = screen.getByTestId("quick-tiles-grid");
     expect(grid).toBeTruthy();
-    expect(grid.className).toContain("grid-cols-2");
+    expect(grid.className).toContain("grid-cols-4");
     expect(screen.getByTestId("quick-tile-library")).toBeTruthy();
   });
 

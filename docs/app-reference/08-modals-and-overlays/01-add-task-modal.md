@@ -9,6 +9,8 @@
 
 ## Quick Summary
 
+When the task type is **Planting**, a "From your Nursery" packet picker surfaces between the task-type select and the location grid. Selecting a packet pre-fills the title (e.g. *"Sow Tomato Sungold"*) and appends a provenance line to the description. The picker is purely UX — no packet id is persisted on the task; logging the actual sowing happens via [The Nursery](../03-garden-hub/10-nursery.md)'s Log a sowing flow.
+
 A long modal with mode-switching:
 
 - **One-off task mode** — creates a single `tasks` row with `due_date`.

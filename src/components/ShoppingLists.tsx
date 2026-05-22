@@ -8,6 +8,7 @@ import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { useShoppingLists } from "../hooks/useShoppingLists";
 import ShoppingListCard from "./shopping/ShoppingListCard";
 import AddItemSheet from "./shopping/AddItemSheet";
+import SeedRefillBanner from "./shopping/SeedRefillBanner";
 import { supabase } from "../lib/supabase";
 import type { ShoppingListItem } from "../types/shopping";
 
@@ -227,6 +228,17 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
               Retry
             </button>
           </div>
+        )}
+
+        {/* Seed refill nudge — surfaces packets approaching sow-by / low
+            viability / opened >18mo ago. Hides itself when no refills
+            need attention or when there's no active list to add into. */}
+        {!isLoading && !fetchError && activeLists.length > 0 && (
+          <SeedRefillBanner
+            homeId={homeId}
+            activeLists={activeLists}
+            addItem={addItem}
+          />
         )}
 
         {/* Pull-from-plans suggestion banner */}

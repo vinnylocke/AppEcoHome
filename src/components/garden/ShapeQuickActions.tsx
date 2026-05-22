@@ -37,7 +37,7 @@ export default function ShapeQuickActions({ shapeId, shapeLabel, areaId, homeId,
         .from("tasks")
         .select("id, type")
         .eq("home_id", homeId)
-        .in("inventory_item_id", plantIds)
+        .overlaps("inventory_item_ids", plantIds)
         .neq("status", "Completed")
         .neq("status", "Skipped")
         .lte("due_date", todayEnd.toISOString());
@@ -70,7 +70,7 @@ export default function ShapeQuickActions({ shapeId, shapeLabel, areaId, homeId,
         .select("id")
         .eq("home_id", homeId)
         .eq("type", type)
-        .in("inventory_item_id", plantIds)
+        .overlaps("inventory_item_ids", plantIds)
         .neq("status", "Completed")
         .neq("status", "Skipped")
         .lte("due_date", todayEnd.toISOString());

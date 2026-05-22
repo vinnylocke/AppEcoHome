@@ -102,8 +102,9 @@ supabase.from("plans").update({ status: type === "archive" ? "Archived" : "Draft
 
 ### URL state
 
-- `?open=new-plan` — auto-opens the create modal (used by the Quick Add menu).
+- `?open=new-plan` — auto-opens the create modal (used by the Quick Add menu **and** the Plant Doctor chat's plan-suggestion CTA).
 - Once handled, the search param is removed.
+- When `?open=new-plan` fires, the dashboard also checks `sessionStorage` via `plannerPrefill.ts` for a pending hand-off payload (`{ name, description }`). If present, the values are passed into `NewPlanForm` as `initialName` / `initialDescription` and sessionStorage is cleared. This is how the chat hands a "Sunny Veg Patch 2026" plan over to the dashboard without putting long descriptions in the URL.
 
 ### Edge functions invoked
 

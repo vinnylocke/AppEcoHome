@@ -26,6 +26,11 @@ import { IconAI, IconPlanner } from "../constants/icons";
 import NewPlanForm from "./NewPlanForm";
 import PlanStaging from "./PlanStaging";
 import AssistantCard from "./AssistantCard";
+import {
+  readPlannerPrefill,
+  clearPlannerPrefill,
+  type PlannerPrefill,
+} from "../lib/plannerPrefill";
 import { Repeat } from "lucide-react";
 
 interface PlannerDashboardProps {
@@ -46,6 +51,8 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
     "Pending" | "Completed" | "Archived"
   >("Pending");
   const [showNewPlanModal, setShowNewPlanModal] = useState(false);
+  // Pre-fill set when the user arrived here via the chat's plan-suggestion CTA.
+  const [newPlanPrefill, setNewPlanPrefill] = useState<PlannerPrefill | null>(null);
   const [showPlanExplainer, setShowPlanExplainer] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any | null>(null);
 
@@ -69,6 +76,13 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
     if (openHandled.current) return;
     if (searchParams.get("open") === "new-plan") {
       openHandled.current = true;
+      // Consume a pending chat hand-off payload, if any. Cleared so a
+      // subsequent manual "New Plan" press starts blank.
+      const prefill = readPlannerPrefill();
+      if (prefill) {
+        setNewPlanPrefill(prefill);
+        clearPlannerPrefill();
+      }
       setShowNewPlanModal(true);
       setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("open"); return n; }, { replace: true });
     }
@@ -627,9 +641,15 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
         <NewPlanForm
           homeId={homeId}
           aiEnabled={aiEnabled}
-          onClose={() => setShowNewPlanModal(false)}
+          initialName={newPlanPrefill?.name}
+          initialDescription={newPlanPrefill?.description}
+          onClose={() => {
+            setShowNewPlanModal(false);
+            setNewPlanPrefill(null);
+          }}
           onSuccess={() => {
             setShowNewPlanModal(false);
+            setNewPlanPrefill(null);
             fetchPlans();
           }}
         />

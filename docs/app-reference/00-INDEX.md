@@ -57,6 +57,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Quick Capture Journal](./02-dashboard/11-quick-capture-journal.md) — mobile `/quick/journal` capture-first journal mode; entries land unassigned and get filed to plants later
 - [x] [The Library](./02-dashboard/12-the-library.md) — `/library/*` plant database — search any species, preview care / grow guide / companions / light, save to Shed
 - [x] [Garden Walk](./02-dashboard/13-garden-walk.md) — `/walk` guided card-by-card tour of every plant; Snap / Note / All good / Skip per plant with rolled-up session summary
+- [x] [Seasonal Picks Card](./02-dashboard/14-seasonal-picks.md) — "what can I grow right now?" — weekly card on Dashboard + Today screen with 4-6 personalised, hemisphere/frost-aware sowing picks; AI for Sage+, deterministic fallback for Sprout/Botanist
 
 ## 03 — Garden Hub
 
@@ -69,6 +70,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Microclimate Report](./03-garden-hub/07-microclimate-report.md) — sun / wind / frost per area modal
 - [x] [Sun Tracker AR](./03-garden-hub/08-sun-tracker-ar.md) — AR sun path overlay
 - [x] [Light Sensor](./03-garden-hub/09-light-sensor.md) — lux meter + band + plant comparison
+- [x] [The Nursery](./03-garden-hub/10-nursery.md) — seed packets + sowings + plant-out lifecycle (lives behind a Plants / Nursery toggle on `/shed`)
 
 ## 04 — Planner & Shopping
 
@@ -204,6 +206,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Onboarding State — `user_profiles.onboarding_state` jsonb](./99-cross-cutting/30-onboarding-state.md)
 - [x] [Deployment Pipeline — `npm run deploy`, Vercel, Maintenance Mode](./99-cross-cutting/31-deployment.md)
 - [x] [Release Notes Pipeline](./99-cross-cutting/32-release-notes.md)
+- [x] [Data Model — Nursery (Packets, Sowings, Plant-Out FK)](./99-cross-cutting/33-data-model-nursery.md)
 
 ---
 

@@ -8,7 +8,9 @@
 
 ## Quick Summary
 
-A focus-trapped portal with a tabbed layout:
+A focus-trapped portal with a tabbed layout. Instances created via [The Nursery's](../03-garden-hub/10-nursery.md) Plant Out flow show a **"From the Nursery"** provenance badge at the top of the Details tab — sourced from `inventory_items.from_sowing_id` joined to the originating sowing + packet (variety, vendor, sow date, germination count).
+
+Below the badge:
 
 | Tab | Purpose |
 |-----|---------|

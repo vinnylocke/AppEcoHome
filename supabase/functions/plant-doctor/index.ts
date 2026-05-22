@@ -20,6 +20,7 @@ import {
   diffGrowGuide,
   type PlantGrowGuide,
 } from "../_shared/growGuide.ts";
+import { generateSeasonalPicksForHome } from "../_shared/seasonalPicksHandler.ts";
 
 const FN = "plant-doctor";
 
@@ -470,6 +471,7 @@ serve(async (req) => {
       diseaseName, pestName, notes, inventoryItemId, areaId,
       deviceLat, deviceLng,
       searchFilters, searchOffset,
+      forceRegen,
     } = body;
     action = _action;
 
@@ -528,7 +530,10 @@ serve(async (req) => {
     // `lookup_frost_dates` is open to all tiers — the cached row is treated
     // as a fact, not a generation. First-time miss still pays a Gemini call,
     // but that's amortised across the home's members and a 6-month TTL.
-    const skipAiGate = action === "lookup_frost_dates";
+    // `seasonal_picks` is also open to all tiers — Sprout/Botanist get the
+    // deterministic fallback path, Sage+ get the Gemini path; the action
+    // handler checks the AI gate itself before the Gemini call.
+    const skipAiGate = action === "lookup_frost_dates" || action === "seasonal_picks";
 
     if (homeId && !skipAiGate) {
       const guardErr = await guardAiByHome(supabase, homeId);
@@ -1626,6 +1631,36 @@ ${locationLine ? `Gardener location: ${locationLine}. Tailor treatment and preve
       await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "get_ai_pest_info", usage });
       log(FN, "result", { action, pestName });
       return new Response(rawText, {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── action: seasonal_picks ─────────────────────────────────────────────
+    //
+    // Returns 4-6 personalised "what to grow this week" picks. Delegates
+    // to the shared `generateSeasonalPicksForHome` orchestrator so the
+    // cron pre-warm path uses identical logic.
+
+    if (action === "seasonal_picks") {
+      if (!homeId) throw new Error("homeId is required for seasonal_picks.");
+
+      const result = await generateSeasonalPicksForHome(supabase, {
+        homeId,
+        apiKey,
+        forceRegen: !!forceRegen,
+        callerUserId,
+        functionName: FN,
+      });
+
+      log(FN, "result", {
+        action,
+        fromCache: result.from_cache,
+        weekIso: result.week_iso,
+        source: result.source,
+        count: result.picks.length,
+      });
+
+      return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

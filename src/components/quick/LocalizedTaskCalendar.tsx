@@ -9,6 +9,7 @@ import PlantingCalendarCard from "./PlantingCalendarCard";
 import RainWaterAdvice from "./RainWaterAdvice";
 import QuickAddTaskModal from "./QuickAddTaskModal";
 import TaskList from "../TaskList";
+import SeasonalPicksCard from "../seasonal/SeasonalPicksCard";
 
 interface Props {
   homeId: string;
@@ -142,7 +143,10 @@ export default function LocalizedTaskCalendar({ homeId, aiEnabled }: Props) {
           />
         ) : null}
 
-        {/* 3. Today's tasks (compact) */}
+        {/* 3. Seasonal picks — "what to grow this week", horizontal scroll. */}
+        <SeasonalPicksCard homeId={homeId} variant="today" />
+
+        {/* 4. Today's tasks (compact) */}
         <section
           data-testid="quick-calendar-tasks"
           className="rounded-3xl bg-white border border-rhozly-outline/15 shadow-sm p-4 sm:p-5"

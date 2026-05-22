@@ -76,6 +76,32 @@ const CHAT_SCHEMA = {
         required: ["entity_type", "entity_name", "sentiment", "reason"],
       },
     },
+    plan_suggestion: {
+      type: "OBJECT",
+      nullable: true,
+      description:
+        "OPTIONAL proactive CTA when the user appears to be planning a multi-plant garden project. Emit ONLY when ALL of these are true: (a) the conversation has touched on TWO OR MORE distinct plants (across recent turns), (b) a coherent theme is clear (e.g. 'sunny veg patch', 'shade border', 'drought-tolerant gravel garden'), (c) no prior assistant turn in this thread already has a plan_suggestion. Leave NULL for diagnostic questions, single-plant queries, or general advice. Use sparingly — at most once per conversation thread.",
+      properties: {
+        headline: {
+          type: "STRING",
+          description: "Short framing line shown above the CTA card. e.g. 'Sounds like you're planning a sunny veg patch.' One sentence, no question mark.",
+        },
+        plan_name: {
+          type: "STRING",
+          description: "Concrete short Plan name to pre-fill in the New Plan form. Max 40 characters. e.g. 'Sunny Veg Patch 2026'. Never use placeholders like 'Project 1' or 'My Plan'.",
+        },
+        description: {
+          type: "STRING",
+          description: "2-4 sentence description for the New Plan form's description field. Summarise the goal and the plants/themes mentioned so the user can edit before saving.",
+        },
+        plants_of_interest: {
+          type: "ARRAY",
+          description: "The named plants from the conversation that motivated this suggestion. Max 6 entries.",
+          items: { type: "STRING" },
+        },
+      },
+      required: ["headline", "plan_name", "description"],
+    },
   },
   required: ["text"],
 };
@@ -85,7 +111,14 @@ serve(async (req) => {
     return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { messages, currentContext, homeId, imageBase64, imageMimeType } = await req.json();
+    const {
+      messages,
+      currentContext,
+      homeId,
+      imageBase64,
+      imageMimeType,
+      priorPlanSuggested,
+    } = await req.json();
 
     const authHeader = req.headers.get("Authorization") ?? "";
     const authToken = authHeader.replace("Bearer ", "");
@@ -181,6 +214,12 @@ serve(async (req) => {
       USER'S KNOWN PREFERENCES (use these to personalise every response):
       ${renderContextBlock(ctx, ["preferences"]).replace("── GARDENER CONTEXT ──\n", "").replace("\n── END CONTEXT ──", "")}
 
+      PLAN-SUGGESTION STATE: ${
+        priorPlanSuggested
+          ? "A previous assistant turn in this thread already proposed a Plan. DO NOT emit plan_suggestion again unless the user explicitly pivots to a brand-new project."
+          : "No plan has been suggested yet in this thread. You MAY emit plan_suggestion if criteria are met (see PLAN SUGGESTION RULES below)."
+      }
+
       Provide highly personalised advice formatted in markdown.
       Always honour the user's known preferences — if they dislike something, never recommend it.
       Tailor seasonal advice to the user's hemisphere and current season (${ctx.currentSeason}, ${ctx.currentMonth}).
@@ -208,6 +247,24 @@ serve(async (req) => {
       - "I need frost-hardy plants" → entity_type: climate, entity_name: frost-hardy, sentiment: positive
       - "I have sandy soil" → entity_type: soil, entity_name: Sandy Soil, sentiment: positive
       Do NOT infer preferences — only capture what is explicitly stated.
+
+      PLAN SUGGESTION RULES:
+      Rhozly's Planner section is where users organise multi-plant garden projects (e.g. "Spring Veggie Bed 2026", "Shade Border Refresh"). When you detect the user is researching a coherent project — not a one-off question — you should help them get there.
+
+      Two modes, by your judgement:
+
+        MODE 1 — SOFT PROBE (text only). When you sense a trend (e.g. they have asked about 2+ different plants in the recent turns) but the project theme isn't yet clear, ask conversationally in your normal "text" reply. Examples:
+          - "I notice you're looking at a few different plants — are you working on a particular project? I can help organise it into a Plan."
+          - "Are these plants for a specific area, like a sunny bed or a shady border?"
+        Keep the probe to one short sentence at the end of an otherwise normal reply.
+
+        MODE 2 — HARD CTA (emit plan_suggestion). Only when ALL of these are true:
+          1. The conversation has covered 2+ distinct named plants across recent turns.
+          2. A specific theme is clear ("sunny veg patch", "drought-tolerant border", "indoor herb shelf"), either inferred from the plants or stated by the user.
+          3. PLAN-SUGGESTION STATE says no plan has been suggested yet in this thread.
+        When you emit, populate plan_suggestion with a concrete plan_name (≤ 40 chars, no placeholders) and a 2-4 sentence description summarising the goal + named plants. Keep the "text" reply natural — the card renders separately, do not paraphrase the CTA in the text.
+
+      DO NOT emit plan_suggestion for: diagnostic questions ("why are my carrots forking?"), single-plant queries, generic advice, image-only diagnosis, or when PLAN-SUGGESTION STATE forbids it. When in doubt, lean towards the soft probe — it's the safer default.
 
       IMAGE ANALYSIS RULES (only apply when the user sends an image):
       - If the user sends a plant photo for identification: describe what you can see, identify the most likely species, provide care advice, and include it in suggested_plants if confident.
@@ -272,6 +329,27 @@ serve(async (req) => {
 
     await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "chat", usage });
 
+    // Validate plan_suggestion shape before passing through — defensive
+    // against the model returning a partial object.
+    const rawPlan = aiResult.plan_suggestion;
+    const planSuggestion =
+      rawPlan &&
+      typeof rawPlan === "object" &&
+      typeof rawPlan.headline === "string" &&
+      typeof rawPlan.plan_name === "string" &&
+      typeof rawPlan.description === "string" &&
+      rawPlan.plan_name.trim().length > 0 &&
+      rawPlan.plan_name.trim().length <= 80
+        ? {
+            headline: rawPlan.headline.trim(),
+            plan_name: rawPlan.plan_name.trim(),
+            description: rawPlan.description.trim(),
+            plants_of_interest: Array.isArray(rawPlan.plants_of_interest)
+              ? rawPlan.plants_of_interest.filter((p: unknown) => typeof p === "string").slice(0, 6)
+              : [],
+          }
+        : null;
+
     log(FN, "result", {
       homeId,
       userId,
@@ -279,6 +357,7 @@ serve(async (req) => {
       suggestedTasksCount: (aiResult.suggested_tasks || []).length,
       detectedPrefsCount: (aiResult.detected_preferences || []).length,
       preferencesSaved: savedCount,
+      planSuggested: !!planSuggestion,
     });
 
     return new Response(
@@ -286,6 +365,7 @@ serve(async (req) => {
         reply: aiResult.text,
         suggested_plants: aiResult.suggested_plants || [],
         suggested_tasks: aiResult.suggested_tasks || [],
+        plan_suggestion: planSuggestion,
         preferences_captured: savedCount,
       }),
       {

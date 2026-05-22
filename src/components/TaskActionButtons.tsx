@@ -175,15 +175,13 @@ export const TaskActionButtons = ({
           if (error) throw error;
           idMap.set(i, data.id);
         } else {
-          // It's a One-Off Task. When the caller picked specific
-          // instances, attach the first one via tasks.inventory_item_id
-          // (singular — that's what the tasks table accepts).
+          // One-off task — attach picked instances via the jsonb array column.
           const { data, error } = await supabase
             .from("tasks")
             .insert({
               home_id: homeId,
               ...(inventoryItemIds && inventoryItemIds.length > 0
-                ? { inventory_item_id: inventoryItemIds[0] }
+                ? { inventory_item_ids: inventoryItemIds }
                 : {}),
               title: task.title,
               description: task.description,

@@ -7,28 +7,6 @@ import {
   CloudDrizzle,
 } from "lucide-react";
 
-export const getMidnightTonight = (): number => {
-  const now = new Date();
-  return new Date(
-    now.getFullYear(),
-    now.getMonth(),
-    now.getDate() + 1,
-    0, 0, 0, 0,
-  ).getTime();
-};
-
-export const getCachedWeatherData = (homeId: string): any | null => {
-  const cacheKey = `weather_cache_${homeId}`;
-  const cached = sessionStorage.getItem(cacheKey);
-  if (!cached) return null;
-  const { data, expiresAt } = JSON.parse(cached);
-  if (Date.now() > expiresAt) {
-    sessionStorage.removeItem(cacheKey);
-    return null;
-  }
-  return data;
-};
-
 export const extractCurrentWeather = (meteoData: any) => {
   const data = meteoData?.data || meteoData;
   const hourly = data?.hourly;
@@ -51,7 +29,6 @@ export const extractCurrentWeather = (meteoData: any) => {
     const hr = p.hour === "24" ? "00" : p.hour;
     currentHourTarget = `${p.year}-${p.month}-${p.day}T${hr}:00`;
   } catch {
-    // Fallback: format using UTC if timezone is unrecognized
     const y = now.getUTCFullYear();
     const m = String(now.getUTCMonth() + 1).padStart(2, "0");
     const d = String(now.getUTCDate()).padStart(2, "0");
@@ -87,22 +64,4 @@ export const extractCurrentWeather = (meteoData: any) => {
     description: info.label,
     Icon: info.icon,
   };
-};
-
-export const getCachedLocations = (homeId: string): any[] | null => {
-  const cacheKey = `locations_cache_${homeId}`;
-  const cached = sessionStorage.getItem(cacheKey);
-  if (!cached) return null;
-  const { data, expiresAt } = JSON.parse(cached);
-  if (Date.now() > expiresAt) {
-    sessionStorage.removeItem(cacheKey);
-    return null;
-  }
-  return data;
-};
-
-export const setLocationCache = (homeId: string, data: any[]): void => {
-  const cacheKey = `locations_cache_${homeId}`;
-  const payload = { data, expiresAt: Date.now() + 60 * 60 * 1000 };
-  sessionStorage.setItem(cacheKey, JSON.stringify(payload));
 };

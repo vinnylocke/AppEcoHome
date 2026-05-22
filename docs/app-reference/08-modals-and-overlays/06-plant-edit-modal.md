@@ -12,6 +12,8 @@
 
 Opens when you tap a plant card in the Shed. Edits go to the `plants` row (plant-level — shared across all instances of the species in this home). Per-instance tweaks (state, area, notes) happen in InstanceEditModal.
 
+The Care tab also surfaces a **"Seeds in your Nursery"** pill when matching seed packets exist for this plant — it expands to show each packet's variety + vendor + status (awaiting germination / ready to plant out / last sowing %). Hides itself when there are no matching packets. See [The Nursery](../03-garden-hub/10-nursery.md).
+
 Tabs:
 - **Care** — common name, scientific names, sun/water/soil, cycle, hardiness
 - **Schedule** — `PlantScheduleTab` shows blueprints + ghost tasks for this species

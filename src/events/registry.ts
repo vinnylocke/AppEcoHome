@@ -42,6 +42,20 @@ export const EVENT = {
   AI_IDENTIFY:               "ai_identify",
   AI_DIAGNOSE:               "ai_diagnose",
   PLANT_DOCTOR_CHAT_MESSAGE: "plant_doctor_chat_message",
+  PLANT_DOCTOR_CHAT_PLAN_SUGGESTION_SHOWN:     "plant_doctor_chat_plan_suggestion_shown",
+  PLANT_DOCTOR_CHAT_PLAN_SUGGESTION_ACCEPTED:  "plant_doctor_chat_plan_suggestion_accepted",
+  PLANT_DOCTOR_CHAT_PLAN_SUGGESTION_DISMISSED: "plant_doctor_chat_plan_suggestion_dismissed",
+  // Seasonal Picks ("What can I grow right now?")
+  SEASONAL_PICKS_LOADED:    "seasonal_picks_loaded",
+  SEASONAL_PICKS_REFRESHED: "seasonal_picks_refreshed",
+  SEASONAL_PICK_OPENED:     "seasonal_pick_opened",
+  // The Nursery — seed packets + sowings + plant-out lifecycle
+  NURSERY_PACKET_ADDED:        "nursery_packet_added",
+  NURSERY_PACKET_ARCHIVED:     "nursery_packet_archived",
+  NURSERY_SOWING_LOGGED:       "nursery_sowing_logged",
+  NURSERY_SOWING_OBSERVED:     "nursery_sowing_observed",
+  NURSERY_SOWING_PLANTED_OUT:  "nursery_sowing_planted_out",
+  NURSERY_SOWING_DISCARDED:    "nursery_sowing_discarded",
   // Blueprints (recurring tasks)
   BLUEPRINT_CREATED:         "blueprint_created",
   BLUEPRINT_DELETED:         "blueprint_deleted",

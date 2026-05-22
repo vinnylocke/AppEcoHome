@@ -17,7 +17,10 @@ import {
 } from "../services/plantDoctorService";
 import GuideSectionCard from "./growGuide/GuideSectionCard";
 import AddToCalendarSheet from "./growGuide/AddToCalendarSheet";
-import type { SchedulableTask } from "../lib/scheduleFromSchedulableTask";
+import {
+  flattenSectionsForCalendar,
+  type SchedulableTask,
+} from "../lib/scheduleFromSchedulableTask";
 
 interface Props {
   plantId: number;
@@ -301,10 +304,11 @@ export default function GrowGuideTab({
     : 0;
 
   // Bulk "Add all" surface — flatten schedulable_tasks across every
-  // applicable section. Order matches the guide's natural section order
-  // so the sheet feels predictable.
-  const allSchedulable: SchedulableTask[] = visibleSections.flatMap(
-    (s) => (s.schedulable_tasks as SchedulableTask[] | undefined) ?? [],
+  // applicable section, folding each section's how-to steps into the
+  // first task's description so the calendar entry carries the full
+  // instructions. Order matches the guide's natural section order.
+  const allSchedulable: SchedulableTask[] = flattenSectionsForCalendar(
+    visibleSections,
   );
   const totalSchedulable = allSchedulable.length;
 

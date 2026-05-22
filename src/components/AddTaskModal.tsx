@@ -24,6 +24,8 @@ import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
 import { BlueprintService } from "../services/blueprintService";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
 import { usePermissions } from "../context/HomePermissionsContext";
+import NurseryPacketPicker from "./nursery/NurseryPacketPicker";
+import type { NurseryListEntry } from "../services/nurseryService";
 
 const TASK_TYPE_HINTS: Record<string, string> = {
   Watering:    "Regular watering reminders — daily, every few days, or weekly based on plant needs.",
@@ -102,6 +104,15 @@ export default function AddTaskModal({
   });
 
   const [smartPresets, setSmartPresets] = useState<{ type: string; frequency_days: number }[]>([]);
+  /**
+   * Nursery integration — when the task type is "Planting", a picker
+   * shows the user's active seed packets. Selecting one pre-fills the
+   * title + description so the task reads like "Sow Tomato Sungold"
+   * instead of forcing the user to type from scratch. The id is purely
+   * UX state — not persisted on the task itself; the actual sowing
+   * link happens via The Nursery's Log a sowing flow.
+   */
+  const [pickedNurseryPacketId, setPickedNurseryPacketId] = useState<string | null>(null);
   // Track whether the user has manually changed the frequency. If not, we
   // re-apply the type's default whenever the task type changes.
   const userTouchedFrequency = useRef(!!existingBlueprint);
@@ -799,6 +810,22 @@ export default function AddTaskModal({
               )}
             </div>
 
+            {/* From-your-Nursery shortcut — only relevant on planting tasks. */}
+            {form.type === "Planting" && (
+              <div className="sm:col-span-2 -mt-1">
+                <NurseryPacketPicker
+                  homeId={homeId}
+                  pickedPacketId={pickedNurseryPacketId}
+                  hint="Pick a packet to pre-fill the task name and description. Logging the actual sowing happens from The Nursery."
+                  onPick={(entry) => {
+                    setPickedNurseryPacketId(entry?.packet.id ?? null);
+                    if (!entry) return;
+                    applyNurseryPacketToForm(entry, form, setForm);
+                  }}
+                />
+              </div>
+            )}
+
             <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2">
               <select
                 value={form.location_id}
@@ -1271,6 +1298,36 @@ export default function AddTaskModal({
     </div>,
     document.body,
   );
+}
+
+// ── Nursery picker helper ───────────────────────────────────────────────────
+
+/**
+ * Apply a Nursery packet to the task form — pre-fills the title with a
+ * verb-led action ("Sow Tomato Sungold") and appends a provenance line
+ * to the description. Existing user-typed content is preserved; we only
+ * touch the title when it's empty so the user isn't surprised.
+ */
+function applyNurseryPacketToForm(
+  entry: NurseryListEntry,
+  form: { title: string; description: string },
+  setForm: React.Dispatch<React.SetStateAction<typeof form & Record<string, unknown>>>,
+): void {
+  const variety = entry.packet.variety?.trim();
+  const common = entry.plant?.common_name?.trim();
+  const subject = variety && common
+    ? `${variety} (${common})`
+    : variety || common || "seeds";
+  const nextTitle = form.title.trim() ? form.title : `Sow ${subject}`;
+  const vendor = entry.packet.vendor?.trim();
+  const provenance = vendor
+    ? `From your ${vendor} packet in The Nursery.`
+    : `From your Nursery.`;
+  const existingDesc = form.description.trim();
+  const nextDescription = existingDesc
+    ? `${existingDesc}\n\n${provenance}`
+    : provenance;
+  setForm((prev) => ({ ...prev, title: nextTitle, description: nextDescription }));
 }
 
 // ── Generate-from-photo helper ──────────────────────────────────────────────

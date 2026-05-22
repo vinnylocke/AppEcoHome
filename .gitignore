@@ -13,6 +13,10 @@ dist
 dist-ssr
 *.local
 
+# Build-time version stamp (written by scripts/deploy.mjs before the
+# Vercel build, consumed by useAppVersion at runtime).
+public/build-version.json
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

@@ -142,6 +142,64 @@ export function scheduleFromSchedulableTasks(
   return list.map((t) => scheduleFromSchedulableTask(t, opts));
 }
 
+/** The how-to step shape carried inside each grow-guide section. */
+export interface GuideStep {
+  step: number;
+  title: string;
+  detail: string;
+}
+
+/**
+ * Returns a new `SchedulableTask` with the section's how-to steps
+ * appended to the description as a numbered "How to" checklist. When
+ * `steps` is empty, the original task is returned unchanged.
+ */
+export function enrichDescriptionWithSteps(
+  task: SchedulableTask,
+  steps: GuideStep[] | null | undefined,
+): SchedulableTask {
+  if (!steps || steps.length === 0) return task;
+  const checklist = steps
+    .slice()
+    .sort((a, b) => a.step - b.step)
+    .map((s) => `${s.step}. ${s.title} — ${s.detail}`.trim())
+    .join("\n");
+  const original = task.description?.trim() ?? "";
+  const description = original
+    ? `${original}\n\nHow to:\n${checklist}`
+    : `How to:\n${checklist}`;
+  return { ...task, description };
+}
+
+/** Minimal section shape this module needs — keeps us decoupled from
+ *  the wider GuideSection definition in the edge function. */
+export interface SectionForCalendar {
+  schedulable_tasks?: SchedulableTask[] | null;
+  steps?: GuideStep[] | null;
+}
+
+/**
+ * Flatten an array of guide sections into a single ordered list of
+ * `SchedulableTask`s, applying the steps-into-description enrichment
+ * to the FIRST task of each section. Subsequent tasks in the same
+ * section keep their own short description — they carry their own
+ * timing (e.g. germination's "Transplant seedlings" after "Sow") and
+ * shouldn't duplicate the whole how-to checklist.
+ */
+export function flattenSectionsForCalendar(
+  sections: SectionForCalendar[],
+): SchedulableTask[] {
+  const out: SchedulableTask[] = [];
+  for (const section of sections) {
+    const tasks = section.schedulable_tasks ?? [];
+    if (tasks.length === 0) continue;
+    const [first, ...rest] = tasks;
+    out.push(enrichDescriptionWithSteps(first, section.steps));
+    for (const t of rest) out.push(t);
+  }
+  return out;
+}
+
 // ─── Helpers ───────────────────────────────────────────────────────────
 
 function validateTaskType(raw: string): AllowedTaskType {

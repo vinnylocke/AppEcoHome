@@ -1,1 +1,29 @@
-[]
+[
+  {
+    "label": "New",
+    "items": [
+      "The Nursery — a new home for seed packets inside The Shed. Add packets manually, paste a list, or point your phone at a packet and let Rhozly AI extract the variety, vendor, sow-by date and quantity for you.",
+      "Seasonal Picks — a fresh \"What to grow this week\" card on the Dashboard and Quick Access menu, refreshed weekly from your hardiness zone and the time of year.",
+      "Chat-suggested Plans — when Plant Doctor Chat spots you researching a project (a few different plants in a row), it now offers to bundle them into a Plan in the Planner with one tap.",
+      "Grow Guide steps now ride along with calendar tasks — when you add a section to the calendar, the how-to checklist comes with it, so the reminder is self-sufficient days later."
+    ]
+  },
+  {
+    "label": "Faster + more reliable",
+    "items": [
+      "Local-first Dashboard — the dashboard now paints instantly on cold open from a local snapshot, then revalidates in the background. Yesterday's tasks, plants and weather are still readable offline.",
+      "Loading reliability rewrite — every critical query (profile, dashboard, quiz, locations, weather) now retries on transient failures, times out cleanly, and waits for the network to come back instead of erroring on a momentary blip.",
+      "Update banner rewrite — when a new version is live, the banner now appears reliably and auto-reloads after a 10-second countdown. Tap \"Not now\" to pick your moment instead.",
+      "Garden quiz no longer prompts you to retake it after a flaky network read."
+    ]
+  },
+  {
+    "label": "Polish",
+    "items": [
+      "Quick Access menu tightened up — bigger hero, 2×2 launcher tiles, and Seasonal Picks now shows one at a time with prev/next chevrons.",
+      "Plant Doctor Chat — clearer plan-suggestion card, better follow-up prompts.",
+      "Library — instant plant opens, cached search results, and reliable thumbnails across providers.",
+      "Garden zones — softer quick actions and tidier zone-properties sheet."
+    ]
+  }
+]

@@ -52,6 +52,7 @@ import { saveToShed as saveToShedLib } from "../lib/saveToShed";
 import { usePermissions } from "../context/HomePermissionsContext";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
+import NurseryTab from "./nursery/NurseryTab";
 import InfoTooltip from "./InfoTooltip";
 import AssistantCard from "./AssistantCard";
 
@@ -159,6 +160,10 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
 
   const gridRef = useRef<HTMLDivElement>(null);
   const [focusedIndex, setFocusedIndex] = useState(0);
+  // Plants / Nursery toggle — defaults to the existing Plants grid; "nursery"
+  // swaps the body to the seed-packet list (kept inside The Shed so the user
+  // doesn't have to learn a new route).
+  const [view, setView] = useState<"plants" | "nursery">("plants");
 
   useEffect(() => {
     setPageContext({
@@ -1212,6 +1217,28 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             <p className="text-sm font-bold text-rhozly-on-surface/50 uppercase tracking-widest mt-1">
               <span className="font-black text-rhozly-on-surface/70">{plants.filter(p => !p.is_archived).length}</span> species · <span className="font-black text-rhozly-on-surface/70">{plants.filter(p => !p.is_archived).reduce((acc, p) => acc + (p.instance_count || 0), 0)}</span> plants in your garden
             </p>
+            {/* Plants / Nursery toggle — Nursery surfaces seed packets +
+                sowings + the plant-out lifecycle. */}
+            <div
+              data-testid="shed-view-toggle"
+              className="inline-flex items-center gap-1 mt-3 p-1 rounded-2xl bg-rhozly-surface-low border border-rhozly-outline/10"
+            >
+              {(["plants", "nursery"] as const).map((option) => (
+                <button
+                  key={option}
+                  type="button"
+                  data-testid={`shed-view-${option}`}
+                  onClick={() => setView(option)}
+                  className={`px-4 py-1.5 min-h-[36px] rounded-xl text-[11px] font-black uppercase tracking-widest transition-colors ${
+                    view === option
+                      ? "bg-white text-rhozly-primary shadow-sm"
+                      : "text-rhozly-on-surface/55 hover:text-rhozly-on-surface"
+                  }`}
+                >
+                  {option === "plants" ? "Plants" : "Nursery"}
+                </button>
+              ))}
+            </div>
             {shedFetchError && (
               <div className="flex items-center gap-2 mt-2 px-3 py-2 rounded-xl bg-red-50 border border-red-200 text-xs font-bold text-red-600">
                 <AlertCircle size={14} />
@@ -1220,6 +1247,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               </div>
             )}
           </div>
+          {view === "plants" && (
           <div className="flex flex-col gap-4 sticky top-0 z-20 bg-rhozly-bg/95 backdrop-blur-sm pt-2 pb-2 -mx-1 px-1 rounded-b-2xl">
             <div className="relative flex items-center">
               <Search
@@ -1314,10 +1342,14 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               })}
             </div>
           </div>
+          )}
         </div>
 
+        {/* Nursery body — read-only Wave 1 packet list. */}
+        {view === "nursery" && <NurseryTab homeId={homeId} aiEnabled={aiEnabled} />}
+
         {/* One-time badge guide — shown until dismissed */}
-        {!badgeGuideShown && (
+        {view === "plants" && !badgeGuideShown && (
           <div className="flex items-start gap-3 bg-rhozly-primary/5 border border-rhozly-primary/10 rounded-2xl px-4 py-3 mb-4">
             <div className="flex-1 text-xs font-bold text-rhozly-on-surface/60 leading-snug">
               <span className="font-black text-rhozly-on-surface/80">Where plant info comes from:</span>
@@ -1337,6 +1369,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
           </div>
         )}
 
+        {view === "plants" && (
+        <>
         {/* AI Assistant — surfaces insights related to the Shed (plant counts,
             care reminders, suitability flags) right where the user is browsing. */}
         <div className="mb-6">
@@ -1689,6 +1723,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               Cancel
             </button>
           </div>
+        )}
+        </>
         )}
       </div>
 

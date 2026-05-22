@@ -16,6 +16,8 @@
 
 A scrollable list of `shopping_lists` rows. Each list expands inline to show its items. Items have `item_type: "plant" | "product"` with different chips. Plant items can be batch-added to the Shed via "Add checked plants". Lists are tabbed into Active / Completed. New lists use a 3-option template picker (Blank, Starter Toolkit, Seasonal Veg Patch). Realtime: changes from other devices sync live.
 
+When [The Nursery](../03-garden-hub/10-nursery.md) has packets that need refreshing — sow-by within 90 days, last sowing < 60% germination, or opened more than 18 months ago — a **Seed refill nudge** banner appears above the list. The user can expand it to see which packets and why, or tap **Add to {list}** to drop one `shopping_list_items` row per flagged packet into the most-recently-updated active list. Banner is computed on-read (no cron) and self-hides when there's no active list, when there are no refills due, or after the user has added them.
+
 ---
 
 ## Role 1 — Technical Reference

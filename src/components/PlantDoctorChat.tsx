@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useCallback, useState, useRef, useEffect } from "react";
 import {
   MessageSquare,
   X,
@@ -26,6 +26,7 @@ import { getPlantWikiInfo } from "../lib/wikipedia";
 import toast from "react-hot-toast";
 import { PlantActionButtons } from "./PlantActionButtons";
 import { TaskActionButtons } from "./TaskActionButtons";
+import PlanSuggestionCard, { type PlanSuggestion } from "./chat/PlanSuggestionCard";
 
 interface PendingImage {
   base64: string;       // raw base64 (no data-URL prefix)
@@ -42,6 +43,7 @@ interface Message {
   suggested_plants?: Array<{ name: string; search_query: string }>;
   suggested_tasks?: Array<any>;
   preferences_captured?: number;
+  plan_suggestion?: PlanSuggestion | null;
 }
 
 const WELCOME_CONTENT =
@@ -114,6 +116,11 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  // Set when the history fetch fails on open. Used by the inline retry
+  // banner above the input. We don't wipe `messages` in that case — the
+  // user's actual data is still in `chat_messages`, just unreachable
+  // right now.
+  const [historyLoadError, setHistoryLoadError] = useState(false);
   const [userId, setUserId] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<
     Record<string, "positive" | "negative">
@@ -195,19 +202,20 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       .then(({ data }) => setUserId(data.user?.id ?? null));
   }, []);
 
-  // Load persisted chat history from DB
-  useEffect(() => {
+  // Load persisted chat history from DB. Pulled out as a stable
+  // callback so the retry banner can re-fire it without re-mounting.
+  const loadHistory = useCallback(async () => {
     if (!homeId) {
       setMessages([
         { _key: nextKey(), role: "assistant", content: WELCOME_CONTENT },
       ]);
       setIsLoadingHistory(false);
+      setHistoryLoadError(false);
       return;
     }
-
-    const loadHistory = async () => {
-      setIsLoadingHistory(true);
-      try {
+    setIsLoadingHistory(true);
+    setHistoryLoadError(false);
+    try {
         const {
           data: { user },
         } = await supabase.auth.getUser();
@@ -222,7 +230,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
         const { data } = await supabase
           .from("chat_messages")
           .select(
-            "id, role, content, suggested_plants, suggested_tasks, preferences_captured",
+            "id, role, content, suggested_plants, suggested_tasks, preferences_captured, plan_suggestion",
           )
           .eq("home_id", homeId)
           .eq("user_id", user.id)
@@ -244,6 +252,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
             suggested_plants: m.suggested_plants ?? undefined,
             suggested_tasks: m.suggested_tasks ?? undefined,
             preferences_captured: m.preferences_captured ?? 0,
+            plan_suggestion: (m as any).plan_suggestion ?? null,
           })),
         );
 
@@ -261,18 +270,32 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
           setFeedback(map);
         }
       } catch (err) {
+        // Network blip on cold open used to nuke the visible thread
+        // ("Couldn't load your chat history. Starting fresh.") even
+        // though the underlying chat_messages rows were untouched.
+        // Now: leave whatever's already in `messages` alone, set a
+        // non-destructive error flag, and let the user retry. The
+        // welcome stub still appears on a TRUE empty thread because
+        // we only seed it when `messages.length === 0`.
         Logger.error("Failed to load chat history:", err);
-        toast.error("Couldn't load your chat history. Starting fresh.");
-        setMessages([
-          { _key: nextKey(), role: "assistant", content: WELCOME_CONTENT },
-        ]);
+        setHistoryLoadError(true);
+        setMessages((prev) =>
+          prev.length === 0
+            ? [{ _key: nextKey(), role: "assistant", content: WELCOME_CONTENT }]
+            : prev,
+        );
+        toast.error(
+          "Couldn't load your chat history — your previous messages are safe and will appear on retry.",
+        );
       } finally {
         setIsLoadingHistory(false);
       }
-    };
-
-    loadHistory();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [homeId]);
+
+  useEffect(() => {
+    loadHistory();
+  }, [loadHistory]);
 
   // Scroll to bottom when chat opens
   useEffect(() => {
@@ -303,7 +326,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     content: string,
     extra?: Pick<
       Message,
-      "suggested_plants" | "suggested_tasks" | "preferences_captured"
+      "suggested_plants" | "suggested_tasks" | "preferences_captured" | "plan_suggestion"
     >,
   ): Promise<string | null> => {
     if (!userId) return null;
@@ -322,6 +345,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
             ? extra.suggested_tasks
             : null,
           preferences_captured: extra?.preferences_captured ?? 0,
+          plan_suggestion: extra?.plan_suggestion ?? null,
         })
         .select("id")
         .single();
@@ -335,13 +359,15 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
 
   const callAI = async (
     historyForAI: { role: string; content: string }[],
-    image?: PendingImage | null,
+    image: PendingImage | null | undefined,
+    priorPlanSuggested: boolean,
   ) => {
     const { data, error } = await supabase.functions.invoke("plant-doctor-ai", {
       body: {
         messages: historyForAI,
         currentContext: pageContext,
         homeId,
+        priorPlanSuggested,
         ...(image ? { imageBase64: image.base64, imageMimeType: image.mimeType } : {}),
       },
     });
@@ -351,6 +377,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       reply: string;
       suggested_plants?: Array<{ name: string; search_query: string }>;
       suggested_tasks?: Array<any>;
+      plan_suggestion?: PlanSuggestion | null;
       preferences_captured?: number;
     };
   };
@@ -393,7 +420,13 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
         .map((m) => ({ role: m.role, content: m.content }));
       historyForAI.push({ role: "user", content: userText });
 
-      const data = await callAI(historyForAI, imageSnapshot);
+      // Tell the AI whether any prior assistant turn already proposed a
+      // Plan so it can suppress emitting another (once-per-thread rule).
+      const priorPlanSuggested = messages.some(
+        (m) => m.role === "assistant" && !!m.plan_suggestion,
+      );
+
+      const data = await callAI(historyForAI, imageSnapshot, priorPlanSuggested);
 
       const assistantKey = nextKey();
       scrollToNewMsgRef.current = true;
@@ -406,13 +439,20 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
           suggested_plants: data.suggested_plants,
           suggested_tasks: data.suggested_tasks,
           preferences_captured: data.preferences_captured ?? 0,
+          plan_suggestion: data.plan_suggestion ?? null,
         },
       ]);
+      if (data.plan_suggestion) {
+        logEvent(EVENT.PLANT_DOCTOR_CHAT_PLAN_SUGGESTION_SHOWN, {
+          plan_name: data.plan_suggestion.plan_name,
+        });
+      }
 
       const assistantMsgId = await saveMessageToDB("assistant", data.reply, {
         suggested_plants: data.suggested_plants,
         suggested_tasks: data.suggested_tasks,
         preferences_captured: data.preferences_captured ?? 0,
+        plan_suggestion: data.plan_suggestion ?? null,
       });
       if (assistantMsgId) {
         setMessages((prev) =>
@@ -449,7 +489,11 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
         .slice(-20)
         .map((m) => ({ role: m.role, content: m.content }));
 
-      const data = await callAI(historyForAI);
+      const priorPlanSuggested = messagesWithoutLast.some(
+        (m) => m.role === "assistant" && !!m.plan_suggestion,
+      );
+
+      const data = await callAI(historyForAI, null, priorPlanSuggested);
 
       const assistantKey = nextKey();
       scrollToNewMsgRef.current = true;
@@ -462,13 +506,20 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
           suggested_plants: data.suggested_plants,
           suggested_tasks: data.suggested_tasks,
           preferences_captured: data.preferences_captured ?? 0,
+          plan_suggestion: data.plan_suggestion ?? null,
         },
       ]);
+      if (data.plan_suggestion) {
+        logEvent(EVENT.PLANT_DOCTOR_CHAT_PLAN_SUGGESTION_SHOWN, {
+          plan_name: data.plan_suggestion.plan_name,
+        });
+      }
 
       const assistantMsgId = await saveMessageToDB("assistant", data.reply, {
         suggested_plants: data.suggested_plants,
         suggested_tasks: data.suggested_tasks,
         preferences_captured: data.preferences_captured ?? 0,
+        plan_suggestion: data.plan_suggestion ?? null,
       });
       if (assistantMsgId) {
         setMessages((prev) =>
@@ -592,6 +643,32 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
 
           {/* Messages Area */}
           <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-rhozly-surface-lowest">
+            {/* History-load failure surface — non-destructive. The
+                visible messages stay whatever they were (welcome stub
+                on first ever open, prior thread otherwise). Retry
+                refires loadHistory without touching the existing list. */}
+            {historyLoadError && !isLoadingHistory && (
+              <div
+                data-testid="chat-history-retry-banner"
+                className="flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2.5 text-xs text-amber-900"
+              >
+                <RefreshCw size={13} className="mt-0.5 shrink-0" />
+                <div className="flex-1 leading-snug">
+                  <p className="font-bold">Couldn't load your earlier chat.</p>
+                  <p className="mt-0.5 text-amber-800/85">
+                    Your messages are safe — they'll appear once we can reach the server.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  data-testid="chat-history-retry"
+                  onClick={() => loadHistory()}
+                  className="shrink-0 px-2.5 py-1 rounded-lg bg-amber-700 text-white text-[10px] font-black uppercase tracking-widest hover:bg-amber-800 transition"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
             {isLoadingHistory ? (
               <div className="flex justify-center items-center h-full">
                 <Loader2
@@ -671,6 +748,15 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                               />
                             </div>
                           )}
+
+                        {/* Plan suggestion CTA — proactive nudge to turn
+                            multi-plant research into a Planner project. */}
+                        {msg.role === "assistant" && msg.plan_suggestion && (
+                          <PlanSuggestionCard
+                            suggestion={msg.plan_suggestion}
+                            onAccept={() => setIsOpen(false)}
+                          />
+                        )}
 
                         {/* Feedback + regenerate row (DB-saved assistant messages only) */}
                         {msg.role === "assistant" && msg.id && (

@@ -44,6 +44,12 @@ interface Props {
    * Description is consumed for the aria-label only.
    */
   layout?: "row" | "compact";
+  /**
+   * Dense compact tiles hide the description text — used by the
+   * Quick Access launcher when four tiles share one row on a phone.
+   * Description is still passed to `aria-label` for screen readers.
+   */
+  dense?: boolean;
   onClick: () => void;
 }
 
@@ -175,6 +181,7 @@ export default function QuickTile({
   variant = "live",
   accent = "primary",
   layout = "row",
+  dense = false,
   onClick,
 }: Props) {
   const isLive = variant === "live";
@@ -201,29 +208,33 @@ export default function QuickTile({
             : "bg-rhozly-surface-low/70 border-rhozly-outline/20 opacity-70"
         }`}
       >
-        <div className="h-full flex flex-col p-3 gap-1.5">
+        <div className={`h-full flex flex-col ${dense ? "p-2 gap-1 items-center text-center" : "p-3 gap-1.5"}`}>
           {/* Icon medallion — small coloured square holding the lucide
               glyph. Cleaner than a "naked" icon on a tinted background. */}
           <div
-            className={`shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-xl ${
+            className={`shrink-0 inline-flex items-center justify-center rounded-xl ${
+              dense ? "w-8 h-8" : "w-9 h-9"
+            } ${
               isLive ? `${soft.iconBg} ${soft.iconText}` : "bg-rhozly-on-surface/5 text-rhozly-on-surface/40"
             }`}
             aria-hidden
           >
-            <div className="[&>svg]:w-5 [&>svg]:h-5">
+            <div className={dense ? "[&>svg]:w-4 [&>svg]:h-4" : "[&>svg]:w-5 [&>svg]:h-5"}>
               {icon}
             </div>
           </div>
 
-          <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
+          <div className={`flex items-center gap-1 flex-wrap ${dense ? "" : "mt-0.5"}`}>
             <h2
-              className={`font-display font-black tracking-tight text-sm leading-tight ${
+              className={`font-display font-black tracking-tight leading-tight ${
+                dense ? "text-[11px]" : "text-sm"
+              } ${
                 isLive ? soft.titleText : "text-rhozly-on-surface/60"
               }`}
             >
               {title}
             </h2>
-            {!isLive && (
+            {!isLive && !dense && (
               <span
                 data-testid={`${testId}-coming-soon`}
                 className="inline-flex items-center gap-1 bg-amber-100 text-amber-800 border border-amber-200 px-1.5 py-0.5 rounded-md text-[9px] font-black uppercase tracking-widest"
@@ -234,13 +245,15 @@ export default function QuickTile({
             )}
           </div>
 
-          <p
-            className={`text-[11px] leading-snug line-clamp-2 ${
-              isLive ? soft.descText : "text-rhozly-on-surface/45"
-            }`}
-          >
-            {description}
-          </p>
+          {!dense && (
+            <p
+              className={`text-[11px] leading-snug line-clamp-2 ${
+                isLive ? soft.descText : "text-rhozly-on-surface/45"
+              }`}
+            >
+              {description}
+            </p>
+          )}
         </div>
       </button>
     );

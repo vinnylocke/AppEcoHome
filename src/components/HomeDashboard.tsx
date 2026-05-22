@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { useHomeDashboardStats, type HomeDashboardStats } from "../hooks/useHomeDashboardStats";
 import TaskList from "./TaskList";
+import SeasonalPicksCard from "./seasonal/SeasonalPicksCard";
 
 interface Props {
   homeId: string;
@@ -522,6 +523,11 @@ export default function HomeDashboard({ homeId }: Props) {
           </button>
         </div>
       )}
+
+      {/* "What can I grow right now?" — personalised, hemisphere-aware
+          picks for this ISO week. Especially valuable for new gardeners
+          with an empty Shed — it's their "where do I start" answer. */}
+      <SeasonalPicksCard homeId={homeId} variant="dashboard" />
 
       {/* Two-column layout: stats left, tasks right — stacks on mobile */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">

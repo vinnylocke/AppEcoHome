@@ -15,6 +15,7 @@ import {
   Loader2,
   BarChart2,
   Sprout,
+  Package,
 } from "lucide-react";
 import { IconGrowth, IconPlant, IconPlantDB, IconHarvest, IconLight } from "../constants/icons";
 import { supabase } from "../lib/supabase";
@@ -100,6 +101,53 @@ export default function InstanceEditModal({
   const [careGuideData, setCareGuideData] = useState<any>(null);
   const [loadingCareGuide, setLoadingCareGuide] = useState(false);
   const [companionPlantRecord, setCompanionPlantRecord] = useState<any>(null);
+  /**
+   * "From the Nursery" provenance — populated lazily when this instance
+   * has a `from_sowing_id` (i.e. it was created via the Plant Out flow).
+   * Renders as a small info badge above the Details tab form.
+   */
+  const [nurseryProvenance, setNurseryProvenance] = useState<
+    | {
+        sowing_id: string;
+        sown_on: string;
+        sown_count: number;
+        germinated_count: number | null;
+        packet_id: string;
+        packet_variety: string | null;
+        packet_vendor: string | null;
+      }
+    | null
+  >(null);
+
+  useEffect(() => {
+    const fromSowingId = (instance as Record<string, unknown>).from_sowing_id;
+    if (typeof fromSowingId !== "string" || !fromSowingId) {
+      setNurseryProvenance(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("seed_sowings")
+        .select(
+          "id, sown_on, sown_count, germinated_count, seed_packet_id, seed_packets(variety, vendor)",
+        )
+        .eq("id", fromSowingId)
+        .maybeSingle();
+      if (cancelled || error || !data) return;
+      const packet = (data as { seed_packets?: { variety?: string | null; vendor?: string | null } }).seed_packets ?? null;
+      setNurseryProvenance({
+        sowing_id: data.id as string,
+        sown_on: data.sown_on as string,
+        sown_count: data.sown_count as number,
+        germinated_count: (data.germinated_count as number | null) ?? null,
+        packet_id: data.seed_packet_id as string,
+        packet_variety: packet?.variety ?? null,
+        packet_vendor: packet?.vendor ?? null,
+      });
+    })();
+    return () => { cancelled = true; };
+  }, [instance]);
 
   const [editForm, setEditForm] = useState({
     identifier: instance.identifier || instance.plant_name,
@@ -449,6 +497,35 @@ export default function InstanceEditModal({
 
         {activeTab === "details" && (
           <div className="space-y-6 animate-in slide-in-from-left-4">
+            {nurseryProvenance && (
+              <div
+                data-testid="instance-from-nursery-badge"
+                className="flex items-start gap-2.5 rounded-2xl bg-rhozly-primary/[0.06] border border-rhozly-primary/20 p-3"
+              >
+                <span className="shrink-0 w-9 h-9 rounded-xl bg-rhozly-primary/15 text-rhozly-primary flex items-center justify-center">
+                  <Package size={16} />
+                </span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-primary mb-0.5">
+                    From the Nursery
+                  </p>
+                  <p className="text-sm font-bold text-rhozly-on-surface leading-snug">
+                    Grown from{" "}
+                    {nurseryProvenance.packet_vendor
+                      ? `${nurseryProvenance.packet_vendor} `
+                      : ""}
+                    {nurseryProvenance.packet_variety || "your packet"}
+                    {" "}— sown {new Date(nurseryProvenance.sown_on).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}
+                    {nurseryProvenance.germinated_count != null && (
+                      <>
+                        , {nurseryProvenance.germinated_count} of {nurseryProvenance.sown_count} germinated
+                      </>
+                    )}
+                    .
+                  </p>
+                </div>
+              </div>
+            )}
             <div className="space-y-3">
               <label className="flex items-center gap-2 text-[10px] font-black uppercase text-rhozly-on-surface/40 ml-1">
                 <Hash size={14} /> Unique Identifier / Nickname

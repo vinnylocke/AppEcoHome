@@ -7,12 +7,12 @@ import {
   ArrowRight,
   Info,
   Sparkles,
-  Sprout,
   BookOpen,
 } from "lucide-react";
 
 import QuickTile from "./quick/QuickTile";
 import WalkStartTile from "./walk/WalkStartTile";
+import SeasonalPicksCard from "./seasonal/SeasonalPicksCard";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { TaskEngine, getLocalDateString } from "../lib/taskEngine";
 
@@ -76,10 +76,11 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
     <div
       data-testid="quick-access-page"
       // Wave 9 moved the green wash to the App.tsx shell. The screen-edge
-      // green frame lives there too. Wave 11 fixes the screen to one
-      // viewport — no scroll on phone. `h-full overflow-hidden` keeps
-      // everything inside, the 2×2 grid below makes it fit.
-      className="h-full w-full overflow-hidden"
+      // green frame lives there too. Wave 11 fixed the screen to one
+      // viewport on tall devices; post-Nursery we added the Seasonal
+      // Picks strip which can push the footer off-screen on shorter
+      // phones — `overflow-y-auto` keeps the picks reachable there.
+      className="h-full w-full overflow-y-auto"
     >
     <main
       data-testid="quick-access-home"
@@ -113,66 +114,41 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
         </div>
       )}
 
-      {/* Hero card — trimmed for one-screen fit (Wave 11). Brand stamp
-          dropped on mobile so the greeting and sub can breathe. Wave 13:
-          the whole card is now a button → Account Settings, so users can
-          tap the greeting to manage their profile. */}
+      {/* Hero card — compact pill (Wave 15). Earlier waves stacked a
+          decorative sprout + eyebrow pill + greeting + sub-line; with
+          the Seasonal Picks strip below the walk tile the hero was
+          being squeezed on shorter phones. This version is single-row
+          with the greeting + a small chevron and `shrink-0` so it never
+          loses its height to flex pressure. */}
       <button
         type="button"
         data-testid="quick-access-hero-card"
         onClick={() => navigate("/gardener")}
         aria-label="Open Account Settings"
-        className="relative w-full text-left mb-4 rounded-3xl border border-rhozly-primary-container/20 bg-gradient-to-br from-rhozly-primary-container/[0.08] via-white/40 to-rhozly-tertiary/25 overflow-hidden p-5 shadow-[0_2px_12px_-4px_rgba(7,87,55,0.10),0_18px_36px_-20px_rgba(7,87,55,0.10)] transition-all hover:shadow-[0_4px_16px_-4px_rgba(7,87,55,0.14),0_18px_36px_-20px_rgba(7,87,55,0.14)] hover:-translate-y-0.5 active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary/30"
+        className="shrink-0 relative w-full text-left mb-3 rounded-2xl border border-rhozly-primary-container/20 bg-gradient-to-br from-rhozly-primary-container/[0.08] via-white/40 to-rhozly-tertiary/25 overflow-hidden px-4 py-3 shadow-[0_2px_12px_-4px_rgba(7,87,55,0.10)] transition-all hover:shadow-[0_4px_16px_-4px_rgba(7,87,55,0.14)] active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary/30 flex items-center gap-3"
       >
-        {/* Soft radial gradients layered on top of the card gradient for depth */}
-        <div
-          aria-hidden
-          data-testid="quick-access-hero-glow"
-          className="absolute inset-0 pointer-events-none"
-          style={{
-            background:
-              "radial-gradient(circle at 18% 30%, rgba(7,87,55,0.06), transparent 55%), radial-gradient(circle at 92% 70%, rgba(255,218,216,0.35), transparent 55%)",
-          }}
-        />
-
-        {/* Decorative sprout — sits behind text, faded */}
-        <Sprout
-          aria-hidden
-          data-testid="quick-access-hero-sprout"
-          size={76}
-          className="absolute -top-2 -right-2 text-rhozly-primary-container/15 -rotate-12 pointer-events-none"
-          strokeWidth={1.4}
-        />
-
-        {/* Eyebrow pill */}
-        <div className="relative inline-flex items-center gap-1.5 bg-white/70 backdrop-blur-sm text-rhozly-primary px-2.5 py-0.5 rounded-full mb-2 border border-rhozly-primary/15">
-          <Sparkles size={10} strokeWidth={2.5} />
-          <span className="text-[10px] font-black uppercase tracking-widest">
-            Quick Access
-          </span>
+        <div className="shrink-0 w-9 h-9 rounded-xl bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center">
+          <Sparkles size={15} strokeWidth={2.4} />
         </div>
-
-        {/* Heading — personalised + brand-coloured name accent */}
-        <h1
-          data-testid="quick-access-hero-greeting"
-          className="relative font-display font-black text-xl sm:text-2xl text-rhozly-on-surface tracking-tight leading-tight"
-        >
-          {trimmedName ? (
-            <>
-              {greeting},{" "}
-              <span className="text-rhozly-primary">{trimmedName}</span>
-            </>
-          ) : (
-            "What can I help with?"
-          )}
-        </h1>
-
-        {/* Sub */}
-        <p className="relative text-[12px] sm:text-sm text-rhozly-on-surface/65 mt-1 leading-snug max-w-md">
-          {trimmedName
-            ? "Pick a quick action to get started."
-            : "The essentials for when you're out in the garden."}
-        </p>
+        <div className="flex-1 min-w-0">
+          <h1
+            data-testid="quick-access-hero-greeting"
+            className="font-display font-black text-base sm:text-lg text-rhozly-on-surface tracking-tight leading-tight truncate"
+          >
+            {trimmedName ? (
+              <>
+                {greeting},{" "}
+                <span className="text-rhozly-primary">{trimmedName}</span>
+              </>
+            ) : (
+              greeting
+            )}
+          </h1>
+          <p className="text-[11px] text-rhozly-on-surface/55 leading-snug truncate">
+            Tap to manage your account
+          </p>
+        </div>
+        <ArrowRight size={14} className="shrink-0 text-rhozly-on-surface/40" />
       </button>
 
       {/* Tiles — 2×2 compact grid. Wave 13 shrinks tiles to content size
@@ -182,14 +158,15 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
           the wrapper below. */}
       <div
         data-testid="quick-tiles-grid"
-        className="grid grid-cols-2 gap-3 mb-3"
+        className="grid grid-cols-4 gap-2 mb-3 shrink-0"
       >
         <QuickTile
           testId="quick-tile-lens"
           accent="green"
           layout="compact"
+          dense
           icon={<Camera strokeWidth={2.25} />}
-          title="Visual Lens"
+          title="Lens"
           description="Identify, diagnose, get tasks from a photo."
           onClick={() => navigate("/quick/lens")}
         />
@@ -197,6 +174,7 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
           testId="quick-tile-calendar"
           accent="amber"
           layout="compact"
+          dense
           icon={<CalendarDays strokeWidth={2.25} />}
           title="Today"
           description="Tasks, rain forecast, planting helper."
@@ -206,8 +184,9 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
           testId="quick-tile-journal"
           accent="red"
           layout="compact"
+          dense
           icon={<NotebookPen strokeWidth={2.25} />}
-          title="Quick Capture"
+          title="Capture"
           description="Snap a photo and jot a note — file later."
           onClick={() => navigate("/quick/journal")}
         />
@@ -215,8 +194,9 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
           testId="quick-tile-library"
           accent="blue"
           layout="compact"
+          dense
           icon={<BookOpen strokeWidth={2.25} />}
-          title="The Library"
+          title="Library"
           description="Search any plant — care guide, grow guide, save."
           onClick={() => navigate("/library/search")}
         />
@@ -229,8 +209,19 @@ export default function QuickAccessHome({ firstName, homeId }: Props) {
         <WalkStartTile enabled={true} />
       </div>
 
-      {/* Power-user escape hatch — pinned to the bottom of the fixed
-          screen via mt-auto so the tile grid sits closer to the hero. */}
+      {/* Seasonal picks — carousel pager. One pick visible at a time;
+          prev / next chevrons + dot indicator + native swipe. Compact
+          enough that the hero + tile row + walk tile + carousel + footer
+          all fit on a typical phone viewport. */}
+      {homeId && (
+        <div className="shrink-0 mb-3">
+          <SeasonalPicksCard homeId={homeId} variant="carousel" />
+        </div>
+      )}
+
+      {/* Power-user escape hatch — pinned to the bottom via mt-auto so
+          when there's vertical space the picks/walk strip sits up near
+          the tile grid and the dashboard pill stays at the foot. */}
       <div className="flex justify-center shrink-0 mt-auto">
         <button
           type="button"

@@ -20,6 +20,7 @@
 | Purge Stale Species Cache | weekly | `purge-stale-species-cache` | Clear old provider caches |
 | Refresh Stale AI Plants | daily (03:00 UTC) | `refresh-stale-ai-plants` | Re-check global AI care guides every ~90 days; diff-based version bump |
 | Refresh Stale Grow Guides | daily (03:30 UTC) | `refresh-stale-grow-guides` | Re-check `plant_grow_guides` every ~90 days; diff-based `freshness_version` bump. Batch capped at 25/run. System-attributed AI usage. See [Grow Guide Tab](../08-modals-and-overlays/36-grow-guide-tab.md). |
+| Refresh Seasonal Picks | Mondays (04:00 UTC) | `refresh-seasonal-picks` | Pre-warm `home_seasonal_picks` for every home whose current ISO-week row is missing. Same orchestrator (`_shared/seasonalPicksHandler.ts`) as the on-demand `seasonal_picks` action. Batch capped at `STALE_SEASONAL_BATCH_SIZE` (default 25) with 750ms inter-call sleep. System-attributed AI usage (`callerUserId: null`). See [Seasonal Picks Card](../02-dashboard/14-seasonal-picks.md). |
 | Run Automations | every minute | `run-automations` | Fire due watering automations |
 | Integrations eWeLink Sync | periodic | `integrations-ewelink-sync` | Refresh device readings |
 | Integrations Ecowitt Poll | periodic | `integrations-ecowitt-poll` | Poll Ecowitt weather stations |
@@ -57,6 +58,7 @@ Cron schedules live in Supabase Dashboard. Reproducible via `supabase/cron-jobs.
 - `automation_runs`, `valve_events` (run-automations)
 - `inventory_items` (update-plant-states)
 - `plants`, `plant_care_revisions`, `ai_usage_log` (refresh-stale-ai-plants)
+- `home_seasonal_picks`, `ai_usage_log` (refresh-seasonal-picks)
 
 ### Refresh Stale AI Plants — extra notes
 
@@ -67,6 +69,14 @@ Filter is **always** `source='ai' AND home_id IS NULL`. Home-scoped forks have `
 Diff is via `diffCareGuide` in [`_shared/aiPlantCatalogue.ts`](../../../supabase/functions/_shared/aiPlantCatalogue.ts) — the same helper used by `manual-refresh-ai-plant`. Lowercases strings + sorts arrays before comparison so cosmetic AI variation doesn't trigger spurious version bumps.
 
 AI usage attribution is system-level: `ai_usage_log` rows for this cron have `user_id = NULL` and `home_id = NULL`. Cost shows up in the Audit Log under "System" rather than against any user's quota.
+
+### Refresh Seasonal Picks — extra notes
+
+Fires every Monday at 04:00 UTC — half an hour after `refresh-stale-grow-guides` (03:30) so the three Gemini-heavy crons don't contend for quota. Walks `home_members` to find every home that has at least one user attached, filters out homes whose `home_seasonal_picks` row for the current ISO week is already populated, then calls `generateSeasonalPicksForHome()` for the rest with `forceRegen: false`.
+
+Tier-routing in the cron is decided by walking the home's members: if any member is on Sage or Evergreen, the AI path runs; otherwise the deterministic fallback path runs (`_shared/seasonalPicksFallback.ts`). Both paths upsert into `home_seasonal_picks` with the same shape, so the card pulls a single source.
+
+AI usage attribution is system-level (`user_id = NULL`, `home_id = NULL` on `ai_usage_log`) — the same pattern as `refresh-stale-ai-plants` and `refresh-stale-grow-guides`.
 
 ### Manual triggering
 

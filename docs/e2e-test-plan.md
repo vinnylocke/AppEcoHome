@@ -1246,3 +1246,61 @@ Edge function mock via `mockEdgeFunction(page, "companion-planting", ...)`.
 | AI-OVERRIDE-004 | ✅ | Custom fork's overridden field renders 'Custom' badge inside the form | Open Lavender → form-field-overridden-watering badge visible with "Custom" text | ⏳ Not yet verified — needs fresh seeded DB |
 
 **Wave 7 (D7) fixed** the seed orchestration bug that previously blocked all AI E2E tests. `npm run test:seed` now succeeds against a fresh DB with 1 or 4 workers.
+
+## Section 25 — The Nursery (Seed Packets + Sowings + Plant Out)
+
+**File:** _Not yet written — Playwright spec deferred. Test rows below capture the intended coverage._
+**Seed:** No dedicated seed file yet. Test scenarios drive their own state through the UI (Add Packet → Log Sowing → Observe → Plant Out).
+
+### Browse + add packets
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| NURSERY-001 | ✅ | Plants / Nursery toggle visible on `/shed` | `shed-view-plants` + `shed-view-nursery` both render under the title | ⏳ Not yet written |
+| NURSERY-002 | ✅ | Nursery empty state shows add CTAs | Tap `shed-view-nursery` → `nursery-empty` visible with `nursery-add-empty` + `nursery-paste-empty` buttons | ⏳ Not yet written |
+| NURSERY-003 | ✅ | Add Packet — Shed pick path | Tap `nursery-add-empty` → modal opens → search Shed → pick a plant → Next → fill variety + vendor + sow-by → Save → packet appears in the list at status "Sow-by …" | ⏳ Not yet written |
+| NURSERY-004 | ✅ | Add Packet — Free-text "add later" path | Tap Add → tick `add-seed-packet-freetext-toggle` → type "Sunflower" → Next → fill details → Save → packet appears with `plant_id = null` (Plant Out is gated) | ⏳ Not yet written |
+
+### Sowing lifecycle
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| NURSERY-010 | ✅ | Log Sowing creates an active sowing | Open packet → tap `packet-detail-log-sowing` → sown_on today, sown_count 12 → Save → SowingRow rendered with `STATUS_LABEL.sown` chip | ⏳ Not yet written |
+| NURSERY-011 | ✅ | Observe Germination flips status to "germinated" | Tap `sowing-{id}-observe` → slider = 9 of 12 → Save → status chip "Ready to plant out", row shows "75% sprouted" | ⏳ Not yet written |
+| NURSERY-012 | ✅ | Discard sowing transitions to "Discarded" | Tap `sowing-{id}-discard` → confirm → row shows Discarded chip, action bar hidden | ⏳ Not yet written |
+
+### Plant Out — marquee flow
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| NURSERY-020 | ✅ | Plant Out creates inventory_items row with from_sowing_id | Observe 9 of 12 → tap `sowing-{id}-plant-out` → pick Location + Area → quantity 9 → Save → sowing flips to `planted_out`; Shed has a new instance with growth_state Seedling and quantity 9 | ⏳ Not yet written |
+| NURSERY-021 | ✅ | Partial plant-out keeps sowing at "germinated" with remaining count | Plant out 6 of 9 → sowing stays at "germinated" with "3 still on the bench" hint when Plant Out is re-opened | ⏳ Not yet written |
+| NURSERY-022 | ✅ | Plant Out fires AutomationEngine — care schedules generate | After NURSERY-020, the new inventory_items row has at least one matching `task_blueprints` row anchored to the picked area | ⏳ Not yet written |
+| NURSERY-023 | ✅ | Plant Out disabled when packet.plant_id is null | Free-text-added packet → observe sowing → `sowing-{id}-plant-out` button disabled with link-plant tooltip | ⏳ Not yet written |
+| NURSERY-024 | ✅ | "From the Nursery" badge surfaces on Instance Edit Modal | After NURSERY-020, open the new instance from the Shed → `instance-from-nursery-badge` renders with sown date + germination count | ⏳ Not yet written |
+
+### Bulk paste
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| NURSERY-030 | ✅ | Paste a list — regex path (Sprout/Botanist) | Tap `nursery-paste-packets` → paste 3 well-formed lines → tap `bulk-paste-parse` → review step shows 3 editable rows | ⏳ Not yet written |
+| NURSERY-031 | ✅ | Bulk save inserts all parsed rows | Tap `bulk-paste-save` → toast confirms "Added 3 packets"; Nursery list shows them with `plant_id = null` | ⏳ Not yet written |
+| NURSERY-032 | ✅ | Bulk paste row editing flows through to save | Paste 1 line → review → edit variety inline → save → packet has the edited variety | ⏳ Not yet written |
+| NURSERY-033 | ✅ | AI parse path (Sage+ — mocked) | With AI enabled, parse mocked → review step shows AI-source label, rows editable | ⏳ Mocked — integration-only |
+
+### Task + Care Guide integration
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| NURSERY-040 | ✅ | AddTaskModal shows Nursery packet picker on Planting type | Open AddTaskModal → set type to "Planting" → `nursery-packet-picker` visible with packet options | ⏳ Not yet written |
+| NURSERY-041 | ✅ | Picking a packet pre-fills title + description | Pick a packet → title auto-fills "Sow {variety} ({plant})"; description appended with "From your {vendor} packet in The Nursery." | ⏳ Not yet written |
+| NURSERY-042 | ✅ | Care Guide tab pill shows packets for the plant | Open Tomato plant → Care tab → `care-guide-nursery-packets` visible; expand → list of matching packets with status chips | ⏳ Not yet written |
+
+### Shopping list refill banner
+
+| ID | ✅/❌ | Description | Assertions | Status |
+|----|------|-------------|------------|--------|
+| NURSERY-050 | ✅ | Banner renders when packets need refilling | Seed a packet with sow_by within 90 days + an active list → open /shopping → `seed-refill-banner` visible | ⏳ Not yet written |
+| NURSERY-051 | ✅ | "Add to {list}" adds one item per refill | Tap `seed-refill-banner-add` → toast confirms "Added N packet refills"; the named list grows by N rows | ⏳ Not yet written |
+| NURSERY-052 | ✅ | Banner hides when no refills due / no active list | With no packets in refill state OR no active list → banner not rendered | ⏳ Not yet written |
+

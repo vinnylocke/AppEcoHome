@@ -29,6 +29,12 @@ import { Auth } from "./components/Auth";
 import { HomeSetup } from "./components/HomeSetup";
 import type { UserProfile } from "./types";
 import { Logger } from "./lib/errorHandler";
+import { withRetry } from "./lib/withRetry";
+import {
+  readDashboardCache,
+  writeDashboardCache,
+  clearAllDashboardCaches,
+} from "./lib/dashboardCache";
 import * as Sentry from "@sentry/react";
 import WeatherForecast from "./components/WeatherForecast";
 import { WeatherAlertBanner } from "./components/WeatherAlertBanner";
@@ -100,13 +106,7 @@ const LocationManager     = lazy(() => import("./components/LocationManager").th
 const AssistantCard       = lazy(() => import("./components/AssistantCard"));
 const AuditPage           = lazy(() => import("./components/AuditPage"));
 const TierSelection       = lazy(() => import("./components/TierSelection"));
-import {
-  getMidnightTonight,
-  getCachedWeatherData,
-  extractCurrentWeather,
-  getCachedLocations,
-  setLocationCache,
-} from "./lib/clientCache";
+import { extractCurrentWeather } from "./lib/clientCache";
 import { getLocalDateString } from "./lib/taskEngine";
 
 // Service worker update checks + background-time reload safety net.
@@ -197,7 +197,14 @@ const TAB_URL: Record<string, string> = {
 
 function AppShell() {
   usePushNotifications();
-  const appVersion = useAppVersion();
+  const versionState = useAppVersion();
+  // Backwards-compat alias — `appVersion` was previously the only
+  // value the rest of this file referenced. Now there are two: the
+  // BUNDLE version (what the user is actually running) and the DB
+  // version (what's available). Error pages, release-notes modal,
+  // etc. should always report the bundle version so the displayed
+  // version matches the code that printed the error.
+  const appVersion = versionState.bundleVersion;
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const isMobile = useIsMobile();
@@ -256,20 +263,33 @@ function AppShell() {
   const allReleaseNotes = useReleaseNotes();
   const [releaseNotesMode, setReleaseNotesMode] = useState<"latest" | "history" | null>(null);
 
+  // Release notes — fire when the BUNDLE the user is running has a new
+  // version they haven't seen yet. Two gates:
+  //   1. Skip the "00.0000" sentinel (local dev / missing build stamp).
+  //   2. Skip when an update is currently available — the user is about
+  //      to reload onto the new bundle; showing "what's new in X" while
+  //      they're still on bundle X-1 makes the timing confusing.
+  // Keying off `bundleVersionKey` (not the DB version) ensures notes
+  // land AFTER the reload, not while the user is still on stale code.
   useEffect(() => {
-    if (!appVersion) return;
-    const versionKey = appVersion.replace("Rhozly OS ", "");
+    const versionKey = versionState.bundleVersionKey;
+    if (!versionKey) return;
+    if (versionKey === "00.0000") return;
+    if (versionState.updateAvailable) return;
     const lastSeen = localStorage.getItem("rhozly_last_seen_version");
     if (lastSeen !== versionKey) {
       localStorage.setItem("rhozly_last_seen_version", versionKey);
-      // Brand-new users (no lastSeen) have never seen the app — skip release
-      // notes entirely so they aren't confused by "what's new" with no context.
       if (lastSeen !== null) {
         setReleaseNotesMode("latest");
         sessionStorage.setItem("rhozly_just_saw_release_notes", "true");
       }
     }
-  }, [appVersion]);
+  }, [versionState.bundleVersionKey, versionState.updateAvailable]);
+
+  // (The `pwa-update-available` event is now dispatched directly by
+  // `useAppVersion` when its poller spots a mismatch — no need for a
+  // duplicate effect here. The SW path still fires the same event from
+  // `main.tsx#onNeedRefresh`, and UpdateBanner dedupes both.)
 
   // Onboarding state — kept in sync with profile.onboarding_state
   const [onboardingState, setOnboardingState] = useState<OnboardingState>({});
@@ -410,13 +430,37 @@ function AppShell() {
 
   useEffect(() => {
     if (!profile?.home_id || !session?.user?.id) return;
-    supabase
-      .from("home_quiz_completions")
-      .select("id")
-      .eq("home_id", profile.home_id)
-      .eq("user_id", session.user.id)
-      .maybeSingle()
-      .then(({ data }) => setQuizCompleted(!!data));
+    let cancelled = false;
+    const homeIdSnapshot = profile.home_id;
+    const userIdSnapshot = session.user.id;
+    withRetry(
+      () =>
+        supabase
+          .from("home_quiz_completions")
+          .select("id")
+          .eq("home_id", homeIdSnapshot)
+          .eq("user_id", userIdSnapshot)
+          .maybeSingle(),
+      { retries: 2, label: "quizCompletion" },
+    )
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        // Critical: on a transient error we KEEP `quizCompleted = null`
+        // ("unknown") rather than flipping to `false`. The prompt only
+        // surfaces on an explicit `false`, so an unreliable network can
+        // no longer trick the user into being told they need to redo a
+        // quiz they've already finished.
+        if (error) {
+          Logger.error("Quiz completion check failed — keeping unknown", error);
+          return;
+        }
+        setQuizCompleted(!!data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        Logger.error("Quiz completion check threw — keeping unknown", err);
+      });
+    return () => { cancelled = true; };
   }, [profile?.home_id, session?.user?.id]);
   useEffect(() => {
     const mq = window.matchMedia("(min-width: 768px)");
@@ -455,32 +499,54 @@ function AppShell() {
 
     setDashboardError(false);
 
-    const cachedWeather = getCachedWeatherData(profile.home_id);
-    const cachedLocs = getCachedLocations(profile.home_id);
-
-    if (cachedWeather) {
-      setRawWeather(cachedWeather);
-      setWeather(extractCurrentWeather(cachedWeather));
+    // Local-first cache — hydrate the entire dashboard state from
+    // localStorage IMMEDIATELY so the first paint isn't blank while
+    // the network catches up. The cache is overwritten at the end of
+    // the successful fetch path (and on realtime / nav-back), so a
+    // background revalidation always wins eventually. The legacy
+    // sessionStorage caches stay as a secondary fallback for now —
+    // they'll be deleted in a follow-up release.
+    const cached = readDashboardCache(profile.home_id);
+    if (cached) {
+      const s = cached.snapshot;
+      setRawWeather(s.rawWeather);
+      setWeather(s.weather);
+      setLocations(s.locations as any[]);
+      if (s.homeLatLng) setHomeLatLng(s.homeLatLng);
+      if (s.hardinessZone != null) setHardinessZone(s.hardinessZone);
+      setOverdueTaskCount(s.overdueTaskCount);
+      setAlerts(s.alerts as any[]);
+      setLocationTaskCounts(s.locationTaskCounts);
+      // Flip dashboardLoaded so any "skeleton vs data" gate paints data
+      // immediately. The network revalidation will still flip it to true
+      // again later, which is a no-op.
+      setDashboardLoaded(true);
     }
-    if (cachedLocs) {
-      setLocations(cachedLocs);
-    }
 
-    const { data, error } = await supabase
-      .from("homes")
-      .select(
-        `
-        *,
-        weather_snapshots ( data, updated_at ),
-        locations (
-          *,
-          areas ( id, name ),
-          inventory_items ( id, status )
-        )
-      `,
-      )
-      .eq("id", profile.home_id)
-      .single();
+    try {
+    // Hardened: a single network blip used to leave the dashboard
+    // stuck in the loading skeleton with no recovery. `withRetry` now
+    // covers 2 transient failures with backoff + a 10s timeout per
+    // attempt before surfacing the error to the outer catch.
+    const { data, error } = await withRetry(
+      () =>
+        supabase
+          .from("homes")
+          .select(
+            `
+            *,
+            weather_snapshots ( data, updated_at ),
+            locations (
+              *,
+              areas ( id, name ),
+              inventory_items ( id, status )
+            )
+          `,
+          )
+          .eq("id", profile.home_id!)
+          .maybeSingle(),
+      { retries: 2, label: "fetchDashboardData.homes" },
+    );
 
     if (error) {
       Logger.error("Failed to fetch home data", error);
@@ -490,14 +556,29 @@ function AppShell() {
       return;
     }
 
+    // Accumulate the values we're about to set so the local-first cache
+    // write at the end of this function gets the same data the React
+    // state will hold. setState updates are async — reading state back
+    // here would race; the accumulator is the source of truth.
+    let snapshotHomeLatLng: { lat: number | null; lng: number | null } | null = null;
+    let snapshotHardinessZone: number | null = null;
+    let snapshotLocations: unknown[] = [];
+    let snapshotAlerts: unknown[] = [];
+    let snapshotLocationTaskCounts: Record<string, number> = {};
+    let snapshotOverdueTaskCount = 0;
+    let snapshotRawWeather: unknown = null;
+    let snapshotWeather: unknown = null;
+
     if (data) {
       // Capture home lat/lng + hardiness zone for Daily Brief
-      setHomeLatLng({ lat: (data as any).lat ?? null, lng: (data as any).lng ?? null });
-      setHardinessZone((data as any).hardiness_zone ?? null);
+      snapshotHomeLatLng = { lat: (data as any).lat ?? null, lng: (data as any).lng ?? null };
+      snapshotHardinessZone = (data as any).hardiness_zone ?? null;
+      setHomeLatLng(snapshotHomeLatLng);
+      setHardinessZone(snapshotHardinessZone);
 
       if (data.locations) {
+        snapshotLocations = data.locations;
         setLocations(data.locations);
-        setLocationCache(profile.home_id, data.locations);
 
         const locationIds = data.locations.map((l: any) => l.id);
         if (locationIds.length > 0) {
@@ -532,9 +613,11 @@ function AppShell() {
               .eq("is_recurring", true),
           ]);
 
-          setOverdueTaskCount(overdueResult.count ?? 0);
+          snapshotOverdueTaskCount = overdueResult.count ?? 0;
+          setOverdueTaskCount(snapshotOverdueTaskCount);
 
-          setAlerts(alertResult.data || []);
+          snapshotAlerts = alertResult.data || [];
+          setAlerts(snapshotAlerts as any[]);
 
           // Compute today's task count per location (physical + ghosts)
           const todayMs = new Date(todayStr).getTime();
@@ -565,6 +648,7 @@ function AppShell() {
             }
           });
 
+          snapshotLocationTaskCounts = counts;
           setLocationTaskCounts(counts);
         }
       }
@@ -596,25 +680,53 @@ function AppShell() {
           }
         }
         if (freshRawData) {
+          snapshotRawWeather = freshRawData;
           setRawWeather(freshRawData);
           try {
-            setWeather(extractCurrentWeather(freshRawData));
-            sessionStorage.setItem(
-              `weather_cache_${profile.home_id}`,
-              JSON.stringify({
-                data: freshRawData,
-                expiresAt: getMidnightTonight(),
-              }),
-            );
+            const extracted = extractCurrentWeather(freshRawData);
+            snapshotWeather = extracted;
+            setWeather(extracted);
           } catch (e) {
-            Logger.error("Weather parse/cache failed", e);
+            Logger.error("Weather parse failed", e);
             toast.error("Could not load weather data");
           }
         }
       }
     }
+
+    // Write the local-first snapshot AFTER all the network state has
+    // landed in our accumulators. Next cold open paints from this
+    // instantly; the network revalidation overwrites it again on
+    // success. localStorage failures are swallowed inside the cache
+    // module — nothing here is allowed to break the success path.
+    if (profile.home_id) {
+      writeDashboardCache(profile.home_id, {
+        rawWeather: snapshotRawWeather,
+        weather: snapshotWeather,
+        locations: snapshotLocations,
+        homeLatLng: snapshotHomeLatLng,
+        hardinessZone: snapshotHardinessZone,
+        overdueTaskCount: snapshotOverdueTaskCount,
+        alerts: snapshotAlerts,
+        locationTaskCounts: snapshotLocationTaskCounts,
+      });
+    }
+
     setDashboardLoaded(true);
     setLastSyncedAt(Date.now());
+    } catch (unexpected) {
+      // Outer-catch guard: a network blip on the homes query (or any of
+      // the parallel children) used to throw an unhandled rejection here
+      // and leave the UI stuck in the loading skeleton with no retry
+      // surface. Now we always flip dashboardError + dashboardLoaded so
+      // the existing "Could not load dashboard data" retry card renders.
+      Logger.error("fetchDashboardData unexpectedly threw", unexpected, {
+        home_id: profile?.home_id,
+      });
+      setDashboardError(true);
+      setDashboardLoaded(true);
+      toast.error("Could not load dashboard data");
+    }
   }, [profile?.home_id]);
 
   function formatSyncedAgo(ms: number | null): string {
@@ -631,18 +743,33 @@ function AppShell() {
   // Fetches profile for a given userId. Accepts userId directly so it can be
   // called inline after getSession() without waiting for a React re-render cycle.
   // Speculatively fetches home_members in parallel so the fallback path is free.
+  //
+  // Hardened with `withRetry`: a single network hiccup used to leave the
+  // user staring at the loading spinner with no recovery short of
+  // closing the app. The retry path covers 2 transient failures with
+  // exponential backoff before surfacing the error to the caller.
+  // `.maybeSingle()` (not `.single()`) so "row not yet present" is a
+  // clean null rather than a thrown error.
   const loadProfile = async (userId: string) => {
     const [profileResult, membershipsResult] = await Promise.all([
-      supabase
-        .from("user_profiles")
-        .select("uid, home_id, display_name, first_name, last_name, subscription_tier, ai_enabled, enable_perenual, is_admin, onboarding_state, can_view_audit, is_beta")
-        .eq("uid", userId)
-        .single(),
-      supabase
-        .from("home_members")
-        .select("home_id")
-        .eq("user_id", userId)
-        .limit(1),
+      withRetry(
+        () =>
+          supabase
+            .from("user_profiles")
+            .select("uid, home_id, display_name, first_name, last_name, subscription_tier, ai_enabled, enable_perenual, is_admin, onboarding_state, can_view_audit, is_beta")
+            .eq("uid", userId)
+            .maybeSingle(),
+        { retries: 2, label: "loadProfile.user_profiles" },
+      ),
+      withRetry(
+        () =>
+          supabase
+            .from("home_members")
+            .select("home_id")
+            .eq("user_id", userId)
+            .limit(1),
+        { retries: 2, label: "loadProfile.home_members" },
+      ),
     ]);
     const { data: profileData, error } = profileResult;
     if (error) throw error;
@@ -669,8 +796,6 @@ function AppShell() {
   const handleManualRefresh = async () => {
     if (!profile?.home_id) return;
     setIsRefreshing(true);
-    sessionStorage.removeItem(`weather_cache_${profile.home_id}`);
-    sessionStorage.removeItem(`locations_cache_${profile.home_id}`);
     await Promise.all([fetchDashboardData(), refreshProfile()]);
     setIsRefreshing(false);
     toast.success("Feed refreshed");
@@ -679,8 +804,6 @@ function AppShell() {
   // Stable callbacks passed into the Realtime subscriber component (inside the provider).
   const handleHomeDataRealtime = useCallback(() => {
     if (!profile?.home_id) return;
-    sessionStorage.removeItem(`locations_cache_${profile.home_id}`);
-    sessionStorage.removeItem(`weather_cache_${profile.home_id}`);
     fetchDashboardData();
   }, [profile?.home_id, fetchDashboardData]);
 
@@ -776,7 +899,13 @@ function AppShell() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       if (session) loadProfile(session.user.id).catch(() => {});
-      else setProfile(null);
+      else {
+        setProfile(null);
+        // Sign-out: nuke every cached dashboard snapshot so a different
+        // account opening the app on the same device never sees the
+        // previous user's data flash on screen.
+        clearAllDashboardCaches();
+      }
     });
 
     return () => {
@@ -1612,6 +1741,12 @@ function DashboardRealtimeSubscriber({
   useHomeRealtime("inventory_items", onInventoryChange);
   useHomeRealtime("weather_snapshots", onDataRefresh);
   useHomeRealtime("homes", onProfileRefresh);
+  // `tasks` was missing — adding a task today used to leave the
+  // Dashboard's today-count / overdue chip stale until the user
+  // navigated away and back. Subscribe so any INSERT / UPDATE / DELETE
+  // for the home triggers a dashboard refetch. With local-first
+  // caching (planned) this also keeps the on-disk snapshot fresh.
+  useHomeRealtime("tasks", onDataRefresh);
   return null;
 }
 

@@ -199,7 +199,7 @@ export default function GardenZoneSheet({ homeId, layoutId, selectedShapeIds, on
         .select("id")
         .eq("home_id", homeId)
         .eq("type", "Watering")
-        .in("inventory_item_id", plantIds)
+        .overlaps("inventory_item_ids", plantIds)
         .neq("status", "Completed")
         .neq("status", "Skipped")
         .lte("due_date", todayEnd.toISOString());

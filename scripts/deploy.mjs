@@ -95,7 +95,14 @@ async function setMaintenance(enabled, message = null) {
   }
 }
 
-async function bumpVersion(bumpMajor = false) {
+/**
+ * Read the current DB version and compute the next one — does NOT write
+ * anywhere. Lets the caller bake the new version into the bundle (via
+ * `writeBuildVersionFile`) BEFORE the DB bump, so the deployed bundle
+ * knows its own version and we don't race old bundles into showing
+ * release notes for a build they haven't loaded yet.
+ */
+async function computeNextVersion(bumpMajor = false) {
   const getRes = await fetch(
     `${SUPABASE_URL}/rest/v1/app_config?key=eq.app_version&select=value`,
     { headers: { apikey: SERVICE_ROLE_KEY, Authorization: `Bearer ${SERVICE_ROLE_KEY}` } }
@@ -106,6 +113,37 @@ async function bumpVersion(bumpMajor = false) {
   const newMajor = bumpMajor ? current.major + 1 : current.major;
   const newMinor = bumpMajor ? BUMP_COUNT : current.minor + BUMP_COUNT;
 
+  const versionKey = `${String(newMajor).padStart(2, "0")}.${String(newMinor).padStart(4, "0")}`;
+  const newVersion = `Rhozly OS ${versionKey}`;
+
+  return { newMajor, newMinor, versionKey, newVersion };
+}
+
+/**
+ * Bake the upcoming version into `public/build-version.json` so the
+ * Vercel build picks it up and the deployed bundle can compare its own
+ * version against the DB version at runtime.
+ */
+function writeBuildVersionFile(versionKey, newMajor, newMinor) {
+  const target = resolve(process.cwd(), "public/build-version.json");
+  writeFileSync(
+    target,
+    JSON.stringify({
+      version: versionKey,
+      major: newMajor,
+      minor: newMinor,
+      built_at: new Date().toISOString(),
+    }, null, 2) + "\n",
+    "utf8",
+  );
+}
+
+/**
+ * Commit the new version to the DB + insert release notes. Runs AFTER
+ * Vercel has deployed the new bundle so users can never read a "new" DB
+ * version before the matching code is live.
+ */
+async function commitVersionAndReleaseNotes(newMajor, newMinor, versionKey, newVersion) {
   const patchRes = await fetch(`${SUPABASE_URL}/rest/v1/app_config?key=eq.app_version`, {
     method: "PATCH",
     headers: {
@@ -117,9 +155,6 @@ async function bumpVersion(bumpMajor = false) {
     body: JSON.stringify({ value: { major: newMajor, minor: newMinor }, updated_at: new Date().toISOString() }),
   });
   if (!patchRes.ok) throw new Error(`Failed to bump version: ${await patchRes.text()}`);
-
-  const newVersion = `Rhozly OS ${String(newMajor).padStart(2, "0")}.${String(newMinor).padStart(4, "0")}`;
-  const versionKey = `${String(newMajor).padStart(2, "0")}.${String(newMinor).padStart(4, "0")}`;
 
   // Insert release notes if any were written
   let sections = [];
@@ -146,8 +181,6 @@ async function bumpVersion(bumpMajor = false) {
     // Reset file to blank template for next deploy
     writeFileSync(resolve(process.cwd(), "release-notes.json"), "[]\n", "utf8");
   }
-
-  return newVersion;
 }
 
 // ---------------------------------------------------------------------------
@@ -171,21 +204,34 @@ async function deploy() {
 
   try {
     // Step 2: push DB migrations
-    console.log("\n📦  [2/4] Pushing database migrations...");
+    console.log("\n📦  [2/6] Pushing database migrations...");
     run("supabase db push --include-all");
 
-    // Step 2.5: bump version
-    console.log("\n🔢  [2.5/4] Bumping app version...");
-    const newVersion = await bumpVersion(BUMP_MAJOR);
-    console.log(`     → ${newVersion}`);
+    // Step 3: compute the upcoming version + bake it into public/build-version.json
+    // BEFORE Vercel builds. This is what stops the "release notes show
+    // before the new bundle lands" race — the running bundle knows its
+    // own version, and the DB version isn't bumped until after Vercel
+    // has the new bundle live.
+    console.log("\n🔢  [3/6] Computing next app version + baking into build...");
+    const { newMajor, newMinor, versionKey, newVersion } = await computeNextVersion(BUMP_MAJOR);
+    writeBuildVersionFile(versionKey, newMajor, newMinor);
+    console.log(`     → ${newVersion}  (public/build-version.json updated)`);
 
-    // Step 3: deploy all edge functions so they stay in sync with the frontend
-    console.log("\n⚡  [3/4] Deploying edge functions...");
+    // Step 4: deploy edge functions
+    console.log("\n⚡  [4/6] Deploying edge functions...");
     run("supabase functions deploy");
 
-    // Step 4: deploy to Vercel (blocks until live)
-    console.log("\n🚀  [4/4] Deploying to Vercel...");
+    // Step 5: deploy to Vercel (blocks until live)
+    console.log("\n🚀  [5/6] Deploying to Vercel...");
     run("vercel --prod");
+
+    // Step 6: NOW commit the DB version + release notes. The new bundle
+    // is live; existing users can compare their (still-old) cached
+    // bundle's build-version.json against the new DB version and see
+    // the UpdateBanner first, then release notes after they've actually
+    // reloaded onto the new bundle.
+    console.log("\n📝  [6/6] Committing app version + release notes...");
+    await commitVersionAndReleaseNotes(newMajor, newMinor, versionKey, newVersion);
 
     // All done — turn maintenance OFF
     console.log("\n✅  Deployment successful.");

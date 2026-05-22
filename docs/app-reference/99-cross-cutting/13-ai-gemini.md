@@ -28,7 +28,7 @@ Models used:
 
 Highlights:
 - `plant-doctor` (identify / diagnose / pest / **analyse_comprehensive** — combined Gemini call returning structured analysis + `suggested_tasks[]` for one-tap calendar commit / **lookup_frost_dates** — open to all tiers, caches into `home_climate` for 6 months / **plant_when_to_plant** — Sage+ per-plant guidance anchored to cached frost dates)
-- `plant-doctor-ai` (chat)
+- `plant-doctor-ai` (chat — schema includes `text`, `suggested_plants`, `suggested_tasks`, `detected_preferences`, and `plan_suggestion?` for the proactive Planner CTA. Caller passes `priorPlanSuggested: boolean` to enforce the once-per-thread rule.)
 - `generate-landscape-plan` (blueprint)
 - `generate-task-from-photo`
 - `scan-area`

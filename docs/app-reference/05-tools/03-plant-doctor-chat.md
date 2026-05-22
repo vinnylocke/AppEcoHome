@@ -28,6 +28,7 @@ PlantDoctorChat (Portal / fixed-position)
 │   ├── Suggested Plants → ChatPlantCard (Wikipedia info)
 │   ├── Suggested Tasks → TaskActionButtons
 │   ├── PlantActionButtons (e.g. "Add to Shed")
+│   ├── PlanSuggestionCard (proactive "Make a Plan" CTA — at most once per thread)
 │   └── Feedback buttons (👍 / 👎)
 ├── Pending image preview (before send)
 ├── Input bar
@@ -109,6 +110,19 @@ When the AI returns `suggested_plants: [{ name, search_query }]`, each renders a
 
 When the AI returns `suggested_tasks: [...]`, each row gets an "Add to Schedule" button that pre-fills `AddTaskModal`.
 
+### Plan suggestions → `PlanSuggestionCard`
+
+When the AI detects the user is researching a multi-plant project (2+ distinct plants + a coherent theme), it can return `plan_suggestion: { headline, plan_name, description, plants_of_interest }`. The card renders with **Create this Plan** (writes the name + description to `sessionStorage` via `plannerPrefill.ts`, closes the chat, navigates to `/planner?open=new-plan` — the dashboard consumes the prefill and pre-populates `NewPlanForm`) and **Not now** (dismiss locally).
+
+**Two-mode prompt rule:**
+
+- **Soft probe (text only)** — when a trend is forming but no clear theme yet, the AI is told to ask conversationally inside the normal `text` reply ("Are you working on a particular project?"). No card emitted.
+- **Hard CTA (`plan_suggestion`)** — only when 2+ plants AND a coherent theme are present AND no prior assistant turn already emitted one in this thread.
+
+**Once-per-thread guard:** the client scans the loaded message history for any prior assistant message with a non-null `plan_suggestion` and passes `priorPlanSuggested: true` in the request body so the model knows to suppress further suggestions.
+
+**Defensive server-side validation:** the edge function discards the model's `plan_suggestion` if the shape is incomplete (missing `headline` / `plan_name` / `description`) or if `plan_name` exceeds 80 chars.
+
 ### Realtime channels
 
 None — chat is single-user (per-device polling via fetch on send).
@@ -178,11 +192,19 @@ It's also context-aware. Open it from the Light Sensor with a reading of 800 lx 
 - AI might propose tasks ("Water every 3 days").
 - "Add to Schedule" pre-fills `AddTaskModal`.
 
-#### 5. Provide feedback
+#### 5. Receive a Plan suggestion
+
+- After asking about a few different plants in a row, the AI may notice a project taking shape ("sounds like you're planning a sunny veg patch") and offer to start a Plan.
+- The card shows the suggested plan name + plants you mentioned + two buttons.
+- **Create this Plan** opens the Planner with the New Plan form already filled in with the name + description. Edit freely before saving.
+- **Not now** dismisses the card; the conversation continues.
+- The chat won't pester you — only one suggestion per thread.
+
+#### 6. Provide feedback
 
 - 👍 / 👎 per message helps train the system.
 
-#### 6. Clear history
+#### 7. Clear history
 
 - Trash icon in header. Wipes all `chat_messages` for your user. Cannot be undone.
 
@@ -236,7 +258,10 @@ It's also context-aware. Open it from the Light Sensor with a reading of 800 lx 
 - `src/components/PlantDoctorChat.tsx` — chat UI
 - `src/context/PlantDoctorContext.tsx` — open/close + page context
 - `src/lib/wikipedia.ts` — `getPlantWikiInfo`
+- `src/lib/plannerPrefill.ts` — sessionStorage handoff for the Plan CTA
 - `src/components/PlantActionButtons.tsx` — Add to Shed etc.
 - `src/components/TaskActionButtons.tsx` — Add to Schedule
+- `src/components/chat/PlanSuggestionCard.tsx` — Plan CTA card
 - `supabase/functions/plant-doctor-ai/index.ts` — edge fn
-- `supabase/migrations/*_chat_messages.sql` — schema
+- `supabase/migrations/20260427000000_chat_history.sql` — base schema
+- `supabase/migrations/20260624000200_chat_plan_suggestion.sql` — plan_suggestion column

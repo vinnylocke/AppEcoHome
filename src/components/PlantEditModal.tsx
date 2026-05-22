@@ -8,6 +8,7 @@ import PlantGuidesTab from "./PlantGuidesTab";
 import LightTab from "./LightTab";
 import CompanionPlantsTab from "./CompanionPlantsTab";
 import GrowGuideTab from "./GrowGuideTab";
+import NurseryPacketsForPlant from "./nursery/NurseryPacketsForPlant";
 import PlantInstancesTab from "./plant/PlantInstancesTab";
 import { getProviderPlantDetails } from "../lib/plantProvider";
 import { getProviderLabel } from "../lib/verdantlyUtils";
@@ -384,7 +385,7 @@ export default function PlantEditModal({
           : supabase
               .from("tasks")
               .select("id, due_date")
-              .in("inventory_item_id", instanceIds)
+              .overlaps("inventory_item_ids", instanceIds)
               .neq("status", "Completed")
               .neq("status", "Skipped"),
         instanceIds.length === 0
@@ -671,6 +672,10 @@ export default function PlantEditModal({
             </div>
           ) : activeTab === "care" ? (
             <div className="animate-in fade-in slide-in-from-bottom-2 duration-500">
+              {/* Tiny informational pill — surfaces matching Nursery packets
+                  (hides itself when there are none). Sits above the existing
+                  source/refresh strip so power users see it on every visit. */}
+              <NurseryPacketsForPlant homeId={homeId} plantId={Number(plant.id)} />
               {(plant.source === "api" || plant.source === "verdantly") && (
                 <p className="text-[10px] text-rhozly-on-surface/40 font-semibold uppercase tracking-widest mb-4">
                   Read-only — data sourced from {getProviderLabel(plant.source) ?? "the plant encyclopedia"}

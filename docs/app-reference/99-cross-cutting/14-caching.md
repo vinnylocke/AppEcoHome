@@ -37,7 +37,40 @@
 | `rhozly_global_search_recent` | Recent search queries |
 | `rhozly_queue` | Offline queue (see [Offline Queue](./16-offline-queue.md)) |
 | `rhozly_shopping_plan_suggest_dismissed` | Shopping banner |
+| `rhozly:dashboard:v1:{home_id}` | Local-first dashboard snapshot (see Dashboard snapshot below) |
 | `ewelink_oauth_*` | eWeLink OAuth dance |
+
+### Dashboard snapshot (`rhozly:dashboard:v1:{home_id}`)
+
+Owned by `src/lib/dashboardCache.ts` and read/written by `src/App.tsx`'s `fetchDashboardData`. Lets the dashboard paint **immediately** from a local snapshot on cold open while the network revalidation runs in the background.
+
+| Aspect | Value |
+|--------|-------|
+| Storage | `localStorage` (survives app close + reopen) |
+| Key | `rhozly:dashboard:v1:{home_id}` — one entry per home, bump `:v1:` on schema change |
+| TTL | 24 h — older entries still **paint** on cold open (better than empty), flagged `isStale: true` |
+| Shape | `{ cachedAt: ISO, rawWeather, weather, locations, homeLatLng, hardinessZone, overdueTaskCount, alerts, locationTaskCounts }` |
+| Size | ~10–100 KB per home depending on locations/plants count — comfortable inside the ~5 MB origin quota |
+
+**Lifecycle:**
+
+1. On mount with a `home_id`, `readDashboardCache(home_id)` is called synchronously. On hit, the snapshot hydrates state and the dashboard paints. `isStale` is set if the snapshot is older than 24 h.
+2. `fetchDashboardData` runs in parallel via `withRetry`. On success, every state-setter also writes into a snapshot accumulator, and at the end `writeDashboardCache(home_id, snapshot)` overwrites the entry with fresh data.
+3. On failure with a cache hit present, the cached data stays visible and the error surfaces non-destructively — the existing retry layer eventually catches up.
+
+**Invalidation triggers (cache is overwritten):**
+
+- Any successful `fetchDashboardData` run (the revalidation path).
+- Pull-to-refresh (`handleManualRefresh`).
+- Realtime channel events from `useHomeRealtime("homes" | "locations" | "inventory_items")` re-trigger the fetch.
+
+**Cache is cleared by:**
+
+- Sign-out — `clearAllDashboardCaches()` runs in the `onAuthStateChange` else branch to avoid leaking one user's data to another on shared devices.
+- A version bump of `:v1:` → `:v2:` — old keys simply stop matching and are ignored (then evicted by quota when localStorage fills).
+- Corrupt blob on read — the read path try/catches `JSON.parse` and `clearDashboardCache(home_id)` on parse failure, so a poisoned write can't permanently break the next read.
+
+**Why localStorage, not sessionStorage:** the goal is offline-tolerant viewing across full app close (PWA + native Capacitor wrappers). sessionStorage dies on tab close and would not satisfy that.
 
 ### sessionStorage keys
 
@@ -83,14 +116,16 @@ The `plant-doctor` edge function still writes `getCached/setCached` entries for 
 
 ### Why this matters
 
-The app feels instant for warm sessions because so much is cached. When something looks "stale", knowing where the cache lives helps:
+The app feels instant for warm sessions because so much is cached, and on cold open the dashboard now paints from the local snapshot in under a frame — so the first thing you see is yesterday's tasks, plants and weather, not an empty skeleton. When something looks "stale", knowing where the cache lives helps:
 - Recent search wrong? `rhozly_global_search_recent`.
 - Layout filter unexpectedly set? `sessionStorage["rhozly:plan-filter"]`.
 - High contrast toggle missing? `rhozly_high_contrast`.
+- Dashboard showing yesterday's numbers on first paint? That's the local-first dashboard snapshot — the network revalidation will overwrite it in a beat. Pull-to-refresh forces it immediately.
 
 ### Common workflows
 
-- **Hard refresh:** when stuck on stale data, pull-to-refresh or hard reload.
+- **Hard refresh:** when stuck on stale data, pull-to-refresh or hard reload. Pull-to-refresh also overwrites the dashboard snapshot, so you're guaranteed fresh data after.
+- **Cold open while offline:** the dashboard still paints — you can browse plants, see your task list, read locations. Actions that require the network will queue (see [Offline Queue](./16-offline-queue.md)) and replay when you're back online.
 - **Nuclear:** Clear Cache button in [ErrorPage](../09-persistent-ui/08-error-page.md) wipes localStorage + service worker.
 
 ---
@@ -105,5 +140,8 @@ The app feels instant for warm sessions because so much is cached. When somethin
 ## Code references for ongoing maintenance
 
 - `src/hooks/useCachedShed.ts`
+- `src/lib/dashboardCache.ts` — local-first dashboard snapshot read/write/clear
+- `src/App.tsx` — `fetchDashboardData` snapshot accumulator + read-on-mount wiring
+- `tests/unit/lib/dashboardCache.test.ts`
 - `vite.config.ts` — PWA runtime caching config
 - `supabase/functions/image-proxy/index.ts`

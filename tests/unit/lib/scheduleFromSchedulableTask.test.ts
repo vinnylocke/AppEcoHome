@@ -2,7 +2,10 @@ import { describe, test, expect } from "vitest";
 import {
   scheduleFromSchedulableTask,
   scheduleFromSchedulableTasks,
+  enrichDescriptionWithSteps,
+  flattenSectionsForCalendar,
   type SchedulableTask,
+  type GuideStep,
 } from "../../../src/lib/scheduleFromSchedulableTask";
 
 function mk(over: Partial<SchedulableTask> = {}): SchedulableTask {
@@ -188,5 +191,103 @@ describe("scheduleFromSchedulableTask", () => {
     // Only Mar + May remain; window Mar→May; start Mar 1
     // Jan 15 → Mar 1 = 45 days
     expect(out.due_in_days).toBe(45);
+  });
+});
+
+describe("enrichDescriptionWithSteps", () => {
+  const steps: GuideStep[] = [
+    { step: 1, title: "Take cutting", detail: "4–6 in below a leaf node." },
+    { step: 2, title: "Strip leaves", detail: "Remove the bottom set." },
+    { step: 3, title: "Plant up", detail: "Moist potting mix; cover with plastic." },
+  ];
+
+  test("no steps => task returned unchanged", () => {
+    const original = mk({ description: "Existing desc." });
+    expect(enrichDescriptionWithSteps(original, [])).toBe(original);
+    expect(enrichDescriptionWithSteps(original, null)).toBe(original);
+    expect(enrichDescriptionWithSteps(original, undefined)).toBe(original);
+  });
+
+  test("appends numbered checklist after the original description", () => {
+    const out = enrichDescriptionWithSteps(mk({ description: "Take cuttings." }), steps);
+    expect(out.description).toBe(
+      "Take cuttings.\n\nHow to:\n" +
+        "1. Take cutting — 4–6 in below a leaf node.\n" +
+        "2. Strip leaves — Remove the bottom set.\n" +
+        "3. Plant up — Moist potting mix; cover with plastic.",
+    );
+  });
+
+  test("steps are sorted by step number before rendering", () => {
+    const shuffled: GuideStep[] = [steps[2], steps[0], steps[1]];
+    const out = enrichDescriptionWithSteps(mk({ description: "Do." }), shuffled);
+    expect(out.description.split("\n").slice(3)).toEqual([
+      "1. Take cutting — 4–6 in below a leaf node.",
+      "2. Strip leaves — Remove the bottom set.",
+      "3. Plant up — Moist potting mix; cover with plastic.",
+    ]);
+  });
+
+  test("blank original description still emits the How-to header", () => {
+    const out = enrichDescriptionWithSteps(mk({ description: "   " }), steps);
+    expect(out.description.startsWith("How to:\n")).toBe(true);
+  });
+
+  test("non-description fields are preserved", () => {
+    const out = enrichDescriptionWithSteps(
+      mk({ title: "Take cuttings", task_type: "Maintenance" }),
+      steps,
+    );
+    expect(out.title).toBe("Take cuttings");
+    expect(out.task_type).toBe("Maintenance");
+  });
+});
+
+describe("flattenSectionsForCalendar", () => {
+  const stepsA: GuideStep[] = [
+    { step: 1, title: "First", detail: "Do thing one." },
+    { step: 2, title: "Second", detail: "Do thing two." },
+  ];
+
+  test("empty sections list => empty result", () => {
+    expect(flattenSectionsForCalendar([])).toEqual([]);
+  });
+
+  test("section without schedulable_tasks is skipped", () => {
+    expect(
+      flattenSectionsForCalendar([{ schedulable_tasks: [], steps: stepsA }]),
+    ).toEqual([]);
+  });
+
+  test("section with steps enriches first task only", () => {
+    const tA = mk({ title: "Sow seeds", description: "Sow indoors." });
+    const tB = mk({ title: "Transplant", description: "Move outside." });
+    const out = flattenSectionsForCalendar([
+      { schedulable_tasks: [tA, tB], steps: stepsA },
+    ]);
+    expect(out).toHaveLength(2);
+    expect(out[0].description).toBe(
+      "Sow indoors.\n\nHow to:\n1. First — Do thing one.\n2. Second — Do thing two.",
+    );
+    expect(out[1].description).toBe("Move outside.");
+  });
+
+  test("section without steps passes tasks through unchanged", () => {
+    const tA = mk({ title: "Water", description: "Every 3 days." });
+    const out = flattenSectionsForCalendar([
+      { schedulable_tasks: [tA], steps: [] },
+    ]);
+    expect(out[0].description).toBe("Every 3 days.");
+  });
+
+  test("preserves section + intra-section order across multiple sections", () => {
+    const sec1A = mk({ title: "1A" });
+    const sec1B = mk({ title: "1B" });
+    const sec2A = mk({ title: "2A" });
+    const out = flattenSectionsForCalendar([
+      { schedulable_tasks: [sec1A, sec1B], steps: [] },
+      { schedulable_tasks: [sec2A], steps: [] },
+    ]);
+    expect(out.map((t) => t.title)).toEqual(["1A", "1B", "2A"]);
   });
 });

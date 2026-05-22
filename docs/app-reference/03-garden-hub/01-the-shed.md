@@ -11,6 +11,8 @@
 
 A grid of plant cards. Each card represents one `plants` row (a species/type, not an individual instance). Cards show common name, scientific name, source badge (Perenual / Verdantly / AI / Manual), planted count chip, and a row of action buttons (View on Layout, Sun Tracker, Ask AI, Archive, Delete). At the top: a sticky search bar, multi-select toggle, smart filter chips (unassigned / in-plan / harvest-ready), and Add Plant button.
 
+A **Plants / Nursery** toggle pill under the page title swaps the body to [The Nursery](./10-nursery.md) — seed packets + sowings + the plant-out lifecycle. Nursery mode hides the plant search bar and grid; seedlings graduate from the Nursery back into the Shed via the Plant Out flow.
+
 ---
 
 ## Role 1 — Technical Reference

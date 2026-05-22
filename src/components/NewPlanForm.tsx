@@ -23,6 +23,10 @@ interface NewPlanFormProps {
   onClose: () => void;
   onSuccess: () => void;
   aiEnabled?: boolean;
+  /** Optional initial values — used when the user arrived from a chat
+   *  plan-suggestion CTA. Empty string falls through to the normal default. */
+  initialName?: string;
+  initialDescription?: string;
 }
 
 const SUNLIGHT_OPTIONS = [
@@ -39,6 +43,8 @@ export default function NewPlanForm({
   onClose,
   onSuccess,
   aiEnabled = false,
+  initialName = "",
+  initialDescription = "",
 }: NewPlanFormProps) {
   const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [step, setStep] = useState(1);
@@ -51,8 +57,8 @@ export default function NewPlanForm({
   });
 
   const [formData, setFormData] = useState({
-    planName: "",
-    description: "",
+    planName: initialName,
+    description: initialDescription,
     aesthetic: "Natural",
     timeline: "Start Immediately",
     unit: "m",
