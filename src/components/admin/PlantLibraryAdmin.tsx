@@ -8,10 +8,12 @@ import toast from "react-hot-toast";
 import {
   fetchPlantLibraryStats,
   fetchRecentPlantLibraryRuns,
+  fetchStuckVerifications,
   triggerSeedRun,
   triggerVerifyRun,
   type PlantLibraryRun,
   type PlantLibraryStats,
+  type StuckPlantRow,
 } from "../../services/plantLibraryAdminService";
 import { Logger } from "../../lib/errorHandler";
 
@@ -37,6 +39,7 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
 
   const [stats, setStats] = useState<PlantLibraryStats | null>(null);
   const [runs, setRuns] = useState<PlantLibraryRun[]>([]);
+  const [stuck, setStuck] = useState<StuckPlantRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [seedCount, setSeedCount] = useState(100);
   const [verifyCount, setVerifyCount] = useState(500);
@@ -51,12 +54,14 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
 
   const refresh = useCallback(async () => {
     try {
-      const [s, r] = await Promise.all([
+      const [s, r, st] = await Promise.all([
         fetchPlantLibraryStats(),
         fetchRecentPlantLibraryRuns(MAX_RUNS),
+        fetchStuckVerifications(25),
       ]);
       setStats(s);
       setRuns(r);
+      setStuck(st);
     } catch (err) {
       Logger.error("PlantLibraryAdmin refresh failed", err);
     } finally {
@@ -198,6 +203,74 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
           />
         </div>
       </section>
+
+      {/* Stuck rows — verifier hit at least one error on these */}
+      {stuck.length > 0 && (
+        <section
+          data-testid="plant-library-admin-stuck"
+          className="rounded-3xl bg-white border border-amber-200 shadow-[0_2px_12px_-4px_rgba(7,87,55,0.08)] overflow-hidden"
+        >
+          <div className="px-5 py-3 border-b border-amber-100 bg-amber-50 flex items-center justify-between">
+            <div>
+              <h2 className="font-display font-black text-amber-900 text-sm">
+                Stuck verifications
+              </h2>
+              <p className="text-[11px] text-amber-800/80 leading-snug">
+                Rows the verifier hit an error on. After {3} attempts they default-pass to <code>valid = true</code> but the error stays visible here for diagnosis.
+              </p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-rhozly-surface-low/40 text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/50">
+                <tr>
+                  <th className="text-left px-3 py-2">Plant</th>
+                  <th className="text-right px-3 py-2">Attempts</th>
+                  <th className="text-left px-3 py-2">Last error</th>
+                  <th className="text-left px-3 py-2">Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {stuck.map((row) => (
+                  <tr key={row.id} className="border-t border-rhozly-outline/10">
+                    <td className="px-3 py-2">
+                      <div className="font-bold text-rhozly-on-surface">{row.common_name}</div>
+                      {row.scientific_name?.[0] && (
+                        <div className="text-[10px] italic text-rhozly-on-surface/55">
+                          {row.scientific_name[0]}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-right font-bold text-rhozly-on-surface">
+                      {row.verification_attempts}
+                    </td>
+                    <td className="px-3 py-2 text-rhozly-on-surface/70 max-w-md">
+                      <code className="text-[10px] whitespace-pre-wrap break-words leading-snug">
+                        {row.verification_error ?? "—"}
+                      </code>
+                    </td>
+                    <td className="px-3 py-2">
+                      {row.valid === true ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border bg-emerald-50 text-emerald-700 border-emerald-100">
+                          Default-passed
+                        </span>
+                      ) : row.valid === false ? (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border bg-amber-50 text-amber-800 border-amber-100">
+                          Amended
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full border bg-rose-50 text-rose-800 border-rose-100">
+                          Retrying
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
 
       {/* Recent runs */}
       <section

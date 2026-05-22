@@ -67,6 +67,37 @@ export async function fetchPlantLibraryStats(): Promise<PlantLibraryStats> {
   };
 }
 
+export interface StuckPlantRow {
+  id: number;
+  common_name: string;
+  scientific_name: string[];
+  verification_attempts: number;
+  verification_error: string | null;
+  valid: boolean | null;
+  verified_at: string | null;
+  seeded_at: string;
+}
+
+/**
+ * Rows the verifier has tried + failed on at least once. Used by the
+ * admin "stuck rows" panel — surfaces the actual error so we can see
+ * what's broken without diving into the DB.
+ */
+export async function fetchStuckVerifications(
+  limit = 25,
+): Promise<StuckPlantRow[]> {
+  const { data, error } = await supabase
+    .from("plant_library")
+    .select(
+      "id, common_name, scientific_name, verification_attempts, verification_error, valid, verified_at, seeded_at",
+    )
+    .gt("verification_attempts", 0)
+    .order("verification_attempts", { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as StuckPlantRow[];
+}
+
 /**
  * Last N runs in started_at-desc order. RLS scopes to admins; the call
  * just returns [] for non-admin users.

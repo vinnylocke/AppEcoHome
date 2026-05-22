@@ -30,6 +30,20 @@ const CORS = {
 };
 
 const BATCH_SIZE = 10;
+/**
+ * After this many failed attempts the verifier default-passes the row
+ * (valid = true) so the seed→verify pipeline doesn't churn the same
+ * broken rows every cron run. The `verification_error` column still
+ * captures what went wrong, so admins can investigate.
+ */
+const MAX_ATTEMPTS = 3;
+
+/** Fields the verifier must coerce to a finite number before applying. */
+const NUMERIC_FIELDS = new Set([
+  "watering_min_days", "watering_max_days",
+  "days_to_harvest_min", "days_to_harvest_max",
+  "soil_ph_min", "soil_ph_max",
+]);
 
 // Fields the verifier is allowed to amend. We accept partial updates
 // targeted only at the columns that diverged so the AI doesn't rewrite
@@ -137,11 +151,74 @@ No prose, no markdown — JSON only.`;
 function pickAllowedUpdates(updates: Record<string, unknown>): Record<string, unknown> {
   const out: Record<string, unknown> = {};
   for (const key of VERIFIABLE_FIELDS) {
-    if (key in updates) {
-      out[key as VerifiableField] = updates[key as VerifiableField];
+    if (!(key in updates)) continue;
+    const raw = updates[key as VerifiableField];
+    if (NUMERIC_FIELDS.has(key as string)) {
+      // AI sometimes returns numeric fields as strings like "7" or
+      // "7-10 days" — postgres rejects the update on type mismatch
+      // and we used to silently lose the whole row. Coerce + skip
+      // when we can't get a finite number.
+      const n = typeof raw === "number" ? raw : Number(String(raw).replace(/[^\d.\-]/g, ""));
+      if (!Number.isFinite(n)) continue;
+      out[key as VerifiableField] = n;
+      continue;
     }
+    out[key as VerifiableField] = raw;
   }
   return out;
+}
+
+/**
+ * Throw on any Supabase update error. Used to surface silent type-
+ * mismatch failures into the row's verification_error column rather
+ * than letting the row stay un-verified-but-counted.
+ */
+async function updateOrThrow(
+  db: any,
+  id: number,
+  patch: Record<string, unknown>,
+): Promise<void> {
+  const { error } = await db
+    .from("plant_library")
+    .update(patch)
+    .eq("id", id);
+  if (error) throw new Error(`update failed: ${error.message}`);
+}
+
+/**
+ * On any verification failure, increment the attempt counter, record
+ * the error, and — once we've hit MAX_ATTEMPTS — default-pass the row
+ * (valid = true, verified_at = now()) so it stops churning.
+ */
+async function recordFailure(
+  db: any,
+  id: number,
+  runId: string,
+  current: { verification_attempts?: number | null },
+  reason: string,
+): Promise<"failed" | "default_passed"> {
+  const nextAttempts = (current.verification_attempts ?? 0) + 1;
+  if (nextAttempts >= MAX_ATTEMPTS) {
+    await db
+      .from("plant_library")
+      .update({
+        verification_attempts: nextAttempts,
+        verification_error: `default-passed after ${nextAttempts} failed attempts: ${reason}`,
+        valid: true,
+        verified_at: new Date().toISOString(),
+        verified_by_run_id: runId,
+      })
+      .eq("id", id);
+    return "default_passed";
+  }
+  await db
+    .from("plant_library")
+    .update({
+      verification_attempts: nextAttempts,
+      verification_error: reason,
+    })
+    .eq("id", id);
+  return "failed";
 }
 
 async function verifyOneRow(
@@ -150,68 +227,73 @@ async function verifyOneRow(
   runId: string,
   row: Record<string, unknown>,
 ): Promise<"matched" | "amended" | "failed"> {
-  const id = row.id;
+  const id = row.id as number;
   const sci =
     Array.isArray(row.scientific_name) && (row.scientific_name as string[])[0]
       ? (row.scientific_name as string[])[0]
       : (row.common_name as string);
+  const currentAttempts =
+    typeof row.verification_attempts === "number"
+      ? (row.verification_attempts as number)
+      : 0;
 
-  const [wiki, gbif] = await Promise.all([
-    fetchWikipediaSummary(sci),
-    fetchGbifMatch(sci),
-  ]);
-
-  // No sources at all — leave verified_at null so a future run can
-  // retry once external sources may have populated.
-  if (!wiki && !gbif) {
-    log(FN, "no_sources", { run_id: runId, id, sci });
-    // Mark verified anyway so we don't churn forever on the same row.
-    // Treated as "matched by default" — nothing said otherwise.
-    await db
-      .from("plant_library")
-      .update({
-        valid: true,
-        verified_at: new Date().toISOString(),
-        verified_by_run_id: runId,
-      })
-      .eq("id", id);
-    return "matched";
-  }
-
-  const prompt = buildVerifyPrompt(row, wiki, gbif);
-
-  const { text } = await callGeminiCascade(
-    apiKey,
-    FN,
-    toMessages([prompt]),
-    {
-      temperature: 0.2,
-      maxOutputTokens: 4096,
-      responseSchema: VERIFY_SCHEMA,
-      responseMimeType: "application/json",
-      logContext: { run_id: runId, plant_id: id, sci },
-    },
-  );
-
-  let parsed: { verdict: "matched" | "amended"; updates?: Record<string, unknown>; sources?: unknown[] };
+  // Single top-level try/catch — ANY failure (network blip, AI throw,
+  // parse failure, postgres type mismatch) routes through
+  // `recordFailure` so the row eventually default-passes after
+  // MAX_ATTEMPTS instead of looping forever.
   try {
-    parsed = JSON.parse(text);
-  } catch (err) {
-    logError(FN, "parse_failed", { run_id: runId, id, error: (err as Error).message });
-    return "failed";
-  }
+    const [wiki, gbif] = await Promise.all([
+      fetchWikipediaSummary(sci),
+      fetchGbifMatch(sci),
+    ]);
 
-  if (parsed.verdict === "matched") {
-    await db
-      .from("plant_library")
-      .update({
+    // No sources at all — treat as "matched by default" so we don't
+    // churn forever on plants neither Wikipedia nor GBIF know about.
+    if (!wiki && !gbif) {
+      log(FN, "no_sources", { run_id: runId, id, sci });
+      await updateOrThrow(db, id, {
         valid: true,
         verified_at: new Date().toISOString(),
         verified_by_run_id: runId,
-      })
-      .eq("id", id);
-    return "matched";
-  }
+        verification_error: null,
+      });
+      return "matched";
+    }
+
+    const prompt = buildVerifyPrompt(row, wiki, gbif);
+
+    const { text } = await callGeminiCascade(
+      apiKey,
+      FN,
+      toMessages([prompt]),
+      {
+        temperature: 0.2,
+        maxOutputTokens: 4096,
+        responseSchema: VERIFY_SCHEMA,
+        responseMimeType: "application/json",
+        logContext: { run_id: runId, plant_id: id, sci },
+      },
+    );
+
+    let parsed: { verdict: "matched" | "amended"; updates?: Record<string, unknown>; sources?: unknown[] };
+    try {
+      parsed = JSON.parse(text);
+    } catch (err) {
+      throw new Error(`parse failed: ${(err as Error).message}`);
+    }
+    if (parsed.verdict !== "matched" && parsed.verdict !== "amended") {
+      throw new Error(`unexpected verdict: ${JSON.stringify(parsed.verdict)}`);
+    }
+
+    if (parsed.verdict === "matched") {
+      await updateOrThrow(db, id, {
+        valid: true,
+        verified_at: new Date().toISOString(),
+        verified_by_run_id: runId,
+        verification_error: null,
+      });
+      return "matched";
+    }
 
   // verdict === "amended"
   const updates = pickAllowedUpdates(parsed.updates ?? {});
@@ -257,17 +339,30 @@ async function verifyOneRow(
     seenUrls.add(url);
   }
 
-  await db
-    .from("plant_library")
-    .update({
+    await updateOrThrow(db, id, {
       ...updates,
       valid: false,
       sources: knownSources,
       verified_at: new Date().toISOString(),
       verified_by_run_id: runId,
-    })
-    .eq("id", id);
-  return "amended";
+      verification_error: null,
+    });
+    return "amended";
+  } catch (err) {
+    const reason = err instanceof Error ? err.message : String(err);
+    logError(FN, "row_verification_failed", { run_id: runId, id, sci, reason });
+    const outcome = await recordFailure(
+      db,
+      id,
+      runId,
+      { verification_attempts: currentAttempts },
+      reason,
+    );
+    // A default-pass counts as a successful resolution for the run
+    // counter (the row is now valid=true). A "failed" leaves the row
+    // unresolved and the run counts the failure as before.
+    return outcome === "default_passed" ? "matched" : "failed";
+  }
 }
 
 async function updateRunProgress(
