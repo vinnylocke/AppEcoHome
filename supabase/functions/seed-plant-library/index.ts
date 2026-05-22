@@ -29,7 +29,22 @@ const CORS = {
 };
 
 const BATCH_SIZE = 25;
-const MAX_RECENT_HINTS = 50; // names sent to AI as "avoid these"
+/**
+ * Initial number of already-known plants we fetch from the library
+ * and feed to the AI as "do NOT propose these". 500 keeps the prompt
+ * comfortably small (~25KB) while still covering the obvious common
+ * plants the AI would otherwise re-suggest.
+ */
+const INITIAL_AVOID_FETCH = 500;
+/**
+ * Hard cap on the avoid list passed to any single batch. The list
+ * grows as the run progresses (we append every newly-inserted name
+ * so subsequent batches in the same run don't propose duplicates),
+ * but we cap it here to keep the prompt size predictable. Once full
+ * we drop the OLDEST entries — the most recent additions are what
+ * the AI is most likely to repeat.
+ */
+const MAX_AVOID_LIST_SIZE = 1000;
 
 // Structured-output schema for one seed batch — Gemini returns this verbatim.
 const SEED_BATCH_SCHEMA = {
@@ -83,9 +98,18 @@ const SEED_BATCH_SCHEMA = {
   required: ["plants"],
 };
 
-function buildSeedPrompt(batchCount: number, avoid: string[]): string {
+interface AvoidEntry {
+  key: string;          // scientific_name_key
+  common_name: string;
+}
+
+function buildSeedPrompt(batchCount: number, avoid: AvoidEntry[]): string {
+  // Each line gives the AI both anchors so it doesn't propose a
+  // common-name-equivalent plant under a slightly different scientific
+  // name and still collide with the unique index. Capped at
+  // MAX_AVOID_LIST_SIZE entries by the caller.
   const avoidLines = avoid.length
-    ? `\nDO NOT propose any of these already-known plants:\n${avoid.map((n) => `- ${n}`).join("\n")}\n`
+    ? `\nThe knowledge base already contains the plants listed below. DO NOT propose any of these, even under a different spelling or common name:\n${avoid.map((e) => `- ${e.key} — ${e.common_name}`).join("\n")}\n`
     : "";
   return `You are seeding a global plant knowledge base.
 
@@ -99,6 +123,16 @@ Cultivar naming rules:
 - \`scientific_name[0]\` uses the full cultivar form: "Solanum lycopersicum 'Sungold'", "Lavandula angustifolia 'Hidcote'".
 - Only include cultivars that are widely commercially available and well-documented. Skip obscure or unverifiable cultivars — quality matters more than count.
 - Care info for a cultivar should reflect its actual differences from the parent species (size, flavour, hardiness, days-to-harvest) where you know them; otherwise inherit from the species. Don't invent differences you're not confident about.
+
+CRITICAL — variety types vs base species:
+When the common name represents a distinct horticultural TYPE that shares a base species name with another type (cherry tomato vs garden tomato, plum tomato vs beefsteak tomato, sweet pepper vs hot pepper, etc), you MUST include a botanical variety / form qualifier in \`scientific_name[0]\` so each type has a unique scientific name. Examples:
+- "Tomato" → "Solanum lycopersicum"
+- "Cherry Tomato" → "Solanum lycopersicum var. cerasiforme"
+- "Plum Tomato" → "Solanum lycopersicum var. pyriforme"
+- "Beefsteak Tomato" → "Solanum lycopersicum var. beefsteak"
+- "Sweet Pepper" → "Capsicum annuum var. grossum"
+- "Hot Pepper" → "Capsicum annuum var. annuum"
+Without this qualifier, distinct horticultural types collide on the same scientific name and the second one is silently dropped. The qualifier doesn't have to be a formally-published botanical name — \`var. <descriptor>\` is acceptable to disambiguate so long as it reflects the type.
 
 For each plant, fill the structured fields with the best information you have. Use realistic ranges (e.g. tomatoes 60-80 days to harvest, not "90-90"). Leave fields as null / empty arrays only when you genuinely have no information rather than guessing.
 
@@ -183,9 +217,16 @@ async function runSeedBatch(
   apiKey: string,
   runId: string,
   batchCount: number,
-  avoid: string[],
-): Promise<{ inserted: number; skipped: number; failed: number }> {
-  const stats = { inserted: 0, skipped: 0, failed: 0 };
+  avoid: AvoidEntry[],
+): Promise<{
+  inserted: number;
+  skipped: number;
+  failed: number;
+  /** Newly-inserted entries — appended to the running avoid list so
+   *  the next batch in the same run doesn't re-propose them. */
+  insertedEntries: AvoidEntry[];
+}> {
+  const stats = { inserted: 0, skipped: 0, failed: 0, insertedEntries: [] as AvoidEntry[] };
 
   const { text, usage } = await callGeminiCascade(
     apiKey,
@@ -274,13 +315,13 @@ async function runSeedBatch(
       valid:               null as boolean | null,
     };
 
-    // `select=*` after insert with `ignoreDuplicates: true` returns []
-    // when the row already exists, so the inserted-vs-skipped count is
-    // derived from the returning rows.
+    // Return the generated scientific_name_key so the running avoid
+    // list can grow with the row we just inserted — the next batch in
+    // this run gets to see it.
     const { data, error } = await db
       .from("plant_library")
       .insert(row, { count: "exact" })
-      .select("id");
+      .select("id, scientific_name_key, common_name");
 
     if (error) {
       // Unique-violation = silent skip. Anything else = real failure.
@@ -296,6 +337,13 @@ async function runSeedBatch(
       }
     } else if (data && data.length > 0) {
       stats.inserted += 1;
+      const inserted = data[0] as { scientific_name_key: string | null; common_name: string };
+      if (inserted.scientific_name_key) {
+        stats.insertedEntries.push({
+          key: inserted.scientific_name_key,
+          common_name: inserted.common_name,
+        });
+      }
     } else {
       // Defensive — empty data without error usually means a constraint
       // dropped it. Count as skipped.
@@ -345,17 +393,25 @@ async function backgroundSeed(
   count: number,
 ) {
   try {
-    // Pull the most recent N scientific-name keys so we can bias AI
-    // away from immediate repeats. The unique index still backstops
-    // anything that slips through.
+    // Pull the most recent N already-known plants and feed them to
+    // the AI as "do NOT propose these". Both the scientific key
+    // (drives dedup at the DB level) and common name go in so the AI
+    // doesn't suggest a colliding entry under a slightly different
+    // form. The unique index still backstops anything that slips
+    // through; this is purely about avoiding wasted AI calls.
     const { data: recent } = await db
       .from("plant_library")
-      .select("scientific_name_key")
+      .select("scientific_name_key, common_name")
       .order("seeded_at", { ascending: false })
-      .limit(MAX_RECENT_HINTS);
-    const avoid = (recent ?? [])
-      .map((r: { scientific_name_key: string | null }) => r.scientific_name_key)
-      .filter((k: string | null): k is string => !!k);
+      .limit(INITIAL_AVOID_FETCH);
+    let avoid: AvoidEntry[] = (recent ?? [])
+      .map(
+        (r: { scientific_name_key: string | null; common_name: string }) => ({
+          key: r.scientific_name_key,
+          common_name: r.common_name,
+        }),
+      )
+      .filter((e: { key: string | null }): e is AvoidEntry => !!e.key);
 
     // Stamp a heartbeat immediately so the admin sweep can't
     // false-positive a run that's just starting.
@@ -369,7 +425,18 @@ async function backgroundSeed(
       const batch = Math.min(remaining, BATCH_SIZE);
       try {
         const stats = await runSeedBatch(db, apiKey, runId, batch, avoid);
-        await updateRunProgress(db, runId, stats);
+        await updateRunProgress(db, runId, {
+          inserted: stats.inserted,
+          skipped: stats.skipped,
+          failed: stats.failed,
+        });
+        // Append newly-inserted entries to the running avoid list so
+        // the next batch in THIS run can see them too. Without this,
+        // batches 2-N would re-propose plants batch 1 just inserted.
+        // Cap the list size so the prompt doesn't balloon on long runs.
+        if (stats.insertedEntries.length > 0) {
+          avoid = [...stats.insertedEntries, ...avoid].slice(0, MAX_AVOID_LIST_SIZE);
+        }
         remaining -= batch;
       } catch (err) {
         const reason = (err as Error).message ?? "unknown";
