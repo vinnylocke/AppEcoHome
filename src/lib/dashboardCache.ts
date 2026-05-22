@@ -17,7 +17,14 @@
 
 import { Logger } from "./errorHandler";
 
-export const DASHBOARD_CACHE_KEY_PREFIX = "rhozly:dashboard:v1";
+// v2 bump (2026-05-22): v1 snapshots cached `weather.Icon` (a lucide
+// forwardRef object) directly. After JSON.stringify drops its function
+// + Symbol fields, the read path hydrated `weather.Icon = {}` and
+// `<weather.Icon />` crashed the Dashboard with React #130. v2 reads
+// strip the Icon on write AND recompute weather from rawWeather on
+// read; bumping the key forces every device to discard the poisoned
+// v1 entries cleanly.
+export const DASHBOARD_CACHE_KEY_PREFIX = "rhozly:dashboard:v2";
 export const DASHBOARD_CACHE_TTL_MS = 24 * 60 * 60 * 1000;
 
 /**
@@ -144,9 +151,31 @@ export function clearAllDashboardCaches(): void {
     const toRemove: string[] = [];
     for (let i = 0; i < window.localStorage.length; i++) {
       const k = window.localStorage.key(i);
-      if (k && k.startsWith(`${DASHBOARD_CACHE_KEY_PREFIX}:`)) {
+      // Match v2 (current) and any legacy v1 entries — sign-out should
+      // wipe all of them, and so should the schema-bump migration that
+      // moved the prefix from v1 → v2.
+      if (k && (k.startsWith(`${DASHBOARD_CACHE_KEY_PREFIX}:`) || k.startsWith("rhozly:dashboard:v1:"))) {
         toRemove.push(k);
       }
+    }
+    for (const k of toRemove) window.localStorage.removeItem(k);
+  } catch {
+    /* non-fatal */
+  }
+}
+
+/**
+ * One-shot cleanup of legacy v1 cache keys. Called on app mount so
+ * every device's first paint after the v2 bump discards any poisoned
+ * v1 weather snapshots, without waiting for sign-out.
+ */
+export function purgeLegacyV1DashboardCaches(): void {
+  if (!isStorageAvailable()) return;
+  try {
+    const toRemove: string[] = [];
+    for (let i = 0; i < window.localStorage.length; i++) {
+      const k = window.localStorage.key(i);
+      if (k && k.startsWith("rhozly:dashboard:v1:")) toRemove.push(k);
     }
     for (const k of toRemove) window.localStorage.removeItem(k);
   } catch {

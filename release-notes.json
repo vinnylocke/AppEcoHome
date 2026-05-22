@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "label": "Fixes",
+    "items": [
+      "Dashboard — fixed a crash on cold open caused by the local-first cache storing the weather icon as an object that couldn't survive serialisation. The icon is now recomputed from the cached weather data on every read, and the cache key was bumped so existing devices discard the poisoned snapshots automatically on their next load."
+    ]
+  },
+  {
+    "label": "Polish",
+    "items": [
+      "Quick Access — bigger Rhozly logo and wordmark at the top of the launcher. Now reads as the brand from the moment the screen opens."
+    ]
+  }
+]

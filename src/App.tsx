@@ -34,6 +34,7 @@ import {
   readDashboardCache,
   writeDashboardCache,
   clearAllDashboardCaches,
+  purgeLegacyV1DashboardCaches,
 } from "./lib/dashboardCache";
 import { clearLocalPins as clearQuickLauncherPins } from "./lib/quickLauncherPrefs";
 import * as Sentry from "@sentry/react";
@@ -219,6 +220,13 @@ function AppShell() {
       routerLocation.pathname.startsWith("/library") ||
       routerLocation.pathname.startsWith("/walk"));
   const [quickDrawerOpen, setQuickDrawerOpen] = useState(false);
+
+  // One-shot purge of legacy v1 dashboard cache entries on app mount.
+  // v1 snapshots cached a serialised lucide forwardRef which crashed
+  // the dashboard on hydration; v2 strips it AND recomputes on read.
+  useEffect(() => {
+    purgeLegacyV1DashboardCaches();
+  }, []);
 
   // Close the drawer whenever the route changes (e.g. after picking a link).
   useEffect(() => {
@@ -511,7 +519,18 @@ function AppShell() {
     if (cached) {
       const s = cached.snapshot;
       setRawWeather(s.rawWeather);
-      setWeather(s.weather);
+      // Recompute `weather` from `rawWeather` rather than using the
+      // cached value — `weather.Icon` is a lucide forwardRef object
+      // whose function/Symbol fields get dropped by JSON.stringify,
+      // leaving `Icon = {}` after a cache round-trip. Rendering that
+      // empty object as `<weather.Icon />` throws React #130. The icon
+      // is derived from the weather code in rawWeather, so we can
+      // reconstruct it deterministically on every read.
+      try {
+        setWeather(extractCurrentWeather(s.rawWeather));
+      } catch {
+        setWeather(null);
+      }
       setLocations(s.locations as any[]);
       if (s.homeLatLng) setHomeLatLng(s.homeLatLng);
       if (s.hardinessZone != null) setHardinessZone(s.hardinessZone);
@@ -701,9 +720,22 @@ function AppShell() {
     // success. localStorage failures are swallowed inside the cache
     // module — nothing here is allowed to break the success path.
     if (profile.home_id) {
+      // Strip `weather.Icon` before serialising — it's a lucide
+      // forwardRef object whose function fields don't survive
+      // JSON.stringify, and the residual empty object crashes the
+      // dashboard on the next cold open (React #130). The read path
+      // recomputes `weather` from rawWeather, so dropping it here is
+      // belt-and-braces.
+      const safeSnapshotWeather =
+        snapshotWeather && typeof snapshotWeather === "object"
+          ? (() => {
+              const { Icon: _icon, ...rest } = snapshotWeather as Record<string, unknown>;
+              return rest;
+            })()
+          : snapshotWeather;
       writeDashboardCache(profile.home_id, {
         rawWeather: snapshotRawWeather,
-        weather: snapshotWeather,
+        weather: safeSnapshotWeather,
         locations: snapshotLocations,
         homeLatLng: snapshotHomeLatLng,
         hardinessZone: snapshotHardinessZone,
