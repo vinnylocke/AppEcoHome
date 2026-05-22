@@ -89,7 +89,16 @@ function buildSeedPrompt(batchCount: number, avoid: string[]): string {
     : "";
   return `You are seeding a global plant knowledge base.
 
-Propose ${batchCount} plants for a single seed batch. PRIORITISE variety: mix vegetables, herbs, fruits, flowers, trees, shrubs, indoor plants, climbers, succulents, and grasses across different families. Real species only — no cultivars unless the cultivar is widely commercially distinct from the species (e.g. "Tomato 'Sungold'" is fine; "Random Cultivar X" is not).
+Propose ${batchCount} plants for a single seed batch. PRIORITISE variety in TWO dimensions:
+
+1. **Plant types** — mix vegetables, herbs, fruits, flowers, trees, shrubs, indoor plants, climbers, succulents, and grasses across different families.
+2. **Species AND cultivars** — include BOTH species-level entries (e.g. "Lavender", "Tomato", "Rose") AND well-known commercial cultivars/varieties of popular species. App users want to find data on the specific variety they actually grow, so rows like "Tomato 'Sungold'", "Lavender 'Hidcote'", "Rose 'Peace'", "Basil 'Genovese'", and "Apple 'Cox's Orange Pippin'" are valuable. Roughly 40-60% of each batch should be named cultivars/varieties of popular species — the rest species-level.
+
+Cultivar naming rules:
+- \`common_name\` includes the variety: e.g. "Tomato 'Sungold'", "Lavender 'Hidcote'".
+- \`scientific_name[0]\` uses the full cultivar form: "Solanum lycopersicum 'Sungold'", "Lavandula angustifolia 'Hidcote'".
+- Only include cultivars that are widely commercially available and well-documented. Skip obscure or unverifiable cultivars — quality matters more than count.
+- Care info for a cultivar should reflect its actual differences from the parent species (size, flavour, hardiness, days-to-harvest) where you know them; otherwise inherit from the species. Don't invent differences you're not confident about.
 
 For each plant, fill the structured fields with the best information you have. Use realistic ranges (e.g. tomatoes 60-80 days to harvest, not "90-90"). Leave fields as null / empty arrays only when you genuinely have no information rather than guessing.
 
