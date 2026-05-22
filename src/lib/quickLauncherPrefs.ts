@@ -95,7 +95,7 @@ export async function fetchRemotePins(userId: string): Promise<string[] | null> 
     const { data, error } = await supabase
       .from("user_profiles")
       .select("quick_launcher_pins")
-      .eq("user_id", userId)
+      .eq("uid", userId)
       .maybeSingle();
     if (error) {
       Logger.error("quickLauncherPrefs: remote read failed", error);
@@ -127,7 +127,7 @@ export async function saveRemotePins(
     const { error } = await supabase
       .from("user_profiles")
       .update({ quick_launcher_pins: { pinned: sanitised } })
-      .eq("user_id", userId);
+      .eq("uid", userId);
     if (error) {
       Logger.error("quickLauncherPrefs: remote write failed", error);
       return { error: new Error(error.message) };

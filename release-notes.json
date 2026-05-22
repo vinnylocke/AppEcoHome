@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Fixes",
+    "items": [
+      "Quick Launcher — fixed \"couldn't sync your shortcuts\" toast caused by a wrong user-key column in the cross-device sync query. Your pins now save to the cloud properly."
+    ]
+  }
+]
