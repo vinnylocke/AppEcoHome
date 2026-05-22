@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Admin / Plant Library",
+    "items": [
+      "Plant Library — seeded plants now get a thumbnail. The image fetch was hard-failing whenever the Unsplash API key wasn't configured; now it gracefully skips missing providers and always falls back to a direct Wikipedia lookup as a last resort.",
+      "Plant Library — amended rows now always cite their sources. The verifier was relying on the AI to include citations and the AI was omitting them; we now build the source list deterministically from whichever of Wikipedia / GBIF actually returned data, and merge any extra sources the AI explicitly added on top."
+    ]
+  }
+]

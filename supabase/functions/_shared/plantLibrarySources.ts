@@ -86,6 +86,69 @@ export async function fetchWikipediaSummary(name: string): Promise<WikipediaSumm
   return null;
 }
 
+export interface WikipediaThumbnail {
+  url: string;
+  source: "wikipedia";
+  licence: string;
+  page_url: string;
+  accessed_at: string;
+}
+
+/**
+ * Fetch just the thumbnail URL for a plant name via Wikipedia's REST
+ * summary API. Used as the seeder's guaranteed fallback when
+ * `plant-image-search` returns null (e.g. provider quota / outage).
+ * Wikipedia images are usually CC BY-SA 4.0 or public domain — we
+ * record `CC BY-SA 4.0` as a conservative default.
+ */
+export async function fetchWikipediaThumbnail(name: string): Promise<WikipediaThumbnail | null> {
+  if (!name?.trim()) return null;
+  const accessed_at = new Date().toISOString();
+
+  const trySummary = async (title: string): Promise<WikipediaThumbnail | null> => {
+    try {
+      const res = await fetch(
+        `https://en.wikipedia.org/api/rest_v1/page/summary/${encodeURIComponent(title)}`,
+        { headers: { Accept: "application/json" } },
+      );
+      if (!res.ok) return null;
+      const data = await res.json();
+      if (data.type && data.type !== "standard") return null;
+      const url: string | undefined =
+        data.thumbnail?.source ?? data.originalimage?.source;
+      if (!url) return null;
+      return {
+        url,
+        source: "wikipedia",
+        licence: "CC BY-SA 4.0",
+        page_url: data.content_urls?.desktop?.page ?? `https://en.wikipedia.org/wiki/${encodeURIComponent(data.title ?? title)}`,
+        accessed_at,
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const direct = await trySummary(name);
+  if (direct) return direct;
+
+  try {
+    const res = await fetch(
+      `https://en.wikipedia.org/w/api.php?action=opensearch&search=${encodeURIComponent(name)}&limit=3&format=json&origin=*`,
+    );
+    if (!res.ok) return null;
+    const [, titles] = (await res.json()) as [string, string[]];
+    for (const title of titles ?? []) {
+      const hit = await trySummary(title);
+      if (hit) return hit;
+    }
+  } catch {
+    // soft miss
+  }
+
+  return null;
+}
+
 /**
  * Match a scientific name against the GBIF taxonomy backbone. Returns
  * the canonical name, family, and authority status so the verifier can

@@ -218,13 +218,15 @@ serve(async (req) => {
 
     const unsplashKey = Deno.env.get("UNSPLASH_ACCESS_KEY");
     const pixabayKey = Deno.env.get("PIXABAY_API_KEY");
-    if (!unsplashKey) throw new Error("Missing UNSPLASH_ACCESS_KEY secret");
-    // Pixabay is optional — skip gracefully if key not available
+    // Wikipedia is always available (no key required) so we never need
+    // to hard-fail the function. Missing Unsplash / Pixabay keys just
+    // skip those providers — the caller still gets whatever Wikipedia
+    // returns, which is enough for a thumbnail.
 
     const perSource = Math.ceil(count / 3);
 
     const promises: Promise<GalleryImage[]>[] = [
-      fetchUnsplash(query, perSource, unsplashKey),
+      unsplashKey ? fetchUnsplash(query, perSource, unsplashKey) : Promise.resolve([]),
       pixabayKey ? fetchPixabay(query, perSource, pixabayKey) : Promise.resolve([]),
       fetchWikipedia(query),
     ];

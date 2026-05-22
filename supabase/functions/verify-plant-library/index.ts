@@ -215,13 +215,54 @@ async function verifyOneRow(
 
   // verdict === "amended"
   const updates = pickAllowedUpdates(parsed.updates ?? {});
-  const sources = Array.isArray(parsed.sources) ? parsed.sources : [];
+
+  // Build the sources array deterministically from whichever external
+  // sources actually returned data. We don't rely on the AI to cite
+  // its work — by the time we get here we KNOW exactly what was made
+  // available to it. Anything the AI explicitly cited beyond these
+  // two known sources is merged on top (deduped by url) so we never
+  // lose information.
+  const knownSources: Array<{
+    url: string;
+    title: string;
+    source: "wikipedia" | "gbif";
+    licence: string;
+    accessed_at: string;
+  }> = [];
+  if (wiki) {
+    knownSources.push({
+      url: wiki.url,
+      title: wiki.title,
+      source: "wikipedia",
+      licence: wiki.licence,
+      accessed_at: wiki.accessed_at,
+    });
+  }
+  if (gbif) {
+    knownSources.push({
+      url: gbif.url,
+      title: `GBIF taxonomy backbone — ${gbif.canonical_name}`,
+      source: "gbif",
+      licence: gbif.licence,
+      accessed_at: gbif.accessed_at,
+    });
+  }
+
+  const aiSources = Array.isArray(parsed.sources) ? parsed.sources : [];
+  const seenUrls = new Set(knownSources.map((s) => s.url));
+  for (const aiSrc of aiSources) {
+    const url = (aiSrc as { url?: string })?.url;
+    if (!url || seenUrls.has(url)) continue;
+    knownSources.push(aiSrc as never);
+    seenUrls.add(url);
+  }
+
   await db
     .from("plant_library")
     .update({
       ...updates,
       valid: false,
-      sources,
+      sources: knownSources,
       verified_at: new Date().toISOString(),
       verified_by_run_id: runId,
     })

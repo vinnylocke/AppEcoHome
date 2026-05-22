@@ -18,6 +18,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
+import { fetchWikipediaThumbnail } from "../_shared/plantLibrarySources.ts";
 
 const FN = "seed-plant-library";
 
@@ -139,16 +140,30 @@ interface SeedRow {
 
 async function fetchThumbnail(db: any, query: string): Promise<string | null> {
   if (!query?.trim()) return null;
+
+  // Primary — plant-image-search. Uses the shared plant_image_cache so
+  // seed runs warm the cache for organic search traffic; returns a
+  // Wikipedia / Pixabay / Unsplash thumbnail depending on which
+  // providers have keys configured.
   try {
-    // We reuse plant-image-search by invoking the function directly. It
-    // reads from / writes to plant_image_cache so seed runs warm the
-    // cache for organic search traffic too.
     const { data, error } = await db.functions.invoke("plant-image-search", {
       body: { query, count: 1 },
     });
-    if (error) return null;
-    const thumb = (data?.images?.[0]?.thumb_url as string | undefined) ?? null;
-    return thumb || null;
+    if (!error) {
+      const thumb = (data?.images?.[0]?.thumb_url as string | undefined) ?? null;
+      if (thumb) return thumb;
+    }
+  } catch {
+    // Fall through to the Wikipedia-only path.
+  }
+
+  // Fallback — direct Wikipedia summary lookup. Free, no auth, no
+  // shared cache writes (the function call would have done that
+  // already if it could). Always tried so seed runs get a thumbnail
+  // even when plant-image-search fails entirely.
+  try {
+    const wiki = await fetchWikipediaThumbnail(query);
+    return wiki?.url ?? null;
   } catch {
     return null;
   }
