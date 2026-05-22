@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Admin",
+    "items": [
+      "Plant Library — a new admin-only knowledge base that's seeded daily by AI and cross-checked against Wikipedia and GBIF. Admins can now visit Account menu → Plant Library to see running totals (verified / matched / amended / unverified), trigger manual seed and verify runs, and watch the recent-runs table update live."
+    ]
+  }
+]

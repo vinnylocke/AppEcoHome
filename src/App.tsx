@@ -80,6 +80,7 @@ import BetaFeedbackBanner from "./components/BetaFeedbackBanner";
 // Heavy route components — lazy loaded so they don't bloat the initial bundle
 const HomeDashboard       = lazy(() => import("./components/HomeDashboard"));
 const AdminGuideGenerator = lazy(() => import("./components/AdminGuideGenerator"));
+const PlantLibraryAdmin = lazy(() => import("./components/admin/PlantLibraryAdmin"));
 const PlantDoctor         = lazy(() => import("./components/PlantDoctor"));
 const QuickAccessHome     = lazy(() => import("./components/QuickAccessHome"));
 const QuickAccessLens     = lazy(() => import("./components/QuickAccessLens"));
@@ -1667,6 +1668,17 @@ function AppShell() {
                         <Route path="/admin/guides" element={
                           <div className="h-full animate-in fade-in duration-500">
                             <AdminGuideGenerator />
+                          </div>
+                        } />
+                      )}
+
+                      {profile?.is_admin && session?.user?.id && (
+                        <Route path="/admin/plant-library" element={
+                          <div className="h-full animate-in fade-in duration-500">
+                            <PlantLibraryAdmin
+                              isAdmin={!!profile.is_admin}
+                              userId={session.user.id}
+                            />
                           </div>
                         } />
                       )}

@@ -439,6 +439,15 @@ verify_jwt = false
 [functions.report-error]
 verify_jwt = false
 
+# Plant Library seeder / verifier — invoked by pg_cron (no auth header)
+# and by admin manual runs (forwards the user id in the request body).
+# Both functions use the service-role client internally for all writes.
+[functions.seed-plant-library]
+verify_jwt = false
+
+[functions.verify-plant-library]
+verify_jwt = false
+
 [functions.plant-doctor]
 enabled = true
 verify_jwt = true

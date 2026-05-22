@@ -7,6 +7,7 @@ import {
   Repeat,
   Sprout,
   Wand2,
+  Library,
   ChevronRight,
   Medal,
   LifeBuoy,
@@ -215,6 +216,10 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
                 <SectionLabel label="Admin" />
                 <DropdownLink
                   item={{ testId: "user-profile-guide-studio", icon: <Wand2 size={15} />, label: "Guide Studio", path: "/admin/guides" }}
+                  onNavigate={go}
+                />
+                <DropdownLink
+                  item={{ testId: "user-profile-plant-library", icon: <Library size={15} />, label: "Plant Library", path: "/admin/plant-library" }}
                   onNavigate={go}
                 />
               </div>
