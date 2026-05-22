@@ -1,4 +1,5 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { captureException } from "../_shared/sentry.ts";
 
 const corsHeaders = {
@@ -29,6 +30,47 @@ export interface GalleryImage {
 function withUtm(url: string) {
   const sep = url.includes("?") ? "&" : "?";
   return `${url}${sep}utm_source=rhozly&utm_medium=referral`;
+}
+
+function normaliseQuery(q: string): string {
+  return q.trim().toLowerCase();
+}
+
+/** Rebuild a GalleryImage from a `plant_image_cache` row. */
+function imageFromCacheRow(row: {
+  query_normalised: string;
+  thumb_url: string;
+  full_url: string;
+  source: "unsplash" | "pixabay" | "wikipedia";
+  attribution: Record<string, unknown> | null;
+}): GalleryImage {
+  const attribution = (row.attribution ?? {}) as Record<string, string | undefined>;
+  return {
+    id: `cache-${row.source}-${row.query_normalised}`,
+    thumb_url: row.thumb_url,
+    full_url: row.full_url,
+    alt: (attribution.alt as string) ?? row.query_normalised,
+    source: row.source,
+    photo_page: attribution.photo_page,
+    photographer_name: attribution.photographer_name,
+    photographer_url: attribution.photographer_url,
+    report_url: attribution.report_url,
+    wiki_page: attribution.wiki_page,
+    pixabay_page: attribution.pixabay_page,
+  };
+}
+
+/** Strip a GalleryImage down to its serialisable attribution. */
+function attributionFromImage(img: GalleryImage): Record<string, string | undefined> {
+  return {
+    alt: img.alt,
+    photo_page: img.photo_page,
+    photographer_name: img.photographer_name,
+    photographer_url: img.photographer_url,
+    report_url: img.report_url,
+    wiki_page: img.wiki_page,
+    pixabay_page: img.pixabay_page,
+  };
 }
 
 async function fetchUnsplash(
@@ -143,6 +185,37 @@ serve(async (req) => {
     const { query, count = 9 } = await req.json();
     if (!query?.trim()) throw new Error("query is required");
 
+    const queryKey = normaliseQuery(query);
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+    const db = supabaseUrl && serviceKey ? createClient(supabaseUrl, serviceKey) : null;
+
+    // ── Fast path — cache hit for thumbnail-only requests (count === 1) ─
+    // The result-list thumbnail is the universal hot path. Skipping the
+    // external fetch entirely when we've seen this name before saves a
+    // ~1-2s round-trip per result.
+    if (db && count === 1) {
+      const { data: cached } = await db
+        .from("plant_image_cache")
+        .select("query_normalised, thumb_url, full_url, source, attribution, expires_at")
+        .eq("query_normalised", queryKey)
+        .maybeSingle();
+      if (
+        cached &&
+        cached.thumb_url &&
+        new Date(cached.expires_at).getTime() > Date.now()
+      ) {
+        return new Response(
+          JSON.stringify({ images: [imageFromCacheRow(cached)] }),
+          {
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+            status: 200,
+          },
+        );
+      }
+    }
+
     const unsplashKey = Deno.env.get("UNSPLASH_ACCESS_KEY");
     const pixabayKey = Deno.env.get("PIXABAY_API_KEY");
     if (!unsplashKey) throw new Error("Missing UNSPLASH_ACCESS_KEY secret");
@@ -168,6 +241,29 @@ serve(async (req) => {
     for (let i = 0; i < maxLen; i++) {
       if (unsplash[i]) images.push(unsplash[i]);
       if (pixabay[i]) images.push(pixabay[i]);
+    }
+
+    // ── Write-through — upsert the first image so the next caller
+    //    (any user, any device) gets it from the DB.
+    if (db && images[0]) {
+      const first = images[0];
+      // Fire-and-forget; we don't want cache writes to block the
+      // response. Errors are non-fatal (RLS denial, quota, etc.).
+      db.from("plant_image_cache")
+        .upsert(
+          {
+            query_normalised: queryKey,
+            thumb_url: first.thumb_url,
+            full_url: first.full_url,
+            source: first.source,
+            attribution: attributionFromImage(first),
+            cached_at: new Date().toISOString(),
+            expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+          },
+          { onConflict: "query_normalised" },
+        )
+        .then(() => {})
+        .catch(() => {});
     }
 
     return new Response(JSON.stringify({ images }), {

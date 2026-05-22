@@ -76,6 +76,23 @@ export default function PlantSearchModal({
   const [verdantlyNextPage, setVerdantlyNextPage] = useState(2);
   const [verdantlyLoadingMore, setVerdantlyLoadingMore] = useState(false);
 
+  // Perenual visible-count slicing — the Perenual API returns ~30
+  // results per page, but we only show 10 at a time on screen. "Show
+  // more" reveals the next 10 from the fetched batch first, and only
+  // hits the API for a new page once the current batch is exhausted.
+  // Mirrors the BulkSearchModal pattern.
+  const [perenualVisibleCount, setPerenualVisibleCount] = useState(10);
+
+  // AI thumbnail prefetch — the AI search endpoint returns just plant
+  // names. We fan out to `plant-image-search` (Wikipedia / Pixabay /
+  // Unsplash, server-side cached via plant_image_cache) per match and
+  // store the first thumbnail URL keyed by lowercased common name.
+  // Empty string = "looked up, nothing found" → UI falls back to the
+  // placeholder icon. Missing key = "not yet looked up".
+  const [aiThumbs, setAiThumbs] = useState<Map<string, string>>(new Map());
+  const aiThumbsRef = useRef<Map<string, string>>(new Map());
+  const aiInflightRef = useRef<Set<string>>(new Set());
+
   // Sort each bucket independently by the user's preferences — keeps the
   // bucket order stable but rotates within-bucket so favourites bubble up.
   const sortByPrefs = useCallback(
@@ -184,6 +201,76 @@ export default function PlantSearchModal({
     return () => setPageContext(null);
   }, [query, visibleResults, previewPlant, setPageContext]);
 
+  // ── Per-device search snapshot cache ──────────────────────────────────
+  // Keyed by query so reopening the modal with the same `initialSearchTerm`
+  // can hydrate state from the snapshot rather than firing the network
+  // fan-out again. Survives close/reopen, dies on app reload (which is
+  // what we want — fresh data on cold start).
+  const SNAPSHOT_KEY = "plant_search_modal:lastSnapshot";
+
+  type SearchSnapshot = {
+    query: string;
+    aiResults: ProviderSearchResult[];
+    aiHasMore: boolean;
+    aiOffset: number;
+    perenualResults: ProviderSearchResult[];
+    perenualHasMore: boolean;
+    perenualNextPage: number;
+    perenualVisibleCount: number;
+    verdantlyResults: ProviderSearchResult[];
+    verdantlyHasMore: boolean;
+    verdantlyNextPage: number;
+    aiThumbs: Array<[string, string]>;
+  };
+
+  const readSnapshot = (forQuery: string): SearchSnapshot | null => {
+    try {
+      const raw = sessionStorage.getItem(SNAPSHOT_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as SearchSnapshot;
+      if (parsed.query?.trim().toLowerCase() !== forQuery.trim().toLowerCase()) {
+        return null;
+      }
+      return parsed;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeSnapshot = useCallback((q: string) => {
+    try {
+      const snap: SearchSnapshot = {
+        query: q,
+        aiResults,
+        aiHasMore,
+        aiOffset,
+        perenualResults,
+        perenualHasMore,
+        perenualNextPage,
+        perenualVisibleCount,
+        verdantlyResults,
+        verdantlyHasMore,
+        verdantlyNextPage,
+        aiThumbs: Array.from(aiThumbsRef.current.entries()),
+      };
+      sessionStorage.setItem(SNAPSHOT_KEY, JSON.stringify(snap));
+    } catch {
+      // session storage is best-effort; swallow quota errors.
+    }
+  }, [
+    aiResults, aiHasMore, aiOffset,
+    perenualResults, perenualHasMore, perenualNextPage, perenualVisibleCount,
+    verdantlyResults, verdantlyHasMore, verdantlyNextPage,
+  ]);
+
+  // Rewrite the snapshot whenever any bucket changes — cheap enough
+  // (one JSON.stringify on a few dozen rows) and saves us a network
+  // round-trip on reopen.
+  useEffect(() => {
+    if (!hasSearched || !query.trim()) return;
+    writeSnapshot(query);
+  }, [hasSearched, query, writeSnapshot]);
+
   /** Convert a raw Perenual search item to the shared `ProviderSearchResult`
    *  shape. Local copy — the shared helper inside `plantProvider.ts` isn't
    *  exported. Kept identical to the one in `LibrarySearchTab`. */
@@ -228,6 +315,49 @@ export default function PlantSearchModal({
       } as ProviderSearchResult;
     });
 
+  /**
+   * Fan out to `plant-image-search` per AI common name, caching the
+   * first returned thumbnail in `aiThumbsRef` so re-renders or
+   * StrictMode double-invocations don't re-fire the same lookup.
+   * Server-side `plant_image_cache` makes the second user to search
+   * the same name pay only a ~50ms DB hit instead of a fresh external
+   * lookup. Empty string in the map = "looked up, found nothing"; the
+   * UI falls back to the placeholder icon in that case.
+   */
+  const prefetchAiThumbnails = useCallback(async (matches: ProviderSearchResult[]) => {
+    const toFetch = matches
+      .map((m) => m.common_name?.split("(")[0]?.trim())
+      .filter((name): name is string => !!name)
+      .filter((name) => {
+        const key = name.toLowerCase();
+        if (aiThumbsRef.current.has(key)) return false;
+        if (aiInflightRef.current.has(key)) return false;
+        aiInflightRef.current.add(key);
+        return true;
+      });
+
+    if (toFetch.length === 0) return;
+
+    await Promise.all(
+      toFetch.map(async (name) => {
+        const key = name.toLowerCase();
+        try {
+          const { data } = await supabase.functions.invoke("plant-image-search", {
+            body: { query: name, count: 1 },
+          });
+          const thumb = (data?.images?.[0]?.thumb_url as string | undefined) ?? "";
+          aiThumbsRef.current.set(key, thumb);
+          setAiThumbs(new Map(aiThumbsRef.current));
+        } catch {
+          aiThumbsRef.current.set(key, "");
+          setAiThumbs(new Map(aiThumbsRef.current));
+        } finally {
+          aiInflightRef.current.delete(key);
+        }
+      }),
+    );
+  }, []);
+
   const performSearch = async (searchQuery: string) => {
     if (!searchQuery.trim()) return;
 
@@ -244,6 +374,7 @@ export default function PlantSearchModal({
     setPerenualResults([]);
     setPerenualHasMore(false);
     setPerenualNextPage(2);
+    setPerenualVisibleCount(10);
     setVerdantlyResults([]);
     setVerdantlyHasMore(false);
     setVerdantlyNextPage(2);
@@ -254,9 +385,13 @@ export default function PlantSearchModal({
     const aiPromise = isAiEnabled
       ? PlantDoctorService.searchPlantsText(searchQuery, { homeId, offset: 0 })
           .then((res) => {
-            setAiResults(fromAiMatches(res.matches ?? [], res.hits, 0));
+            const mapped = fromAiMatches(res.matches ?? [], res.hits, 0);
+            setAiResults(mapped);
             setAiHasMore(!!res.hasMore);
             setAiOffset(res.matches?.length ?? 0);
+            // Fire-and-forget thumbnail lookups — server-side cache
+            // keeps the second user's cost down to ~50ms.
+            prefetchAiThumbnails(mapped);
           })
           .catch(() => {
             // AI failures shouldn't surface as a hard search error — the
@@ -309,6 +444,7 @@ export default function PlantSearchModal({
       setAiResults((prev) => [...prev, ...next]);
       setAiHasMore(!!res.hasMore);
       setAiOffset((prev) => prev + (res.matches?.length ?? 0));
+      prefetchAiThumbnails(next);
     } catch {
       toast.error("Couldn't load more AI suggestions.");
     } finally {
@@ -316,20 +452,44 @@ export default function PlantSearchModal({
     }
   };
 
+  /**
+   * Hybrid "Show more" for Perenual:
+   *   - If the current batch has more rows than we're showing, reveal
+   *     the next 10 client-side (no network round-trip).
+   *   - Else, if the API reports more pages, fetch the next page and
+   *     bump visibleCount by its size.
+   * Mirrors the BulkSearchModal pattern so the user sees the same
+   * "10 at a time" rhythm even though Perenual returns ~30 per page.
+   */
   const loadMorePerenual = async () => {
-    if (perenualLoadingMore || !perenualHasMore) return;
+    if (perenualLoadingMore) return;
+    if (perenualVisibleCount < perenualResults.length) {
+      setPerenualVisibleCount((prev) =>
+        Math.min(prev + 10, perenualResults.length),
+      );
+      return;
+    }
+    if (!perenualHasMore) return;
     setPerenualLoadingMore(true);
     try {
       const page = await PerenualService.searchPlantsPaged(query, perenualNextPage);
-      setPerenualResults((prev) => [...prev, ...page.data.map(fromPerenualSearchItem)]);
+      const mapped = page.data.map(fromPerenualSearchItem);
+      setPerenualResults((prev) => [...prev, ...mapped]);
       setPerenualHasMore(page.hasMore);
       setPerenualNextPage(page.nextPage);
+      setPerenualVisibleCount((prev) => prev + mapped.length);
     } catch {
       toast.error("Couldn't load more Perenual results.");
     } finally {
       setPerenualLoadingMore(false);
     }
   };
+
+  /** Effective "has more" for the Perenual section — true if either
+   *  the visible slice can grow OR the API has more pages. Drives
+   *  whether the "Show more" pill renders at all. */
+  const perenualCanShowMore =
+    perenualVisibleCount < perenualResults.length || perenualHasMore;
 
   const loadMoreVerdantly = async () => {
     if (verdantlyLoadingMore || !verdantlyHasMore) return;
@@ -356,6 +516,30 @@ export default function PlantSearchModal({
   useEffect(() => {
     if (initialSearchTerm && isPremium && !hasAutoSearched.current) {
       hasAutoSearched.current = true;
+      // Try the per-device snapshot first — if it matches the initial
+      // search term, hydrate state from cache and skip the network
+      // fan-out entirely. The user gets the same results instantly on
+      // reopen.
+      const cached = readSnapshot(initialSearchTerm);
+      if (cached) {
+        setAiResults(cached.aiResults);
+        setAiHasMore(cached.aiHasMore);
+        setAiOffset(cached.aiOffset);
+        setPerenualResults(cached.perenualResults);
+        setPerenualHasMore(cached.perenualHasMore);
+        setPerenualNextPage(cached.perenualNextPage);
+        setPerenualVisibleCount(cached.perenualVisibleCount ?? 10);
+        setVerdantlyResults(cached.verdantlyResults);
+        setVerdantlyHasMore(cached.verdantlyHasMore);
+        setVerdantlyNextPage(cached.verdantlyNextPage);
+        // Restore AI thumb lookups so the cached results paint with images.
+        aiThumbsRef.current = new Map(cached.aiThumbs ?? []);
+        setAiThumbs(new Map(aiThumbsRef.current));
+        setHasSearched(true);
+        // Refresh any AI thumbs that weren't yet looked up.
+        prefetchAiThumbnails(cached.aiResults);
+        return;
+      }
       performSearch(initialSearchTerm);
     }
   }, [initialSearchTerm, isPremium]);
@@ -813,8 +997,12 @@ export default function PlantSearchModal({
                       label: "Perenual",
                       chipBg: "bg-blue-100",
                       chipText: "text-blue-700",
-                      items: rankedPerenual,
-                      hasMore: perenualHasMore,
+                      // Perenual returns ~30 per API page; show 10 at a
+                      // time and let "Show more" reveal the rest, then
+                      // fetch the next page when the current batch runs
+                      // out (see `loadMorePerenual`).
+                      items: rankedPerenual.slice(0, perenualVisibleCount),
+                      hasMore: perenualCanShowMore,
                       loadingMore: perenualLoadingMore,
                       onLoadMore: loadMorePerenual,
                     },
@@ -853,7 +1041,19 @@ export default function PlantSearchModal({
                             preferences,
                           );
                           const isSelected = flatIndex === selectedResultIndex;
-                          const thumb = plant.thumbnail_url?.includes("upgrade_access") ? null : plant.thumbnail_url;
+                          // AI results carry no thumbnail from the
+                          // search endpoint — use the prefetched lookup
+                          // from `plant-image-search`. Empty string in
+                          // the map = "looked up, none found" → fall
+                          // back to the placeholder.
+                          const aiThumb =
+                            plant._provider === "ai"
+                              ? aiThumbs.get(plant.common_name?.toLowerCase() ?? "")
+                              : undefined;
+                          const rawThumb = aiThumb ?? plant.thumbnail_url;
+                          const thumb = rawThumb?.includes("upgrade_access")
+                            ? null
+                            : rawThumb || null;
                           const providerLabel = getProviderLabel(plant._provider);
                           const inShed = findShedMatch({
                             source: plant._provider === "verdantly" ? "verdantly" : plant._provider === "ai" ? "ai" : "api",
