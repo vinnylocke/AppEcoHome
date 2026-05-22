@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Improvements",
-    "items": [
-      "Plant database search — results are now grouped by provider in a clear order: Rhozly AI suggestions first, then Perenual, then Verdantly. Each provider shows the first 10 results with a \"Show more\" pill to load the next page on demand. Matches the Library search pattern."
-    ]
-  }
-]
+[]
