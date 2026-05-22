@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Fixes",
+    "items": [
+      "Nursery — you can now edit a packet after creating it. Open any packet → tap the new Edit pill at the bottom. Change the linked Shed plant (the bit that was missing), or fix the variety / vendor / dates / quantity / notes.",
+      "Nursery — when a germinated sowing can't be planted out because the packet isn't linked to a Shed plant, you now see a clear amber \"Link plant to plant out\" button instead of a greyed-out one. Tap it and the editor opens straight to the plant picker."
+    ]
+  }
+]

@@ -9,6 +9,7 @@ import { useCachedShed } from "../../hooks/useCachedShed";
 import { createSeedPacket } from "../../services/nurseryService";
 import { Logger } from "../../lib/errorHandler";
 import { logEvent, EVENT } from "../../events/registry";
+import { PACKET_FORM_INPUT_CX, PacketFieldRow } from "./_packetForm";
 
 interface Props {
   homeId: string;
@@ -422,46 +423,46 @@ function DetailsStep({
         </div>
       </div>
 
-      <FieldRow label="Variety" testId="packet-variety" optional>
+      <PacketFieldRow label="Variety" testId="packet-variety" optional>
         <input
           type="text"
           value={form.variety}
           onChange={(e) => set("variety", e.target.value)}
           placeholder={`e.g. ${pickedPlant?.common_name?.includes("Tomato") ? "Sungold" : "Boltardy"}`}
-          className={inputCx}
+          className={PACKET_FORM_INPUT_CX}
         />
-      </FieldRow>
+      </PacketFieldRow>
 
-      <FieldRow label="Vendor" testId="packet-vendor" optional>
+      <PacketFieldRow label="Vendor" testId="packet-vendor" optional>
         <input
           type="text"
           value={form.vendor}
           onChange={(e) => set("vendor", e.target.value)}
           placeholder="e.g. Suttons, Real Seeds, Sainsbury's"
-          className={inputCx}
+          className={PACKET_FORM_INPUT_CX}
         />
-      </FieldRow>
+      </PacketFieldRow>
 
       <div className="grid grid-cols-2 gap-3">
-        <FieldRow label="Purchased" testId="packet-purchased" optional>
+        <PacketFieldRow label="Purchased" testId="packet-purchased" optional>
           <input
             type="date"
             value={form.purchased_on}
             onChange={(e) => set("purchased_on", e.target.value)}
-            className={inputCx}
+            className={PACKET_FORM_INPUT_CX}
           />
-        </FieldRow>
-        <FieldRow label="Opened" testId="packet-opened" optional>
+        </PacketFieldRow>
+        <PacketFieldRow label="Opened" testId="packet-opened" optional>
           <input
             type="date"
             value={form.opened_on}
             onChange={(e) => set("opened_on", e.target.value)}
-            className={inputCx}
+            className={PACKET_FORM_INPUT_CX}
           />
-        </FieldRow>
+        </PacketFieldRow>
       </div>
 
-      <FieldRow
+      <PacketFieldRow
         label="Sow by"
         testId="packet-sow-by"
         optional
@@ -471,29 +472,29 @@ function DetailsStep({
           type="date"
           value={form.sow_by}
           onChange={(e) => set("sow_by", e.target.value)}
-          className={inputCx}
+          className={PACKET_FORM_INPUT_CX}
         />
-      </FieldRow>
+      </PacketFieldRow>
 
-      <FieldRow label="Quantity remaining" testId="packet-qty" optional>
+      <PacketFieldRow label="Quantity remaining" testId="packet-qty" optional>
         <input
           type="text"
           value={form.quantity_remaining}
           onChange={(e) => set("quantity_remaining", e.target.value)}
           placeholder="e.g. ~30 seeds, half a packet"
-          className={inputCx}
+          className={PACKET_FORM_INPUT_CX}
         />
-      </FieldRow>
+      </PacketFieldRow>
 
-      <FieldRow label="Notes" testId="packet-notes" optional>
+      <PacketFieldRow label="Notes" testId="packet-notes" optional>
         <textarea
           value={form.notes}
           onChange={(e) => set("notes", e.target.value)}
           placeholder="Anything you want to remember about this packet."
           rows={2}
-          className={`${inputCx} resize-none`}
+          className={`${PACKET_FORM_INPUT_CX} resize-none`}
         />
-      </FieldRow>
+      </PacketFieldRow>
 
       {error && (
         <p className="text-xs font-bold text-red-600">{error}</p>
@@ -502,28 +503,3 @@ function DetailsStep({
   );
 }
 
-const inputCx =
-  "w-full px-3 py-2.5 min-h-[44px] rounded-xl bg-white border border-rhozly-outline/20 text-sm font-bold text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary/40 focus:ring-2 focus:ring-rhozly-primary/15";
-
-function FieldRow({
-  label, testId, optional, hint, children,
-}: {
-  label: string;
-  testId: string;
-  optional?: boolean;
-  hint?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div data-testid={testId}>
-      <label className="block text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/55 mb-1.5">
-        {label}
-        {optional && <span className="text-rhozly-on-surface/30 normal-case font-bold ml-1">(optional)</span>}
-      </label>
-      {children}
-      {hint && (
-        <p className="text-[11px] text-rhozly-on-surface/50 mt-1 leading-snug">{hint}</p>
-      )}
-    </div>
-  );
-}

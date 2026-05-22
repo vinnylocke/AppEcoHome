@@ -51,6 +51,7 @@ export const EVENT = {
   SEASONAL_PICK_OPENED:     "seasonal_pick_opened",
   // The Nursery — seed packets + sowings + plant-out lifecycle
   NURSERY_PACKET_ADDED:        "nursery_packet_added",
+  NURSERY_PACKET_EDITED:       "nursery_packet_edited",
   NURSERY_PACKET_ARCHIVED:     "nursery_packet_archived",
   NURSERY_SOWING_LOGGED:       "nursery_sowing_logged",
   NURSERY_SOWING_OBSERVED:     "nursery_sowing_observed",

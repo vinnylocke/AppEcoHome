@@ -2,16 +2,18 @@ import React, { useCallback, useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   X, Package, Sprout, CheckCircle2, Calendar, Plus, Loader2, Archive,
-  AlertCircle, Trash2, Eye, ArrowUpRight,
+  AlertCircle, Trash2, Eye, ArrowUpRight, Pencil, Link2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
+import { useCachedShed } from "../../hooks/useCachedShed";
 import {
   fetchSowingsForPacket,
   archiveSeedPacket,
   unarchiveSeedPacket,
   discardSowing,
   type SeedSowing,
+  type SeedPacket,
   type SeedPacketWithGermination,
   type PacketPlantSummary,
 } from "../../services/nurseryService";
@@ -20,6 +22,7 @@ import { logEvent, EVENT } from "../../events/registry";
 import LogSowingModal from "./LogSowingModal";
 import ObserveGerminationModal from "./ObserveGerminationModal";
 import PlantOutSowingModal from "./PlantOutSowingModal";
+import EditSeedPacketModal from "./EditSeedPacketModal";
 
 interface Props {
   homeId: string;
@@ -71,10 +74,20 @@ export default function SeedPacketDetailModal({
   const [showLogSowing, setShowLogSowing] = useState(false);
   const [observingSowing, setObservingSowing] = useState<SeedSowing | null>(null);
   const [plantingOutSowing, setPlantingOutSowing] = useState<SeedSowing | null>(null);
+  /** When non-null, the Edit modal is open. The value's `focusLink` is
+   *  true when the user tapped a "Link plant to plant out" CTA so the
+   *  modal opens with the Shed search already expanded. */
+  const [editing, setEditing] = useState<{ focusLink: boolean } | null>(null);
+  /** Local copy of the packet so edits reflect immediately without a
+   *  parent refetch. Falls back to the prop on first render. */
+  const [localPacket, setLocalPacket] = useState<SeedPacketWithGermination>(packet);
+  const [localPlant, setLocalPlant] = useState<PacketPlantSummary | null>(plant);
 
-  const headline = packet.variety?.trim()
-    ? `${packet.variety.trim()}${plant?.common_name ? ` · ${plant.common_name}` : ""}`
-    : plant?.common_name ?? "Untitled packet";
+  const { plants: shedPlants } = useCachedShed(homeId);
+
+  const headline = localPacket.variety?.trim()
+    ? `${localPacket.variety.trim()}${localPlant?.common_name ? ` · ${localPlant.common_name}` : ""}`
+    : localPlant?.common_name ?? "Untitled packet";
 
   const loadSowings = useCallback(async () => {
     setLoading(true);
@@ -165,9 +178,9 @@ export default function SeedPacketDetailModal({
             >
               {headline}
             </h2>
-            {plant?.scientific_name && (
+            {localPlant?.scientific_name && (
               <p className="text-[11px] text-rhozly-on-surface/55 italic truncate">
-                {plant.scientific_name}
+                {localPlant.scientific_name}
               </p>
             )}
           </div>
@@ -186,13 +199,13 @@ export default function SeedPacketDetailModal({
               via the Scan-a-packet flow. Helps the user identify the
               packet visually (especially useful for multi-variety
               collections where the variety field is identical). */}
-          {packet.image_url && (
+          {localPacket.image_url && (
             <div
               data-testid="packet-detail-image"
               className="rounded-2xl overflow-hidden bg-rhozly-surface-low border border-rhozly-outline/15 aspect-[4/3]"
             >
               <img
-                src={packet.image_url}
+                src={localPacket.image_url}
                 alt={`Scan of ${headline}`}
                 loading="lazy"
                 className="w-full h-full object-cover"
@@ -200,7 +213,7 @@ export default function SeedPacketDetailModal({
             </div>
           )}
           {/* Packet meta strip */}
-          <PacketMetaStrip packet={packet} plant={plant} />
+          <PacketMetaStrip packet={localPacket} plant={localPlant} />
 
           {/* Sowings */}
           <div>
@@ -212,9 +225,9 @@ export default function SeedPacketDetailModal({
                 type="button"
                 data-testid="packet-detail-log-sowing"
                 onClick={() => setShowLogSowing(true)}
-                disabled={packet.plant_id == null && !packet.variety}
+                disabled={localPacket.plant_id == null && !localPacket.variety}
                 title={
-                  packet.plant_id == null && !packet.variety
+                  localPacket.plant_id == null && !localPacket.variety
                     ? "Link this packet to a plant or add a variety name before logging a sowing"
                     : "Log a new sowing"
                 }
@@ -258,9 +271,10 @@ export default function SeedPacketDetailModal({
                   <SowingRow
                     key={sowing.id}
                     sowing={sowing}
-                    canPlantOut={packet.plant_id != null}
+                    canPlantOut={localPacket.plant_id != null}
                     onObserve={() => setObservingSowing(sowing)}
                     onPlantOut={() => setPlantingOutSowing(sowing)}
+                    onLinkPlant={() => setEditing({ focusLink: true })}
                     onDiscard={() => handleDiscardSowing(sowing)}
                   />
                 ))}
@@ -270,16 +284,27 @@ export default function SeedPacketDetailModal({
         </div>
 
         <footer className="shrink-0 px-5 py-3 border-t border-rhozly-outline/10 flex items-center justify-between gap-2">
-          <button
-            type="button"
-            data-testid="packet-detail-archive"
-            onClick={handleArchiveToggle}
-            disabled={archiving}
-            className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl text-rhozly-on-surface/65 hover:text-rhozly-on-surface text-[10px] font-black uppercase tracking-widest border border-rhozly-outline/15 hover:border-rhozly-outline/30 disabled:opacity-50"
-          >
-            {archiving ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />}
-            {packet.is_archived ? "Restore" : "Archive"}
-          </button>
+          <div className="flex items-center gap-1.5">
+            <button
+              type="button"
+              data-testid="packet-detail-edit"
+              onClick={() => setEditing({ focusLink: false })}
+              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl text-rhozly-on-surface/65 hover:text-rhozly-primary text-[10px] font-black uppercase tracking-widest border border-rhozly-outline/15 hover:border-rhozly-primary/30"
+            >
+              <Pencil size={12} />
+              Edit
+            </button>
+            <button
+              type="button"
+              data-testid="packet-detail-archive"
+              onClick={handleArchiveToggle}
+              disabled={archiving}
+              className="inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl text-rhozly-on-surface/65 hover:text-rhozly-on-surface text-[10px] font-black uppercase tracking-widest border border-rhozly-outline/15 hover:border-rhozly-outline/30 disabled:opacity-50"
+            >
+              {archiving ? <Loader2 size={12} className="animate-spin" /> : <Archive size={12} />}
+              {localPacket.is_archived ? "Restore" : "Archive"}
+            </button>
+          </div>
           <button
             type="button"
             onClick={onClose}
@@ -313,15 +338,54 @@ export default function SeedPacketDetailModal({
           }}
         />
       )}
-      {plantingOutSowing && packet.plant_id != null && (
+      {plantingOutSowing && localPacket.plant_id != null && (
         <PlantOutSowingModal
           homeId={homeId}
           sowing={plantingOutSowing}
-          plantId={packet.plant_id}
+          plantId={localPacket.plant_id}
           packetLabel={headline}
           onClose={() => setPlantingOutSowing(null)}
           onPlantedOut={() => {
             loadSowings();
+            onChanged?.();
+          }}
+        />
+      )}
+      {editing && (
+        <EditSeedPacketModal
+          homeId={homeId}
+          packet={localPacket}
+          plant={localPlant}
+          focusLink={editing.focusLink}
+          hasActiveSowings={sowings.some(
+            (s) => s.status === "sown" || s.status === "germinated",
+          )}
+          onClose={() => setEditing(null)}
+          onSaved={(next: SeedPacket) => {
+            // Merge the updated columns back into our view-shaped packet
+            // copy so the header / meta strip / Plant Out gating refresh
+            // immediately, then re-hydrate the linked plant from the
+            // cached Shed list when plant_id changed.
+            setLocalPacket((prev) => ({ ...prev, ...next }));
+            if (next.plant_id == null) {
+              setLocalPlant(null);
+            } else if (next.plant_id !== localPacket.plant_id) {
+              const match = (shedPlants ?? []).find(
+                (p: any) => p.id === next.plant_id,
+              );
+              setLocalPlant(
+                match
+                  ? {
+                      id: match.id,
+                      common_name: match.common_name ?? null,
+                      scientific_name: Array.isArray(match.scientific_name)
+                        ? match.scientific_name[0] ?? null
+                        : (match.scientific_name as string | null) ?? null,
+                    }
+                  : null,
+              );
+            }
+            // Bubble up so the Nursery list refetches too.
             onChanged?.();
           }}
         />
@@ -386,12 +450,14 @@ function SowingRow({
   canPlantOut,
   onObserve,
   onPlantOut,
+  onLinkPlant,
   onDiscard,
 }: {
   sowing: SeedSowing;
   canPlantOut: boolean;
   onObserve: () => void;
   onPlantOut: () => void;
+  onLinkPlant: () => void;
   onDiscard: () => void;
 }) {
   const Icon = STATUS_ICON[sowing.status];
@@ -464,21 +530,28 @@ function SowingRow({
             <Eye size={11} />
             {sowing.status === "sown" ? "Observe" : "Re-observe"}
           </button>
-          {sowing.status === "germinated" && (
+          {sowing.status === "germinated" && canPlantOut && (
             <button
               type="button"
               data-testid={`sowing-${sowing.id}-plant-out`}
               onClick={onPlantOut}
-              disabled={!canPlantOut}
-              title={
-                !canPlantOut
-                  ? "Link this packet to a plant in your Shed before planting out."
-                  : "Plant these seedlings into an area"
-              }
-              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+              title="Plant these seedlings into an area"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-emerald-50 text-emerald-700 text-[10px] font-black uppercase tracking-widest hover:bg-emerald-100 transition-colors"
             >
               <ArrowUpRight size={11} />
               Plant out
+            </button>
+          )}
+          {sowing.status === "germinated" && !canPlantOut && (
+            <button
+              type="button"
+              data-testid={`sowing-${sowing.id}-link-plant`}
+              onClick={onLinkPlant}
+              title="Link this packet to a Shed plant first"
+              className="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg bg-amber-100 text-amber-800 text-[10px] font-black uppercase tracking-widest hover:bg-amber-200 transition-colors"
+            >
+              <Link2 size={11} />
+              Link plant to plant out
             </button>
           )}
           <button

@@ -8,6 +8,8 @@
 - `src/components/nursery/AddSeedPacketModal.tsx` — single-packet add flow (two-step)
 - `src/components/nursery/BulkPasteSeedPacketsModal.tsx` — multi-packet paste flow (two-step)
 - `src/components/nursery/SeedPacketDetailModal.tsx` — packet hub + sowings list + actions
+- `src/components/nursery/EditSeedPacketModal.tsx` — relink the catalogue plant + edit metadata
+- `src/components/nursery/_packetForm.tsx` — shared `PacketFieldRow` + `PACKET_FORM_INPUT_CX` used by Add + Edit
 - `src/components/nursery/LogSowingModal.tsx` — log a sowing against a packet
 - `src/components/nursery/ObserveGerminationModal.tsx` — record germinated count
 - `src/components/nursery/PlantOutSowingModal.tsx` — sowing → `inventory_items` row
@@ -53,15 +55,23 @@ TheShed (Plants / Nursery toggle in the header)
         │   └── SowingRow ×N
         │       ├── Status chip (Awaiting / Ready to plant out / Planted out / Discarded)
         │       ├── Sown / observed / planted-out dates
-        │       └── Action bar (Observe / Plant out / Discard)
+        │       └── Action bar
+        │           ├── Observe / Re-observe
+        │           ├── Plant out             (green — only when packet.plant_id != null)
+        │           ├── Link plant to plant out (amber — when germinated AND packet has no linked plant; opens EditSeedPacketModal focused on the link section)
+        │           └── Discard
         ├── Log Sowing button       → LogSowingModal
+        ├── Edit pill (footer)      → EditSeedPacketModal
         ├── Archive / Restore       → packet flagged is_archived
         ├── ObserveGerminationModal (portal-inside-portal)
-        └── PlantOutSowingModal (portal-inside-portal)
-            ├── Location + Area chained selects
-            ├── Quantity (defaults to remaining)
-            ├── Planted date
-            └── Optional nickname
+        ├── PlantOutSowingModal (portal-inside-portal)
+        │   ├── Location + Area chained selects
+        │   ├── Quantity (defaults to remaining)
+        │   ├── Planted date
+        │   └── Optional nickname
+        └── EditSeedPacketModal (portal-inside-portal)
+            ├── Linked plant section (search Shed / pick / unlink with warning if active sowings)
+            └── Packet details (variety / vendor / dates / qty / notes — pre-filled, all editable)
 ```
 
 ### Props received
@@ -120,6 +130,14 @@ TheShed (Plants / Nursery toggle in the header)
 
 - Triggered by Step 2 of `AddSeedPacketModal`. Inserts `seed_packets` with the picked `plant_id` (or null for the "Add later" path).
 - Logs `EVENT.NURSERY_PACKET_ADDED`.
+
+#### Edit packet (`updateSeedPacket`)
+
+- Triggered by either the **Edit** pill in `SeedPacketDetailModal`'s footer, or the **"Link plant to plant out"** CTA on a germinated `SowingRow` when the packet has no linked plant.
+- One modal with two sections: linked-plant picker (search the cached Shed, pick / unlink) and the packet details (variety / vendor / dates / qty / notes).
+- Computes a diff against the original and patches only changed columns. `plant_id` flips between `number | null`. The detail modal updates `localPacket` and `localPlant` inline on save (re-hydrating the plant summary from `useCachedShed`), AND bubbles `onChanged?.()` so the parent list refetches too.
+- Logs `EVENT.NURSERY_PACKET_EDITED` with `packet_id`, `changed_keys[]`, `plant_id_was_null`, `plant_id_now_set`.
+- Unlinking a packet that has active sowings surfaces an inline warning ("you'll need to relink before planting them out") — allowed, but flagged.
 
 #### Bulk paste (`parseSeedPackets` + `createSeedPacket` per row)
 
