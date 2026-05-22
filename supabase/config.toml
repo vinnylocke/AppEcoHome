@@ -431,6 +431,14 @@ verify_jwt = false
 [functions.daily-batch-notifications]
 enabled = true
 verify_jwt = false
+
+# report-error is public on purpose — users may hit an error before they
+# have an authenticated session (sign-in flow crashes, etc) so the
+# function has to accept unauthenticated POSTs. IP rate-limited (20/IP)
+# inside the handler.
+[functions.report-error]
+verify_jwt = false
+
 [functions.plant-doctor]
 enabled = true
 verify_jwt = true
