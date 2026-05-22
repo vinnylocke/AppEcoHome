@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Fixes",
-    "items": [
-      "Nursery — the plant-database search now correctly stacks on top of the packet editor instead of behind it. Tapping the search backdrop now closes only the search, not the whole chain."
-    ]
-  }
-]
+[]
