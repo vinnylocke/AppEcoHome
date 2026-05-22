@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import {
-  X, Sprout, Loader2, Search, Check, Link2, Unlink, AlertTriangle,
+  X, Sprout, Loader2, Search, Check, Link2, Unlink, AlertTriangle, Globe,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
@@ -15,12 +15,19 @@ import {
 import { Logger } from "../../lib/errorHandler";
 import { logEvent, EVENT } from "../../events/registry";
 import { PACKET_FORM_INPUT_CX, PacketFieldRow } from "./_packetForm";
+import PlantSearchModal from "../PlantSearchModal";
 
 interface Props {
   homeId: string;
   packet: SeedPacketWithGermination;
   /** Currently-linked plant (the parent already fetched it for the detail modal). */
   plant: PacketPlantSummary | null;
+  /** Gates the AI provider tab inside `PlantSearchModal`. */
+  aiEnabled?: boolean;
+  /** Gates the entire "Search the plant database" path. When false the
+   *  CTA still renders so the user can see what they're missing, but
+   *  tapping it surfaces `PlantSearchModal`'s tier-lock state. */
+  perenualEnabled?: boolean;
   /** Optional — when true, scrolls the linked-plant section into view on mount. */
   focusLink?: boolean;
   /** Optional — packet has active (sown / germinated) sowings. Drives the
@@ -77,6 +84,8 @@ export default function EditSeedPacketModal({
   homeId,
   packet,
   plant,
+  aiEnabled = false,
+  perenualEnabled = false,
   focusLink = false,
   hasActiveSowings = false,
   onClose,
@@ -99,6 +108,11 @@ export default function EditSeedPacketModal({
   const [form, setForm] = useState<FormState>(() => toFormState(packet));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /** When true, `PlantSearchModal` is mounted on top of this editor so
+   *  the user can search AI / Perenual / Verdantly for a plant that
+   *  isn't in their Shed yet. On a successful add it returns the new
+   *  Shed row, which we set as the linked plant. */
+  const [showProviderSearch, setShowProviderSearch] = useState(false);
 
   useEffect(() => {
     document.body.style.overflow = "hidden";
@@ -147,6 +161,31 @@ export default function EditSeedPacketModal({
     setShowSearch(false);
     setSearch("");
   };
+
+  /** `PlantSearchModal` returns the freshly-inserted Shed row. We adopt
+   *  it as the linked plant so the user just has to tap Save to commit
+   *  the packet update. */
+  const handleProviderAdded = (newPlant: any) => {
+    if (!newPlant?.id) return;
+    const sci = Array.isArray(newPlant.scientific_name)
+      ? newPlant.scientific_name[0] ?? null
+      : (newPlant.scientific_name as string | null) ?? null;
+    setLinkedPlantId(newPlant.id);
+    setLinkedPlantName(newPlant.common_name ?? null);
+    setLinkedPlantSci(sci);
+    setShowSearch(false);
+    setSearch("");
+    setShowProviderSearch(false);
+  };
+
+  /** The query we hand off to PlantSearchModal so the user doesn't have
+   *  to retype: the Shed-search text if they were already typing,
+   *  otherwise the packet variety or the existing linked plant's name. */
+  const providerInitialQuery =
+    search.trim() ||
+    form.variety.trim() ||
+    linkedPlantName ||
+    "";
 
   const handleUnlink = () => {
     setLinkedPlantId(null);
@@ -371,6 +410,30 @@ export default function EditSeedPacketModal({
                     })
                   )}
                 </ul>
+
+                {/* "Not in your Shed?" — opens PlantSearchModal so the
+                    user can find the plant via AI / Perenual / Verdantly
+                    and add it to their Shed AND link it to this packet
+                    in one go. Single-add only — PlantSearchModal exits
+                    after the first successful insert. */}
+                <button
+                  type="button"
+                  data-testid="edit-packet-provider-search"
+                  onClick={() => setShowProviderSearch(true)}
+                  className="w-full mt-1 flex items-center gap-2.5 rounded-xl border border-rhozly-primary/25 bg-rhozly-primary/[0.06] hover:bg-rhozly-primary/10 px-3 py-2.5 text-left transition-colors"
+                >
+                  <span className="shrink-0 w-8 h-8 rounded-lg bg-rhozly-primary/15 text-rhozly-primary flex items-center justify-center">
+                    <Globe size={15} />
+                  </span>
+                  <span className="flex-1 min-w-0">
+                    <span className="block font-display font-black text-rhozly-primary text-[11px] uppercase tracking-widest">
+                      Not in your Shed?
+                    </span>
+                    <span className="block text-[11px] text-rhozly-on-surface/65 leading-snug">
+                      Search the plant database — we'll add it to your Shed and link it here.
+                    </span>
+                  </span>
+                </button>
               </div>
             )}
           </section>
@@ -482,6 +545,20 @@ export default function EditSeedPacketModal({
           </button>
         </footer>
       </div>
+
+      {/* Provider search — mounted in portal-mount order so it stacks
+          above the editor without needing a higher z-index. Single-add
+          only; PlantSearchModal exits via onSuccess after one insert. */}
+      {showProviderSearch && (
+        <PlantSearchModal
+          homeId={homeId}
+          isPremium={perenualEnabled}
+          isAiEnabled={aiEnabled}
+          initialSearchTerm={providerInitialQuery}
+          onClose={() => setShowProviderSearch(false)}
+          onSuccess={handleProviderAdded}
+        />
+      )}
     </div>,
     document.body,
   );

@@ -1346,7 +1346,13 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         </div>
 
         {/* Nursery body — read-only Wave 1 packet list. */}
-        {view === "nursery" && <NurseryTab homeId={homeId} aiEnabled={aiEnabled} />}
+        {view === "nursery" && (
+          <NurseryTab
+            homeId={homeId}
+            aiEnabled={aiEnabled}
+            perenualEnabled={perenualEnabled}
+          />
+        )}
 
         {/* One-time badge guide — shown until dismissed */}
         {view === "plants" && !badgeGuideShown && (

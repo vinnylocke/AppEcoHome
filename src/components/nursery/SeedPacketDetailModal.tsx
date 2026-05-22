@@ -28,6 +28,10 @@ interface Props {
   homeId: string;
   packet: SeedPacketWithGermination;
   plant: PacketPlantSummary | null;
+  /** Gates the AI provider tab inside the provider-search path of the editor. */
+  aiEnabled?: boolean;
+  /** Gates the entire provider-search path (locked until Botanist+). */
+  perenualEnabled?: boolean;
   onClose: () => void;
   /** Called whenever the packet's sowings or archive flag changed. The
    *  parent NurseryTab uses it to refetch the list. */
@@ -63,7 +67,13 @@ const STATUS_ICON: Record<SeedSowing["status"], typeof Sprout> = {
  * "Coming next update" tooltip.
  */
 export default function SeedPacketDetailModal({
-  homeId, packet, plant, onClose, onChanged,
+  homeId,
+  packet,
+  plant,
+  aiEnabled = false,
+  perenualEnabled = false,
+  onClose,
+  onChanged,
 }: Props) {
   const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [sowings, setSowings] = useState<SeedSowing[]>([]);
@@ -356,6 +366,8 @@ export default function SeedPacketDetailModal({
           homeId={homeId}
           packet={localPacket}
           plant={localPlant}
+          aiEnabled={aiEnabled}
+          perenualEnabled={perenualEnabled}
           focusLink={editing.focusLink}
           hasActiveSowings={sowings.some(
             (s) => s.status === "sown" || s.status === "germinated",

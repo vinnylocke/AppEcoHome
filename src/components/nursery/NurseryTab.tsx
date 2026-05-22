@@ -16,6 +16,9 @@ import ScanSeedPacketModal from "./ScanSeedPacketModal";
 interface Props {
   homeId: string;
   aiEnabled?: boolean;
+  /** Gates the inline "Search the plant database" path inside the packet
+   *  editor (forwarded through to `PlantSearchModal`). */
+  perenualEnabled?: boolean;
 }
 
 /**
@@ -28,7 +31,11 @@ interface Props {
  * and exposes an "Add packets" button that opens a placeholder toast
  * (Wave 2 will wire the real modal).
  */
-export default function NurseryTab({ homeId, aiEnabled = false }: Props) {
+export default function NurseryTab({
+  homeId,
+  aiEnabled = false,
+  perenualEnabled = false,
+}: Props) {
   const [entries, setEntries] = useState<NurseryListEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -272,6 +279,8 @@ export default function NurseryTab({ homeId, aiEnabled = false }: Props) {
           homeId={homeId}
           packet={activeEntry.packet}
           plant={activeEntry.plant}
+          aiEnabled={aiEnabled}
+          perenualEnabled={perenualEnabled}
           onClose={() => setActiveEntry(null)}
           onChanged={() => load()}
         />

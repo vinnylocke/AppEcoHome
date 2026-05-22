@@ -135,9 +135,11 @@ TheShed (Plants / Nursery toggle in the header)
 
 - Triggered by either the **Edit** pill in `SeedPacketDetailModal`'s footer, or the **"Link plant to plant out"** CTA on a germinated `SowingRow` when the packet has no linked plant.
 - One modal with two sections: linked-plant picker (search the cached Shed, pick / unlink) and the packet details (variety / vendor / dates / qty / notes).
+- **"Not in your Shed?"** CTA below the Shed list opens `PlantSearchModal` (the same single-add UI used elsewhere — AI / Perenual / Verdantly). On successful add the new Shed row's `id`, `common_name`, and `scientific_name` are adopted as the linked plant locally; the user then taps **Save changes** to commit the `seed_packets.plant_id` update. The provider search is gated by `perenualEnabled` (locked screen rendered by `PlantSearchModal` itself for Sprout users) and `aiEnabled` (gates the AI tab inside the search).
 - Computes a diff against the original and patches only changed columns. `plant_id` flips between `number | null`. The detail modal updates `localPacket` and `localPlant` inline on save (re-hydrating the plant summary from `useCachedShed`), AND bubbles `onChanged?.()` so the parent list refetches too.
 - Logs `EVENT.NURSERY_PACKET_EDITED` with `packet_id`, `changed_keys[]`, `plant_id_was_null`, `plant_id_now_set`.
 - Unlinking a packet that has active sowings surfaces an inline warning ("you'll need to relink before planting them out") — allowed, but flagged.
+- **Edge case** — if the user adds a plant via the provider search but then cancels the editor without saving (or unlinks before saving), the new Shed plant remains; only the packet link is unset. Acceptable, the plant exists independently.
 
 #### Bulk paste (`parseSeedPackets` + `createSeedPacket` per row)
 
