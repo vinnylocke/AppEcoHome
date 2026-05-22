@@ -1,9 +1,1 @@
-[
-  {
-    "label": "Admin / Plant Library",
-    "items": [
-      "Plant Library — the seeder now sends the AI up to 500 already-known plants as a \"don't propose these\" list (was 50), and grows that list as the run progresses so batches 2+ within the same run can't re-propose what batch 1 just inserted. Should drop the skipped count significantly.",
-      "Plant Library — the AI is now explicitly told to add a variety qualifier in `scientific_name` for distinct horticultural types like cherry vs garden tomato (e.g. `Solanum lycopersicum var. cerasiforme` vs `Solanum lycopersicum`). Without this, types that share a base species name were silently collapsing onto a single row."
-    ]
-  }
-]
+[]
