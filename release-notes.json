@@ -1,10 +1,1 @@
-[
-  {
-    "label": "Improvements",
-    "items": [
-      "Plant database search — AI suggestions now show thumbnails (Wikipedia / Pixabay / Unsplash) instead of blank placeholders. The first user to look up a plant pays the lookup cost; everyone else gets it from a shared 90-day server cache, so results paint almost instantly.",
-      "Plant database search — Perenual results now page 10 at a time. \"Show more\" reveals the next ten from the current batch, then fetches the next page from Perenual when you run out — matches the Shed search rhythm.",
-      "Plant database search — your last search is remembered on the device, so reopening the modal restores the results instantly with no network round-trip."
-    ]
-  }
-]
+[]
