@@ -9,6 +9,7 @@ import {
   fetchPlantLibraryStats,
   fetchRecentPlantLibraryRuns,
   fetchStuckVerifications,
+  sweepStalePlantLibraryRuns,
   triggerSeedRun,
   triggerVerifyRun,
   type PlantLibraryRun,
@@ -54,6 +55,19 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
 
   const refresh = useCallback(async () => {
     try {
+      // Sweep first so any zombie "running" rows are flipped to
+      // failed BEFORE we fetch the recent-runs list. Result: the
+      // admin never sees a row that's been spinning for 30+ minutes
+      // pretending to still be live.
+      try {
+        const cleared = await sweepStalePlantLibraryRuns();
+        if (cleared > 0) {
+          toast.success(`Marked ${cleared} stale run${cleared === 1 ? "" : "s"} as failed.`);
+        }
+      } catch (sweepErr) {
+        Logger.error("Stale run sweep failed", sweepErr);
+      }
+
       const [s, r, st] = await Promise.all([
         fetchPlantLibraryStats(),
         fetchRecentPlantLibraryRuns(MAX_RUNS),

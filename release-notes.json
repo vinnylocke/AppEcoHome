@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "label": "Admin / Plant Library",
+    "items": [
+      "Plant Library — runs no longer get stuck pretending to be alive. The seed/verify functions now stamp a heartbeat after every batch; the admin page automatically marks any run with no heartbeat for 10+ minutes as failed (with the actual reason recorded), so a killed background task can't sit there forever.",
+      "Plant Library — bumped Gemini model-cascade retries from 2 to 3 per model. With four models in the fallback cascade that's now twelve attempts before a batch is given up — Flash overload events shouldn't kill batches that another model could have handled.",
+      "Plant Library — run status now reflects partial failures correctly: `partial` when some batches landed and some failed, `failed` when nothing landed, `succeeded` only when everything worked. Each failed batch's first error message is stored on the run row for diagnosis.",
+      "Plant Library — verifier explicitly skips any row that already has `valid` or `verified_at` set. Belt-and-braces guard against re-processing rows that have already been matched or amended."
+    ]
+  }
+]

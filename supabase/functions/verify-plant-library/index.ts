@@ -271,6 +271,10 @@ async function verifyOneRow(
         maxOutputTokens: 4096,
         responseSchema: VERIFY_SCHEMA,
         responseMimeType: "application/json",
+        // Bumped from the default 2 — Gemini Flash overload events
+        // shouldn't kill an entire row's verification when the
+        // cascade still has Pro to fall through to.
+        maxRetriesPerModel: 3,
         logContext: { run_id: runId, plant_id: id, sci },
       },
     );
@@ -376,12 +380,15 @@ async function updateRunProgress(
     .eq("id", runId)
     .maybeSingle();
   if (!row) return;
+  // Heartbeat lands on every batch — admin sweep uses it to spot
+  // dead-but-still-running rows.
   await db
     .from("plant_library_runs")
     .update({
       count_matched: row.count_matched + (deltas.matched ?? 0),
       count_amended: row.count_amended + (deltas.amended ?? 0),
       count_failed: row.count_failed + (deltas.failed ?? 0),
+      last_heartbeat_at: new Date().toISOString(),
     })
     .eq("id", runId);
 }
@@ -393,10 +400,24 @@ async function backgroundVerify(
   count: number,
 ) {
   try {
+    // Stamp a heartbeat immediately so the admin sweep can't
+    // false-positive a verify run that's still spinning up.
+    await db
+      .from("plant_library_runs")
+      .update({ last_heartbeat_at: new Date().toISOString() })
+      .eq("id", runId);
+
+    // Pick only rows that are TRULY unverified. We require BOTH
+    // `verified_at IS NULL` AND `valid IS NULL` — every code path
+    // that sets either column sets both together, but the double
+    // filter guarantees we can never re-pick a row that's already
+    // matched, amended, or default-passed even if the two ever drift
+    // out of sync.
     const { data: rows } = await db
       .from("plant_library")
       .select("*")
       .is("verified_at", null)
+      .is("valid", null)
       .order("seeded_at", { ascending: true })
       .limit(count);
 
@@ -416,14 +437,32 @@ async function backgroundVerify(
       await updateRunProgress(db, runId, { matched, amended, failed });
     }
 
+    // Reflect partial failures in the final status — same rule as
+    // the seeder.
+    const { data: final } = await db
+      .from("plant_library_runs")
+      .select("count_matched, count_amended, count_failed")
+      .eq("id", runId)
+      .maybeSingle();
+    const matched = final?.count_matched ?? 0;
+    const amended = final?.count_amended ?? 0;
+    const failed = final?.count_failed ?? 0;
+    const finalStatus =
+      failed > 0 && matched + amended === 0
+        ? "failed"
+        : failed > 0
+        ? "partial"
+        : "succeeded";
+
     await db
       .from("plant_library_runs")
       .update({
-        status: "succeeded",
+        status: finalStatus,
         finished_at: new Date().toISOString(),
+        last_heartbeat_at: new Date().toISOString(),
       })
       .eq("id", runId);
-    log(FN, "run_succeeded", { run_id: runId });
+    log(FN, "run_finished", { run_id: runId, status: finalStatus, matched, amended, failed });
   } catch (err: any) {
     await captureException(FN, err);
     await db

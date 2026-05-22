@@ -99,6 +99,35 @@ export async function fetchStuckVerifications(
 }
 
 /**
+ * Mark stale-running rows as failed. A run is considered stale when
+ * its last_heartbeat_at (or started_at, when the heartbeat was never
+ * stamped) is older than 10 minutes — by that point the background
+ * task has either finished cleanly or been killed by Supabase. Real
+ * batches take a few seconds each so a 10-minute silence is a
+ * confident "this run is dead".
+ *
+ * Returns the count of rows updated so the admin UI can show a toast.
+ */
+export async function sweepStalePlantLibraryRuns(): Promise<number> {
+  const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const reason =
+    "abandoned — no heartbeat for 10+ minutes (background task likely timed out or was killed)";
+  const { data, error } = await supabase
+    .from("plant_library_runs")
+    .update({
+      status: "failed",
+      error_message: reason,
+      finished_at: new Date().toISOString(),
+    })
+    .eq("status", "running")
+    .or(`last_heartbeat_at.lt.${cutoff},last_heartbeat_at.is.null`)
+    .lt("started_at", cutoff)
+    .select("id");
+  if (error) throw error;
+  return data?.length ?? 0;
+}
+
+/**
  * Last N runs in started_at-desc order. RLS scopes to admins; the call
  * just returns [] for non-admin users.
  */

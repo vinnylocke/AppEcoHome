@@ -196,6 +196,11 @@ async function runSeedBatch(
       maxOutputTokens: 8192,
       responseSchema: SEED_BATCH_SCHEMA,
       responseMimeType: "application/json",
+      // Bumped from the default 2 because Gemini Flash overload
+      // events have spiked recently — give every model an extra
+      // attempt before the cascade gives up. 4 models × 3 retries =
+      // 12 total attempts before we throw the batch.
+      maxRetriesPerModel: 3,
       logContext: { run_id: runId, batch_count: batchCount },
     },
   );
@@ -304,23 +309,32 @@ async function runSeedBatch(
 async function updateRunProgress(
   db: any,
   runId: string,
-  deltas: { inserted?: number; skipped?: number; failed?: number },
+  deltas: { inserted?: number; skipped?: number; failed?: number; error?: string | null },
 ) {
   // Read-modify-write the counter columns. Cheap because there's only
-  // one writer per run.
+  // one writer per run. The heartbeat is touched on every progress
+  // update so the admin sweep can tell live runs from dead ones.
   const { data: row } = await db
     .from("plant_library_runs")
-    .select("count_inserted, count_skipped, count_failed")
+    .select("count_inserted, count_skipped, count_failed, error_message")
     .eq("id", runId)
     .maybeSingle();
   if (!row) return;
+  const patch: Record<string, unknown> = {
+    count_inserted: row.count_inserted + (deltas.inserted ?? 0),
+    count_skipped: row.count_skipped + (deltas.skipped ?? 0),
+    count_failed: row.count_failed + (deltas.failed ?? 0),
+    last_heartbeat_at: new Date().toISOString(),
+  };
+  // Preserve the first batch error we see so the admin can read it
+  // off the run row. Fatal failures still overwrite this via the
+  // outer catch in `backgroundSeed`.
+  if (deltas.error && !row.error_message) {
+    patch.error_message = deltas.error.slice(0, 2000);
+  }
   await db
     .from("plant_library_runs")
-    .update({
-      count_inserted: row.count_inserted + (deltas.inserted ?? 0),
-      count_skipped: row.count_skipped + (deltas.skipped ?? 0),
-      count_failed: row.count_failed + (deltas.failed ?? 0),
-    })
+    .update(patch)
     .eq("id", runId);
 }
 
@@ -343,6 +357,13 @@ async function backgroundSeed(
       .map((r: { scientific_name_key: string | null }) => r.scientific_name_key)
       .filter((k: string | null): k is string => !!k);
 
+    // Stamp a heartbeat immediately so the admin sweep can't
+    // false-positive a run that's just starting.
+    await db
+      .from("plant_library_runs")
+      .update({ last_heartbeat_at: new Date().toISOString() })
+      .eq("id", runId);
+
     let remaining = count;
     while (remaining > 0) {
       const batch = Math.min(remaining, BATCH_SIZE);
@@ -351,20 +372,43 @@ async function backgroundSeed(
         await updateRunProgress(db, runId, stats);
         remaining -= batch;
       } catch (err) {
-        logError(FN, "batch_failed", { run_id: runId, error: (err as Error).message });
-        await updateRunProgress(db, runId, { failed: batch });
+        const reason = (err as Error).message ?? "unknown";
+        logError(FN, "batch_failed", { run_id: runId, error: reason });
+        // Cascade exhausted (e.g. Gemini overload, all 12 attempts
+        // failed) → mark the whole batch as failed and remember the
+        // first error so the admin can see WHY. Subsequent batches
+        // still run.
+        await updateRunProgress(db, runId, { failed: batch, error: reason });
         remaining -= batch;
       }
     }
 
+    // Reflect partial failures in the final status: if any batch
+    // failed, the run is `partial` (some plants in, some not) or
+    // `failed` (every batch failed — typically all Gemini quota gone).
+    const { data: final } = await db
+      .from("plant_library_runs")
+      .select("count_inserted, count_failed")
+      .eq("id", runId)
+      .maybeSingle();
+    const inserted = final?.count_inserted ?? 0;
+    const failed = final?.count_failed ?? 0;
+    const finalStatus =
+      failed > 0 && inserted === 0
+        ? "failed"
+        : failed > 0
+        ? "partial"
+        : "succeeded";
+
     await db
       .from("plant_library_runs")
       .update({
-        status: "succeeded",
+        status: finalStatus,
         finished_at: new Date().toISOString(),
+        last_heartbeat_at: new Date().toISOString(),
       })
       .eq("id", runId);
-    log(FN, "run_succeeded", { run_id: runId });
+    log(FN, "run_finished", { run_id: runId, status: finalStatus, inserted, failed });
   } catch (err: any) {
     await captureException(FN, err);
     await db
