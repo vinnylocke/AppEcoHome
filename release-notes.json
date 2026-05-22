@@ -1,10 +1,1 @@
-[
-  {
-    "label": "Admin / Plant Library",
-    "items": [
-      "Plant Library — rows that fail verification no longer churn forever. After three failed attempts a row default-passes to <code>valid = true</code> with the last error recorded, so the cron stops re-processing the same broken plant every night.",
-      "Plant Library — postgres update errors are now caught and surfaced. The previous silent failure mode (AI returning a string where a number was expected) is what was leaving rows stuck.",
-      "Plant Library — new \"Stuck verifications\" panel on the admin dashboard shows every row the verifier has hit at least one error on, with the actual error message and current status."
-    ]
-  }
-]
+[]
