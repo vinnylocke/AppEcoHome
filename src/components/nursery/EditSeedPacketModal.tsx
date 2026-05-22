@@ -546,15 +546,18 @@ export default function EditSeedPacketModal({
         </footer>
       </div>
 
-      {/* Provider search — mounted in portal-mount order so it stacks
-          above the editor without needing a higher z-index. Single-add
-          only; PlantSearchModal exits via onSuccess after one insert. */}
+      {/* Provider search — overrides PlantSearchModal's default z-[100]
+          to z-[130] so it stacks above this editor (z-[120]). Without
+          the override, the editor's backdrop sits on top of the search
+          modal and tapping it closes the entire chain. Single-add only;
+          PlantSearchModal exits via onSuccess after one insert. */}
       {showProviderSearch && (
         <PlantSearchModal
           homeId={homeId}
           isPremium={perenualEnabled}
           isAiEnabled={aiEnabled}
           initialSearchTerm={providerInitialQuery}
+          zIndexClassName="z-[130]"
           onClose={() => setShowProviderSearch(false)}
           onSuccess={handleProviderAdded}
         />

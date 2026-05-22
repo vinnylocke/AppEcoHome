@@ -29,6 +29,13 @@ interface Props {
   onSuccess: (newPlant?: any) => void;
   initialSearchTerm?: string;
   initialScientificName?: string;
+  /**
+   * Optional Tailwind z-index class — used when the modal is mounted on
+   * top of another modal that already lives at z-[100] (e.g. the
+   * Nursery packet editor). Defaults to "z-[100]" for the standalone
+   * usages where nothing else is on screen.
+   */
+  zIndexClassName?: string;
 }
 
 export default function PlantSearchModal({
@@ -39,6 +46,7 @@ export default function PlantSearchModal({
   onSuccess,
   initialSearchTerm,
   initialScientificName,
+  zIndexClassName = "z-[100]",
 }: Props) {
   const { setPageContext, preferences } = usePlantDoctor();
 
@@ -441,7 +449,7 @@ export default function PlantSearchModal({
   // 🚀 LOGIC FOR PREMIUM LOCK
   if (!isPremium) {
     return createPortal(
-      <div data-testid="plant-search-perenual-gate" className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
+      <div data-testid="plant-search-perenual-gate" className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in`}>
         <div className="bg-rhozly-surface-lowest w-full max-w-md p-8 rounded-[3rem] shadow-2xl border border-rhozly-outline/20 text-center relative">
           <button
             onClick={onClose}
@@ -469,7 +477,7 @@ export default function PlantSearchModal({
 
   // 🚀 MAIN MODAL PORTAL
   return createPortal(
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in">
+    <div className={`fixed inset-0 ${zIndexClassName} flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in`}>
       <div
         ref={modalRef}
         className="bg-rhozly-surface-lowest w-full max-w-2xl h-[85vh] flex flex-col rounded-[3rem] shadow-2xl border border-rhozly-outline/20 overflow-hidden relative"
