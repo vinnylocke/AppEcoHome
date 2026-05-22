@@ -32,6 +32,7 @@ QuickAccessHome (mounted at /quick)
 │   └── MobileNavDrawer (slide-in from left when the button is tapped)
 ├── Desktop preview banner (visible when useIsMobile() === false)
 │   └── "This is the mobile shortcut screen — your full dashboard is at /dashboard"
+├── Brand stamp (logo + RHOZLY wordmark, centred — small, restrained)
 ├── Hero card → navigate("/gardener")
 ├── QuickTile × n (customisable launcher — 2 cols, 1-3 rows)
 │   └── Renders from `useQuickLauncherPins()` against `QUICK_LAUNCHER_CATALOGUE`.

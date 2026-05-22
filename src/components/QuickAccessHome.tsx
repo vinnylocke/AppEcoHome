@@ -122,6 +122,24 @@ export default function QuickAccessHome({
         </div>
       )}
 
+      {/* Brand stamp — small, centred, sits above the hero so the
+          screen reads as a Rhozly surface at a glance. Stays clear of
+          the floating menu button (top-right, z-[105]). */}
+      <div
+        data-testid="quick-access-brand-stamp"
+        className="shrink-0 flex items-center justify-center gap-2 mb-3"
+      >
+        <img
+          src="/images/logo_small_rhozly.png"
+          alt=""
+          aria-hidden
+          className="h-5 w-auto"
+        />
+        <span className="font-display font-black text-xs uppercase tracking-[0.2em] text-rhozly-on-surface/55">
+          Rhozly
+        </span>
+      </div>
+
       {/* Hero card — compact pill (Wave 15). Earlier waves stacked a
           decorative sprout + eyebrow pill + greeting + sub-line; with
           the Seasonal Picks strip below the walk tile the hero was

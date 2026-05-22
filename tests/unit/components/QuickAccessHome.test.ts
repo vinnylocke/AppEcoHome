@@ -257,6 +257,11 @@ describe("QuickAccessHome", () => {
     }
   });
 
+  test("renders the brand stamp above the hero", () => {
+    renderHome({ firstName: "Vinny" });
+    expect(screen.getByTestId("quick-access-brand-stamp")).toBeTruthy();
+  });
+
   test("renders a Customise link that deep-links to the picker", () => {
     renderHome({ firstName: "Vinny" });
     const link = screen.getByTestId("quick-access-customise-launcher");
