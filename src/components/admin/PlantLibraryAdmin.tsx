@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom";
 import {
   Library, Play, RefreshCw, Loader2, CheckCircle2, AlertCircle, Database,
-  Sparkles, ArrowLeft,
+  Sparkles, ArrowLeft, X,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -10,6 +10,7 @@ import {
   fetchRecentPlantLibraryRuns,
   fetchStuckVerifications,
   sweepStalePlantLibraryRuns,
+  markRunAsFailed,
   triggerSeedRun,
   triggerVerifyRun,
   type PlantLibraryRun,
@@ -324,11 +325,12 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
                   <th className="text-right px-3 py-2">Failed</th>
                   <th className="text-left px-3 py-2">Duration</th>
                   <th className="text-left px-3 py-2">Status</th>
+                  <th className="text-left px-3 py-2 w-12"></th>
                 </tr>
               </thead>
               <tbody>
                 {runs.map((r) => (
-                  <RunRow key={r.id} run={r} />
+                  <RunRow key={r.id} run={r} onStop={refresh} />
                 ))}
               </tbody>
             </table>
@@ -428,7 +430,8 @@ function RunBlock({
   );
 }
 
-function RunRow({ run }: { run: PlantLibraryRun }) {
+function RunRow({ run, onStop }: { run: PlantLibraryRun; onStop: () => void }) {
+  const [stopping, setStopping] = useState(false);
   const started = new Date(run.started_at);
   const finished = run.finished_at ? new Date(run.finished_at) : null;
   const durationMs = finished ? finished.getTime() - started.getTime() : null;
@@ -447,6 +450,24 @@ function RunRow({ run }: { run: PlantLibraryRun }) {
       : run.status === "partial"
       ? "bg-amber-50 text-amber-800 border-amber-100"
       : "bg-rose-50 text-rose-800 border-rose-100";
+
+  const handleStop = async () => {
+    if (stopping) return;
+    if (!window.confirm("Mark this run as failed? The background task may still be in flight for a few seconds.")) {
+      return;
+    }
+    setStopping(true);
+    try {
+      await markRunAsFailed(run.id);
+      toast.success("Run marked as failed.");
+      onStop();
+    } catch (err) {
+      Logger.error("markRunAsFailed failed", err);
+      toast.error("Couldn't stop the run — try refresh.");
+    } finally {
+      setStopping(false);
+    }
+  };
 
   return (
     <tr className="border-t border-rhozly-outline/10">
@@ -479,6 +500,21 @@ function RunRow({ run }: { run: PlantLibraryRun }) {
           {run.status === "running" && <Loader2 size={9} className="animate-spin" />}
           {run.status}
         </span>
+      </td>
+      <td className="px-3 py-2 text-right">
+        {run.status === "running" && (
+          <button
+            type="button"
+            data-testid={`plant-library-run-${run.id}-stop`}
+            onClick={handleStop}
+            disabled={stopping}
+            title="Mark this run as failed"
+            aria-label="Mark this run as failed"
+            className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-rhozly-on-surface/55 hover:text-rose-700 hover:bg-rose-50 transition-colors disabled:opacity-50"
+          >
+            {stopping ? <Loader2 size={12} className="animate-spin" /> : <X size={13} />}
+          </button>
+        )}
       </td>
     </tr>
   );

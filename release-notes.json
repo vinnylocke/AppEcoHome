@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Admin / Plant Library",
+    "items": [
+      "Plant Library — stuck runs are now caught after 3 minutes of silence instead of 10. Real batches take a few seconds at most, so three minutes of nothing is plenty to confirm the background task has died.",
+      "Plant Library — new ✕ button next to every running row in the Recent Runs table. One tap → confirm → run flips to failed immediately, no waiting for the auto-sweep."
+    ]
+  }
+]

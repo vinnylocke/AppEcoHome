@@ -99,19 +99,26 @@ export async function fetchStuckVerifications(
 }
 
 /**
+ * 3 minutes of heartbeat silence is enough to call a run dead. Real
+ * batches take 2-5 seconds; even a worst-case Gemini cascade (12
+ * retries) tops out around 90 seconds. So 180 seconds is well past
+ * any legitimate batch and gets us a quick auto-resolve without
+ * false-positive risk.
+ */
+const STALE_RUN_CUTOFF_MS = 3 * 60 * 1000;
+
+/**
  * Mark stale-running rows as failed. A run is considered stale when
  * its last_heartbeat_at (or started_at, when the heartbeat was never
- * stamped) is older than 10 minutes — by that point the background
- * task has either finished cleanly or been killed by Supabase. Real
- * batches take a few seconds each so a 10-minute silence is a
- * confident "this run is dead".
+ * stamped) is older than the cutoff — by that point the background
+ * task has either finished cleanly or been killed by Supabase.
  *
  * Returns the count of rows updated so the admin UI can show a toast.
  */
 export async function sweepStalePlantLibraryRuns(): Promise<number> {
-  const cutoff = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const cutoff = new Date(Date.now() - STALE_RUN_CUTOFF_MS).toISOString();
   const reason =
-    "abandoned — no heartbeat for 10+ minutes (background task likely timed out or was killed)";
+    "abandoned — no heartbeat for 3+ minutes (background task likely timed out or was killed)";
   const { data, error } = await supabase
     .from("plant_library_runs")
     .update({
@@ -141,6 +148,26 @@ export async function fetchRecentPlantLibraryRuns(
     .limit(limit);
   if (error) throw error;
   return (data ?? []) as PlantLibraryRun[];
+}
+
+/**
+ * Manually mark a `running` run as failed. The actual edge function
+ * background work might still be in flight for a few more seconds,
+ * but its next progress update will hit a row that's already in the
+ * terminal state and effectively become a no-op. Uses the admin
+ * UPDATE policy on `plant_library_runs`.
+ */
+export async function markRunAsFailed(runId: string): Promise<void> {
+  const { error } = await supabase
+    .from("plant_library_runs")
+    .update({
+      status: "failed",
+      error_message: "manually stopped by admin",
+      finished_at: new Date().toISOString(),
+    })
+    .eq("id", runId)
+    .eq("status", "running"); // safety — never overwrite a terminal status
+  if (error) throw error;
 }
 
 /**
