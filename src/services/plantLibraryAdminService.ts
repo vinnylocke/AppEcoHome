@@ -25,6 +25,8 @@ export interface PlantLibraryRun {
   error_message: string | null;
   total_prompt_tokens: number;
   total_candidates_tokens: number;
+  total_cached_tokens: number;
+  total_thoughts_tokens: number;
   total_tokens: number;
   total_cost_usd: number | string;
 }

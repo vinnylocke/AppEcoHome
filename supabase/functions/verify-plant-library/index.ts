@@ -226,6 +226,8 @@ interface VerifyOutcome {
   result: "matched" | "amended" | "failed";
   promptTokens: number;
   candidatesTokens: number;
+  cachedTokens: number;
+  thoughtsTokens: number;
   totalTokens: number;
   costUsd: number;
 }
@@ -248,7 +250,14 @@ async function verifyOneRow(
 
   // Token usage accumulator — populated only when the AI call
   // actually happens (no-sources path returns zero).
-  const usage = { promptTokens: 0, candidatesTokens: 0, totalTokens: 0, costUsd: 0 };
+  const usage = {
+    promptTokens: 0,
+    candidatesTokens: 0,
+    cachedTokens: 0,
+    thoughtsTokens: 0,
+    totalTokens: 0,
+    costUsd: 0,
+  };
 
   // Single top-level try/catch — ANY failure (network blip, AI throw,
   // parse failure, postgres type mismatch) routes through
@@ -293,15 +302,19 @@ async function verifyOneRow(
     );
 
     // Track the AI cost regardless of verdict — the call happened,
-    // tokens were billed.
+    // tokens were billed. Full breakdown so the cost estimate
+    // accounts for cached input + Pro-model thinking tokens.
     usage.promptTokens = callUsage.promptTokenCount ?? 0;
     usage.candidatesTokens = callUsage.candidatesTokenCount ?? 0;
+    usage.cachedTokens = callUsage.cachedContentTokenCount ?? 0;
+    usage.thoughtsTokens = callUsage.thoughtsTokenCount ?? 0;
     usage.totalTokens = callUsage.totalTokenCount ?? 0;
-    usage.costUsd = estimateGeminiCostUsd(
-      callUsage.model,
-      usage.promptTokens,
-      usage.candidatesTokens,
-    );
+    usage.costUsd = estimateGeminiCostUsd(callUsage.model, {
+      promptTokenCount: usage.promptTokens,
+      candidatesTokenCount: usage.candidatesTokens,
+      cachedContentTokenCount: usage.cachedTokens,
+      thoughtsTokenCount: usage.thoughtsTokens,
+    });
 
     let parsed: { verdict: "matched" | "amended"; updates?: Record<string, unknown>; sources?: unknown[] };
     try {
@@ -405,6 +418,8 @@ async function updateRunProgress(
     failed?: number;
     promptTokens?: number;
     candidatesTokens?: number;
+    cachedTokens?: number;
+    thoughtsTokens?: number;
     totalTokens?: number;
     costUsd?: number;
   },
@@ -412,7 +427,7 @@ async function updateRunProgress(
   const { data: row } = await db
     .from("plant_library_runs")
     .select(
-      "count_matched, count_amended, count_failed, total_prompt_tokens, total_candidates_tokens, total_tokens, total_cost_usd",
+      "count_matched, count_amended, count_failed, total_prompt_tokens, total_candidates_tokens, total_cached_tokens, total_thoughts_tokens, total_tokens, total_cost_usd",
     )
     .eq("id", runId)
     .maybeSingle();
@@ -429,6 +444,9 @@ async function updateRunProgress(
       total_prompt_tokens: row.total_prompt_tokens + (deltas.promptTokens ?? 0),
       total_candidates_tokens:
         row.total_candidates_tokens + (deltas.candidatesTokens ?? 0),
+      total_cached_tokens: row.total_cached_tokens + (deltas.cachedTokens ?? 0),
+      total_thoughts_tokens:
+        row.total_thoughts_tokens + (deltas.thoughtsTokens ?? 0),
       total_tokens: row.total_tokens + (deltas.totalTokens ?? 0),
       total_cost_usd:
         Number(row.total_cost_usd ?? 0) + (deltas.costUsd ?? 0),
@@ -476,6 +494,8 @@ async function backgroundVerify(
             result: "failed" as const,
             promptTokens: 0,
             candidatesTokens: 0,
+            cachedTokens: 0,
+            thoughtsTokens: 0,
             totalTokens: 0,
             costUsd: 0,
           })),
@@ -489,6 +509,11 @@ async function backgroundVerify(
         (sum, o) => sum + o.candidatesTokens,
         0,
       );
+      const cachedTokens = outcomes.reduce((sum, o) => sum + o.cachedTokens, 0);
+      const thoughtsTokens = outcomes.reduce(
+        (sum, o) => sum + o.thoughtsTokens,
+        0,
+      );
       const totalTokens = outcomes.reduce((sum, o) => sum + o.totalTokens, 0);
       const costUsd = outcomes.reduce((sum, o) => sum + o.costUsd, 0);
       await updateRunProgress(db, runId, {
@@ -497,6 +522,8 @@ async function backgroundVerify(
         failed,
         promptTokens,
         candidatesTokens,
+        cachedTokens,
+        thoughtsTokens,
         totalTokens,
         costUsd,
       });

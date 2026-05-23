@@ -354,11 +354,14 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
                   tokens
                 </span>
                 <span className="text-rhozly-outline/40">·</span>
-                <span data-testid="plant-library-admin-total-cost">
+                <span
+                  data-testid="plant-library-admin-total-cost"
+                  title="Estimated from a per-model price table using Gemini's usageMetadata (incl. cached + thinking tokens). Not Google's invoice line item."
+                >
                   <span className="font-black text-emerald-700">
                     {formatUsd(usageTotals.total_cost_usd)}
                   </span>{" "}
-                  spent
+                  est. cost
                 </span>
               </div>
             )}
@@ -391,7 +394,12 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
                   <th className="text-right px-3 py-2">Amended</th>
                   <th className="text-right px-3 py-2">Failed</th>
                   <th className="text-right px-3 py-2">Tokens</th>
-                  <th className="text-right px-3 py-2">Cost</th>
+                  <th
+                    className="text-right px-3 py-2"
+                    title="Estimated from a per-model price table — not Google's invoice"
+                  >
+                    Est. cost
+                  </th>
                   <th className="text-left px-3 py-2">Duration</th>
                   <th className="text-left px-3 py-2">Status</th>
                   <th className="text-left px-3 py-2 w-12"></th>

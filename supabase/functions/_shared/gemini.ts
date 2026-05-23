@@ -24,8 +24,21 @@ export interface GeminiMessage {
 }
 
 export interface GeminiUsage {
+  /** Total input tokens reported by the API. Includes cached tokens. */
   promptTokenCount: number;
+  /** Output / response tokens. */
   candidatesTokenCount: number;
+  /**
+   * Prompt tokens served from Google's context cache. Billed at
+   * ~25% of the model's normal input rate. Default 0 when the API
+   * doesn't return the field (older models / non-cache call).
+   */
+  cachedContentTokenCount: number;
+  /**
+   * Pro-model "thinking" / reasoning tokens. Billed at the model's
+   * normal OUTPUT rate (not free). Default 0 when absent.
+   */
+  thoughtsTokenCount: number;
   totalTokenCount: number;
   model: string;
 }
@@ -175,6 +188,8 @@ async function callOnce(
     usage: {
       promptTokenCount: data.usageMetadata?.promptTokenCount ?? 0,
       candidatesTokenCount: data.usageMetadata?.candidatesTokenCount ?? 0,
+      cachedContentTokenCount: data.usageMetadata?.cachedContentTokenCount ?? 0,
+      thoughtsTokenCount: data.usageMetadata?.thoughtsTokenCount ?? 0,
       totalTokenCount: data.usageMetadata?.totalTokenCount ?? 0,
       model,
     },

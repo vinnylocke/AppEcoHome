@@ -310,6 +310,8 @@ async function runSeedBatch(
   /** Gemini token usage for this batch — accumulated on the run row. */
   promptTokens: number;
   candidatesTokens: number;
+  cachedTokens: number;
+  thoughtsTokens: number;
   totalTokens: number;
   costUsd: number;
 }> {
@@ -320,6 +322,8 @@ async function runSeedBatch(
     insertedEntries: [] as AvoidEntry[],
     promptTokens: 0,
     candidatesTokens: 0,
+    cachedTokens: 0,
+    thoughtsTokens: 0,
     totalTokens: 0,
     costUsd: 0,
   };
@@ -347,14 +351,20 @@ async function runSeedBatch(
   );
 
   // Record AI usage for this batch — sums onto the run's totals later.
+  // Captures the full breakdown Gemini returns in `usageMetadata` so
+  // the cost estimate accounts for cheap cached input + Pro-model
+  // thinking tokens (billed at output rate).
   stats.promptTokens = usage.promptTokenCount ?? 0;
   stats.candidatesTokens = usage.candidatesTokenCount ?? 0;
+  stats.cachedTokens = usage.cachedContentTokenCount ?? 0;
+  stats.thoughtsTokens = usage.thoughtsTokenCount ?? 0;
   stats.totalTokens = usage.totalTokenCount ?? 0;
-  stats.costUsd = estimateGeminiCostUsd(
-    usage.model,
-    stats.promptTokens,
-    stats.candidatesTokens,
-  );
+  stats.costUsd = estimateGeminiCostUsd(usage.model, {
+    promptTokenCount: stats.promptTokens,
+    candidatesTokenCount: stats.candidatesTokens,
+    cachedContentTokenCount: stats.cachedTokens,
+    thoughtsTokenCount: stats.thoughtsTokens,
+  });
 
   let parsed: { plants: SeedRow[] };
   try {
@@ -497,6 +507,8 @@ async function updateRunProgress(
     error?: string | null;
     promptTokens?: number;
     candidatesTokens?: number;
+    cachedTokens?: number;
+    thoughtsTokens?: number;
     totalTokens?: number;
     costUsd?: number;
   },
@@ -507,7 +519,7 @@ async function updateRunProgress(
   const { data: row } = await db
     .from("plant_library_runs")
     .select(
-      "count_inserted, count_skipped, count_failed, error_message, total_prompt_tokens, total_candidates_tokens, total_tokens, total_cost_usd",
+      "count_inserted, count_skipped, count_failed, error_message, total_prompt_tokens, total_candidates_tokens, total_cached_tokens, total_thoughts_tokens, total_tokens, total_cost_usd",
     )
     .eq("id", runId)
     .maybeSingle();
@@ -519,6 +531,9 @@ async function updateRunProgress(
     total_prompt_tokens: row.total_prompt_tokens + (deltas.promptTokens ?? 0),
     total_candidates_tokens:
       row.total_candidates_tokens + (deltas.candidatesTokens ?? 0),
+    total_cached_tokens: row.total_cached_tokens + (deltas.cachedTokens ?? 0),
+    total_thoughts_tokens:
+      row.total_thoughts_tokens + (deltas.thoughtsTokens ?? 0),
     total_tokens: row.total_tokens + (deltas.totalTokens ?? 0),
     total_cost_usd:
       Number(row.total_cost_usd ?? 0) + (deltas.costUsd ?? 0),
@@ -581,6 +596,8 @@ async function backgroundSeed(
           failed: stats.failed,
           promptTokens: stats.promptTokens,
           candidatesTokens: stats.candidatesTokens,
+          cachedTokens: stats.cachedTokens,
+          thoughtsTokens: stats.thoughtsTokens,
           totalTokens: stats.totalTokens,
           costUsd: stats.costUsd,
         });
