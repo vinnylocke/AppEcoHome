@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Admin / diagnostics",
+    "items": [
+      "Plant Library — when a Gemini call exhausts every model in the cascade, the failure message now shows the per-model outcome (e.g. \"flash-lite-3.1 (3x): 503 overloaded\", \"flash-lite-2.5 (3x): 503 overloaded\", \"flash-preview (3x): 503 overloaded\", \"pro-preview (3x): quota exceeded\") instead of just whichever model happened to fail last. Makes it obvious whether the cascade actually tried everything."
+    ]
+  }
+]

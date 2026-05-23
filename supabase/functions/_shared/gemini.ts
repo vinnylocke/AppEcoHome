@@ -72,9 +72,18 @@ export async function callGeminiCascade(
   const extra = opts.logContext ?? {};
 
   let lastError: Error | undefined;
+  // Per-model "last error we saw on this model" so the thrown
+  // message can show the FULL cascade outcome — not just whichever
+  // model happened to fail last. Helpful when an admin reads the
+  // failure reason and wants to know "did we actually try all of
+  // them?".
+  const perModelErrors: Array<{ model: string; attempts: number; error: string }> = [];
 
   for (const model of models) {
+    let attemptsForModel = 0;
+    let lastModelError: string | undefined;
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      attemptsForModel = attempt;
       log(fn, "model_attempt", { model, attempt, ...extra });
       try {
         const result = await Promise.race([
@@ -87,6 +96,7 @@ export async function callGeminiCascade(
         return result;
       } catch (err: any) {
         lastError = err;
+        lastModelError = err.message;
         warn(fn, "model_failed", { model, attempt, error: err.message, ...extra });
         const retryable =
           err.message.includes("503") ||
@@ -99,9 +109,19 @@ export async function callGeminiCascade(
         break;
       }
     }
+    perModelErrors.push({
+      model,
+      attempts: attemptsForModel,
+      error: lastModelError ?? "no error captured",
+    });
   }
 
-  throw new Error(`All Gemini models failed. Last error: ${lastError?.message}`);
+  const summary = perModelErrors
+    .map((e) => `  • ${e.model} (${e.attempts}x): ${e.error}`)
+    .join("\n");
+  throw new Error(
+    `All ${models.length} Gemini models exhausted (cascade tried each up to ${maxRetries} times):\n${summary}`,
+  );
 }
 
 async function callOnce(
