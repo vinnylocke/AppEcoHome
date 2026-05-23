@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { useNavigate } from "react-router-dom";
 import {
   Library, Play, RefreshCw, Loader2, CheckCircle2, AlertCircle, Database,
-  Sparkles, ArrowLeft, X,
+  Sparkles, ArrowLeft, X, Search,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -18,6 +18,9 @@ import {
   type StuckPlantRow,
 } from "../../services/plantLibraryAdminService";
 import { Logger } from "../../lib/errorHandler";
+import PlantLibrarySearchTab from "./PlantLibrarySearchTab";
+
+type AdminTab = "overview" | "search";
 
 interface Props {
   isAdmin: boolean;
@@ -39,6 +42,7 @@ const MAX_RUNS = 20;
 export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
   const navigate = useNavigate();
 
+  const [activeTab, setActiveTab] = useState<AdminTab>("overview");
   const [stats, setStats] = useState<PlantLibraryStats | null>(null);
   const [runs, setRuns] = useState<PlantLibraryRun[]>([]);
   const [stuck, setStuck] = useState<StuckPlantRow[]>([]);
@@ -165,15 +169,47 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
             </h1>
           </div>
         </div>
-        <button
-          type="button"
-          onClick={refresh}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-rhozly-on-surface/55 hover:text-rhozly-primary border border-rhozly-outline/15 hover:border-rhozly-primary/30 text-[11px] font-black uppercase tracking-widest"
-        >
-          <RefreshCw size={13} />
-          Refresh
-        </button>
+        {activeTab === "overview" && (
+          <button
+            type="button"
+            onClick={refresh}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-rhozly-on-surface/55 hover:text-rhozly-primary border border-rhozly-outline/15 hover:border-rhozly-primary/30 text-[11px] font-black uppercase tracking-widest"
+          >
+            <RefreshCw size={13} />
+            Refresh
+          </button>
+        )}
       </div>
+
+      {/* Tab bar */}
+      <nav
+        data-testid="plant-library-admin-tabs"
+        role="tablist"
+        aria-label="Plant Library admin sections"
+        className="flex items-center gap-1 border-b border-rhozly-outline/15"
+      >
+        <TabButton
+          active={activeTab === "overview"}
+          onClick={() => setActiveTab("overview")}
+          icon={<Library size={13} />}
+          label="Overview"
+          testId="plant-library-admin-tab-overview"
+        />
+        <TabButton
+          active={activeTab === "search"}
+          onClick={() => setActiveTab("search")}
+          icon={<Search size={13} />}
+          label="Search"
+          testId="plant-library-admin-tab-search"
+        />
+      </nav>
+
+      {/* Search tab — totally separate flow from the Overview content. */}
+      {activeTab === "search" && <PlantLibrarySearchTab />}
+
+      {/* Overview tab — stats + runs + stuck rows. */}
+      {activeTab === "overview" && (
+        <>
 
       {/* Stats strip */}
       <section
@@ -337,7 +373,41 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
           </div>
         )}
       </section>
+        </>
+      )}
     </div>
+  );
+}
+
+function TabButton({
+  active,
+  onClick,
+  icon,
+  label,
+  testId,
+}: {
+  active: boolean;
+  onClick: () => void;
+  icon: React.ReactNode;
+  label: string;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      role="tab"
+      aria-selected={active}
+      data-testid={testId}
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 px-3 py-2 min-h-[40px] text-[11px] font-black uppercase tracking-widest transition-colors -mb-px border-b-2 ${
+        active
+          ? "text-rhozly-primary border-rhozly-primary"
+          : "text-rhozly-on-surface/55 border-transparent hover:text-rhozly-on-surface"
+      }`}
+    >
+      {icon}
+      {label}
+    </button>
   );
 }
 

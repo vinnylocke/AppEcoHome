@@ -151,6 +151,129 @@ export async function fetchRecentPlantLibraryRuns(
 }
 
 /**
+ * Full row shape returned by the search query. Maps directly onto
+ * `ManualPlantCreation`'s `initialData` prop — no transform needed.
+ */
+export interface PlantLibraryRow {
+  id: number;
+  common_name: string;
+  scientific_name: string[];
+  other_names: string[] | null;
+  family: string | null;
+  plant_type: string | null;
+  cycle: string | null;
+  image_url: string | null;
+  thumbnail_url: string | null;
+  watering: string | null;
+  watering_min_days: number | null;
+  watering_max_days: number | null;
+  sunlight: string[] | null;
+  care_level: string | null;
+  hardiness_min: string | null;
+  hardiness_max: string | null;
+  growth_rate: string | null;
+  growth_habit: string | null;
+  maintenance: string | null;
+  is_edible: boolean | null;
+  is_toxic_pets: boolean | null;
+  is_toxic_humans: boolean | null;
+  edible_leaf: boolean | null;
+  cuisine: boolean | null;
+  medicinal: boolean | null;
+  thorny: boolean | null;
+  attracts: string[] | null;
+  origin: string[] | null;
+  description: string | null;
+  drought_tolerant: boolean | null;
+  salt_tolerant: boolean | null;
+  flowers: boolean | null;
+  flowering_season: string[] | null;
+  fruits: boolean | null;
+  harvest_season: string[] | null;
+  indoor: boolean | null;
+  invasive: boolean | null;
+  leaf: boolean | null;
+  seeds: boolean | null;
+  tropical: boolean | null;
+  pest_susceptibility: string[] | null;
+  propagation: string[] | null;
+  pruning_count: Record<string, unknown> | null;
+  pruning_month: string[] | null;
+  soil: string[] | null;
+  soil_ph_min: number | null;
+  soil_ph_max: number | null;
+  days_to_harvest_min: number | null;
+  days_to_harvest_max: number | null;
+  dimensions: Record<string, unknown> | null;
+  planting_instructions: unknown | null;
+  valid: boolean | null;
+  sources: Array<{ url: string; title?: string; source: string; licence?: string; accessed_at?: string }> | null;
+  seeded_at: string;
+  verified_at: string | null;
+  verification_attempts: number;
+  verification_error: string | null;
+}
+
+export interface PlantLibrarySearchResult {
+  rows: PlantLibraryRow[];
+  /** Total matching rows across all pages (from PostgREST `count: 'exact'`). */
+  total: number;
+  page: number;
+  pageSize: number;
+}
+
+export const PLANT_LIBRARY_SEARCH_PAGE_SIZE = 10;
+
+/**
+ * Search the plant_library by free-text. Matches `common_name` and
+ * `scientific_name` via the generated `search_text` column (lowercased
+ * concatenation). Paginated server-side at 10 rows per page.
+ *
+ * Empty query returns the most-recently-seeded rows so the search tab
+ * shows something useful on first load.
+ */
+export async function searchPlantLibrary(
+  query: string,
+  page: number,
+  pageSize = PLANT_LIBRARY_SEARCH_PAGE_SIZE,
+): Promise<PlantLibrarySearchResult> {
+  const safePage = Math.max(1, Math.floor(page));
+  const from = (safePage - 1) * pageSize;
+  const to = from + pageSize - 1;
+  const trimmed = query.trim().toLowerCase();
+
+  let builder = supabase
+    .from("plant_library")
+    .select("*", { count: "exact" })
+    .order("common_name", { ascending: true })
+    .range(from, to);
+
+  if (trimmed.length > 0) {
+    // Escape ILIKE wildcards in the user input so a stray `%` or `_`
+    // doesn't broaden the match unexpectedly.
+    const escaped = trimmed.replace(/[%_]/g, "\\$&");
+    builder = builder.ilike("search_text", `%${escaped}%`);
+  } else {
+    // Empty query → most-recently-seeded first (more interesting than
+    // alphabetical when the admin opens the tab cold).
+    builder = supabase
+      .from("plant_library")
+      .select("*", { count: "exact" })
+      .order("seeded_at", { ascending: false })
+      .range(from, to);
+  }
+
+  const { data, count, error } = await builder;
+  if (error) throw error;
+  return {
+    rows: (data ?? []) as PlantLibraryRow[],
+    total: count ?? 0,
+    page: safePage,
+    pageSize,
+  };
+}
+
+/**
  * Manually mark a `running` run as failed. The actual edge function
  * background work might still be in flight for a few more seconds,
  * but its next progress update will hit a row that's already in the
