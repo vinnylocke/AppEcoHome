@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Admin / Plant Library",
-    "items": [
-      "Plant Library admin — new \"Failed seed inserts\" panel mirrors the existing \"Stuck verifications\" panel. When the seeder hits a postgres insert error (type mismatch, NOT NULL violation, etc) the plant name, scientific name, error message, and timestamp are now stored on the run row and surfaced in the admin UI. \"Already exists\" duplicate skips are not shown — only real failures."
-    ]
-  }
-]
+[]
