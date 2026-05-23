@@ -1,9 +1,1 @@
-[
-  {
-    "label": "Admin / Plant Library",
-    "items": [
-      "Plant Library — Gemini cascade now includes the full 2.5 range alongside the 3.x models. Order: 3.1-flash-lite → 2.5-flash-lite → 2.5-flash → 3-flash-preview → 2.5-pro → 3.1-pro-preview. Six models × three retries = up to eighteen attempts per batch before the cascade gives up.",
-      "Plant Library — paused the daily verify cron to focus on populating the database first. The verify edge function is still deployed and admin-triggered runs from /admin/plant-library work the same; only the 04:00 UTC auto-schedule is off. Re-enable when ready."
-    ]
-  }
-]
+[]
