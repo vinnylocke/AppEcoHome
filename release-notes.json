@@ -1,9 +1,1 @@
-[
-  {
-    "label": "Admin / Plant Library",
-    "items": [
-      "Plant Library admin — new Search tab for dogfooding what library-backed plant search will look like. Single text input matches both common and scientific names, results paginate 10 per page with thumbnails, tap any row to open the full care guide modal populated directly from the row.",
-      "Plant Library admin — the care guide modal reuses the same component the rest of the app uses (so all the chips and fields render identically) plus an admin-only header strip showing verification status and cited sources."
-    ]
-  }
-]
+[]
