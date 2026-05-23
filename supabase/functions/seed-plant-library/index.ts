@@ -28,12 +28,12 @@ const CORS = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Reduced from 25 after we started seeing `Unterminated string in
-// JSON at position …` parse failures — Gemini was hitting the
-// maxOutputTokens limit partway through a batch and returning a
-// truncated response we couldn't parse. 20 plants × ~600 output
-// tokens worst-case ~12k tokens, comfortably under our 32k budget.
-const BATCH_SIZE = 20;
+// Cut to 10 (was 20) so each batch's Gemini response stays small —
+// faster end-to-end, AND if the cascade has to retry / fall back
+// through multiple models on a slow batch, the wasted time is half
+// what it was. Lets us fit 10 batches (100 plants) inside the
+// Supabase background-task wall-clock cap.
+const BATCH_SIZE = 10;
 /**
  * Initial number of already-known plants we fetch from the library
  * and feed to the AI as "do NOT propose these". 1500 keeps most of
@@ -42,7 +42,7 @@ const BATCH_SIZE = 20;
  * call per batch. Random sampling (not recency-first) so AI sees the
  * common species seeded early.
  */
-const INITIAL_AVOID_FETCH = 1500;
+const INITIAL_AVOID_FETCH = 800;
 /**
  * Hard cap on the avoid list passed to any single batch. The list
  * grows as the run progresses (we append every newly-inserted name
@@ -51,7 +51,7 @@ const INITIAL_AVOID_FETCH = 1500;
  * we drop the OLDEST entries — the most recent additions are what
  * the AI is most likely to repeat.
  */
-const MAX_AVOID_LIST_SIZE = 1500;
+const MAX_AVOID_LIST_SIZE = 800;
 /** Cap on `failed_inserts` so a pathological run can't balloon the row size. */
 const MAX_FAILED_INSERTS_PER_RUN = 200;
 
@@ -339,11 +339,15 @@ async function runSeedBatch(
       maxOutputTokens: 32768,
       responseSchema: SEED_BATCH_SCHEMA,
       responseMimeType: "application/json",
-      // Bumped from the default 2 because Gemini Flash overload
-      // events have spiked recently — give every model an extra
-      // attempt before the cascade gives up. 4 models × 3 retries =
-      // 12 total attempts before we throw the batch.
-      maxRetriesPerModel: 3,
+      // FAIL-FAST cascade. 6 models × 1 attempt = 6 calls max per
+      // batch, not 18. A slow / loaded Gemini won't blow the entire
+      // background-task budget on one batch — bad batch fails, the
+      // rest of the run continues. If we start seeing batch failures
+      // spike under heavy load, we re-add retries selectively.
+      maxRetriesPerModel: 1,
+      // Tight timeout per call so a stuck model bails fast and we
+      // cascade to the next.
+      timeoutMs: 20_000,
       logContext: { run_id: runId, batch_count: batchCount },
     },
   );
