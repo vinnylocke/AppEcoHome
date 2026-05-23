@@ -23,6 +23,16 @@ export interface PlantLibraryRun {
   finished_at: string | null;
   status: "running" | "succeeded" | "failed" | "partial";
   error_message: string | null;
+  total_prompt_tokens: number;
+  total_candidates_tokens: number;
+  total_tokens: number;
+  total_cost_usd: number | string;
+}
+
+export interface PlantLibraryUsageTotals {
+  total_runs: number;
+  total_tokens: number;
+  total_cost_usd: number;
 }
 
 /**
@@ -106,6 +116,33 @@ export async function fetchStuckVerifications(
  * false-positive risk.
  */
 const STALE_RUN_CUTOFF_MS = 3 * 60 * 1000;
+
+/**
+ * Cumulative AI usage across every plant_library_runs row. PostgREST
+ * doesn't expose a SUM aggregate over `.select()`, so we fetch all
+ * runs' totals and reduce client-side. Cheap because the columns are
+ * small ints; even with thousands of runs this is a few KB.
+ */
+export async function fetchPlantLibraryUsageTotals(): Promise<PlantLibraryUsageTotals> {
+  const { data, error } = await supabase
+    .from("plant_library_runs")
+    .select("total_tokens, total_cost_usd");
+  if (error) throw error;
+  const rows = (data ?? []) as Array<{
+    total_tokens: number;
+    total_cost_usd: number | string;
+  }>;
+  const totalTokens = rows.reduce((sum, r) => sum + (r.total_tokens ?? 0), 0);
+  const totalCost = rows.reduce(
+    (sum, r) => sum + Number(r.total_cost_usd ?? 0),
+    0,
+  );
+  return {
+    total_runs: rows.length,
+    total_tokens: totalTokens,
+    total_cost_usd: totalCost,
+  };
+}
 
 /**
  * Mark stale-running rows as failed. A run is considered stale when

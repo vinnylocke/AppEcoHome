@@ -8,8 +8,10 @@ import {
   CheckCircle2,
   AlertTriangle,
   HelpCircle,
+  Info,
 } from "lucide-react";
 import { Logger } from "../../lib/errorHandler";
+import { supabase } from "../../lib/supabase";
 import {
   PLANT_LIBRARY_SEARCH_PAGE_SIZE,
   searchPlantLibrary,
@@ -17,6 +19,7 @@ import {
   type PlantLibrarySearchResult,
 } from "../../services/plantLibraryAdminService";
 import PlantLibraryCareGuideModal from "./PlantLibraryCareGuideModal";
+import PlantLibraryQuickPreviewModal from "./PlantLibraryQuickPreviewModal";
 
 const DEBOUNCE_MS = 250;
 
@@ -37,7 +40,21 @@ export default function PlantLibrarySearchTab() {
   const [page, setPage] = useState(1);
   const [result, setResult] = useState<PlantLibrarySearchResult | null>(null);
   const [loading, setLoading] = useState(true);
+  /** Care-guide modal target — full preview (ManualPlantCreation). */
   const [selected, setSelected] = useState<PlantLibraryRow | null>(null);
+  /** Quick-preview modal target — chip strip + description + image. */
+  const [quickPreview, setQuickPreview] = useState<PlantLibraryRow | null>(null);
+
+  /**
+   * Lazy thumbnails for rows seeded before the image-fetch fix
+   * shipped. Map<rowId, url> — populated on render by calling
+   * `plant-image-search`, which is itself cached server-side via
+   * `plant_image_cache`. Empty string in the map = "looked up, none
+   * found" → render the placeholder icon.
+   */
+  const [lazyThumbs, setLazyThumbs] = useState<Map<number, string>>(new Map());
+  const lazyThumbsRef = useRef<Map<number, string>>(new Map());
+  const lazyInflightRef = useRef<Set<number>>(new Set());
 
   // Debounce input → appliedQuery so the typist isn't firing a search
   // on every keystroke. 250ms is short enough to feel responsive and
@@ -70,6 +87,45 @@ export default function PlantLibrarySearchTab() {
   useEffect(() => {
     runSearch();
   }, [runSearch]);
+
+  /**
+   * Backfill thumbnails for visible rows that don't have one stored.
+   * Goes through `plant-image-search` which is itself cached
+   * server-side (plant_image_cache) so the second device pays only a
+   * DB hit. We don't write back to plant_library — that'd need an
+   * admin update policy + extra latency. The map persists for the
+   * lifetime of the tab, so paging back/forth doesn't re-fetch.
+   */
+  useEffect(() => {
+    if (!result?.rows.length) return;
+    const targets = result.rows.filter((row) => {
+      if (row.thumbnail_url || row.image_url) return false;
+      if (lazyThumbsRef.current.has(row.id)) return false;
+      if (lazyInflightRef.current.has(row.id)) return false;
+      lazyInflightRef.current.add(row.id);
+      return true;
+    });
+    if (targets.length === 0) return;
+
+    Promise.all(
+      targets.map(async (row) => {
+        const query = row.scientific_name?.[0] ?? row.common_name;
+        try {
+          const { data } = await supabase.functions.invoke("plant-image-search", {
+            body: { query, count: 1 },
+          });
+          const thumb = (data?.images?.[0]?.thumb_url as string | undefined) ?? "";
+          lazyThumbsRef.current.set(row.id, thumb);
+          setLazyThumbs(new Map(lazyThumbsRef.current));
+        } catch {
+          lazyThumbsRef.current.set(row.id, "");
+          setLazyThumbs(new Map(lazyThumbsRef.current));
+        } finally {
+          lazyInflightRef.current.delete(row.id);
+        }
+      }),
+    );
+  }, [result]);
 
   const totalPages = useMemo(() => {
     if (!result) return 1;
@@ -126,7 +182,9 @@ export default function PlantLibrarySearchTab() {
           <SearchResultRow
             key={row.id}
             row={row}
+            lazyThumb={lazyThumbs.get(row.id) ?? null}
             onOpen={() => setSelected(row)}
+            onInfo={() => setQuickPreview(row)}
           />
         ))}
       </ul>
@@ -160,10 +218,28 @@ export default function PlantLibrarySearchTab() {
         </div>
       )}
 
-      {/* Care guide modal */}
+      {/* Quick-preview modal — opened from the info icon. Smaller chip
+          strip + description + image. Has a "View full care guide"
+          button that hands off to the care guide modal. */}
+      {quickPreview && (
+        <PlantLibraryQuickPreviewModal
+          row={quickPreview}
+          fallbackThumbnail={lazyThumbs.get(quickPreview.id) ?? null}
+          onClose={() => setQuickPreview(null)}
+          onOpenCareGuide={() => {
+            const target = quickPreview;
+            setQuickPreview(null);
+            setSelected(target);
+          }}
+        />
+      )}
+
+      {/* Care guide modal — opened from a row tap or from the quick
+          preview's "View full care guide" button. */}
       {selected && (
         <PlantLibraryCareGuideModal
           row={selected}
+          fallbackThumbnail={lazyThumbs.get(selected.id) ?? null}
           onClose={() => setSelected(null)}
         />
       )}
@@ -173,21 +249,31 @@ export default function PlantLibrarySearchTab() {
 
 function SearchResultRow({
   row,
+  lazyThumb,
   onOpen,
+  onInfo,
 }: {
   row: PlantLibraryRow;
+  lazyThumb: string | null;
   onOpen: () => void;
+  onInfo: () => void;
 }) {
-  const thumb = row.thumbnail_url || row.image_url || null;
+  // Stored thumbnail wins; lazy-fetched URL fills in for older rows
+  // that were seeded before the image fix. Empty-string in the map
+  // means "looked up, none found" → fall through to placeholder.
+  const thumb = row.thumbnail_url || row.image_url || (lazyThumb || null);
   const sciName = row.scientific_name?.[0] ?? null;
 
   return (
-    <li>
+    <li
+      data-testid={`plant-library-search-row-${row.id}`}
+      className="rounded-2xl border border-rhozly-outline/15 bg-white hover:border-rhozly-primary/30 hover:shadow-sm transition-all flex items-center gap-3 p-3"
+    >
       <button
         type="button"
-        data-testid={`plant-library-search-row-${row.id}`}
         onClick={onOpen}
-        className="w-full text-left rounded-2xl border border-rhozly-outline/15 bg-white hover:border-rhozly-primary/30 hover:shadow-sm transition-all flex items-center gap-3 p-3"
+        className="flex-1 min-w-0 text-left flex items-center gap-3"
+        aria-label={`Open full care guide for ${row.common_name}`}
       >
         <div className="shrink-0 w-14 h-14 rounded-xl bg-rhozly-surface-low overflow-hidden border border-rhozly-outline/10 flex items-center justify-center">
           {thumb ? (
@@ -219,6 +305,16 @@ function SearchResultRow({
             )}
           </div>
         </div>
+      </button>
+      <button
+        type="button"
+        data-testid={`plant-library-search-row-${row.id}-info`}
+        onClick={onInfo}
+        aria-label={`Show quick preview for ${row.common_name}`}
+        title="Quick preview"
+        className="shrink-0 inline-flex items-center justify-center w-9 h-9 rounded-xl text-rhozly-on-surface/55 hover:text-rhozly-primary hover:bg-rhozly-primary/10 transition-colors"
+      >
+        <Info size={16} />
       </button>
     </li>
   );

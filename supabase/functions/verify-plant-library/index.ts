@@ -16,6 +16,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
+import { estimateGeminiCostUsd } from "../_shared/geminiCost.ts";
 import {
   fetchWikipediaSummary,
   fetchGbifMatch,
@@ -221,12 +222,20 @@ async function recordFailure(
   return "failed";
 }
 
+interface VerifyOutcome {
+  result: "matched" | "amended" | "failed";
+  promptTokens: number;
+  candidatesTokens: number;
+  totalTokens: number;
+  costUsd: number;
+}
+
 async function verifyOneRow(
   db: any,
   apiKey: string,
   runId: string,
   row: Record<string, unknown>,
-): Promise<"matched" | "amended" | "failed"> {
+): Promise<VerifyOutcome> {
   const id = row.id as number;
   const sci =
     Array.isArray(row.scientific_name) && (row.scientific_name as string[])[0]
@@ -236,6 +245,10 @@ async function verifyOneRow(
     typeof row.verification_attempts === "number"
       ? (row.verification_attempts as number)
       : 0;
+
+  // Token usage accumulator — populated only when the AI call
+  // actually happens (no-sources path returns zero).
+  const usage = { promptTokens: 0, candidatesTokens: 0, totalTokens: 0, costUsd: 0 };
 
   // Single top-level try/catch — ANY failure (network blip, AI throw,
   // parse failure, postgres type mismatch) routes through
@@ -257,12 +270,12 @@ async function verifyOneRow(
         verified_by_run_id: runId,
         verification_error: null,
       });
-      return "matched";
+      return { result: "matched", ...usage };
     }
 
     const prompt = buildVerifyPrompt(row, wiki, gbif);
 
-    const { text } = await callGeminiCascade(
+    const { text, usage: callUsage } = await callGeminiCascade(
       apiKey,
       FN,
       toMessages([prompt]),
@@ -277,6 +290,17 @@ async function verifyOneRow(
         maxRetriesPerModel: 3,
         logContext: { run_id: runId, plant_id: id, sci },
       },
+    );
+
+    // Track the AI cost regardless of verdict — the call happened,
+    // tokens were billed.
+    usage.promptTokens = callUsage.promptTokenCount ?? 0;
+    usage.candidatesTokens = callUsage.candidatesTokenCount ?? 0;
+    usage.totalTokens = callUsage.totalTokenCount ?? 0;
+    usage.costUsd = estimateGeminiCostUsd(
+      callUsage.model,
+      usage.promptTokens,
+      usage.candidatesTokens,
     );
 
     let parsed: { verdict: "matched" | "amended"; updates?: Record<string, unknown>; sources?: unknown[] };
@@ -296,7 +320,7 @@ async function verifyOneRow(
         verified_by_run_id: runId,
         verification_error: null,
       });
-      return "matched";
+      return { result: "matched", ...usage };
     }
 
   // verdict === "amended"
@@ -351,7 +375,7 @@ async function verifyOneRow(
       verified_by_run_id: runId,
       verification_error: null,
     });
-    return "amended";
+    return { result: "amended", ...usage };
   } catch (err) {
     const reason = err instanceof Error ? err.message : String(err);
     logError(FN, "row_verification_failed", { run_id: runId, id, sci, reason });
@@ -365,29 +389,49 @@ async function verifyOneRow(
     // A default-pass counts as a successful resolution for the run
     // counter (the row is now valid=true). A "failed" leaves the row
     // unresolved and the run counts the failure as before.
-    return outcome === "default_passed" ? "matched" : "failed";
+    return {
+      result: outcome === "default_passed" ? "matched" : "failed",
+      ...usage,
+    };
   }
 }
 
 async function updateRunProgress(
   db: any,
   runId: string,
-  deltas: { matched?: number; amended?: number; failed?: number },
+  deltas: {
+    matched?: number;
+    amended?: number;
+    failed?: number;
+    promptTokens?: number;
+    candidatesTokens?: number;
+    totalTokens?: number;
+    costUsd?: number;
+  },
 ) {
   const { data: row } = await db
     .from("plant_library_runs")
-    .select("count_matched, count_amended, count_failed")
+    .select(
+      "count_matched, count_amended, count_failed, total_prompt_tokens, total_candidates_tokens, total_tokens, total_cost_usd",
+    )
     .eq("id", runId)
     .maybeSingle();
   if (!row) return;
   // Heartbeat lands on every batch — admin sweep uses it to spot
-  // dead-but-still-running rows.
+  // dead-but-still-running rows. Token / cost totals accumulate so
+  // the admin can see what each verify run actually cost.
   await db
     .from("plant_library_runs")
     .update({
       count_matched: row.count_matched + (deltas.matched ?? 0),
       count_amended: row.count_amended + (deltas.amended ?? 0),
       count_failed: row.count_failed + (deltas.failed ?? 0),
+      total_prompt_tokens: row.total_prompt_tokens + (deltas.promptTokens ?? 0),
+      total_candidates_tokens:
+        row.total_candidates_tokens + (deltas.candidatesTokens ?? 0),
+      total_tokens: row.total_tokens + (deltas.totalTokens ?? 0),
+      total_cost_usd:
+        Number(row.total_cost_usd ?? 0) + (deltas.costUsd ?? 0),
       last_heartbeat_at: new Date().toISOString(),
     })
     .eq("id", runId);
@@ -426,15 +470,36 @@ async function backgroundVerify(
 
     for (let i = 0; i < targets.length; i += BATCH_SIZE) {
       const batch = targets.slice(i, i + BATCH_SIZE);
-      const results = await Promise.all(
+      const outcomes = await Promise.all(
         batch.map((row: any) =>
-          verifyOneRow(db, apiKey, runId, row).catch(() => "failed" as const),
+          verifyOneRow(db, apiKey, runId, row).catch(() => ({
+            result: "failed" as const,
+            promptTokens: 0,
+            candidatesTokens: 0,
+            totalTokens: 0,
+            costUsd: 0,
+          })),
         ),
       );
-      const matched = results.filter((r: string) => r === "matched").length;
-      const amended = results.filter((r: string) => r === "amended").length;
-      const failed = results.filter((r: string) => r === "failed").length;
-      await updateRunProgress(db, runId, { matched, amended, failed });
+      const matched = outcomes.filter((o) => o.result === "matched").length;
+      const amended = outcomes.filter((o) => o.result === "amended").length;
+      const failed = outcomes.filter((o) => o.result === "failed").length;
+      const promptTokens = outcomes.reduce((sum, o) => sum + o.promptTokens, 0);
+      const candidatesTokens = outcomes.reduce(
+        (sum, o) => sum + o.candidatesTokens,
+        0,
+      );
+      const totalTokens = outcomes.reduce((sum, o) => sum + o.totalTokens, 0);
+      const costUsd = outcomes.reduce((sum, o) => sum + o.costUsd, 0);
+      await updateRunProgress(db, runId, {
+        matched,
+        amended,
+        failed,
+        promptTokens,
+        candidatesTokens,
+        totalTokens,
+        costUsd,
+      });
     }
 
     // Reflect partial failures in the final status — same rule as

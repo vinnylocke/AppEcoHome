@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "label": "Admin / Plant Library",
+    "items": [
+      "Plant Library search — thumbnails now appear next to every result, even on older rows that were seeded before the image fix. Missing thumbs lazy-load via Wikipedia and the server-side image cache.",
+      "Plant Library search — each row has an info button next to it that opens a quick preview: bigger image, description, and a chip strip (cycle / watering / sunlight / care level / hardiness / edible / toxic / drought-tolerant / indoor / invasive / flowering / fruiting / attracts / days-to-harvest).",
+      "Plant Library care guide — modal hero now falls back to the lazy-fetched thumbnail when the row has no stored image.",
+      "Plant Library seed prompt — rewritten to demand every applicable field is populated (watering, sunlight, hardiness, growth rate, soil, propagation, edibility, toxicity, etc). Cultivar rows must repeat the parent species' values explicitly instead of leaving blanks. Only genuinely irrelevant fields stay empty.",
+      "Plant Library runs — now tracks tokens and estimated USD cost per run. The runs table shows per-run figures and a cumulative totals strip above the table shows total runs, total tokens, and total spend across all runs."
+    ]
+  }
+]

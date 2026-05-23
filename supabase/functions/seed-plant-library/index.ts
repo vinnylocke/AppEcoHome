@@ -18,6 +18,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
+import { estimateGeminiCostUsd } from "../_shared/geminiCost.ts";
 import { fetchWikipediaThumbnail } from "../_shared/plantLibrarySources.ts";
 
 const FN = "seed-plant-library";
@@ -134,7 +135,27 @@ When the common name represents a distinct horticultural TYPE that shares a base
 - "Hot Pepper" → "Capsicum annuum var. annuum"
 Without this qualifier, distinct horticultural types collide on the same scientific name and the second one is silently dropped. The qualifier doesn't have to be a formally-published botanical name — \`var. <descriptor>\` is acceptable to disambiguate so long as it reflects the type.
 
-For each plant, fill the structured fields with the best information you have. Use realistic ranges (e.g. tomatoes 60-80 days to harvest, not "90-90"). Leave fields as null / empty arrays only when you genuinely have no information rather than guessing.
+POPULATE EVERY APPLICABLE FIELD. The database does NOT inherit values between rows — every row must stand alone. Empty arrays / null values are only acceptable when the field is genuinely irrelevant to the plant:
+
+- Skip \`harvest_season\` / \`days_to_harvest_*\` / \`fruits\` / \`cuisine\` ONLY for ornamentals with no edible parts.
+- Skip \`flowering_season\` / \`flowers\` / \`attracts\` ONLY for non-flowering plants (ferns, most succulents, conifers).
+- Skip \`pruning_month\` / \`pruning_count\` ONLY for plants that genuinely don't need pruning (most annual vegetables).
+
+All other fields MUST be populated. EVERY row needs:
+- cycle, plant_type, family, care_level
+- watering (frequent/average/minimum), watering_min_days, watering_max_days
+- sunlight (at least one of: full sun, part sun, part shade, full shade)
+- hardiness_min, hardiness_max (USDA zone numbers as strings)
+- growth_rate, growth_habit, maintenance
+- soil (at least one), soil_ph_min, soil_ph_max
+- propagation (every plant has propagation methods — seed at minimum)
+- description (2-3 sentences in your own words)
+- is_edible, is_toxic_pets, is_toxic_humans (decisive booleans)
+- drought_tolerant, salt_tolerant, indoor, invasive (decisive booleans)
+
+For varieties/cultivars: REPEAT the parent species' values explicitly. A "Tomato 'Sungold'" row needs its own watering / sunlight / propagation values even if they match the base Tomato row. Don't say "inherits from parent" — copy the values.
+
+Use realistic ranges (e.g. tomatoes 60-80 days to harvest, not "90-90"). Don't invent specifics you aren't confident about, but don't skip whole fields either — pick the most likely value.
 
 Write the \`description\` in your own words — a 2-3 sentence horticultural summary. Do not copy from Wikipedia or any other source.
 
@@ -225,8 +246,22 @@ async function runSeedBatch(
   /** Newly-inserted entries — appended to the running avoid list so
    *  the next batch in the same run doesn't re-propose them. */
   insertedEntries: AvoidEntry[];
+  /** Gemini token usage for this batch — accumulated on the run row. */
+  promptTokens: number;
+  candidatesTokens: number;
+  totalTokens: number;
+  costUsd: number;
 }> {
-  const stats = { inserted: 0, skipped: 0, failed: 0, insertedEntries: [] as AvoidEntry[] };
+  const stats = {
+    inserted: 0,
+    skipped: 0,
+    failed: 0,
+    insertedEntries: [] as AvoidEntry[],
+    promptTokens: 0,
+    candidatesTokens: 0,
+    totalTokens: 0,
+    costUsd: 0,
+  };
 
   const { text, usage } = await callGeminiCascade(
     apiKey,
@@ -244,6 +279,16 @@ async function runSeedBatch(
       maxRetriesPerModel: 3,
       logContext: { run_id: runId, batch_count: batchCount },
     },
+  );
+
+  // Record AI usage for this batch — sums onto the run's totals later.
+  stats.promptTokens = usage.promptTokenCount ?? 0;
+  stats.candidatesTokens = usage.candidatesTokenCount ?? 0;
+  stats.totalTokens = usage.totalTokenCount ?? 0;
+  stats.costUsd = estimateGeminiCostUsd(
+    usage.model,
+    stats.promptTokens,
+    stats.candidatesTokens,
   );
 
   let parsed: { plants: SeedRow[] };
@@ -357,14 +402,25 @@ async function runSeedBatch(
 async function updateRunProgress(
   db: any,
   runId: string,
-  deltas: { inserted?: number; skipped?: number; failed?: number; error?: string | null },
+  deltas: {
+    inserted?: number;
+    skipped?: number;
+    failed?: number;
+    error?: string | null;
+    promptTokens?: number;
+    candidatesTokens?: number;
+    totalTokens?: number;
+    costUsd?: number;
+  },
 ) {
   // Read-modify-write the counter columns. Cheap because there's only
   // one writer per run. The heartbeat is touched on every progress
   // update so the admin sweep can tell live runs from dead ones.
   const { data: row } = await db
     .from("plant_library_runs")
-    .select("count_inserted, count_skipped, count_failed, error_message")
+    .select(
+      "count_inserted, count_skipped, count_failed, error_message, total_prompt_tokens, total_candidates_tokens, total_tokens, total_cost_usd",
+    )
     .eq("id", runId)
     .maybeSingle();
   if (!row) return;
@@ -372,6 +428,12 @@ async function updateRunProgress(
     count_inserted: row.count_inserted + (deltas.inserted ?? 0),
     count_skipped: row.count_skipped + (deltas.skipped ?? 0),
     count_failed: row.count_failed + (deltas.failed ?? 0),
+    total_prompt_tokens: row.total_prompt_tokens + (deltas.promptTokens ?? 0),
+    total_candidates_tokens:
+      row.total_candidates_tokens + (deltas.candidatesTokens ?? 0),
+    total_tokens: row.total_tokens + (deltas.totalTokens ?? 0),
+    total_cost_usd:
+      Number(row.total_cost_usd ?? 0) + (deltas.costUsd ?? 0),
     last_heartbeat_at: new Date().toISOString(),
   };
   // Preserve the first batch error we see so the admin can read it
@@ -429,6 +491,10 @@ async function backgroundSeed(
           inserted: stats.inserted,
           skipped: stats.skipped,
           failed: stats.failed,
+          promptTokens: stats.promptTokens,
+          candidatesTokens: stats.candidatesTokens,
+          totalTokens: stats.totalTokens,
+          costUsd: stats.costUsd,
         });
         // Append newly-inserted entries to the running avoid list so
         // the next batch in THIS run can see them too. Without this,

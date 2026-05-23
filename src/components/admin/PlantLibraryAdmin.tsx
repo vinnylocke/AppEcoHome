@@ -7,6 +7,7 @@ import {
 import toast from "react-hot-toast";
 import {
   fetchPlantLibraryStats,
+  fetchPlantLibraryUsageTotals,
   fetchRecentPlantLibraryRuns,
   fetchStuckVerifications,
   sweepStalePlantLibraryRuns,
@@ -15,6 +16,7 @@ import {
   triggerVerifyRun,
   type PlantLibraryRun,
   type PlantLibraryStats,
+  type PlantLibraryUsageTotals,
   type StuckPlantRow,
 } from "../../services/plantLibraryAdminService";
 import { Logger } from "../../lib/errorHandler";
@@ -46,6 +48,7 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
   const [stats, setStats] = useState<PlantLibraryStats | null>(null);
   const [runs, setRuns] = useState<PlantLibraryRun[]>([]);
   const [stuck, setStuck] = useState<StuckPlantRow[]>([]);
+  const [usageTotals, setUsageTotals] = useState<PlantLibraryUsageTotals | null>(null);
   const [loading, setLoading] = useState(true);
   const [seedCount, setSeedCount] = useState(100);
   const [verifyCount, setVerifyCount] = useState(500);
@@ -73,14 +76,16 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
         Logger.error("Stale run sweep failed", sweepErr);
       }
 
-      const [s, r, st] = await Promise.all([
+      const [s, r, st, ut] = await Promise.all([
         fetchPlantLibraryStats(),
         fetchRecentPlantLibraryRuns(MAX_RUNS),
         fetchStuckVerifications(25),
+        fetchPlantLibraryUsageTotals(),
       ]);
       setStats(s);
       setRuns(r);
       setStuck(st);
+      setUsageTotals(ut);
     } catch (err) {
       Logger.error("PlantLibraryAdmin refresh failed", err);
     } finally {
@@ -328,16 +333,42 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
         data-testid="plant-library-admin-runs"
         className="rounded-3xl bg-white border border-rhozly-outline/15 shadow-[0_2px_12px_-4px_rgba(7,87,55,0.08)] overflow-hidden"
       >
-        <div className="px-5 py-3 border-b border-rhozly-outline/10 flex items-center justify-between">
+        <div className="px-5 py-3 border-b border-rhozly-outline/10 flex items-center justify-between flex-wrap gap-2">
           <h2 className="font-display font-black text-rhozly-on-surface text-sm">
             Recent runs
           </h2>
-          {anyRunning && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-rhozly-primary">
-              <Loader2 size={11} className="animate-spin" />
-              Live
-            </span>
-          )}
+          <div className="flex items-center gap-3">
+            {usageTotals && (
+              <div className="flex items-center gap-3 text-[11px] text-rhozly-on-surface/65">
+                <span data-testid="plant-library-admin-total-runs">
+                  <span className="font-black text-rhozly-on-surface">
+                    {usageTotals.total_runs.toLocaleString()}
+                  </span>{" "}
+                  run{usageTotals.total_runs === 1 ? "" : "s"}
+                </span>
+                <span className="text-rhozly-outline/40">·</span>
+                <span data-testid="plant-library-admin-total-tokens">
+                  <span className="font-black text-rhozly-on-surface">
+                    {formatTokens(usageTotals.total_tokens)}
+                  </span>{" "}
+                  tokens
+                </span>
+                <span className="text-rhozly-outline/40">·</span>
+                <span data-testid="plant-library-admin-total-cost">
+                  <span className="font-black text-emerald-700">
+                    {formatUsd(usageTotals.total_cost_usd)}
+                  </span>{" "}
+                  spent
+                </span>
+              </div>
+            )}
+            {anyRunning && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-rhozly-primary">
+                <Loader2 size={11} className="animate-spin" />
+                Live
+              </span>
+            )}
+          </div>
         </div>
         {loading ? (
           <div className="px-5 py-8 flex items-center justify-center text-rhozly-on-surface/55">
@@ -359,6 +390,8 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
                   <th className="text-right px-3 py-2">Skipped</th>
                   <th className="text-right px-3 py-2">Amended</th>
                   <th className="text-right px-3 py-2">Failed</th>
+                  <th className="text-right px-3 py-2">Tokens</th>
+                  <th className="text-right px-3 py-2">Cost</th>
                   <th className="text-left px-3 py-2">Duration</th>
                   <th className="text-left px-3 py-2">Status</th>
                   <th className="text-left px-3 py-2 w-12"></th>
@@ -377,6 +410,19 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
       )}
     </div>
   );
+}
+
+function formatTokens(n: number): string {
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1)}K`;
+  return n.toLocaleString();
+}
+
+function formatUsd(n: number): string {
+  if (n < 0.01) return "<$0.01";
+  if (n < 1) return `$${n.toFixed(3)}`;
+  if (n < 100) return `$${n.toFixed(2)}`;
+  return `$${Math.round(n).toLocaleString()}`;
 }
 
 function TabButton({
@@ -561,6 +607,12 @@ function RunRow({ run, onStop }: { run: PlantLibraryRun; onStop: () => void }) {
       </td>
       <td className="px-3 py-2 text-right text-rose-700">
         {run.count_failed > 0 ? run.count_failed.toLocaleString() : "—"}
+      </td>
+      <td className="px-3 py-2 text-right text-rhozly-on-surface/70 whitespace-nowrap">
+        {run.total_tokens > 0 ? formatTokens(run.total_tokens) : "—"}
+      </td>
+      <td className="px-3 py-2 text-right font-bold text-emerald-700 whitespace-nowrap">
+        {Number(run.total_cost_usd) > 0 ? formatUsd(Number(run.total_cost_usd)) : "—"}
       </td>
       <td className="px-3 py-2 text-rhozly-on-surface/55 whitespace-nowrap">
         {durationStr}

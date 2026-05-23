@@ -7,6 +7,8 @@ import type { PlantLibraryRow } from "../../services/plantLibraryAdminService";
 
 interface Props {
   row: PlantLibraryRow;
+  /** Lazy-fetched fallback URL when row.image_url / thumbnail_url are null. */
+  fallbackThumbnail?: string | null;
   onClose: () => void;
 }
 
@@ -21,7 +23,7 @@ interface Props {
  * cited `sources` so admins can spot-check data quality alongside the
  * care info.
  */
-export default function PlantLibraryCareGuideModal({ row, onClose }: Props) {
+export default function PlantLibraryCareGuideModal({ row, fallbackThumbnail, onClose }: Props) {
   const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   useEffect(() => {
@@ -40,7 +42,9 @@ export default function PlantLibraryCareGuideModal({ row, onClose }: Props) {
   }, [onClose]);
 
   const sciName = row.scientific_name?.[0] ?? null;
-  const heroImage = row.image_url || row.thumbnail_url || null;
+  // Stored URLs win; fallback is the lazy-fetched URL from the
+  // search tab (only present when the row has no stored image).
+  const heroImage = row.image_url || row.thumbnail_url || fallbackThumbnail || null;
   const hasSources = Array.isArray(row.sources) && row.sources.length > 0;
 
   return createPortal(
