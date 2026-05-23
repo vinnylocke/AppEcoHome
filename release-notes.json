@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Admin / Plant Library",
-    "items": [
-      "Plant Library seeder — cut duplicate proposals by showing AI a much bigger random sample of what's already in the library (500 most-recent → 5000 random) so it sees the common species seeded early (tomato, lavender, basil) that it kept re-proposing because they were outside the previous recency window. Plus the prompt now spells out the common dedup mistakes (\"Tomato\" vs \"Solanum lycopersicum\", different word order, parent vs cultivar) for AI to actively check against."
-    ]
-  }
-]
+[]
