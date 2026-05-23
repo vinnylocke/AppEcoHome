@@ -157,6 +157,14 @@ For varieties/cultivars: REPEAT the parent species' values explicitly. A "Tomato
 
 Use realistic ranges (e.g. tomatoes 60-80 days to harvest, not "90-90"). Don't invent specifics you aren't confident about, but don't skip whole fields either — pick the most likely value.
 
+PREFERRED VALUES for constrained fields. Use ONE of these where applicable; if none fit, pick the closest sensible descriptor in the same form (e.g. "Bromeliad" for plant_type is OK if Herb / Succulent etc don't apply):
+- plant_type: Shrub, Tree, Flower, Vegetable, Houseplant, Herb, Succulent, Climber, Grass, Fern, Cactus, Bulb, Vine, Groundcover, Aquatic
+- cycle: Perennial, Annual, Biennial, Herbaceous Perennial
+- watering: frequent, average, minimum
+- care_level: low, medium, high
+- growth_rate: slow, moderate, fast
+- maintenance: low, moderate, high
+
 Write the \`description\` in your own words — a 2-3 sentence horticultural summary. Do not copy from Wikipedia or any other source.
 
 Be especially careful with safety fields: \`is_toxic_pets\` and \`is_toxic_humans\` should ONLY be true when you are confident the plant is toxic. False positives on toxicity damage the user's trust.

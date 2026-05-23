@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Admin / Plant Library",
+    "items": [
+      "Plant Library care guide — plant type and cycle dropdowns now render whatever the row actually stores, even when the AI returned a value outside our short canonical list (Herb, Succulent, Climber, etc). Previously these dropdowns silently showed blank when the stored value wasn't one of the five-or-so hard-coded options.",
+      "Plant Library seed prompt — now includes preferred values for plant_type, cycle, watering, care_level, growth_rate, and maintenance, so the AI tends toward our canonical vocabulary while staying free to pick a closer descriptor when none fit."
+    ]
+  }
+]

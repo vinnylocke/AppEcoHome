@@ -735,6 +735,15 @@ export default function ManualPlantCreation({
                   disabled={isReadOnly}
                   className={`w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 ${isReadOnly ? "opacity-80 appearance-none" : ""}`}
                 >
+                  {/* Render the stored value even if it doesn't match
+                      a canonical option (AI sometimes returns "biennial"
+                      vs our "Biannual", or makes up new descriptors).
+                      Without this the <select> shows blank even though
+                      the data is on the row. */}
+                  {formData.cycle &&
+                    !CYCLE_OPTIONS.some((opt) => opt.value === formData.cycle) && (
+                      <option value={formData.cycle}>{formData.cycle}</option>
+                    )}
                   {CYCLE_OPTIONS.map((opt) => (
                     <option key={opt.value} value={opt.value}>
                       {opt.label}
@@ -754,6 +763,15 @@ export default function ManualPlantCreation({
                   className={`w-full p-4 bg-rhozly-surface-low rounded-2xl font-bold border border-rhozly-outline/10 ${isReadOnly ? "opacity-80 appearance-none" : ""}`}
                 >
                   <option value="">Select...</option>
+                  {/* Same dynamic-option trick as Cycle above — show
+                      whatever's stored even if it's outside our short
+                      canonical list (Herb / Succulent / Climber etc). */}
+                  {formData.plant_type &&
+                    !["Shrub", "Tree", "Flower", "Vegetable", "Houseplant"].includes(
+                      formData.plant_type,
+                    ) && (
+                      <option value={formData.plant_type}>{formData.plant_type}</option>
+                    )}
                   <option value="Shrub">Shrub</option>
                   <option value="Tree">Tree</option>
                   <option value="Flower">Flower</option>
