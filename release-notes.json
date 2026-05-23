@@ -1,9 +1,1 @@
-[
-  {
-    "label": "Admin / Plant Library",
-    "items": [
-      "Plant Library — Gemini cost estimate is now meaningfully more accurate. We capture the full usageMetadata from every call (prompt, candidates, cached, thoughts) and apply the right rate to each: cached input billed at ~25% of normal, Pro-model thinking billed as output. Token counts always came straight from Google's response and remain accurate; the cost is still an estimate (label updated to \"est. cost\" with a tooltip explaining the source).",
-      "Plant Library runs — track total cached and total thinking tokens per run so admins can see where the cost came from (lots of cache hits? a thinky Pro response?)."
-    ]
-  }
-]
+[]
