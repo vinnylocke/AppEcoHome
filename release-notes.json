@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Admin / Plant Library",
-    "items": [
-      "Plant Library seeder — aggressive per-batch cuts so a 100-plant manual run actually finishes. Halved batch size (20 → 10), shrunk avoid list (1500 → 800), and switched the Gemini cascade to fail-fast (max 1 retry per model, 20s timeout) so a single overloaded Gemini call can't eat the whole background-task budget. Worst-case batch time drops from a couple of minutes to ~12 seconds."
-    ]
-  }
-]
+[]
