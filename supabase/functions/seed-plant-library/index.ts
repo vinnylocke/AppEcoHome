@@ -19,7 +19,6 @@ import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { estimateGeminiCostUsd } from "../_shared/geminiCost.ts";
-import { fetchWikipediaThumbnail } from "../_shared/plantLibrarySources.ts";
 
 const FN = "seed-plant-library";
 
@@ -37,13 +36,13 @@ const CORS = {
 const BATCH_SIZE = 20;
 /**
  * Initial number of already-known plants we fetch from the library
- * and feed to the AI as "do NOT propose these". At 5000 we cover the
- * majority of a typical library, and the sample is RANDOMISED rather
- * than recency-first so AI sees the breadth — including the obvious
- * common plants seeded early that it would otherwise re-suggest.
- * Cost: ~30k extra input tokens per batch (~$0.005 on Flash-lite).
+ * and feed to the AI as "do NOT propose these". 1500 keeps most of
+ * the dedup benefit while cutting prompt input tokens by ~70% vs
+ * the previous 5000 — the difference between a 25s and a 10s Gemini
+ * call per batch. Random sampling (not recency-first) so AI sees the
+ * common species seeded early.
  */
-const INITIAL_AVOID_FETCH = 5000;
+const INITIAL_AVOID_FETCH = 1500;
 /**
  * Hard cap on the avoid list passed to any single batch. The list
  * grows as the run progresses (we append every newly-inserted name
@@ -52,7 +51,7 @@ const INITIAL_AVOID_FETCH = 5000;
  * we drop the OLDEST entries — the most recent additions are what
  * the AI is most likely to repeat.
  */
-const MAX_AVOID_LIST_SIZE = 5000;
+const MAX_AVOID_LIST_SIZE = 1500;
 /** Cap on `failed_inserts` so a pathological run can't balloon the row size. */
 const MAX_FAILED_INSERTS_PER_RUN = 200;
 
@@ -240,37 +239,6 @@ interface SeedRow {
   days_to_harvest_max?: number | null;
 }
 
-async function fetchThumbnail(db: any, query: string): Promise<string | null> {
-  if (!query?.trim()) return null;
-
-  // Primary — plant-image-search. Uses the shared plant_image_cache so
-  // seed runs warm the cache for organic search traffic; returns a
-  // Wikipedia / Pixabay / Unsplash thumbnail depending on which
-  // providers have keys configured.
-  try {
-    const { data, error } = await db.functions.invoke("plant-image-search", {
-      body: { query, count: 1 },
-    });
-    if (!error) {
-      const thumb = (data?.images?.[0]?.thumb_url as string | undefined) ?? null;
-      if (thumb) return thumb;
-    }
-  } catch {
-    // Fall through to the Wikipedia-only path.
-  }
-
-  // Fallback — direct Wikipedia summary lookup. Free, no auth, no
-  // shared cache writes (the function call would have done that
-  // already if it could). Always tried so seed runs get a thumbnail
-  // even when plant-image-search fails entirely.
-  try {
-    const wiki = await fetchWikipediaThumbnail(query);
-    return wiki?.url ?? null;
-  } catch {
-    return null;
-  }
-}
-
 /**
  * Try to salvage complete plant objects from a truncated JSON
  * response. When Gemini hits its output-token cap mid-batch the JSON
@@ -431,13 +399,12 @@ async function runSeedBatch(
   const plants = Array.isArray(parsed.plants) ? parsed.plants : [];
   log(FN, "batch_received", { run_id: runId, ai_returned: plants.length, model: usage.model });
 
-  // Pull thumbnails in parallel — plant-image-search has its own DB
-  // cache so repeats of the same name are ~50ms each.
-  const thumbnails = await Promise.all(
-    plants.map((p) =>
-      fetchThumbnail(db, p.scientific_name?.[0] ?? p.common_name ?? ""),
-    ),
-  );
+  // Thumbnails are now backfilled lazily by the admin search tab
+  // (which writes through plant_image_cache). Doing 20 parallel
+  // plant-image-search calls inline used to add 3-10s per batch and
+  // pushed background-task runs past the wall-clock limit. Rows
+  // land with thumbnail_url = null; the search UI fills them in on
+  // render and the cache warms organically.
 
   for (let i = 0; i < plants.length; i++) {
     const p = plants[i];
@@ -482,8 +449,8 @@ async function runSeedBatch(
       soil_ph_max:         p.soil_ph_max ?? null,
       days_to_harvest_min: p.days_to_harvest_min ?? null,
       days_to_harvest_max: p.days_to_harvest_max ?? null,
-      thumbnail_url:       thumbnails[i],
-      image_url:           thumbnails[i],
+      thumbnail_url:       null,
+      image_url:           null,
       seeded_by_run_id:    runId,
       valid:               null as boolean | null,
     };

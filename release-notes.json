@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Admin / Plant Library",
+    "items": [
+      "Plant Library seeder — manual 100-plant runs now finish reliably instead of timing out around plant 30. Two changes: dropped the avoid list cap from 5000 random samples back to 1500 (most of the dedup benefit, ~70% less prompt input, ~15 seconds saved per batch on Gemini), and stopped fetching thumbnails inline during seeding (the lazy fetch in the admin search tab already handles this and writes through the shared image cache, so no rows go without)."
+    ]
+  }
+]
