@@ -37,11 +37,13 @@ const CORS = {
 const BATCH_SIZE = 20;
 /**
  * Initial number of already-known plants we fetch from the library
- * and feed to the AI as "do NOT propose these". 500 keeps the prompt
- * comfortably small (~25KB) while still covering the obvious common
- * plants the AI would otherwise re-suggest.
+ * and feed to the AI as "do NOT propose these". At 5000 we cover the
+ * majority of a typical library, and the sample is RANDOMISED rather
+ * than recency-first so AI sees the breadth — including the obvious
+ * common plants seeded early that it would otherwise re-suggest.
+ * Cost: ~30k extra input tokens per batch (~$0.005 on Flash-lite).
  */
-const INITIAL_AVOID_FETCH = 500;
+const INITIAL_AVOID_FETCH = 5000;
 /**
  * Hard cap on the avoid list passed to any single batch. The list
  * grows as the run progresses (we append every newly-inserted name
@@ -50,7 +52,7 @@ const INITIAL_AVOID_FETCH = 500;
  * we drop the OLDEST entries — the most recent additions are what
  * the AI is most likely to repeat.
  */
-const MAX_AVOID_LIST_SIZE = 1000;
+const MAX_AVOID_LIST_SIZE = 5000;
 /** Cap on `failed_inserts` so a pathological run can't balloon the row size. */
 const MAX_FAILED_INSERTS_PER_RUN = 200;
 
@@ -124,7 +126,21 @@ function buildSeedPrompt(batchCount: number, avoid: AvoidEntry[]): string {
   // name and still collide with the unique index. Capped at
   // MAX_AVOID_LIST_SIZE entries by the caller.
   const avoidLines = avoid.length
-    ? `\nThe knowledge base already contains the plants listed below. DO NOT propose any of these, even under a different spelling or common name:\n${avoid.map((e) => `- ${e.key} — ${e.common_name}`).join("\n")}\n`
+    ? `\n=== DUPLICATE-CHECK LIST (CRITICAL) ===
+
+The knowledge base already contains the ${avoid.length} plants listed below — a random sample of what's already in the database. CHECK EVERY PROPOSAL against this list before submitting. DO NOT propose any plant whose scientific name or common name appears here, even under a different spelling, cultivar variation, or naming convention.
+
+Common dedup mistakes to avoid:
+- Suggesting "Tomato" when "Solanum lycopersicum" is on the list (same plant).
+- Suggesting "Lavender" when any Lavandula species is on the list (parent vs species).
+- Suggesting "Hidcote Lavender" when "Lavender 'Hidcote'" is on the list (different word order).
+- Suggesting a species-level plant when several of its cultivars are on the list — pick a DIFFERENT species entirely.
+
+Already in the library:
+${avoid.map((e) => `- ${e.key} — ${e.common_name}`).join("\n")}
+
+=== END DUPLICATE-CHECK LIST ===
+`
     : "";
   return `You are seeding a global plant knowledge base.
 
@@ -592,18 +608,19 @@ async function backgroundSeed(
   count: number,
 ) {
   try {
-    // Pull the most recent N already-known plants and feed them to
-    // the AI as "do NOT propose these". Both the scientific key
-    // (drives dedup at the DB level) and common name go in so the AI
-    // doesn't suggest a colliding entry under a slightly different
-    // form. The unique index still backstops anything that slips
-    // through; this is purely about avoiding wasted AI calls.
-    const { data: recent } = await db
-      .from("plant_library")
-      .select("scientific_name_key, common_name")
-      .order("seeded_at", { ascending: false })
-      .limit(INITIAL_AVOID_FETCH);
-    let avoid: AvoidEntry[] = (recent ?? [])
+    // Pull a RANDOM sample of already-known plants and feed them to
+    // the AI as "do NOT propose these". Random (not recency-first)
+    // because the common species AI keeps re-proposing tend to be
+    // seeded EARLY — a recency-biased window misses them. Both the
+    // scientific key (drives dedup at the DB level) and common name
+    // go in so the AI doesn't suggest a colliding entry under a
+    // slightly different form. The unique index still backstops
+    // anything that slips through; this is purely about avoiding
+    // wasted AI calls.
+    const { data: sample } = await db.rpc("plant_library_random_avoid_sample", {
+      sample_size: INITIAL_AVOID_FETCH,
+    });
+    let avoid: AvoidEntry[] = (sample ?? [])
       .map(
         (r: { scientific_name_key: string | null; common_name: string }) => ({
           key: r.scientific_name_key,
