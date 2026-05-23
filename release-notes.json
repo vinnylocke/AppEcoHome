@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Admin / Plant Library",
+    "items": [
+      "Plant Library seeder — fixed the \"Unterminated string in JSON at position 25xxx\" failures. Gemini was hitting its 8k output token cap mid-batch and returning truncated JSON the parser couldn't handle. Bumped the budget to 32k and reduced batch size from 25 to 20 so we sit comfortably under the cap.",
+      "Plant Library seeder — even when a response IS truncated (e.g. unusually chunky batch), we now salvage every complete plant object before the cut-off instead of losing the entire batch. The remaining slots count toward the run's failed tally so the totals stay honest."
+    ]
+  }
+]

@@ -29,7 +29,12 @@ const CORS = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const BATCH_SIZE = 25;
+// Reduced from 25 after we started seeing `Unterminated string in
+// JSON at position …` parse failures — Gemini was hitting the
+// maxOutputTokens limit partway through a batch and returning a
+// truncated response we couldn't parse. 20 plants × ~600 output
+// tokens worst-case ~12k tokens, comfortably under our 32k budget.
+const BATCH_SIZE = 20;
 /**
  * Initial number of already-known plants we fetch from the library
  * and feed to the AI as "do NOT propose these". 500 keeps the prompt
@@ -241,6 +246,54 @@ async function fetchThumbnail(db: any, query: string): Promise<string | null> {
   }
 }
 
+/**
+ * Try to salvage complete plant objects from a truncated JSON
+ * response. When Gemini hits its output-token cap mid-batch the JSON
+ * is unterminated and `JSON.parse` throws on the whole thing — but
+ * the plant objects BEFORE the truncation point are perfectly valid.
+ * This walker tracks brace + string state and extracts every fully
+ * closed `{ ... }` at the `plants` array's depth.
+ *
+ * Returns null when even partial salvage fails (e.g. truncation hit
+ * mid-first-plant). When it succeeds, the batch counts the salvaged
+ * plants as inserted/skipped and the rest as failed.
+ */
+function salvageTruncatedPlants(text: string): { plants: SeedRow[] } | null {
+  const arrayStartIdx = text.indexOf('"plants"');
+  if (arrayStartIdx === -1) return null;
+  const openBracketIdx = text.indexOf("[", arrayStartIdx);
+  if (openBracketIdx === -1) return null;
+
+  let depth = 0;
+  let inString = false;
+  let escape = false;
+  let lastCompleteObjectEnd = -1;
+
+  for (let i = openBracketIdx + 1; i < text.length; i++) {
+    const ch = text[i];
+    if (escape) { escape = false; continue; }
+    if (inString) {
+      if (ch === "\\") { escape = true; continue; }
+      if (ch === "\"") inString = false;
+      continue;
+    }
+    if (ch === "\"") { inString = true; continue; }
+    if (ch === "{") depth++;
+    else if (ch === "}") {
+      depth--;
+      if (depth === 0) lastCompleteObjectEnd = i;
+    }
+  }
+
+  if (lastCompleteObjectEnd === -1) return null;
+  const salvaged = text.slice(0, lastCompleteObjectEnd + 1) + "]}";
+  try {
+    return JSON.parse(salvaged) as { plants: SeedRow[] };
+  } catch {
+    return null;
+  }
+}
+
 async function runSeedBatch(
   db: any,
   apiKey: string,
@@ -277,7 +330,11 @@ async function runSeedBatch(
     toMessages([buildSeedPrompt(batchCount, avoid)]),
     {
       temperature: 0.9,
-      maxOutputTokens: 8192,
+      // Bumped from 8192 — at 25-plant batches we were truncating
+      // responses mid-string and failing JSON.parse. 32k gives huge
+      // headroom even on chunky cultivar batches with long
+      // descriptions + every applicable field populated.
+      maxOutputTokens: 32768,
       responseSchema: SEED_BATCH_SCHEMA,
       responseMimeType: "application/json",
       // Bumped from the default 2 because Gemini Flash overload
@@ -303,9 +360,32 @@ async function runSeedBatch(
   try {
     parsed = JSON.parse(text) as { plants: SeedRow[] };
   } catch (err) {
-    logError(FN, "parse_failed", { run_id: runId, error: (err as Error).message });
-    stats.failed += batchCount;
-    return stats;
+    // Try to salvage complete plants from a truncated response.
+    // Gemini's output cap occasionally cuts off mid-batch; the
+    // plants before the cut are perfectly valid even if the JSON
+    // overall is malformed.
+    const salvaged = salvageTruncatedPlants(text);
+    if (salvaged && salvaged.plants?.length) {
+      log(FN, "parse_failed_salvaged", {
+        run_id: runId,
+        error: (err as Error).message,
+        text_length: text.length,
+        salvaged_count: salvaged.plants.length,
+        requested: batchCount,
+      });
+      parsed = salvaged;
+      // Account for the plants we couldn't recover so the run's
+      // failed count is accurate.
+      stats.failed += Math.max(0, batchCount - salvaged.plants.length);
+    } else {
+      logError(FN, "parse_failed", {
+        run_id: runId,
+        error: (err as Error).message,
+        text_length: text.length,
+      });
+      stats.failed += batchCount;
+      return stats;
+    }
   }
 
   const plants = Array.isArray(parsed.plants) ? parsed.plants : [];
