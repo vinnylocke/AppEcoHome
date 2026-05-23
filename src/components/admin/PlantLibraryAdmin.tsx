@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import {
+  fetchFailedSeedInserts,
   fetchPlantLibraryStats,
   fetchPlantLibraryUsageTotals,
   fetchRecentPlantLibraryRuns,
@@ -14,6 +15,7 @@ import {
   markRunAsFailed,
   triggerSeedRun,
   triggerVerifyRun,
+  type FailedSeedInsert,
   type PlantLibraryRun,
   type PlantLibraryStats,
   type PlantLibraryUsageTotals,
@@ -48,6 +50,7 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
   const [stats, setStats] = useState<PlantLibraryStats | null>(null);
   const [runs, setRuns] = useState<PlantLibraryRun[]>([]);
   const [stuck, setStuck] = useState<StuckPlantRow[]>([]);
+  const [failedInserts, setFailedInserts] = useState<FailedSeedInsert[]>([]);
   const [usageTotals, setUsageTotals] = useState<PlantLibraryUsageTotals | null>(null);
   const [loading, setLoading] = useState(true);
   const [seedCount, setSeedCount] = useState(100);
@@ -76,16 +79,18 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
         Logger.error("Stale run sweep failed", sweepErr);
       }
 
-      const [s, r, st, ut] = await Promise.all([
+      const [s, r, st, ut, fi] = await Promise.all([
         fetchPlantLibraryStats(),
         fetchRecentPlantLibraryRuns(MAX_RUNS),
         fetchStuckVerifications(25),
         fetchPlantLibraryUsageTotals(),
+        fetchFailedSeedInserts(50),
       ]);
       setStats(s);
       setRuns(r);
       setStuck(st);
       setUsageTotals(ut);
+      setFailedInserts(fi);
     } catch (err) {
       Logger.error("PlantLibraryAdmin refresh failed", err);
     } finally {
@@ -319,6 +324,65 @@ export default function PlantLibraryAdmin({ isAdmin, userId }: Props) {
                           Retrying
                         </span>
                       )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      )}
+
+      {/* Failed seed inserts — plants the AI proposed that postgres
+          rejected (type mismatch, NOT NULL violation, etc). Mirrors
+          the "Stuck verifications" panel above. */}
+      {failedInserts.length > 0 && (
+        <section
+          data-testid="plant-library-admin-failed-inserts"
+          className="rounded-3xl bg-white border border-rose-200 shadow-[0_2px_12px_-4px_rgba(7,87,55,0.08)] overflow-hidden"
+        >
+          <div className="px-5 py-3 border-b border-rose-100 bg-rose-50 flex items-center justify-between">
+            <div>
+              <h2 className="font-display font-black text-rose-900 text-sm">
+                Failed seed inserts
+              </h2>
+              <p className="text-[11px] text-rose-800/80 leading-snug">
+                Plants the seeder couldn't add to the database. The unique-index "already exists" case is not shown here — only real insert errors (type mismatches, constraint violations, etc).
+              </p>
+            </div>
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead className="bg-rhozly-surface-low/40 text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/50">
+                <tr>
+                  <th className="text-left px-3 py-2">Plant</th>
+                  <th className="text-left px-3 py-2">Error</th>
+                  <th className="text-left px-3 py-2">When</th>
+                </tr>
+              </thead>
+              <tbody>
+                {failedInserts.map((f, i) => (
+                  <tr key={`${f.run_id}-${i}`} className="border-t border-rhozly-outline/10">
+                    <td className="px-3 py-2">
+                      <div className="font-bold text-rhozly-on-surface">{f.common_name}</div>
+                      {f.scientific_name && (
+                        <div className="text-[10px] italic text-rhozly-on-surface/55">
+                          {f.scientific_name}
+                        </div>
+                      )}
+                    </td>
+                    <td className="px-3 py-2 text-rhozly-on-surface/70 max-w-md">
+                      <code className="text-[10px] whitespace-pre-wrap break-words leading-snug">
+                        {f.error}
+                      </code>
+                    </td>
+                    <td className="px-3 py-2 text-rhozly-on-surface/55 whitespace-nowrap">
+                      {f.at
+                        ? new Date(f.at).toLocaleString(undefined, {
+                            dateStyle: "short",
+                            timeStyle: "short",
+                          })
+                        : "—"}
                     </td>
                   </tr>
                 ))}

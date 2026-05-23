@@ -79,6 +79,57 @@ export async function fetchPlantLibraryStats(): Promise<PlantLibraryStats> {
   };
 }
 
+export interface FailedSeedInsert {
+  run_id: string;
+  common_name: string;
+  scientific_name: string | null;
+  error: string;
+  at: string;
+}
+
+/**
+ * Per-row insert failures from the seeder, flattened across recent
+ * runs that have any entries in `failed_inserts`. Sorted newest
+ * first; capped at `limit` for the admin panel.
+ */
+export async function fetchFailedSeedInserts(
+  limit = 50,
+): Promise<FailedSeedInsert[]> {
+  // Pull recent runs with at least one failure recorded (partial
+  // index keeps the scan tight), then flatten the JSON client-side.
+  const { data, error } = await supabase
+    .from("plant_library_runs")
+    .select("id, failed_inserts")
+    .gt("failed_inserts", "[]")
+    .order("started_at", { ascending: false })
+    .limit(20);
+  if (error) throw error;
+  const rows = (data ?? []) as Array<{
+    id: string;
+    failed_inserts: Array<{
+      common_name?: string;
+      scientific_name?: string | null;
+      error?: string;
+      at?: string;
+    }> | null;
+  }>;
+  const flat: FailedSeedInsert[] = [];
+  for (const r of rows) {
+    if (!Array.isArray(r.failed_inserts)) continue;
+    for (const fail of r.failed_inserts) {
+      flat.push({
+        run_id: r.id,
+        common_name: fail.common_name ?? "(unknown)",
+        scientific_name: fail.scientific_name ?? null,
+        error: fail.error ?? "(no error message)",
+        at: fail.at ?? "",
+      });
+    }
+  }
+  flat.sort((a, b) => (a.at < b.at ? 1 : a.at > b.at ? -1 : 0));
+  return flat.slice(0, limit);
+}
+
 export interface StuckPlantRow {
   id: number;
   common_name: string;

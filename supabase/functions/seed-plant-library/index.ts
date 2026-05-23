@@ -51,6 +51,15 @@ const INITIAL_AVOID_FETCH = 500;
  * the AI is most likely to repeat.
  */
 const MAX_AVOID_LIST_SIZE = 1000;
+/** Cap on `failed_inserts` so a pathological run can't balloon the row size. */
+const MAX_FAILED_INSERTS_PER_RUN = 200;
+
+interface FailedInsert {
+  common_name: string;
+  scientific_name: string | null;
+  error: string;
+  at: string;
+}
 
 // Structured-output schema for one seed batch — Gemini returns this verbatim.
 const SEED_BATCH_SCHEMA = {
@@ -314,6 +323,10 @@ async function runSeedBatch(
   thoughtsTokens: number;
   totalTokens: number;
   costUsd: number;
+  /** Per-row insert failures captured during this batch. Appended
+   *  to `plant_library_runs.failed_inserts` so the admin can see
+   *  which plants couldn't land + why, without diving into Sentry. */
+  failedInserts: FailedInsert[];
 }> {
   const stats = {
     inserted: 0,
@@ -326,6 +339,7 @@ async function runSeedBatch(
     thoughtsTokens: 0,
     totalTokens: 0,
     costUsd: 0,
+    failedInserts: [] as FailedInsert[],
   };
 
   const { text, usage } = await callGeminiCascade(
@@ -467,7 +481,8 @@ async function runSeedBatch(
       .select("id, scientific_name_key, common_name");
 
     if (error) {
-      // Unique-violation = silent skip. Anything else = real failure.
+      // Unique-violation = silent skip. Anything else = real failure
+      // → record on the run row so the admin UI can surface it.
       if (error.code === "23505") {
         stats.skipped += 1;
       } else {
@@ -476,6 +491,14 @@ async function runSeedBatch(
           run_id: runId,
           common_name: row.common_name,
           error: error.message,
+        });
+        stats.failedInserts.push({
+          common_name: row.common_name,
+          scientific_name: Array.isArray(row.scientific_name)
+            ? row.scientific_name[0] ?? null
+            : null,
+          error: String(error.message ?? "unknown").slice(0, 500),
+          at: new Date().toISOString(),
         });
       }
     } else if (data && data.length > 0) {
@@ -511,6 +534,7 @@ async function updateRunProgress(
     thoughtsTokens?: number;
     totalTokens?: number;
     costUsd?: number;
+    failedInserts?: FailedInsert[];
   },
 ) {
   // Read-modify-write the counter columns. Cheap because there's only
@@ -519,7 +543,7 @@ async function updateRunProgress(
   const { data: row } = await db
     .from("plant_library_runs")
     .select(
-      "count_inserted, count_skipped, count_failed, error_message, total_prompt_tokens, total_candidates_tokens, total_cached_tokens, total_thoughts_tokens, total_tokens, total_cost_usd",
+      "count_inserted, count_skipped, count_failed, error_message, total_prompt_tokens, total_candidates_tokens, total_cached_tokens, total_thoughts_tokens, total_tokens, total_cost_usd, failed_inserts",
     )
     .eq("id", runId)
     .maybeSingle();
@@ -544,6 +568,16 @@ async function updateRunProgress(
   // outer catch in `backgroundSeed`.
   if (deltas.error && !row.error_message) {
     patch.error_message = deltas.error.slice(0, 2000);
+  }
+  // Concat new failures onto the existing array; cap so a runaway
+  // run with a thousand failures can't balloon the row.
+  if (deltas.failedInserts && deltas.failedInserts.length > 0) {
+    const existing = Array.isArray(row.failed_inserts) ? row.failed_inserts : [];
+    const merged = [...existing, ...deltas.failedInserts].slice(
+      0,
+      MAX_FAILED_INSERTS_PER_RUN,
+    );
+    patch.failed_inserts = merged;
   }
   await db
     .from("plant_library_runs")
@@ -600,6 +634,7 @@ async function backgroundSeed(
           thoughtsTokens: stats.thoughtsTokens,
           totalTokens: stats.totalTokens,
           costUsd: stats.costUsd,
+          failedInserts: stats.failedInserts,
         });
         // Append newly-inserted entries to the running avoid list so
         // the next batch in THIS run can see them too. Without this,
