@@ -1,9 +1,15 @@
 import { log, warn } from "./logger.ts";
 
+// Cascade order: cheapest / fastest first, most capable last. When the
+// leading models are overloaded we fall through to mid-tier ones
+// (Gemini 2.5 family) before reaching the expensive Pro models.
+// 6 models × 3 retries = up to 18 attempts before a batch is given up.
 export const DEFAULT_MODELS = [
   "gemini-3.1-flash-lite",
   "gemini-2.5-flash-lite",
+  "gemini-2.5-flash",
   "gemini-3-flash-preview",
+  "gemini-2.5-pro",
   "gemini-3.1-pro-preview",
 ];
 
