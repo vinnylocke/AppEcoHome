@@ -14,6 +14,10 @@ export interface AutomationFull {
   fire_valves_sequentially: boolean;
   skip_if_rained: boolean;
   rain_threshold_mm: number;
+  /** New (weather-aware) — fire automatically on hot days even when no task is due. */
+  trigger_if_hot: boolean;
+  /** New (weather-aware) — min forecast max temp (°C) at which trigger_if_hot fires. */
+  heat_threshold_c: number;
   retry_on_failure: boolean;
   last_run_date: string | null;
   created_at: string;
@@ -41,7 +45,8 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
       .from("automations")
       .select(`
         id, home_id, name, is_active, scheduled_time, duration_seconds,
-        fire_valves_sequentially, skip_if_rained, rain_threshold_mm, retry_on_failure,
+        fire_valves_sequentially, skip_if_rained, rain_threshold_mm,
+        trigger_if_hot, heat_threshold_c, retry_on_failure,
         last_run_date, created_at,
         automation_devices(device_id, devices(id, name)),
         automation_blueprints(blueprint_id, role, task_blueprints(title))
@@ -81,6 +86,8 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
       fire_valves_sequentially: r.fire_valves_sequentially,
       skip_if_rained: r.skip_if_rained,
       rain_threshold_mm: r.rain_threshold_mm,
+      trigger_if_hot: r.trigger_if_hot ?? false,
+      heat_threshold_c: r.heat_threshold_c ?? 28,
       retry_on_failure: r.retry_on_failure,
       last_run_date: r.last_run_date,
       created_at: r.created_at,

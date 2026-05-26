@@ -32,6 +32,9 @@ import {
   injectBlueprintTasks,
   activateMaintenanceBlueprints,
 } from "../services/planStagingService";
+import { normaliseOverhaulBlueprint } from "../lib/overhaulBlueprintAdapter";
+import OverhaulConceptPicker from "./planner/OverhaulConceptPicker";
+import { fetchOverhaulInput } from "../services/gardenOverhaulService";
 
 interface PlanStagingProps {
   plan: any;
@@ -57,8 +60,21 @@ export default function PlanStaging({
     supabase.auth.getUser().then(({ data }) => setCurrentUserId(data.user?.id ?? null));
   }, []);
 
-  const [localBlueprint, setLocalBlueprint] = useState(plan.ai_blueprint);
+  const isOverhaul = plan.kind === "overhaul";
+
+  // For overhaul plans the AI emits a richer-but-different blueprint
+  // shape (plant_list / prep_steps as strings / maintenance_schedule
+  // with freeform frequency). Normalise on read so phases 2–5 can
+  // operate on the designed-plan shape they were built for.
+  const initialBlueprint = isOverhaul
+    ? normaliseOverhaulBlueprint(plan.ai_blueprint)
+    : plan.ai_blueprint;
+
+  const [localBlueprint, setLocalBlueprint] = useState(initialBlueprint);
   const [localCoverImage, setLocalCoverImage] = useState(plan.cover_image_url);
+  // Tracks whether the user has picked an overhaul concept yet. Used
+  // to gate the "Accept & Start Staging" button in Phase 0.
+  const [hasSelectedConcept, setHasSelectedConcept] = useState(false);
 
   const [localStagingState, setLocalStagingState] = useState(
     plan.staging_state || {},
@@ -120,7 +136,11 @@ export default function PlanStaging({
     setLocalPlanStatus(plan.status);
     setIsStarted(!!plan.staging_state?.has_started);
     setPlantMapping(plan.staging_state?.plant_mapping || {});
-    setLocalBlueprint(plan.ai_blueprint);
+    setLocalBlueprint(
+      isOverhaul
+        ? normaliseOverhaulBlueprint(plan.ai_blueprint)
+        : plan.ai_blueprint,
+    );
     setLocalCoverImage(plan.cover_image_url);
   }, [plan.id]);
 
@@ -169,6 +189,24 @@ export default function PlanStaging({
     if (filtered.length > 0) setExistingAreaId(filtered[0].id);
     else setExistingAreaId("");
   }, [filterLocationId, areas]);
+
+  // Detect whether an overhaul plan already has a selected concept
+  // so the Accept button is enabled on first render when re-opening
+  // a plan the user previously picked from.
+  useEffect(() => {
+    if (!isOverhaul) return;
+    let cancelled = false;
+    (async () => {
+      const { data } = await supabase
+        .from("plan_overhaul_concepts")
+        .select("id")
+        .eq("plan_id", plan.id)
+        .eq("selected_by_user", true)
+        .maybeSingle();
+      if (!cancelled) setHasSelectedConcept(!!data);
+    })();
+    return () => { cancelled = true; };
+  }, [isOverhaul, plan.id]);
 
   useEffect(() => {
     if (
@@ -257,11 +295,30 @@ export default function PlanStaging({
   };
 
   const handleStartProject = async () => {
+    if (isOverhaul && !hasSelectedConcept) {
+      return toast.error("Pick a concept image before starting.");
+    }
     await saveStagingState({ has_started: true });
     setIsStarted(true);
     saveMemoryEvent(homeId, plan.id, "accepted_blueprint", { blueprint_title: localBlueprint?.project_overview?.title });
     toast.success("Project Started! Begin Phase 1.");
   };
+
+  // When the user picks an overhaul concept, selectOverhaulConcept
+  // also writes the chosen image to plans.cover_image_url. Re-fetch
+  // it so the staging cover refreshes without a parent reload.
+  const handleConceptSelectionChange = useCallback(async (conceptId: string | null) => {
+    setHasSelectedConcept(!!conceptId);
+    if (!conceptId) return;
+    const { data } = await supabase
+      .from("plans")
+      .select("cover_image_url")
+      .eq("id", plan.id)
+      .maybeSingle();
+    if (data?.cover_image_url) {
+      setLocalCoverImage(data.cover_image_url);
+    }
+  }, [plan.id]);
 
   const handleRegeneratePlan = async () => {
     if (!regenFeedback.trim())
@@ -269,9 +326,105 @@ export default function PlanStaging({
     setIsRegenerating(true);
     setShowRegenModal(false);
     saveMemoryEvent(homeId, plan.id, "regen_feedback", { feedback_text: regenFeedback });
-    const toastId = toast.loading("Consulting the AI Architect...");
+    const toastId = toast.loading(
+      isOverhaul
+        ? "Re-running overhaul with your feedback..."
+        : "Consulting the AI Architect...",
+    );
 
     try {
+      if (isOverhaul) {
+        // Overhaul regeneration: re-uses the original photo (still
+        // accessible via the signed URL stored on
+        // plan_overhaul_inputs.original_photo_url for 7 days) and
+        // merges the user's feedback into the "wants" field so the
+        // AI iterates rather than starts from scratch.
+        const input = await fetchOverhaulInput(plan.id);
+        if (!input?.original_photo_url) {
+          throw new Error("Original photo no longer available — please start a new overhaul.");
+        }
+
+        // Re-fetch the photo as base64. If the signed URL has expired
+        // we surface a clear error.
+        const photoResp = await fetch(input.original_photo_url);
+        if (!photoResp.ok) {
+          throw new Error(
+            "The original photo's signed URL has expired (7-day limit). Please start a new overhaul with a fresh photo.",
+          );
+        }
+        const photoBlob = await photoResp.blob();
+        const photoBase64 = await new Promise<string>((resolve, reject) => {
+          const reader = new FileReader();
+          reader.onloadend = () => {
+            const result = reader.result as string;
+            // Strip the data:...;base64, prefix.
+            const idx = result.indexOf(",");
+            resolve(idx >= 0 ? result.slice(idx + 1) : result);
+          };
+          reader.onerror = reject;
+          reader.readAsDataURL(photoBlob);
+        });
+
+        // Wipe existing concepts so the user sees the new batch
+        // appear in their place.
+        await supabase
+          .from("plan_overhaul_concepts")
+          .delete()
+          .eq("plan_id", plan.id);
+
+        const mergedWants = [input.wants, `Feedback: ${regenFeedback}`]
+          .filter(Boolean)
+          .join("\n\n");
+
+        const { error: invokeErr } = await supabase.functions.invoke(
+          "generate-garden-overhaul",
+          {
+            body: {
+              homeId,
+              regeneratePlanId: plan.id,
+              photoBase64,
+              mimeType: photoBlob.type || "image/jpeg",
+              likes: input.likes ?? "",
+              dislikes: input.dislikes ?? "",
+              wants: mergedWants,
+              aesthetic: input.aesthetic ?? undefined,
+              conceptCount: 3,
+            },
+          },
+        );
+        if (invokeErr) throw invokeErr;
+
+        // Reset local + DB state so Phase 0 immediately drops into
+        // the "still generating" loader (instead of leaving stale
+        // concepts visible). Clearing ai_blueprint here also
+        // protects the OverhaulGeneratingState poll from racing
+        // against the edge fn — the next non-null read is
+        // guaranteed to be the FRESH blueprint.
+        await supabase
+          .from("plans")
+          .update({
+            ai_blueprint: null,
+            cover_image_url: null,
+            staging_state: {},
+            status: "Draft",
+          })
+          .eq("id", plan.id);
+
+        setLocalBlueprint(null);
+        setLocalCoverImage(null);
+        setLocalStagingState({});
+        setLocalPlanStatus("Draft");
+        setPlantMapping({});
+        setIsStarted(false);
+        setHasSelectedConcept(false);
+
+        toast.success("Overhaul regenerated — new concepts incoming.", { id: toastId });
+        setRegenFeedback("");
+        onPlanUpdated();
+        return;
+      }
+
+      // Standard designed plan regeneration.
       const { data, error } = await supabase.functions.invoke(
         "generate-landscape-plan",
         {
@@ -313,7 +466,7 @@ export default function PlanStaging({
       setRegenFeedback("");
       onPlanUpdated();
     } catch (err: any) {
-      Logger.error("Failed to regenerate landscape plan", err, { homeId, planId: plan.id }, err.message || "Failed to regenerate.");
+      Logger.error("Failed to regenerate plan", err, { homeId, planId: plan.id }, err.message || "Failed to regenerate.");
       toast.dismiss(toastId);
     } finally {
       setIsRegenerating(false);
@@ -732,10 +885,40 @@ export default function PlanStaging({
   };
 
   if (!localBlueprint || !localBlueprint.project_overview) {
+    // Overhaul plans get a "still generating" state when ai_blueprint
+    // hasn't landed yet — the background pipeline writes it after
+    // the vision pass succeeds. Polling lets us swap to the real
+    // staging UI once the row updates.
+    if (isOverhaul && localPlanStatus !== "Failed") {
+      return (
+        <OverhaulGeneratingState
+          planId={plan.id}
+          onBack={onBack}
+          onPlanReady={(planRow) => {
+            // Fresh blueprint landed — rehydrate local state from it
+            // so PlanStaging transitions back to the populated picker
+            // without requiring a back-out + re-click.
+            setLocalBlueprint(
+              isOverhaul
+                ? normaliseOverhaulBlueprint(planRow.ai_blueprint)
+                : planRow.ai_blueprint,
+            );
+            setLocalCoverImage(planRow.cover_image_url);
+            setLocalStagingState(planRow.staging_state ?? {});
+            setLocalPlanStatus(planRow.status);
+            setIsStarted(!!planRow.staging_state?.has_started);
+            setHasSelectedConcept(false);
+            onPlanUpdated();
+          }}
+        />
+      );
+    }
     return (
       <div className="flex flex-col items-center justify-center h-full p-8 text-center animate-in fade-in">
         <ShieldAlert size={48} className="text-red-500 mb-4" />
-        <h2 className="text-xl font-black mb-2">Corrupted Blueprint</h2>
+        <h2 className="text-xl font-black mb-2">
+          {localPlanStatus === "Failed" ? "Generation Failed" : "Corrupted Blueprint"}
+        </h2>
         <button
           onClick={onBack}
           className="px-6 py-3 bg-gray-100 rounded-xl font-black"
@@ -817,27 +1000,46 @@ export default function PlanStaging({
             <div className="absolute inset-0 bg-rhozly-primary/5 pointer-events-none" />
             <div className="relative z-10">
               <h2 className="text-2xl font-black text-rhozly-on-surface mb-2 flex items-center gap-2">
-                <Sparkles className="text-rhozly-primary" /> Review Your
-                Blueprint
+                <Sparkles className="text-rhozly-primary" />{" "}
+                {isOverhaul ? "Pick your favourite concept" : "Review Your Blueprint"}
               </h2>
               <p className="text-sm font-bold text-gray-600 mb-6 leading-relaxed">
-                Review the suggested plants, tasks, and maintenance schedule. Accept to begin staging, or give feedback and regenerate.
+                {isOverhaul
+                  ? "Choose one of the AI-transformed garden concepts below. You can also regenerate with feedback before accepting."
+                  : "Review the suggested plants, tasks, and maintenance schedule. Accept to begin staging, or give feedback and regenerate."}
               </p>
+
+              {isOverhaul && (
+                <div className="mb-6">
+                  <OverhaulConceptPicker
+                    planId={plan.id}
+                    onSelectionChange={handleConceptSelectionChange}
+                  />
+                </div>
+              )}
 
               <div className="flex flex-col sm:flex-row gap-4">
                 <button
                   onClick={handleStartProject}
-                  className="flex-1 min-h-[44px] py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-2xl font-black shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 text-lg focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
+                  disabled={isOverhaul && !hasSelectedConcept}
+                  className="flex-1 min-h-[44px] py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-2xl font-black shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 text-lg focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
                 >
-                  <CheckCircle2 size={22} /> Accept & Start Staging
+                  <CheckCircle2 size={22} />{" "}
+                  {isOverhaul ? "Accept Concept & Start Staging" : "Accept & Start Staging"}
                 </button>
                 <button
                   onClick={() => setShowRegenModal(true)}
                   className="flex-1 min-h-[44px] py-4 bg-white border-2 border-rhozly-primary/20 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-2xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 text-lg focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
                 >
-                  <RotateCcw size={22} /> Regenerate Plan
+                  <RotateCcw size={22} />{" "}
+                  {isOverhaul ? "Regenerate Concepts" : "Regenerate Plan"}
                 </button>
               </div>
+              {isOverhaul && !hasSelectedConcept && (
+                <p className="text-xs font-bold text-rhozly-on-surface/45 mt-3 text-center">
+                  Tip: tap "Pick this one" on a concept to enable Accept.
+                </p>
+              )}
             </div>
           </section>
         )}
@@ -1600,15 +1802,66 @@ export default function PlanStaging({
           <div className="fixed inset-0 z-[200] flex flex-col items-center justify-center bg-white/90 backdrop-blur-md animate-in fade-in duration-300">
             <Loader2 className="w-16 h-16 text-rhozly-primary animate-spin mb-6" />
             <h2 className="text-2xl font-black font-display text-rhozly-on-surface">
-              Consulting AI Architect...
+              {isOverhaul ? "Re-running Overhaul..." : "Consulting AI Architect..."}
             </h2>
             <p className="text-sm font-bold text-gray-500 mt-2 text-center max-w-xs leading-relaxed">
-              Please wait while the AI analyzes your feedback and redraws your
-              entire project blueprint.
+              {isOverhaul
+                ? "Analyzing your photo again with your new feedback and generating fresh concept images."
+                : "Please wait while the AI analyzes your feedback and redraws your entire project blueprint."}
             </p>
           </div>,
           document.body,
         )}
+    </div>
+  );
+}
+
+/**
+ * Loading state shown while an overhaul plan's ai_blueprint is being
+ * generated in the background — covers both fresh generations and
+ * in-place regenerations. Polls plans every 5s; once a fresh
+ * ai_blueprint lands, calls onPlanReady with the full plan row so
+ * the parent can rehydrate its local state without re-mounting.
+ */
+function OverhaulGeneratingState({
+  planId,
+  onBack,
+  onPlanReady,
+}: {
+  planId: string;
+  onBack: () => void;
+  onPlanReady: (planRow: any) => void;
+}) {
+  useEffect(() => {
+    const id = window.setInterval(async () => {
+      const { data } = await supabase
+        .from("plans")
+        .select("*")
+        .eq("id", planId)
+        .maybeSingle();
+      if (data?.ai_blueprint || data?.status === "Failed") {
+        onPlanReady(data);
+      }
+    }, 5000);
+    return () => window.clearInterval(id);
+  }, [planId, onPlanReady]);
+
+  return (
+    <div className="flex flex-col items-center justify-center h-full p-8 text-center animate-in fade-in gap-4">
+      <Loader2 size={48} className="text-rhozly-primary animate-spin" />
+      <h2 className="text-xl font-black text-rhozly-on-surface">
+        Drafting your overhaul...
+      </h2>
+      <p className="text-sm font-bold text-rhozly-on-surface/55 max-w-md leading-relaxed">
+        The AI is analysing your photo and drafting a redesign. This usually
+        takes 30–60 seconds. We'll refresh automatically when it's ready.
+      </p>
+      <button
+        onClick={onBack}
+        className="mt-2 px-6 py-3 bg-gray-100 rounded-xl font-black text-sm"
+      >
+        Back to plans
+      </button>
     </div>
   );
 }

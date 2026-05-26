@@ -28,6 +28,10 @@ export interface SeasonalPick {
   sun: SeasonalPickSun[];
   edible: boolean;
   plant_id?: number | null;
+  /** plant_library id when the pick matches an existing global library
+   *  row. When present, the preview path can clone the library row's
+   *  care guide instead of generating fresh data via Gemini. */
+  plant_library_id?: number | null;
 }
 
 export interface SeasonalPicksResponse {

@@ -1,24 +1,60 @@
 // Plant Library seeder.
 //
-// Triggered by cron (daily 02:00 UTC) AND admin manual runs. Asks Gemini
-// to propose N plants of varying families/types, fetches a free
-// thumbnail per plant via the existing plant-image-search infra, then
-// inserts them into `plant_library` with `valid = null` (verification
-// happens in a separate pass via `verify-plant-library`).
+// Triggered by cron (daily 02:00 UTC) AND admin manual runs.
 //
-// Fire-and-forget: HTTP responds with `{ run_id }` after creating the
-// run row; the actual seeding continues in the background via
-// EdgeRuntime.waitUntil so the caller doesn't hold a long-lived
-// connection open.
+// Name source: Wikipedia category APIs (free, no key — see
+// `_shared/plantNameSources.ts`). We pull a pool of candidate plant
+// names from a random selection of cultivated-plant categories
+// (Vegetables, Herbs, Houseplants, Tomato_cultivars, etc.) and then
+// drop anything we already have in the DB. The survivors are passed
+// to Gemini ONLY for care-data enrichment — the AI is never asked to
+// "think of" plants. This eliminates the bias-toward-famous-species
+// duplicate problem the previous AI-invents-names approach hit.
 //
-// Dedup is enforced by the `plants_library_sci_key_idx` unique index;
-// repeated proposals are silently dropped via `ON CONFLICT DO NOTHING`.
+// Self-chunking architecture: a single invocation can't fit a
+// 100-plant (let alone 1000-plant) run inside Supabase's
+// background-task wall-clock cap, so the function splits the work
+// into CHUNK_SIZE chunks and CHAINS ITSELF — at the end of each
+// chunk, POST to its own URL with `{ count: remaining, run_id }`.
+// The self-call is wrapped in EdgeRuntime.waitUntil so the request
+// survives the chunk's function teardown. Each invocation does
+// ~30s of work and dispatches the next.
+//
+// Request body shapes:
+//   - First call:        { count, triggered_by? }
+//   - Continuation call: { count: <remaining>, run_id }
+//
+// Fire-and-forget on the first call too: HTTP responds with
+// `{ run_id }` after creating the run row; the actual seeding
+// continues in the background.
+//
+// Dedup is enforced first by a DB pre-filter (cheap) and backstopped
+// by the `plants_library_sci_key_idx` unique index (ON CONFLICT DO
+// NOTHING).
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { estimateGeminiCostUsd } from "../_shared/geminiCost.ts";
+import {
+  ACTIVE_SOURCES,
+  computeSciKey,
+  extractScientificName,
+  fetchCandidatePlantNames,
+  FRESH_RATE_THRESHOLD,
+  type CandidatePlant,
+  type SourceName,
+} from "../_shared/plantNameSources.ts";
+import { fetchWikipediaSummary } from "../_shared/plantLibrarySources.ts";
+import {
+  buildEnrichmentPrompt,
+  salvageTruncatedPlants,
+  SEED_BATCH_SCHEMA,
+  SEED_PROMPT_BATCH_SIZE,
+  seedRowToColumnShape,
+  type SeedRow,
+} from "../_shared/plantSeedPrompt.ts";
 
 const FN = "seed-plant-library";
 
@@ -28,30 +64,30 @@ const CORS = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-// Cut to 10 (was 20) so each batch's Gemini response stays small —
-// faster end-to-end, AND if the cascade has to retry / fall back
-// through multiple models on a slow batch, the wasted time is half
-// what it was. Lets us fit 10 batches (100 plants) inside the
-// Supabase background-task wall-clock cap.
-const BATCH_SIZE = 10;
+// Each batch's Gemini response stays small — faster end-to-end,
+// AND if the cascade has to retry / fall back through multiple
+// models on a slow batch, the wasted time is half what it was.
+// Shared with the Batch API submit path so prompt + sizing stay
+// in lockstep across both flows.
+const BATCH_SIZE = SEED_PROMPT_BATCH_SIZE;
 /**
- * Initial number of already-known plants we fetch from the library
- * and feed to the AI as "do NOT propose these". 1500 keeps most of
- * the dedup benefit while cutting prompt input tokens by ~70% vs
- * the previous 5000 — the difference between a 25s and a 10s Gemini
- * call per batch. Random sampling (not recency-first) so AI sees the
- * common species seeded early.
+ * How many plants ONE function invocation handles before chaining to
+ * itself for the next chunk. 30 = 3 batches × 10 plants ≈ 30s of
+ * work per invocation — comfortable inside Supabase's
+ * background-task wall-clock cap with headroom for slow Gemini
+ * cascades. For a 100-plant manual run we chain ~4 invocations; for
+ * a 1000-plant cron run we chain ~34. Each starts cold but the chain
+ * is reliable — and a single bad chunk doesn't take the whole run
+ * down with it.
  */
-const INITIAL_AVOID_FETCH = 800;
+const CHUNK_SIZE = 30;
 /**
- * Hard cap on the avoid list passed to any single batch. The list
- * grows as the run progresses (we append every newly-inserted name
- * so subsequent batches in the same run don't propose duplicates),
- * but we cap it here to keep the prompt size predictable. Once full
- * we drop the OLDEST entries — the most recent additions are what
- * the AI is most likely to repeat.
+ * Wikipedia is over-fetched per chunk so that after we drop names
+ * already in the DB we still have CHUNK_SIZE unique candidates. 3×
+ * is conservative headroom — typical filtering loses 20-40% to
+ * existing rows + non-plant titles that slipped past the heuristic.
  */
-const MAX_AVOID_LIST_SIZE = 800;
+const NAME_OVERFETCH_MULTIPLIER = 3;
 /** Cap on `failed_inserts` so a pathological run can't balloon the row size. */
 const MAX_FAILED_INSERTS_PER_RUN = 200;
 
@@ -62,244 +98,15 @@ interface FailedInsert {
   at: string;
 }
 
-// Structured-output schema for one seed batch — Gemini returns this verbatim.
-const SEED_BATCH_SCHEMA = {
-  type: "OBJECT",
-  properties: {
-    plants: {
-      type: "ARRAY",
-      items: {
-        type: "OBJECT",
-        properties: {
-          common_name:         { type: "STRING" },
-          scientific_name:     { type: "ARRAY", items: { type: "STRING" } },
-          family:              { type: "STRING" },
-          plant_type:          { type: "STRING" },
-          cycle:               { type: "STRING" },
-          care_level:          { type: "STRING" },
-          watering:            { type: "STRING" },
-          watering_min_days:   { type: "NUMBER" },
-          watering_max_days:   { type: "NUMBER" },
-          sunlight:            { type: "ARRAY", items: { type: "STRING" } },
-          hardiness_min:       { type: "STRING" },
-          hardiness_max:       { type: "STRING" },
-          growth_rate:         { type: "STRING" },
-          growth_habit:        { type: "STRING" },
-          maintenance:         { type: "STRING" },
-          is_edible:           { type: "BOOLEAN" },
-          is_toxic_pets:       { type: "BOOLEAN" },
-          is_toxic_humans:     { type: "BOOLEAN" },
-          attracts:            { type: "ARRAY", items: { type: "STRING" } },
-          description:         { type: "STRING" },
-          drought_tolerant:    { type: "BOOLEAN" },
-          salt_tolerant:       { type: "BOOLEAN" },
-          flowers:             { type: "BOOLEAN" },
-          fruits:              { type: "BOOLEAN" },
-          indoor:              { type: "BOOLEAN" },
-          invasive:            { type: "BOOLEAN" },
-          flowering_season:    { type: "ARRAY", items: { type: "STRING" } },
-          harvest_season:      { type: "ARRAY", items: { type: "STRING" } },
-          propagation:         { type: "ARRAY", items: { type: "STRING" } },
-          pest_susceptibility: { type: "ARRAY", items: { type: "STRING" } },
-          soil:                { type: "ARRAY", items: { type: "STRING" } },
-          soil_ph_min:         { type: "NUMBER" },
-          soil_ph_max:         { type: "NUMBER" },
-          days_to_harvest_min: { type: "NUMBER" },
-          days_to_harvest_max: { type: "NUMBER" },
-        },
-        required: ["common_name", "scientific_name"],
-      },
-    },
-  },
-  required: ["plants"],
-};
-
-interface AvoidEntry {
-  key: string;          // scientific_name_key
-  common_name: string;
-}
-
-function buildSeedPrompt(batchCount: number, avoid: AvoidEntry[]): string {
-  // Each line gives the AI both anchors so it doesn't propose a
-  // common-name-equivalent plant under a slightly different scientific
-  // name and still collide with the unique index. Capped at
-  // MAX_AVOID_LIST_SIZE entries by the caller.
-  const avoidLines = avoid.length
-    ? `\n=== DUPLICATE-CHECK LIST (CRITICAL) ===
-
-The knowledge base already contains the ${avoid.length} plants listed below — a random sample of what's already in the database. CHECK EVERY PROPOSAL against this list before submitting. DO NOT propose any plant whose scientific name or common name appears here, even under a different spelling, cultivar variation, or naming convention.
-
-Common dedup mistakes to avoid:
-- Suggesting "Tomato" when "Solanum lycopersicum" is on the list (same plant).
-- Suggesting "Lavender" when any Lavandula species is on the list (parent vs species).
-- Suggesting "Hidcote Lavender" when "Lavender 'Hidcote'" is on the list (different word order).
-- Suggesting a species-level plant when several of its cultivars are on the list — pick a DIFFERENT species entirely.
-
-Already in the library:
-${avoid.map((e) => `- ${e.key} — ${e.common_name}`).join("\n")}
-
-=== END DUPLICATE-CHECK LIST ===
-`
-    : "";
-  return `You are seeding a global plant knowledge base.
-
-Propose ${batchCount} plants for a single seed batch. PRIORITISE variety in TWO dimensions:
-
-1. **Plant types** — mix vegetables, herbs, fruits, flowers, trees, shrubs, indoor plants, climbers, succulents, and grasses across different families.
-2. **Species AND cultivars** — include BOTH species-level entries (e.g. "Lavender", "Tomato", "Rose") AND well-known commercial cultivars/varieties of popular species. App users want to find data on the specific variety they actually grow, so rows like "Tomato 'Sungold'", "Lavender 'Hidcote'", "Rose 'Peace'", "Basil 'Genovese'", and "Apple 'Cox's Orange Pippin'" are valuable. Roughly 40-60% of each batch should be named cultivars/varieties of popular species — the rest species-level.
-
-Cultivar naming rules:
-- \`common_name\` includes the variety: e.g. "Tomato 'Sungold'", "Lavender 'Hidcote'".
-- \`scientific_name[0]\` uses the full cultivar form: "Solanum lycopersicum 'Sungold'", "Lavandula angustifolia 'Hidcote'".
-- Only include cultivars that are widely commercially available and well-documented. Skip obscure or unverifiable cultivars — quality matters more than count.
-- Care info for a cultivar should reflect its actual differences from the parent species (size, flavour, hardiness, days-to-harvest) where you know them; otherwise inherit from the species. Don't invent differences you're not confident about.
-
-CRITICAL — variety types vs base species:
-When the common name represents a distinct horticultural TYPE that shares a base species name with another type (cherry tomato vs garden tomato, plum tomato vs beefsteak tomato, sweet pepper vs hot pepper, etc), you MUST include a botanical variety / form qualifier in \`scientific_name[0]\` so each type has a unique scientific name. Examples:
-- "Tomato" → "Solanum lycopersicum"
-- "Cherry Tomato" → "Solanum lycopersicum var. cerasiforme"
-- "Plum Tomato" → "Solanum lycopersicum var. pyriforme"
-- "Beefsteak Tomato" → "Solanum lycopersicum var. beefsteak"
-- "Sweet Pepper" → "Capsicum annuum var. grossum"
-- "Hot Pepper" → "Capsicum annuum var. annuum"
-Without this qualifier, distinct horticultural types collide on the same scientific name and the second one is silently dropped. The qualifier doesn't have to be a formally-published botanical name — \`var. <descriptor>\` is acceptable to disambiguate so long as it reflects the type.
-
-POPULATE EVERY APPLICABLE FIELD. The database does NOT inherit values between rows — every row must stand alone. Empty arrays / null values are only acceptable when the field is genuinely irrelevant to the plant:
-
-- Skip \`harvest_season\` / \`days_to_harvest_*\` / \`fruits\` / \`cuisine\` ONLY for ornamentals with no edible parts.
-- Skip \`flowering_season\` / \`flowers\` / \`attracts\` ONLY for non-flowering plants (ferns, most succulents, conifers).
-- Skip \`pruning_month\` / \`pruning_count\` ONLY for plants that genuinely don't need pruning (most annual vegetables).
-
-All other fields MUST be populated. EVERY row needs:
-- cycle, plant_type, family, care_level
-- watering (frequent/average/minimum), watering_min_days, watering_max_days
-- sunlight (at least one of: full sun, part sun, part shade, full shade)
-- hardiness_min, hardiness_max (USDA zone numbers as strings)
-- growth_rate, growth_habit, maintenance
-- soil (at least one), soil_ph_min, soil_ph_max
-- propagation (every plant has propagation methods — seed at minimum)
-- description (2-3 sentences in your own words)
-- is_edible, is_toxic_pets, is_toxic_humans (decisive booleans)
-- drought_tolerant, salt_tolerant, indoor, invasive (decisive booleans)
-
-For varieties/cultivars: REPEAT the parent species' values explicitly. A "Tomato 'Sungold'" row needs its own watering / sunlight / propagation values even if they match the base Tomato row. Don't say "inherits from parent" — copy the values.
-
-Use realistic ranges (e.g. tomatoes 60-80 days to harvest, not "90-90"). Don't invent specifics you aren't confident about, but don't skip whole fields either — pick the most likely value.
-
-PREFERRED VALUES for constrained fields. Use ONE of these where applicable; if none fit, pick the closest sensible descriptor in the same form (e.g. "Bromeliad" for plant_type is OK if Herb / Succulent etc don't apply):
-- plant_type: Shrub, Tree, Flower, Vegetable, Houseplant, Herb, Succulent, Climber, Grass, Fern, Cactus, Bulb, Vine, Groundcover, Aquatic
-- cycle: Perennial, Annual, Biennial, Herbaceous Perennial
-- watering: frequent, average, minimum
-- care_level: low, medium, high
-- growth_rate: slow, moderate, fast
-- maintenance: low, moderate, high
-
-Write the \`description\` in your own words — a 2-3 sentence horticultural summary. Do not copy from Wikipedia or any other source.
-
-Be especially careful with safety fields: \`is_toxic_pets\` and \`is_toxic_humans\` should ONLY be true when you are confident the plant is toxic. False positives on toxicity damage the user's trust.
-${avoidLines}
-Return JSON matching the schema. No prose, no markdown, just the JSON.`;
-}
-
-interface SeedRow {
-  common_name?: string | null;
-  scientific_name?: string[] | null;
-  family?: string | null;
-  plant_type?: string | null;
-  cycle?: string | null;
-  care_level?: string | null;
-  watering?: string | null;
-  watering_min_days?: number | null;
-  watering_max_days?: number | null;
-  sunlight?: string[] | null;
-  hardiness_min?: string | null;
-  hardiness_max?: string | null;
-  growth_rate?: string | null;
-  growth_habit?: string | null;
-  maintenance?: string | null;
-  is_edible?: boolean | null;
-  is_toxic_pets?: boolean | null;
-  is_toxic_humans?: boolean | null;
-  attracts?: string[] | null;
-  description?: string | null;
-  drought_tolerant?: boolean | null;
-  salt_tolerant?: boolean | null;
-  flowers?: boolean | null;
-  fruits?: boolean | null;
-  indoor?: boolean | null;
-  invasive?: boolean | null;
-  flowering_season?: string[] | null;
-  harvest_season?: string[] | null;
-  propagation?: string[] | null;
-  pest_susceptibility?: string[] | null;
-  soil?: string[] | null;
-  soil_ph_min?: number | null;
-  soil_ph_max?: number | null;
-  days_to_harvest_min?: number | null;
-  days_to_harvest_max?: number | null;
-}
-
-/**
- * Try to salvage complete plant objects from a truncated JSON
- * response. When Gemini hits its output-token cap mid-batch the JSON
- * is unterminated and `JSON.parse` throws on the whole thing — but
- * the plant objects BEFORE the truncation point are perfectly valid.
- * This walker tracks brace + string state and extracts every fully
- * closed `{ ... }` at the `plants` array's depth.
- *
- * Returns null when even partial salvage fails (e.g. truncation hit
- * mid-first-plant). When it succeeds, the batch counts the salvaged
- * plants as inserted/skipped and the rest as failed.
- */
-function salvageTruncatedPlants(text: string): { plants: SeedRow[] } | null {
-  const arrayStartIdx = text.indexOf('"plants"');
-  if (arrayStartIdx === -1) return null;
-  const openBracketIdx = text.indexOf("[", arrayStartIdx);
-  if (openBracketIdx === -1) return null;
-
-  let depth = 0;
-  let inString = false;
-  let escape = false;
-  let lastCompleteObjectEnd = -1;
-
-  for (let i = openBracketIdx + 1; i < text.length; i++) {
-    const ch = text[i];
-    if (escape) { escape = false; continue; }
-    if (inString) {
-      if (ch === "\\") { escape = true; continue; }
-      if (ch === "\"") inString = false;
-      continue;
-    }
-    if (ch === "\"") { inString = true; continue; }
-    if (ch === "{") depth++;
-    else if (ch === "}") {
-      depth--;
-      if (depth === 0) lastCompleteObjectEnd = i;
-    }
-  }
-
-  if (lastCompleteObjectEnd === -1) return null;
-  const salvaged = text.slice(0, lastCompleteObjectEnd + 1) + "]}";
-  try {
-    return JSON.parse(salvaged) as { plants: SeedRow[] };
-  } catch {
-    return null;
-  }
-}
-
 async function runSeedBatch(
   db: any,
   apiKey: string,
   runId: string,
-  batchCount: number,
-  avoid: AvoidEntry[],
+  plantNames: string[],
 ): Promise<{
   inserted: number;
   skipped: number;
   failed: number;
-  /** Newly-inserted entries — appended to the running avoid list so
-   *  the next batch in the same run doesn't re-propose them. */
-  insertedEntries: AvoidEntry[];
   /** Gemini token usage for this batch — accumulated on the run row. */
   promptTokens: number;
   candidatesTokens: number;
@@ -307,31 +114,38 @@ async function runSeedBatch(
   thoughtsTokens: number;
   totalTokens: number;
   costUsd: number;
+  /** Model that actually answered (after any cascade fallbacks). Used
+   *  to bucket per-model usage on the run row. */
+  model: string | null;
   /** Per-row insert failures captured during this batch. Appended
    *  to `plant_library_runs.failed_inserts` so the admin can see
    *  which plants couldn't land + why, without diving into Sentry. */
   failedInserts: FailedInsert[];
 }> {
+  const batchCount = plantNames.length;
   const stats = {
     inserted: 0,
     skipped: 0,
     failed: 0,
-    insertedEntries: [] as AvoidEntry[],
     promptTokens: 0,
     candidatesTokens: 0,
     cachedTokens: 0,
     thoughtsTokens: 0,
     totalTokens: 0,
     costUsd: 0,
+    model: null as string | null,
     failedInserts: [] as FailedInsert[],
   };
 
   const { text, usage } = await callGeminiCascade(
     apiKey,
     FN,
-    toMessages([buildSeedPrompt(batchCount, avoid)]),
+    toMessages([buildEnrichmentPrompt(plantNames)]),
     {
-      temperature: 0.9,
+      // Lower temperature — we want consistent, accurate care data,
+      // not creative variety. The names are pre-supplied; the AI's
+      // job is to look them up and fill in known values.
+      temperature: 0.3,
       // Bumped from 8192 — at 25-plant batches we were truncating
       // responses mid-string and failing JSON.parse. 32k gives huge
       // headroom even on chunky cultivar batches with long
@@ -361,6 +175,7 @@ async function runSeedBatch(
   stats.cachedTokens = usage.cachedContentTokenCount ?? 0;
   stats.thoughtsTokens = usage.thoughtsTokenCount ?? 0;
   stats.totalTokens = usage.totalTokenCount ?? 0;
+  stats.model = usage.model ?? null;
   stats.costUsd = estimateGeminiCostUsd(usage.model, {
     promptTokenCount: stats.promptTokens,
     candidatesTokenCount: stats.candidatesTokens,
@@ -400,8 +215,23 @@ async function runSeedBatch(
     }
   }
 
-  const plants = Array.isArray(parsed.plants) ? parsed.plants : [];
-  log(FN, "batch_received", { run_id: runId, ai_returned: plants.length, model: usage.model });
+  const aiPlants = Array.isArray(parsed.plants) ? parsed.plants : [];
+  log(FN, "batch_received", { run_id: runId, ai_returned: aiPlants.length, model: usage.model });
+
+  // Last-line key recheck — drop any AI-returned plant whose
+  // scientific_name_key already exists in the DB BEFORE the insert
+  // loop. The pre-AI filter in runOneChunk catches most of these
+  // upstream (and saves the AI token spend); this catches the few
+  // that slip through when AI normalises a binomial differently.
+  const { surviving: plants, preInsertSkipped } = await dropKeyCollidersFromAiResponse(db, aiPlants);
+  if (preInsertSkipped > 0) {
+    stats.skipped += preInsertSkipped;
+    log(FN, "pre_insert_key_skipped", {
+      run_id: runId,
+      pre_insert_skipped: preInsertSkipped,
+      ai_returned: aiPlants.length,
+    });
+  }
 
   // Thumbnails are now backfilled lazily by the admin search tab
   // (which writes through plant_image_cache). Doing 20 parallel
@@ -412,91 +242,44 @@ async function runSeedBatch(
 
   for (let i = 0; i < plants.length; i++) {
     const p = plants[i];
-    if (!p.common_name?.trim()) {
+    const row = seedRowToColumnShape(p, { seeded_by_run_id: runId });
+    if (!row) {
       stats.failed += 1;
       continue;
     }
 
-    const row = {
-      common_name:         p.common_name.trim(),
-      scientific_name:     Array.isArray(p.scientific_name) ? p.scientific_name : [],
-      family:              p.family ?? null,
-      plant_type:          p.plant_type ?? null,
-      cycle:               p.cycle ?? null,
-      care_level:          p.care_level ?? null,
-      watering:            p.watering ?? null,
-      watering_min_days:   p.watering_min_days ?? null,
-      watering_max_days:   p.watering_max_days ?? null,
-      sunlight:            Array.isArray(p.sunlight) ? p.sunlight : [],
-      hardiness_min:       p.hardiness_min ?? null,
-      hardiness_max:       p.hardiness_max ?? null,
-      growth_rate:         p.growth_rate ?? null,
-      growth_habit:        p.growth_habit ?? null,
-      maintenance:         p.maintenance ?? null,
-      is_edible:           !!p.is_edible,
-      is_toxic_pets:       !!p.is_toxic_pets,
-      is_toxic_humans:     !!p.is_toxic_humans,
-      attracts:            Array.isArray(p.attracts) ? p.attracts : [],
-      description:         p.description ?? null,
-      drought_tolerant:    !!p.drought_tolerant,
-      salt_tolerant:       !!p.salt_tolerant,
-      flowers:             !!p.flowers,
-      fruits:              !!p.fruits,
-      indoor:              !!p.indoor,
-      invasive:            !!p.invasive,
-      flowering_season:    Array.isArray(p.flowering_season) ? p.flowering_season : [],
-      harvest_season:      Array.isArray(p.harvest_season) ? p.harvest_season : [],
-      propagation:         Array.isArray(p.propagation) ? p.propagation : [],
-      pest_susceptibility: Array.isArray(p.pest_susceptibility) ? p.pest_susceptibility : [],
-      soil:                Array.isArray(p.soil) ? p.soil : [],
-      soil_ph_min:         p.soil_ph_min ?? null,
-      soil_ph_max:         p.soil_ph_max ?? null,
-      days_to_harvest_min: p.days_to_harvest_min ?? null,
-      days_to_harvest_max: p.days_to_harvest_max ?? null,
-      thumbnail_url:       null,
-      image_url:           null,
-      seeded_by_run_id:    runId,
-      valid:               null as boolean | null,
-    };
-
-    // Return the generated scientific_name_key so the running avoid
-    // list can grow with the row we just inserted — the next batch in
-    // this run gets to see it.
     const { data, error } = await db
       .from("plant_library")
       .insert(row, { count: "exact" })
-      .select("id, scientific_name_key, common_name");
+      .select("id");
 
     if (error) {
-      // Unique-violation = silent skip. Anything else = real failure
+      // Unique-violation = silent skip (DB pre-filter should catch
+      // most, but the AI sometimes returns a scientific name that
+      // normalises to an existing key). Anything else = real failure
       // → record on the run row so the admin UI can surface it.
       if (error.code === "23505") {
         stats.skipped += 1;
       } else {
         stats.failed += 1;
+        const commonName = String(row.common_name ?? "(unknown)");
+        const sciArr = row.scientific_name;
+        const scientificName =
+          Array.isArray(sciArr) && typeof sciArr[0] === "string" ? sciArr[0] : null;
         logError(FN, "insert_failed", {
           run_id: runId,
-          common_name: row.common_name,
+          common_name: commonName,
           error: error.message,
         });
         stats.failedInserts.push({
-          common_name: row.common_name,
-          scientific_name: Array.isArray(row.scientific_name)
-            ? row.scientific_name[0] ?? null
-            : null,
+          common_name: commonName,
+          scientific_name: scientificName,
           error: String(error.message ?? "unknown").slice(0, 500),
           at: new Date().toISOString(),
         });
       }
     } else if (data && data.length > 0) {
       stats.inserted += 1;
-      const inserted = data[0] as { scientific_name_key: string | null; common_name: string };
-      if (inserted.scientific_name_key) {
-        stats.insertedEntries.push({
-          key: inserted.scientific_name_key,
-          common_name: inserted.common_name,
-        });
-      }
     } else {
       // Defensive — empty data without error usually means a constraint
       // dropped it. Count as skipped.
@@ -505,6 +288,15 @@ async function runSeedBatch(
   }
 
   return stats;
+}
+
+interface ModelUsageSlot {
+  prompt_tokens: number;
+  candidates_tokens: number;
+  cached_tokens: number;
+  thoughts_tokens: number;
+  cost_usd: number;
+  call_count: number;
 }
 
 async function updateRunProgress(
@@ -521,6 +313,9 @@ async function updateRunProgress(
     thoughtsTokens?: number;
     totalTokens?: number;
     costUsd?: number;
+    /** Model that answered. When present, the per-model bucket on
+     *  `model_usage` is bumped alongside the aggregate totals. */
+    model?: string | null;
     failedInserts?: FailedInsert[];
   },
 ) {
@@ -530,7 +325,7 @@ async function updateRunProgress(
   const { data: row } = await db
     .from("plant_library_runs")
     .select(
-      "count_inserted, count_skipped, count_failed, error_message, total_prompt_tokens, total_candidates_tokens, total_cached_tokens, total_thoughts_tokens, total_tokens, total_cost_usd, failed_inserts",
+      "count_inserted, count_skipped, count_failed, error_message, total_prompt_tokens, total_candidates_tokens, total_cached_tokens, total_thoughts_tokens, total_tokens, total_cost_usd, failed_inserts, model_usage",
     )
     .eq("id", runId)
     .maybeSingle();
@@ -550,17 +345,63 @@ async function updateRunProgress(
       Number(row.total_cost_usd ?? 0) + (deltas.costUsd ?? 0),
     last_heartbeat_at: new Date().toISOString(),
   };
+  // Per-model bucket — only updated when we know which model
+  // answered (i.e. the delta came from a real Gemini call, not a
+  // synthetic batch-failure ping where we never got a response).
+  if (deltas.model) {
+    const usage: Record<string, ModelUsageSlot> =
+      (row.model_usage as Record<string, ModelUsageSlot>) ?? {};
+    const slot: ModelUsageSlot = usage[deltas.model] ?? {
+      prompt_tokens: 0,
+      candidates_tokens: 0,
+      cached_tokens: 0,
+      thoughts_tokens: 0,
+      cost_usd: 0,
+      call_count: 0,
+    };
+    slot.prompt_tokens     += deltas.promptTokens ?? 0;
+    slot.candidates_tokens += deltas.candidatesTokens ?? 0;
+    slot.cached_tokens     += deltas.cachedTokens ?? 0;
+    slot.thoughts_tokens   += deltas.thoughtsTokens ?? 0;
+    slot.cost_usd          += deltas.costUsd ?? 0;
+    slot.call_count        += 1;
+    usage[deltas.model] = slot;
+    patch.model_usage = usage;
+  }
   // Preserve the first batch error we see so the admin can read it
   // off the run row. Fatal failures still overwrite this via the
-  // outer catch in `backgroundSeed`.
+  // outer catch in `processChunkAndContinue`.
   if (deltas.error && !row.error_message) {
     patch.error_message = deltas.error.slice(0, 2000);
   }
+  // Synthesize a batch-failure entry into `failed_inserts` when we
+  // got an `error` but no per-row failures. Without this, batch-level
+  // failures (cascade exhausted, parse failure, etc.) only bump
+  // `count_failed` — the admin sees "50 failed" with no reasons.
+  // Repurposing `failed_inserts` avoids a schema change; the admin
+  // panel renders these alongside row failures.
+  let syntheticBatchFailure: FailedInsert | null = null;
+  if (
+    deltas.error &&
+    (!deltas.failedInserts || deltas.failedInserts.length === 0) &&
+    (deltas.failed ?? 0) > 0
+  ) {
+    syntheticBatchFailure = {
+      common_name: `(batch of ${deltas.failed} plants)`,
+      scientific_name: null,
+      error: deltas.error.slice(0, 500),
+      at: new Date().toISOString(),
+    };
+  }
   // Concat new failures onto the existing array; cap so a runaway
   // run with a thousand failures can't balloon the row.
-  if (deltas.failedInserts && deltas.failedInserts.length > 0) {
+  const incoming: FailedInsert[] = [
+    ...(deltas.failedInserts ?? []),
+    ...(syntheticBatchFailure ? [syntheticBatchFailure] : []),
+  ];
+  if (incoming.length > 0) {
     const existing = Array.isArray(row.failed_inserts) ? row.failed_inserts : [];
-    const merged = [...existing, ...deltas.failedInserts].slice(
+    const merged = [...existing, ...incoming].slice(
       0,
       MAX_FAILED_INSERTS_PER_RUN,
     );
@@ -572,104 +413,424 @@ async function updateRunProgress(
     .eq("id", runId);
 }
 
-async function backgroundSeed(
+/** Lowercase + strip cultivar quotes for case-insensitive matching. */
+function normaliseCommonName(name: string): string {
+  return name.toLowerCase().replace(/['"]/g, "").replace(/\s+/g, " ").trim();
+}
+
+/**
+ * One enriched candidate — passed through `filterCandidatesAgainstDb`
+ * and on to the AI prompt. Carries the resolved sciName so we can
+ * decorate the prompt as "Name [Sci name]" — keeps AI's
+ * scientific_name aligned with the key our pre-filter accepted.
+ */
+interface EnrichableCandidate {
+  name: string;
+  /** Best-resolved scientific binomial — null when no source supplied
+   *  one and Wikipedia summary extraction didn't find one either. */
+  sciName: string | null;
+}
+
+/**
+ * Aggressive pre-AI filter. Two stages:
+ *
+ * 1. **Common-name filter** — case-insensitive + quote-stripped
+ *    match against every existing common_name (fetched once per
+ *    chunk, ~200KB at 10k rows, cheap). O(1) Set lookup.
+ *
+ * 2. **Scientific-name filter** — for each survivor, resolve the
+ *    binomial:
+ *      - If the source (iNat / Wikidata / GBIF) already supplied
+ *        a `sciName`, use it directly — no HTTP needed.
+ *      - Otherwise (Wikipedia source), fetch the Wikipedia summary
+ *        in parallel and extract via regex.
+ *    Compute `scientific_name_key` the same way the DB's generated
+ *    column does, drop colliders against existing rows.
+ *
+ *    The pre-resolved sciName from iNat/Wikidata/GBIF saves ~70%
+ *    of the Wikipedia summary calls in a typical batch — the
+ *    slowest part of skip-reduction.
+ *
+ * Returns the surviving candidates (with their resolved sciName so
+ * the caller can decorate prompts as "Name [Sci]").
+ */
+async function filterCandidatesAgainstDb(
+  db: any,
+  candidates: CandidatePlant[],
+): Promise<EnrichableCandidate[]> {
+  if (candidates.length === 0) return [];
+
+  // Stage 1 — common-name filter (Set-based, case-insensitive).
+  const { data: existingNames } = await db
+    .from("plant_library")
+    .select("common_name");
+  const knownNormalisedNames = new Set<string>(
+    (existingNames ?? [])
+      .map((r: { common_name: string }) =>
+        r.common_name ? normaliseCommonName(r.common_name) : "",
+      )
+      .filter(Boolean),
+  );
+  const afterStage1 = candidates.filter(
+    (c) => !knownNormalisedNames.has(normaliseCommonName(c.name)),
+  );
+
+  if (afterStage1.length === 0) return [];
+
+  // Stage 2 — resolve a scientific name per candidate. Source-
+  // provided sciName takes the fast path; Wikipedia-source
+  // candidates still need the summary lookup.
+  const resolved = await Promise.all(
+    afterStage1.map(async (c) => {
+      if (c.sciName) {
+        return { name: c.name, sciName: c.sciName, key: computeSciKey(c.sciName, c.name) };
+      }
+      const summary = await fetchWikipediaSummary(c.name);
+      const sci = extractScientificName(summary?.extract ?? null);
+      return { name: c.name, sciName: sci, key: computeSciKey(sci, c.name) };
+    }),
+  );
+
+  // Stage 2.b — single DB query for matching keys across the
+  // resolved set. Drop colliders.
+  const candidateKeys = resolved.map((r) => r.key).filter(Boolean);
+  if (candidateKeys.length === 0) {
+    return afterStage1.map((c) => ({ name: c.name, sciName: c.sciName }));
+  }
+
+  const { data: existingKeys } = await db
+    .from("plant_library")
+    .select("scientific_name_key")
+    .in("scientific_name_key", candidateKeys);
+  const knownKeys = new Set<string>(
+    (existingKeys ?? [])
+      .map((r: { scientific_name_key: string }) => r.scientific_name_key)
+      .filter(Boolean),
+  );
+
+  return resolved
+    .filter((r) => !knownKeys.has(r.key))
+    .map((r) => ({ name: r.name, sciName: r.sciName }));
+}
+
+/** Format a name + optional sciName for the prompt list. Bracket
+ *  form locks the scientific_name in the AI's response — see
+ *  `_shared/plantSeedPrompt.ts` for the matching prompt instruction. */
+function decorateForPrompt(c: EnrichableCandidate): string {
+  return c.sciName ? `${c.name} [${c.sciName}]` : c.name;
+}
+
+/**
+ * Last-line defence after the AI responds: compute each returned
+ * plant's `scientific_name_key` in JS and drop the ones that
+ * collide with existing rows. Doesn't save AI tokens (already
+ * spent), but saves N insert round-trips per batch and keeps the
+ * "skipped" counter honest about what the cascade actually caught
+ * upstream. Modifies `plants` in place; returns the filtered list.
+ */
+async function dropKeyCollidersFromAiResponse(
+  db: any,
+  plants: SeedRow[],
+): Promise<{ surviving: SeedRow[]; preInsertSkipped: number }> {
+  if (plants.length === 0) return { surviving: [], preInsertSkipped: 0 };
+
+  const keys = plants
+    .map((p) =>
+      computeSciKey(
+        Array.isArray(p.scientific_name) ? p.scientific_name[0] ?? null : null,
+        p.common_name ?? "",
+      ),
+    )
+    .filter(Boolean);
+
+  if (keys.length === 0) return { surviving: plants, preInsertSkipped: 0 };
+
+  const { data: existing } = await db
+    .from("plant_library")
+    .select("scientific_name_key")
+    .in("scientific_name_key", keys);
+  const knownKeys = new Set<string>(
+    (existing ?? [])
+      .map((r: { scientific_name_key: string }) => r.scientific_name_key)
+      .filter(Boolean),
+  );
+
+  const surviving = plants.filter((p) => {
+    const key = computeSciKey(
+      Array.isArray(p.scientific_name) ? p.scientific_name[0] ?? null : null,
+      p.common_name ?? "",
+    );
+    return !knownKeys.has(key);
+  });
+
+  return {
+    surviving,
+    preInsertSkipped: plants.length - surviving.length,
+  };
+}
+
+/**
+ * Process ONE chunk worth of work (up to `chunkPlantCount` plants,
+ * split into BATCH_SIZE batches). Writes progress + token usage
+ * straight to `plant_library_runs`.
+ *
+ * Flow:
+ *   1. Pull ~3× CHUNK_SIZE candidate names from Wikipedia categories.
+ *   2. Drop any whose common_name already exists in the DB.
+ *   3. Take up to `chunkPlantCount` survivors.
+ *   4. Split into BATCH_SIZE batches; for each batch call AI with
+ *      the specific names and ask for care data only.
+ */
+async function runOneChunk(
   db: any,
   apiKey: string,
   runId: string,
-  count: number,
-) {
-  try {
-    // Pull a RANDOM sample of already-known plants and feed them to
-    // the AI as "do NOT propose these". Random (not recency-first)
-    // because the common species AI keeps re-proposing tend to be
-    // seeded EARLY — a recency-biased window misses them. Both the
-    // scientific key (drives dedup at the DB level) and common name
-    // go in so the AI doesn't suggest a colliding entry under a
-    // slightly different form. The unique index still backstops
-    // anything that slips through; this is purely about avoiding
-    // wasted AI calls.
-    const { data: sample } = await db.rpc("plant_library_random_avoid_sample", {
-      sample_size: INITIAL_AVOID_FETCH,
-    });
-    let avoid: AvoidEntry[] = (sample ?? [])
-      .map(
-        (r: { scientific_name_key: string | null; common_name: string }) => ({
-          key: r.scientific_name_key,
-          common_name: r.common_name,
-        }),
-      )
-      .filter((e: { key: string | null }): e is AvoidEntry => !!e.key);
+  chunkPlantCount: number,
+  /** Optional: pre-resolved candidate names (e.g. from seasonal picks).
+   *  When supplied, skip the Wikipedia discovery step entirely. */
+  explicitCandidates?: CandidatePlant[],
+): Promise<void> {
+  // Stamp a heartbeat immediately so the admin sweep can't
+  // false-positive a chunk that's just starting.
+  await db
+    .from("plant_library_runs")
+    .update({ last_heartbeat_at: new Date().toISOString() })
+    .eq("id", runId);
 
-    // Stamp a heartbeat immediately so the admin sweep can't
-    // false-positive a run that's just starting.
-    await db
-      .from("plant_library_runs")
-      .update({ last_heartbeat_at: new Date().toISOString() })
-      .eq("id", runId);
+  let toEnrich: CandidatePlant[];
 
-    let remaining = count;
-    while (remaining > 0) {
-      const batch = Math.min(remaining, BATCH_SIZE);
-      try {
-        const stats = await runSeedBatch(db, apiKey, runId, batch, avoid);
-        await updateRunProgress(db, runId, {
-          inserted: stats.inserted,
-          skipped: stats.skipped,
-          failed: stats.failed,
-          promptTokens: stats.promptTokens,
-          candidatesTokens: stats.candidatesTokens,
-          cachedTokens: stats.cachedTokens,
-          thoughtsTokens: stats.thoughtsTokens,
-          totalTokens: stats.totalTokens,
-          costUsd: stats.costUsd,
-          failedInserts: stats.failedInserts,
-        });
-        // Append newly-inserted entries to the running avoid list so
-        // the next batch in THIS run can see them too. Without this,
-        // batches 2-N would re-propose plants batch 1 just inserted.
-        // Cap the list size so the prompt doesn't balloon on long runs.
-        if (stats.insertedEntries.length > 0) {
-          avoid = [...stats.insertedEntries, ...avoid].slice(0, MAX_AVOID_LIST_SIZE);
-        }
-        remaining -= batch;
-      } catch (err) {
-        const reason = (err as Error).message ?? "unknown";
-        logError(FN, "batch_failed", { run_id: runId, error: reason });
-        // Cascade exhausted (e.g. Gemini overload, all 12 attempts
-        // failed) → mark the whole batch as failed and remember the
-        // first error so the admin can see WHY. Subsequent batches
-        // still run.
-        await updateRunProgress(db, runId, { failed: batch, error: reason });
-        remaining -= batch;
+  if (explicitCandidates && explicitCandidates.length > 0) {
+    log(FN, "names_supplied", { run_id: runId, count: explicitCandidates.length });
+    const unseen = await filterCandidatesAgainstDb(db, explicitCandidates);
+    toEnrich = unseen.slice(0, chunkPlantCount);
+  } else {
+    // Iterative gather — if the first fetch leaves too few survivors
+    // after the DB pre-filter, re-fetch with under-performing sources
+    // muted. Caps at 3 iterations so a saturated catalogue doesn't
+    // burn the entire chunk's wall-clock budget.
+    const HARD_MAX_ITERATIONS = 3;
+    const wantedPerIteration = chunkPlantCount * NAME_OVERFETCH_MULTIPLIER;
+    const fetchedBySource: Record<string, number> = {};
+    const freshBySource: Record<string, number> = {};
+    const skipSources = new Set<SourceName>();
+    const seenThisChunk = new Set<string>();
+    const accumulated: CandidatePlant[] = [];
+    let lastRawCount = 0;
+
+    for (let i = 0; i < HARD_MAX_ITERATIONS && accumulated.length < chunkPlantCount; i++) {
+      const raw = await fetchCandidatePlantNames(db, wantedPerIteration, skipSources);
+      lastRawCount = raw.length;
+      for (const c of raw) {
+        fetchedBySource[c.source] = (fetchedBySource[c.source] ?? 0) + 1;
       }
+
+      const fresh = raw.filter((c) => {
+        const key = c.name.toLowerCase();
+        if (seenThisChunk.has(key)) return false;
+        seenThisChunk.add(key);
+        freshBySource[c.source] = (freshBySource[c.source] ?? 0) + 1;
+        return true;
+      });
+
+      const unseen = await filterCandidatesAgainstDb(db, fresh);
+      accumulated.push(...unseen);
+
+      // Mute any source whose fresh-rate has dropped below threshold.
+      // Same logic the Batch API submit path uses — keeps both flows
+      // in lockstep via the shared FRESH_RATE_THRESHOLD constant.
+      for (const s of ACTIVE_SOURCES) {
+        if (skipSources.has(s)) continue;
+        const fetched = fetchedBySource[s] ?? 0;
+        const freshFromS = freshBySource[s] ?? 0;
+        if (fetched >= 50 && freshFromS / fetched < FRESH_RATE_THRESHOLD) {
+          skipSources.add(s);
+          log(FN, "gather_source_muted", {
+            run_id: runId,
+            source: s,
+            fetched,
+            fresh: freshFromS,
+            fresh_rate: freshFromS / fetched,
+          });
+        }
+      }
+
+      log(FN, "gather_iteration", {
+        run_id: runId,
+        iteration: i,
+        raw: raw.length,
+        fresh: fresh.length,
+        unseen: unseen.length,
+        running_total: accumulated.length,
+        target: chunkPlantCount,
+        muted_sources: [...skipSources],
+      });
+
+      // All sources muted AND nothing fresh → nothing left to gather.
+      if (skipSources.size >= ACTIVE_SOURCES.length) break;
+      // Last fetch returned nothing → upstream APIs all failed/timed
+      // out together; bail rather than loop forever.
+      if (raw.length === 0) break;
     }
 
-    // Reflect partial failures in the final status: if any batch
-    // failed, the run is `partial` (some plants in, some not) or
-    // `failed` (every batch failed — typically all Gemini quota gone).
-    const { data: final } = await db
-      .from("plant_library_runs")
-      .select("count_inserted, count_failed")
-      .eq("id", runId)
-      .maybeSingle();
-    const inserted = final?.count_inserted ?? 0;
-    const failed = final?.count_failed ?? 0;
-    const finalStatus =
-      failed > 0 && inserted === 0
-        ? "failed"
-        : failed > 0
-        ? "partial"
-        : "succeeded";
+    log(FN, "names_fetched", {
+      run_id: runId,
+      fetched: lastRawCount,
+      unseen: accumulated.length,
+      iterations_used: Math.min(HARD_MAX_ITERATIONS, accumulated.length === 0 ? 1 : HARD_MAX_ITERATIONS),
+    });
 
-    await db
-      .from("plant_library_runs")
-      .update({
-        status: finalStatus,
-        finished_at: new Date().toISOString(),
-        last_heartbeat_at: new Date().toISOString(),
-      })
-      .eq("id", runId);
-    log(FN, "run_finished", { run_id: runId, status: finalStatus, inserted, failed });
+    if (accumulated.length === 0) {
+      // All sources returned nothing usable.
+      await updateRunProgress(db, runId, {
+        failed: chunkPlantCount,
+        error: "all candidate name sources returned no fresh plants (either all saturated against DB or transient upstream failure)",
+      });
+      return;
+    }
+    toEnrich = accumulated.slice(0, chunkPlantCount);
+  }
+
+  if (toEnrich.length === 0) {
+    // Caller-supplied list filtered out entirely — every requested plant
+    // is already in the DB.
+    await updateRunProgress(db, runId, {
+      failed: chunkPlantCount,
+      error: "all supplied plant names are already in the DB",
+    });
+    return;
+  }
+
+  // Split into BATCH_SIZE chunks and enrich each batch. We decorate
+  // each name as "Common Name [Scientific name]" when sciName is
+  // known so the AI uses the resolved binomial verbatim — preventing
+  // the post-AI "AI invented a different sci_name → key collision →
+  // SKIP" pattern that was eating ~80% of throughput.
+  for (let i = 0; i < toEnrich.length; i += BATCH_SIZE) {
+    const batchSurvivors = toEnrich.slice(i, i + BATCH_SIZE);
+    const batchNames = batchSurvivors.map(decorateForPrompt);
+    try {
+      const stats = await runSeedBatch(db, apiKey, runId, batchNames);
+      await updateRunProgress(db, runId, {
+        inserted: stats.inserted,
+        skipped: stats.skipped,
+        failed: stats.failed,
+        promptTokens: stats.promptTokens,
+        candidatesTokens: stats.candidatesTokens,
+        cachedTokens: stats.cachedTokens,
+        thoughtsTokens: stats.thoughtsTokens,
+        totalTokens: stats.totalTokens,
+        costUsd: stats.costUsd,
+        model: stats.model,
+        failedInserts: stats.failedInserts,
+      });
+    } catch (err) {
+      const reason = (err as Error).message ?? "unknown";
+      logError(FN, "batch_failed", {
+        run_id: runId,
+        error: reason,
+        batch_names: batchNames,
+      });
+      // Cascade exhausted (e.g. Gemini overload, all attempts failed)
+      // → mark the whole batch as failed and synthesize a
+      // failed_inserts entry so the admin sees the reason.
+      // Subsequent batches still run.
+      await updateRunProgress(db, runId, {
+        failed: batchNames.length,
+        error: reason,
+      });
+    }
+  }
+}
+
+/**
+ * Final status reflects partial failures: any failed batches but
+ * some plants in → `partial`; every batch failed → `failed`;
+ * otherwise `succeeded`.
+ */
+async function finalizeRun(db: any, runId: string): Promise<void> {
+  const { data: final } = await db
+    .from("plant_library_runs")
+    .select("count_inserted, count_failed")
+    .eq("id", runId)
+    .maybeSingle();
+  const inserted = final?.count_inserted ?? 0;
+  const failed = final?.count_failed ?? 0;
+  const finalStatus =
+    failed > 0 && inserted === 0
+      ? "failed"
+      : failed > 0
+      ? "partial"
+      : "succeeded";
+
+  await db
+    .from("plant_library_runs")
+    .update({
+      status: finalStatus,
+      finished_at: new Date().toISOString(),
+      last_heartbeat_at: new Date().toISOString(),
+    })
+    .eq("id", runId);
+  log(FN, "run_finished", { run_id: runId, status: finalStatus, inserted, failed });
+}
+
+/**
+ * Fire-and-forget POST to our own URL with the remaining count. The
+ * receiving invocation handles the next chunk and recurses.
+ * verify_jwt is off for this function, so the cron-style call works
+ * without an auth header.
+ *
+ * The fetch promise is registered with `EdgeRuntime.waitUntil` so the
+ * runtime keeps the worker alive until the request actually lands. A
+ * bare `fetch().catch()` outside waitUntil gets cancelled when the
+ * chunk's waitUntil scope settles — that was the bug that capped runs
+ * around 50 (one chunk landed; the chain died on the way to chunk 2).
+ *
+ * If the dispatch fails (network blip), the chain breaks and the
+ * admin sweep eventually marks the run failed via the stale
+ * heartbeat — acceptable; admin can re-trigger.
+ */
+function scheduleContinuation(runId: string, remaining: number): void {
+  const url = `${Deno.env.get("SUPABASE_URL")}/functions/v1/seed-plant-library`;
+  const fetchPromise = fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ count: remaining, run_id: runId }),
+  }).catch((err) => {
+    logError(FN, "schedule_continuation_failed", {
+      run_id: runId,
+      remaining,
+      error: (err as Error)?.message,
+    });
+  });
+  // @ts-expect-error EdgeRuntime is only available at runtime.
+  EdgeRuntime.waitUntil(fetchPromise);
+}
+
+/**
+ * Run one chunk, then either chain a continuation invocation or
+ * finalize. Wrapped in try/catch so any unhandled failure during the
+ * chunk marks the run failed instead of leaving it stuck running.
+ */
+async function processChunkAndContinue(
+  db: any,
+  apiKey: string,
+  runId: string,
+  remaining: number,
+  /** Optional pre-resolved candidates. Only used on the FIRST chunk —
+   *  continuation chains drop back to Wikipedia discovery if there's
+   *  still work to do (typical when count > supplied list). */
+  explicitCandidates?: CandidatePlant[],
+): Promise<void> {
+  try {
+    const chunkPlants = Math.min(CHUNK_SIZE, remaining);
+    await runOneChunk(db, apiKey, runId, chunkPlants, explicitCandidates);
+    const stillRemaining = remaining - chunkPlants;
+    if (stillRemaining > 0) {
+      log(FN, "scheduling_continuation", { run_id: runId, remaining: stillRemaining });
+      scheduleContinuation(runId, stillRemaining);
+    } else {
+      await finalizeRun(db, runId);
+    }
   } catch (err: any) {
     await captureException(FN, err);
     await db
@@ -680,7 +841,7 @@ async function backgroundSeed(
         error_message: err?.message ?? "unknown",
       })
       .eq("id", runId);
-    logError(FN, "run_failed", { run_id: runId, error: err?.message });
+    logError(FN, "chunk_failed", { run_id: runId, error: err?.message });
   }
 }
 
@@ -698,9 +859,73 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const rawCount = typeof body.count === "number" ? body.count : 0;
-    const count = Math.max(1, Math.min(5000, Math.floor(rawCount)));
     const triggeredBy = typeof body.triggered_by === "string" ? body.triggered_by : null;
+    const continuationRunId =
+      typeof body.run_id === "string" && body.run_id ? body.run_id : null;
 
+    // Optional: caller can supply explicit plant names (e.g. the
+    // seasonal-picks handler firing seeds for picks that aren't yet
+    // in the library). When present, we skip the Wikipedia name
+    // discovery step and enrich exactly these plants instead.
+    const rawPlantNames: unknown = body.plantNames;
+    const callerPlantNames: { name: string; sciName: string | null }[] = Array.isArray(rawPlantNames)
+      ? rawPlantNames
+          .map((entry) => {
+            if (typeof entry === "string" && entry.trim()) {
+              return { name: entry.trim(), sciName: null };
+            }
+            if (entry && typeof entry === "object" && typeof (entry as any).name === "string") {
+              const sci = typeof (entry as any).sciName === "string" ? (entry as any).sciName.trim() : null;
+              return { name: (entry as any).name.trim(), sciName: sci || null };
+            }
+            return null;
+          })
+          .filter((e): e is { name: string; sciName: string | null } => !!e && !!e.name)
+      : [];
+
+    // When plantNames is supplied, count defaults to that list's length
+    // so we never run beyond the supplied set. The caller can still
+    // pass a smaller count to cap the work.
+    const effectiveRawCount = callerPlantNames.length > 0
+      ? (rawCount > 0 ? Math.min(rawCount, callerPlantNames.length) : callerPlantNames.length)
+      : rawCount;
+    const count = Math.max(1, Math.min(5000, Math.floor(effectiveRawCount)));
+
+    // Continuation invocation: the previous chunk fired-and-forgot
+    // ourselves to process the next chunk. Verify the run is still
+    // live (admin may have stopped it via the ✕ button, or the
+    // heartbeat sweep may have killed it as stale) — if it's not,
+    // drop the call on the floor.
+    if (continuationRunId) {
+      const { data: row } = await db
+        .from("plant_library_runs")
+        .select("status")
+        .eq("id", continuationRunId)
+        .maybeSingle();
+      if (!row || row.status !== "running") {
+        log(FN, "continuation_skipped", {
+          run_id: continuationRunId,
+          status: row?.status ?? "missing",
+          remaining: count,
+        });
+        return new Response(
+          JSON.stringify({ skipped: true, run_id: continuationRunId }),
+          { status: 200, headers: { ...CORS, "Content-Type": "application/json" } },
+        );
+      }
+
+      log(FN, "continuation_started", { run_id: continuationRunId, remaining: count });
+      // @ts-expect-error EdgeRuntime is only available at runtime.
+      EdgeRuntime.waitUntil(
+        processChunkAndContinue(db, apiKey, continuationRunId, count),
+      );
+      return new Response(
+        JSON.stringify({ run_id: continuationRunId, continuation: true }),
+        { status: 202, headers: { ...CORS, "Content-Type": "application/json" } },
+      );
+    }
+
+    // First call: create the run row, then kick off the chain.
     const { data: run, error: runError } = await db
       .from("plant_library_runs")
       .insert({
@@ -714,10 +939,21 @@ Deno.serve(async (req) => {
 
     log(FN, "started", { run_id: run.id, count, triggered_by: triggeredBy });
 
-    // Fire-and-forget — release the connection immediately and let the
-    // batches run in the background.
+    // When the caller supplied explicit names, convert them into the
+    // CandidatePlant shape that runOneChunk expects.
+    const explicitCandidates: CandidatePlant[] | undefined = callerPlantNames.length > 0
+      ? callerPlantNames.slice(0, count).map((p) => ({
+          name: p.name,
+          sciName: p.sciName,
+          source: "caller_supplied" as const,
+        }))
+      : undefined;
+
+    // Fire-and-forget — release the connection immediately and let
+    // the first chunk run in the background; it'll chain itself for
+    // the rest.
     // @ts-expect-error EdgeRuntime is only available at runtime.
-    EdgeRuntime.waitUntil(backgroundSeed(db, apiKey, run.id, count));
+    EdgeRuntime.waitUntil(processChunkAndContinue(db, apiKey, run.id, count, explicitCandidates));
 
     return new Response(JSON.stringify({ run_id: run.id }), {
       status: 202,

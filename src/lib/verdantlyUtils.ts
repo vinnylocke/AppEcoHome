@@ -102,6 +102,10 @@ export interface ProviderSearchResult {
     last_care_generated_at: string | null;
     overridden_fields: string[] | null;
   };
+  /** When set, the picks/library handoff knows the plant already exists
+   *  in `plant_library`. The catalogue-ensure path clones the library
+   *  row into the home `plants` table instead of invoking Gemini. */
+  plant_library_id?: number;
 }
 
 export function getProviderLabel(source: string): "Perenual" | "Verdantly" | "Rhozly AI" | null {

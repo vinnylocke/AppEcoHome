@@ -1,16 +1,39 @@
 import { log, warn } from "./logger.ts";
 
-// Cascade order: cheapest / fastest first, most capable last. When the
-// leading models are overloaded we fall through to mid-tier ones
-// (Gemini 2.5 family) before reaching the expensive Pro models.
-// 6 models × 3 retries = up to 18 attempts before a batch is given up.
+// Cascade order: cheapest / fastest first, most capable / expensive
+// last. When the leading models are overloaded or rate-limited we
+// fall through. 7 models — if the cascade reaches the bottom rung
+// (gemini-3.5-flash at $1.50/$9.00 per million) the batch's cost
+// jumps 15× vs the top rung, so cascade depth has cost implications
+// worth keeping an eye on in the admin "est. cost" column.
 export const DEFAULT_MODELS = [
-  "gemini-3.1-flash-lite",
   "gemini-2.5-flash-lite",
+  "gemini-2.5-flash-lite-preview-09-2025",
   "gemini-2.5-flash",
   "gemini-3-flash-preview",
+  "gemini-3.1-flash-lite-preview",
+  "gemini-3.1-flash-lite",
+  "gemini-3.5-flash",
+];
+
+/**
+ * Pro-first cascade for vision-heavy plant doctor actions
+ * (diagnose / identify_pest / identify_vision /
+ * analyse_comprehensive). Trades ~20× cost vs the default Flash
+ * cascade for noticeably better visual reasoning — Pro models
+ * actually "look at" the image with more care, which matters when
+ * hallucinated symptoms damage trust.
+ *
+ * Falls back to Flash if both Pro tiers are overloaded so the user
+ * gets SOME answer rather than an error. The two-stage prompt +
+ * confidence floor we apply on top means even the Flash fallback
+ * stays grounded.
+ */
+export const VISION_DIAGNOSIS_MODELS = [
   "gemini-2.5-pro",
   "gemini-3.1-pro-preview",
+  "gemini-3-flash-preview",
+  "gemini-2.5-flash",
 ];
 
 export interface GeminiPart {
@@ -30,7 +53,8 @@ export interface GeminiUsage {
   candidatesTokenCount: number;
   /**
    * Prompt tokens served from Google's context cache. Billed at
-   * ~25% of the model's normal input rate. Default 0 when the API
+   * ~10% of the model's normal input rate (current published rate
+   * across the Gemini 2.5 / 3.x range). Default 0 when the API
    * doesn't return the field (older models / non-cache call).
    */
   cachedContentTokenCount: number;
@@ -193,5 +217,429 @@ async function callOnce(
       totalTokenCount: data.usageMetadata?.totalTokenCount ?? 0,
       model,
     },
+  };
+}
+
+// ─── Batch API ───────────────────────────────────────────────────────
+//
+// Google's Gemini Batch API. 50% cheaper than sync, results within
+// 24 hours (usually much sooner). Per
+// https://ai.google.dev/gemini-api/docs/batch-mode:
+//
+//   POST /v1beta/models/{model}:batchGenerateContent
+//     body: { batch: { display_name, input_config: { requests: { requests: [ … ] } } } }
+//     header: x-goog-api-key
+//     returns: { name: "batches/<id>", state: "JOB_STATE_PENDING", … }
+//
+//   GET /v1beta/{batch_name}
+//     header: x-goog-api-key
+//     returns: { name, state, response?: { inlinedResponses: [...] }, error? }
+//
+// States: JOB_STATE_PENDING / RUNNING / SUCCEEDED / FAILED /
+// CANCELLED / EXPIRED (48h cap).
+//
+// Inline format only — we cap individual batches small enough
+// (well under 20MB request limit) so we don't need the file-upload
+// path. Each request line carries a `metadata.key` so the response
+// rows can be matched back to the input.
+
+export interface BatchRequestLine {
+  /** Stable identifier we use to match the response back to the input. */
+  key: string;
+  /** Prompt text — wrapped into a single-user `contents` block by the helper. */
+  prompt: string;
+}
+
+export interface BatchSubmitResult {
+  /** Full Gemini operation name, e.g. "batches/abc123". */
+  name: string;
+  /** Initial state Gemini reports — usually JOB_STATE_PENDING. */
+  state: string;
+}
+
+/**
+ * Gemini returns `JOB_STATE_*` or `BATCH_STATE_*` depending on the
+ * API surface / version that handles a given request. Both prefixes
+ * carry the same suffix vocabulary (PENDING / RUNNING / SUCCEEDED /
+ * FAILED / CANCELLED / EXPIRED). Typed as `string` because callers
+ * normalize on the suffix; pinning the union here just sets us up
+ * to silently drop unknown new prefixes Google introduces.
+ */
+export type BatchState = string;
+
+export interface BatchStatusResult {
+  state: BatchState;
+  /** Populated only on terminal failure states. */
+  error?: string;
+}
+
+export interface BatchResponseLine {
+  key: string;
+  /** Parsed model response text on success. */
+  text: string | null;
+  /** Per-line usage metadata when Gemini supplied it. */
+  usage: GeminiUsage | null;
+  /** Non-null on error — e.g. "RESOURCE_EXHAUSTED" or a parse failure. */
+  error: string | null;
+}
+
+/**
+ * Submit a batch of generation requests to Gemini. All requests in
+ * a batch use the SAME model + generation config — caller groups
+ * by model upstream if mixing.
+ *
+ * Returns the batch operation name. Use `getBatchStatus()` to poll
+ * + `getBatchResults()` once SUCCEEDED.
+ */
+export async function submitGeminiBatch(
+  apiKey: string,
+  model: string,
+  displayName: string,
+  requests: BatchRequestLine[],
+  opts: {
+    temperature?: number;
+    maxOutputTokens?: number;
+    responseSchema?: unknown;
+    responseMimeType?: string;
+  } = {},
+): Promise<BatchSubmitResult> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:batchGenerateContent`;
+
+  const generationConfig: Record<string, unknown> = {
+    temperature: opts.temperature ?? 0.7,
+    maxOutputTokens: opts.maxOutputTokens ?? 2048,
+  };
+  if (opts.responseSchema) {
+    generationConfig.responseMimeType = "application/json";
+    generationConfig.responseSchema = opts.responseSchema;
+  } else if (opts.responseMimeType) {
+    generationConfig.responseMimeType = opts.responseMimeType;
+  }
+
+  const inlineRequests = requests.map((r) => ({
+    request: {
+      contents: [{ parts: [{ text: r.prompt }] }],
+      generationConfig,
+    },
+    metadata: { key: r.key },
+  }));
+
+  const body = {
+    batch: {
+      display_name: displayName,
+      input_config: {
+        requests: { requests: inlineRequests },
+      },
+    },
+  };
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": apiKey,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(
+      `Gemini batch submit failed (HTTP ${res.status}): ${
+        errData.error?.message ?? res.statusText
+      }`,
+    );
+  }
+
+  const data = await res.json();
+  if (!data?.name) {
+    throw new Error(`Gemini batch submit returned no operation name. Body: ${JSON.stringify(data).slice(0, 500)}`);
+  }
+  return {
+    name: data.name,
+    state: data.state ?? data.metadata?.state ?? "JOB_STATE_PENDING",
+  };
+}
+
+/**
+ * GET /v1beta/{batch_name} — returns the current state. Cheap;
+ * safe to call every few minutes per active batch.
+ */
+export async function getGeminiBatchStatus(
+  apiKey: string,
+  batchName: string,
+): Promise<BatchStatusResult> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/${batchName}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "x-goog-api-key": apiKey },
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(
+      `Gemini batch status failed (HTTP ${res.status}): ${
+        errData.error?.message ?? res.statusText
+      }`,
+    );
+  }
+  const data = await res.json();
+  const state: string = data.state ?? data.metadata?.state ?? "JOB_STATE_PENDING";
+  const error: string | undefined =
+    data.error?.message ?? data.metadata?.error?.message ?? undefined;
+  return { state: state as BatchState, error };
+}
+
+/**
+ * Fetch inline results from a SUCCEEDED batch. Returns one entry
+ * per submitted request, in the order they were submitted. Lines
+ * that failed Gemini-side carry an `error` string; successful
+ * lines carry parsed `text` + usage metadata.
+ *
+ * Response shape per the docs is `data.dest.inlinedResponses[]` —
+ * NOT `data.response.inlinedResponses[]` as the SDK examples loosely
+ * imply. We try several known nesting paths defensively (different
+ * API surfaces / versions / capitalisations have shipped over time)
+ * and fall through to an empty array only if everything misses.
+ * Caller logs when that happens for diagnosis.
+ */
+export async function getGeminiBatchResults(
+  apiKey: string,
+  batchName: string,
+): Promise<BatchResponseLine[]> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/${batchName}`;
+  const res = await fetch(url, {
+    method: "GET",
+    headers: { "x-goog-api-key": apiKey },
+  });
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(
+      `Gemini batch results fetch failed (HTTP ${res.status}): ${
+        errData.error?.message ?? res.statusText
+      }`,
+    );
+  }
+  const data = await res.json();
+  // Cover every nesting path the API has used in published examples
+  // / docs / SDK source. `data.dest.inlinedResponses` is the current
+  // canonical path per https://ai.google.dev/gemini-api/docs/batch-api.
+  const inlined: any[] =
+    data.dest?.inlinedResponses?.inlinedResponses ??
+    data.dest?.inlinedResponses ??
+    data.response?.inlinedResponses?.inlinedResponses ??
+    data.response?.inlinedResponses ??
+    data.inlinedResponses ??
+    [];
+
+  return inlined.map((line, idx) => {
+    // Gemini doesn't reliably echo our submission metadata.key back —
+    // fall back to the array index so failure logs still identify
+    // which line went wrong.
+    const key = line.metadata?.key ?? `#${idx}`;
+    const err: string | undefined = line.error?.message ?? line.status?.message;
+    if (err) {
+      return { key, text: null, usage: null, error: err };
+    }
+    const text: string | null =
+      line.response?.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+    const um = line.response?.usageMetadata;
+    return {
+      key,
+      text,
+      usage: um
+        ? {
+            promptTokenCount: um.promptTokenCount ?? 0,
+            candidatesTokenCount: um.candidatesTokenCount ?? 0,
+            cachedContentTokenCount: um.cachedContentTokenCount ?? 0,
+            thoughtsTokenCount: um.thoughtsTokenCount ?? 0,
+            totalTokenCount: um.totalTokenCount ?? 0,
+            model: line.response?.modelVersion ?? "unknown",
+          }
+        : null,
+      error: text == null ? "no candidate text in response" : null,
+    };
+  });
+}
+
+/**
+ * Best-effort cancel for a non-terminal batch. Google's
+ * batches:cancel endpoint flips the state to JOB_STATE_CANCELLED;
+ * work already in flight may still complete + still be billed.
+ */
+export async function cancelGeminiBatch(
+  apiKey: string,
+  batchName: string,
+): Promise<void> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/${batchName}:cancel`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "x-goog-api-key": apiKey, "Content-Type": "application/json" },
+    body: JSON.stringify({}),
+  });
+  if (!res.ok && res.status !== 404) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(
+      `Gemini batch cancel failed (HTTP ${res.status}): ${
+        errData.error?.message ?? res.statusText
+      }`,
+    );
+  }
+}
+
+// ── Imagen image generation ────────────────────────────────────────
+//
+// Generates an image from a text prompt via Google's Imagen 4
+// endpoint. Paid tier only. Used by the planner Garden Overhaul flow
+// to produce "after" concept images.
+//
+// Returns base64 image bytes + mime type. Caller is responsible for
+// uploading to Supabase Storage and getting a public URL.
+
+export interface ImagenResult {
+  base64: string;
+  mimeType: string;
+  model: string;
+}
+
+/**
+ * Call gemini-2.5-flash-image with a text prompt + reference photo
+ * to TRANSFORM the photo. Returns the transformed image as base64.
+ *
+ * Different from `generateImagenImage` (text-to-image only) — this
+ * model is multimodal: it sees the reference photo and produces an
+ * image that retains the photo's structure (pathways, fencing,
+ * existing trees) while applying the requested transformation. The
+ * right fit for Garden Overhaul concept images so users see THEIR
+ * garden transformed, not a generic mockup.
+ *
+ * Cost: $0.039/image (vs Imagen 4 Fast's $0.02). Worth the ~2x
+ * for actual photo continuity.
+ */
+export async function generateGeminiFlashImage(
+  apiKey: string,
+  prompt: string,
+  referencePhoto: { base64: string; mimeType: string },
+  opts: {
+    timeoutMs?: number;
+  } = {},
+): Promise<{ base64: string; mimeType: string; model: string }> {
+  const model = "gemini-2.5-flash-image";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`;
+  const body = {
+    contents: [{
+      parts: [
+        { text: prompt },
+        { inlineData: { mimeType: referencePhoto.mimeType, data: referencePhoto.base64 } },
+      ],
+    }],
+    generationConfig: {
+      responseModalities: ["IMAGE"],
+    },
+  };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 60_000);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "x-goog-api-key": apiKey },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(
+      `gemini-2.5-flash-image failed (HTTP ${res.status}): ${
+        errData.error?.message ?? res.statusText
+      }`,
+    );
+  }
+
+  const data = await res.json();
+  const parts: any[] = data?.candidates?.[0]?.content?.parts ?? [];
+  // The model can return text + image; grab the first inlineData part.
+  const imgPart = parts.find((p) => p?.inlineData?.data);
+  if (!imgPart) {
+    const reason = data?.candidates?.[0]?.finishReason ?? "no inlineData in response";
+    throw new Error(`gemini-2.5-flash-image returned no image: ${reason}`);
+  }
+  return {
+    base64: imgPart.inlineData.data as string,
+    mimeType: (imgPart.inlineData.mimeType as string) ?? "image/png",
+    model,
+  };
+}
+
+/**
+ * Call Imagen 4 to generate one image. Fast tier is the cheapest
+ * ($0.02/image) and visually adequate for "concept" mockups;
+ * caller can override with the standard or ultra model when they
+ * need higher fidelity. Single image per call (Imagen's API
+ * supports multi-sample but we want predictable cost accounting).
+ */
+export async function generateImagenImage(
+  apiKey: string,
+  prompt: string,
+  opts: {
+    model?: string;
+    aspectRatio?: "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
+    timeoutMs?: number;
+  } = {},
+): Promise<ImagenResult> {
+  const model = opts.model ?? "imagen-4.0-fast-generate-001";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:predict`;
+  const body = {
+    instances: [{ prompt }],
+    parameters: {
+      sampleCount: 1,
+      aspectRatio: opts.aspectRatio ?? "4:3",
+    },
+  };
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), opts.timeoutMs ?? 60_000);
+  let res: Response;
+  try {
+    res = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-goog-api-key": apiKey,
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
+  } finally {
+    clearTimeout(timer);
+  }
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(
+      `Imagen generation failed (HTTP ${res.status}): ${
+        errData.error?.message ?? res.statusText
+      }`,
+    );
+  }
+
+  const data = await res.json();
+  // Imagen response shape: predictions[].bytesBase64Encoded
+  const prediction = Array.isArray(data?.predictions) ? data.predictions[0] : null;
+  const base64: string | undefined = prediction?.bytesBase64Encoded;
+  if (!base64) {
+    // Filtered output (safety / content policy) — Imagen returns
+    // a structured reason. Surface it so the caller can record it.
+    const filter = prediction?.raiFilteredReason ?? prediction?.error?.message;
+    throw new Error(`Imagen returned no image${filter ? `: ${filter}` : ""}`);
+  }
+  return {
+    base64,
+    mimeType: prediction?.mimeType ?? "image/png",
+    model,
   };
 }

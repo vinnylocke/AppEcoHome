@@ -18,6 +18,61 @@ Models used:
 - **Gemini Vision** — image identification, diagnosis, area scan.
 - **Gemini Text** — chat, blueprint generation, task suggestion, optimise.
 
+### Cascade order (`_shared/gemini.ts` — `DEFAULT_MODELS`)
+
+Cheapest → most capable. The cascade falls through on per-call failure (timeout, 429, 5xx). For Plant Library seed/verify the cost lift from a full fall-through is material — top rung is `$0.10 / $0.40` per million, bottom is `$1.50 / $9.00` — ~15× input cost.
+
+1. `gemini-2.5-flash-lite`
+2. `gemini-2.5-flash-lite-preview-09-2025`
+3. `gemini-2.5-flash`
+4. `gemini-3-flash-preview`
+5. `gemini-3.1-flash-lite-preview`
+6. `gemini-3.1-flash-lite`
+7. `gemini-3.5-flash`
+
+### Per-feature cascade override — `VISION_DIAGNOSIS_MODELS`
+
+Vision-heavy plant-doctor actions opt out of the Flash-only default. `_shared/gemini.ts` exports a second cascade led by Pro models:
+
+1. `gemini-2.5-pro`
+2. `gemini-3.1-pro-preview`
+3. `gemini-3-flash-preview` (Flash safety net)
+4. `gemini-2.5-flash` (last resort)
+
+Used by `identify_vision`, `diagnose`, `identify_pest`, `analyse_comprehensive` in `plant-doctor/index.ts`. Trades ~20× cost per call for noticeably better visual reasoning. Other vision actions across the codebase can opt in by passing `models: VISION_DIAGNOSIS_MODELS` to `callGeminiCascade`.
+
+### Pricing (per 1M tokens, confirmed against https://ai.google.dev/gemini-api/docs/pricing)
+
+| Model | Input | Cached input | Output |
+|-------|-------|--------------|--------|
+| gemini-2.5-flash-lite | $0.10 | $0.01 | $0.40 |
+| gemini-2.5-flash-lite-preview-09-2025 | $0.10 | $0.01 | $0.40 |
+| gemini-2.5-flash | $0.30 | $0.03 | $2.50 |
+| gemini-3-flash-preview | $0.50 | $0.05 | $3.00 |
+| gemini-3.1-flash-lite-preview | $0.25 | $0.025 | $1.50 |
+| gemini-3.1-flash-lite | $0.25 | $0.025 | $1.50 |
+| gemini-3.5-flash | $1.50 | $0.15 | $9.00 |
+| gemini-2.5-pro | $1.25 | $0.125 | $10.00 |
+| gemini-3.1-pro-preview | $2.00 | $0.20 | $12.00 |
+
+Pro tier rates shown are for the ≤200k context window (larger window exists but plant-doctor never approaches it). Cache discount is consistently **10% of input** across the current Gemini range. Output rate also applies to "thinking" / reasoning tokens — they're not free.
+
+The Plant Library admin page renders this same table at the bottom from `src/lib/geminiPricing.ts`. The Deno-side `supabase/functions/_shared/geminiCost.ts` is the billing-math authority — **keep both in sync** when Google publishes new rates.
+
+### Imagen 4 — image generation
+
+Used by the Planner Garden Overhaul feature (`generate-garden-overhaul`) to produce "after" concept images of redesigned gardens. Paid tier only.
+
+| Model | Per image |
+|-------|-----------|
+| `imagen-4.0-fast-generate-001` | $0.02 |
+| `imagen-4.0-generate-001` | $0.04 |
+| `imagen-4.0-ultra-generate-001` | $0.06 |
+
+Pricing mirrored in `supabase/functions/_shared/geminiCost.ts` (`IMAGEN_PRICING` + `estimateImagenCostUsd`) and `src/lib/geminiPricing.ts`. Each Imagen call logs to `ai_usage_log` with the new `image_count` + `image_cost_usd` columns so the Audit page surfaces per-image cost accurately. Call shape: POST to `/v1beta/models/{model}:predict` with `{ instances: [{prompt}], parameters: { sampleCount, aspectRatio } }`; response carries the base64 image bytes under `predictions[0].bytesBase64Encoded`. See `generateImagenImage` in `_shared/gemini.ts`.
+
+**Batch API** is used by the Plant Library admin's "Batch seed" feature (see `submit-plant-library-batch` + `poll-plant-library-batches`). 50% off across all models, input AND output. Endpoint: `POST /v1beta/models/{model}:batchGenerateContent` for submission, `GET /v1beta/{batch_name}` for status/results. Inline format only (under 20MB request limit, 48h result retention). Helpers live in `_shared/gemini.ts`: `submitGeminiBatch`, `getGeminiBatchStatus`, `getGeminiBatchResults`, `cancelGeminiBatch`. The synchronous cascade still owns interactive / chunked seeding; batch is for one-shot bulk submission where 1-24h latency is fine.
+
 ---
 
 ## Role 1 — Technical Reference

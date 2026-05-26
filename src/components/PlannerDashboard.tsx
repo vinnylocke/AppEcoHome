@@ -16,6 +16,7 @@ import {
   Leaf,
   Plus,
   Sun,
+  Construction,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -24,6 +25,7 @@ import { useHomeRealtime } from "../hooks/useHomeRealtime";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { IconAI, IconPlanner } from "../constants/icons";
 import NewPlanForm from "./NewPlanForm";
+import OverhaulPlanForm from "./planner/OverhaulPlanForm";
 import PlanStaging from "./PlanStaging";
 import AssistantCard from "./AssistantCard";
 import {
@@ -55,6 +57,12 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
   const [newPlanPrefill, setNewPlanPrefill] = useState<PlannerPrefill | null>(null);
   const [showPlanExplainer, setShowPlanExplainer] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState<any | null>(null);
+  // Garden Overhaul (photo + AI redesign) — Sage+ feature. Now flows
+  // through the same PlanStaging engine as designed plans, so we
+  // don't need a separate result-view state.
+  const [showOverhaulModal, setShowOverhaulModal] = useState(false);
+  const [userTier, setUserTier] = useState<string | null>(null);
+  const hasOverhaulAccess = userTier === "sage" || userTier === "evergreen";
 
   const [openMenuId, setOpenMenuId] = useState<string | null>(null);
 
@@ -71,6 +79,28 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
   const [cardStatus, setCardStatus] = useState<
     Record<string, "success" | "error">
   >({});
+
+  // Read the caller's subscription tier so the Overhaul button can
+  // gate behind Sage+. Loaded once on mount; if missing the button
+  // shows a locked placeholder pointing at the upgrade flow.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data: auth } = await supabase.auth.getUser();
+        if (!auth?.user) return;
+        const { data } = await supabase
+          .from("user_profiles")
+          .select("subscription_tier")
+          .eq("uid", auth.user.id)
+          .maybeSingle();
+        if (!cancelled) setUserTier(data?.subscription_tier ?? null);
+      } catch {
+        if (!cancelled) setUserTier(null);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
 
   useEffect(() => {
     if (openHandled.current) return;
@@ -297,22 +327,44 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
             Group your plant choices, tasks, and notes into garden projects.
           </p>
         </div>
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="w-full md:w-auto flex flex-col md:flex-row md:items-center gap-2">
+          {/* "What's a Plan?" sits on its own row on mobile so the
+              two main actions get the full width side-by-side. */}
           <button
             onClick={() => setShowPlanExplainer(true)}
             data-testid="planner-what-is-plan"
-            className="flex items-center gap-1.5 text-sm font-bold text-rhozly-on-surface/50 hover:text-rhozly-primary transition-colors px-3 py-2 rounded-xl hover:bg-rhozly-primary/5"
+            className="self-start md:self-auto flex items-center gap-1.5 text-sm font-bold text-rhozly-on-surface/50 hover:text-rhozly-primary transition-colors px-3 py-2 rounded-xl hover:bg-rhozly-primary/5"
           >
             <HelpCircle size={15} /> What's a Plan?
           </button>
           {can("plans.create") && (
-            <button
-              onClick={() => setShowNewPlanModal(true)}
-              data-testid="planner-new-plan-btn"
-              className="px-6 py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:bg-rhozly-primary/90 transition-transform active:scale-95 flex items-center gap-2 flex-1 md:flex-none justify-center"
-            >
-              <Plus size={20} /> New Plan
-            </button>
+            <div className="grid grid-cols-2 gap-2 md:flex md:items-center md:gap-2">
+              <button
+                onClick={() => setShowOverhaulModal(true)}
+                data-testid="planner-overhaul-btn"
+                title={
+                  hasOverhaulAccess
+                    ? "Photo + AI redesign — Sage+ feature"
+                    : "Overhaul: Sage+ feature"
+                }
+                className="px-3 sm:px-4 py-4 bg-white border-2 border-rhozly-primary/30 text-rhozly-primary rounded-2xl font-black shadow-sm hover:bg-rhozly-primary/5 transition-transform active:scale-95 flex items-center gap-1.5 justify-center min-w-0"
+              >
+                <IconAI size={18} />
+                <span className="truncate">Overhaul</span>
+                {!hasOverhaulAccess && (
+                  <span className="text-[9px] uppercase tracking-widest text-rhozly-on-surface/45 hidden sm:inline">
+                    Sage+
+                  </span>
+                )}
+              </button>
+              <button
+                onClick={() => setShowNewPlanModal(true)}
+                data-testid="planner-new-plan-btn"
+                className="px-4 sm:px-6 py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:bg-rhozly-primary/90 transition-transform active:scale-95 flex items-center gap-1.5 justify-center min-w-0"
+              >
+                <Plus size={20} /> <span className="truncate">New Plan</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -415,35 +467,6 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
               onClick={() => setSelectedPlan(plan)}
               className="bg-white rounded-[2.5rem] border border-rhozly-outline/10 overflow-hidden shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer group flex flex-col relative"
             >
-              <div className="absolute top-2 right-2 z-20 flex gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                <button
-                  data-testid={`plan-sun-tracker-${plan.id}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    sessionStorage.setItem("rhozly:sun-tracker-plan-filter", plan.id);
-                    sessionStorage.setItem("rhozly:sun-tracker-plan-filter-name", plan.name || "");
-                    navigate("/sun-trajectory?mode=garden");
-                  }}
-                  className="min-h-[32px] min-w-[32px] flex items-center justify-center gap-1 px-2.5 rounded-xl bg-white/95 backdrop-blur-sm shadow-md border border-rhozly-outline/15 text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/70 hover:text-amber-600 transition-colors"
-                  title="Open this plan's beds in the Sun Tracker"
-                  aria-label={`Open ${plan.name} in Sun Tracker`}
-                >
-                  <Sun size={11} />
-                  <span className="hidden sm:inline">Sun</span>
-                </button>
-                <button
-                  data-testid={`plan-view-on-layout-${plan.id}`}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    sessionStorage.setItem("rhozly:plan-filter", plan.id);
-                    navigate("/garden-layout");
-                  }}
-                  className="min-h-[32px] px-3 rounded-xl bg-white/95 backdrop-blur-sm shadow-md border border-rhozly-outline/15 text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/70 hover:text-rhozly-on-surface transition-colors"
-                  title="Filter the garden layout to shapes in this plan"
-                >
-                  View on Layout
-                </button>
-              </div>
               {/* Per-card inline feedback banner */}
               {cardStatus[plan.id] && (
                 <div
@@ -472,11 +495,65 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                     alt={plan.name}
                     className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
                   />
+                ) : plan.kind === "overhaul" && plan.status === "Failed" ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-rose-50 text-rose-600">
+                    <AlertCircle size={36} />
+                    <p className="text-xs font-black uppercase tracking-widest">
+                      Generation failed
+                    </p>
+                  </div>
+                ) : plan.kind === "overhaul" && !plan.ai_blueprint ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-amber-50 text-amber-700">
+                    <Loader2 size={36} className="animate-spin" />
+                    <p className="text-xs font-black uppercase tracking-widest">
+                      Generating overhaul…
+                    </p>
+                  </div>
+                ) : plan.kind === "overhaul" ? (
+                  <div className="w-full h-full flex flex-col items-center justify-center gap-2 bg-amber-50 text-amber-700">
+                    <Construction size={36} />
+                    <p className="text-xs font-black uppercase tracking-widest">
+                      Pick a concept
+                    </p>
+                  </div>
                 ) : (
                   <div className="w-full h-full flex items-center justify-center text-rhozly-on-surface/20">
                     <IconPlanner size={40} />
                   </div>
                 )}
+
+                {/* Secondary action buttons (Sun + View on Layout) sit
+                    at the bottom-left of the cover so they never
+                    collide with the kebab menu in the top-right. */}
+                <div className="absolute bottom-2 left-2 z-20 flex gap-1.5 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                  <button
+                    data-testid={`plan-sun-tracker-${plan.id}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      sessionStorage.setItem("rhozly:sun-tracker-plan-filter", plan.id);
+                      sessionStorage.setItem("rhozly:sun-tracker-plan-filter-name", plan.name || "");
+                      navigate("/sun-trajectory?mode=garden");
+                    }}
+                    className="min-h-[32px] min-w-[32px] flex items-center justify-center gap-1 px-2.5 rounded-xl bg-white/95 backdrop-blur-sm shadow-md border border-rhozly-outline/15 text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/70 hover:text-amber-600 transition-colors"
+                    title="Open this plan's beds in the Sun Tracker"
+                    aria-label={`Open ${plan.name} in Sun Tracker`}
+                  >
+                    <Sun size={11} />
+                    <span className="hidden sm:inline">Sun</span>
+                  </button>
+                  <button
+                    data-testid={`plan-view-on-layout-${plan.id}`}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      sessionStorage.setItem("rhozly:plan-filter", plan.id);
+                      navigate("/garden-layout");
+                    }}
+                    className="min-h-[32px] px-3 rounded-xl bg-white/95 backdrop-blur-sm shadow-md border border-rhozly-outline/15 text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/70 hover:text-rhozly-on-surface transition-colors"
+                    title="Filter the garden layout to shapes in this plan"
+                  >
+                    View on Layout
+                  </button>
+                </div>
 
                 <div className="absolute top-4 left-4">
                   <span
@@ -636,6 +713,30 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
           ))}
         </div>
       )}
+
+      {/* Garden Overhaul form — Sage+ photo→AI redesign flow. After
+          submit, the new plan opens in the same PlanStaging engine
+          as designed plans (Phase 1 = concept picker, Phases 2–5 =
+          same area/shed/staging/execution/maintenance workflow). */}
+      <OverhaulPlanForm
+        homeId={homeId}
+        isOpen={showOverhaulModal}
+        hasAccess={hasOverhaulAccess}
+        onClose={() => setShowOverhaulModal(false)}
+        onSubmitted={async (planId) => {
+          setShowOverhaulModal(false);
+          await fetchPlans();
+          // fetchPlans is async via setPlans; the plan row will be
+          // present in the next render. Fetch the row directly so
+          // we can hand a populated plan object to PlanStaging.
+          const { data: planRow } = await supabase
+            .from("plans")
+            .select("*")
+            .eq("id", planId)
+            .maybeSingle();
+          if (planRow) setSelectedPlan(planRow);
+        }}
+      />
 
       {showNewPlanModal && (
         <NewPlanForm

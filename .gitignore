@@ -9,6 +9,8 @@ lerna-debug.log*
 
 node_modules
 .env
+.env.tmp
+.env.*.local
 dist
 dist-ssr
 *.local
@@ -30,6 +32,8 @@ public/build-version.json
 
 supabase/snippets/
 supabase/.env
+# Supabase CLI cache + temp state (CLI version pin, etc.) — local only.
+supabase/.temp/
 .claude/
 
 # Generated test output

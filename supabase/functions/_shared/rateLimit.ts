@@ -41,6 +41,9 @@ const TIER_LIMITS: Record<string, Record<string, number>> = {
   "home-location-details":           { sprout: 0, botanist: 2,  sage: 5,  evergreen: 10 },
   "optimise-area-ai":                { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
   "perenual-proxy":                  { sprout: 30, botanist: 60, sage: 100, evergreen: 200 },
+  // Garden Overhaul — expensive call (~$0.11 each: vision + 3 Imagen).
+  // Sage tier limit is generous enough to experiment, evergreen for power users.
+  "generate-garden-overhaul":        { sprout: 0,  botanist: 0,  sage: 3,   evergreen: 8 },
 };
 const DEFAULT_TIER_LIMITS: Record<string, number> = {
   sprout: 0, botanist: 10, sage: 20, evergreen: 40,
@@ -54,7 +57,7 @@ async function resolveMax(
 ): Promise<number> {
   if (override !== undefined) return override;
 
-  // Per-user override takes priority over tier default.
+  // Per-user override takes priority over everything.
   const { data: overrideRow } = await db
     .from("user_rate_limit_overrides")
     .select("max_per_hour")
@@ -67,13 +70,32 @@ async function resolveMax(
     return overrideRow.max_per_hour;
   }
 
-  const { data } = await db
+  // Resolve the caller's tier first — both the per-tier system
+  // override AND the hardcoded TIER_LIMITS table are keyed by tier.
+  const { data: profile } = await db
     .from("user_profiles")
     .select("subscription_tier")
     .eq("uid", userId)
     .maybeSingle();
+  const tier = (profile?.subscription_tier as string | null) ?? "sprout";
 
-  const tier = (data?.subscription_tier as string | null) ?? "sprout";
+  // Admin-tunable per-(function, tier) override — set via the
+  // system_rate_limit_overrides table. Lets the admin raise/lower
+  // limits without a code deploy.
+  const { data: sysOverride } = await db
+    .from("system_rate_limit_overrides")
+    .select("max_per_hour")
+    .eq("function_name", fnName)
+    .eq("tier", tier)
+    .maybeSingle();
+
+  if (sysOverride !== null) {
+    log("_shared/rateLimit", "system_override_applied", {
+      userId, fnName, tier, max: sysOverride.max_per_hour,
+    });
+    return sysOverride.max_per_hour;
+  }
+
   const limits = TIER_LIMITS[fnName] ?? DEFAULT_TIER_LIMITS;
   const max = limits[tier] ?? DEFAULT_TIER_LIMITS[tier] ?? 10;
 

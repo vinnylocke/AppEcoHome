@@ -247,6 +247,163 @@ async function ensureAiCataloguePlant(
 }
 
 /**
+ * Look up an existing catalogue row by scientific_name (case-insensitive
+ * on the first sci name). Returns the matching plant id if found.
+ * Used to dedup before cloning from `plant_library`.
+ */
+async function findCataloguePlantBySciName(sciName: string | null): Promise<number | null> {
+  if (!sciName) return null;
+  const target = sciName.trim().toLowerCase();
+  if (!target) return null;
+  const { data } = await supabase
+    .from("plants")
+    .select("id, scientific_name")
+    .is("home_id", null)
+    .ilike("scientific_name_key", target)
+    .limit(1)
+    .maybeSingle();
+  return data?.id ?? null;
+}
+
+/**
+ * Clone a `plant_library` row into the home `plants` catalogue table
+ * so the preview / care guide UI can use it without invoking Gemini.
+ * If a matching catalogue row already exists (same scientific name),
+ * returns that instead of creating a duplicate.
+ */
+async function ensureCataloguePlantFromLibrary(
+  libraryId: number,
+): Promise<CataloguePlant> {
+  const { data: lib, error: libErr } = await supabase
+    .from("plant_library")
+    .select("*")
+    .eq("id", libraryId)
+    .maybeSingle();
+  if (libErr) throw libErr;
+  if (!lib) throw new Error(`plant_library row ${libraryId} not found`);
+
+  // Dedup — if we've already cloned this species into the catalogue,
+  // reuse the existing row.
+  const sciNames = Array.isArray(lib.scientific_name) ? lib.scientific_name : [];
+  const sciFirst = sciNames[0] ?? null;
+  const existingId = await findCataloguePlantBySciName(sciFirst);
+  if (existingId) {
+    return await loadCataloguePlant(existingId);
+  }
+
+  // Build a PlantDetails-shaped row from the library data.
+  const details: PlantDetails = {
+    common_name:        lib.common_name ?? "",
+    scientific_name:    sciNames,
+    other_names:        Array.isArray(lib.other_names) ? lib.other_names : [],
+    family:             lib.family ?? null,
+    plant_type:         lib.plant_type ?? null,
+    cycle:              lib.cycle ?? null,
+    image_url:          lib.image_url ?? lib.thumbnail_url ?? null,
+    thumbnail_url:      lib.thumbnail_url ?? null,
+    watering:           lib.watering ?? null,
+    watering_benchmark: lib.watering_benchmark ?? null,
+    watering_min_days:  lib.watering_min_days ?? null,
+    watering_max_days:  lib.watering_max_days ?? null,
+    sunlight:           Array.isArray(lib.sunlight) ? lib.sunlight : [],
+    care_level:         lib.care_level ?? null,
+    hardiness_min:      lib.hardiness_min ?? null,
+    hardiness_max:      lib.hardiness_max ?? null,
+    is_edible:          !!lib.is_edible,
+    is_toxic_pets:      !!lib.is_toxic_pets,
+    is_toxic_humans:    !!lib.is_toxic_humans,
+    attracts:           Array.isArray(lib.attracts) ? lib.attracts : [],
+    description:        lib.description ?? null,
+    maintenance:        lib.maintenance ?? null,
+    growth_rate:        lib.growth_rate ?? null,
+    growth_habit:       lib.growth_habit ?? null,
+    drought_tolerant:   !!lib.drought_tolerant,
+    salt_tolerant:      !!lib.salt_tolerant,
+    thorny:             false,
+    invasive:           !!lib.invasive,
+    tropical:           false,
+    indoor:             !!lib.indoor,
+    pest_susceptibility: Array.isArray(lib.pest_susceptibility) ? lib.pest_susceptibility : [],
+    flowers:            !!lib.flowers,
+    cones:              false,
+    fruits:             !!lib.fruits,
+    edible_leaf:        false,
+    cuisine:            false,
+    medicinal:          false,
+    leaf:               false,
+    flowering_season:   Array.isArray(lib.flowering_season) ? lib.flowering_season.join(", ") : null,
+    harvest_season:     Array.isArray(lib.harvest_season) ? lib.harvest_season.join(", ") : null,
+    pruning_month:      Array.isArray(lib.pruning_month) ? lib.pruning_month : [],
+    propagation:        Array.isArray(lib.propagation) ? lib.propagation : [],
+    perenual_id:        null,
+    verdantly_id:       null,
+    source:             "ai",
+    db_plant_id:        null,
+    freshness_version:  null,
+    from_catalogue:     true,
+  };
+
+  const skeleton: Record<string, unknown> = {
+    id: makeCatalogueId(),
+    home_id: null,
+    source: "ai",
+    common_name: details.common_name,
+    scientific_name: details.scientific_name,
+    other_names: details.other_names,
+    family: details.family,
+    plant_type: details.plant_type,
+    cycle: details.cycle,
+    image_url: details.image_url,
+    thumbnail_url: details.thumbnail_url,
+    watering: details.watering,
+    watering_min_days: details.watering_min_days,
+    watering_max_days: details.watering_max_days,
+    sunlight: details.sunlight,
+    care_level: details.care_level,
+    hardiness_min: details.hardiness_min,
+    hardiness_max: details.hardiness_max,
+    is_edible: details.is_edible,
+    is_toxic_pets: details.is_toxic_pets,
+    is_toxic_humans: details.is_toxic_humans,
+    attracts: details.attracts,
+    description: details.description,
+    maintenance: details.maintenance,
+    growth_rate: details.growth_rate,
+    growth_habit: details.growth_habit,
+    drought_tolerant: details.drought_tolerant,
+    salt_tolerant: details.salt_tolerant,
+    invasive: details.invasive,
+    indoor: details.indoor,
+    pest_susceptibility: details.pest_susceptibility,
+    flowers: details.flowers,
+    fruits: details.fruits,
+    // Arrays go into the plants table as proper jsonb arrays so
+    // downstream filters / task blueprints can match on individual
+    // values (not comma-joined strings).
+    flowering_season: Array.isArray(lib.flowering_season) ? lib.flowering_season : [],
+    harvest_season: Array.isArray(lib.harvest_season) ? lib.harvest_season : [],
+    pruning_month: details.pruning_month,
+    propagation: details.propagation,
+    soil: Array.isArray(lib.soil) ? lib.soil : [],
+    days_to_harvest_min: lib.days_to_harvest_min ?? null,
+    days_to_harvest_max: lib.days_to_harvest_max ?? null,
+    soil_ph_min: lib.soil_ph_min ?? null,
+    soil_ph_max: lib.soil_ph_max ?? null,
+    labels: derivePlantLabels(details as any),
+  };
+
+  const { data: inserted, error } = await supabase
+    .from("plants")
+    .insert([skeleton])
+    .select("id")
+    .single();
+  if (error) throw error;
+
+  details.db_plant_id = inserted.id;
+  return { plantId: inserted.id, source: "ai", details, fromCache: false };
+}
+
+/**
  * Top-level entry — pass a search result row in, get a catalogue plant out.
  * Caller is expected to handle errors with a toast / inline banner.
  */
@@ -266,6 +423,20 @@ export async function ensureCataloguePlantFromSearchResult(
         } catch {
           // Catalogue hit went stale (the row was deleted) — fall through
           // to the Gemini path below.
+        }
+      }
+      // Plant Library fast path — when the picks handler already
+      // resolved this species to an existing plant_library row, clone
+      // it into the home `plants` catalogue instead of paying Gemini.
+      if (result.plant_library_id) {
+        try {
+          return await ensureCataloguePlantFromLibrary(result.plant_library_id);
+        } catch (err) {
+          Logger.error("library-clone path failed; falling back to Gemini", err, {
+            plant_library_id: result.plant_library_id,
+            common_name: result.common_name,
+          });
+          // fall through to the Gemini path below
         }
       }
       return ensureAiCataloguePlant(result.common_name, options?.homeId);

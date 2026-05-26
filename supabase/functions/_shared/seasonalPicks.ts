@@ -43,6 +43,10 @@ export interface SeasonalPick {
   edible: boolean;
   /** Catalogue id when the AI / fallback matched against an existing plant. */
   plant_id?: number | null;
+  /** plant_library id when the pick matches an existing global library row.
+   *  Set by the seasonal picks handler after generation. When present the
+   *  client preview path can skip Gemini and clone the library row instead. */
+  plant_library_id?: number | null;
 }
 
 export interface SeasonalPicksPayload {

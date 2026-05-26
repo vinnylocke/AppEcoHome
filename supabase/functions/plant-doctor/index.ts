@@ -2,7 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
-import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
+import { callGeminiCascade, toMessages, VISION_DIAGNOSIS_MODELS } from "../_shared/gemini.ts";
 import { loadPreferences, formatPreferencesBlock } from "../_shared/preferences.ts";
 import { guardAiByHome, guardPerenualByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
@@ -1042,7 +1042,9 @@ Also return a brief observation in notes.`;
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN,
         toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
-        { responseSchema: IDENTIFY_VISION_SCHEMA, logContext: { action } },
+        // Pro-first cascade — identification accuracy matters more
+        // than the ~20× cost delta (still cents per call).
+        { responseSchema: IDENTIFY_VISION_SCHEMA, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },
       );
       const parsed = JSON.parse(rawText);
       await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_vision", usage });
@@ -1065,25 +1067,77 @@ Also return a brief observation in notes.`;
         : "The plant species is unknown — identify any visual clues from the image.";
 
       const promptText = `${plantContext}
-${locationLine ? `Gardener location: ${locationLine}. Factor in regional climate when assessing likely causes (e.g. high humidity → fungal, dry climate → spider mites).` : ""}${envBlock}
+${locationLine ? `Gardener location: ${locationLine}. Regional climate REFINES probability but does not create evidence.` : ""}${envBlock}
 
-Examine the image carefully for visible signs of pests, disease, nutrient deficiencies, or environmental stress (under/over-watering, sunburn, root rot, etc.).
-Use the environmental context above (growing medium, pH, drainage, recent care, weather, companion plants) to refine your diagnosis — they are key clues.
-Provide a precise, personalised diagnosis and actionable advice.
+You are diagnosing only what is LITERALLY VISIBLE in this photo. Hallucinated diagnoses (reporting symptoms that aren't actually in the image) damage user trust more than missing a subtle real disease.
 
-For possible_diseases: return an array of up to 3 objects, each with a 'name' (specific common name, e.g. "Late Blight" — no scientific name in brackets) and a 'confidence' score (0–100) reflecting how well the visible symptoms match. 90+ = textbook presentation; 60–80 = likely match; below 50 = speculative.
-If the plant appears healthy or the issue is purely environmental (e.g. underwatering), return an empty array for possible_diseases.
-Set severity: "Healthy" if no issues, "Low" for minor cosmetic damage, "Medium" for moderate damage requiring action, "High" for serious threat to plant survival.
-Set environmental_factors: list any environmental conditions from the context above that are likely contributing to the issue.
-Set immediate_actions: top 3 most urgent steps the gardener should take today.
-Set possible_names to null always.`;
+═══════════════════════════════════════════════════════════════
+TWO-STAGE REASONING — perform internally, then return the JSON:
+═══════════════════════════════════════════════════════════════
+
+STEP 1 — VISIBLE FEATURES INVENTORY
+Enumerate every literally-visible feature in the photo that could indicate pest / disease / stress:
+- Spots: colour, shape, location (margins / interveinal / mid-blade), size.
+- Discoloration: yellowing (chlorosis), browning, purpling, mottling — and WHERE.
+- Damage patterns: holes, jagged edges, skeletonised leaves, stippling.
+- Insects / mites: actual visible bugs, webbing, frass (droppings), eggs.
+- Mould / mildew: white powdery coatings, fuzzy growth, dark sooty deposits.
+- Wilt / posture: drooping with no visible discoloration vs wilting with browning edges.
+- Structural: rot at base, cracked stems, broken branches.
+
+If the photo shows a healthy-looking plant with no visible problems, your inventory is EMPTY. That's a valid result.
+
+STEP 2 — DIAGNOSE FROM EVIDENCE
+ONLY diagnose conditions whose required visible symptoms appear in your Step 1 inventory.
+- DO NOT diagnose "black spot fungus" unless you actually see dark circular leaf spots.
+- DO NOT diagnose "aphid infestation" unless you actually see clustered insects, sooty mould, or distorted new growth.
+- DO NOT diagnose "powdery mildew" unless you actually see a white powdery coating.
+- Species susceptibility + environment REFINE which of the visible-symptom-matching conditions is most likely. They DO NOT justify diagnosing conditions whose symptoms aren't visible.
+
+═══════════════════════════════════════════════════════════════
+
+RESPONSE RULES:
+- possible_diseases: array of up to 3 objects, each with 'name' (common name only, no scientific in brackets) and 'confidence' (0–100). 90+ = textbook visible presentation; 60–80 = symptoms clearly visible + species-likely; below 50 = DO NOT INCLUDE (will be filtered out anyway).
+- If your Step 1 inventory was empty OR the issue is purely environmental (e.g. underwatering), return [] for possible_diseases.
+- severity: "Healthy" if Step 1 was empty (this is the correct answer when nothing is wrong), "Low" for minor cosmetic, "Medium" for moderate, "High" for survival-threatening.
+- environmental_factors: contributing conditions from the context above (only if Step 1 had relevant evidence).
+- immediate_actions: top 3 urgent steps. If plant is healthy, list general maintenance reminders, not treatment.
+- possible_names: null always.`;
 
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN,
         toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
-        { responseSchema: DIAGNOSE_SCHEMA, logContext: { action } },
+        // Pro-first cascade + low temp + two-stage prompt — all three
+        // working together to keep diagnoses evidence-grounded.
+        { responseSchema: DIAGNOSE_SCHEMA, temperature: 0.2, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },
       );
       const parsed = JSON.parse(rawText);
+
+      // Server-side confidence floor — drop anything under 50% so the
+      // UI never shows low-confidence speculation. Matches the prompt
+      // instruction. Easy to tune the threshold here if it's too
+      // aggressive in practice.
+      const DIAGNOSE_CONFIDENCE_FLOOR = 50;
+      if (Array.isArray(parsed.possible_diseases)) {
+        const beforeCount = parsed.possible_diseases.length;
+        parsed.possible_diseases = parsed.possible_diseases.filter(
+          (d: { confidence?: number }) => (d.confidence ?? 0) >= DIAGNOSE_CONFIDENCE_FLOOR,
+        );
+        if (parsed.possible_diseases.length !== beforeCount) {
+          log(FN, "diagnose_low_confidence_filtered", {
+            before: beforeCount,
+            after: parsed.possible_diseases.length,
+            floor: DIAGNOSE_CONFIDENCE_FLOOR,
+          });
+        }
+        // If filtering emptied the list and severity was previously
+        // non-Healthy, downgrade severity to Healthy — the user
+        // shouldn't see "Medium severity" with no listed diseases.
+        if (parsed.possible_diseases.length === 0 && parsed.severity !== "Healthy") {
+          parsed.severity = "Healthy";
+        }
+      }
+
       await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "diagnose", usage });
       log(FN, "result", {
         action,
@@ -1092,7 +1146,7 @@ Set possible_names to null always.`;
         healthy: !parsed.possible_diseases?.length,
         hasEnvContext: !!envBlock,
       });
-      return new Response(rawText, {
+      return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -1142,7 +1196,10 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN,
         toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
-        { responseSchema: ANALYSE_COMPREHENSIVE_SCHEMA, logContext: { action } },
+        // Pro-first cascade — comprehensive analyse benefits even
+        // more from Pro vision since it integrates many signals at
+        // once (health + disease + pest + edibility + pruning).
+        { responseSchema: ANALYSE_COMPREHENSIVE_SCHEMA, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },
       );
       const parsed = JSON.parse(rawText);
       await logAiUsage(supabase, {
@@ -1594,24 +1651,74 @@ CRITICAL RULES:
       if (!imageBase64) throw new Error("No image data provided.");
       const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
 
-      const promptText = `Analyze this image and identify the insect or creature visible.
-${locationLine ? `Gardener location: ${locationLine}. Consider regionally prevalent pests for this climate.` : ""}
+      const promptText = `You are identifying an insect or creature LITERALLY VISIBLE in this photo. Hallucinated identifications (claiming you see a pest that isn't actually in the image) damage user trust more than declining to identify a partially-visible specimen.
 
-Determine whether it is a garden pest or a beneficial insect.
-- is_pest = true if harmful (aphids, spider mites, whitefly, vine weevil, caterpillars, mealybugs, scale insects, thrips, fungus gnats, slugs, cutworms, etc.)
+═══════════════════════════════════════════════════════════════
+TWO-STAGE REASONING — perform internally, then return the JSON:
+═══════════════════════════════════════════════════════════════
+
+STEP 1 — VISIBLE FEATURES INVENTORY
+Describe what you actually see in the photo:
+- Is there an insect / mite / slug / snail / other creature visibly present? If yes, where in the frame?
+- Body: shape (round / elongate / segmented), approximate size relative to plant features, colour pattern, wing presence, leg count.
+- Behaviour clues: clustering, position on plant, visible mouthparts.
+- If you see DAMAGE but NO actual creature, note that — the damage alone doesn't identify the cause.
+
+If the photo shows a plant or leaf with no visible creature, your inventory is empty. That's a valid result — set is_pest to null and possible_pests to [].
+
+STEP 2 — IDENTIFY FROM EVIDENCE
+ONLY identify creatures whose physical features match what you saw in Step 1.
+- DO NOT identify "aphids" based on a damaged leaf if you can't see actual aphids.
+- DO NOT identify a species you can't actually see body parts of — partial view = lower confidence.
+- Regional prevalence REFINES which visible-feature-matching identification is most likely. It does NOT justify identifying creatures whose body parts aren't visible.
+
+${locationLine ? `Gardener location: ${locationLine}. Use regional prevalence to refine probability — not to invent identifications.` : ""}
+
+═══════════════════════════════════════════════════════════════
+
+RESPONSE RULES:
+- is_pest = true if the visible creature is harmful (aphids, spider mites, whitefly, vine weevil, caterpillars, mealybugs, scale insects, thrips, fungus gnats, slugs, cutworms, etc.)
 - is_pest = false if beneficial (honeybee, bumblebee, ladybird, lacewing, hoverfly, ground beetle, earthworm, parasitic wasp, etc.)
-- pest_severity: null if not a pest. Low = cosmetic. Medium = can damage crops. High = serious infestation threat.
-- possible_pests: top 3 most likely identifications regardless of is_pest. Each entry must have a 'name' (simple common name, no scientific names) and 'confidence' (0–100) based on visible body shape, colour, size, and markings. 90+ = clear match; 60–80 = probable; below 50 = speculative.`;
+- is_pest = null if no creature is visible in the photo.
+- pest_severity: null if not a pest or no creature visible. Low = cosmetic. Medium = can damage crops. High = serious infestation threat.
+- possible_pests: top 3 most likely identifications. Each entry: 'name' (simple common name, no scientific) + 'confidence' (0–100) based on visible body shape, colour, size, markings. 90+ = clear match with multiple distinguishing features visible; 60–80 = probable based on visible features; below 50 = DO NOT INCLUDE (will be filtered out anyway).
+- If your Step 1 inventory had no visible creature, return [] for possible_pests.`;
 
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN,
         toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
-        { responseSchema: IDENTIFY_PEST_SCHEMA, logContext: { action } },
+        // Pro-first cascade + low temp + two-stage prompt for the same
+        // anti-hallucination reasoning we use on diagnose.
+        { responseSchema: IDENTIFY_PEST_SCHEMA, temperature: 0.2, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },
       );
       const parsed = JSON.parse(rawText);
+
+      // Server-side confidence floor — drop sub-50% guesses before
+      // returning, so the UI never shows low-confidence speculation.
+      const PEST_CONFIDENCE_FLOOR = 50;
+      if (Array.isArray(parsed.possible_pests)) {
+        const beforeCount = parsed.possible_pests.length;
+        parsed.possible_pests = parsed.possible_pests.filter(
+          (p: { confidence?: number }) => (p.confidence ?? 0) >= PEST_CONFIDENCE_FLOOR,
+        );
+        if (parsed.possible_pests.length !== beforeCount) {
+          log(FN, "pest_low_confidence_filtered", {
+            before: beforeCount,
+            after: parsed.possible_pests.length,
+            floor: PEST_CONFIDENCE_FLOOR,
+          });
+        }
+        // If everything got filtered, suppress is_pest + severity so
+        // the UI doesn't claim "this is a harmful pest" with no name.
+        if (parsed.possible_pests.length === 0) {
+          parsed.is_pest = null;
+          parsed.pest_severity = null;
+        }
+      }
+
       await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_pest", usage });
       log(FN, "result", { action, possiblePests: (parsed.possible_pests ?? []).map((p: any) => `${p.name} (${p.confidence}%)`), isPest: parsed.is_pest });
-      return new Response(rawText, {
+      return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

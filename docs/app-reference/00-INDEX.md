@@ -82,6 +82,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Shopping List Items](./04-planner/06-shopping-list-items.md) — per-list item rows
 - [x] [Blueprint Manager (Task Schedules)](./04-planner/07-blueprint-manager.md) — recurring task templates
 - [x] [Optimise Tab](./04-planner/08-optimise-tab.md) — schedule consolidator + AI ideas
+- [x] [Garden Overhaul](./04-planner/09-garden-overhaul.md) — Sage+ photo→AI redesign + Imagen concept images
 
 ## 05 — Tools
 

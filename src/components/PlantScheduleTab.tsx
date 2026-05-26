@@ -10,7 +10,9 @@ import {
   Wand2,
   Edit3,
   Trash2,
+  CalendarPlus,
 } from "lucide-react";
+import PlantScheduleGenerateTasksModal from "./PlantScheduleGenerateTasksModal";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
@@ -41,7 +43,13 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
   const [schedules, setSchedules] = useState<any[]>([]);
   const [homeData, setHomeData] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [fetchError, setFetchError] = useState(false);
+  /** When set, the failure UI surfaces the actual error string so a real
+   *  cause is visible instead of a generic "Could not load" message. */
+  const [fetchErrorMessage, setFetchErrorMessage] = useState<string | null>(null);
+
+  /** Schedule the user wants to materialise tasks from with a mocked
+   *  trigger date. Null when the generator modal is closed. */
+  const [generatingForSchedule, setGeneratingForSchedule] = useState<any | null>(null);
 
   const [isAdding, setIsAdding] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -111,9 +119,47 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
   }, [plant, schedules, isAdding, editingId, form, setPageContext]);
 
   useEffect(() => {
-    fetchSchedules();
+    // Don't kick off a fetch with a missing plant id — PostgREST would
+    // return a malformed-filter error and the user just sees a stuck
+    // spinner. Clear the spinner and let the parent settle first.
+    if (!plant?.id) {
+      setLoading(false);
+      setSchedules([]);
+      return;
+    }
+
+    let cancelled = false;
+    const ac = new AbortController();
+    const load = async () => {
+      setLoading(true);
+      setFetchErrorMessage(null);
+      try {
+        const { data, error } = await supabase
+          .from("plant_schedules")
+          .select("*")
+          .eq("plant_id", plant.id)
+          .order("created_at", { ascending: false })
+          .abortSignal(ac.signal);
+        if (cancelled) return;
+        if (error) throw error;
+        setSchedules(data ?? []);
+      } catch (err: any) {
+        if (cancelled || err?.name === "AbortError") return;
+        const message = err?.message ?? "Unknown error loading schedules.";
+        Logger.error("Failed to load schedules", err, { plant_id: plant.id });
+        setFetchErrorMessage(message);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    };
+    load();
     fetchHomeData();
-  }, [plant.id, homeId]);
+
+    return () => {
+      cancelled = true;
+      ac.abort();
+    };
+  }, [plant?.id, homeId]);
 
   useEffect(() => {
     if (frequencyMode === "weekly") {
@@ -136,8 +182,11 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     }
   };
 
+  // Used by the post-save / post-generate refresh paths. The initial
+  // load goes through the AbortController-wrapped effect above.
   const fetchSchedules = async () => {
-    setFetchError(false);
+    if (!plant?.id) return;
+    setFetchErrorMessage(null);
     try {
       const { data, error } = await supabase
         .from("plant_schedules")
@@ -145,10 +194,11 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         .eq("plant_id", plant.id)
         .order("created_at", { ascending: false });
       if (error) throw error;
-      if (data) setSchedules(data);
-    } catch (err) {
-      Logger.error("Failed to load schedules", err);
-      setFetchError(true);
+      setSchedules(data ?? []);
+    } catch (err: any) {
+      const message = err?.message ?? "Unknown error loading schedules.";
+      Logger.error("Failed to load schedules", err, { plant_id: plant.id });
+      setFetchErrorMessage(message);
     } finally {
       setLoading(false);
     }
@@ -696,14 +746,17 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       </div>
     );
 
-  if (fetchError)
+  if (fetchErrorMessage)
     return (
       <div className="text-center p-12 border-2 border-dashed border-rhozly-outline/20 rounded-3xl bg-rhozly-surface-low/30">
         <p className="font-black text-lg text-rhozly-on-surface mb-2">
           Could not load care schedules
         </p>
-        <p className="font-bold text-sm text-rhozly-on-surface/50 mb-6">
-          Check your connection and try again.
+        <p className="font-bold text-sm text-rhozly-on-surface/50 mb-2">
+          {fetchErrorMessage}
+        </p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/35 mb-6">
+          Plant id: {plant?.id ?? "(none)"}
         </p>
         <button
           onClick={() => {
@@ -1026,6 +1079,19 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         />
       )}
 
+      {generatingForSchedule && (
+        <PlantScheduleGenerateTasksModal
+          homeId={homeId}
+          plant={plant}
+          schedule={generatingForSchedule}
+          onClose={() => setGeneratingForSchedule(null)}
+          onGenerated={() => {
+            setGeneratingForSchedule(null);
+            fetchSchedules();
+          }}
+        />
+      )}
+
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
         <div>
           <h3 className="font-black text-xl">Care Schedules</h3>
@@ -1138,6 +1204,15 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
                     </div>
                   </div>
                   <div className="flex flex-col sm:flex-row items-center gap-2 shrink-0 border-l border-rhozly-outline/10 pl-4">
+                    <button
+                      onClick={() => setGeneratingForSchedule(schedule)}
+                      data-testid={`schedule-generate-tasks-${schedule.id}`}
+                      className="p-3 text-emerald-600 hover:bg-emerald-50 bg-rhozly-surface-lowest rounded-xl transition-all shadow-sm focus:ring-2 focus:ring-emerald-500/40 focus:outline-none"
+                      title="Generate tasks from this schedule"
+                      aria-label="Generate tasks from this schedule"
+                    >
+                      <CalendarPlus size={18} />
+                    </button>
                     <button
                       onClick={() => openEditForm(schedule)}
                       className="p-3 text-rhozly-primary hover:bg-rhozly-primary/10 bg-rhozly-surface-lowest rounded-xl transition-all shadow-sm focus:ring-2 focus:ring-rhozly-primary/40 focus:outline-none"

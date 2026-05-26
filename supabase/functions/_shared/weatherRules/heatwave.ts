@@ -1,9 +1,9 @@
 import type { WeatherRule, WeatherContext, WeatherRuleResult } from "./index.ts";
 import { EMPTY_RESULT } from "./index.ts";
 
-// Advises the user to water more when extreme heat is forecast in the next 2 days.
+// Advises the user to water more when warm weather is forecast in the next 2 days.
 // Uses the 'heat' alert type to record the alert, plus a notification.
-const HEAT_THRESHOLD_C = 32;
+const HEAT_THRESHOLD_C = 25;
 
 const heatwave: WeatherRule = {
   id: "heatwave",

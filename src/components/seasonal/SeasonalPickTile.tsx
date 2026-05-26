@@ -82,6 +82,11 @@ export default function SeasonalPickTile({ pick, index }: Props) {
       scientific_name: [pick.scientific_name],
       thumbnail_url: thumb ?? null,
       _provider: "ai",
+      // When the picks handler resolved this pick to an existing
+      // plant_library row, hand the id forward. The catalogue-ensure
+      // path will clone the library row into the home `plants` table
+      // instead of calling Gemini — saving the care-guide generation cost.
+      ...(pick.plant_library_id ? { plant_library_id: pick.plant_library_id } : {}),
     };
     logEvent(EVENT.SEASONAL_PICK_OPENED, {
       common_name: pick.common_name,

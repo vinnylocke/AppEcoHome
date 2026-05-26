@@ -20,6 +20,7 @@ import { App as CapApp } from "@capacitor/app";
 
 // 🚀 ROUTER
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
+import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
 
 // Components — always needed on first render (keep eager)
 import LocationTile from "./components/LocationTile";
@@ -171,6 +172,7 @@ export default function App() {
         <Route path="*" element={<AppShell />} />
       </Routes>
       <UpdateBanner />
+      <VercelAnalytics />
     </BrowserRouter>
   );
 }

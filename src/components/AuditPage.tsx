@@ -37,6 +37,10 @@ interface AiUsageRow {
   prompt_tokens: number | null;
   candidates_tokens: number | null;
   total_tokens: number | null;
+  /** Number of images generated in this call (Imagen). Zero for text/vision-only rows. */
+  image_count: number | null;
+  /** Per-call image generation cost. Already included in estimated_cost_usd. */
+  image_cost_usd: number | null;
   estimated_cost_usd: number | null;
 }
 
@@ -213,7 +217,7 @@ export default function AuditPage({ homeId }: Props) {
     try {
       let query = supabase
         .from("ai_usage_log")
-        .select("id, created_at, user_id, function_name, action, model, prompt_tokens, candidates_tokens, total_tokens, estimated_cost_usd")
+        .select("id, created_at, user_id, function_name, action, model, prompt_tokens, candidates_tokens, total_tokens, image_count, image_cost_usd, estimated_cost_usd")
         .eq("home_id", homeId)
         .gte("created_at", toRangeStart(dateFrom))
         .lte("created_at", toRangeEnd(dateTo))
@@ -297,7 +301,7 @@ export default function AuditPage({ homeId }: Props) {
 
   const downloadCsv = () => {
     if (aiUsage.length === 0) return;
-    const header = ["Time", "User", "Feature", "Model", "Input tokens", "Output tokens", "Total tokens", "Cost USD"];
+    const header = ["Time", "User", "Feature", "Model", "Input tokens", "Output tokens", "Total tokens", "Images", "Image cost USD", "Total cost USD"];
     const csvEscape = (v: any) => {
       const s = v == null ? "" : String(v);
       return /[",\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
@@ -310,6 +314,8 @@ export default function AuditPage({ homeId }: Props) {
       r.prompt_tokens ?? 0,
       r.candidates_tokens ?? 0,
       r.total_tokens ?? 0,
+      r.image_count ?? 0,
+      (r.image_cost_usd ?? 0).toFixed(4),
       (r.estimated_cost_usd ?? 0).toFixed(4),
     ]);
     const csv = [header, ...rows].map((row) => row.map(csvEscape).join(",")).join("\n");
@@ -606,8 +612,11 @@ export default function AuditPage({ homeId }: Props) {
                         <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
                           <span className="inline-flex items-center gap-1 justify-end"><span className="sm:hidden">Tokens</span><span className="hidden sm:inline">Total</span> <InfoTooltip content="Total tokens processed (Prompt + Output). Tokens are units of text — roughly 1 token ≈ 4 characters" size={11} /></span>
                         </th>
+                        <th className="hidden sm:table-cell text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
+                          <span className="inline-flex items-center gap-1 justify-end">Images <InfoTooltip content="Imagen-generated images in this call (Garden Overhaul concept images). Each image at $0.02-$0.06 depending on tier" size={11} /></span>
+                        </th>
                         <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 justify-end">Cost <InfoTooltip content="Estimated cost in USD for this AI call, based on the model's pricing" size={11} /></span>
+                          <span className="inline-flex items-center gap-1 justify-end">Cost <InfoTooltip content="Estimated cost in USD for this AI call — sums token cost + image generation cost" size={11} /></span>
                         </th>
                       </tr>
                     </thead>
@@ -629,6 +638,11 @@ export default function AuditPage({ homeId }: Props) {
                           <td className="hidden sm:table-cell px-4 py-2.5 font-bold text-rhozly-on-surface/60 text-right tabular-nums">{fmtNum(row.prompt_tokens)}</td>
                           <td className="hidden sm:table-cell px-4 py-2.5 font-bold text-rhozly-on-surface/60 text-right tabular-nums">{fmtNum(row.candidates_tokens)}</td>
                           <td className="px-4 py-2.5 font-bold text-rhozly-on-surface text-right tabular-nums">{fmtNum(row.total_tokens)}</td>
+                          <td className="hidden sm:table-cell px-4 py-2.5 font-bold text-rhozly-on-surface/60 text-right tabular-nums">
+                            {row.image_count && row.image_count > 0
+                              ? <span className="text-rhozly-primary">{row.image_count}</span>
+                              : "—"}
+                          </td>
                           <td className="px-4 py-2.5 font-black text-rhozly-primary text-right tabular-nums whitespace-nowrap">{fmtCost(row.estimated_cost_usd)}</td>
                         </tr>
                       ))}

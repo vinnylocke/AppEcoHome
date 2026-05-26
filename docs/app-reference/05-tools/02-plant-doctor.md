@@ -143,6 +143,30 @@ PlantDoctorService.analyseComprehensive({
 
 All actions route through the single `plant-doctor` edge function (action-discriminated). The service uploads the image to `plant-doctor-images` bucket. Returns `VisionResult` for legacy actions, `AnalyseResult` for `analyse_comprehensive`. The `analyse_comprehensive` action emits `suggested_tasks` in the same shape the chat already produces, so the result card drops `<TaskActionButtons />` straight in — no new task-writing path.
 
+### Vision-cascade model selection
+
+The four vision-heavy actions (`identify_vision`, `diagnose`, `identify_pest`, `analyse_comprehensive`) opt into a dedicated **Pro-first cascade** instead of the default Flash cascade:
+
+```
+1. gemini-2.5-pro          ($1.25 / $10.00 per 1M)  ← primary
+2. gemini-3.1-pro-preview  ($2.00 / $12.00)         ← fallback
+3. gemini-3-flash-preview  ($0.50 / $3.00)          ← Flash safety net
+4. gemini-2.5-flash        ($0.30 / $2.50)          ← last resort
+```
+
+Defined as `VISION_DIAGNOSIS_MODELS` in `_shared/gemini.ts`. Passed as `models:` to `callGeminiCascade` for those four actions only — every other plant-doctor action stays on the default Flash cascade. Trades ~20× cost per call (still cents) for noticeably better visual reasoning. Pro models actually "look at" the image with more care, which matters when hallucinated symptoms damage user trust.
+
+### Anti-hallucination (diagnose + identify_pest)
+
+Both `diagnose` and `identify_pest` actions use a **two-stage reasoning prompt** + **temperature 0.2** + **server-side confidence floor (50)** + the **Pro-first cascade above** to keep the model honest about visible evidence:
+
+- **Stage 1 — Visible features inventory.** The prompt instructs the model to first enumerate every literally-visible symptom (or insect body part) in the photo. Empty inventory → empty result is a valid answer.
+- **Stage 2 — Diagnose from evidence.** The model may ONLY diagnose conditions whose required visible symptoms appeared in Stage 1. Species susceptibility + regional climate REFINE probability of candidates whose evidence is present; they do NOT justify diagnosing conditions whose evidence isn't visible.
+- **Temperature 0.2** instead of the cascade default (0.7) — conservative, consistent answers preferred over creative guesses.
+- **Confidence floor 50** filters `possible_diseases` / `possible_pests` server-side before the response leaves the function. If filtering empties the list, severity gets downgraded to `"Healthy"` (diagnose) or `is_pest`/`pest_severity` get nulled (pest) so the UI never shows "Medium severity" or "Harmful pest" without a named condition.
+
+The defaults are tunable inline constants (`DIAGNOSE_CONFIDENCE_FLOOR` / `PEST_CONFIDENCE_FLOOR`) — lower them if a real subtle symptom is getting filtered too often.
+
 ### AI Plant Overhaul integration (Wave 2)
 
 When the user picks an AI-sourced plant to add via this screen's flows, the underlying `plant-doctor` edge function action `generate_care_guide` now consults the global AI catalogue (`plants` where `source = 'ai' AND home_id IS NULL`):

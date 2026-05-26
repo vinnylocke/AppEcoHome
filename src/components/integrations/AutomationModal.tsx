@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../../lib/supabase";
-import { X, Loader2, Droplets, AlertCircle, Check, Search, ChevronDown } from "lucide-react";
+import { X, Loader2, Droplets, AlertCircle, Check, Search, ChevronDown, Thermometer, CloudRain } from "lucide-react";
 import type { AutomationFull } from "./AutomationsSection";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 
@@ -48,7 +48,16 @@ export default function AutomationModal({ homeId, automation, onSaved, onClose }
   const [fireSequentially, setFireSequentially] = useState(automation?.fire_valves_sequentially ?? false);
   const [skipIfRained, setSkipIfRained] = useState(automation?.skip_if_rained ?? false);
   const [rainThreshold, setRainThreshold] = useState(automation?.rain_threshold_mm ?? 5);
+  const [triggerIfHot, setTriggerIfHot] = useState(automation?.trigger_if_hot ?? false);
+  const [heatThreshold, setHeatThreshold] = useState(automation?.heat_threshold_c ?? 28);
   const [retryOnFailure, setRetryOnFailure] = useState(automation?.retry_on_failure ?? true);
+
+  // Parent "Weather-aware" toggle — derived from whichever sub-setting
+  // is enabled. Toggling it OFF clears both sub-settings on save;
+  // toggling ON re-reveals the sub-rows so the user can opt in.
+  const [weatherAware, setWeatherAware] = useState(
+    (automation?.skip_if_rained ?? false) || (automation?.trigger_if_hot ?? false),
+  );
 
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>(
     automation?.devices.map((d) => d.device_id) ?? [],
@@ -281,14 +290,21 @@ export default function AutomationModal({ homeId, automation, onSaved, onClose }
     setSaving(true);
     setError(null);
     try {
+      // Weather-aware parent toggle: when OFF, both sub-settings must be
+      // cleared on save so they don't linger from a previous edit.
+      const effectiveSkipIfRained = weatherAware && skipIfRained;
+      const effectiveTriggerIfHot = weatherAware && triggerIfHot;
+
       const payload = {
         name: name.trim(),
         is_active: isActive,
         scheduled_time: scheduledTime + ":00",
         duration_seconds: durationSeconds,
         fire_valves_sequentially: fireSequentially,
-        skip_if_rained: skipIfRained,
+        skip_if_rained: effectiveSkipIfRained,
         rain_threshold_mm: rainThreshold,
+        trigger_if_hot: effectiveTriggerIfHot,
+        heat_threshold_c: heatThreshold,
         retry_on_failure: retryOnFailure,
         updated_at: new Date().toISOString(),
       };
@@ -595,34 +611,100 @@ export default function AutomationModal({ homeId, automation, onSaved, onClose }
               <div>
                 <h3 className="text-sm font-bold text-rhozly-on-surface mb-3">Settings</h3>
                 <div className="space-y-4">
-                  <div>
-                    <label className="flex items-start gap-3 cursor-pointer" data-testid="automation-skip-rain-toggle">
-                      <input
-                        type="checkbox"
-                        checked={skipIfRained}
-                        onChange={(e) => setSkipIfRained(e.target.checked)}
-                        className="mt-0.5 w-4 h-4 accent-rhozly-primary"
-                      />
-                      <div>
-                        <p className="text-sm font-semibold text-rhozly-on-surface">Skip if it rained</p>
+                  {/* Parent "Weather-aware" toggle wraps both rain-skip + heat-trigger. */}
+                  <div className="rounded-2xl border border-rhozly-outline/20 overflow-hidden">
+                    <label
+                      className="flex items-center gap-3 p-3 cursor-pointer hover:bg-rhozly-surface/60 transition-colors"
+                      data-testid="automation-weather-aware-toggle"
+                    >
+                      <div
+                        onClick={(e) => { e.preventDefault(); setWeatherAware((v) => !v); }}
+                        className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${weatherAware ? "bg-rhozly-primary" : "bg-rhozly-outline/40"}`}
+                      >
+                        <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-all ${weatherAware ? "left-5" : "left-0.5"}`} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-rhozly-on-surface leading-tight">Weather-aware</p>
                         <p className="text-xs text-rhozly-on-surface-variant mt-0.5">
-                          Skip the run if today's rainfall exceeds the threshold.
+                          Let today's weather skip or trigger this automation.
                         </p>
                       </div>
                     </label>
-                    {skipIfRained && (
-                      <div className="mt-2 ml-7 flex items-center gap-3">
-                        <input
-                          type="number"
-                          min={1}
-                          max={50}
-                          step={0.5}
-                          value={rainThreshold}
-                          onChange={(e) => setRainThreshold(Number(e.target.value))}
-                          data-testid="automation-rain-threshold"
-                          className="w-24 px-3 py-2 rounded-xl border border-rhozly-outline/30 bg-white text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary text-sm"
-                        />
-                        <span className="text-xs text-rhozly-on-surface-variant">mm rainfall threshold</span>
+
+                    {weatherAware && (
+                      <div className="border-t border-rhozly-outline/15 px-3 py-3 space-y-4 bg-rhozly-surface/30">
+                        {/* Skip if rained */}
+                        <div>
+                          <label className="flex items-start gap-3 cursor-pointer" data-testid="automation-skip-rain-toggle">
+                            <input
+                              type="checkbox"
+                              checked={skipIfRained}
+                              onChange={(e) => setSkipIfRained(e.target.checked)}
+                              className="mt-0.5 w-4 h-4 accent-rhozly-primary"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-rhozly-on-surface flex items-center gap-1.5">
+                                <CloudRain size={13} className="text-rhozly-primary" />
+                                Skip if it rained
+                              </p>
+                              <p className="text-xs text-rhozly-on-surface-variant mt-0.5">
+                                Skip the run if today's rainfall exceeds the threshold.
+                              </p>
+                            </div>
+                          </label>
+                          {skipIfRained && (
+                            <div className="mt-2 ml-7 flex items-center gap-3">
+                              <input
+                                type="number"
+                                min={1}
+                                max={50}
+                                step={0.5}
+                                value={rainThreshold}
+                                onChange={(e) => setRainThreshold(Number(e.target.value))}
+                                data-testid="automation-rain-threshold"
+                                className="w-24 px-3 py-2 rounded-xl border border-rhozly-outline/30 bg-white text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary text-sm"
+                              />
+                              <span className="text-xs text-rhozly-on-surface-variant">mm rainfall threshold</span>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Trigger if hot */}
+                        <div>
+                          <label className="flex items-start gap-3 cursor-pointer" data-testid="automation-trigger-hot-toggle">
+                            <input
+                              type="checkbox"
+                              checked={triggerIfHot}
+                              onChange={(e) => setTriggerIfHot(e.target.checked)}
+                              className="mt-0.5 w-4 h-4 accent-rhozly-primary"
+                            />
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-rhozly-on-surface flex items-center gap-1.5">
+                                <Thermometer size={13} className="text-rhozly-primary" />
+                                Run automatically when it's hot
+                              </p>
+                              <p className="text-xs text-rhozly-on-surface-variant mt-0.5">
+                                Fire at the scheduled time on hot days even if no task is due.
+                                Rain still wins if both are true today.
+                              </p>
+                            </div>
+                          </label>
+                          {triggerIfHot && (
+                            <div className="mt-2 ml-7 flex items-center gap-3">
+                              <input
+                                type="number"
+                                min={20}
+                                max={45}
+                                step={1}
+                                value={heatThreshold}
+                                onChange={(e) => setHeatThreshold(Number(e.target.value))}
+                                data-testid="automation-heat-threshold"
+                                className="w-24 px-3 py-2 rounded-xl border border-rhozly-outline/30 bg-white text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary text-sm"
+                              />
+                              <span className="text-xs text-rhozly-on-surface-variant">°C trigger threshold</span>
+                            </div>
+                          )}
+                        </div>
                       </div>
                     )}
                   </div>

@@ -230,6 +230,9 @@ interface VerifyOutcome {
   thoughtsTokens: number;
   totalTokens: number;
   costUsd: number;
+  /** Model that actually answered (after any cascade fallbacks). Null
+   *  when no AI call was made (e.g. no-sources default-pass). */
+  model: string | null;
 }
 
 async function verifyOneRow(
@@ -257,6 +260,7 @@ async function verifyOneRow(
     thoughtsTokens: 0,
     totalTokens: 0,
     costUsd: 0,
+    model: null as string | null,
   };
 
   // Single top-level try/catch — ANY failure (network blip, AI throw,
@@ -309,6 +313,7 @@ async function verifyOneRow(
     usage.cachedTokens = callUsage.cachedContentTokenCount ?? 0;
     usage.thoughtsTokens = callUsage.thoughtsTokenCount ?? 0;
     usage.totalTokens = callUsage.totalTokenCount ?? 0;
+    usage.model = callUsage.model ?? null;
     usage.costUsd = estimateGeminiCostUsd(callUsage.model, {
       promptTokenCount: usage.promptTokens,
       candidatesTokenCount: usage.candidatesTokens,
@@ -409,6 +414,15 @@ async function verifyOneRow(
   }
 }
 
+interface ModelUsageSlot {
+  prompt_tokens: number;
+  candidates_tokens: number;
+  cached_tokens: number;
+  thoughts_tokens: number;
+  cost_usd: number;
+  call_count: number;
+}
+
 async function updateRunProgress(
   db: any,
   runId: string,
@@ -422,36 +436,60 @@ async function updateRunProgress(
     thoughtsTokens?: number;
     totalTokens?: number;
     costUsd?: number;
+    /** Model that answered. When present, the per-model bucket on
+     *  `model_usage` is bumped alongside the aggregate totals. */
+    model?: string | null;
   },
 ) {
   const { data: row } = await db
     .from("plant_library_runs")
     .select(
-      "count_matched, count_amended, count_failed, total_prompt_tokens, total_candidates_tokens, total_cached_tokens, total_thoughts_tokens, total_tokens, total_cost_usd",
+      "count_matched, count_amended, count_failed, total_prompt_tokens, total_candidates_tokens, total_cached_tokens, total_thoughts_tokens, total_tokens, total_cost_usd, model_usage",
     )
     .eq("id", runId)
     .maybeSingle();
   if (!row) return;
-  // Heartbeat lands on every batch — admin sweep uses it to spot
-  // dead-but-still-running rows. Token / cost totals accumulate so
-  // the admin can see what each verify run actually cost.
+
+  const patch: Record<string, unknown> = {
+    count_matched: row.count_matched + (deltas.matched ?? 0),
+    count_amended: row.count_amended + (deltas.amended ?? 0),
+    count_failed: row.count_failed + (deltas.failed ?? 0),
+    total_prompt_tokens: row.total_prompt_tokens + (deltas.promptTokens ?? 0),
+    total_candidates_tokens:
+      row.total_candidates_tokens + (deltas.candidatesTokens ?? 0),
+    total_cached_tokens: row.total_cached_tokens + (deltas.cachedTokens ?? 0),
+    total_thoughts_tokens:
+      row.total_thoughts_tokens + (deltas.thoughtsTokens ?? 0),
+    total_tokens: row.total_tokens + (deltas.totalTokens ?? 0),
+    total_cost_usd:
+      Number(row.total_cost_usd ?? 0) + (deltas.costUsd ?? 0),
+    last_heartbeat_at: new Date().toISOString(),
+  };
+
+  if (deltas.model) {
+    const usage: Record<string, ModelUsageSlot> =
+      (row.model_usage as Record<string, ModelUsageSlot>) ?? {};
+    const slot: ModelUsageSlot = usage[deltas.model] ?? {
+      prompt_tokens: 0,
+      candidates_tokens: 0,
+      cached_tokens: 0,
+      thoughts_tokens: 0,
+      cost_usd: 0,
+      call_count: 0,
+    };
+    slot.prompt_tokens     += deltas.promptTokens ?? 0;
+    slot.candidates_tokens += deltas.candidatesTokens ?? 0;
+    slot.cached_tokens     += deltas.cachedTokens ?? 0;
+    slot.thoughts_tokens   += deltas.thoughtsTokens ?? 0;
+    slot.cost_usd          += deltas.costUsd ?? 0;
+    slot.call_count        += 1;
+    usage[deltas.model] = slot;
+    patch.model_usage = usage;
+  }
+
   await db
     .from("plant_library_runs")
-    .update({
-      count_matched: row.count_matched + (deltas.matched ?? 0),
-      count_amended: row.count_amended + (deltas.amended ?? 0),
-      count_failed: row.count_failed + (deltas.failed ?? 0),
-      total_prompt_tokens: row.total_prompt_tokens + (deltas.promptTokens ?? 0),
-      total_candidates_tokens:
-        row.total_candidates_tokens + (deltas.candidatesTokens ?? 0),
-      total_cached_tokens: row.total_cached_tokens + (deltas.cachedTokens ?? 0),
-      total_thoughts_tokens:
-        row.total_thoughts_tokens + (deltas.thoughtsTokens ?? 0),
-      total_tokens: row.total_tokens + (deltas.totalTokens ?? 0),
-      total_cost_usd:
-        Number(row.total_cost_usd ?? 0) + (deltas.costUsd ?? 0),
-      last_heartbeat_at: new Date().toISOString(),
-    })
+    .update(patch)
     .eq("id", runId);
 }
 
@@ -504,29 +542,48 @@ async function backgroundVerify(
       const matched = outcomes.filter((o) => o.result === "matched").length;
       const amended = outcomes.filter((o) => o.result === "amended").length;
       const failed = outcomes.filter((o) => o.result === "failed").length;
-      const promptTokens = outcomes.reduce((sum, o) => sum + o.promptTokens, 0);
-      const candidatesTokens = outcomes.reduce(
-        (sum, o) => sum + o.candidatesTokens,
-        0,
-      );
-      const cachedTokens = outcomes.reduce((sum, o) => sum + o.cachedTokens, 0);
-      const thoughtsTokens = outcomes.reduce(
-        (sum, o) => sum + o.thoughtsTokens,
-        0,
-      );
-      const totalTokens = outcomes.reduce((sum, o) => sum + o.totalTokens, 0);
-      const costUsd = outcomes.reduce((sum, o) => sum + o.costUsd, 0);
+
+      // Aggregate counters + no-model deltas (rows that resolved
+      // without an AI call — no-sources default-pass) into one call.
+      // Then call updateRunProgress once more per model that actually
+      // answered so the per-model bucket lands correctly. Usually
+      // 1-2 models per batch — N+1 round-trips is fine.
+      const noModel = outcomes.filter((o) => !o.model);
       await updateRunProgress(db, runId, {
         matched,
         amended,
         failed,
-        promptTokens,
-        candidatesTokens,
-        cachedTokens,
-        thoughtsTokens,
-        totalTokens,
-        costUsd,
+        promptTokens:     noModel.reduce((s, o) => s + o.promptTokens, 0),
+        candidatesTokens: noModel.reduce((s, o) => s + o.candidatesTokens, 0),
+        cachedTokens:     noModel.reduce((s, o) => s + o.cachedTokens, 0),
+        thoughtsTokens:   noModel.reduce((s, o) => s + o.thoughtsTokens, 0),
+        totalTokens:      noModel.reduce((s, o) => s + o.totalTokens, 0),
+        costUsd:          noModel.reduce((s, o) => s + o.costUsd, 0),
       });
+
+      const byModel = new Map<string, typeof outcomes>();
+      for (const o of outcomes) {
+        if (!o.model) continue;
+        const bucket = byModel.get(o.model) ?? [];
+        bucket.push(o);
+        byModel.set(o.model, bucket);
+      }
+      for (const [model, bucketOutcomes] of byModel) {
+        // Each call to updateRunProgress increments call_count by 1,
+        // so to record N calls for the same model we have to call it
+        // N times (each bucket entry was an independent AI call).
+        for (const o of bucketOutcomes) {
+          await updateRunProgress(db, runId, {
+            promptTokens: o.promptTokens,
+            candidatesTokens: o.candidatesTokens,
+            cachedTokens: o.cachedTokens,
+            thoughtsTokens: o.thoughtsTokens,
+            totalTokens: o.totalTokens,
+            costUsd: o.costUsd,
+            model,
+          });
+        }
+      }
     }
 
     // Reflect partial failures in the final status — same rule as

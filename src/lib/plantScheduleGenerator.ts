@@ -1,0 +1,130 @@
+// Pure date-math helpers extracted from PlantScheduleTab so the
+// "Generate Tasks" modal can mock a trigger date without duplicating
+// the existing seasonal-window logic.
+//
+// `buildBlueprintFromSchedule` computes start_date + end_date for a
+// task_blueprint from:
+//   - A plant_schedules row (start_reference, offsets, frequency).
+//   - A mocked trigger date (the date the user wants tasks to start
+//     counting from — e.g. today if they've "planted" the plant
+//     mentally but not yet placed it in an area).
+//   - The plant's cycle (annual/biennial/perennial) for the absolute
+//     end-of-life cap.
+
+export interface PlantScheduleRow {
+  id?: string;
+  start_reference: string | null;
+  start_offset_days: number | null;
+  end_reference: string | null;
+  end_offset_days: number | null;
+  frequency_days: number;
+}
+
+export interface BlueprintDates {
+  /** ISO yyyy-mm-dd. null when the computed window is entirely in the past for a non-perennial. */
+  start_date: string | null;
+  /** ISO yyyy-mm-dd. null when end_reference = "Ongoing" and no cycle cap applies. */
+  end_date: string | null;
+}
+
+const MS_PER_DAY = 24 * 60 * 60 * 1000;
+
+function parseSafeDate(d: string): number {
+  return new Date(`${d}T12:00:00Z`).getTime();
+}
+
+function formatSafeDate(ms: number): string {
+  return new Date(ms).toISOString().split("T")[0];
+}
+
+/**
+ * Compute the start + end dates for a task_blueprint generated from
+ * a plant_schedules row, mocking the trigger event with `triggerDateStr`.
+ *
+ * Mirrors the legacy `getDatesForBlueprint` in PlantScheduleTab — kept
+ * in lockstep so existing "Apply to existing plants" and "Auto-Generate"
+ * flows still produce identical results.
+ */
+export function buildBlueprintFromSchedule(opts: {
+  schedule: PlantScheduleRow;
+  /** ISO yyyy-mm-dd — mocked trigger date. Today when the user just wants tasks now. */
+  triggerDateStr: string;
+  /** Plant lifecycle string ("Annual" / "Biennial" / "Perennial" / etc). */
+  plantCycle: string | null;
+  /** Year to compute seasonal references against. Usually current year. */
+  targetYear: number;
+}): BlueprintDates {
+  const { schedule, triggerDateStr, plantCycle, targetYear } = opts;
+  const startRef = schedule.start_reference;
+  const startOffset = schedule.start_offset_days ?? 0;
+  const endRef = schedule.end_reference;
+  const endOffset = schedule.end_offset_days ?? 0;
+  const freqDays = Math.max(1, schedule.frequency_days || 1);
+
+  // ── Compute start date ────────────────────────────────────────────
+  let startMs = parseSafeDate(triggerDateStr);
+  if (startRef?.startsWith("Seasonal:")) {
+    const mmdd = startRef.split(":")[1].trim();
+    startMs = parseSafeDate(`${targetYear}-${mmdd}`);
+  }
+  startMs += startOffset * MS_PER_DAY;
+
+  // ── Compute end date (if any) ─────────────────────────────────────
+  let endMs: number | null = null;
+  if (endRef && endRef !== "Ongoing") {
+    endMs = parseSafeDate(triggerDateStr);
+    if (endRef.startsWith("Seasonal:")) {
+      const mmdd = endRef.split(":")[1].trim();
+      endMs = parseSafeDate(`${targetYear}-${mmdd}`);
+
+      // Roll the end forward a year if it'd otherwise be before start.
+      if (startRef?.startsWith("Seasonal:") && endMs < startMs) {
+        endMs += 365 * MS_PER_DAY;
+      }
+    }
+    endMs += endOffset * MS_PER_DAY;
+  }
+
+  // ── Cycle-based absolute cap ──────────────────────────────────────
+  // Annuals get 1 year of tasks; biennials get 2; perennials uncapped
+  // (subject to end_date if explicitly set).
+  let absoluteMaxEndMs: number | null = null;
+  if (plantCycle) {
+    const cycleStr = plantCycle.toLowerCase();
+    const triggerMs = parseSafeDate(triggerDateStr);
+    if (cycleStr.includes("annual") && !cycleStr.includes("perennial")) {
+      absoluteMaxEndMs = triggerMs + 365 * MS_PER_DAY;
+    } else if (cycleStr.includes("biennial")) {
+      absoluteMaxEndMs = triggerMs + 730 * MS_PER_DAY;
+    }
+  }
+
+  if (absoluteMaxEndMs !== null) {
+    if (endMs === null || endMs > absoluteMaxEndMs) {
+      endMs = absoluteMaxEndMs;
+    }
+    if (startMs > absoluteMaxEndMs) {
+      // Start is past the lifecycle cap — no tasks would ever fire.
+      return { start_date: null, end_date: null };
+    }
+  }
+
+  // ── Floor start to max(trigger date, today) ───────────────────────
+  // For a mocked trigger date that's in the past, we still want the
+  // first task to land TODAY rather than retroactively. Without this,
+  // a "trigger date = last week" would generate tasks in the past.
+  const triggerMs = parseSafeDate(triggerDateStr);
+  const todayMs = parseSafeDate(new Date().toISOString().split("T")[0]);
+  const floorMs = Math.max(triggerMs, todayMs);
+
+  if (startMs < floorMs) {
+    const freqMs = freqDays * MS_PER_DAY;
+    const periods = Math.ceil((floorMs - startMs) / freqMs);
+    startMs += periods * freqMs;
+  }
+
+  return {
+    start_date: formatSafeDate(startMs),
+    end_date: endMs !== null ? formatSafeDate(endMs) : null,
+  };
+}

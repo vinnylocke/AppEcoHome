@@ -238,6 +238,22 @@ export async function generateSeasonalPicksForHome(
     source = "fallback";
   }
 
+  // 3.5. Resolve plant_library_id for each pick. Library hits skip
+  //      Gemini when the pick is later opened — we just clone the
+  //      stored care guide. Library misses are kicked back to the
+  //      seed-plant-library edge fn (fire-and-forget) so next week's
+  //      picks have a hit.
+  picks = await attachPlantLibraryIds(supabase, picks);
+  const missingFromLibrary = picks.filter((p) => !p.plant_library_id);
+  if (missingFromLibrary.length > 0) {
+    // Fire-and-forget — don't hold up the picks response. The seeder
+    // returns 202 quickly; the actual enrichment happens in its own
+    // background task.
+    fireBackgroundLibrarySeed(missingFromLibrary, FN).catch((err) =>
+      warn(FN, "library_seed_invoke_failed", { error: (err as Error).message }),
+    );
+  }
+
   // 4. Cache write (service-role bypasses RLS).
   const generatedAt = new Date().toISOString();
   const { error: upsertErr } = await supabase
@@ -262,6 +278,8 @@ export async function generateSeasonalPicksForHome(
     weekIso,
     source,
     count: picks.length,
+    library_hits: picks.length - missingFromLibrary.length,
+    library_seeds_fired: missingFromLibrary.length,
   });
 
   return {
@@ -271,4 +289,85 @@ export async function generateSeasonalPicksForHome(
     picks,
     from_cache: false,
   };
+}
+
+/**
+ * Compute the same `scientific_name_key` that plant_library's generated
+ * column uses — lowercased, whitespace-collapsed binomial (falling back
+ * to common_name when sci is empty).
+ */
+function computeSciKey(sci: string | null | undefined, common: string): string {
+  const raw = (sci?.trim() || common.trim() || "").replace(/\s+/g, " ");
+  return raw.toLowerCase();
+}
+
+/**
+ * For each pick, look up `plant_library` by `scientific_name_key`
+ * (the authoritative generated dedup key on the library). Returns a
+ * new array with `plant_library_id` populated when a match is found.
+ */
+async function attachPlantLibraryIds(
+  // deno-lint-ignore no-explicit-any
+  supabase: any,
+  picks: SeasonalPick[],
+): Promise<SeasonalPick[]> {
+  if (picks.length === 0) return picks;
+
+  const keysByPick = picks.map((p) => computeSciKey(p.scientific_name, p.common_name));
+  const uniqueKeys = Array.from(new Set(keysByPick.filter((k) => !!k)));
+  if (uniqueKeys.length === 0) {
+    return picks.map((p) => ({ ...p, plant_library_id: null }));
+  }
+
+  const { data } = await supabase
+    .from("plant_library")
+    .select("id, scientific_name_key")
+    .in("scientific_name_key", uniqueKeys);
+
+  const byKey = new Map<string, number>();
+  for (const row of (data ?? []) as Array<{ id: number; scientific_name_key: string }>) {
+    if (row.scientific_name_key && !byKey.has(row.scientific_name_key)) {
+      byKey.set(row.scientific_name_key, row.id);
+    }
+  }
+
+  return picks.map((p, i) => ({
+    ...p,
+    plant_library_id: byKey.get(keysByPick[i]) ?? null,
+  }));
+}
+
+/**
+ * Fire-and-forget call to seed-plant-library for picks that aren't in
+ * the library yet. Returns immediately — the seeder responds 202 and
+ * processes in its own background task.
+ */
+async function fireBackgroundLibrarySeed(
+  missing: SeasonalPick[],
+  callerFn: string,
+): Promise<void> {
+  const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+  if (!supabaseUrl || !serviceKey) return;
+
+  const plantNames = missing.map((p) => ({
+    name: p.common_name,
+    sciName: p.scientific_name || null,
+  }));
+
+  const res = await fetch(`${supabaseUrl}/functions/v1/seed-plant-library`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${serviceKey}`,
+    },
+    body: JSON.stringify({
+      plantNames,
+      triggered_by: `seasonal_picks:${callerFn}`,
+    }),
+  });
+  if (!res.ok) {
+    const text = await res.text().catch(() => "");
+    throw new Error(`seed-plant-library returned ${res.status}: ${text.slice(0, 200)}`);
+  }
 }

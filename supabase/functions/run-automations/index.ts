@@ -79,6 +79,40 @@ async function checkRain(
   return { rained: mm >= thresholdMm, mm };
 }
 
+/**
+ * Read today's forecast max temperature from the weather snapshot and
+ * return whether it's at or above the supplied threshold. Used by
+ * automations with `trigger_if_hot = true` to fire on hot days even
+ * when no controlling task is due.
+ */
+async function checkHeat(
+  db: ReturnType<typeof createClient>,
+  homeId: string,
+  thresholdC: number,
+): Promise<{ hot: boolean; maxTempC: number }> {
+  const today = new Date().toISOString().split("T")[0];
+  const { data: snapshot } = await db
+    .from("weather_snapshots")
+    .select("data")
+    .eq("home_id", homeId)
+    .single();
+
+  if (!snapshot?.data) return { hot: false, maxTempC: 0 };
+
+  const daily = (snapshot.data as Record<string, unknown>).daily as {
+    time: string[];
+    temperature_2m_max: number[];
+  } | undefined;
+
+  if (!daily?.time || !daily?.temperature_2m_max) return { hot: false, maxTempC: 0 };
+
+  const todayIdx = daily.time.indexOf(today);
+  if (todayIdx === -1) return { hot: false, maxTempC: 0 };
+
+  const maxTempC = daily.temperature_2m_max[todayIdx] ?? 0;
+  return { hot: maxTempC >= thresholdC, maxTempC };
+}
+
 async function checkControllingTaskDue(
   db: ReturnType<typeof createClient>,
   automationId: string,
@@ -367,6 +401,7 @@ async function sendNotification(
   durationSeconds: number,
   automationId: string,
   rainMm = 0,
+  heatMaxTempC?: number,
 ): Promise<void> {
   const durationMins = Math.round(durationSeconds / 60);
 
@@ -377,8 +412,13 @@ async function sendNotification(
     title = `${automationName} skipped — rain detected`;
     body = `Your garden didn't need extra water today${mmText}.`;
   } else if (status === "success" || status === "partial") {
-    title = `${automationName} watered your garden`;
-    body = `Valves ran for ${durationMins} min${status === "partial" ? " (some devices failed)" : " successfully"}.`;
+    if (heatMaxTempC !== undefined) {
+      title = `${automationName} watered (hot weather)`;
+      body = `Hot day forecast — ${Math.round(heatMaxTempC)}°C. Valves ran for ${durationMins} min${status === "partial" ? " (some devices failed)" : "."}`;
+    } else {
+      title = `${automationName} watered your garden`;
+      body = `Valves ran for ${durationMins} min${status === "partial" ? " (some devices failed)" : " successfully"}.`;
+    }
   } else {
     title = `${automationName} failed to water`;
     body = "Check your device connections and try again.";
@@ -532,9 +572,23 @@ async function runAutomation(
   }
 
   // ── Task due check (scheduled runs only) ─────────────────────────────────
+  // Heat trigger bypasses this check — when `trigger_if_hot` is set and
+  // today's forecast max temp meets the threshold, we fire even when no
+  // controlling task is due. Rain skip (above) still wins.
+  let triggeredByHeat = false;
+  let heatMaxTempC = 0;
   if (triggeredBy === "schedule") {
     const hasDue = await checkControllingTaskDue(db, automationId, today);
-    if (!hasDue) {
+    if (!hasDue && automation.trigger_if_hot) {
+      const { hot, maxTempC } = await checkHeat(db, homeId, automation.heat_threshold_c as number)
+        .catch(() => ({ hot: false, maxTempC: 0 }));
+      if (hot) {
+        triggeredByHeat = true;
+        heatMaxTempC = maxTempC;
+        log(FN, "heat_trigger", { automationId, maxTempC });
+      }
+    }
+    if (!hasDue && !triggeredByHeat) {
       log(FN, "no_due_tasks", { automationId });
       await db.from("automation_runs").insert({
         automation_id: automationId, home_id: homeId,
@@ -596,7 +650,12 @@ async function runAutomation(
   await db.from("automations").update({ last_run_date: today }).eq("id", automationId);
 
   // ── Notify ────────────────────────────────────────────────────────────────
-  await sendNotification(db, homeId, automationName, runStatus, automation.duration_seconds as number, automationId)
+  await sendNotification(
+    db, homeId, automationName, runStatus,
+    automation.duration_seconds as number, automationId,
+    0,
+    triggeredByHeat ? heatMaxTempC : undefined,
+  )
     .then(() => db.from("automation_runs").update({ notified_at: new Date().toISOString() }).eq("id", runId))
     .catch((e) => warn(FN, "notify_error", { error: e.message }));
 
