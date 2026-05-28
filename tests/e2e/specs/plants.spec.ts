@@ -29,9 +29,9 @@ test.describe("Plant management — The Shed", () => {
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.goto();
 
-    // Click the 'The Shed' nav item — it renders as a button in the sidebar
+    // Click the 'Plants' nav item — it renders as a button in the sidebar
     await authenticatedPage
-      .getByRole("button", { name: "The Shed" })
+      .getByRole("button", { name: "Plants" })
       .first()
       .click();
 

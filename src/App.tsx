@@ -1,5 +1,5 @@
 import { Toaster, toast } from "react-hot-toast";
-import React, { useEffect, useState, useCallback, useRef, lazy, Suspense } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef, lazy, Suspense } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "./lib/supabase";
 import {
@@ -12,6 +12,7 @@ import {
   AlertCircle,
   HelpCircle,
   Zap,
+  BookOpen,
 } from "lucide-react";
 import { IconShed, IconPlanner, IconDoctor, IconAI, IconIntegrations } from "./constants/icons";
 
@@ -21,6 +22,7 @@ import { App as CapApp } from "@capacitor/app";
 // 🚀 ROUTER
 import { BrowserRouter, Routes, Route, Navigate, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { Analytics as VercelAnalytics } from "@vercel/analytics/react";
+import SurfaceLoader from "./components/shared/SurfaceLoader";
 
 // Components — always needed on first render (keep eager)
 import LocationTile from "./components/LocationTile";
@@ -87,6 +89,7 @@ const QuickAccessHome     = lazy(() => import("./components/QuickAccessHome"));
 const QuickAccessLens     = lazy(() => import("./components/QuickAccessLens"));
 const LocalizedTaskCalendar = lazy(() => import("./components/quick/LocalizedTaskCalendar"));
 const QuickCapture          = lazy(() => import("./components/quick/QuickCapture"));
+const GlobalJournal         = lazy(() => import("./components/GlobalJournal"));
 const LibraryHome           = lazy(() => import("./components/library/LibraryHome"));
 const GardenWalk            = lazy(() => import("./components/walk/GardenWalk"));
 const MobileNavDrawer       = lazy(() => import("./components/MobileNavDrawer"));
@@ -181,6 +184,7 @@ const TAB_URL: Record<string, string> = {
   quick:           "/quick",
   quick_calendar:  "/quick/calendar",
   quick_journal:   "/quick/journal",
+  journal:         "/journal",
   dashboard:       "/dashboard",
   task_management: "/schedule",
   shed:            "/shed",
@@ -274,6 +278,22 @@ function AppShell() {
   const [showCookies, setShowCookies] = useState(false);
   const allReleaseNotes = useReleaseNotes();
   const [releaseNotesMode, setReleaseNotesMode] = useState<"latest" | "history" | null>(null);
+
+  // Filter release notes to only versions the user is ACTUALLY running.
+  // The DB row for a new version is written by the deploy script before
+  // the bundle finishes rolling out — without this filter, "What's new"
+  // would show bullets for code the user hasn't yet received.
+  const filteredReleaseNotes = useMemo(() => {
+    const bundleKey = versionState.bundleVersionKey;
+    if (!bundleKey) return [];
+    const [bMajorStr, bMinorStr] = bundleKey.split(".");
+    const bMajor = Number(bMajorStr);
+    const bMinor = Number(bMinorStr);
+    if (!Number.isFinite(bMajor) || !Number.isFinite(bMinor)) return allReleaseNotes;
+    return allReleaseNotes.filter(
+      (n) => n.major < bMajor || (n.major === bMajor && n.minor <= bMinor),
+    );
+  }, [allReleaseNotes, versionState.bundleVersionKey]);
 
   // Release notes — fire when the BUNDLE the user is running has a new
   // version they haven't seen yet. Two gates:
@@ -573,7 +593,9 @@ function AppShell() {
 
     if (error) {
       Logger.error("Failed to fetch home data", error);
-      toast.error("Could not load dashboard data");
+      // No toast — the inline retry card on /dashboard handles this
+      // properly. Toasting globally pestered users who had already
+      // navigated to another route while the fetch was still in flight.
       setDashboardError(true);
       setDashboardLoaded(true);
       return;
@@ -761,7 +783,9 @@ function AppShell() {
       });
       setDashboardError(true);
       setDashboardLoaded(true);
-      toast.error("Could not load dashboard data");
+      // No toast — the inline retry card on /dashboard surfaces this
+      // when the user is actually there. Toasting from a background
+      // fetch interrupts users who've navigated to another route.
     }
   }, [profile?.home_id]);
 
@@ -1031,6 +1055,7 @@ function AppShell() {
     { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", ...(isMobile ? [] : ["/"])], badge: overdueTaskCount, badgeTone: "rose" },
     { id: "shed",      icon: <IconShed />, label: "Plants", matchPaths: ["/shed", "/watchlist"] },
     { id: "planner",   icon: <IconPlanner />, label: "Planner",    matchPaths: ["/planner", "/shopping"] },
+    { id: "journal",   icon: <BookOpen />, label: "Journal",    matchPaths: ["/journal"] },
     { id: "tools",        icon: <IconDoctor />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
     { id: "integrations", icon: <IconIntegrations />,        label: "Integrations", matchPaths: ["/integrations"] },
   ];
@@ -1179,11 +1204,11 @@ function AppShell() {
                       {profile?.home_id ? (
                         <SunTrajectoryAR homeId={profile.home_id} />
                       ) : (
-                        <div className="h-full flex flex-col items-center justify-center p-10 text-center">
-                          <Loader2 className="animate-spin text-rhozly-primary mb-4" size={40} />
-                          <p className="font-bold text-rhozly-on-surface/40 uppercase tracking-widest text-[10px]">
-                            Loading Home Data...
-                          </p>
+                        <div className="h-full flex items-center justify-center">
+                          <SurfaceLoader
+                            shape="spinner"
+                            label="Mapping the sun's path across your garden…"
+                          />
                         </div>
                       )}
                     </div>
@@ -1515,6 +1540,14 @@ function AppShell() {
                         ) : null
                       } />
 
+                      <Route path="/journal" element={
+                        profile?.home_id ? (
+                          <div className="h-full overflow-auto animate-in fade-in duration-500">
+                            <GlobalJournal homeId={profile.home_id} />
+                          </div>
+                        ) : null
+                      } />
+
                       {/* Redirect legacy /watchlist deep-link to the Garden Hub watchlist tab */}
                       <Route path="/watchlist" element={<Navigate to="/shed?tab=watchlist" replace />} />
 
@@ -1764,9 +1797,9 @@ function AppShell() {
           onClose={() => setShowWelcomeModal(false)}
         />
       )}
-      {!showWelcomeModal && releaseNotesMode && allReleaseNotes.length > 0 && (
+      {!showWelcomeModal && releaseNotesMode && filteredReleaseNotes.length > 0 && (
         <ReleaseNotesModal
-          notes={allReleaseNotes}
+          notes={filteredReleaseNotes}
           currentVersion={appVersion?.replace("Rhozly OS ", "") ?? ""}
           mode={releaseNotesMode}
           onClose={() => setReleaseNotesMode(null)}
@@ -1791,9 +1824,7 @@ function DashboardRealtimeSubscriber({
 }) {
   useHomeRealtime("locations", onDataRefresh);
   useHomeRealtime("areas", onDataRefresh);
-  useHomeRealtime("weather_alerts", onDataRefresh);
   useHomeRealtime("inventory_items", onInventoryChange);
-  useHomeRealtime("weather_snapshots", onDataRefresh);
   useHomeRealtime("homes", onProfileRefresh);
   // `tasks` was missing — adding a task today used to leave the
   // Dashboard's today-count / overdue chip stale until the user
@@ -1801,6 +1832,24 @@ function DashboardRealtimeSubscriber({
   // for the home triggers a dashboard refetch. With local-first
   // caching (planned) this also keeps the on-disk snapshot fresh.
   useHomeRealtime("tasks", onDataRefresh);
+
+  // Weather (snapshots + alerts) is NOT subscribed via realtime — it
+  // changes on an hourly cron, not user action (scalability Wave D).
+  // Instead we refetch on tab-focus, throttled to once per 5 minutes,
+  // so returning to the app picks up fresh weather without the
+  // per-client realtime cost.
+  useEffect(() => {
+    let lastRefetch = Date.now();
+    const onVisible = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastRefetch < 5 * 60_000) return;
+      lastRefetch = Date.now();
+      onDataRefresh();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => document.removeEventListener("visibilitychange", onVisible);
+  }, [onDataRefresh]);
+
   return null;
 }
 

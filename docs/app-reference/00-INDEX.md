@@ -71,6 +71,8 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Sun Tracker AR](./03-garden-hub/08-sun-tracker-ar.md) — AR sun path overlay
 - [x] [Light Sensor](./03-garden-hub/09-light-sensor.md) — lux meter + band + plant comparison
 - [x] [The Nursery](./03-garden-hub/10-nursery.md) — seed packets + sowings + plant-out lifecycle (lives behind a Plants / Nursery toggle on `/shed`)
+- [x] [Global Journal](./03-garden-hub/11-global-journal.md) — every journal entry across the home, polymorphically attached (plant / location / area / plan / unassigned), with auto-update on task completion
+- [x] [Senescence](./03-garden-hub/12-senescence.md) — the history of ended plant instances; filter by natural / other; reversible Restore that re-fires task generation
 
 ## 04 — Planner & Shopping
 
@@ -159,6 +161,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Wiki Image Picker](./08-modals-and-overlays/34-wiki-image-picker.md)
 - [x] [Quick Add Task Modal](./08-modals-and-overlays/35-quick-add-task-modal.md) — slim 4-field sibling of Add Task Modal mounted from the mobile Today's tasks card
 - [x] [Grow Guide Tab](./08-modals-and-overlays/36-grow-guide-tab.md) — 9-section AI-generated comprehensive grow guide on Plant + Instance Edit modals
+- [x] [Lifecycle Complete Modal](./08-modals-and-overlays/37-lifecycle-complete.md) — gentle end-of-life flow with optional Gemini analysis of likely causes
 
 ## 09 — Persistent UI
 
@@ -208,6 +211,9 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Deployment Pipeline — `npm run deploy`, Vercel, Maintenance Mode](./99-cross-cutting/31-deployment.md)
 - [x] [Release Notes Pipeline](./99-cross-cutting/32-release-notes.md)
 - [x] [Data Model — Nursery (Packets, Sowings, Plant-Out FK)](./99-cross-cutting/33-data-model-nursery.md)
+- [x] [Accessibility — focus ring, reduced motion, high-contrast, skip-link, modal aria contract](./99-cross-cutting/34-accessibility.md)
+- [x] [Agent Tools — Catalogue](./99-cross-cutting/35-agent-tools.md) — tool-calling chat: phases, tool list, executors, tier limits
+- [x] [Plant Search — Unified, Library-First](./99-cross-cutting/36-plant-search.md) — shared search service + `<PlantSearch>` component, library-first + spelling + opt-in expand, migration status
 
 ---
 

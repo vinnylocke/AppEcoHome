@@ -11,6 +11,8 @@ import {
   Info,
   Circle,
   Zap,
+  X,
+  Smartphone,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
@@ -45,6 +47,18 @@ export default function LightSensor({ homeId }: LightSensorProps) {
     const saved = localStorage.getItem("rhozly_lux_calibration");
     return saved ? parseFloat(saved) : 0.2;
   });
+
+  /** First-time user instructions card visibility. Persists dismissal
+   *  so seasoned users don't see it on every visit. */
+  const [showInstructions, setShowInstructions] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem("rhozly:lightsensor:instructions-dismissed") !== "true";
+    } catch { return true; }
+  });
+  const dismissInstructions = () => {
+    setShowInstructions(false);
+    try { localStorage.setItem("rhozly:lightsensor:instructions-dismissed", "true"); } catch { /* ignore */ }
+  };
 
   const [exposureLevel, setExposureLevel] = useState<number>(() => {
     const saved = localStorage.getItem("rhozly_exposure_offset");
@@ -423,6 +437,38 @@ export default function LightSensor({ homeId }: LightSensorProps) {
   return (
     <div className="flex flex-col p-6 animate-in fade-in duration-500">
       <canvas ref={canvasRef} className="hidden" />
+
+      {/* First-time user instructions — dismissable, persists in
+          localStorage so we don't nag returning users. */}
+      {showInstructions && (
+        <div
+          data-testid="lightsensor-instructions"
+          className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-4 flex items-start gap-3"
+        >
+          <div className="shrink-0 w-9 h-9 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center">
+            <Smartphone size={16} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p className="font-black text-sm text-amber-900 leading-tight mb-1">
+              How to take a good reading
+            </p>
+            <ul className="text-xs text-amber-900/85 leading-snug space-y-0.5">
+              <li>• Stand in the spot you want to measure.</li>
+              <li>• Hold the phone flat, sensor side up.</li>
+              <li>• Stay still for 3 seconds — the reading settles.</li>
+              <li>• Typical: shaded corner ≈ 500 lux, sunny garden ≈ 50 000 lux.</li>
+            </ul>
+          </div>
+          <button
+            onClick={dismissInstructions}
+            data-testid="lightsensor-instructions-dismiss"
+            aria-label="Hide instructions"
+            className="shrink-0 p-1 rounded-lg text-amber-900/40 hover:text-amber-900 hover:bg-amber-100 transition-colors"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
 
       <div className="flex justify-between items-start mb-4">
         <div>

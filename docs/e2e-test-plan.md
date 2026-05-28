@@ -312,9 +312,9 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | SHED-017 | Manual plant — happy path | ✅ | Switch to manual tab, enter name "E2E Test Plant", save → new card in grid | Plants | — | ✅ Passing |
 | SHED-018 | Manual plant — empty name | ❌ | Submit manual form with blank name → validation error, form stays open | Plants | — | ✅ Passing |
 | SHED-019 | Manual plant — duplicate name | ❌ | Enter an already-existing plant name → duplicate warning or error shown | Plants | — | ✅ Passing |
-| SHED-020 | API search — shows results | ✅ | Type plant name → results from Perenual and/or Verdantly appear (mocked) | Plants | Perenual / Verdantly API mock | ✅ Passing |
-| SHED-021 | API search — no results | ❌ | Search for nonsense term → no results shown (empty list) | Plants | Perenual API mock | ✅ Passing |
-| SHED-022a | AI tab — search result appears | ✅ | Switch to AI tab, type plant name → mocked AI matches listed | Plants | `plant-doctor` mock | ✅ Passing |
+| SHED-020 | Add to Shed — library-first input opens by default | ✅ | Open Add modal → shared `<PlantSearch>` input visible (no provider tabs); typing offers the opt-in "search more databases" CTA | Plants | — | ✅ Passing |
+| SHED-021 | Add to Shed — nonsense query, no selectable rows | ❌ | Type nonsense → no result rows, no Review CTA (library + mocked-empty external) | Plants | Perenual API mock (empty) | ✅ Passing |
+| SHED-022a | Add to Shed — external opt-in result selectable into cart | ✅ | Type name → click "search more databases" → mocked result row → select → Review & Add CTA appears | Plants | Perenual API mock | ✅ Passing |
 
 ### Plant Card Actions
 

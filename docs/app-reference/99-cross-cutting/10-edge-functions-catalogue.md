@@ -56,6 +56,8 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 | `predict-yield` | YieldTab | Forecast yield from past records. |
 | `visualiser-analyse` | PlantCameraView | AR placement feedback. |
 | `scan-area` | Area Scan Modal | Full area audit from photo. |
+| `analyse-plant-end-of-life` | LifecycleCompleteModal | Sage+ only. Gathers the instance's journal entries, tasks, ailments, area + location details and recent weather snapshot, asks Gemini for `likely_causes` / `prevention_next_time` / `affirmation`, persists the result as a closing journal entry. Returns the structured analysis to the client for presentation in LifecycleAnalysisModal. See [Lifecycle Complete Modal](../08-modals-and-overlays/37-lifecycle-complete.md). |
+| `suggest-rotation-plants` | AreaRotationCard (Layer B) | Sage+ only. Reads the area's rotation block + climate + soil + owned plants and asks Gemini for 5–8 plant suggestions with personalised reasoning and `schedulable_tasks`. The client routes each suggestion's tasks through `TaskActionButtons` to land real planting tasks. See [Area Details — Crop Rotation](../03-garden-hub/04-area-details.md). |
 
 ### Data
 
@@ -71,10 +73,12 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 |----------|---------|---------|
 | `sync-weather` | hourly | Pull Open-Meteo into `weather_snapshots`. |
 | `analyse-weather` | hourly | Evaluate weather rules → snapshots / alerts. |
-| `generate-tasks` | daily | Materialise blueprint-derived tasks. |
+| `generate-tasks` | daily | Materialise blueprint-derived tasks. Uses one grouped query for last-task-per-blueprint and inserts in chunks of 500 (Wave C rewrite). |
 | `update-plant-states` | daily | Advance growth states per planted-date rules. |
-| `pattern-scan` | hourly | Run pattern detectors → pattern_hits. |
-| `pattern-evaluate` | hourly | Score / dedupe pattern hits → user_insights. |
+| `pattern-scan` | every 8h | Run pattern detectors → pattern_hits. Users processed in parallel with concurrency cap of 10; per-pattern hit upserts are batched (Wave C rewrite). |
+| `pattern-evaluate` | every 8h, +30 min | Score / dedupe pattern hits → user_insights. |
+| `agent-chat` | on demand | Tool-aware extension of Plant Doctor chat. Routes text-only messages through Gemini in function-calling mode; 38 tools across read (14, incl. `optimise_area_schedule`), safe-create (10), structural (6), destructive/bulk (9), gated by confirm cards. Tier-gated daily message quota via `check_ai_message_quota`. See [Agent Tools Catalogue](./35-agent-tools.md). |
+| `add-plant-to-library` | on demand (admin) | Enriches a single plant by name via Gemini (reusing the bulk seeder's `buildEnrichmentPrompt` + `seedRowToColumnShape`), dedups against `scientific_name_key`, inserts one `plant_library` row, records a 1-row `plant_library_runs` entry. Powers the admin Plant Library "AI search → Add to Library" flow. See [Plant Library Admin](../07-management/10-plant-library-admin.md). |
 | `refresh-behaviour-summary` | weekly | Build per-user AI context summary. |
 | `daily-batch-notifications` | daily | Send push / email digests. |
 | `weekly-digest` | weekly | Weekly summary email. |

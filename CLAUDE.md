@@ -236,6 +236,19 @@ supabase db push               # push to remote — only on explicit user confir
 ```
 Never run `supabase db push` without the user's explicit go-ahead.
 
+**Data API grants on new tables (deadline: 30 October 2026).** From that date Supabase stops auto-exposing newly-created `public` tables to PostgREST / GraphQL / `supabase-js`. Every `CREATE TABLE public.<name>` in a migration must be followed by explicit grants, otherwise the table will be invisible to the browser client:
+
+```sql
+CREATE TABLE public.example (...);
+ALTER TABLE public.example ENABLE ROW LEVEL SECURITY;
+
+-- Required so the Data API exposes the table at all (RLS still gates the actual rows).
+GRANT SELECT, INSERT, UPDATE, DELETE ON TABLE public.example TO authenticated;
+GRANT SELECT ON TABLE public.example TO anon;  -- only if anon clients need to read
+```
+
+Apply these grants to every new table from now on so the habit is established before the deadline. Existing tables created before the cutoff are grandfathered in and need no changes.
+
 ### No speculative changes
 Only add what the task requires. No extra error handling for impossible cases, no helper abstractions for one-off uses, no backwards-compatibility shims for removed code.
 

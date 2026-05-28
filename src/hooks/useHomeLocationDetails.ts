@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 
 export interface SoilData {
@@ -31,8 +31,16 @@ export function useHomeLocationDetails(homeId: string, hasLocation: boolean) {
   const [error, setError]     = useState<string | null>(null);
   const [fetched, setFetched] = useState(false);
 
+  // Concurrency guard via a ref so we don't double-fetch while one is in
+  // flight, but the `loading` state itself doesn't gate re-entry (the
+  // earlier version did, which deadlocked the auto-load effect below
+  // because the hook was initialised with loading=true).
+  const inFlightRef = useRef(false);
+
   const load = useCallback(async (bust = false) => {
-    if (!hasLocation || loading) return;
+    if (!hasLocation) return;
+    if (inFlightRef.current) return;
+    inFlightRef.current = true;
     if (bust) setData(null);
     setLoading(true);
     setError(null);
@@ -50,10 +58,24 @@ export function useHomeLocationDetails(homeId: string, hasLocation: boolean) {
       setError(e.message ?? "Failed to load insights");
     } finally {
       setLoading(false);
+      inFlightRef.current = false;
     }
-  }, [homeId, hasLocation]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [homeId, hasLocation]);
 
   const refresh = useCallback(() => load(true), [load]);
+
+  // Auto-load on mount (and whenever the home gains its location) so the
+  // server-side cache is hit immediately — no button press required. The
+  // edge function returns the cached blob in milliseconds when it exists;
+  // first-time generation still pays the AI cost once, then every later
+  // visit is instant.
+  const autoLoadedRef = useRef(false);
+  useEffect(() => {
+    if (!hasLocation) return;
+    if (autoLoadedRef.current) return;
+    autoLoadedRef.current = true;
+    load();
+  }, [hasLocation, load]);
 
   return { data, loading, error, fetched, load, refresh };
 }

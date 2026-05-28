@@ -3,6 +3,10 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { supabase } from "../lib/supabase";
+import { maybeCreateAutoEntry } from "../services/journalAutoUpdateService";
+import { shouldPromptForSowing } from "../services/sowingAutoCreateService";
+import LogSowingFromTaskModal from "./nursery/LogSowingFromTaskModal";
+import HarvestEndOfLifePrompt from "./HarvestEndOfLifePrompt";
 import {
   CheckSquare,
   Clock,
@@ -16,7 +20,6 @@ import {
   Leaf,
   AlertCircle,
   CalendarClock,
-  Archive,
   Square,
   CheckSquare2,
   ListChecks,
@@ -99,6 +102,13 @@ export default function TaskList({
   const [isPostponing, setIsPostponing] = useState(false);
   const [postponeDate, setPostponeDate] = useState("");
 
+  /** When set, the LogSowingFromTaskModal renders and asks the user to
+   *  log the sowing this just-completed task represents. Queue is drained
+   *  one-at-a-time (head queued, modal close → shift). */
+  const [pendingSowingPrompts, setPendingSowingPrompts] = useState<
+    Array<{ taskId: string; packetId: string; title: string }>
+  >([]);
+
   const [isBulkEditing, setIsBulkEditing] = useState(false);
   const [selectedTaskIds, setSelectedTaskIds] = useState<Set<string>>(
     new Set(),
@@ -111,10 +121,13 @@ export default function TaskList({
   const [shiftBlueprint, setShiftBlueprint] = useState(false);
   const [bulkShiftBlueprintIds, setBulkShiftBlueprintIds] = useState<Set<string>>(new Set());
   const [taskToDelete, setTaskToDelete] = useState<any | null>(null);
-  const [archivePrompts, setArchivePrompts] = useState<
-    { itemId: string; plantName: string }[] | null
-  >(null);
-  const [isArchiving, setIsArchiving] = useState(false);
+  /** Queue of harvest tasks whose inventory items should be offered an
+   *  optional "mark as End of Life" prompt. Drained one at a time so the
+   *  user reviews one task at a time even when many were just completed
+   *  in a bulk action. */
+  const [pendingHarvestEolPrompts, setPendingHarvestEolPrompts] = useState<
+    Array<{ taskId: string; taskTitle: string; inventoryItemIds: string[] }>
+  >([]);
 
   const dateStr = getLocalDateString(targetDate || new Date());
   const todayStr = getLocalDateString(new Date());
@@ -295,6 +308,43 @@ export default function TaskList({
           inventory_item_ids: t.inventory_item_ids ?? [],
         }),
       );
+
+      // Auto-update journal — fire-and-forget per task; the service
+      // reads the user's per-category preferences and no-ops when off.
+      if (currentUserId) {
+        selectedTasks.forEach((t) => {
+          maybeCreateAutoEntry(
+            {
+              id: t.id,
+              title: t.title,
+              type: t.type,
+              inventory_item_ids: t.inventory_item_ids ?? [],
+            },
+            { homeId, userId: currentUserId },
+          );
+        });
+      }
+
+      // Queue inline sowing prompts for any packet-linked Planting tasks.
+      const sowingTasks = selectedTasks.filter((t) =>
+        shouldPromptForSowing({
+          id: t.id,
+          title: t.title,
+          type: t.type,
+          seed_packet_id: t.seed_packet_id ?? null,
+        }),
+      );
+      if (sowingTasks.length > 0) {
+        setPendingSowingPrompts((prev) => [
+          ...prev,
+          ...sowingTasks.map((t) => ({
+            taskId: t.id,
+            packetId: t.seed_packet_id as string,
+            title: t.title as string,
+          })),
+        ]);
+      }
+
       toast.success(`${selectedTasks.length} tasks completed!`, {
         id: toastId,
       });
@@ -344,24 +394,19 @@ export default function TaskList({
         }
       }
 
-      const harvestedItems: any[] = [];
-      selectedTasks
-        .filter(
-          (t) => t.type === "Harvesting" && t.inventory_item_ids?.length > 0,
-        )
-        .forEach((t) => {
-          t.inventory_item_ids.forEach((id: string) => {
-            harvestedItems.push({
-              itemId: id,
-              plantName: inventoryDict[id]?.plant_name || "Unknown Plant",
-            });
-          });
-        });
-
-      const uniqueHarvests = Array.from(
-        new Map(harvestedItems.map((item) => [item.itemId, item])).values(),
+      const harvestTasks = selectedTasks.filter(
+        (t) => t.type === "Harvesting" && t.inventory_item_ids?.length > 0,
       );
-      if (uniqueHarvests.length > 0) setArchivePrompts(uniqueHarvests);
+      if (harvestTasks.length > 0) {
+        setPendingHarvestEolPrompts((prev) => [
+          ...prev,
+          ...harvestTasks.map((t) => ({
+            taskId: t.id,
+            taskTitle: t.title,
+            inventoryItemIds: t.inventory_item_ids as string[],
+          })),
+        ]);
+      }
 
       setIsBulkEditing(false);
       setSelectedTaskIds(new Set());
@@ -775,6 +820,39 @@ export default function TaskList({
         },
       );
 
+      // Auto-update journal — only on completion, never on uncomplete.
+      if (newStatus === "Completed" && currentUserId) {
+        maybeCreateAutoEntry(
+          {
+            id: finalData.id,
+            title: finalData.title,
+            type: finalData.type,
+            inventory_item_ids: finalData.inventory_item_ids ?? [],
+          },
+          { homeId, userId: currentUserId },
+        );
+      }
+
+      // Sowing prompt — only for Planting tasks with a packet link.
+      if (
+        newStatus === "Completed" &&
+        shouldPromptForSowing({
+          id: finalData.id,
+          title: finalData.title,
+          type: finalData.type,
+          seed_packet_id: finalData.seed_packet_id ?? null,
+        })
+      ) {
+        setPendingSowingPrompts((prev) => [
+          ...prev,
+          {
+            taskId: finalData.id,
+            packetId: finalData.seed_packet_id,
+            title: finalData.title,
+          },
+        ]);
+      }
+
       // 🚀 TRIGGER AUTOMATION ENGINE FOR SINGLE PLANTING TASK
       if (
         newStatus === "Completed" &&
@@ -812,43 +890,20 @@ export default function TaskList({
         finalData.type === "Harvesting" &&
         finalData.inventory_item_ids?.length > 0
       ) {
-        const harvested = finalData.inventory_item_ids.map((id: string) => ({
-          itemId: id,
-          plantName: inventoryDict[id]?.plant_name || "this plant",
-        }));
-        setArchivePrompts(harvested);
+        setPendingHarvestEolPrompts((prev) => [
+          ...prev,
+          {
+            taskId: finalData.id,
+            taskTitle: finalData.title,
+            inventoryItemIds: finalData.inventory_item_ids as string[],
+          },
+        ]);
       }
       onTaskUpdated?.();
     } catch (err) {
       Logger.error("Toggle task completion failed", err, { homeId, taskId: task.id, newStatus }, "Update failed.");
     } finally {
       setIsUpdatingTask(null);
-    }
-  };
-
-  const handleArchiveItems = async () => {
-    if (!archivePrompts || archivePrompts.length === 0) return;
-    setIsArchiving(true);
-    try {
-      const itemIds = archivePrompts.map((p) => p.itemId);
-      const { error: updateError } = await supabase
-        .from("inventory_items")
-        .update({ status: "Archived" })
-        .in("id", itemIds);
-      if (updateError) throw updateError;
-
-      // 🚀 TRIGGER ENGINE TO SCRUB TASKS INSTEAD OF DOING IT MANUALLY
-      await AutomationEngine.scrubItemsFromAutomations(itemIds);
-
-      toast.success(`Successfully archived ${archivePrompts.length} plant(s)!`);
-      setArchivePrompts(null);
-      setSelectedTask(null);
-      fetchTasksAndGhosts(true);
-      onTaskUpdated?.();
-    } catch (err: any) {
-      Logger.error("Failed to archive plants", err, { homeId }, "Failed to archive plants.");
-    } finally {
-      setIsArchiving(false);
     }
   };
 
@@ -1583,62 +1638,40 @@ export default function TaskList({
               </div>
             )}
 
-            {/* ARCHIVE HARVEST PROMPT */}
-            {archivePrompts && archivePrompts.length > 0 && (
-              <div className="fixed inset-0 z-[110] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-md animate-in fade-in zoom-in-95">
-                <div className="bg-white w-full max-w-md rounded-[3rem] p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col items-center text-center relative overflow-hidden">
-                  <div className="absolute top-0 inset-x-0 h-2 bg-gradient-to-r from-amber-400 to-orange-500" />
-                  <div className="w-20 h-20 bg-amber-50 text-amber-600 rounded-full flex items-center justify-center mb-6 shadow-inner">
-                    <Archive size={40} />
-                  </div>
-                  <h3 className="text-2xl font-black leading-tight text-rhozly-on-surface mb-2">
-                    Harvest Complete!
-                  </h3>
-                  <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6 leading-relaxed">
-                    You've harvested{" "}
-                    {archivePrompts.length > 1
-                      ? `${archivePrompts.length} plants`
-                      : "a plant"}
-                    . If they are finished for the season, you can retire them
-                    to your History.
-                  </p>
-                  <div className="w-full bg-rhozly-surface-lowest border border-rhozly-outline/10 rounded-2xl p-4 mb-8 max-h-32 overflow-y-auto custom-scrollbar text-left space-y-2">
-                    {archivePrompts.map((p, idx) => (
-                      <p
-                        key={idx}
-                        className="text-xs font-black text-rhozly-on-surface flex items-center gap-2"
-                      >
-                        <Wheat size={12} className="text-amber-500" />{" "}
-                        {p.plantName}
-                      </p>
-                    ))}
-                  </div>
-                  <div className="flex flex-col sm:flex-row gap-3 w-full">
-                    <button
-                      onClick={() => setArchivePrompts(null)}
-                      disabled={isArchiving}
-                      className="flex-1 py-4 bg-gray-100 hover:bg-gray-200 text-gray-700 rounded-2xl font-black transition-colors"
-                    >
-                      Keep in Shed
-                    </button>
-                    <button
-                      onClick={handleArchiveItems}
-                      disabled={isArchiving}
-                      className="flex-1 py-4 bg-amber-500 hover:bg-amber-600 text-white rounded-2xl font-black shadow-lg transition-colors flex items-center justify-center gap-2"
-                    >
-                      {isArchiving ? (
-                        <Loader2 className="animate-spin" size={20} />
-                      ) : (
-                        "Archive All"
-                      )}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
           </>,
           document.body,
         )}
+
+      {/* Inline sowing prompt — drained one at a time. The user always
+          gets a Skip path, so this is interruptive but non-blocking. */}
+      {pendingSowingPrompts.length > 0 && (
+        <LogSowingFromTaskModal
+          isOpen
+          homeId={homeId}
+          taskId={pendingSowingPrompts[0].taskId}
+          packetId={pendingSowingPrompts[0].packetId}
+          taskTitle={pendingSowingPrompts[0].title}
+          onClose={() => setPendingSowingPrompts((prev) => prev.slice(1))}
+        />
+      )}
+
+      {/* Harvest → End-of-Life prompt — drained one task at a time.
+          The user can skip (most harvests keep producing) or tick which
+          instances reached the end of their life cycle with this harvest. */}
+      {pendingHarvestEolPrompts.length > 0 && (
+        <HarvestEndOfLifePrompt
+          isOpen
+          homeId={homeId}
+          taskId={pendingHarvestEolPrompts[0].taskId}
+          taskTitle={pendingHarvestEolPrompts[0].taskTitle}
+          inventoryItemIds={pendingHarvestEolPrompts[0].inventoryItemIds}
+          onClose={() => {
+            setPendingHarvestEolPrompts((prev) => prev.slice(1));
+            fetchTasksAndGhosts(true);
+            onTaskUpdated?.();
+          }}
+        />
+      )}
     </>
   );
 }

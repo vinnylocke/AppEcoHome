@@ -8,6 +8,7 @@ import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
+import { fetchHomeRotationBlocks, renderRotationBlock } from "../_shared/rotationContext.ts";
 
 const FN = "generate-swipe-plants";
 
@@ -95,12 +96,17 @@ serve(async (req) => {
 
     log(FN, "request_received", { homeId, userId, count, seenCount: alreadySeenPlantNames.length });
 
-    const [inventoryRes, existingPrefs] = await Promise.all([
+    const [inventoryRes, existingPrefs, areasRes, rotationBlocks] = await Promise.all([
       supabase
         .from("inventory_items")
         .select("plant_name, areas(name, sunlight)")
         .eq("home_id", homeId),
       loadPreferences(supabase, userId ? { userId } : { homeId }),
+      supabase
+        .from("areas")
+        .select("id, name, is_outside")
+        .eq("home_id", homeId),
+      fetchHomeRotationBlocks(supabase, homeId).catch(() => ({})),
     ]);
 
     const inventory = inventoryRes.data || [];
@@ -108,6 +114,25 @@ serve(async (req) => {
     const skipNames = Array.from(new Set([...ownedNames, ...alreadySeenPlantNames]));
 
     const prefsText = formatPreferencesBlock(existingPrefs, "simple");
+
+    // Build a rotation-context block listing every area's avoid/prefer
+    // families so the AI's plant suggestions are inherently rotation-aware.
+    // Indoor areas (is_outside === false) are skipped because rotation
+    // rules don't apply to them.
+    const areas: Array<{ id: string; name: string; is_outside: boolean | null }> =
+      (areasRes?.data ?? []) as any;
+    const rotationLines: string[] = [];
+    for (const a of areas) {
+      if (a.is_outside === false) continue;
+      const block = (rotationBlocks as any)[a.id];
+      if (!block) continue;
+      const rendered = renderRotationBlock(a.name, block);
+      if (rendered) rotationLines.push(rendered);
+    }
+    const rotationText =
+      rotationLines.length > 0
+        ? `\n=== ROTATION CONTEXT ===\n${rotationLines.join("\n\n")}\n=== END ROTATION CONTEXT ===`
+        : "";
 
     const systemPrompt = `
       You are a horticultural expert helping users discover plants they'll love.
@@ -121,12 +146,14 @@ serve(async (req) => {
 
       PLANTS ALREADY SHOWN (do NOT repeat these):
       ${alreadySeenPlantNames.length > 0 ? alreadySeenPlantNames.join(", ") : "None yet."}
+      ${rotationText}
 
       RULES:
       - Never suggest a plant from either skip list.
       - Honour the user's preferences — avoid anything they dislike.
       - Skew toward plants matching positive preferences, but include some variety to help them discover new things.
       - Include a wide range of plant types: flowering shrubs, herbs, vegetables, climbers, ornamentals, trees.
+      - When ROTATION CONTEXT is provided, AVOID suggesting plants from any "AVOID this year" family list, and PREFER plants from the "PREFER this year" family lists.
       - Tags MUST only come from this approved list: ${VALID_TAGS.join(", ")}.
       - Each tagline must be one punchy sentence that would make someone want (or not want) this plant.
       - image_query should be a simple 2-3 word search phrase (e.g., "English Lavender", "Cherry Tomato plant").

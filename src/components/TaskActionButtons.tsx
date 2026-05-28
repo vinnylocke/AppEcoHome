@@ -46,6 +46,13 @@ interface TaskActionProps {
    */
   inventoryItemIds?: string[];
   /**
+   * When supplied, every inserted task / blueprint carries this
+   * seed_packet_id. Drives the Sowing Calendar → Nursery bridge: when the
+   * user later completes one of these tasks, the auto-create service
+   * logs a sowing against this packet.
+   */
+  seedPacketId?: string;
+  /**
    * Indices into `tasks` that look like duplicates of an existing
    * blueprint. Pre-unchecked on render and labelled with a "may already
    * exist" chip so the user can confirm before adding.
@@ -88,6 +95,7 @@ export const TaskActionButtons = ({
   homeId,
   onSuccess,
   inventoryItemIds,
+  seedPacketId,
   duplicateIndices,
   suppressToast,
   onBeforeSave,
@@ -160,6 +168,7 @@ export const TaskActionButtons = ({
               ...(inventoryItemIds && inventoryItemIds.length > 0
                 ? { inventory_item_ids: inventoryItemIds }
                 : {}),
+              ...(seedPacketId ? { seed_packet_id: seedPacketId } : {}),
               title: task.title,
               description: task.description,
               task_type: task.task_type,
@@ -183,6 +192,7 @@ export const TaskActionButtons = ({
               ...(inventoryItemIds && inventoryItemIds.length > 0
                 ? { inventory_item_ids: inventoryItemIds }
                 : {}),
+              ...(seedPacketId ? { seed_packet_id: seedPacketId } : {}),
               title: task.title,
               description: task.description,
               type: task.task_type,

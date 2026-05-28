@@ -15,10 +15,10 @@ test.describe("Global layout — navigation (Section 16)", () => {
     // Core nav items expected in the sidebar / nav bar
     const navItems = [
       "Dashboard",
-      "The Shed",
-      "Task Management",
+      "Plants",
       "Planner",
-      "Plant Doctor",
+      "Journal",
+      "Tools",
     ];
 
     for (const label of navItems) {

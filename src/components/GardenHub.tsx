@@ -1,8 +1,10 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
+import { Leaf } from "lucide-react";
 import { IconShed, IconAilment } from "../constants/icons";
 import TheShed from "./TheShed";
 import AilmentWatchlist from "./AilmentWatchlist";
+import SenescenceTab from "./garden/SenescenceTab";
 
 interface Props {
   homeId: string;
@@ -11,8 +13,9 @@ interface Props {
 }
 
 const TABS = [
-  { id: "shed",      label: "The Shed",  icon: <IconShed size={16} /> },
-  { id: "watchlist", label: "Watchlist", icon: <IconAilment size={16} /> },
+  { id: "shed",       label: "Plants",    icon: <IconShed size={16} /> },
+  { id: "watchlist",  label: "Watchlist", icon: <IconAilment size={16} /> },
+  { id: "senescence", label: "Senescence", icon: <Leaf size={16} /> },
 ] as const;
 
 type TabId = (typeof TABS)[number]["id"];
@@ -46,9 +49,16 @@ export default function GardenHub({ homeId, aiEnabled = false, perenualEnabled =
 
   return (
     <div className="h-full flex flex-col">
-      {/* Tab bar */}
-      <div className="sticky top-0 z-10 bg-rhozly-bg/95 backdrop-blur-sm border-b border-rhozly-outline/10 px-4 md:px-8 pt-4">
-        <div role="tablist" aria-label="Garden sections" className="flex gap-1">
+      {/* Tab bar. overflow-x-auto + scrollbar-none keeps any overflow
+          contained inside the strip so it can never push the whole page
+          wide (mobile horizontal-scroll bug). Compact sizing on mobile
+          so all three tabs fit without scrolling on common phone widths. */}
+      <div className="sticky top-0 z-10 bg-rhozly-bg/95 backdrop-blur-sm border-b border-rhozly-outline/10 px-2 md:px-8 pt-4">
+        <div
+          role="tablist"
+          aria-label="Garden sections"
+          className="flex gap-1 overflow-x-auto scrollbar-none"
+        >
           {TABS.map((tab) => {
             const isActive = activeTab === tab.id;
             return (
@@ -58,7 +68,7 @@ export default function GardenHub({ homeId, aiEnabled = false, perenualEnabled =
                 aria-selected={isActive}
                 data-testid={`garden-hub-tab-${tab.id}`}
                 onClick={() => switchTab(tab.id)}
-                className={`flex items-center gap-2 px-4 py-2.5 min-h-[44px] rounded-t-xl text-[13px] uppercase tracking-widest transition-all border-b-2 -mb-px ${
+                className={`flex items-center gap-1.5 md:gap-2 shrink-0 whitespace-nowrap px-2.5 md:px-4 py-2.5 min-h-[44px] rounded-t-xl text-[12px] md:text-[13px] uppercase tracking-wide md:tracking-widest transition-all border-b-2 -mb-px ${
                   isActive
                     ? "font-bold text-rhozly-primary border-rhozly-primary bg-rhozly-primary/5"
                     : "font-normal text-rhozly-on-surface/40 border-transparent hover:text-rhozly-on-surface/70 hover:bg-rhozly-surface-low"
@@ -80,6 +90,9 @@ export default function GardenHub({ homeId, aiEnabled = false, perenualEnabled =
           )}
           {activeTab === "watchlist" && (
             <AilmentWatchlist homeId={homeId} aiEnabled={aiEnabled} />
+          )}
+          {activeTab === "senescence" && (
+            <SenescenceTab homeId={homeId} aiEnabled={aiEnabled} />
           )}
         </div>
       </div>
