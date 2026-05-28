@@ -22,11 +22,12 @@ interface Props {
   packet: SeedPacketWithGermination;
   /** Currently-linked plant (the parent already fetched it for the detail modal). */
   plant: PacketPlantSummary | null;
-  /** Gates the AI provider tab inside `PlantSearchModal`. */
+  /** Gates AI plant-create (Sage+) inside `PlantSearchModal`. The
+   *  library search itself is free for every tier. */
   aiEnabled?: boolean;
-  /** Gates the entire "Search the plant database" path. When false the
-   *  CTA still renders so the user can see what they're missing, but
-   *  tapping it surfaces `PlantSearchModal`'s tier-lock state. */
+  /** Forwarded to `PlantSearchModal` (its `isPremium`). The library-first
+   *  picker is free for all tiers; this only influences the opt-in wider
+   *  database search. */
   perenualEnabled?: boolean;
   /** Optional — when true, scrolls the linked-plant section into view on mount. */
   focusLink?: boolean;

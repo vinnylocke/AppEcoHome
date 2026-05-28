@@ -23,6 +23,7 @@ import LogSowingModal from "./LogSowingModal";
 import ObserveGerminationModal from "./ObserveGerminationModal";
 import PlantOutSowingModal from "./PlantOutSowingModal";
 import EditSeedPacketModal from "./EditSeedPacketModal";
+import SowingCalendarTab from "./SowingCalendarTab";
 
 interface Props {
   homeId: string;
@@ -92,6 +93,9 @@ export default function SeedPacketDetailModal({
    *  parent refetch. Falls back to the prop on first render. */
   const [localPacket, setLocalPacket] = useState<SeedPacketWithGermination>(packet);
   const [localPlant, setLocalPlant] = useState<PacketPlantSummary | null>(plant);
+  /** Sowings | Calendar tab. Defaults to Sowings — the user's primary
+   *  reason for opening the packet is usually to log or observe. */
+  const [activeTab, setActiveTab] = useState<"sowings" | "calendar">("sowings");
 
   const { plants: shedPlants } = useCachedShed(homeId);
 
@@ -225,7 +229,52 @@ export default function SeedPacketDetailModal({
           {/* Packet meta strip */}
           <PacketMetaStrip packet={localPacket} plant={localPlant} />
 
-          {/* Sowings */}
+          {/* Tab strip — Sowings | Calendar */}
+          <div className="p-1 bg-rhozly-surface-low rounded-2xl flex" role="tablist" aria-label="Packet sections">
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "sowings"}
+              onClick={() => setActiveTab("sowings")}
+              data-testid="packet-tab-sowings"
+              className={`flex-1 py-2.5 rounded-xl font-black text-xs transition-all ${
+                activeTab === "sowings"
+                  ? "bg-white text-rhozly-primary shadow-sm"
+                  : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+              }`}
+            >
+              Sowings
+            </button>
+            <button
+              type="button"
+              role="tab"
+              aria-selected={activeTab === "calendar"}
+              onClick={() => setActiveTab("calendar")}
+              data-testid="packet-tab-calendar"
+              className={`flex-1 py-2.5 rounded-xl font-black text-xs transition-all ${
+                activeTab === "calendar"
+                  ? "bg-white text-rhozly-primary shadow-sm"
+                  : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
+              }`}
+            >
+              Calendar
+            </button>
+          </div>
+
+          {activeTab === "calendar" ? (
+            <SowingCalendarTab
+              homeId={homeId}
+              packet={{
+                id: localPacket.id,
+                plant_id: localPacket.plant_id ?? null,
+                plant_name: localPlant?.common_name ?? null,
+                variety: localPacket.variety ?? null,
+              }}
+              aiEnabled={aiEnabled}
+              onRequestLinkPlant={() => setEditing({ focusLink: true })}
+            />
+          ) : (
+          /* Sowings */
           <div>
             <div className="flex items-center justify-between mb-2 px-0.5">
               <h3 className="font-display font-black text-rhozly-on-surface text-sm">
@@ -291,6 +340,7 @@ export default function SeedPacketDetailModal({
               </ul>
             )}
           </div>
+          )}
         </div>
 
         <footer className="shrink-0 px-5 py-3 border-t border-rhozly-outline/10 flex items-center justify-between gap-2">

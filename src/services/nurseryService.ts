@@ -235,6 +235,10 @@ export interface LogSowingInput {
   sown_on: string; // YYYY-MM-DD
   sown_count: number;
   notes?: string | null;
+  /** When set, back-links the sowing to the task that triggered it.
+   *  A unique partial index on seed_sowings(task_id) makes this
+   *  idempotent — re-completing a task won't create a duplicate row. */
+  task_id?: string | null;
 }
 
 export async function logSowing(input: LogSowingInput): Promise<SeedSowing> {
@@ -247,6 +251,7 @@ export async function logSowing(input: LogSowingInput): Promise<SeedSowing> {
       sown_count: input.sown_count,
       notes: input.notes ?? null,
       status: "sown",
+      task_id: input.task_id ?? null,
     })
     .select("*")
     .single();

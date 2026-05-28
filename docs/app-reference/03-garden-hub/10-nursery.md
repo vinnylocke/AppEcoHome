@@ -7,7 +7,12 @@
 - `src/components/nursery/NurseryTab.tsx` — packet list shell
 - `src/components/nursery/AddSeedPacketModal.tsx` — single-packet add flow (two-step)
 - `src/components/nursery/BulkPasteSeedPacketsModal.tsx` — multi-packet paste flow (two-step)
-- `src/components/nursery/SeedPacketDetailModal.tsx` — packet hub + sowings list + actions
+- `src/components/nursery/SeedPacketDetailModal.tsx` — packet hub + sowings list + Sowing Calendar tab + actions
+- `src/components/nursery/SowingCalendarTab.tsx` — hemisphere-aware sowing calendar tab content
+- `src/components/nursery/SowingCalendarMonthStrip.tsx` — pure presentational 12-month band strip
+- `src/components/nursery/LogSowingFromTaskModal.tsx` — inline prompt fired on Planting-task completion when a packet was linked
+- `src/services/sowingAutoCreateService.ts` — bridge service shouldPromptForSowing + commitSowingFromTask + hasExistingSowingForTask
+- `src/lib/sowingCalendarFromGrowGuide.ts` — pure helper mapping grow_guide propagation/germination sections to calendar bands
 - `src/components/nursery/EditSeedPacketModal.tsx` — relink the catalogue plant + edit metadata
 - `src/components/nursery/_packetForm.tsx` — shared `PacketFieldRow` + `PACKET_FORM_INPUT_CX` used by Add + Edit
 - `src/components/nursery/LogSowingModal.tsx` — log a sowing against a packet
@@ -51,16 +56,23 @@ TheShed (Plants / Nursery toggle in the header)
     │   └── Step 2 — Review: editable rows + Save N packets
     └── SeedPacketDetailModal (portal)
         ├── Packet meta strip (vendor / dates / qty / notes)
-        ├── Sowings list
-        │   └── SowingRow ×N
-        │       ├── Status chip (Awaiting / Ready to plant out / Planted out / Discarded)
-        │       ├── Sown / observed / planted-out dates
-        │       └── Action bar
-        │           ├── Observe / Re-observe
-        │           ├── Plant out             (green — only when packet.plant_id != null)
-        │           ├── Link plant to plant out (amber — when germinated AND packet has no linked plant; opens EditSeedPacketModal focused on the link section)
-        │           └── Discard
-        ├── Log Sowing button       → LogSowingModal
+        ├── Tab strip — Sowings | Calendar (defaults to Sowings)
+        ├── Sowings tab content
+        │   ├── Sowings list
+        │   │   └── SowingRow ×N
+        │   │       ├── Status chip (Awaiting / Ready to plant out / Planted out / Discarded)
+        │   │       ├── Sown / observed / planted-out dates
+        │   │       └── Action bar
+        │   │           ├── Observe / Re-observe
+        │   │           ├── Plant out             (green — only when packet.plant_id != null)
+        │   │           ├── Link plant to plant out (amber — when germinated AND packet has no linked plant; opens EditSeedPacketModal focused on the link section)
+        │   │           └── Discard
+        │   └── Log Sowing button       → LogSowingModal
+        ├── Calendar tab content (SowingCalendarTab)
+        │   ├── Empty state when packet has no linked plant → "Link plant" CTA → EditSeedPacketModal focused on the link section
+        │   ├── Empty state when plant has no grow guide → "Generate" CTA (Sage+ tier-gated)
+        │   ├── SowingCalendarMonthStrip (hemisphere-aware, 12-month strip with sow indoors / direct sow / transplant out bands)
+        │   └── "Set up sowing schedule" CTA → AddToCalendarSheet pre-filled with seed_packet_id so completion auto-creates Nursery sowings
         ├── Edit pill (footer)      → EditSeedPacketModal
         ├── Archive / Restore       → packet flagged is_archived
         ├── ObserveGerminationModal (portal-inside-portal)

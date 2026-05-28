@@ -67,6 +67,7 @@ The full lifecycle: **buy a packet → log sowings against it → observe germin
 | `status` | text NOT NULL DEFAULT 'sown' | CHECK in (`sown`, `germinated`, `planted_out`, `discarded`) |
 | `planted_out_at` | date | Stamped when status moves to `planted_out` |
 | `notes` | text | Observation notes append rather than overwrite |
+| `task_id` | uuid | FK → `tasks(id)`, ON DELETE SET NULL. Set when the sowing was auto-created from a completed Planting task that was linked to this packet. Enforces a UNIQUE partial index — same task can't produce two sowings (idempotent on uncomplete + recomplete). |
 | `created_at` / `updated_at` | timestamptz | trigger maintains updated_at |
 
 **Lifecycle:**
@@ -83,6 +84,14 @@ sown|germ ──► discarded    (via discardSowing — terminal, kept for viabi
 - `seed_sowings_packet_idx` ON `(seed_packet_id, sown_on DESC)` — packet detail's sowings list.
 - `seed_sowings_home_idx` ON `(home_id)` — refill-banner RLS scan.
 - `seed_sowings_active_idx` ON `(seed_packet_id) WHERE status IN ('sown', 'germinated')` — the view's "active sowing" subquery.
+- `seed_sowings_task_id_unique` UNIQUE ON `(task_id) WHERE task_id IS NOT NULL` — idempotency for the task → sowing bridge. The auto-create service swallows the `23505` violation as a no-op.
+
+### Bridge to the task system
+
+The `tasks.seed_packet_id` + `task_blueprints.seed_packet_id` nullable FKs (see [Data Model — Tasks](./04-data-model-tasks.md)) close the loop in both directions:
+
+- **Direction A (Task → Sowing):** a Planting task can be created with `seed_packet_id` set (via `AddTaskModal`'s NurseryPacketPicker or `AddToCalendarSheet` when invoked from the Sowing Calendar tab). On completion, `src/services/sowingAutoCreateService.ts` opens an inline `LogSowingFromTaskModal` to capture the count, then writes a `seed_sowings` row with `task_id` set. The unique partial index above guarantees idempotency.
+- **Direction B (Packet → Calendar):** the Sowing Calendar tab on `SeedPacketDetailModal` reads the packet's linked plant's `plant_grow_guides` row, classifies propagation + germination `schedulable_tasks` into sow indoors / sow direct / transplant out bands, and routes the user back into `AddToCalendarSheet` with `seedPacketId` pre-filled so Direction A automatically fires later.
 
 ### `inventory_items.from_sowing_id`
 

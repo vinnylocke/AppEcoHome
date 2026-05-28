@@ -43,6 +43,7 @@ Ghost tasks are materialised into real `tasks` rows when the user acts on them (
 | `paused_until` | date? | |
 | `location_id`, `area_id`, `plan_id` | uuid? | |
 | `inventory_item_ids` | uuid[] | Multi-link |
+| `seed_packet_id` | uuid? | FK → `seed_packets(id)` ON DELETE SET NULL. Set on `task_type = 'Planting'` to bridge the task → Nursery. See [Data Model — Nursery](./33-data-model-nursery.md). |
 | `scope` | text | home / personal |
 | `is_archived` | bool | Soft delete |
 | `ai_generated` | bool | Tag |
@@ -62,6 +63,7 @@ Ghost tasks are materialised into real `tasks` rows when the user acts on them (
 | `completed_at` | timestamptz | |
 | `completed_by` | uuid | |
 | `location_id`, `area_id`, `plan_id`, `inventory_item_ids` | | |
+| `seed_packet_id` | uuid? | FK → `seed_packets(id)`. Drives the inline `LogSowingFromTaskModal` on completion. Inserts a `seed_sowings` row with `task_id` set (unique partial index ensures idempotency). |
 
 ### `unique_blueprint_date` constraint
 

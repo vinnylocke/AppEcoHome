@@ -187,6 +187,7 @@ The guide is the same for every gardener growing this species — generated once
 - **What you do**: tap.
 - **What happens next**: a sheet rises with each suggested task in the section. If you have the plant in your Shed, a picker lets you attach the tasks to a specific instance (or leave them home-wide). Tasks that look similar to a blueprint you already have are flagged "may already exist" and pre-unchecked. Tap **Add tasks**; everything lands in your calendar with the AI's recommended timing converted into concrete dates for your hemisphere.
 - **How-to bundling**: for action sections (propagation, germination, pruning, harvesting) the section's numbered how-to steps are folded into the **first** task's description as a "How to:" checklist. The reminder you get days later opens to show "1. Take cutting — … 2. Strip leaves — …" so you never have to come back to the grow guide to remember what to do. Subsequent tasks in the same section (e.g. germination's "Transplant seedlings" follow-up) keep their own short description — they carry their own timing.
+- **Sowing Calendar tab integration**: the **propagation** + **germination** sections' `schedulable_tasks` are *also* what powers the Sowing Calendar tab on the Nursery's `SeedPacketDetailModal`. Same task data, two presentations: per-section list here, hemisphere-aware month strip there. The packet's calendar tab pre-fills `seed_packet_id` on every task added via AddToCalendarSheet so completing the task auto-creates a `seed_sowings` row in the Nursery.
 
 #### 7. Bulk-add all schedulable tasks
 

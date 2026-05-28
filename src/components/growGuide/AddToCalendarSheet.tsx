@@ -34,6 +34,12 @@ interface Props {
    * Per-section openings pass e.g. "Add pruning tasks".
    */
   heading?: string;
+  /**
+   * When supplied, every task / blueprint added here carries this
+   * seed_packet_id. Used by the Sowing Calendar tab so completing the
+   * resulting task auto-creates a Nursery sowing against the packet.
+   */
+  seedPacketId?: string;
   onClose: () => void;
   onSaved?: () => void;
 }
@@ -56,6 +62,7 @@ export default function AddToCalendarSheet({
   plantName,
   schedulableTasks,
   heading,
+  seedPacketId,
   onClose,
   onSaved,
 }: Props) {
@@ -291,6 +298,7 @@ export default function AddToCalendarSheet({
             tasks={converted}
             homeId={homeId}
             inventoryItemIds={inventoryItemIds}
+            seedPacketId={seedPacketId}
             duplicateIndices={duplicateIndices}
             suppressToast
             onBeforeSave={async () => {
