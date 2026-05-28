@@ -18,6 +18,25 @@ Models used:
 - **Gemini Vision** — image identification, diagnosis, area scan.
 - **Gemini Text** — chat, blueprint generation, task suggestion, optimise.
 
+### Garden context injection
+
+Many text-generation surfaces consume `_shared/gardenContext.ts`'s `buildGardenContext()` to ground responses in the user's actual garden. The snapshot includes home + climate + areas + existing plants + preferences. As of the crop-rotation work, every outdoor area's snapshot also carries a **rotation block** (per-year family timeline + avoid + prefer family lists) computed by `_shared/rotationContext.ts`.
+
+The prompt block format for an area now reads:
+
+```
+Existing areas (3):
+  - South Bed (4×2m) — sun:full, medium:loam, pH:6.5
+    Rotation history for "South Bed":
+      - 2026: Solanaceae
+      - 2025: Asteraceae
+      - 2024: Solanaceae
+      - AVOID this year: Solanaceae
+      - PREFER this year: Brassicaceae, Fabaceae, Alliaceae
+```
+
+Surfaces that consume this block today: `generate-garden-overhaul` (via `buildGardenContext`) and `generate-swipe-plants` (direct injection). The Layer B fn `suggest-rotation-plants` consumes the rotation block via the per-area `fetchAreaRotationBlock()` helper.
+
 ### Cascade order (`_shared/gemini.ts` — `DEFAULT_MODELS`)
 
 Cheapest → most capable. The cascade falls through on per-call failure (timeout, 429, 5xx). For Plant Library seed/verify the cost lift from a full fall-through is material — top rung is `$0.10 / $0.40` per million, bottom is `$1.50 / $9.00` — ~15× input cost.

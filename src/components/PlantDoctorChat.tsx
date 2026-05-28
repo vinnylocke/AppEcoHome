@@ -27,11 +27,23 @@ import toast from "react-hot-toast";
 import { PlantActionButtons } from "./PlantActionButtons";
 import { TaskActionButtons } from "./TaskActionButtons";
 import PlanSuggestionCard, { type PlanSuggestion } from "./chat/PlanSuggestionCard";
+import ToolResultCard from "./chat/ToolResultCard";
+import ToolConfirmCard, {
+  type PendingCall,
+  type ConfirmState,
+} from "./chat/ToolConfirmCard";
 
 interface PendingImage {
   base64: string;       // raw base64 (no data-URL prefix)
   previewUrl: string;   // data-URL for display
   mimeType: string;
+}
+
+interface ToolResult {
+  tool: string;
+  args: any;
+  summary: string;
+  payload: any;
 }
 
 interface Message {
@@ -44,6 +56,10 @@ interface Message {
   suggested_tasks?: Array<any>;
   preferences_captured?: number;
   plan_suggestion?: PlanSuggestion | null;
+  /** Set on assistant messages produced by the agent (Phase 1). */
+  tool_results?: ToolResult[];
+  /** Phase 2 — pending tool calls awaiting user confirmation. */
+  pending_tool_calls?: PendingCall[];
 }
 
 const WELCOME_CONTENT =
@@ -127,6 +143,9 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
   >({});
 
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
+
+  /** Per-call confirm/done/failed state for Phase 2 tool calls. Keyed by call_id. */
+  const [callStates, setCallStates] = useState<Record<string, ConfirmState>>({});
 
   const endOfMessagesRef = useRef<HTMLDivElement>(null);
   const lastAssistantRef = useRef<HTMLDivElement>(null);
@@ -244,6 +263,57 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
           return;
         }
 
+        const ids = data.map((m) => m.id);
+
+        // Fetch feedback + agent tool calls for these messages in parallel.
+        const [{ data: feedbackData }, { data: toolCallRows }] = await Promise.all([
+          supabase
+            .from("chat_feedback")
+            .select("message_id, rating")
+            .in("message_id", ids),
+          supabase
+            .from("chat_tool_calls")
+            .select("id, message_id, tool_name, tool_args, risk_level, status, preview, result")
+            .in("message_id", ids)
+            .order("created_at", { ascending: true }),
+        ]);
+
+        // Group tool calls by message; rebuild pending cards + resolved states.
+        const pendingByMessage: Record<string, PendingCall[]> = {};
+        const hydratedCallStates: Record<string, ConfirmState> = {};
+        for (const row of toolCallRows ?? []) {
+          // Only confirm-risk tools render as cards. Auto (read) tools
+          // were already folded into the assistant text on the original turn.
+          if (row.risk_level !== "confirm" && row.risk_level !== "strong_confirm") continue;
+
+          const call: PendingCall = {
+            id: row.id,
+            tool: row.tool_name,
+            args: row.tool_args,
+            risk_level: row.risk_level,
+            preview: row.preview ?? `Run ${row.tool_name}`,
+          };
+          if (!pendingByMessage[row.message_id]) pendingByMessage[row.message_id] = [];
+          pendingByMessage[row.message_id].push(call);
+
+          // Seed the resolved state so the card renders correctly on reload.
+          if (row.status === "executed") {
+            hydratedCallStates[row.id] = {
+              kind: "done",
+              summary: row.result?.summary ?? "Done.",
+            };
+          } else if (row.status === "cancelled") {
+            hydratedCallStates[row.id] = { kind: "cancelled" };
+          } else if (row.status === "failed" || row.status === "expired") {
+            hydratedCallStates[row.id] = {
+              kind: "failed",
+              error: row.status === "expired" ? "This action expired." : "That action failed.",
+            };
+          } else {
+            hydratedCallStates[row.id] = { kind: "pending" };
+          }
+        }
+
         setMessages(
           data.map((m) => ({
             id: m.id,
@@ -253,15 +323,13 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
             suggested_tasks: m.suggested_tasks ?? undefined,
             preferences_captured: m.preferences_captured ?? 0,
             plan_suggestion: (m as any).plan_suggestion ?? null,
+            pending_tool_calls: pendingByMessage[m.id] ?? undefined,
           })),
         );
 
-        // Load existing feedback for loaded messages
-        const ids = data.map((m) => m.id);
-        const { data: feedbackData } = await supabase
-          .from("chat_feedback")
-          .select("message_id, rating")
-          .in("message_id", ids);
+        if (Object.keys(hydratedCallStates).length > 0) {
+          setCallStates((s) => ({ ...hydratedCallStates, ...s }));
+        }
 
         if (feedbackData) {
           const map: Record<string, "positive" | "negative"> = {};
@@ -361,14 +429,51 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     historyForAI: { role: string; content: string }[],
     image: PendingImage | null | undefined,
     priorPlanSuggested: boolean,
-  ) => {
+    userText: string,
+  ): Promise<{
+    reply: string;
+    suggested_plants?: Array<{ name: string; search_query: string }>;
+    suggested_tasks?: Array<any>;
+    plan_suggestion?: PlanSuggestion | null;
+    preferences_captured?: number;
+    tool_results?: ToolResult[];
+    pending_tool_calls?: PendingCall[];
+  }> => {
+    // Phase 1 routing: text-only messages go to the agent-chat function
+    // (tool-aware), image messages stay on the legacy plant-doctor-ai
+    // diagnosis path. Phase 4+ will unify them.
+    if (!image) {
+      // Convert legacy {role, content} history to Gemini-shape parts.
+      const geminiHistory = historyForAI.slice(0, -1).map((m) => ({
+        role: m.role === "assistant" ? "model" : "user",
+        parts: [{ text: m.content }],
+      }));
+      const { data, error } = await supabase.functions.invoke("agent-chat", {
+        body: {
+          action: "send_message",
+          homeId,
+          message: userText,
+          history: geminiHistory,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return {
+        reply: data?.reply ?? "",
+        tool_results: data?.toolResults ?? [],
+        pending_tool_calls: data?.pendingToolCalls ?? [],
+      };
+    }
+
+    // Image path — diagnosis flow stays on plant-doctor-ai.
     const { data, error } = await supabase.functions.invoke("plant-doctor-ai", {
       body: {
         messages: historyForAI,
         currentContext: pageContext,
         homeId,
         priorPlanSuggested,
-        ...(image ? { imageBase64: image.base64, imageMimeType: image.mimeType } : {}),
+        imageBase64: image.base64,
+        imageMimeType: image.mimeType,
       },
     });
     if (error) throw error;
@@ -380,6 +485,55 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       plan_suggestion?: PlanSuggestion | null;
       preferences_captured?: number;
     };
+  };
+
+  const handleToolConfirm = async (call: PendingCall) => {
+    setCallStates((s) => ({ ...s, [call.id]: { kind: "executing" } }));
+    try {
+      const { data, error } = await supabase.functions.invoke("agent-chat", {
+        body: { action: "confirm_tool", callId: call.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setCallStates((s) => ({
+        ...s,
+        [call.id]: {
+          kind: "done",
+          summary: data?.result?.summary ?? "Done.",
+          affected_row_refs: data?.result?.affected_row_refs,
+        },
+      }));
+    } catch (err: any) {
+      setCallStates((s) => ({
+        ...s,
+        [call.id]: { kind: "failed", error: err.message ?? "Couldn't run that action." },
+      }));
+    }
+  };
+
+  const handleToolCancel = async (call: PendingCall) => {
+    setCallStates((s) => ({ ...s, [call.id]: { kind: "cancelled" } }));
+    try {
+      await supabase.functions.invoke("agent-chat", {
+        body: { action: "cancel_tool", callId: call.id },
+      });
+    } catch {
+      // Cancel is fire-and-forget — local state already reflects intent.
+    }
+  };
+
+  const handleToolUndo = async (call: PendingCall) => {
+    try {
+      const { data, error } = await supabase.functions.invoke("agent-chat", {
+        body: { action: "undo_tool", callId: call.id },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setCallStates((s) => ({ ...s, [call.id]: { kind: "cancelled" } }));
+      toast.success("Undone.");
+    } catch (err: any) {
+      toast.error(err.message ?? "Couldn't undo that.");
+    }
   };
 
   const sendMessage = async (e: React.FormEvent) => {
@@ -426,7 +580,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
         (m) => m.role === "assistant" && !!m.plan_suggestion,
       );
 
-      const data = await callAI(historyForAI, imageSnapshot, priorPlanSuggested);
+      const data = await callAI(historyForAI, imageSnapshot, priorPlanSuggested, userText);
 
       const assistantKey = nextKey();
       scrollToNewMsgRef.current = true;
@@ -440,8 +594,21 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
           suggested_tasks: data.suggested_tasks,
           preferences_captured: data.preferences_captured ?? 0,
           plan_suggestion: data.plan_suggestion ?? null,
+          tool_results: data.tool_results ?? undefined,
+          pending_tool_calls: data.pending_tool_calls ?? undefined,
         },
       ]);
+
+      // Initialise the per-call state map for any new pending calls.
+      if (data.pending_tool_calls && data.pending_tool_calls.length > 0) {
+        setCallStates((s) => {
+          const next = { ...s };
+          for (const call of data.pending_tool_calls!) {
+            if (!next[call.id]) next[call.id] = { kind: "pending" };
+          }
+          return next;
+        });
+      }
       if (data.plan_suggestion) {
         logEvent(EVENT.PLANT_DOCTOR_CHAT_PLAN_SUGGESTION_SHOWN, {
           plan_name: data.plan_suggestion.plan_name,
@@ -757,6 +924,42 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                             onAccept={() => setIsOpen(false)}
                           />
                         )}
+
+                        {/* Agent tool results — Phase 1 renders read-only
+                            tool outputs (plant lists, task lists, etc.)
+                            as inline cards. */}
+                        {msg.role === "assistant" &&
+                          msg.tool_results &&
+                          msg.tool_results.length > 0 && (
+                            <div className="mt-2 space-y-2">
+                              {msg.tool_results.map((tr, i) => (
+                                <ToolResultCard
+                                  key={i}
+                                  tool={tr.tool}
+                                  summary={tr.summary}
+                                  payload={tr.payload}
+                                />
+                              ))}
+                            </div>
+                          )}
+
+                        {/* Phase 2 — pending tool calls awaiting confirmation. */}
+                        {msg.role === "assistant" &&
+                          msg.pending_tool_calls &&
+                          msg.pending_tool_calls.length > 0 && (
+                            <div className="mt-2 space-y-2">
+                              {msg.pending_tool_calls.map((call) => (
+                                <ToolConfirmCard
+                                  key={call.id}
+                                  call={call}
+                                  state={callStates[call.id] ?? { kind: "pending" }}
+                                  onConfirm={() => handleToolConfirm(call)}
+                                  onCancel={() => handleToolCancel(call)}
+                                  onUndo={() => handleToolUndo(call)}
+                                />
+                              ))}
+                            </div>
+                          )}
 
                         {/* Feedback + regenerate row (DB-saved assistant messages only) */}
                         {msg.role === "assistant" && msg.id && (

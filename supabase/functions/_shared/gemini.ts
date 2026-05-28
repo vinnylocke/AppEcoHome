@@ -220,6 +220,190 @@ async function callOnce(
   };
 }
 
+// ─── Tool calling (function calling) ────────────────────────────────
+//
+// Gemini supports native function calling. Pass a list of typed tool
+// declarations and the model will return either a text reply OR one or
+// more `functionCall` parts that the caller is expected to execute and
+// (optionally) feed back into a follow-up turn for the model to consume.
+//
+// Used by the agent-chat edge function for the agentic Plant Doctor.
+
+/** JSON-schema-shaped declaration of a tool the model may call. */
+export interface GeminiToolDeclaration {
+  name: string;
+  description: string;
+  /** OpenAPI/JSON-schema-style parameter spec. */
+  parameters: {
+    type: "object";
+    properties: Record<string, unknown>;
+    required?: string[];
+  };
+}
+
+/** A function call returned by the model. */
+export interface GeminiFunctionCall {
+  name: string;
+  args: Record<string, unknown>;
+}
+
+/** Tool-aware response. Either `text` is set (model wants to reply) or
+ *  `functionCalls` is non-empty (model wants the caller to execute one
+ *  or more tools). Both may be set when the model includes a textual
+ *  preamble alongside its tool calls. */
+export interface GeminiToolResponse {
+  text?: string;
+  functionCalls?: GeminiFunctionCall[];
+  usage: GeminiUsage;
+}
+
+/**
+ * Tool-aware Gemini call with the same model cascade + retry behaviour
+ * as `callGeminiCascade`. Use this when you want function-calling; the
+ * non-tool path stays on `callGeminiCascade` unchanged.
+ *
+ * `toolChoice` controls whether the model is forced to use tools:
+ *   - `AUTO` (default): model decides whether to call tools or reply with text
+ *   - `ANY`: model MUST call at least one tool
+ *   - `NONE`: model cannot call tools (text-only response)
+ */
+export async function callGeminiWithTools(
+  apiKey: string,
+  fn: string,
+  messages: GeminiMessage[],
+  tools: GeminiToolDeclaration[],
+  opts: GeminiOptions & { toolChoice?: "AUTO" | "ANY" | "NONE" } = {},
+): Promise<GeminiToolResponse> {
+  const models = opts.models ?? DEFAULT_MODELS;
+  const maxRetries = opts.maxRetriesPerModel ?? 2;
+  const timeoutMs = opts.timeoutMs ?? 45_000;
+  const extra = opts.logContext ?? {};
+
+  let lastError: Error | undefined;
+  const perModelErrors: Array<{ model: string; attempts: number; error: string }> = [];
+
+  for (const model of models) {
+    let attemptsForModel = 0;
+    let lastModelError: string | undefined;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      attemptsForModel = attempt;
+      log(fn, "tool_model_attempt", { model, attempt, toolCount: tools.length, ...extra });
+      try {
+        const result = await Promise.race([
+          callOnceWithTools(apiKey, model, messages, tools, opts),
+          new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error("Timeout")), timeoutMs),
+          ),
+        ]);
+        log(fn, "tool_model_success", {
+          model,
+          attempt,
+          tokens: result.usage.totalTokenCount,
+          functionCalls: result.functionCalls?.length ?? 0,
+          ...extra,
+        });
+        return result;
+      } catch (err: any) {
+        lastError = err;
+        lastModelError = err.message;
+        warn(fn, "tool_model_failed", { model, attempt, error: err.message, ...extra });
+        const retryable =
+          err.message.includes("503") ||
+          err.message.includes("429") ||
+          err.message.includes("Timeout");
+        if (retryable && attempt < maxRetries) {
+          await new Promise((r) => setTimeout(r, attempt * 2_000));
+          continue;
+        }
+        break;
+      }
+    }
+    perModelErrors.push({
+      model,
+      attempts: attemptsForModel,
+      error: lastModelError ?? "no error captured",
+    });
+  }
+
+  const summary = perModelErrors
+    .map((e) => `  • ${e.model} (${e.attempts}x): ${e.error}`)
+    .join("\n");
+  throw new Error(
+    `All ${models.length} Gemini models exhausted (cascade tried each up to ${maxRetries} times):\n${summary}`,
+  );
+}
+
+async function callOnceWithTools(
+  apiKey: string,
+  model: string,
+  messages: GeminiMessage[],
+  tools: GeminiToolDeclaration[],
+  opts: GeminiOptions & { toolChoice?: "AUTO" | "ANY" | "NONE" },
+): Promise<GeminiToolResponse> {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+  const generationConfig: any = {
+    temperature: opts.temperature ?? 0.3, // lower than free-form chat — tool calls want deterministic args
+    maxOutputTokens: opts.maxOutputTokens ?? 2048,
+  };
+
+  const body: any = {
+    contents: messages,
+    generationConfig,
+    tools: [{ functionDeclarations: tools }],
+    toolConfig: {
+      functionCallingConfig: { mode: opts.toolChoice ?? "AUTO" },
+    },
+  };
+
+  if (opts.systemPrompt) {
+    body.system_instruction = { parts: [{ text: opts.systemPrompt }] };
+  }
+
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+
+  if (!res.ok) {
+    const errData = await res.json().catch(() => ({}));
+    throw new Error(
+      errData.error?.message ?? `Gemini HTTP ${res.status} from ${model}`,
+    );
+  }
+
+  const data = await res.json();
+  const parts: any[] = data.candidates?.[0]?.content?.parts ?? [];
+
+  // Split parts into text vs function calls. Gemini can return either
+  // or both in the same response.
+  const textParts: string[] = [];
+  const functionCalls: GeminiFunctionCall[] = [];
+  for (const part of parts) {
+    if (part.text) textParts.push(part.text);
+    if (part.functionCall) {
+      functionCalls.push({
+        name: part.functionCall.name,
+        args: part.functionCall.args ?? {},
+      });
+    }
+  }
+
+  return {
+    text: textParts.length > 0 ? textParts.join("\n") : undefined,
+    functionCalls: functionCalls.length > 0 ? functionCalls : undefined,
+    usage: {
+      promptTokenCount: data.usageMetadata?.promptTokenCount ?? 0,
+      candidatesTokenCount: data.usageMetadata?.candidatesTokenCount ?? 0,
+      cachedContentTokenCount: data.usageMetadata?.cachedContentTokenCount ?? 0,
+      thoughtsTokenCount: data.usageMetadata?.thoughtsTokenCount ?? 0,
+      totalTokenCount: data.usageMetadata?.totalTokenCount ?? 0,
+      model,
+    },
+  };
+}
+
 // ─── Batch API ───────────────────────────────────────────────────────
 //
 // Google's Gemini Batch API. 50% cheaper than sync, results within

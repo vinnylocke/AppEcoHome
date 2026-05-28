@@ -15,6 +15,11 @@
  * whole-garden (Planner Overhaul).
  */
 
+import {
+  fetchHomeRotationBlocks,
+  renderRotationBlock,
+} from "./rotationContext.ts";
+
 export interface GardenContext {
   block: string;
   snapshot: GardenContextSnapshot;
@@ -35,6 +40,7 @@ export interface GardenContextSnapshot {
     annual_rainfall_mm: number | null;
   };
   areas: Array<{
+    id?: string | null;
     name: string;
     is_outside: boolean | null;
     sunlight: string | null;
@@ -44,6 +50,11 @@ export interface GardenContextSnapshot {
     water_movement: string | null;
     width_m: number | null;
     length_m: number | null;
+    rotation?: {
+      history: Array<{ year: number; families: string[] }>;
+      avoid: string[];
+      prefer: string[];
+    };
   }>;
   existing_plants: Array<{
     name: string;
@@ -66,12 +77,23 @@ export async function buildGardenContext(
   const empty: GardenContextSnapshot = emptySnapshot(homeId);
   if (!homeId) return { block: "", snapshot: empty };
 
+  // Hard timeout on the rotation fetch — if it ever stalls (e.g. PostgREST
+  // hiccup), the snapshot still completes within seconds rather than blocking
+  // the AI call indefinitely. 4s is plenty for a sub-second query.
+  const rotationWithTimeout = Promise.race([
+    fetchHomeRotationBlocks(supabase, homeId).catch(() => ({})),
+    new Promise<Record<string, never>>((resolve) =>
+      setTimeout(() => resolve({}), 4000),
+    ),
+  ]);
+
   const [
     homeRes,
     climateRes,
     areasRes,
     plantsRes,
     prefsRes,
+    rotationBlocksRaw,
   ] = await Promise.all([
     supabase
       .from("homes")
@@ -85,7 +107,7 @@ export async function buildGardenContext(
       .maybeSingle(),
     supabase
       .from("areas")
-      .select("name, is_outside, sunlight, growing_medium, medium_ph, medium_texture, water_movement, width_m, length_m")
+      .select("id, name, is_outside, sunlight, growing_medium, medium_ph, medium_texture, water_movement, width_m, length_m")
       .eq("home_id", homeId)
       .order("name", { ascending: true })
       .limit(30),
@@ -101,6 +123,7 @@ export async function buildGardenContext(
       .select("data")
       .eq("home_id", homeId)
       .maybeSingle(),
+    rotationWithTimeout,
   ]);
 
   const home = homeRes?.data ?? null;
@@ -108,6 +131,9 @@ export async function buildGardenContext(
   const areas: any[] = areasRes?.data ?? [];
   const plants: any[] = plantsRes?.data ?? [];
   const prefs = prefsRes?.data?.data ?? null;
+  const rotationBlocks = rotationBlocksRaw as Awaited<
+    ReturnType<typeof fetchHomeRotationBlocks>
+  >;
 
   const snapshot: GardenContextSnapshot = {
     home: {
@@ -124,6 +150,7 @@ export async function buildGardenContext(
       annual_rainfall_mm: climate?.annual_rainfall_mm ?? null,
     },
     areas: areas.map((a) => ({
+      id: a.id ?? null,
       name: a.name ?? "(unnamed)",
       is_outside: a.is_outside ?? null,
       sunlight: a.sunlight ?? null,
@@ -133,6 +160,7 @@ export async function buildGardenContext(
       water_movement: a.water_movement ?? null,
       width_m: a.width_m ?? null,
       length_m: a.length_m ?? null,
+      rotation: a.id && rotationBlocks[a.id] ? rotationBlocks[a.id] : undefined,
     })),
     existing_plants: plants.map((p) => ({
       name: p.plant_name ?? "(unknown)",
@@ -196,6 +224,16 @@ function renderBlock(s: GardenContextSnapshot): string {
       if (a.medium_texture) facts.push(a.medium_texture);
       if (a.water_movement) facts.push(`drainage:${a.water_movement}`);
       lines.push(`  - ${a.name}${dims ? ` (${dims})` : ""}${facts.length ? ` — ${facts.join(", ")}` : ""}`);
+      // Append rotation context for outdoor areas with history. Skipped
+      // for indoor areas where rotation rules don't really apply.
+      if (a.is_outside !== false && a.rotation) {
+        const rotationBlock = renderRotationBlock(a.name, a.rotation);
+        if (rotationBlock) {
+          for (const line of rotationBlock.split("\n")) {
+            lines.push(`    ${line}`);
+          }
+        }
+      }
     }
     if (s.areas.length > 15) lines.push(`  - … and ${s.areas.length - 15} more`);
   }

@@ -1,6 +1,8 @@
-# Plant Doctor Chat
+# Plant Doctor Chat — branded "Garden AI"
 
 > A sticky AI chat overlay accessible from anywhere in the app. Carries page context (current screen, current plant, current task) into every message so the AI knows what you were doing when you asked.
+
+> **Naming note:** The component file is `PlantDoctorChat.tsx` (code-level — the chat shares plumbing with the Plant Doctor surface). The user-facing brand for this floating overlay is **Garden AI**. Distinct from the **Plant Doctor** photo surface at `/doctor` — see [`02-plant-doctor.md`](./02-plant-doctor.md). Don't reuse "Garden AI" as a label for anything else.
 
 **Trigger:** Floating Bot button (always-on in the corner) when AI tier active.
 **Source files:**
