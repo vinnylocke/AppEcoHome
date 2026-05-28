@@ -558,6 +558,7 @@ export default function BulkSearchModal({
                 autoFocus
                 showFilters
                 multiSelect
+                allowPreview
                 placeholder="Search any plant by name…"
                 initialQuery={searchSeed}
                 onQueryChange={setContextQuery}

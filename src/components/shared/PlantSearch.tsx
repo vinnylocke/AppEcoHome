@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Search, Loader2, Sparkles, Database, Leaf, Plus, Pencil, Lock, SlidersHorizontal, ChevronDown, Check } from "lucide-react";
+import { Search, Loader2, Sparkles, Database, Leaf, Plus, Pencil, Lock, SlidersHorizontal, ChevronDown, Check, Info, ChevronUp } from "lucide-react";
 import {
   searchLibrary,
   didYouMean,
@@ -12,8 +12,11 @@ import {
   type PlantFilters,
 } from "../../lib/unifiedPlantSearch";
 import type { PlantLibraryRow } from "../../services/plantLibraryAdminService";
-import type { ProviderSearchResult } from "../../lib/verdantlyUtils";
+import type { ProviderSearchResult, PlantDetails } from "../../lib/verdantlyUtils";
+import { getProviderPlantDetails } from "../../lib/plantProvider";
+import { libraryRowToPlantDetails } from "../../lib/plantCatalogue";
 import { Logger } from "../../lib/errorHandler";
+import PlantInfoPanel from "../PlantInfoPanel";
 
 export interface PlantSearchGates {
   /** Botanist+ — may opt into Perenual + Verdantly ("more databases"). */
@@ -40,6 +43,10 @@ interface Props {
   multiSelect?: boolean;
   /** In multiSelect mode, returns whether a given selection is currently picked. */
   isSelected?: (sel: PlantSelection) => boolean;
+  /** Show a per-row info (ⓘ) button that expands an inline details preview
+   *  without selecting the row. Used by Add-to-Shed so users can inspect a
+   *  plant before adding it to the cart. */
+  allowPreview?: boolean;
 }
 
 const CYCLE_OPTIONS = [
@@ -85,6 +92,7 @@ export default function PlantSearch({
   showFilters = false,
   multiSelect = false,
   isSelected,
+  allowPreview = false,
 }: Props) {
   const [query, setQuery] = useState(initialQuery);
   const [libraryRows, setLibraryRows] = useState<PlantLibraryRow[]>([]);
@@ -97,6 +105,12 @@ export default function PlantSearch({
   const [aiError, setAiError] = useState<string | null>(null);
   const [filters, setFilters] = useState<PlantFilters>({});
   const [filterPanelOpen, setFilterPanelOpen] = useState(false);
+
+  // Inline details preview (opt-in via allowPreview). Keyed by the row's
+  // stable testId so each row tracks its own expand/loading/details.
+  const [previewKey, setPreviewKey] = useState<string | null>(null);
+  const [previewCache, setPreviewCache] = useState<Map<string, PlantDetails | null>>(new Map());
+  const [previewLoading, setPreviewLoading] = useState<Set<string>>(new Set());
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const seqRef = useRef(0);
@@ -195,6 +209,36 @@ export default function PlantSearch({
       setAiError(err?.message ?? "Couldn't create that plant.");
     } finally {
       setAiCreating(false);
+    }
+  };
+
+  // Toggle the inline details preview for a row. Library rows resolve
+  // instantly from the row we already hold; provider rows fetch on demand.
+  const togglePreview = async (sel: PlantSelection, key: string) => {
+    if (previewKey === key) { setPreviewKey(null); return; }
+    setPreviewKey(key);
+    if (previewCache.has(key)) return;
+    if (sel.source === "library" && sel.raw) {
+      setPreviewCache((prev) => new Map(prev).set(key, libraryRowToPlantDetails(sel.raw)));
+      return;
+    }
+    if (sel.source !== "perenual" && sel.source !== "verdantly") {
+      setPreviewCache((prev) => new Map(prev).set(key, null));
+      return;
+    }
+    setPreviewLoading((prev) => new Set(prev).add(key));
+    try {
+      const details = await getProviderPlantDetails({
+        source: sel.source === "verdantly" ? "verdantly" : "api",
+        perenual_id: sel.source === "verdantly" ? null : (sel.perenual_id ?? (sel.raw as any)?.id ?? null),
+        verdantly_id: sel.source === "verdantly" ? (sel.verdantly_id ?? (sel.raw as any)?.id ?? null) : null,
+      });
+      setPreviewCache((prev) => new Map(prev).set(key, details));
+    } catch (err) {
+      Logger.warn("PlantSearch preview fetch failed", err, { key });
+      setPreviewCache((prev) => new Map(prev).set(key, null));
+    } finally {
+      setPreviewLoading((prev) => { const s = new Set(prev); s.delete(key); return s; });
     }
   };
 
@@ -313,10 +357,11 @@ export default function PlantSearch({
         <ul className="space-y-1.5" data-testid="plant-search-results">
           {libraryRows.map((row) => {
             const sel = libraryRowToSelection(row);
+            const rowKey = `plant-search-result-library-${row.id}`;
             return (
               <ResultRow
                 key={`lib-${row.id}`}
-                testId={`plant-search-result-library-${row.id}`}
+                testId={rowKey}
                 name={row.common_name}
                 sub={Array.isArray(row.scientific_name) ? row.scientific_name[0] : undefined}
                 thumb={row.thumbnail_url ?? row.image_url ?? null}
@@ -324,6 +369,13 @@ export default function PlantSearch({
                 multiSelect={multiSelect}
                 selected={multiSelect ? !!isSelected?.(sel) : false}
                 onClick={() => onSelect(sel)}
+                allowPreview={allowPreview}
+                onInfo={() => togglePreview(sel, rowKey)}
+                infoActive={previewKey === rowKey}
+                infoLoading={previewLoading.has(rowKey)}
+                preview={previewKey === rowKey ? (
+                  <PlantInfoPanel details={previewCache.get(rowKey) ?? null} loading={previewLoading.has(rowKey)} plantName={row.common_name} />
+                ) : null}
               />
             );
           })}
@@ -337,10 +389,11 @@ export default function PlantSearch({
           <ul className="space-y-1.5">
             {externalRows.map((r) => {
               const sel = providerResultToSelection(r);
+              const rowKey = `plant-search-result-${r._provider}-${r.id}`;
               return (
                 <ResultRow
                   key={`ext-${r._provider}-${r.id}`}
-                  testId={`plant-search-result-${r._provider}-${r.id}`}
+                  testId={rowKey}
                   name={r.common_name}
                   sub={r.scientific_name?.[0]}
                   thumb={r.thumbnail_url ?? null}
@@ -348,6 +401,13 @@ export default function PlantSearch({
                   multiSelect={multiSelect}
                   selected={multiSelect ? !!isSelected?.(sel) : false}
                   onClick={() => onSelect(sel)}
+                  allowPreview={allowPreview}
+                  onInfo={() => togglePreview(sel, rowKey)}
+                  infoActive={previewKey === rowKey}
+                  infoLoading={previewLoading.has(rowKey)}
+                  preview={previewKey === rowKey ? (
+                    <PlantInfoPanel details={previewCache.get(rowKey) ?? null} loading={previewLoading.has(rowKey)} plantName={r.common_name} />
+                  ) : null}
                 />
               );
             })}
@@ -422,6 +482,7 @@ export default function PlantSearch({
 
 function ResultRow({
   testId, name, sub, thumb, source, onClick, multiSelect = false, selected = false,
+  allowPreview = false, onInfo, infoActive = false, infoLoading = false, preview = null,
 }: {
   testId: string;
   name: string;
@@ -431,44 +492,82 @@ function ResultRow({
   onClick: () => void;
   multiSelect?: boolean;
   selected?: boolean;
+  allowPreview?: boolean;
+  onInfo?: () => void;
+  infoActive?: boolean;
+  infoLoading?: boolean;
+  preview?: React.ReactNode;
 }) {
   const badge = SOURCE_BADGE[source] ?? SOURCE_BADGE.library;
   return (
     <li>
-      <button
-        type="button"
-        data-testid={testId}
-        data-selected={selected || undefined}
-        aria-pressed={multiSelect ? selected : undefined}
-        onClick={onClick}
-        className={`w-full text-left rounded-2xl bg-white border active:scale-[0.99] transition-all flex items-center gap-3 p-3 ${selected ? "border-rhozly-primary ring-1 ring-rhozly-primary/30" : "border-rhozly-outline/15 hover:border-rhozly-primary/40"}`}
+      <div
+        className={`rounded-2xl bg-white border overflow-hidden transition-colors ${selected ? "border-rhozly-primary ring-1 ring-rhozly-primary/30" : "border-rhozly-outline/15 hover:border-rhozly-primary/40"}`}
       >
-        <div className="w-11 h-11 shrink-0 rounded-2xl overflow-hidden bg-rhozly-primary/5 flex items-center justify-center text-rhozly-primary/50">
-          {thumb ? (
-            <img src={thumb} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
-          ) : source === "ai" ? (
-            <Sparkles size={18} />
-          ) : (
-            <Leaf size={18} />
-          )}
-        </div>
-        <div className="flex-1 min-w-0">
-          <p className="font-black text-rhozly-on-surface text-sm leading-tight truncate">{name}</p>
-          {sub && <p className="text-[11px] font-bold italic text-rhozly-on-surface/45 truncate">{sub}</p>}
-          <span className={`inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md ${badge.className}`}>
-            {badge.label}
-          </span>
-        </div>
-        {multiSelect ? (
-          <span
-            className={`shrink-0 w-5 h-5 rounded-md flex items-center justify-center border-2 transition-colors ${selected ? "bg-rhozly-primary border-rhozly-primary text-white" : "bg-white border-rhozly-outline/30 text-transparent"}`}
+        <div className="flex items-center gap-2 p-3">
+          <button
+            type="button"
+            data-testid={testId}
+            data-selected={selected || undefined}
+            aria-pressed={multiSelect ? selected : undefined}
+            onClick={onClick}
+            className="flex-1 min-w-0 flex items-center gap-3 text-left active:scale-[0.99] transition-transform"
           >
-            <Check size={12} strokeWidth={3} />
-          </span>
-        ) : (
-          <Plus size={16} className="shrink-0 text-rhozly-on-surface/40" />
+            <div className="w-11 h-11 shrink-0 rounded-2xl overflow-hidden bg-rhozly-primary/5 flex items-center justify-center text-rhozly-primary/50">
+              {thumb ? (
+                <img src={thumb} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
+              ) : source === "ai" ? (
+                <Sparkles size={18} />
+              ) : (
+                <Leaf size={18} />
+              )}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-rhozly-on-surface text-sm leading-tight truncate">{name}</p>
+              {sub && <p className="text-[11px] font-bold italic text-rhozly-on-surface/45 truncate">{sub}</p>}
+              <span className={`inline-block mt-1 text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded-md ${badge.className}`}>
+                {badge.label}
+              </span>
+            </div>
+          </button>
+
+          {allowPreview && onInfo && (
+            <button
+              type="button"
+              data-testid={`${testId}-info`}
+              aria-label={infoActive ? "Hide details" : "View details"}
+              aria-expanded={infoActive}
+              onClick={onInfo}
+              className={`shrink-0 p-2 rounded-xl transition-colors ${infoActive ? "text-rhozly-primary bg-rhozly-primary/10" : "text-rhozly-on-surface/40 hover:text-rhozly-primary hover:bg-rhozly-primary/5"}`}
+            >
+              {infoLoading ? <Loader2 size={16} className="animate-spin" /> : infoActive ? <ChevronUp size={16} /> : <Info size={16} />}
+            </button>
+          )}
+
+          <button
+            type="button"
+            aria-label={selected ? "Deselect plant" : "Select plant"}
+            onClick={onClick}
+            className="shrink-0 flex items-center justify-center"
+          >
+            {multiSelect ? (
+              <span
+                className={`w-5 h-5 rounded-md flex items-center justify-center border-2 transition-colors ${selected ? "bg-rhozly-primary border-rhozly-primary text-white" : "bg-white border-rhozly-outline/30 text-transparent"}`}
+              >
+                <Check size={12} strokeWidth={3} />
+              </span>
+            ) : (
+              <Plus size={16} className="text-rhozly-on-surface/40" />
+            )}
+          </button>
+        </div>
+
+        {preview && (
+          <div data-testid="plant-search-preview-panel" className="border-t border-rhozly-outline/10">
+            {preview}
+          </div>
         )}
-      </button>
+      </div>
     </li>
   );
 }

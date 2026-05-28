@@ -37,6 +37,8 @@ Design + decisions: [docs/plans/plant-search-overhaul-design.md](../../plans/pla
 | `showFilters?` | Show the structured filter panel (cycle / sunlight / edible / indoor). Live on `/library`. |
 | `initialQuery?` / `onQueryChange?` | Seed + observe the query (e.g. `/library` `?q=` sync). |
 | `autoFocus?`, `placeholder?` | Input ergonomics. |
+| `multiSelect?` / `isSelected?` | Rows show a checkbox and `onSelect` toggles; `isSelected(sel)` drives the checked state. Host owns the set (Add-to-Shed). |
+| `allowPreview?` | Per-row info (ⓘ) button that expands an inline `PlantInfoPanel` **without** selecting. Library rows preview instantly via `libraryRowToPlantDetails`; Perenual/Verdantly fetch via `getProviderPlantDetails`. Used by Add-to-Shed. |
 
 ### Behaviour
 
@@ -45,6 +47,10 @@ Design + decisions: [docs/plans/plant-search-overhaul-design.md](../../plans/pla
 - External + AI are **opt-in buttons** below the library results (never auto-fired) — the common case stays free + instant.
 - Empty query → gentle prompt.
 - Gates false → the CTA renders as a locked upgrade nudge instead of a button.
+
+#### Inline preview (`allowPreview`)
+
+When `allowPreview` is set, each result row gets an info (ⓘ) button next to the select control. Tapping it (a) does **not** select the row and (b) expands an inline `PlantInfoPanel` beneath it. The component owns the preview state (`previewKey` / `previewCache` / `previewLoading`) keyed by the row's testid: library rows resolve instantly from the row data, Perenual/Verdantly fetch on demand with a spinner. This restores the "inspect before adding" affordance the legacy BulkSearchModal had. Single-select hosts (Shopping, `/library`, Nursery) leave it off — they already preview on tap/navigate.
 
 ### Library row → `plants` (per host)
 
@@ -71,7 +77,7 @@ Hosts that only need a name + thumbnail (Shopping) use the `PlantSelection` basi
 |---------|--------|
 | Shopping → Add Item (plant tab) | ✅ migrated (first proof surface) |
 | `/library` search | ✅ migrated — library hits route through the existing `plant_library_id` clone path |
-| Add-to-Shed (BulkSearchModal) | ✅ migrated — `<PlantSearch multiSelect showFilters>`; review/manual/paste-list/import preserved. Library selections forward `preloadedDetails` (mapped via `libraryRowToPlantDetails`) through TheShed's AI branch — no Gemini, no `plants_source_check` change (saved as `source: "ai"`, matching the `/library` clone path). |
+| Add-to-Shed (BulkSearchModal) | ✅ migrated — `<PlantSearch multiSelect showFilters allowPreview>`; review/manual/paste-list/import preserved. Library selections forward `preloadedDetails` (mapped via `libraryRowToPlantDetails`) through TheShed's AI branch — no Gemini, no `plants_source_check` change (saved as `source: "ai"`, matching the `/library` clone path). `allowPreview` restores the inline info-icon → details preview on each result row (see "Inline preview" below). |
 | Nursery plant picker (PlantSearchModal) | ✅ migrated — `<PlantSearch showFilters>` (single-select). The **premium wall is removed** (library free for all tiers). Preview pane + `handleAddToShed` insert + single-add `onSuccess(savedPlant)` contract kept verbatim, so the packet-editor host still links the returned row. Library selections preview instantly via `libraryRowToPlantDetails` and save through the AI insert branch. Dropped on this surface: scientific/common toggle, preference sort, per-provider pagination, AI-thumbnail prefetch, snapshot cache. |
 | Companion plants (CompanionPlantsTab) | ✅ covered — it has no search box of its own; it hosts the migrated `BulkSearchModal` (and `PlantSourcePicker` for batch name-resolution). Its `handleBulkAdd` consumes the same cart-item shapes and benefits from library `preloadedDetails`. |
 | Admin Search Lab | stays on its own RPC methods (power tool) |

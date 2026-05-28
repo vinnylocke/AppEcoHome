@@ -320,8 +320,15 @@ test.describe("Shed — Add plant modal", () => {
     await shed.bulkSearchExternalBtn.click();
     await authenticatedPage.waitForTimeout(1200);
 
-    // A multi-select result row should appear; selecting it reveals the cart bar.
+    // A multi-select result row should appear.
     if (await shed.bulkResultFirst.isVisible({ timeout: 6000 }).catch(() => false)) {
+      // Info icon previews details inline WITHOUT selecting (no cart bar yet).
+      if (await shed.bulkResultInfoFirst.isVisible({ timeout: 2000 }).catch(() => false)) {
+        await shed.bulkResultInfoFirst.click();
+        await expect(shed.bulkPreviewPanel).toBeVisible({ timeout: 6000 });
+        await expect(shed.bulkReviewBtn).toHaveCount(0); // preview didn't select
+      }
+      // Selecting the row reveals the cart/review bar.
       await shed.bulkResultFirst.click();
       await expect(shed.bulkReviewBtn).toBeVisible({ timeout: 6000 });
     }
