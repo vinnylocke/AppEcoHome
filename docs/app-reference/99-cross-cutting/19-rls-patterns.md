@@ -12,7 +12,7 @@ CREATE POLICY "home members can read"
 ON <table> FOR SELECT
 USING (
   home_id IN (
-    SELECT home_id FROM home_members WHERE user_id = auth.uid()
+    SELECT home_id FROM home_members WHERE user_id = (SELECT auth.uid())
   )
 );
 
@@ -20,7 +20,7 @@ USING (
 CREATE POLICY "permitted members can insert/update"
 ON <table> FOR INSERT WITH CHECK (
   home_id IN (
-    SELECT home_id FROM home_members WHERE user_id = auth.uid()
+    SELECT home_id FROM home_members WHERE user_id = (SELECT auth.uid())
       AND (
         role IN ('owner','editor')
         OR (permissions ->> '<permission_key>')::bool IS TRUE
@@ -28,6 +28,14 @@ ON <table> FOR INSERT WITH CHECK (
   )
 );
 ```
+
+### Wrap `auth.uid()` as `(SELECT auth.uid())` — mandatory
+
+**Every new policy must wrap `auth.uid()` calls inside `(SELECT auth.uid())`.** This is the Supabase-documented best practice and is enforced across all 158 policies in this codebase (rewritten in migration `20260627010000_scalability_wave_a.sql`).
+
+The unwrapped form re-evaluates `auth.uid()` per row checked. The wrapped form is hoisted by the optimizer and evaluated once per query, regardless of how many rows the policy scans. For tables with thousands of rows this is a 10× CPU difference.
+
+If a future policy uses bare `auth.uid()`, the rewrite migration's DO block is idempotent and can be re-applied to normalise it — but better to write it correctly first time.
 
 ---
 

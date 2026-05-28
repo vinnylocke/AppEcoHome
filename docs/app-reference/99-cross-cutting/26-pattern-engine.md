@@ -1,19 +1,19 @@
 # Pattern Engine — Detectors, Insights, Behaviour Summary
 
-> Background pattern detection. Detectors run hourly in `pattern-scan`, each producing `pattern_hits`. The `pattern-evaluate` cron scores + dedupes hits into `user_insights` that surface in the AI Assistant Card. A weekly `refresh-behaviour-summary` cron builds a per-user history summary fed to AI prompts.
+> Background pattern detection. Detectors run every 8 hours in `pattern-scan`, each producing `pattern_hits`. The `pattern-evaluate` cron scores + dedupes hits into `user_insights` that surface in the AI Assistant Card. A weekly `refresh-behaviour-summary` cron builds a per-user history summary fed to AI prompts.
 
 ---
 
 ## Quick Summary
 
 ```
-pattern-scan (cron, hourly)
-└── for each user:
+pattern-scan (cron, every 8h)
+└── for each user (in parallel, concurrency cap 10):
     └── for each detector in _shared/patterns/:
         └── detect(userId, homeId, db) → PatternHit[]
-            └── insert into pattern_hits
+            └── batch-upsert into pattern_hits
 
-pattern-evaluate (cron, hourly)
+pattern-evaluate (cron, every 8h, +30 min)
 └── score + dedupe pattern_hits → user_insights
 
 user_insights ──► AssistantCard on the dashboard

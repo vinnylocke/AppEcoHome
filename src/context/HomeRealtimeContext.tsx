@@ -1,15 +1,22 @@
 import React, { createContext, useCallback, useContext, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 
+// Realtime subscriptions are a per-connected-client cost on the Supabase
+// realtime server (memory + CPU scale with concurrent users × tables ×
+// write rate). We subscribe ONLY to tables that change from user action
+// and need sub-second cross-client freshness.
+//
+// Deliberately NOT here (scalability Wave D): `weather_snapshots` and
+// `weather_alerts`. Those change on an hourly cron, never from user
+// action — realtime push is overkill. The dashboard refetches weather
+// on tab-focus instead (see App.tsx visibility handler).
 const HOME_TABLES = [
   { table: "locations",         filter: (id: string) => `home_id=eq.${id}` },
   { table: "areas",             filter: (id: string) => `home_id=eq.${id}` },
   { table: "homes",             filter: (id: string) => `id=eq.${id}` },
   { table: "inventory_items",   filter: (id: string) => `home_id=eq.${id}` },
-  { table: "weather_alerts",    filter: (id: string) => `home_id=eq.${id}` },
   { table: "tasks",             filter: (id: string) => `home_id=eq.${id}` },
   { table: "task_blueprints",   filter: (id: string) => `home_id=eq.${id}` },
-  { table: "weather_snapshots", filter: (id: string) => `home_id=eq.${id}` },
   { table: "plants",            filter: (id: string) => `home_id=eq.${id}` },
   { table: "ailments",          filter: (id: string) => `home_id=eq.${id}` },
   { table: "plans",             filter: (id: string) => `home_id=eq.${id}` },

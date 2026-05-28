@@ -72,11 +72,17 @@ Supabase Realtime has connection + message limits per tier. The hook batches sub
 
 WebSocket auto-reconnects on flap. Pending events may be lost during the gap — pair with pull-to-refresh as the manual fallback.
 
+### `HomeRealtimeContext` — the shared home channel
+
+`HomeRealtimeContext` opens ONE channel per home (`home-realtime-${homeId}`) that multiplexes postgres_changes subscriptions across a fixed set of home-scoped tables (`HOME_TABLES`). Components register interest via `useHomeRealtime(table, callback)`; the context fans changes out to registered callbacks.
+
+**Scalability Wave D (2026-05-28):** the table set was trimmed from 13 → 11. `weather_snapshots` and `weather_alerts` were removed — they change on an hourly cron, never from user action, so per-client realtime push was pure overhead (realtime server memory + CPU scale with concurrent clients × tables × write rate). The dashboard now refetches weather on tab-focus (throttled to once per 5 min) via a `visibilitychange` handler in `App.tsx` instead. The remaining 11 tables all change from user action and benefit from sub-second cross-client freshness.
+
 ### Where Realtime is NOT used
 
-Tasks (use `generate-tasks` cron + manual refresh).
+Weather snapshots + alerts (hourly cron — dashboard refetches on tab-focus; removed from realtime in Wave D).
 Garden Shapes (single-user editing model — collab edit is a future feature).
-Chat messages (single-user).
+Chat messages (single-user; the agent confirm cards hydrate from `chat_tool_calls` on load instead).
 
 ---
 
