@@ -1,6 +1,6 @@
 # Quick Capture Journal
 
-> Phone-first capture-first journal mode. Snap a photo + jot a note → Save. The entry lands in `plant_journals` without an `inventory_item_id`, then you assign it to a specific plant later from either device. The same `plant_journals` table the desktop Plant Journal Tab already uses — no migration, no parallel schema.
+> Phone-first capture-first journal mode. Snap a photo + jot a note → Save. The entry lands in `plant_journals` without an `inventory_item_id`, then you assign it to a specific plant later from either device. Backed by the same `plant_journals` table the [Global Journal](../03-garden-hub/11-global-journal.md) and the per-instance [Plant Journal Tab](../08-modals-and-overlays/10-plant-journal-tab.md) read — no migration, no parallel schema. Unassigned entries surface on the Global Journal under the "Unassigned" filter; once assigned, they appear on the relevant plant's journal tab too.
 
 **Route:** `/quick/journal`
 **Source files (entry points):**

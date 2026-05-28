@@ -11,6 +11,8 @@
 
 Add entries, edit existing entries inline, delete with confirm. Entries timestamped. Optional photo attachment per entry via PhotoUploader inline (separate from the Photo Timeline tab).
 
+**Note:** this tab and the [Global Journal](../03-garden-hub/11-global-journal.md) read from the same `plant_journals` table. Entries created here appear in the global feed; entries created in the global composer with this plant as the target appear here. Auto-created entries (from `journalAutoUpdateService` when a task completion matches the user's auto-update preferences) also surface here when the task is tied to this instance.
+
 ---
 
 ## Role 1 — Technical Reference

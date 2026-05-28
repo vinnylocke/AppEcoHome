@@ -54,6 +54,7 @@ import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
 import NurseryTab from "./nursery/NurseryTab";
 import InfoTooltip from "./InfoTooltip";
+import EmptyState from "./shared/EmptyState";
 import AssistantCard from "./AssistantCard";
 
 async function fetchFirstAvailableImage(plantName: string): Promise<string> {
@@ -1164,14 +1165,19 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-6 mb-10">
           <div>
             <div className="flex flex-wrap items-center gap-3 sm:gap-4">
-              <h1 className="text-3xl sm:text-4xl font-black font-display text-rhozly-on-surface flex items-center gap-3">
-                The Shed
-                {plants.filter((p) => !p.is_archived).length > 0 && (
-                  <span className="text-base font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
-                    {plants.filter((p) => !p.is_archived).length}
-                  </span>
-                )}
-              </h1>
+              <div>
+                <h1 className="text-3xl sm:text-4xl font-black font-display text-rhozly-on-surface flex items-center gap-3">
+                  Plants
+                  {plants.filter((p) => !p.is_archived).length > 0 && (
+                    <span className="text-base font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
+                      {plants.filter((p) => !p.is_archived).length}
+                    </span>
+                  )}
+                </h1>
+                <p className="text-sm font-bold text-rhozly-on-surface/40 mt-1">
+                  Your Shed — every plant in your home
+                </p>
+              </div>
               {/* 🚀 SILENT SYNC INDICATOR */}
               {isBackgroundSyncing && (
                 <Loader2
@@ -1390,27 +1396,23 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 pb-32"
         >
           {filteredPlants.length === 0 ? (
-            <div className="col-span-full min-h-[400px] flex flex-col items-center justify-center text-rhozly-on-surface/40 py-16">
-              <div className="relative mb-6">
-                <div className="absolute inset-0 bg-rhozly-primary/5 blur-3xl rounded-full" />
-                <Search size={64} className="relative opacity-30" strokeWidth={1.5} />
-              </div>
-              <h3 className="text-2xl font-black text-rhozly-on-surface/60 mb-2">
-                {searchQuery ? "No matches found" : "No plants here"}
-              </h3>
-              <p className="text-sm font-bold text-rhozly-on-surface/40 max-w-xs text-center">
-                {searchQuery
-                  ? `Try adjusting your search term or filters`
-                  : `Add plants to your Shed to get started`}
-              </p>
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="mt-6 px-6 py-3 bg-rhozly-primary text-white rounded-xl font-bold hover:scale-105 transition-transform"
-                >
-                  Clear Search
-                </button>
-              )}
+            <div className="col-span-full min-h-[400px] flex items-center justify-center py-8">
+              <EmptyState
+                size="lg"
+                chrome="none"
+                icon={<Search size={32} />}
+                title={searchQuery ? "No matches found" : "No plants here"}
+                body={
+                  searchQuery
+                    ? "Try adjusting your search term or filters."
+                    : "Add plants to your Shed to get started — use the buttons at the top of the page."
+                }
+                primaryCta={
+                  searchQuery
+                    ? { label: "Clear search", onClick: () => setSearchQuery("") }
+                    : undefined
+                }
+              />
             </div>
           ) : (
             filteredPlants.map((plant, index) => {

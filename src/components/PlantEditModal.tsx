@@ -426,7 +426,7 @@ export default function PlantEditModal({
 
   const tabs = [
     { id: "care", label: "Care Guide", icon: Droplets },
-    { id: "schedules", label: "Automations", icon: Calendar },
+    { id: "schedules", label: "Care Plan", icon: Calendar },
     { id: "light", label: "Light", icon: Sun },
     { id: "grow_guide", label: "Grow Guide", icon: BookOpenCheck },
     { id: "guides", label: "Community", icon: BookOpen },
@@ -628,23 +628,37 @@ export default function PlantEditModal({
           {loadSuccess ? "Care guide loaded successfully." : ""}
         </span>
 
-        {/* Tab Navigation — scroll-snap on mobile for clean horizontal scrolling */}
-        <div className="flex gap-1 sm:gap-2 border-b-2 border-rhozly-outline/20 bg-rhozly-surface-low/50 shrink-0 shadow-sm overflow-x-auto px-2 sm:px-8 scrollbar-none snap-x snap-mandatory">
-          {tabs.map((tab) => (
-            <button
-              key={tab.id}
-              data-testid={`plant-modal-tab-${tab.id}`}
-              onClick={() => setActiveTab(tab.id)}
-              className={`shrink-0 snap-start flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-4 sm:py-5 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border-b-4 ${
-                activeTab === tab.id
-                  ? "border-rhozly-primary text-rhozly-primary"
-                  : "border-transparent text-rhozly-on-surface/30 hover:text-rhozly-on-surface"
-              }`}
-            >
-              <tab.icon size={14} className="sm:w-4 sm:h-4" />
-              {tab.label}
-            </button>
-          ))}
+        {/* Tab Navigation — scroll-snap on mobile for clean horizontal
+            scrolling. The right-edge fade gradient overlay signals
+            that more tabs scroll into view on mobile (where ≥3 of
+            the 7 tabs sit off-screen at typical widths). The fade
+            is `pointer-events-none` so it doesn't block taps on the
+            last visible tab. */}
+        <div className="relative shrink-0 bg-rhozly-surface-low/50 border-b-2 border-rhozly-outline/20 shadow-sm">
+          <div className="flex gap-1 sm:gap-2 overflow-x-auto px-2 sm:px-8 scrollbar-none snap-x snap-mandatory">
+            {tabs.map((tab) => (
+              <button
+                key={tab.id}
+                data-testid={`plant-modal-tab-${tab.id}`}
+                onClick={() => setActiveTab(tab.id)}
+                className={`shrink-0 snap-start flex items-center gap-1.5 sm:gap-2 px-3 sm:px-6 py-4 sm:py-5 text-[10px] sm:text-xs font-black uppercase tracking-widest transition-all border-b-4 ${
+                  activeTab === tab.id
+                    ? "border-rhozly-primary text-rhozly-primary"
+                    : "border-transparent text-rhozly-on-surface/30 hover:text-rhozly-on-surface"
+                }`}
+              >
+                <tab.icon size={14} className="sm:w-4 sm:h-4" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+          {/* Right-edge fade — only shows on mobile-ish viewports.
+              On desktop the strip rarely overflows so the fade is
+              barely visible. */}
+          <div
+            aria-hidden="true"
+            className="pointer-events-none absolute top-0 right-0 h-full w-8 sm:w-6 bg-gradient-to-l from-rhozly-surface-low/95 to-transparent"
+          />
         </div>
 
         {/* Scrollable Body */}

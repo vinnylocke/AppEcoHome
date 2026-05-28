@@ -139,6 +139,19 @@ User sees one toast: "Care guide is up to date." Orphan state is invisible to th
 | `sprite_url` | text | Plant Visualiser |
 | `display_x_m`, `display_y_m` | float8 | Plant token position |
 | `display_size_m`, `display_height_m` | float8 | Token sizing |
+| `ended_at` | timestamptz (nullable) | Set by the End-of-Life flow (LifecycleCompleteModal / HarvestEndOfLifePrompt). `IS NOT NULL` is the Senescence-tab membership predicate. Restored instances null this out. |
+| `was_natural_end` | bool (nullable) | TRUE = harvest close / natural senescence; FALSE = deliberate ending (pest, mistake, redesign). NULL once restored. Drives the Senescence filter pills + decides whether AI lifecycle analysis is offered (analysis fires only when not natural). |
+| `end_summary` | text (nullable) | Optional closing note captured during the End-of-Life flow. Mirrored into the closing `plant_journals` entry for full-text search. Cleared on restore. |
+
+### End-of-Life + Restore lifecycle
+
+The fields above implement a **reversible** lifecycle endpoint. The flow:
+
+1. **Mark End of Life** — either via the per-instance `LifecycleCompleteModal` (any plant) or the `HarvestEndOfLifePrompt` modal that fires after a Harvesting task completes (multi-select across the task's `inventory_item_ids`). Both writers stamp `ended_at`, `was_natural_end`, `end_summary`, and set `status = 'Archived'`, then insert a `plant_journals` row with `subject` prefixed `"Lifecycle complete"`.
+2. **Senescence tab** ([03-garden-hub/12-senescence.md](../03-garden-hub/12-senescence.md)) reads `inventory_items` filtered by `ended_at IS NOT NULL` (home-scoped via RLS). Closing photos are lazy-loaded by searching `plant_journals.subject ILIKE 'Lifecycle complete%'` per row.
+3. **Restore** clears `ended_at`, `was_natural_end`, `end_summary` (sets all to NULL), flips `status` back to `'Planted'`, writes a `plant_journals` "Restored from Senescence" entry, then invokes the `generate-tasks` edge function so blueprint-bound routines resume. Importantly, restore does **NOT** recreate or reset blueprints — any customisations the user made are preserved.
+
+This means the lifecycle is a one-bit flag (`ended_at IS NULL` ↔ live; `ended_at IS NOT NULL` ↔ in Senescence) with structured context on each side. The Plant Instances tab and Senescence tab are mutually exclusive views over the same table.
 
 ### Source semantics
 
@@ -171,12 +184,26 @@ A species record + per-instance records lets you say "I have 4 Brandywine tomato
 
 ---
 
+### `plants.family` and the rotation engine
+
+The `plants.family` column (text, populated by the AI in `plant_library` enrichment and in the `seed-plant-library` flow) is what powers the crop-rotation engine.
+
+- **Reads**: `src/lib/rotationEngine.ts` (via `AreaRotationCard`) joins it through `inventory_items.plant_id`; the server-side mirror in `supabase/functions/_shared/rotationContext.ts` uses the same join. Family text is normalised through `rotationFamilies.ts` to a canonical key — colloquial aliases (e.g. "nightshades"), historical names (e.g. "Cruciferae", "Compositae", "Chenopodiaceae"), and parenthetical context all resolve to the same canonical family.
+- **Writes**: never written by the user; only the AI / Plant Library backfill paths populate it.
+- **Nullable**: families on rows the AI hasn't classified yet stay null. The rotation card still shows those plants in its history timeline (under "unclassified") but produces no avoid/prefer recommendation for them.
+
+The 12 families with rotation rules — Solanaceae, Brassicaceae, Fabaceae, Alliaceae, Cucurbitaceae, Apiaceae, Asteraceae, Amaranthaceae, Lamiaceae, Poaceae, Polygonaceae, Liliaceae — are listed in `src/lib/rotationFamilies.ts` (browser) and `supabase/functions/_shared/rotationFamilies.ts` (server). A Deno parity test asserts the two stay in sync.
+
+---
+
 ## Related reference files
 
 - [The Shed](../03-garden-hub/01-the-shed.md)
 - [Plant Edit Modal](../08-modals-and-overlays/06-plant-edit-modal.md)
 - [Instance Edit Modal](../08-modals-and-overlays/08-instance-edit-modal.md)
 - [Plant Providers](./25-plant-providers.md)
+- [Area Details — Crop Rotation](../03-garden-hub/04-area-details.md)
+- [AI — Gemini (rotation context injection)](./13-ai-gemini.md)
 
 ## Code references for ongoing maintenance
 

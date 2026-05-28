@@ -335,6 +335,7 @@ The BetaFeedbackBanner sits above the page (global), not Shed-specific.
 ## Related reference files
 
 - [Watchlist](./02-watchlist.md)
+- [Senescence](./12-senescence.md) — the history of ended plant instances (sibling tab in the Garden Hub strip)
 - [Location Manager](./03-location-manager.md)
 - [Area Details](./04-area-details.md)
 - [Garden Layout Editor](./06-garden-layout-editor.md)
@@ -342,6 +343,7 @@ The BetaFeedbackBanner sits above the page (global), not Shed-specific.
 - [Plant Edit Modal](../08-modals-and-overlays/06-plant-edit-modal.md)
 - [Plant Assignment Modal](../08-modals-and-overlays/07-plant-assignment-modal.md)
 - [Bulk Search Modal](../08-modals-and-overlays/04-bulk-search-modal.md)
+- [Lifecycle Complete Modal](../08-modals-and-overlays/37-lifecycle-complete.md) — the end-of-life flow opened from per-instance buttons; destination is the Senescence tab
 - [Plant Doctor Chat](../05-tools/03-plant-doctor-chat.md)
 - [AI Assistant Card](../02-dashboard/06-assistant-card.md)
 - [Data Model — Plants (cross-cutting)](../99-cross-cutting/03-data-model-plants.md)
