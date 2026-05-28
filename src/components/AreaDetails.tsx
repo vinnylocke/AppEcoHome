@@ -23,6 +23,7 @@ import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import AreaAdvancedFields from "./AreaAdvancedFields";
+import AreaInsightsPanel from "./area/AreaInsightsPanel";
 import InstanceEditModal from "./InstanceEditModal";
 import BulkConfigModal from "./BulkConfigModal";
 import { ConfirmModal } from "./ConfirmModal";
@@ -506,6 +507,17 @@ export default function AreaDetails({
               </div>
             )}
           </div>
+        )}
+
+        {/* Insights panel (rotation card today; future per-area intelligence). */}
+        {area?.id && (
+          <AreaInsightsPanel
+            homeId={homeId}
+            areaId={area.id}
+            areaName={area.name ?? "this area"}
+            isOutside={isOutside}
+            aiEnabled={aiEnabled}
+          />
         )}
 
         <div className="space-y-4">

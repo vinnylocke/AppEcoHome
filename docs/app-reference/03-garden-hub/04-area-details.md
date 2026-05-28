@@ -22,6 +22,12 @@ AreaDetails (modal)
 ├── Header (close, edit, area name)
 ├── Overview tab
 │   ├── Metric chips (lux, pH, growing medium, water movement)
+│   ├── AreaInsightsPanel (collapsible — outdoor areas only)
+│   │   └── AreaRotationCard
+│   │       ├── Recommendation banner (avoid / prefer chips)
+│   │       ├── "Suggest plants for next season" CTA (Sage+ only)
+│   │       │   └── SuggestRotationPlantsSheet → TaskActionButtons
+│   │       └── Full multi-year history timeline (no lookback cap)
 │   ├── Plant grid (inventory_items in this area)
 │   ├── Today's tasks for this area
 │   └── Edit Area button
@@ -36,6 +42,17 @@ AreaDetails (modal)
 └── AI Recommendations tab (Sage/Evergreen only)
     └── Calls `home-location-details` for AI-summarised insights
 ```
+
+### Crop Rotation (Insights panel)
+
+A collapsible Insights panel rendered between the metric chips and the plant grid hosts per-area intelligence. The first inhabitant is the rotation card:
+
+- **Data source**: `inventory_items` joined to `plants.family`, rolled up by calendar year via `src/lib/rotationEngine.ts`. No lookback cap on display — every year the area has data for shows.
+- **Recommendation logic**: families in the 12-family rules map (`src/lib/rotationFamilies.ts`) are flagged for avoid when grown within their `avoidYears` window; partner families are surfaced for prefer. Unknown families show in the timeline with no recommendation chip.
+- **Indoor areas** (`areas.is_outside === false`) hide the panel entirely — rotation rules don't apply.
+- **Open / collapse state** persisted in `localStorage` per area (`rhozly:area-insights:{areaId}`). Defaults open when there's an active "avoid" recommendation, collapsed otherwise.
+- **AI active suggestion (Sage+)**: tapping "Suggest plants for next season" opens `SuggestRotationPlantsSheet` which calls `suggest-rotation-plants`. The response includes 5–8 plants with personalised reasoning + schedulable_tasks that route through the existing `TaskActionButtons` → `tasks` / `task_blueprints` insert path.
+- **AI prompt injection (everywhere)**: the same rotation block flows into `_shared/gardenContext.ts` and directly into `generate-swipe-plants`, so plant suggestions across the app are inherently rotation-aware.
 
 ### Data flow — read paths
 
