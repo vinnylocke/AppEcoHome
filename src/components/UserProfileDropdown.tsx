@@ -26,7 +26,7 @@ const LS_VERSION_FIRST_SEEN_AT = "rhozly_version_first_seen_at";
 type SubscriptionTier = "sprout" | "botanist" | "sage" | "evergreen" | null;
 
 const TIER_LABEL: Record<NonNullable<SubscriptionTier>, string> = {
-  sprout:    "Sprout",
+  sprout:    "Sprout (Free)",
   botanist:  "Botanist",
   sage:      "Sage",
   evergreen: "Evergreen",
@@ -75,7 +75,7 @@ function SectionLabel({ label }: { label: string }) {
 }
 
 export default function UserProfileDropdown({ displayName, firstName, email, subscriptionTier, isAdmin, canViewAudit, appVersion, onVersionClick }: Props) {
-  const tierLabel = subscriptionTier ? TIER_LABEL[subscriptionTier] : "Free";
+  const tierLabel = subscriptionTier ? TIER_LABEL[subscriptionTier] : "Sprout (Free)";
   const nameLabel = displayName || firstName || email?.split("@")[0] || tierLabel;
   const [open, setOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
@@ -135,13 +135,13 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
 
   const profileItems: DropdownItem[] = [
     { testId: "nav-gardener-profile", icon: <Medal size={15} />, label: "Account Settings", path: "/gardener" },
-    { testId: "user-profile-garden-profile", icon: <Sprout size={15} />, label: "Garden Quiz & Preferences", path: "/profile" },
+    { testId: "user-profile-garden-profile", icon: <Sprout size={15} />, label: "Garden Preferences", path: "/profile" },
   ];
 
   const managementItems: DropdownItem[] = [
     { testId: "user-profile-location-management", icon: <Wrench size={15} />, label: "Location Management", path: "/management" },
     { testId: "user-profile-home-management", icon: <Building2 size={15} />, label: "Members & Permissions", path: "/home-management" },
-    { testId: "user-profile-task-manager", icon: <Repeat size={15} />, label: "Task Manager", path: "/schedule" },
+    { testId: "user-profile-task-manager", icon: <Repeat size={15} />, label: "Routines", path: "/schedule" },
   ];
   if (canViewAudit) {
     managementItems.push({ testId: "user-profile-audit-log", icon: <ClipboardList size={15} />, label: "Audit Log", path: "/audit" });

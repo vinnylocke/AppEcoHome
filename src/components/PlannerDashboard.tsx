@@ -316,7 +316,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-8">
         <div>
           <h1 className="text-3xl sm:text-4xl font-black font-display text-rhozly-on-surface flex items-center gap-3">
-            <IconPlanner className="text-rhozly-primary" size={32} /> Garden Planner
+            <IconPlanner className="text-rhozly-primary" size={32} /> Planner
             {plans.filter((p) => p.status !== "archived").length > 0 && (
               <span className="text-base font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
                 {plans.filter((p) => p.status !== "archived").length}
@@ -324,7 +324,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
             )}
           </h1>
           <p className="text-sm font-bold text-rhozly-on-surface/50 mt-1">
-            Group your plant choices, tasks, and notes into garden projects.
+            Plan a garden project from idea to harvest — group plants, tasks, and notes together.
           </p>
         </div>
         <div className="w-full md:w-auto flex flex-col md:flex-row md:items-center gap-2">
@@ -345,12 +345,12 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                 title={
                   hasOverhaulAccess
                     ? "Photo + AI redesign — Sage+ feature"
-                    : "Overhaul: Sage+ feature"
+                    : "Reimagine: Sage+ feature"
                 }
                 className="px-3 sm:px-4 py-4 bg-white border-2 border-rhozly-primary/30 text-rhozly-primary rounded-2xl font-black shadow-sm hover:bg-rhozly-primary/5 transition-transform active:scale-95 flex items-center gap-1.5 justify-center min-w-0"
               >
                 <IconAI size={18} />
-                <span className="truncate">Overhaul</span>
+                <span className="truncate">Reimagine</span>
                 {!hasOverhaulAccess && (
                   <span className="text-[9px] uppercase tracking-widest text-rhozly-on-surface/45 hidden sm:inline">
                     Sage+

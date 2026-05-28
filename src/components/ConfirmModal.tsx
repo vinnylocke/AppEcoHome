@@ -92,7 +92,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
   // 🚀 PORTAL WRAPPER: Automatically teleports this component to the body whenever it's used!
   return createPortal(
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-rhozly-bg/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div ref={trapRef} role="alertdialog" aria-modal="true" className="bg-rhozly-surface-lowest rounded-3xl w-full max-w-md border border-rhozly-outline/20 shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
+      <div ref={trapRef} role="alertdialog" aria-modal="true" aria-labelledby="confirm-modal-title" className="bg-rhozly-surface-lowest rounded-3xl w-full max-w-md border border-rhozly-outline/20 shadow-2xl animate-in zoom-in-95 duration-200 overflow-hidden">
         {/* Header */}
         <div className="flex items-start justify-between p-6 pb-4">
           <div className="flex items-center gap-3">
@@ -101,7 +101,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             >
               <AlertTriangle className="w-6 h-6" />
             </div>
-            <h3 className="font-display font-black text-xl text-rhozly-on-surface">
+            <h3 id="confirm-modal-title" className="font-display font-black text-xl text-rhozly-on-surface">
               {title}
             </h3>
           </div>

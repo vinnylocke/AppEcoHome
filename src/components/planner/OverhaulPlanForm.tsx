@@ -140,7 +140,7 @@ export default function OverhaulPlanForm({ homeId, isOpen, onClose, onSubmitted,
     } catch (err) {
       Logger.error("Garden overhaul submit failed", err);
       const msg = err instanceof Error ? err.message : "Unknown error";
-      toast.error(`Couldn't start the overhaul — ${msg}`);
+      toast.error(`Couldn't start Reimagine — ${msg}`);
     } finally {
       setIsGenerating(false);
     }
@@ -225,13 +225,13 @@ export default function OverhaulPlanForm({ homeId, isOpen, onClose, onSubmitted,
                 <Lock size={26} />
               </div>
               <h3 className="font-black text-rhozly-on-surface text-lg">
-                Garden Overhaul is a Sage+ feature
+                Reimagine is a Sage+ feature
               </h3>
               <p className="text-sm text-rhozly-on-surface/65 max-w-sm mx-auto leading-snug">
-                Upload a photo of your current garden and Rhozly uses Gemini Vision + AI image transformation to redesign it — same photo, new garden. Available on Sage and Evergreen subscriptions.
+                Upload a photo of your current garden and Rhozly uses Gemini Vision + AI image transformation to reimagine it — same photo, new garden. Available on Sage and Evergreen subscriptions.
               </p>
               <p className="text-[11px] text-rhozly-on-surface/55">
-                ~${estimatedCostUsd.toFixed(2)} per overhaul on Gemini's paid tier.
+                ~${estimatedCostUsd.toFixed(2)} per reimagining on Gemini's paid tier.
               </p>
             </div>
           ) : step === 1 ? (

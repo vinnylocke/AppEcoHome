@@ -9,6 +9,8 @@ import { ACHIEVEMENTS } from "../lib/achievements";
 import AIUsagePanel from "./AIUsagePanel";
 import QuickLauncherPicker from "./quick/QuickLauncherPicker";
 import { useHighContrast } from "../hooks/useHighContrast";
+import PersonaSetting from "./PersonaSetting";
+import JournalAutoUpdateSetting from "./JournalAutoUpdateSetting";
 
 interface Props {
   userId: string;
@@ -1070,6 +1072,8 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
             onDisplayNameChange={onDisplayNameChange}
             onTierChange={onTierChange}
           />
+          <PersonaSetting userId={userId} />
+          <JournalAutoUpdateSetting userId={userId} />
           <QuickLauncherPicker
             userId={userId}
             homeId={homeId ?? null}

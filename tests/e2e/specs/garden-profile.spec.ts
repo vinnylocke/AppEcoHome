@@ -16,7 +16,7 @@ test.describe("Garden Profile — page structure", () => {
     await authenticatedPage.goto("/dashboard");
 
     await authenticatedPage
-      .getByRole("button", { name: "Garden Profile" })
+      .getByRole("button", { name: "Garden Preferences" })
       .first()
       .click();
 

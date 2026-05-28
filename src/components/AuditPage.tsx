@@ -10,6 +10,7 @@ import {
   Download,
   TrendingUp,
   Printer,
+  Bot,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { usePermissions } from "../context/HomePermissionsContext";
@@ -42,6 +43,18 @@ interface AiUsageRow {
   /** Per-call image generation cost. Already included in estimated_cost_usd. */
   image_cost_usd: number | null;
   estimated_cost_usd: number | null;
+}
+
+interface AiActionRow {
+  id: string;
+  created_at: string;
+  user_id: string;
+  tool_name: string;
+  risk_level: "auto" | "confirm" | "strong_confirm";
+  status: "pending" | "confirmed" | "executed" | "failed" | "cancelled" | "expired";
+  preview: string | null;
+  tool_args: Record<string, unknown> | null;
+  error_message: string | null;
 }
 
 const EVENT_LABELS: Record<string, string> = {
@@ -159,7 +172,7 @@ export default function AuditPage({ homeId }: Props) {
   const { role, can, homeMembers } = usePermissions();
   const canViewAll = role === "owner" || role === "admin" || can("audit.view_all");
 
-  const [activeTab, setActiveTab] = useState<"activity" | "ai_usage">("activity");
+  const [activeTab, setActiveTab] = useState<"activity" | "ai_usage" | "ai_actions">("activity");
   const [dateFrom, setDateFrom] = useState(thirtyDaysAgoStr);
   const [dateTo, setDateTo] = useState(todayStr);
   const [selectedUserId, setSelectedUserId] = useState<string>("all");
@@ -172,6 +185,11 @@ export default function AuditPage({ homeId }: Props) {
   const [aiUsage, setAiUsage] = useState<AiUsageRow[]>([]);
   const [aiLoading, setAiLoading] = useState(false);
   const [aiHasMore, setAiHasMore] = useState(false);
+
+  const [aiActions, setAiActions] = useState<AiActionRow[]>([]);
+  const [aiActionsLoading, setAiActionsLoading] = useState(false);
+  const [aiActionsHasMore, setAiActionsHasMore] = useState(false);
+  const [expandedActionId, setExpandedActionId] = useState<string | null>(null);
 
   const userMap = useMemo(() => {
     const m: Record<string, string> = {};
@@ -244,16 +262,51 @@ export default function AuditPage({ homeId }: Props) {
     }
   }, [homeId, dateFrom, dateTo, selectedUserId, aiUsage.length]);
 
+  const fetchAiActions = useCallback(async (append = false) => {
+    setAiActionsLoading(true);
+    try {
+      let query = supabase
+        .from("chat_tool_calls")
+        .select("id, created_at, user_id, tool_name, risk_level, status, preview, tool_args, error_message")
+        .eq("home_id", homeId)
+        .gte("created_at", toRangeStart(dateFrom))
+        .lte("created_at", toRangeEnd(dateTo))
+        .order("created_at", { ascending: false })
+        .limit(PAGE_SIZE + 1);
+
+      if (selectedUserId !== "all") {
+        query = query.eq("user_id", selectedUserId);
+      }
+
+      if (append) {
+        query = query.range(aiActions.length, aiActions.length + PAGE_SIZE);
+      }
+
+      const { data } = await query;
+      const rows = (data ?? []) as AiActionRow[];
+      const hasMore = rows.length > PAGE_SIZE;
+      if (hasMore) rows.pop();
+
+      setAiActions((prev) => (append ? [...prev, ...rows] : rows));
+      setAiActionsHasMore(hasMore);
+    } finally {
+      setAiActionsLoading(false);
+    }
+  }, [homeId, dateFrom, dateTo, selectedUserId, aiActions.length]);
+
   useEffect(() => {
     setEvents([]);
     setAiUsage([]);
+    setAiActions([]);
     setEventsHasMore(false);
     setAiHasMore(false);
+    setAiActionsHasMore(false);
   }, [dateFrom, dateTo, selectedUserId, activeTab]);
 
   useEffect(() => {
     if (activeTab === "activity") fetchEvents(false);
-    else fetchAiUsage(false);
+    else if (activeTab === "ai_usage") fetchAiUsage(false);
+    else fetchAiActions(false);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeTab, dateFrom, dateTo, selectedUserId]);
 
@@ -271,6 +324,29 @@ export default function AuditPage({ homeId }: Props) {
     return Array.from(map.entries())
       .map(([fn, s]) => ({ functionName: fn, ...s }))
       .sort((a, b) => b.totalCost - a.totalCost);
+  }, [aiUsage]);
+
+  // Today / This Week / This Month cost rollup — answers the most-asked
+  // admin question ("what did we spend today?") without relying on the date
+  // filter. Always computed against absolute calendar windows so the values
+  // remain stable regardless of the visible date range.
+  const costByRange = useMemo(() => {
+    if (aiUsage.length === 0) return null;
+    const now = new Date();
+    const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+    const weekStart = new Date(todayStart.getTime() - 6 * 24 * 60 * 60 * 1000); // rolling 7 days incl. today
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+    let today = 0;
+    let week = 0;
+    let month = 0;
+    for (const row of aiUsage) {
+      const ts = new Date(row.created_at);
+      const cost = row.estimated_cost_usd ?? 0;
+      if (ts >= monthStart) month += cost;
+      if (ts >= weekStart) week += cost;
+      if (ts >= todayStart) today += cost;
+    }
+    return { today, week, month };
   }, [aiUsage]);
 
   // Cost forecast — projects monthly spend from the current daily run-rate
@@ -424,6 +500,14 @@ export default function AuditPage({ homeId }: Props) {
           <Zap size={14} />
           AI Usage
         </button>
+        <button
+          data-testid="audit-tab-ai-actions"
+          onClick={() => setActiveTab("ai_actions")}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-black transition-colors ${activeTab === "ai_actions" ? "bg-rhozly-primary text-white" : "text-rhozly-on-surface/50 hover:bg-rhozly-surface-low"}`}
+        >
+          <Bot size={14} />
+          AI Actions
+        </button>
       </div>
 
       {/* Activity Log tab */}
@@ -544,6 +628,32 @@ export default function AuditPage({ homeId }: Props) {
             </div>
           ) : (
             <>
+              {/* Today / This Week / This Month cost strip — answers "what did we spend?" at a glance */}
+              {costByRange && (
+                <div className="grid grid-cols-3 gap-2 sm:gap-3" data-testid="audit-cost-by-range">
+                  <div className="bg-white border border-rhozly-outline/10 rounded-2xl p-3 sm:p-4">
+                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/30">Today</p>
+                    <p className="text-lg sm:text-2xl font-black text-rhozly-on-surface mt-1" data-testid="audit-cost-today">
+                      ${costByRange.today.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-white border border-rhozly-outline/10 rounded-2xl p-3 sm:p-4">
+                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/30">
+                      <span className="inline-flex items-center gap-1">This Week <InfoTooltip content="Rolling 7-day window — sum of estimated AI cost from 6 days ago through today" size={10} /></span>
+                    </p>
+                    <p className="text-lg sm:text-2xl font-black text-rhozly-on-surface mt-1" data-testid="audit-cost-week">
+                      ${costByRange.week.toFixed(2)}
+                    </p>
+                  </div>
+                  <div className="bg-white border border-rhozly-outline/10 rounded-2xl p-3 sm:p-4">
+                    <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/30">This Month</p>
+                    <p className="text-lg sm:text-2xl font-black text-rhozly-on-surface mt-1" data-testid="audit-cost-month">
+                      ${costByRange.month.toFixed(2)}
+                    </p>
+                  </div>
+                </div>
+              )}
+
               {/* Forecast + export bar */}
               <div className="flex items-center gap-3 flex-wrap">
                 {costForecast && (
@@ -613,7 +723,7 @@ export default function AuditPage({ homeId }: Props) {
                           <span className="inline-flex items-center gap-1 justify-end"><span className="sm:hidden">Tokens</span><span className="hidden sm:inline">Total</span> <InfoTooltip content="Total tokens processed (Prompt + Output). Tokens are units of text — roughly 1 token ≈ 4 characters" size={11} /></span>
                         </th>
                         <th className="hidden sm:table-cell text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
-                          <span className="inline-flex items-center gap-1 justify-end">Images <InfoTooltip content="Imagen-generated images in this call (Garden Overhaul concept images). Each image at $0.02-$0.06 depending on tier" size={11} /></span>
+                          <span className="inline-flex items-center gap-1 justify-end">Images <InfoTooltip content="Imagen-generated images in this call (Reimagine concept images). Each image at $0.02-$0.06 depending on tier" size={11} /></span>
                         </th>
                         <th className="text-right px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">
                           <span className="inline-flex items-center gap-1 justify-end">Cost <InfoTooltip content="Estimated cost in USD for this AI call — sums token cost + image generation cost" size={11} /></span>
@@ -665,6 +775,105 @@ export default function AuditPage({ homeId }: Props) {
                 )}
               </div>
             </>
+          )}
+        </div>
+      )}
+
+      {/* AI Actions tab — every tool the agent ran in this home */}
+      {activeTab === "ai_actions" && (
+        <div className="space-y-3">
+          {aiActionsLoading && aiActions.length === 0 ? (
+            <div className="flex items-center justify-center py-12 text-rhozly-on-surface/40">
+              <Loader2 size={20} className="animate-spin" />
+            </div>
+          ) : aiActions.length === 0 ? (
+            <div className="text-center py-12 text-sm font-bold text-rhozly-on-surface/40">
+              No AI actions in this range. When the assistant creates tasks, plants,
+              schedules etc. on your behalf, they'll be logged here.
+            </div>
+          ) : (
+            <div className="bg-white border border-rhozly-outline/10 rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full text-xs">
+                  <thead>
+                    <tr className="border-b border-rhozly-outline/10">
+                      <th className="text-left px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">Time</th>
+                      {canViewAll && <th className="text-left px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">User</th>}
+                      <th className="text-left px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">Action</th>
+                      <th className="text-left px-4 py-3 font-black text-rhozly-on-surface/40 whitespace-nowrap">Status</th>
+                      <th className="hidden sm:table-cell text-left px-4 py-3 font-black text-rhozly-on-surface/40">What</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {aiActions.map((row) => {
+                      const statusColour =
+                        row.status === "executed" ? "text-emerald-600 bg-emerald-50" :
+                        row.status === "failed" ? "text-rose-600 bg-rose-50" :
+                        row.status === "cancelled" ? "text-rhozly-on-surface/40 bg-rhozly-surface-low" :
+                        row.status === "expired" ? "text-amber-600 bg-amber-50" :
+                        "text-blue-600 bg-blue-50";
+                      const isExpanded = expandedActionId === row.id;
+                      return (
+                        <React.Fragment key={row.id}>
+                          <tr
+                            className="border-b border-rhozly-outline/5 last:border-0 hover:bg-rhozly-surface/30 transition-colors cursor-pointer"
+                            onClick={() => setExpandedActionId(isExpanded ? null : row.id)}
+                          >
+                            <td className="px-4 py-2.5 font-bold text-rhozly-on-surface/60 whitespace-nowrap">{fmtDate(row.created_at)}</td>
+                            {canViewAll && (
+                              <td className="px-4 py-2.5 font-bold text-rhozly-on-surface/60 truncate max-w-[120px]">
+                                {userMap[row.user_id] ?? row.user_id}
+                              </td>
+                            )}
+                            <td className="px-4 py-2.5 font-bold text-rhozly-on-surface whitespace-nowrap">
+                              {metaLabel(row.tool_name)}
+                              {row.risk_level === "strong_confirm" && (
+                                <span className="ml-1.5 text-[9px] font-black uppercase text-amber-600">destructive</span>
+                              )}
+                            </td>
+                            <td className="px-4 py-2.5 whitespace-nowrap">
+                              <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wide ${statusColour}`}>
+                                {row.status}
+                              </span>
+                            </td>
+                            <td className="hidden sm:table-cell px-4 py-2.5 font-bold text-rhozly-on-surface/55 max-w-[320px] truncate">
+                              {row.preview ?? "—"}
+                            </td>
+                          </tr>
+                          {isExpanded && (
+                            <tr className="bg-rhozly-surface/20">
+                              <td colSpan={canViewAll ? 5 : 4} className="px-4 py-3">
+                                <p className="sm:hidden font-bold text-rhozly-on-surface/70 mb-2">{row.preview ?? "—"}</p>
+                                {row.error_message && (
+                                  <p className="text-rose-600 font-bold mb-2">Error: {row.error_message}</p>
+                                )}
+                                <pre className="text-[10px] text-rhozly-on-surface/45 overflow-x-auto bg-white rounded-lg p-2 border border-rhozly-outline/10">
+                                  {JSON.stringify(row.tool_args ?? {}, null, 2)}
+                                </pre>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              {aiActionsHasMore && (
+                <div className="px-4 py-3 border-t border-rhozly-outline/10">
+                  <button
+                    data-testid="audit-ai-actions-load-more"
+                    onClick={() => fetchAiActions(true)}
+                    disabled={aiActionsLoading}
+                    className="w-full py-2 rounded-xl text-sm font-black text-rhozly-primary border border-rhozly-primary/20 hover:bg-rhozly-primary/5 transition-colors flex items-center justify-center gap-2"
+                  >
+                    {aiActionsLoading ? <Loader2 size={14} className="animate-spin" /> : null}
+                    Load more
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
       )}

@@ -8,6 +8,12 @@ import {
   Footprints,
   Stethoscope,
   ShoppingCart,
+  LayoutGrid,
+  ScanLine,
+  SunMedium,
+  Compass,
+  GraduationCap,
+  NotebookText,
   type LucideIcon,
 } from "lucide-react";
 
@@ -151,6 +157,55 @@ export const QUICK_LAUNCHER_CATALOGUE: readonly QuickLauncherDestination[] = [
     accent: "slate",
     route: "/shopping",
   },
+  // ── Tools (from the Tools Hub) ────────────────────────────────────
+  {
+    id: "journal",
+    label: "Journal",
+    description: "Your full garden journal — every entry in one feed.",
+    icon: NotebookText,
+    accent: "red",
+    route: "/journal",
+  },
+  {
+    id: "guides",
+    label: "Guides",
+    description: "Step-by-step care guides for every level.",
+    icon: GraduationCap,
+    accent: "slate",
+    route: "/guides",
+  },
+  {
+    id: "garden-layout",
+    label: "Layout",
+    description: "Design and visualise your garden in 2D / 3D.",
+    icon: LayoutGrid,
+    accent: "purple",
+    route: "/garden-layout",
+  },
+  {
+    id: "visualiser",
+    label: "Visualiser",
+    description: "Preview how plants look in your space via camera.",
+    icon: ScanLine,
+    accent: "blue",
+    route: "/visualiser",
+  },
+  {
+    id: "light-sensor",
+    label: "Light Sensor",
+    description: "Measure light levels to find the perfect spot.",
+    icon: SunMedium,
+    accent: "amber",
+    route: "/lightsensor",
+  },
+  {
+    id: "sun-tracker",
+    label: "Sun Tracker",
+    description: "Live sun overlay, day length, per-bed sun hours.",
+    icon: Compass,
+    accent: "teal",
+    route: "/sun-trajectory",
+  },
 ];
 
 export const QUICK_LAUNCHER_BY_ID: Record<string, QuickLauncherDestination> =
@@ -165,7 +220,7 @@ export const DEFAULT_QUICK_LAUNCHER_PINS: readonly string[] = [
 ];
 
 export const QUICK_LAUNCHER_MIN = 1;
-export const QUICK_LAUNCHER_MAX = 6;
+export const QUICK_LAUNCHER_MAX = 10;
 
 /**
  * Filters a list of pin ids down to those that (a) still exist in the

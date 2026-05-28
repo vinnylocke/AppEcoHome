@@ -32,6 +32,8 @@ import YieldTab from "./YieldTab";
 import LightTab from "./LightTab";
 import InstanceStatsTab from "./InstanceStatsTab";
 import CompanionPlantsTab from "./CompanionPlantsTab";
+import LifecycleCompleteModal from "./LifecycleCompleteModal";
+import LifecycleAnalysisModal from "./LifecycleAnalysisModal";
 import { getProviderPlantDetails } from "../lib/plantProvider";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { useAiPlantFreshness } from "../hooks/useAiPlantFreshness";
@@ -118,6 +120,14 @@ export default function InstanceEditModal({
       }
     | null
   >(null);
+
+  // Lifecycle-end flow state — shown when the user taps "Mark lifecycle complete".
+  const [lifecycleModalOpen, setLifecycleModalOpen] = useState(false);
+  const [lifecycleAnalysis, setLifecycleAnalysis] = useState<{
+    open: boolean;
+    wasNaturalEnd: boolean;
+    analysis: import("../types").LifecycleAnalysis | null;
+  }>({ open: false, wasNaturalEnd: false, analysis: null });
 
   useEffect(() => {
     const fromSowingId = (instance as Record<string, unknown>).from_sowing_id;
@@ -376,7 +386,7 @@ export default function InstanceEditModal({
   if (typeof document === "undefined") return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
+    <div className="fixed inset-0 z-[80] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
       <div ref={trapRef} role="dialog" aria-modal="true" aria-label="Edit plant instance" className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-3xl p-8 shadow-2xl border border-rhozly-outline/20 relative">
         {/* Cover photo strip — only shown when the user has pinned a cover via
             the Photos tab. Gives the modal a visual anchor for this instance. */}
@@ -603,23 +613,45 @@ export default function InstanceEditModal({
                 onClick={() =>
                   setEditForm({ ...editForm, status: "Unplanted" })
                 }
-                className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${editForm.status === "Unplanted" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+                disabled={editForm.status === "Archived"}
+                className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${editForm.status === "Unplanted" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"} disabled:opacity-40 disabled:cursor-not-allowed`}
               >
                 Unplanted
               </button>
               <button
                 onClick={() => setEditForm({ ...editForm, status: "Planted" })}
-                className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${editForm.status === "Planted" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
+                disabled={editForm.status === "Archived"}
+                className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${editForm.status === "Planted" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"} disabled:opacity-40 disabled:cursor-not-allowed`}
               >
                 Planted
               </button>
-              <button
-                onClick={() => setEditForm({ ...editForm, status: "Archived" })}
-                className={`flex-1 py-3 rounded-xl font-black text-sm transition-all ${editForm.status === "Archived" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
-              >
-                Archived
-              </button>
             </div>
+
+            {/* Lifecycle complete: replaces the old "Archived" toggle with a
+                deliberate flow that captures a closing note + optional AI
+                analysis of what may have gone wrong. */}
+            {editForm.status === "Archived" || (instance as any)?.ended_at ? (
+              <div className="flex items-center gap-3 bg-rhozly-surface-low border border-rhozly-outline/15 rounded-2xl p-4">
+                <div className="p-2 rounded-xl bg-rhozly-primary/10 text-rhozly-primary">
+                  <BookOpenCheck size={16} />
+                </div>
+                <div className="flex-1 text-sm">
+                  <p className="font-black text-rhozly-on-surface">Lifecycle complete</p>
+                  <p className="text-xs font-bold text-rhozly-on-surface/50 mt-0.5">
+                    This plant's records are archived. Its journal stays in your garden history.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setLifecycleModalOpen(true)}
+                data-testid="instance-mark-lifecycle-complete"
+                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-rhozly-outline/20 text-sm font-black text-rhozly-on-surface/70 hover:border-rhozly-primary/40 hover:text-rhozly-primary transition-colors"
+              >
+                <BookOpenCheck size={14} /> Mark lifecycle complete
+              </button>
+            )}
 
             {editForm.status === "Planted" && (
               <div className="space-y-6 p-6 bg-rhozly-surface-low rounded-3xl animate-in zoom-in-95 border border-rhozly-outline/5">
@@ -822,6 +854,30 @@ export default function InstanceEditModal({
           </div>
         )}
       </div>
+
+      <LifecycleCompleteModal
+        isOpen={lifecycleModalOpen}
+        instanceId={instance.id}
+        homeId={homeId}
+        plantName={instance.identifier || instance.plant_name || "this plant"}
+        aiEnabled={aiEnabled}
+        onClose={() => setLifecycleModalOpen(false)}
+        onCompleted={({ wasNaturalEnd, analysis }) => {
+          setLifecycleModalOpen(false);
+          setEditForm((prev) => ({ ...prev, status: "Archived" }));
+          onUpdate({ ...instance, status: "Archived", ended_at: new Date().toISOString() });
+          setLifecycleAnalysis({ open: true, wasNaturalEnd, analysis });
+        }}
+      />
+
+      <LifecycleAnalysisModal
+        isOpen={lifecycleAnalysis.open}
+        wasNaturalEnd={lifecycleAnalysis.wasNaturalEnd}
+        analysis={lifecycleAnalysis.analysis}
+        plantName={instance.identifier || instance.plant_name || "this plant"}
+        aiEnabled={aiEnabled}
+        onClose={() => setLifecycleAnalysis({ open: false, wasNaturalEnd: false, analysis: null })}
+      />
     </div>,
     document.body,
   );

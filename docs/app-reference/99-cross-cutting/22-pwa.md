@@ -58,7 +58,21 @@ const updateSW = registerSW({
 });
 ```
 
-`UpdateBanner` listens for `pwa-update-available`.
+`UpdateBanner` listens for `pwa-update-available`. The banner is **mandatory and non-cancellable**: there's a 3-second countdown showing "Updating Rhozly OS… Applying the latest version in {n}s." then the reload fires unconditionally. No "Not now", no dismiss — the user is always brought onto the latest bundle.
+
+### Resume / foreground detection
+
+`useAppVersion` keeps the running bundle in sync with the deployed version by polling `app_config.app_version`. Refresh triggers:
+
+- Initial mount.
+- 30-second interval while the tab is visible (paused when hidden).
+- `document.visibilitychange` → "visible" (tab/window foreground).
+- `window.focus` (some platforms skip visibilitychange).
+- `window.pageshow` (Safari BFCache restore).
+- `window.online` (network return after offline).
+- Capacitor `App.appStateChange` → `isActive=true` (native shell background→foreground; loaded via dynamic import so the web bundle stays clean).
+
+An in-flight guard prevents pile-up when several triggers fire close together. Whenever a poll reveals `dbVersion > bundleVersion`, the hook dispatches the same `pwa-update-available` event the SW would have fired — that's the safety net for the case where the SW is asleep on iOS PWA / similar quirky hosts.
 
 ### Install detection
 

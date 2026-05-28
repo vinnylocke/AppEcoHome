@@ -180,7 +180,7 @@ export default function PlantAssignmentModal({
               cacheRecord.schedule_data.schedules[0].method,
             ]);
           }
-          toast.success("Loaded saved smart schedule!");
+          toast.success("Loaded saved Smart Planting schedule");
           setIsAiLoading(false);
           return;
         }
@@ -244,7 +244,7 @@ export default function PlantAssignmentModal({
         setSelectedSchedules([viableSchedules[0].method]);
       }
 
-      toast.success("AI generated a fresh planting schedule!");
+      toast.success("Smart Planting schedule ready");
     } catch (error: any) {
       Logger.error("AI schedule generation failed", error, {}, `Failed: ${error.message}`);
     } finally {
@@ -527,11 +527,11 @@ export default function PlantAssignmentModal({
                       size={32}
                     />
                     <h4 className="text-sm font-black text-rhozly-on-surface uppercase tracking-widest mb-1">
-                      Smart Schedule
+                      Smart Planting
                       <span className="ml-2 normal-case tracking-normal text-[10px] font-medium text-rhozly-on-surface/30">(Optional)</span>
                     </h4>
                     <p className="text-xs font-bold text-rhozly-on-surface/60 mb-6 leading-relaxed">
-                      Rhozly AI uses a live 14-day weather forecast to suggest the best planting days and care schedule for{" "}
+                      Rhozly AI looks at how this plant can be propagated (seed, cutting, division) and your live 14-day weather forecast to recommend the best planting method and day for{" "}
                       {plant.common_name}. Skip this if you just want to add the plant now.
                     </p>
                     <button
@@ -542,11 +542,11 @@ export default function PlantAssignmentModal({
                       {isAiLoading ? (
                         <>
                           <Loader2 className="animate-spin" size={20} />{" "}
-                          Analyzing Area...
+                          Analysing Area...
                         </>
                       ) : (
                         <>
-                          <IconAI size={20} /> Generate Schedule
+                          <IconAI size={20} /> Generate Smart Planting
                         </>
                       )}
                     </button>

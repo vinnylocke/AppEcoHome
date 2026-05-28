@@ -74,9 +74,9 @@ const GROUPS: ToolGroup[] = [
     description: "Get help when something looks off, or learn the basics.",
     tools: [
       {
-        id: "garden-ai",
+        id: "plant-doctor",
         icon: <IconDoctor size={22} />,
-        label: "Garden AI",
+        label: "Plant Doctor",
         description: "Identify plants, diagnose problems, and get AI-powered care advice.",
         path: "/doctor",
         color: "bg-emerald-100 text-emerald-700 border-emerald-200",
@@ -114,7 +114,7 @@ const WORKFLOWS: Workflow[] = [
     id: "sick-plant",
     label: "A plant looks unwell",
     steps: [
-      { label: "Snap a photo with Garden AI", path: "/doctor" },
+      { label: "Snap a photo with Plant Doctor", path: "/doctor" },
       { label: "Confirm against guides",       path: "/guides" },
       { label: "Track on Watchlist",           path: "/shed?tab=watchlist" },
     ],
@@ -126,7 +126,7 @@ const WORKFLOWS: Workflow[] = [
       { label: "Add it to the Shed",            path: "/shed" },
       { label: "Find a spot in Sun Tracker",    path: "/sun-trajectory?mode=garden" },
       { label: "Measure with Light Sensor",     path: "/lightsensor" },
-      { label: "Set up watering schedule",      path: "/schedule" },
+      { label: "Set up a watering routine",     path: "/schedule" },
     ],
   },
 ];

@@ -1,16 +1,21 @@
 import React, { useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, ChevronRight, Sprout, MapPin, Repeat, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Sprout, MapPin, Repeat, X, Leaf } from "lucide-react";
 import { IconAI } from "../constants/icons";
 import { supabase } from "../lib/supabase";
 import type { OnboardingState } from "../onboarding/types";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import type { UserProfile } from "../types";
 
 interface Props {
   userId: string;
   onboardingState: OnboardingState;
   onStateChange: (state: OnboardingState) => void;
   onClose: () => void;
+  /** Optional callback fired after persona + welcomed_at are saved.
+   *  Lets the parent refresh its local profile copy without a full
+   *  reload. */
+  onPersonaSaved?: (persona: UserProfile["persona"]) => void;
 }
 
 const WELCOME_KEY = "welcome_modal";
@@ -84,6 +89,14 @@ const SLIDES: Slide[] = [
     icon: <Repeat size={32} className="text-indigo-600" />,
     illustration: <TaskFlowDiagram />,
   },
+  // Slide 4: persona capture. Body is rendered by the modal itself
+  // when slideIdx === 3 so it can hold interactive state — `body`
+  // here is a placeholder hidden by the persona-slide branch.
+  {
+    title: "Quick question first",
+    body: "We'll tune the app to suit you. Are you new to gardening, or already experienced?",
+    icon: <Leaf size={32} className="text-rhozly-primary" />,
+  },
   {
     title: "Let's get started",
     body: "The Garden Quiz takes about two minutes and helps Rhozly tailor plant suggestions and reminders to your garden, time, and experience.",
@@ -91,20 +104,31 @@ const SLIDES: Slide[] = [
   },
 ];
 
-export default function WelcomeModal({ userId, onboardingState, onStateChange, onClose }: Props) {
+export default function WelcomeModal({ userId, onboardingState, onStateChange, onClose, onPersonaSaved }: Props) {
   const navigate = useNavigate();
   const [slideIdx, setSlideIdx] = useState(0);
+  const [persona, setPersona] = useState<UserProfile["persona"]>(null);
   const slide = SLIDES[slideIdx];
   const isLast = slideIdx === SLIDES.length - 1;
+  // Slide 3 (zero-indexed) is the persona-capture slide; it renders a
+  // dedicated UI rather than the generic body+illustration shape.
+  const isPersonaSlide = slideIdx === 3;
   const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   const recordCompletion = async (status: "completed" | "dismissed") => {
     const next: OnboardingState = { ...onboardingState, [WELCOME_KEY]: status };
     onStateChange(next);
+    // Persist alongside the persona + welcomed_at timestamp in a
+    // single update so we never end up with partially-applied state.
     await supabase
       .from("user_profiles")
-      .update({ onboarding_state: next })
+      .update({
+        onboarding_state: next,
+        welcomed_at: new Date().toISOString(),
+        persona,
+      })
       .eq("uid", userId);
+    onPersonaSaved?.(persona);
   };
 
   const handleStartQuiz = async () => {
@@ -158,6 +182,29 @@ export default function WelcomeModal({ userId, onboardingState, onStateChange, o
             {slide.body}
           </p>
           {slide.illustration && <div className="w-full">{slide.illustration}</div>}
+          {isPersonaSlide && (
+            <div className="w-full grid grid-cols-2 gap-3 mt-5">
+              <PersonaCard
+                value="new"
+                active={persona === "new"}
+                onSelect={() => setPersona("new")}
+                icon={<Sprout size={22} />}
+                title="New to gardening"
+                subtitle="More tips, less jargon"
+              />
+              <PersonaCard
+                value="experienced"
+                active={persona === "experienced"}
+                onSelect={() => setPersona("experienced")}
+                icon={<Leaf size={22} />}
+                title="Experienced"
+                subtitle="Terser copy, fewer tooltips"
+              />
+              <p className="col-span-2 text-[10px] font-bold uppercase tracking-widest text-rhozly-on-surface/35 text-center mt-1">
+                You can change this anytime in your profile.
+              </p>
+            </div>
+          )}
         </div>
 
         {/* Dots + controls */}
@@ -219,5 +266,45 @@ export default function WelcomeModal({ userId, onboardingState, onStateChange, o
         </div>
       </div>
     </div>
+  );
+}
+
+function PersonaCard({
+  value,
+  active,
+  onSelect,
+  icon,
+  title,
+  subtitle,
+}: {
+  value: "new" | "experienced";
+  active: boolean;
+  onSelect: () => void;
+  icon: React.ReactNode;
+  title: string;
+  subtitle: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      aria-pressed={active}
+      data-testid={`welcome-persona-${value}`}
+      className={`p-4 rounded-2xl border-2 text-left transition-all ${
+        active
+          ? "bg-rhozly-primary/10 border-rhozly-primary shadow-md scale-[1.02]"
+          : "bg-white border-rhozly-outline/15 hover:border-rhozly-primary/30 hover:shadow-sm"
+      }`}
+    >
+      <div
+        className={`inline-flex items-center justify-center w-10 h-10 rounded-xl mb-2 ${
+          active ? "bg-rhozly-primary text-white" : "bg-rhozly-surface-low text-rhozly-primary"
+        }`}
+      >
+        {icon}
+      </div>
+      <p className="font-black text-sm text-rhozly-on-surface leading-tight">{title}</p>
+      <p className="text-[11px] text-rhozly-on-surface/55 leading-snug mt-1">{subtitle}</p>
+    </button>
   );
 }

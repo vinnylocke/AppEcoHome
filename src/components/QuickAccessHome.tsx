@@ -5,6 +5,7 @@ import { ArrowRight, Info, Sparkles, Settings2 } from "lucide-react";
 import QuickTile from "./quick/QuickTile";
 import WalkStartTile from "./walk/WalkStartTile";
 import SeasonalPicksCard from "./seasonal/SeasonalPicksCard";
+import TodayFocusCard from "./shared/TodayFocusCard";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { useQuickLauncherPins } from "../hooks/useQuickLauncherPins";
 import {
@@ -71,11 +72,21 @@ export default function QuickAccessHome({
     homeId: homeId ?? null,
   };
   const tiles = resolvePins(pins, availabilityCtx);
-  // 1-4 pinned → 2 cols (1 or 2 rows). 5-6 pinned → 2 cols 3 rows. Dense
-  // styling stays on for the 4-tile case where each cell is small; relax
-  // to non-dense for ≥5 since the screen is now showing one extra row.
-  const useDenseTiles = tiles.length <= 4;
-  const gridRowsClass = tiles.length <= 2 ? "grid-rows-1" : tiles.length <= 4 ? "grid-rows-2" : "grid-rows-3";
+  // 2-column grid; row count grows with the pin count (max 10 → 5 rows).
+  // The page container is overflow-y-auto, so taller grids just scroll.
+  // Dense (smaller) tiles for ≤4 and ≥7 to conserve vertical space;
+  // 5-6 get the roomier non-dense treatment since they still fit cleanly.
+  const useDenseTiles = tiles.length <= 4 || tiles.length >= 7;
+  const gridRowsClass =
+    tiles.length <= 2
+      ? "grid-rows-1"
+      : tiles.length <= 4
+        ? "grid-rows-2"
+        : tiles.length <= 6
+          ? "grid-rows-3"
+          : tiles.length <= 8
+            ? "grid-rows-4"
+            : "grid-rows-5";
 
   return (
     <div
@@ -179,6 +190,16 @@ export default function QuickAccessHome({
         </div>
         <ArrowRight size={14} className="shrink-0 text-rhozly-on-surface/40" />
       </button>
+
+      {/* Today's focus — surfaces ONE actionable thing (overdue tasks,
+          weather alert, streak) above the tile grid. Hides itself for
+          the "quiet" variant since the SeasonalPicksCard already fills
+          that slot below the tiles on this surface. */}
+      {homeId && (
+        <div className="shrink-0 mb-3">
+          <TodayFocusCard homeId={homeId} variant="quick" />
+        </div>
+      )}
 
       {/* Tiles — customisable launcher (Wave 16). Renders the user's
           pinned destinations from the catalogue. 1-4 pins → 2 cols,

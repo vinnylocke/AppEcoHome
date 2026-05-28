@@ -180,7 +180,7 @@ export default function GardenProfile({
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 data-testid="profile-heading" className="text-3xl font-black font-display text-rhozly-on-surface leading-tight">
-            Garden Profile
+            Garden Preferences
           </h1>
           <p className="text-sm text-rhozly-on-surface/60 mt-0.5">
             Personalise plant recommendations and watering schedules

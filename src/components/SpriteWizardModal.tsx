@@ -401,7 +401,7 @@ export default function SpriteWizardModal({ plants, homeId, onComplete, onClose 
       const url = await uploadAndSave(processedBlob, activeTab);
       finalisePlant(url);
     } catch (err: any) {
-      toast.error("Failed to save sprite. Please try again.");
+      toast.error("Failed to save plant icon. Please try again.");
       setSaving(false);
       setPhase("confirming");
     }
@@ -583,7 +583,7 @@ function CachedPhase({
       <div className="flex items-start gap-3 p-4 bg-rhozly-primary/5 rounded-2xl border border-rhozly-primary/10">
         <CheckCircle2 size={18} className="text-rhozly-primary shrink-0 mt-0.5" />
         <div>
-          <p className="text-sm font-black text-rhozly-on-surface">Sprite already in library</p>
+          <p className="text-sm font-black text-rhozly-on-surface">Icon already in library</p>
           <p className="text-xs font-bold text-rhozly-on-surface/50 mt-0.5">
             A sprite was previously generated for this plant.
           </p>

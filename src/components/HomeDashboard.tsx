@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   RefreshCw,
@@ -18,6 +18,8 @@ import {
 import { useHomeDashboardStats, type HomeDashboardStats } from "../hooks/useHomeDashboardStats";
 import TaskList from "./TaskList";
 import SeasonalPicksCard from "./seasonal/SeasonalPicksCard";
+import TodayFocusCard from "./shared/TodayFocusCard";
+import { usePersona } from "../hooks/usePersona";
 
 interface Props {
   homeId: string;
@@ -489,9 +491,34 @@ function formatWeekRange(weekStart: string | null, weekEnd: string | null): stri
 export default function HomeDashboard({ homeId }: Props) {
   const { stats, loading, error, refresh, weekStart, weekEnd } = useHomeDashboardStats(homeId);
   const weekRange = formatWeekRange(weekStart, weekEnd);
+  const persona = usePersona();
+
+  // Garden Snapshot collapse — open by default for experienced users
+  // who want to see the numbers, collapsed for newcomers (or null
+  // persona) so the dashboard doesn't lead with 20 zero-tiles. The
+  // user's preference is persisted to localStorage so subsequent
+  // visits remember.
+  const STORAGE_KEY = "rhozly:dashboard:snapshot-open";
+  const initialSnapshotOpen = (() => {
+    try {
+      const stored = localStorage.getItem(STORAGE_KEY);
+      if (stored === "true") return true;
+      if (stored === "false") return false;
+    } catch { /* SSR / private mode */ }
+    return persona === "experienced";
+  })();
+  const [snapshotOpen, setSnapshotOpen] = useState(initialSnapshotOpen);
+  useEffect(() => {
+    try { localStorage.setItem(STORAGE_KEY, snapshotOpen ? "true" : "false"); } catch { /* ignore */ }
+  }, [snapshotOpen]);
 
   return (
     <div className="space-y-5">
+      {/* Today's focus — surfaces ONE actionable thing (overdue task,
+          weather alert, streak) at the top so the dashboard answers
+          "what should I do today?" before anything else. */}
+      <TodayFocusCard homeId={homeId} variant="dashboard" />
+
       {/* Header */}
       <div className="flex items-center justify-between px-1">
         <div>
@@ -556,7 +583,25 @@ export default function HomeDashboard({ homeId }: Props) {
             stats.garden.totalPlants === 0 ? (
               <EmptyGardenPanel />
             ) : (
-              <StatsPanel stats={stats} homeId={homeId} />
+              <div>
+                <button
+                  type="button"
+                  data-testid="dash-snapshot-toggle"
+                  onClick={() => setSnapshotOpen((o) => !o)}
+                  aria-expanded={snapshotOpen}
+                  className="w-full flex items-center justify-between gap-3 px-4 py-3 rounded-2xl border border-rhozly-outline/15 bg-rhozly-surface-low/40 hover:bg-rhozly-surface-low transition-colors mb-3"
+                >
+                  <span className="flex items-center gap-2 font-black text-sm text-rhozly-on-surface">
+                    <TrendingUp size={16} className="text-rhozly-primary" />
+                    Garden Snapshot
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-widest text-rhozly-on-surface/45 flex items-center gap-1">
+                    {snapshotOpen ? "Hide" : "Show"}
+                    {snapshotOpen ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+                  </span>
+                </button>
+                {snapshotOpen && <StatsPanel stats={stats} homeId={homeId} />}
+              </div>
             )
           ) : !error ? (
             <div className="flex items-center justify-center py-20 text-rhozly-on-surface/30 text-sm font-bold">

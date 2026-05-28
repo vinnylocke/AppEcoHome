@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { Capacitor } from "@capacitor/core";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 
@@ -34,7 +35,7 @@ export interface AppVersionState {
   updateAvailable: boolean;         // true when dbVersion > bundleVersion
 }
 
-const POLL_INTERVAL_MS = 60_000;
+const POLL_INTERVAL_MS = 30_000;
 
 function formatKey(v: VersionPair): string {
   return `${String(v.major).padStart(2, "0")}.${String(v.minor).padStart(4, "0")}`;
@@ -93,20 +94,28 @@ export function useAppVersion(): AppVersionState {
     return () => { cancelled = true; };
   }, []);
 
-  // 2. Poll the DB version. Initial fetch + visibilitychange refresh +
-  //    60s interval while visible. Hidden tabs don't poll.
+  // 2. Poll the DB version. Resume / focus / online / visibilitychange /
+  //    pageshow / Capacitor appStateChange all retrigger a fresh check.
+  //    30s interval while visible. Hidden tabs don't poll.
   useEffect(() => {
     let cancelled = false;
+    let inFlight = false;
 
     const refresh = async () => {
-      const next = await fetchDbVersion();
-      if (cancelled || !next) return;
-      setDb((prev) => {
-        if (prev && prev.major === next.major && prev.minor === next.minor) {
-          return prev; // same — no re-render
-        }
-        return next;
-      });
+      if (inFlight) return;
+      inFlight = true;
+      try {
+        const next = await fetchDbVersion();
+        if (cancelled || !next) return;
+        setDb((prev) => {
+          if (prev && prev.major === next.major && prev.minor === next.minor) {
+            return prev; // same — no re-render
+          }
+          return next;
+        });
+      } finally {
+        inFlight = false;
+      }
     };
 
     // Initial pull.
@@ -135,15 +144,44 @@ export function useAppVersion(): AppVersionState {
 
     if (document.visibilityState === "visible") startInterval();
     document.addEventListener("visibilitychange", onVisibility);
-    // Also refresh on `online` — coming back from no-network catches a
-    // deploy that landed while the user was offline.
+    // Browser foreground events — some platforms (e.g. iOS Safari resuming
+    // from BFCache) skip visibilitychange entirely.
+    window.addEventListener("focus", refresh);
+    window.addEventListener("pageshow", refresh);
+    // Coming back from no-network catches a deploy that landed offline.
     window.addEventListener("online", refresh);
+
+    // Capacitor native shell — `visibilitychange` is unreliable on
+    // background-to-foreground transitions; the App API's appStateChange
+    // fires whenever the OS swaps us back in.
+    let capCleanup: (() => void) | undefined;
+    if (Capacitor.isNativePlatform()) {
+      import("@capacitor/app")
+        .then(({ App }) => {
+          if (cancelled) return;
+          App.addListener("appStateChange", (state) => {
+            if (state.isActive) refresh();
+          }).then((handle) => {
+            if (cancelled) {
+              handle.remove();
+              return;
+            }
+            capCleanup = () => handle.remove();
+          });
+        })
+        .catch((err) => {
+          Logger.error("useAppVersion: Capacitor App plugin import failed", err);
+        });
+    }
 
     return () => {
       cancelled = true;
       stopInterval();
       document.removeEventListener("visibilitychange", onVisibility);
+      window.removeEventListener("focus", refresh);
+      window.removeEventListener("pageshow", refresh);
       window.removeEventListener("online", refresh);
+      capCleanup?.();
     };
   }, []);
 

@@ -117,6 +117,7 @@ Field by field, populated as phases complete:
 - Match each `blueprint.plants[i]` against existing inventory by name.
 - Insert new `inventory_items` for missing plants.
 - `staging_state.plant_mapping = {...}`, `plants_linked = true`.
+- **Agent path:** the AI assistant's `add_plant_to_plan` tool appends to `ai_blueprint.plant_manifest` and sets `plant_mapping[newIndex] = "create"` — the exact write `handleSaveNewPlant` performs for the manual "add custom plant" button. See [Agent Tools](../99-cross-cutting/35-agent-tools.md).
 
 #### Phase 3 — Staging
 - For each mapped inventory item, write `display_x_m / display_y_m`.

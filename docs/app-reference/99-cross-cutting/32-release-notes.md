@@ -86,6 +86,17 @@ Major bumps reset minor/patch.
 
 Pulse dot appears if first-seen-at is within 7 days. Dismisses on tapping What's New or footer version label.
 
+### Bundle-version filter (what the modal actually shows)
+
+`useReleaseNotes()` returns the full DB list (all versions ever deployed). `App.tsx` filters that list down to **versions ≤ the currently-running bundle key** before passing it to `ReleaseNotesModal`. This matters because the deploy pipeline writes the new `release_notes` row *before* the user's bundle has finished rolling out — without the filter, a stale-bundle user would see bullets describing code they don't have yet.
+
+The filter:
+- Compares against `useAppVersion().bundleVersionKey` (the version inside `/build-version.json`, NOT the DB latest).
+- Falls back to the unfiltered list if the bundle key is unreadable (defensive — preferable to an empty modal).
+- Applies to both `mode="latest"` (header reads "What's new in Rhozly OS {bundle}") and `mode="history"` (the all-versions list is capped at the bundle the user is running).
+
+After an update reload, `bundleVersionKey` flips to the new value and the next-version notes become available.
+
 ### Cron / scheduled jobs
 
 None — release notes are static + bundled with the build.

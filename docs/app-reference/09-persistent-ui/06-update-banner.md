@@ -1,6 +1,6 @@
 # Update Banner
 
-> A green floating banner pinned to the bottom-right that appears when a new service-worker (PWA) version is available. Tap "Reload" to activate the new version immediately.
+> A green floating banner pinned to the bottom-right that appears when a new service-worker (PWA) version is available. **Mandatory and non-cancellable** — a 3-second countdown then auto-reload.
 
 **Source file:** `src/components/UpdateBanner.tsx`
 
@@ -8,7 +8,7 @@
 
 ## Quick Summary
 
-Listens for the custom `pwa-update-available` window event (dispatched by `src/main.tsx`'s `registerSW` callback when a new SW is detected). Stashes the `reload()` function from the event detail. Renders a banner with Reload + Dismiss buttons.
+Listens for the custom `pwa-update-available` window event (dispatched by `src/main.tsx`'s `registerSW` callback when a new SW is detected, or by `useAppVersion` when a poll spots a version mismatch). Stashes the `reload()` function from the event detail. Renders a banner that counts down 3 seconds, then triggers the reload. There is no "Not now" and no dismiss — updates are non-negotiable.
 
 ---
 
@@ -19,9 +19,9 @@ Listens for the custom `pwa-update-available` window event (dispatched by `src/m
 ```
 UpdateBanner (renders null until event)
 └── Floating banner (bottom-right)
-    ├── "Update available" text
-    ├── Reload button (calls stashed reload fn)
-    └── Dismiss (X)
+    ├── "Updating Rhozly OS…" headline
+    ├── "Applying the latest version in {n}s." subline
+    └── Progress bar (linear fill over the countdown)
 ```
 
 ### Event contract
@@ -83,21 +83,20 @@ None.
 
 ### Why see this banner
 
-Rhozly auto-updates in the background as a PWA. When a new version is downloaded but not yet active, this banner asks you to reload to activate it.
+Rhozly auto-updates in the background as a PWA. When a new version is detected (either by the service worker or by the version-polling hook), this banner appears, counts down 3 seconds, then reloads — bringing you onto the new version. Updates are mandatory: there's no opt-out, no "later", no "Not now".
 
 ### Every flow
 
 #### 1. Banner appears
 
-- After a background update.
+- After a background update is detected.
+- After resuming the app from minimised / background where a deploy landed in the meantime.
 
-#### 2. Reload
+#### 2. Auto-reload
 
-- Click → applies the update, page reloads with the new version.
-
-#### 3. Dismiss
-
-- X → banner closes. Update applies on next page reload.
+- The progress bar fills over 3 seconds.
+- At zero, the page reloads onto the new bundle.
+- No interaction required (or possible) on your part.
 
 ### Tier-by-tier experience
 
@@ -105,16 +104,16 @@ Same for every tier.
 
 ### Common mistakes / pitfalls
 
-- **Dismissing then forgetting.** Update activates on next reload anyway, but until then you're on the old version.
-- **Dismissing mid-task.** Safe — your work is in the queue / DB. Reload when ready.
+- **In the middle of typing when the banner appears.** Don't worry — work-in-progress data is held by the offline queue + Supabase; the reload won't lose anything in normal flows. If you were mid-modal, finish quickly or accept that a reload will close it.
 
 ### Recommended workflows
 
-- Reload when convenient. Old version stays functional.
+- There isn't one — the banner self-resolves in 3 seconds.
 
 ### What to do if something looks wrong
 
 - **Reload doesn't update version:** SW may be stuck. Open dev tools → Application → Service Workers → Skip Waiting.
+- **Banner re-appears on every resume:** the new bundle isn't installing. Check service-worker status; force-quit the app and reopen.
 
 ---
 

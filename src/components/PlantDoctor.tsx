@@ -41,6 +41,8 @@ import PlantDoctorHistory from "./PlantDoctorHistory";
 import { usePlantDoctorSessions } from "../hooks/usePlantDoctorSessions";
 import PhotoAnnotationOverlay, { type PhotoAnnotation } from "./PhotoAnnotationOverlay";
 import AnalyseResultCard from "./lens/AnalyseResultCard";
+import InfoTooltip from "./InfoTooltip";
+import { usePersona } from "../hooks/usePersona";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -80,6 +82,7 @@ export default function PlantDoctor({
 }: PlantDoctorProps) {
   const { setPageContext } = usePlantDoctor();
   const { requestFeedback } = useBetaFeedbackContext();
+  const persona = usePersona();
   const navigate = useNavigate();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState<"analyse" | "history">("analyse");
@@ -806,9 +809,25 @@ export default function PlantDoctor({
                   <CameraIcon className="w-5 h-5" /> Open Camera
                 </button>
               </div>
-              <p className="text-xs font-bold text-rhozly-on-surface/40 text-center mt-4 max-w-xs">
-                Tip: Good light, close up — try to capture the leaf, stem, or the affected area clearly.
-              </p>
+              {/* Persona-aware tip: newcomers (and unknown persona) see
+                  the full sentence inline; experienced gardeners see a
+                  small `?` they can tap if they want a reminder.
+                  Reinforces that persona capture pays off. */}
+              {persona === "experienced" ? (
+                <div className="mt-4 flex items-center gap-1.5 text-xs font-bold text-rhozly-on-surface/45">
+                  Photo tips
+                  <InfoTooltip
+                    label="Photo tips"
+                    data-testid="doctor-photo-tip-tooltip"
+                  >
+                    Good light, close up — try to capture the leaf, stem, or the affected area clearly. Avoid shadows on the affected part.
+                  </InfoTooltip>
+                </div>
+              ) : (
+                <p className="text-xs font-bold text-rhozly-on-surface/40 text-center mt-4 max-w-xs">
+                  Tip: Good light, close up — try to capture the leaf, stem, or the affected area clearly.
+                </p>
+              )}
             </div>
           ) : (
             <div className="animate-in zoom-in-95 duration-300 xl:grid xl:grid-cols-[2fr_3fr] xl:gap-6 xl:items-start">

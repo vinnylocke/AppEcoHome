@@ -9,10 +9,11 @@
 
 ## Quick Summary
 
-Two stacked tables:
+Three tabs:
 
-1. **User Events** — every `user_events` row for this home, with friendly labels per event type, expandable meta payload, user filter, date range filter.
-2. **AI Usage** — every `ai_calls` row: timestamp, user, function name, action, model, tokens (prompt + candidates + total), estimated cost in USD.
+1. **Activity Log** — every `user_events` row for this home, with friendly labels per event type, expandable meta payload, user filter, date range filter.
+2. **AI Usage** — every `ai_usage_log` row: timestamp, user, function name, action, model, tokens (prompt + candidates + total), estimated cost in USD.
+3. **AI Actions** — every `chat_tool_calls` row: timestamp, user, tool name (with a "destructive" badge for strong-confirm tools), status (executed / failed / cancelled / pending / expired, colour-coded), and the human-readable `preview`. Rows expand to show the raw tool args + any error message. Sourced from the agent (tool-calling Plant Doctor chat) — see [Agent Tools](../99-cross-cutting/35-agent-tools.md).
 
 Filters: user picker, date range (default last 30 days), event-type group. Export CSV / print supported. Mobile collapses the three token columns into one for readability.
 
@@ -155,8 +156,10 @@ Most casual users never open it. Owners of shared homes use it weekly.
 
 #### 3. AI Usage section
 
-- Per-call breakdown.
-- Top tiles show monthly totals.
+- **Cost strip** at the top: three tiles showing **Today**, **This Week** (rolling 7 days), and **This Month** (calendar month) spend. Computed against absolute calendar windows so the numbers stay stable regardless of the filter date range below.
+- **Cost forecast** bar below — projects monthly spend from the current daily run-rate.
+- Per-feature breakdown cards (Plant Doctor, Garden Plan, etc.) — calls, tokens, cost per feature.
+- Per-call detail table further below.
 - Useful for tracking quota / cost.
 
 #### 4. Export

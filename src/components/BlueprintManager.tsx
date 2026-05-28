@@ -23,6 +23,7 @@ import { usePermissions } from "../context/HomePermissionsContext";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { useSearchParams } from "react-router-dom";
 import InfoTooltip from "./InfoTooltip";
+import EmptyState from "./shared/EmptyState";
 
 import AddTaskModal from "./AddTaskModal";
 import { ConfirmModal } from "./ConfirmModal";
@@ -238,9 +239,9 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
   const handleDeleteClick = (bp: any) => {
     setConfirmState({
       isOpen: true,
-      title: "Delete Task Schedule",
+      title: "Delete Routine",
       description:
-        "Are you sure you want to permanently delete this task schedule? Future tasks will no longer be generated.",
+        "Are you sure you want to permanently delete this routine? Future tasks will no longer be generated.",
       confirmText: "Delete",
       onConfirm: async () => {
         const { error } = await supabase
@@ -377,7 +378,7 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
       <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 mb-4">
         <div>
           <h1 data-testid="schedule-heading" className="text-4xl font-black font-display text-rhozly-on-surface flex items-center gap-3">
-            Task Schedules
+            Routines
             {blueprints.length > 0 && activeTab === "blueprints" && (
               <span className="text-base font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
                 {blueprints.length}
@@ -385,7 +386,7 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
             )}
           </h1>
           <p className="text-sm font-bold text-rhozly-on-surface/40 mt-1">
-            Set recurring reminders once — Rhozly handles the rest. Watering every 4 days, pruning every 3 weeks, on autopilot.
+            Set up recurring care once — Rhozly handles the rest. Watering every 4 days, pruning every 3 weeks, on autopilot.
           </p>
         </div>
         {can("tasks.create_home") && activeTab === "blueprints" && (
@@ -394,7 +395,7 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
             onClick={() => setIsBuilding(true)}
             className="flex items-center justify-center gap-2 bg-rhozly-primary text-white px-6 py-3.5 rounded-2xl font-black shadow-lg hover:scale-105 transition-transform active:scale-95"
           >
-            <Plus size={18} strokeWidth={3} /> New Task Schedule
+            <Plus size={18} strokeWidth={3} /> New Routine
           </button>
         )}
       </div>
@@ -407,14 +408,14 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
             onClick={() => setActiveTab("blueprints")}
             className={`shrink-0 px-5 py-2 rounded-xl text-sm font-bold transition-colors ${activeTab === "blueprints" ? "bg-white text-rhozly-on-surface shadow-sm" : "text-rhozly-on-surface-variant hover:text-rhozly-on-surface"}`}
           >
-            Task Schedules
+            Routines
           </button>
           <button
             data-testid="tab-optimise"
             onClick={() => setActiveTab("optimise")}
             className={`shrink-0 px-5 py-2 rounded-xl text-sm font-bold transition-colors ${activeTab === "optimise" ? "bg-white text-rhozly-on-surface shadow-sm" : "text-rhozly-on-surface-variant hover:text-rhozly-on-surface"}`}
           >
-            Optimise
+            Suggestions
           </button>
         </div>
       </div>
@@ -436,8 +437,8 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
                 type="text"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Search task schedules..."
-                aria-label="Search task schedules"
+                placeholder="Search routines..."
+                aria-label="Search routines"
                 className="w-full pl-12 pr-4 py-3.5 bg-white border border-rhozly-outline/10 rounded-2xl font-bold shadow-sm outline-none focus:border-rhozly-primary focus:ring-1 focus:ring-rhozly-primary/20 transition-all"
               />
               {searchQuery && (
@@ -578,44 +579,32 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
       )}
 
       {blueprints.length === 0 ? (
-        <div className="bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-3xl p-12 text-center flex flex-col items-center justify-center min-h-[400px]">
-          <div className="relative mb-6">
-            <div className="absolute inset-0 bg-rhozly-primary/5 rounded-full blur-2xl"></div>
-            <Repeat size={64} className="text-rhozly-primary/30 relative" strokeWidth={2} />
-          </div>
-          <p className="font-black text-2xl text-rhozly-on-surface mb-2">
-            No automations yet
-          </p>
-          <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6 max-w-md">
-            Create custom schedules or use the AI Planner to generate them automatically.
-          </p>
-          {can("tasks.create_home") && (
-            <button
-              onClick={() => setIsBuilding(true)}
-              className="flex items-center justify-center gap-2 bg-rhozly-primary text-white px-8 py-4 rounded-2xl font-black shadow-lg hover:scale-105 transition-transform active:scale-95"
-            >
-              <Plus size={20} strokeWidth={3} /> Create Your First Automation
-            </button>
-          )}
-        </div>
+        <EmptyState
+          size="lg"
+          icon={<Repeat size={36} />}
+          title="No routines yet"
+          body="Create routines yourself or use Smart Routines on a plant to generate them automatically."
+          primaryCta={
+            can("tasks.create_home")
+              ? {
+                  label: "Create your first routine",
+                  onClick: () => setIsBuilding(true),
+                  icon: <Plus size={16} />,
+                }
+              : undefined
+          }
+        />
       ) : filteredBlueprints.length === 0 ? (
-        <div className="bg-rhozly-surface border border-rhozly-outline/10 rounded-3xl p-12 text-center flex flex-col items-center justify-center py-24 shadow-sm animate-in fade-in">
-          <Search size={40} className="text-gray-300 mb-4" />
-          <p className="font-black text-xl text-gray-700">No matches found</p>
-          <p className="text-sm font-bold text-gray-400 mt-2 max-w-sm">
-            Try adjusting your filters or search query to find what you're
-            looking for.
-          </p>
-          <button
-            onClick={() => {
-              setSearchQuery("");
-              clearFilters();
-            }}
-            className="mt-6 px-6 py-3 bg-rhozly-surface-low hover:bg-rhozly-surface text-rhozly-on-surface/70 rounded-xl font-black transition-colors"
-          >
-            Clear All Filters
-          </button>
-        </div>
+        <EmptyState
+          size="lg"
+          icon={<Search size={32} />}
+          title="No matches found"
+          body="Try adjusting your filters or search query."
+          primaryCta={{
+            label: "Clear all filters",
+            onClick: () => { setSearchQuery(""); clearFilters(); },
+          }}
+        />
       ) : (
         <>
           <div className="sr-only" aria-live="polite" aria-atomic="true">
@@ -859,7 +848,7 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
             const isNew = !editingBlueprint;
             setIsBuilding(false);
             setEditingBlueprint(null);
-            toast.success("Automation saved");
+            toast.success("Routine saved");
             if (isNew) requestFeedback("blueprint_create");
             fetchBlueprints();
           }}

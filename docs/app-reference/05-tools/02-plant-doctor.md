@@ -1,6 +1,8 @@
 # Plant Doctor
 
-> The AI vision tool for plants — point a camera, get a comprehensive analysis (the primary path) or run a single targeted action (identify / diagnose / pest). Photo in → AI analysis → care plan, treatment, pest workup → optional follow-up actions (save to Shed, generate task schedule, add supplies to shopping). The new **Analyse** path is the recommended default and also produces a list of suggested tasks ready to drop into the user's calendar in one tap.
+> The AI vision tool for plants — point a camera, get a comprehensive analysis (the primary path) or run a single targeted action (identify / diagnose / pest). Photo in → AI analysis → care plan, treatment, pest workup → optional follow-up actions (save to Shed, generate routines, add supplies to shopping). The new **Analyse** path is the recommended default and also produces a list of suggested tasks ready to drop into the user's calendar in one tap.
+
+> **Naming note:** "Plant Doctor" is the **photo-driven** surface at `/doctor`. The separate floating sticky chat overlay (mounted globally on every page) is branded **Garden AI** and is documented in [`03-plant-doctor-chat.md`](./03-plant-doctor-chat.md). They share Gemini infrastructure but are distinct surfaces — don't conflate them in copy or in nav.
 
 **Route:** `/doctor`
 **Source file:** `src/components/PlantDoctor.tsx` (~1,800 lines)

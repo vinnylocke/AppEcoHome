@@ -1,6 +1,13 @@
-# Blueprint Manager (Task Schedules)
+# Routines (formerly Blueprint Manager / Task Schedules)
 
-> The recurring-task-template manager. "Blueprint" is the internal term; the UI labels it "Task Schedule" everywhere. Where you define watering reminders, pruning schedules, harvesting cadences, fertilising cycles — the templates that generate the daily tasks you see on the dashboard.
+> The recurring-care-template manager. `task_blueprints` is the internal DB table name; the UI now labels these as **Routines** everywhere. Where you define watering reminders, pruning schedules, harvesting cadences, fertilising cycles — the templates that generate the daily tasks you see on the dashboard.
+
+**Vocabulary (wording-audit pass):**
+- The surface is called **Routines**.
+- Each row is a **Routine** (the rule).
+- Each generated occurrence is a **Task** (the dated to-do).
+- The per-plant AI feature on the Plant Assignment modal that auto-generates routines is **Smart Routines** (previously "Smart Schedule").
+- Smart-device schedules under Integrations remain **Automations** (separate concept, separate table).
 
 **Route:** `/schedule`
 **Source files:**

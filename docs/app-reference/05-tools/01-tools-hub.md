@@ -25,7 +25,7 @@ ToolsHub
 ├── Tool groups
 │   ├── Plan & Design (Garden Layout, Plant Visualiser)
 │   ├── Measure & Track (Light Sensor, Sun Tracker)
-│   └── Diagnose & Learn (Garden AI, Guides)
+│   └── Diagnose & Learn (Plant Doctor, Guides)
 ├── Connect Hardware card → /integrations
 └── Workflows (3 multi-step recipes)
 ```
@@ -129,7 +129,7 @@ When you don't know what tool you need yet but have a problem to solve, this is 
 
 | Tier | Differences |
 |------|-------------|
-| Every tier | Same Hub. Tier-gated tools (Garden AI, advanced Visualiser) paywall on the destination screen, not here. |
+| Every tier | Same Hub. Tier-gated tools (Plant Doctor, advanced Visualiser) paywall on the destination screen, not here. |
 
 ### New user vs returning user
 

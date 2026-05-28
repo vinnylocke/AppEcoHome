@@ -19,6 +19,7 @@ import { usePermissions } from "../context/HomePermissionsContext";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
+import EmptyState from "./shared/EmptyState";
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
@@ -1020,7 +1021,7 @@ function AddAilmentModal({
                       </div>
                       <p className="font-black text-rhozly-on-surface text-sm mb-1">AI subscription required</p>
                       <p className="text-xs font-bold text-rhozly-on-surface/50 leading-relaxed mb-3">
-                        This feature needs the Botanist or Sage plan.
+                        This is a Sage+ feature.
                       </p>
                       <button
                         onClick={() => { onClose(); navigate("/gardener"); }}
@@ -1672,7 +1673,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
       <div className="flex items-center justify-between">
         <div>
           <h1 className="font-black text-3xl text-rhozly-on-surface tracking-tight flex items-center gap-3">
-            Watchlist
+            Ailment Watchlist
             {counts.all > 0 && (
               <span className="text-sm font-black bg-rhozly-primary/10 text-rhozly-primary px-2.5 py-1 rounded-xl">
                 {counts.all}
@@ -1791,37 +1792,34 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
           ))}
         </div>
       ) : (
-        <div className="py-20 text-center bg-rhozly-surface-lowest rounded-3xl border border-rhozly-outline/20">
-          <AlertTriangle size={36} className="mx-auto mb-3 text-rhozly-on-surface/20" />
-          <p className="font-black text-rhozly-on-surface/40">
-            {search
-              ? "No matching ailments."
+        <EmptyState
+          size="lg"
+          icon={<AlertTriangle size={32} />}
+          title={
+            search
+              ? "No matching ailments"
               : viewTab === "archived"
-              ? "No archived ailments."
-              : "Your watchlist is empty."}
-          </p>
-          {!search && viewTab === "active" && (
-            <div className="mt-4 flex flex-col items-center gap-3">
-              <p className="text-xs font-bold text-rhozly-on-surface/30 max-w-xs">Not sure what you're dealing with? Use Plant Doctor to photograph and identify problems.</p>
-              <div className="flex gap-2 flex-wrap justify-center">
-                {can("ailments.add") && (
-                  <button
-                    onClick={() => setShowAdd(true)}
-                    className="px-5 py-2.5 bg-rhozly-primary text-white rounded-2xl text-sm font-black hover:scale-[1.02] transition-transform"
-                  >
-                    Add your first entry
-                  </button>
-                )}
-                <button
-                  onClick={() => navigate("/doctor")}
-                  className="px-5 py-2.5 bg-rhozly-surface text-rhozly-on-surface/60 border border-rhozly-outline/20 rounded-2xl text-sm font-black hover:scale-[1.02] transition-transform"
-                >
-                  Open Plant Doctor
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
+                ? "No archived ailments"
+                : "Your watchlist is empty"
+          }
+          body={
+            !search && viewTab === "active"
+              ? "Not sure what you're dealing with? Use Plant Doctor to photograph and identify problems."
+              : search
+                ? "Try adjusting your search term."
+                : "Archived entries will show up here."
+          }
+          primaryCta={
+            !search && viewTab === "active" && can("ailments.add")
+              ? { label: "Add your first entry", onClick: () => setShowAdd(true), icon: <Plus size={16} /> }
+              : undefined
+          }
+          secondaryCta={
+            !search && viewTab === "active"
+              ? { label: "Open Plant Doctor", onClick: () => navigate("/doctor") }
+              : undefined
+          }
+        />
       )}
 
       {/* Modals — rendered via portal so they escape any parent overflow/z-index */}

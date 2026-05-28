@@ -19,7 +19,7 @@ export class GardenProfilePage {
 
   constructor(page: Page) {
     this.page = page;
-    this.heading = page.getByRole("heading", { name: "Garden Profile" });
+    this.heading = page.getByRole("heading", { name: "Garden Preferences" });
     this.quizTab = page.getByRole("button", { name: /Quiz/i });
     this.swipeTab = page.getByRole("button", { name: /Swipe/i });
     this.progressBar = page.getByRole("progressbar");

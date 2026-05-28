@@ -21,6 +21,7 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { logEvent, EVENT } from "../events/registry";
 import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
+import { getNextOccurrences, formatPreviewLine } from "../lib/scheduleDatePreview";
 import { BlueprintService } from "../services/blueprintService";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
 import { usePermissions } from "../context/HomePermissionsContext";
@@ -108,11 +109,14 @@ export default function AddTaskModal({
    * Nursery integration — when the task type is "Planting", a picker
    * shows the user's active seed packets. Selecting one pre-fills the
    * title + description so the task reads like "Sow Tomato Sungold"
-   * instead of forcing the user to type from scratch. The id is purely
-   * UX state — not persisted on the task itself; the actual sowing
-   * link happens via The Nursery's Log a sowing flow.
+   * instead of forcing the user to type from scratch. The id IS now
+   * persisted on the task — completing a task whose `seed_packet_id` is
+   * set auto-creates a Nursery sowing against that packet via
+   * `sowingAutoCreateService.maybeCreateSowingForTask`.
    */
-  const [pickedNurseryPacketId, setPickedNurseryPacketId] = useState<string | null>(null);
+  const [pickedNurseryPacketId, setPickedNurseryPacketId] = useState<string | null>(
+    existingBlueprint?.seed_packet_id ?? null,
+  );
   // Track whether the user has manually changed the frequency. If not, we
   // re-apply the type's default whenever the task type changes.
   const userTouchedFrequency = useRef(!!existingBlueprint);
@@ -243,9 +247,9 @@ export default function AddTaskModal({
 
     setPageContext({
       action: existingBlueprint
-        ? "Editing an Automation Rule"
+        ? "Editing a Routine"
         : isBlueprintMode
-          ? "Creating an Automation Rule"
+          ? "Creating a Routine"
           : "Creating a new Task",
       taskDetails: {
         title: form.title || "Untitled Task",
@@ -524,6 +528,7 @@ export default function AddTaskModal({
             area_id: form.area_id || null,
             plan_id: form.plan_id || null,
             inventory_item_ids: form.inventory_item_ids,
+            seed_packet_id: form.type === "Planting" ? pickedNurseryPacketId : null,
             frequency_days: form.frequency_days,
             start_date: form.start_date,
             end_date: form.end_date || null,
@@ -533,7 +538,7 @@ export default function AddTaskModal({
           .eq("id", existingBlueprint.id);
 
         if (error) throw error;
-        toast.success("Automation updated!");
+        toast.success("Routine updated");
         onSuccess();
         return;
       }
@@ -551,6 +556,7 @@ export default function AddTaskModal({
               area_id: form.area_id || null,
               plan_id: form.plan_id || null,
               inventory_item_ids: form.inventory_item_ids,
+              seed_packet_id: form.type === "Planting" ? pickedNurseryPacketId : null,
               frequency_days: form.frequency_days,
               is_recurring: true,
               start_date: form.start_date,
@@ -579,6 +585,7 @@ export default function AddTaskModal({
               area_id: form.area_id || null,
               plan_id: form.plan_id || null,
               inventory_item_ids: form.inventory_item_ids,
+              seed_packet_id: form.type === "Planting" ? pickedNurseryPacketId : null,
               status: "Pending",
               scope: form.scope,
               created_by: currentUserId,
@@ -607,6 +614,7 @@ export default function AddTaskModal({
               area_id: form.area_id || null,
               plan_id: form.plan_id || null,
               inventory_item_ids: form.inventory_item_ids,
+              seed_packet_id: form.type === "Planting" ? pickedNurseryPacketId : null,
               scope: form.scope,
               created_by: currentUserId,
               assigned_to: form.assigned_to || null,
@@ -648,8 +656,8 @@ export default function AddTaskModal({
       }
       toast.success(
         isBlueprintMode
-          ? "Automation created!"
-          : "Task scheduled successfully!",
+          ? "Routine created"
+          : "Task scheduled",
       );
       onSuccess();
     } catch (error: any) {
@@ -668,6 +676,9 @@ export default function AddTaskModal({
     <div className="fixed inset-0 z-[120] flex items-center justify-center p-4 bg-rhozly-bg/95 backdrop-blur-xl animate-in fade-in duration-300">
       <div
         ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="add-task-modal-title"
         className="bg-rhozly-surface-lowest w-full max-w-2xl max-h-[90vh] overflow-y-auto custom-scrollbar rounded-3xl p-8 shadow-2xl border border-rhozly-outline/20"
       >
         <div
@@ -679,11 +690,11 @@ export default function AddTaskModal({
         </div>
         <div className="flex justify-between items-center mb-8">
           <div>
-            <h3 className="text-3xl font-black text-rhozly-on-surface">
+            <h3 id="add-task-modal-title" className="text-3xl font-black text-rhozly-on-surface">
               {existingBlueprint
-                ? "Edit Automation"
+                ? "Edit Routine"
                 : isBlueprintMode
-                  ? "New Automation"
+                  ? "New Routine"
                   : "New Task"}
             </h3>
             <p className="text-sm font-bold text-rhozly-primary mt-1 flex items-center gap-2">
@@ -816,7 +827,7 @@ export default function AddTaskModal({
                 <NurseryPacketPicker
                   homeId={homeId}
                   pickedPacketId={pickedNurseryPacketId}
-                  hint="Pick a packet to pre-fill the task name and description. Logging the actual sowing happens from The Nursery."
+                  hint="Pick a packet to pre-fill the task. When you complete the task, Rhozly will log a sowing against this packet in the Nursery automatically."
                   onPick={(entry) => {
                     setPickedNurseryPacketId(entry?.packet.id ?? null);
                     if (!entry) return;
@@ -1125,6 +1136,7 @@ export default function AddTaskModal({
                               setDepSearchQuery("");
                               setShowDepDropdown(true);
                             }}
+                            aria-label="Clear selected dependency"
                             className="p-2 text-gray-400 hover:text-red-500 mr-1"
                           >
                             <X size={16} />
@@ -1276,6 +1288,35 @@ export default function AddTaskModal({
                     className="w-full p-4 min-h-[44px] bg-white rounded-2xl font-bold outline-none border border-rhozly-outline/10 cursor-pointer"
                   />
                 </div>
+
+                {/* Live "next 3 occurrences" preview so the user can
+                    sanity-check the schedule before saving. Pure
+                    client-side compute — no DB round-trip. */}
+                {form.start_date && (() => {
+                  const { dates, truncatedByEndDate } = getNextOccurrences({
+                    startDate: form.start_date,
+                    frequencyDays: form.frequency_days,
+                    count: 3,
+                    endDate: form.end_date || null,
+                  });
+                  if (dates.length === 0) return null;
+                  return (
+                    <div
+                      data-testid="add-task-occurrence-preview"
+                      className="col-span-2 mt-1 px-4 py-3 rounded-2xl bg-white border border-rhozly-outline/10"
+                    >
+                      <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-primary/60 mb-1">
+                        Next {dates.length === 1 ? "occurrence" : `${dates.length} occurrences`}
+                      </p>
+                      <p className="text-xs font-bold text-rhozly-on-surface/80 leading-snug">
+                        {formatPreviewLine(dates)}
+                        {truncatedByEndDate && (
+                          <span className="text-rhozly-on-surface/45"> · ends after this</span>
+                        )}
+                      </p>
+                    </div>
+                  );
+                })()}
               </div>
             )}
           </div>

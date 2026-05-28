@@ -328,7 +328,7 @@ export default function PlanStaging({
     saveMemoryEvent(homeId, plan.id, "regen_feedback", { feedback_text: regenFeedback });
     const toastId = toast.loading(
       isOverhaul
-        ? "Re-running overhaul with your feedback..."
+        ? "Re-running Reimagine with your feedback..."
         : "Consulting the AI Architect...",
     );
 
@@ -341,7 +341,7 @@ export default function PlanStaging({
         // AI iterates rather than starts from scratch.
         const input = await fetchOverhaulInput(plan.id);
         if (!input?.original_photo_url) {
-          throw new Error("Original photo no longer available — please start a new overhaul.");
+          throw new Error("Original photo no longer available — please start a new Reimagine.");
         }
 
         // Re-fetch the photo as base64. If the signed URL has expired
@@ -349,7 +349,7 @@ export default function PlanStaging({
         const photoResp = await fetch(input.original_photo_url);
         if (!photoResp.ok) {
           throw new Error(
-            "The original photo's signed URL has expired (7-day limit). Please start a new overhaul with a fresh photo.",
+            "The original photo's signed URL has expired (7-day limit). Please start a new Reimagine with a fresh photo.",
           );
         }
         const photoBlob = await photoResp.blob();
@@ -951,6 +951,27 @@ export default function PlanStaging({
 
   const currentPhaseId = getCurrentPhaseId();
 
+  // Count of completed phases for the progress strip.
+  const completedPhaseCount = [
+    isPhase1Done, isPhase2Done, isPhase3Done, isPhase4Done, isPhase5Done,
+  ].filter(Boolean).length;
+  const phaseLabels: Record<number, string> = {
+    1: "Infrastructure",
+    2: "The Shed",
+    3: "Staging",
+    4: "Execution",
+    5: "Maintenance",
+  };
+  // Active phase index for the strip — uses 0 when staging hasn't started.
+  const activePhase = !isStarted
+    ? 0
+    : !isPhase1Done ? 1
+    : !isPhase2Done ? 2
+    : !isPhase3Done ? 3
+    : !isPhase4Done ? 4
+    : !isPhase5Done ? 5
+    : 5;
+
   return (
     <div className="h-full flex flex-col bg-rhozly-bg animate-in slide-in-from-right-8 duration-500 relative z-40">
       {/* Skip Navigation */}
@@ -989,6 +1010,67 @@ export default function PlanStaging({
         </div>
       </div>
 
+      {/* Progress strip — visible once the user has started staging.
+          Five dots representing the phases, with the current phase
+          highlighted and completed phases ticked. A thin progress bar
+          underneath fills proportionally. Hidden during Pre-Start
+          Review because there's no current phase yet. */}
+      {isStarted && (
+        <div
+          data-testid="plan-staging-progress"
+          className="shrink-0 px-4 sm:px-8 pt-4 pb-3 bg-rhozly-surface-lowest border-b border-rhozly-outline/10"
+        >
+          <div className="flex items-center justify-between gap-3 mb-2">
+            <div className="flex items-center gap-1.5 sm:gap-2 flex-1">
+              {[1, 2, 3, 4, 5].map((n) => {
+                const isDone =
+                  (n === 1 && isPhase1Done) ||
+                  (n === 2 && isPhase2Done) ||
+                  (n === 3 && isPhase3Done) ||
+                  (n === 4 && isPhase4Done) ||
+                  (n === 5 && isPhase5Done);
+                const isActive = n === activePhase && !isDone;
+                return (
+                  <React.Fragment key={n}>
+                    <div
+                      className={`relative shrink-0 w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] font-black transition-colors ${
+                        isDone
+                          ? "bg-green-500 text-white"
+                          : isActive
+                            ? "bg-rhozly-primary text-white ring-4 ring-rhozly-primary/15"
+                            : "bg-rhozly-outline/15 text-rhozly-on-surface/40"
+                      }`}
+                      aria-label={`Phase ${n}: ${phaseLabels[n]} — ${
+                        isDone ? "completed" : isActive ? "current" : "locked"
+                      }`}
+                    >
+                      {isDone ? <CheckCircle2 size={12} /> : n}
+                    </div>
+                    {n < 5 && (
+                      <div
+                        className={`flex-1 h-0.5 rounded-full transition-colors ${
+                          isDone ? "bg-green-500" : "bg-rhozly-outline/15"
+                        }`}
+                      />
+                    )}
+                  </React.Fragment>
+                );
+              })}
+            </div>
+          </div>
+          <p className="text-[10px] sm:text-xs font-bold text-rhozly-on-surface/55 leading-snug">
+            <span className="text-rhozly-primary font-black uppercase tracking-widest">
+              Phase {activePhase} of 5
+            </span>
+            <span className="mx-1.5 text-rhozly-on-surface/25">·</span>
+            {phaseLabels[activePhase]}
+            <span className="ml-2 text-rhozly-on-surface/45">
+              ({completedPhaseCount}/5 complete)
+            </span>
+          </p>
+        </div>
+      )}
+
       <div className="flex-1 overflow-y-auto p-4 sm:p-8 space-y-6 custom-scrollbar pb-24">
         {/* Reference photos — collapsible; sits above the phase work so it's
             easy to find but doesn't take vertical space when collapsed. */}
@@ -1018,28 +1100,34 @@ export default function PlanStaging({
                 </div>
               )}
 
-              <div className="flex flex-col sm:flex-row gap-4">
-                <button
-                  onClick={handleStartProject}
-                  disabled={isOverhaul && !hasSelectedConcept}
-                  className="flex-1 min-h-[44px] py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-2xl font-black shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 text-lg focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
-                >
-                  <CheckCircle2 size={22} />{" "}
-                  {isOverhaul ? "Accept Concept & Start Staging" : "Accept & Start Staging"}
-                </button>
+              {/* Primary action — full width so the user can't miss it.
+                  Regenerate is demoted to a small text link below so
+                  it doesn't compete for taps with the "just start"
+                  intent. Tap-target is still ≥44px via py-2 + min-h. */}
+              <button
+                onClick={handleStartProject}
+                disabled={isOverhaul && !hasSelectedConcept}
+                className="w-full min-h-[44px] py-4 bg-rhozly-primary hover:bg-rhozly-primary/90 text-white rounded-2xl font-black shadow-lg transition-all active:scale-95 flex items-center justify-center gap-2 text-lg focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2 disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100"
+              >
+                <CheckCircle2 size={22} />{" "}
+                {isOverhaul ? "Accept Concept & Start Staging" : "Accept & Start Staging"}
+              </button>
+
+              <div className="mt-3 flex flex-col items-center gap-1">
                 <button
                   onClick={() => setShowRegenModal(true)}
-                  className="flex-1 min-h-[44px] py-4 bg-white border-2 border-rhozly-primary/20 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-2xl font-black transition-all active:scale-95 flex items-center justify-center gap-2 text-lg focus:outline-none focus:ring-2 focus:ring-rhozly-primary focus:ring-offset-2"
+                  data-testid="plan-staging-regenerate-link"
+                  className="inline-flex items-center gap-1.5 min-h-[44px] px-3 text-sm font-bold text-rhozly-primary hover:text-rhozly-primary-container hover:underline transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary/30 rounded-lg"
                 >
-                  <RotateCcw size={22} />{" "}
-                  {isOverhaul ? "Regenerate Concepts" : "Regenerate Plan"}
+                  <RotateCcw size={14} />
+                  Not quite right? {isOverhaul ? "Regenerate with feedback" : "Regenerate plan"}
                 </button>
+                {isOverhaul && !hasSelectedConcept && (
+                  <p className="text-xs font-bold text-rhozly-on-surface/45 text-center">
+                    Tip: tap "Pick this one" on a concept to enable Accept.
+                  </p>
+                )}
               </div>
-              {isOverhaul && !hasSelectedConcept && (
-                <p className="text-xs font-bold text-rhozly-on-surface/45 mt-3 text-center">
-                  Tip: tap "Pick this one" on a concept to enable Accept.
-                </p>
-              )}
             </div>
           </section>
         )}
@@ -1122,11 +1210,11 @@ export default function PlanStaging({
                   </div>
                   {areaMode === "new" ? (
                     <>
-                      <div className="bg-white p-3 rounded-xl border border-rhozly-primary/10">
-                        <p className="text-[10px] text-gray-400 font-black uppercase mb-1">
-                          AI Suggestion
+                      <div className="bg-white p-3 rounded-xl border border-rhozly-primary/20 shadow-sm">
+                        <p className="text-[10px] text-rhozly-primary font-black uppercase tracking-widest mb-1.5 flex items-center gap-1.5">
+                          <Sparkles size={11} /> AI Suggestion
                         </p>
-                        <p className="text-sm font-bold text-gray-900">
+                        <p className="text-sm font-black text-rhozly-on-surface">
                           {
                             localBlueprint.infrastructure_requirements
                               .suggested_area_name

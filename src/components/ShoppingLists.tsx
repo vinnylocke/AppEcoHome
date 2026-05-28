@@ -9,6 +9,7 @@ import { useShoppingLists } from "../hooks/useShoppingLists";
 import ShoppingListCard from "./shopping/ShoppingListCard";
 import AddItemSheet from "./shopping/AddItemSheet";
 import SeedRefillBanner from "./shopping/SeedRefillBanner";
+import EmptyState from "./shared/EmptyState";
 import { supabase } from "../lib/supabase";
 import type { ShoppingListItem } from "../types/shopping";
 
@@ -283,15 +284,21 @@ export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Pr
 
         {/* Empty state */}
         {!isLoading && !fetchError && lists.length === 0 && (
-          <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
-            <div className="w-16 h-16 rounded-3xl bg-rhozly-surface flex items-center justify-center">
-              <ShoppingCart size={28} className="text-rhozly-on-surface/20" />
-            </div>
-            <div>
-              <p className="font-black text-rhozly-on-surface/50">No shopping lists yet</p>
-              <p className="text-xs font-bold text-rhozly-on-surface/30 mt-1">Tap "New List" to get started — choose a template or start from scratch</p>
-            </div>
-          </div>
+          <EmptyState
+            size="lg"
+            icon={<ShoppingCart size={32} />}
+            title="No shopping lists yet"
+            body="Pick a template (Starter Toolkit, Seasonal Veg Patch) or start from scratch."
+            primaryCta={
+              can("shopping.create_list")
+                ? {
+                    label: "Create your first list",
+                    onClick: () => setShowTemplateModal(true),
+                    icon: <Plus size={16} />,
+                  }
+                : undefined
+            }
+          />
         )}
 
         {/* Active lists */}

@@ -58,7 +58,7 @@ describe("sanitisePins", () => {
     expect(result).toEqual(["lens", "today", "capture"]);
   });
 
-  test("trims to MAX (6)", () => {
+  test("trims to MAX (10)", () => {
     const result = sanitisePins([
       "lens",
       "today",
@@ -69,9 +69,23 @@ describe("sanitisePins", () => {
       "walk",
       "doctor",
       "shopping",
+      "journal",
+      "guides",
+      "garden-layout",
     ]);
-    expect(result).toHaveLength(6);
-    expect(result).toEqual(["lens", "today", "capture", "library", "shed", "planner"]);
+    expect(result).toHaveLength(10);
+    expect(result).toEqual([
+      "lens",
+      "today",
+      "capture",
+      "library",
+      "shed",
+      "planner",
+      "walk",
+      "doctor",
+      "shopping",
+      "journal",
+    ]);
   });
 
   test("falls back to defaults when empty", () => {

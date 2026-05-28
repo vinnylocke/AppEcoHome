@@ -38,7 +38,7 @@ export class WatchlistPage {
 
   constructor(page: Page) {
     this.page = page;
-    this.heading = page.getByRole("heading", { name: "Watchlist" });
+    this.heading = page.getByRole("heading", { name: "Ailment Watchlist" });
     this.addButton = page.getByRole("button", { name: "Add" }).first();
     this.activeTab = page.getByRole("button", { name: "Active" });
     this.archivedTab = page.getByRole("button", { name: "Archived" });
