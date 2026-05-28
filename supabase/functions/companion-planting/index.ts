@@ -143,7 +143,11 @@ Include 5–10 beneficial plants, 3–6 harmful plants, and 3–6 neutral plants
     toMessages([prompt]),
     {
       temperature: 0.3,
-      maxOutputTokens: 1500,
+      // Generous ceiling: today's thinking models spend "thoughts" tokens
+      // against this budget, and the prompt asks for 11–22 companions each
+      // with a reason. At 1500 the JSON truncated and JSON.parse threw on
+      // every model → persistent "failed to get companion data".
+      maxOutputTokens: 8192,
       responseSchema: COMPANION_SCHEMA,
     },
   );
