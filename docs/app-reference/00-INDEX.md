@@ -162,6 +162,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Quick Add Task Modal](./08-modals-and-overlays/35-quick-add-task-modal.md) — slim 4-field sibling of Add Task Modal mounted from the mobile Today's tasks card
 - [x] [Grow Guide Tab](./08-modals-and-overlays/36-grow-guide-tab.md) — 9-section AI-generated comprehensive grow guide on Plant + Instance Edit modals
 - [x] [Lifecycle Complete Modal](./08-modals-and-overlays/37-lifecycle-complete.md) — gentle end-of-life flow with optional Gemini analysis of likely causes
+- [x] [Plant Detail Modal](./08-modals-and-overlays/38-plant-detail-modal.md) — full Care/Grow/Companions/Light overlay opened from "See full care" in the Add-to-Shed search preview
 
 ## 09 — Persistent UI
 

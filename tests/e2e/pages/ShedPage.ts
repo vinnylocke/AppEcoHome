@@ -19,6 +19,9 @@ export class ShedPage {
   readonly bulkResultFirst: Locator;
   readonly bulkResultInfoFirst: Locator;
   readonly bulkPreviewPanel: Locator;
+  readonly bulkFullCareBtn: Locator;
+  readonly bulkDetailModal: Locator;
+  readonly bulkDetailClose: Locator;
   readonly bulkReviewBtn: Locator;
   readonly bulkStartImportBtn: Locator;
 
@@ -39,6 +42,9 @@ export class ShedPage {
     this.bulkResultFirst = page.locator('[data-testid^="plant-search-result-"]:not([data-testid$="-info"])').first();
     this.bulkResultInfoFirst = page.locator('[data-testid^="plant-search-result-"][data-testid$="-info"]').first();
     this.bulkPreviewPanel = page.locator('[data-testid="plant-search-preview-panel"]').first();
+    this.bulkFullCareBtn = page.locator('[data-testid^="plant-search-result-"][data-testid$="-full-care"]').first();
+    this.bulkDetailModal = page.locator('[data-testid="plant-detail-modal"]');
+    this.bulkDetailClose = page.locator('[data-testid="plant-detail-close"]');
     this.bulkReviewBtn = page.locator('[data-testid="bulk-search-review"]');
     this.bulkStartImportBtn = page.locator('[data-testid="bulk-search-start-import"]');
   }

@@ -327,6 +327,16 @@ test.describe("Shed — Add plant modal", () => {
         await shed.bulkResultInfoFirst.click();
         await expect(shed.bulkPreviewPanel).toBeVisible({ timeout: 6000 });
         await expect(shed.bulkReviewBtn).toHaveCount(0); // preview didn't select
+
+        // "See full care" opens the detail modal (care/grow/companions); closing
+        // it returns to the search with nothing selected.
+        if (await shed.bulkFullCareBtn.isVisible({ timeout: 2000 }).catch(() => false)) {
+          await shed.bulkFullCareBtn.click();
+          await expect(shed.bulkDetailModal).toBeVisible({ timeout: 8000 });
+          await expect(shed.bulkReviewBtn).toHaveCount(0); // still nothing selected
+          await shed.bulkDetailClose.click();
+          await expect(shed.bulkDetailModal).toBeHidden({ timeout: 6000 });
+        }
       }
       // Selecting the row reveals the cart/review bar.
       await shed.bulkResultFirst.click();

@@ -39,6 +39,7 @@ Design + decisions: [docs/plans/plant-search-overhaul-design.md](../../plans/pla
 | `autoFocus?`, `placeholder?` | Input ergonomics. |
 | `multiSelect?` / `isSelected?` | Rows show a checkbox and `onSelect` toggles; `isSelected(sel)` drives the checked state. Host owns the set (Add-to-Shed). |
 | `allowPreview?` | Per-row info (ⓘ) button that expands an inline `PlantInfoPanel` **without** selecting. Library rows preview instantly via `libraryRowToPlantDetails`; Perenual/Verdantly fetch via `getProviderPlantDetails`. Used by Add-to-Shed. |
+| `onViewDetails?(sel)` | With `allowPreview`, adds a **"See full care"** button to the inline preview. The host opens the full detail surface (Care Guide + Grow Guide + Companions + Light). Add-to-Shed opens `PlantDetailModal` (overlay, keeps the cart). |
 
 ### Behaviour
 
@@ -51,6 +52,8 @@ Design + decisions: [docs/plans/plant-search-overhaul-design.md](../../plans/pla
 #### Inline preview (`allowPreview`)
 
 When `allowPreview` is set, each result row gets an info (ⓘ) button next to the select control. Tapping it (a) does **not** select the row and (b) expands an inline `PlantInfoPanel` beneath it. The component owns the preview state (`previewKey` / `previewCache` / `previewLoading`) keyed by the row's testid: library rows resolve instantly from the row data, Perenual/Verdantly fetch on demand with a spinner. This restores the "inspect before adding" affordance the legacy BulkSearchModal had. Single-select hosts (Shopping, `/library`, Nursery) leave it off — they already preview on tap/navigate.
+
+When `onViewDetails` is also passed, the preview panel gains a **"See full care"** button. In Add-to-Shed it hands the selection to `PlantDetailModal` — a portal overlay (above the bulk modal) rendering the full Care Guide / Grow Guide / Companions / Light tabs, the same set the Library's `PlantPreview` screen uses. The overlay reuses `useCataloguePlantFromResult` (clones the plant into the catalogue to drive the tabs) and closes back to the search with the in-progress cart intact. See [Plant Detail Modal](../08-modals-and-overlays/38-plant-detail-modal.md).
 
 ### Library row → `plants` (per host)
 

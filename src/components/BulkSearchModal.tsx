@@ -18,8 +18,10 @@ import { PlantDoctorService } from "../services/plantDoctorService";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantInfoPanel from "./PlantInfoPanel";
 import PlantSearch from "./shared/PlantSearch";
+import PlantDetailModal from "./PlantDetailModal";
 import { libraryRowToPlantDetails } from "../lib/plantCatalogue";
 import type { PlantSelection } from "../lib/unifiedPlantSearch";
+import type { ProviderSearchResult } from "../lib/verdantlyUtils";
 
 interface Props {
   homeId: string;
@@ -84,8 +86,35 @@ export default function BulkSearchModal({
 
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
 
+  // "See full care" — the search result currently open in the detail modal.
+  const [detailResult, setDetailResult] = useState<ProviderSearchResult | null>(null);
+
   const triggerRef = useRef<HTMLElement | null>(null);
   const modalRef = useRef<HTMLDivElement>(null);
+
+  // PlantSelection → ProviderSearchResult for the full-care detail modal,
+  // mirroring LibrarySearchTab: library hits route through the AI provider
+  // path carrying plant_library_id so the catalogue clone skips Gemini.
+  const selectionToResult = (sel: PlantSelection): ProviderSearchResult => {
+    if (sel.source === "library") {
+      return {
+        id: `library-${sel.library_id}`,
+        common_name: sel.common_name,
+        scientific_name: sel.scientific_name ? [sel.scientific_name] : [],
+        thumbnail_url: sel.thumbnail_url ?? null,
+        _provider: "ai",
+        plant_library_id: sel.library_id,
+      } as ProviderSearchResult;
+    }
+    if (sel.raw) return sel.raw as ProviderSearchResult;
+    return {
+      id: `ai-${sel.common_name}`,
+      common_name: sel.common_name,
+      scientific_name: sel.scientific_name ? [sel.scientific_name] : [],
+      thumbnail_url: sel.thumbnail_url ?? null,
+      _provider: "ai",
+    } as ProviderSearchResult;
+  };
 
   // Stable cart key per selection — db hits keyed by provider id, everything
   // else (library / ai / manual) keyed by common name (matches the AI branch).
@@ -569,6 +598,7 @@ export default function BulkSearchModal({
                 }}
                 isSelected={(sel) => selectedPlantsMap.has(selectionKey(sel))}
                 onSelect={handleSelectFromSearch}
+                onViewDetails={(sel) => setDetailResult(selectionToResult(sel))}
               />
             </div>
 
@@ -592,6 +622,16 @@ export default function BulkSearchModal({
           </>
         )}
       </div>
+
+      {detailResult && (
+        <PlantDetailModal
+          result={detailResult}
+          homeId={homeId}
+          aiEnabled={isAiEnabled}
+          isPremium={isPremium}
+          onClose={() => setDetailResult(null)}
+        />
+      )}
     </div>
   );
 }

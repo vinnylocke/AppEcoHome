@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Search, Loader2, Sparkles, Database, Leaf, Plus, Pencil, Lock, SlidersHorizontal, ChevronDown, Check, Info, ChevronUp } from "lucide-react";
+import { Search, Loader2, Sparkles, Database, Leaf, Plus, Pencil, Lock, SlidersHorizontal, ChevronDown, Check, Info, ChevronUp, BookOpen } from "lucide-react";
 import {
   searchLibrary,
   didYouMean,
@@ -47,6 +47,10 @@ interface Props {
    *  without selecting the row. Used by Add-to-Shed so users can inspect a
    *  plant before adding it to the cart. */
   allowPreview?: boolean;
+  /** When set (with allowPreview), the inline preview gains a "See full care"
+   *  button that hands the selection to the host (e.g. to open the full
+   *  care / grow guide / companions detail modal). */
+  onViewDetails?: (sel: PlantSelection) => void;
 }
 
 const CYCLE_OPTIONS = [
@@ -93,6 +97,7 @@ export default function PlantSearch({
   multiSelect = false,
   isSelected,
   allowPreview = false,
+  onViewDetails,
 }: Props) {
   const [query, setQuery] = useState(initialQuery);
   const [libraryRows, setLibraryRows] = useState<PlantLibraryRow[]>([]);
@@ -242,6 +247,33 @@ export default function PlantSearch({
     }
   };
 
+  // Inline preview body for an expanded row: the details panel plus an
+  // optional "See full care" hand-off to the host's detail modal.
+  const renderPreview = (rowKey: string, name: string, sel: PlantSelection) => {
+    if (previewKey !== rowKey) return null;
+    return (
+      <>
+        <PlantInfoPanel
+          details={previewCache.get(rowKey) ?? null}
+          loading={previewLoading.has(rowKey)}
+          plantName={name}
+        />
+        {onViewDetails && (
+          <div className="px-4 pb-4">
+            <button
+              type="button"
+              data-testid={`${rowKey}-full-care`}
+              onClick={() => onViewDetails(sel)}
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-rhozly-primary/30 text-xs font-black text-rhozly-primary hover:bg-rhozly-primary/5 transition-colors"
+            >
+              <BookOpen size={14} /> See full care
+            </button>
+          </div>
+        )}
+      </>
+    );
+  };
+
   const hasCriteria = query.trim().length >= 2 || activeFilterCount > 0;
   const hasQuery = query.trim().length >= 2;
   const noLibraryResults = hasCriteria && !searching && libraryRows.length === 0;
@@ -373,9 +405,7 @@ export default function PlantSearch({
                 onInfo={() => togglePreview(sel, rowKey)}
                 infoActive={previewKey === rowKey}
                 infoLoading={previewLoading.has(rowKey)}
-                preview={previewKey === rowKey ? (
-                  <PlantInfoPanel details={previewCache.get(rowKey) ?? null} loading={previewLoading.has(rowKey)} plantName={row.common_name} />
-                ) : null}
+                preview={renderPreview(rowKey, row.common_name, sel)}
               />
             );
           })}
@@ -405,9 +435,7 @@ export default function PlantSearch({
                   onInfo={() => togglePreview(sel, rowKey)}
                   infoActive={previewKey === rowKey}
                   infoLoading={previewLoading.has(rowKey)}
-                  preview={previewKey === rowKey ? (
-                    <PlantInfoPanel details={previewCache.get(rowKey) ?? null} loading={previewLoading.has(rowKey)} plantName={r.common_name} />
-                  ) : null}
+                  preview={renderPreview(rowKey, r.common_name, sel)}
                 />
               );
             })}

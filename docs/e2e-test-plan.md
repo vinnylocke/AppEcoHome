@@ -314,7 +314,7 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | SHED-019 | Manual plant — duplicate name | ❌ | Enter an already-existing plant name → duplicate warning or error shown | Plants | — | ✅ Passing |
 | SHED-020 | Add to Shed — library-first input opens by default | ✅ | Open Add modal → shared `<PlantSearch>` input visible (no provider tabs); typing offers the opt-in "search more databases" CTA | Plants | — | ✅ Passing |
 | SHED-021 | Add to Shed — nonsense query, no selectable rows | ❌ | Type nonsense → no result rows, no Review CTA (library + mocked-empty external) | Plants | Perenual API mock (empty) | ✅ Passing |
-| SHED-022a | Add to Shed — preview details, then select into cart | ✅ | Type name → "search more databases" → mocked row → tap info icon previews details inline (no select) → tap row selects → Review & Add CTA appears | Plants | Perenual API mock | ✅ Passing |
+| SHED-022a | Add to Shed — preview, see full care, then select into cart | ✅ | Type name → "search more databases" → mocked row → info icon previews inline (no select) → "See full care" opens detail modal (care/grow/companions) → close → tap row selects → Review & Add CTA appears | Plants | Perenual API mock | ✅ Passing |
 
 ### Plant Card Actions
 
