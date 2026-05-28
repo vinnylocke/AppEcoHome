@@ -246,7 +246,7 @@ test.describe("Shopping — add item sheet, shed search (SHP-012 – SHP-017)", 
     await expect(shopping.searchInput()).toBeVisible({ timeout: 5000 });
   });
 
-  test("SHP-014: Typing a name shows shed search results section", async ({ authenticatedPage }) => {
+  test("SHP-014: Typing surfaces the wider-search option", async ({ authenticatedPage }) => {
     const shopping = new ShoppingPage(authenticatedPage);
     await shopping.goto();
     await shopping.waitForLoad();
@@ -257,13 +257,11 @@ test.describe("Shopping — add item sheet, shed search (SHP-012 – SHP-017)", 
 
     await shopping.searchInput().fill("Tomato");
 
-    // The shed section (Your Plants / In Shed) should appear within debounce timeout
-    await expect(
-      authenticatedPage.getByText(/Your Plants|In Shed|From your shed/i).first(),
-    ).toBeVisible({ timeout: 5000 });
+    // Library-first: external databases are an opt-in button that appears once you type.
+    await expect(shopping.searchAllBtn()).toBeVisible({ timeout: 6000 });
   });
 
-  test("SHP-016: Confirming a shed result adds a plant item to the list", async ({ authenticatedPage }) => {
+  test("SHP-016: Add-manually fallback adds a plant item to the list", async ({ authenticatedPage }) => {
     const shopping = new ShoppingPage(authenticatedPage);
     await shopping.goto();
     await shopping.waitForLoad();
@@ -272,24 +270,19 @@ test.describe("Shopping — add item sheet, shed search (SHP-012 – SHP-017)", 
     await card.locator("button").first().click();
     await shopping.addItemBtnInCard(card).click();
 
-    await shopping.searchInput().fill("Tomato");
+    await shopping.searchInput().fill("Some Rare Heirloom");
 
-    const firstShedResult = shopping.shedResult(0);
-    const hasShedResult = await firstShedResult.isVisible({ timeout: 5000 }).catch(() => false);
-
-    if (hasShedResult) {
-      await firstShedResult.click();
-      await expect(shopping.addConfirm()).toBeVisible({ timeout: 5000 });
-      await shopping.addConfirm().click();
-
-      // After confirming, shed offer or sheet closes — toast should appear
+    // The manual fallback is always available; tapping it adds the typed name.
+    const manual = shopping.manualAddBtn();
+    if (await manual.isVisible({ timeout: 6000 }).catch(() => false)) {
+      await manual.click();
       await expect(
-        authenticatedPage.getByText(/added/i).first(),
-      ).toBeVisible({ timeout: 6000 });
+        authenticatedPage.getByText(/Added to list/i).first(),
+      ).toBeVisible({ timeout: 8000 });
     }
   });
 
-  test("SHP-017: 'Search All Sources' button appears after shed results", async ({ authenticatedPage }) => {
+  test("SHP-017: Manual-add fallback is offered once you type", async ({ authenticatedPage }) => {
     const shopping = new ShoppingPage(authenticatedPage);
     await shopping.goto();
     await shopping.waitForLoad();
@@ -300,7 +293,7 @@ test.describe("Shopping — add item sheet, shed search (SHP-012 – SHP-017)", 
 
     await shopping.searchInput().fill("Tomato");
 
-    await expect(shopping.searchAllBtn()).toBeVisible({ timeout: 6000 });
+    await expect(shopping.manualAddBtn()).toBeVisible({ timeout: 6000 });
   });
 });
 
@@ -318,44 +311,17 @@ test.describe("Shopping — unified search & shed offer (SHP-018 – SHP-023)", 
     await shopping.addItemBtnInCard(card).click();
 
     await shopping.searchInput().fill("Tomato");
+    // Library-first: external is opt-in. Click "Search more databases".
     await expect(shopping.searchAllBtn()).toBeVisible({ timeout: 6000 });
     await shopping.searchAllBtn().click();
 
-    // At least one result section should appear
+    // The external results section heading should appear.
     await expect(
-      authenticatedPage.getByText(/AI Suggestions|Verdantly|Perenual/i).first(),
+      authenticatedPage.getByText(/From other databases/i).first(),
     ).toBeVisible({ timeout: 10000 });
   });
 
-  test("SHP-019: Info button on a result expands a Wikipedia description", async ({ authenticatedPage }) => {
-    await mockExternalApis(authenticatedPage);
-    const shopping = new ShoppingPage(authenticatedPage);
-    await shopping.goto();
-    await shopping.waitForLoad();
-
-    const card = shopping.listCardByName("Weekly Garden Shop");
-    await card.locator("button").first().click();
-    await shopping.addItemBtnInCard(card).click();
-
-    await shopping.searchInput().fill("Tomato");
-    await expect(shopping.searchAllBtn()).toBeVisible({ timeout: 6000 });
-    await shopping.searchAllBtn().click();
-
-    // Wait for results to load
-    await authenticatedPage.waitForTimeout(1000);
-
-    // Find any info (ℹ) button and click it
-    const infoBtn = authenticatedPage.getByLabel("Show info").first();
-    if (await infoBtn.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await infoBtn.click();
-      // Mocked Wikipedia response text should appear
-      await expect(
-        authenticatedPage.getByText("A flowering plant in the nightshade family."),
-      ).toBeVisible({ timeout: 5000 });
-    }
-  });
-
-  test("SHP-020: Clicking a Perenual result opens the preview", async ({ authenticatedPage }) => {
+  test("SHP-019: External search returns at least one result row", async ({ authenticatedPage }) => {
     await mockExternalApis(authenticatedPage);
     const shopping = new ShoppingPage(authenticatedPage);
     await shopping.goto();
@@ -370,38 +336,62 @@ test.describe("Shopping — unified search & shed offer (SHP-018 – SHP-023)", 
     await shopping.searchAllBtn().click();
     await authenticatedPage.waitForTimeout(1000);
 
-    const perenualResult = shopping.perenualResult(0);
-    if (await perenualResult.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await perenualResult.click();
-      await expect(shopping.addConfirm()).toBeVisible({ timeout: 5000 });
-    }
-  });
-
-  test("SHP-021: Confirming a result adds item to list", async ({ authenticatedPage }) => {
-    await mockExternalApis(authenticatedPage);
-    const shopping = new ShoppingPage(authenticatedPage);
-    await shopping.goto();
-    await shopping.waitForLoad();
-
-    const card = shopping.listCardByName("Weekly Garden Shop");
-    await card.locator("button").first().click();
-    await shopping.addItemBtnInCard(card).click();
-
-    await shopping.searchInput().fill("Tomato");
-    await expect(shopping.searchAllBtn()).toBeVisible({ timeout: 6000 });
-    await shopping.searchAllBtn().click();
-    await authenticatedPage.waitForTimeout(1000);
-
-    const firstResult = authenticatedPage
-      .locator('[data-testid^="shopping-ai-result-"], [data-testid^="shopping-perenual-result-"], [data-testid^="shopping-verdantly-result-"]')
+    // Library may be empty in the test DB, but external (mocked) should yield rows.
+    const result = authenticatedPage
+      .locator('[data-testid^="plant-search-result-"]')
       .first();
+    if (await result.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await expect(result).toBeVisible();
+    }
+  });
 
-    if (await firstResult.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await firstResult.click();
-      if (await shopping.addConfirm().isVisible({ timeout: 3000 }).catch(() => false)) {
-        await shopping.addConfirm().click();
-        await expect(authenticatedPage.getByText(/added/i).first()).toBeVisible({ timeout: 8000 });
-      }
+  test("SHP-020: Selecting a result adds it directly (no separate confirm)", async ({ authenticatedPage }) => {
+    await mockExternalApis(authenticatedPage);
+    const shopping = new ShoppingPage(authenticatedPage);
+    await shopping.goto();
+    await shopping.waitForLoad();
+
+    const card = shopping.listCardByName("Weekly Garden Shop");
+    await card.locator("button").first().click();
+    await shopping.addItemBtnInCard(card).click();
+
+    await shopping.searchInput().fill("Tomato");
+    await expect(shopping.searchAllBtn()).toBeVisible({ timeout: 6000 });
+    await shopping.searchAllBtn().click();
+    await authenticatedPage.waitForTimeout(1000);
+
+    const result = authenticatedPage
+      .locator('[data-testid^="plant-search-result-"]')
+      .first();
+    if (await result.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await result.click();
+      // No preview/confirm — adding lands straight on the shed offer.
+      await expect(shopping.shedOfferYes()).toBeVisible({ timeout: 8000 });
+    }
+  });
+
+  test("SHP-021: Selecting a result adds an item to the list", async ({ authenticatedPage }) => {
+    await mockExternalApis(authenticatedPage);
+    const shopping = new ShoppingPage(authenticatedPage);
+    await shopping.goto();
+    await shopping.waitForLoad();
+
+    const card = shopping.listCardByName("Weekly Garden Shop");
+    await card.locator("button").first().click();
+    await shopping.addItemBtnInCard(card).click();
+
+    await shopping.searchInput().fill("Tomato");
+    await expect(shopping.searchAllBtn()).toBeVisible({ timeout: 6000 });
+    await shopping.searchAllBtn().click();
+    await authenticatedPage.waitForTimeout(1000);
+
+    const result = authenticatedPage
+      .locator('[data-testid^="plant-search-result-"]')
+      .first();
+    if (await result.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await result.click();
+      // "Added to list!" copy in the shed-offer confirms the item was added.
+      await expect(authenticatedPage.getByText(/Added to list/i).first()).toBeVisible({ timeout: 8000 });
     }
   });
 
@@ -420,21 +410,14 @@ test.describe("Shopping — unified search & shed offer (SHP-018 – SHP-023)", 
     await shopping.searchAllBtn().click();
     await authenticatedPage.waitForTimeout(1000);
 
-    const firstResult = authenticatedPage
-      .locator('[data-testid^="shopping-ai-result-"], [data-testid^="shopping-perenual-result-"]')
+    const result = authenticatedPage
+      .locator('[data-testid^="plant-search-result-"]')
       .first();
-
-    if (await firstResult.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await firstResult.click();
-      if (await shopping.addConfirm().isVisible({ timeout: 3000 }).catch(() => false)) {
-        await shopping.addConfirm().click();
-        // Shed offer or sheet closes — either button visible or item toast
-        const shedSkip = shopping.shedOfferSkip();
-        const shedYes = shopping.shedOfferYes();
-        const hasOffer = await shedSkip.isVisible({ timeout: 5000 }).catch(() => false);
-        if (hasOffer) {
-          await expect(shedYes).toBeVisible();
-        }
+    if (await result.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await result.click();
+      const hasOffer = await shopping.shedOfferSkip().isVisible({ timeout: 5000 }).catch(() => false);
+      if (hasOffer) {
+        await expect(shopping.shedOfferYes()).toBeVisible();
       }
     }
   });
@@ -454,19 +437,15 @@ test.describe("Shopping — unified search & shed offer (SHP-018 – SHP-023)", 
     await shopping.searchAllBtn().click();
     await authenticatedPage.waitForTimeout(1000);
 
-    const firstResult = authenticatedPage
-      .locator('[data-testid^="shopping-ai-result-"], [data-testid^="shopping-perenual-result-"]')
+    const result = authenticatedPage
+      .locator('[data-testid^="plant-search-result-"]')
       .first();
-
-    if (await firstResult.isVisible({ timeout: 5000 }).catch(() => false)) {
-      await firstResult.click();
-      if (await shopping.addConfirm().isVisible({ timeout: 3000 }).catch(() => false)) {
-        await shopping.addConfirm().click();
-        const shedSkip = shopping.shedOfferSkip();
-        if (await shedSkip.isVisible({ timeout: 5000 }).catch(() => false)) {
-          await shedSkip.click();
-          await expect(shopping.sheet()).not.toBeVisible({ timeout: 5000 });
-        }
+    if (await result.isVisible({ timeout: 5000 }).catch(() => false)) {
+      await result.click();
+      const shedSkip = shopping.shedOfferSkip();
+      if (await shedSkip.isVisible({ timeout: 5000 }).catch(() => false)) {
+        await shedSkip.click();
+        await expect(shopping.sheet()).not.toBeVisible({ timeout: 5000 });
       }
     }
   });

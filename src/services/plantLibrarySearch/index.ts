@@ -11,6 +11,7 @@ import { alphabeticalMethod } from "./alphabetical";
 import { relevanceMethod } from "./relevance";
 import { advancedMethod, type AdvancedOptions } from "./advanced";
 import { fuzzyMethod, type FuzzyOptions } from "./fuzzy";
+import { aiMethod } from "./ai";
 
 export interface SearchMethodRunArgs<O = unknown> {
   query: string;
@@ -47,10 +48,11 @@ export const SEARCH_METHODS: ReadonlyArray<SearchMethod<any>> = [
   alphabeticalMethod,
   advancedMethod as SearchMethod<AdvancedOptions>,
   fuzzyMethod as SearchMethod<FuzzyOptions>,
+  aiMethod,
 ];
 
 /** Default method id — picked on first paint. */
 export const DEFAULT_METHOD_ID = relevanceMethod.id;
 
-export { alphabeticalMethod, relevanceMethod, advancedMethod, fuzzyMethod };
+export { alphabeticalMethod, relevanceMethod, advancedMethod, fuzzyMethod, aiMethod };
 export type { AdvancedOptions, FuzzyOptions };

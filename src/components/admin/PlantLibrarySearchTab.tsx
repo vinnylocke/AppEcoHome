@@ -11,6 +11,7 @@ import {
   Info,
   FlaskConical,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import { Logger } from "../../lib/errorHandler";
 import { supabase } from "../../lib/supabase";
 import {
@@ -25,12 +26,87 @@ import {
 } from "../../services/plantLibrarySearch";
 import PlantLibraryCareGuideModal from "./PlantLibraryCareGuideModal";
 import PlantLibraryQuickPreviewModal from "./PlantLibraryQuickPreviewModal";
+import EmptyState from "../shared/EmptyState";
+import SurfaceLoader from "../shared/SurfaceLoader";
+
+type AddState =
+  | { kind: "idle" }
+  | { kind: "adding" }
+  | { kind: "added"; plant: { id: number; common_name: string } | null }
+  | { kind: "error"; message: string };
+
+/** Row for an AI-suggested plant that isn't yet in the library. */
+function AiCandidateRow({
+  row,
+  state,
+  onAdd,
+}: {
+  row: PlantLibraryRow;
+  state: AddState;
+  onAdd: () => void;
+}) {
+  return (
+    <li
+      data-testid={`plant-library-ai-candidate-${row.common_name}`}
+      className="flex items-center gap-3 p-3 rounded-2xl border border-dashed border-rhozly-primary/30 bg-rhozly-primary/5"
+    >
+      <div className="w-10 h-10 rounded-xl bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center shrink-0">
+        <FlaskConical size={16} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="font-black text-sm text-rhozly-on-surface truncate">{row.common_name}</p>
+        <p
+          className={`text-[11px] font-bold truncate ${
+            state.kind === "error" ? "text-rose-600" : "text-rhozly-on-surface/45"
+          }`}
+        >
+          {state.kind === "added"
+            ? "In the library now ✓"
+            : state.kind === "error"
+              ? state.message
+              : row._aiDescription || "Not in the library yet"}
+        </p>
+      </div>
+      {state.kind === "added" ? (
+        <span className="inline-flex items-center gap-1 text-[11px] font-black text-emerald-600 px-3">
+          <CheckCircle2 size={14} /> Added
+        </span>
+      ) : state.kind === "error" ? (
+        <button
+          type="button"
+          onClick={onAdd}
+          data-testid={`plant-library-ai-retry-${row.common_name}`}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest text-rose-600 border border-rose-200 hover:bg-rose-50"
+          title={state.message}
+        >
+          <AlertTriangle size={13} /> Retry
+        </button>
+      ) : (
+        <button
+          type="button"
+          onClick={onAdd}
+          disabled={state.kind === "adding"}
+          data-testid={`plant-library-ai-add-${row.common_name}`}
+          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-[11px] font-black uppercase tracking-widest text-white bg-rhozly-primary hover:opacity-90 disabled:opacity-50"
+        >
+          {state.kind === "adding" ? (
+            <>
+              <Loader2 size={13} className="animate-spin" /> Adding…
+            </>
+          ) : (
+            <>+ Add to Library</>
+          )}
+        </button>
+      )}
+    </li>
+  );
+}
 
 /**
  * Admin-only Plant Library Search Lab.
  *
  * Modular search-strategy registry — each method (alphabetical /
- * relevance / advanced / fuzzy) is a self-contained file under
+ * relevance / advanced / fuzzy / ai) is a self-contained file under
  * `src/services/plantLibrarySearch/`. The tab strip is auto-rendered
  * from the registry, so adding a new strategy is a one-file change.
  *
@@ -72,6 +148,9 @@ export default function PlantLibrarySearchTab() {
   /** Quick-preview modal target. */
   const [quickPreview, setQuickPreview] = useState<PlantLibraryRow | null>(null);
 
+  /** Per-candidate "Add to Library" state, keyed by lowercased common name. */
+  const [addStates, setAddStates] = useState<Record<string, AddState>>({});
+
   /** Lazy thumbnails for rows seeded before the image-fetch fix shipped. */
   const [lazyThumbs, setLazyThumbs] = useState<Map<number, string>>(new Map());
   const lazyThumbsRef = useRef<Map<number, string>>(new Map());
@@ -104,6 +183,49 @@ export default function PlantLibrarySearchTab() {
   useEffect(() => {
     runSearch();
   }, [runSearch]);
+
+  /** Enrich + insert a candidate (AI search result not yet in the library). */
+  const handleAddCandidate = useCallback(async (row: PlantLibraryRow) => {
+    const key = row.common_name.toLowerCase();
+    setAddStates((s) => ({ ...s, [key]: { kind: "adding" } }));
+    try {
+      const { data, error } = await supabase.functions.invoke("add-plant-to-library", {
+        body: { name: row.common_name },
+      });
+      // supabase-js wraps non-2xx responses in a generic FunctionsHttpError
+      // whose .message is unhelpful ("non-2xx status code"). The real error
+      // is in the response body — read it from error.context.
+      if (error) {
+        let detail = error.message ?? "Couldn't add.";
+        try {
+          const ctx = (error as any).context;
+          if (ctx && typeof ctx.json === "function") {
+            const body = await ctx.json();
+            if (body?.error) detail = body.error;
+          }
+        } catch {
+          // Body wasn't JSON — keep the generic message.
+        }
+        throw new Error(detail);
+      }
+      if (data?.error) throw new Error(data.error);
+      if (data?.status === "added" || data?.status === "already_exists") {
+        setAddStates((s) => ({ ...s, [key]: { kind: "added", plant: data.plant ?? null } }));
+        toast.success(
+          data.status === "already_exists"
+            ? `${row.common_name} is already in the library.`
+            : `Added ${row.common_name} to the library.`,
+        );
+      } else {
+        setAddStates((s) => ({ ...s, [key]: { kind: "error", message: "Unexpected response." } }));
+      }
+    } catch (err: any) {
+      const message = err?.message ?? "Couldn't add.";
+      Logger.error("add-plant-to-library failed", err, { name: row.common_name });
+      setAddStates((s) => ({ ...s, [key]: { kind: "error", message } }));
+      toast.error(message);
+    }
+  }, []);
 
   const handleSubmit = useCallback(() => {
     const trimmed = input.trim();
@@ -286,20 +408,23 @@ export default function PlantLibrarySearchTab() {
 
       {/* Empty state — shown before the first search runs */}
       {appliedQuery === null && (
-        <div className="rounded-2xl border-2 border-dashed border-rhozly-outline/15 bg-rhozly-surface-low/50 p-8 sm:p-12 flex flex-col items-center justify-center text-center gap-3">
-          <div className="w-14 h-14 rounded-3xl bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center">
-            <Search size={22} />
-          </div>
-          <h3 className="text-base font-black text-rhozly-on-surface">
-            Search the plant library
-          </h3>
-          <p className="text-xs font-bold text-rhozly-on-surface/55 max-w-sm leading-relaxed">
-            Type a name above and tap{" "}
-            <span className="font-black text-rhozly-on-surface/80">Search</span>{" "}
-            (or press Enter). Use the tabs above to try a different search
-            strategy.
-          </p>
-        </div>
+        <EmptyState
+          icon={<Search size={22} />}
+          title="Search the plant library"
+          body={
+            <>
+              Type a name above and tap{" "}
+              <span className="font-black text-rhozly-on-surface/80">Search</span>{" "}
+              (or press Enter). Use the tabs above to try a different search
+              strategy.
+            </>
+          }
+        />
+      )}
+
+      {/* Searching… spinner — shown while a search is in flight */}
+      {appliedQuery !== null && loading && (
+        <SurfaceLoader shape="spinner" label="Searching the library…" />
       )}
 
       {/* Results list */}
@@ -307,15 +432,24 @@ export default function PlantLibrarySearchTab() {
         data-testid="plant-library-search-results"
         className="flex flex-col gap-2"
       >
-        {result?.rows.map((row) => (
-          <SearchResultRow
-            key={row.id}
-            row={row}
-            lazyThumb={lazyThumbs.get(row.id) ?? null}
-            onOpen={() => setSelected(row)}
-            onInfo={() => setQuickPreview(row)}
-          />
-        ))}
+        {result?.rows.map((row) =>
+          row._aiCandidate ? (
+            <AiCandidateRow
+              key={row.id}
+              row={row}
+              state={addStates[row.common_name.toLowerCase()] ?? { kind: "idle" }}
+              onAdd={() => handleAddCandidate(row)}
+            />
+          ) : (
+            <SearchResultRow
+              key={row.id}
+              row={row}
+              lazyThumb={lazyThumbs.get(row.id) ?? null}
+              onOpen={() => setSelected(row)}
+              onInfo={() => setQuickPreview(row)}
+            />
+          ),
+        )}
       </ul>
 
       {/* Pagination footer */}

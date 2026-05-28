@@ -13,9 +13,16 @@ export class ShedPage {
   readonly clearSearchButton: Locator;
   readonly sourceFilterSelect: Locator;
 
+  // ── Add-to-Shed (BulkSearchModal → shared <PlantSearch>) ──────────────
+  readonly bulkSearchInput: Locator;
+  readonly bulkSearchExternalBtn: Locator;
+  readonly bulkResultFirst: Locator;
+  readonly bulkReviewBtn: Locator;
+  readonly bulkStartImportBtn: Locator;
+
   constructor(page: Page) {
     this.page = page;
-    this.heading = page.getByRole("heading", { name: "The Shed" });
+    this.heading = page.getByRole("heading", { name: "Plants" });
     this.searchInput = page.getByLabel("Search your plant library");
     this.emptyState = page.getByText("No plants here");
     this.noMatchState = page.getByText("No matches found");
@@ -24,6 +31,12 @@ export class ShedPage {
     this.addButton = page.getByLabel("Add plant");
     this.clearSearchButton = page.getByLabel("Clear search");
     this.sourceFilterSelect = page.getByLabel("Filter by source");
+
+    this.bulkSearchInput = page.locator('[data-testid="plant-search-input"]');
+    this.bulkSearchExternalBtn = page.locator('[data-testid="plant-search-external"]');
+    this.bulkResultFirst = page.locator('[data-testid^="plant-search-result-"]').first();
+    this.bulkReviewBtn = page.locator('[data-testid="bulk-search-review"]');
+    this.bulkStartImportBtn = page.locator('[data-testid="bulk-search-start-import"]');
   }
 
   async goto() {

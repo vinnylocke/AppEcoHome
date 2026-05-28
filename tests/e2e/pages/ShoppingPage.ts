@@ -51,13 +51,15 @@ export class ShoppingPage {
   sheet() { return this.page.getByTestId("shopping-add-item-sheet"); }
   plantTab() { return this.page.getByTestId("shopping-tab-plant"); }
   productTab() { return this.page.getByTestId("shopping-tab-product"); }
-  searchInput() { return this.page.getByTestId("shopping-plant-search-input"); }
-  searchAllBtn() { return this.page.getByTestId("shopping-fallback-search-all"); }
-  aiResult(i: number) { return this.page.getByTestId(`shopping-ai-result-${i}`); }
-  verdantlyResult(i: number) { return this.page.getByTestId(`shopping-verdantly-result-${i}`); }
-  perenualResult(i: number) { return this.page.getByTestId(`shopping-perenual-result-${i}`); }
-  shedResult(i: number) { return this.page.getByTestId(`shopping-plant-result-${i}`); }
-  addConfirm() { return this.page.getByTestId("shopping-add-plant-confirm"); }
+  // AddItemSheet plant tab now uses the shared <PlantSearch> component.
+  searchInput() { return this.page.getByTestId("plant-search-input"); }
+  searchAllBtn() { return this.page.getByTestId("plant-search-external"); }
+  createWithAiBtn() { return this.page.getByTestId("plant-search-create-ai"); }
+  manualAddBtn() { return this.page.getByTestId("plant-search-manual"); }
+  suggestions() { return this.page.getByTestId("plant-search-suggestions"); }
+  /** Any library result row. Selecting a result adds it directly (no separate confirm). */
+  anyResult() { return this.page.locator('[data-testid^="plant-search-result-"]').first(); }
+  libraryResult(id: number) { return this.page.getByTestId(`plant-search-result-library-${id}`); }
   shedOfferSkip() { return this.page.getByTestId("shopping-add-to-shed-skip"); }
   shedOfferYes() { return this.page.getByTestId("shopping-add-to-shed-yes"); }
   productNameInput() { return this.page.getByTestId("shopping-product-name-input"); }

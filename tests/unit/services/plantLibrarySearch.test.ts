@@ -9,8 +9,12 @@ import {
 } from "../../../src/services/plantLibrarySearch";
 
 describe("plantLibrarySearch — registry shape", () => {
-  it("registers exactly the 4 starter methods", () => {
-    expect(SEARCH_METHODS).toHaveLength(4);
+  it("registers the search methods (4 DB-backed + AI)", () => {
+    expect(SEARCH_METHODS).toHaveLength(5);
+  });
+
+  it("includes the AI search method", () => {
+    expect(SEARCH_METHODS.find((m) => m.id === "ai")).toBeDefined();
   });
 
   it("every method has a unique id", () => {

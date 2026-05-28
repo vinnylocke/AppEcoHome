@@ -77,6 +77,12 @@ Neither call blocks the UI past the initial run-row insert (~50ms).
 - `seed-plant-library` (also called by cron)
 - `verify-plant-library` (also called by cron)
 - `plant-image-search` (called transitively from the seeder)
+- `search-plants-ai` — backs the **AI ✦** search method: returns AI-suggested plant names for a query, which the tab cross-checks against `plant_library`.
+- `add-plant-to-library` — backs the AI method's **"Add to Library"** button on results that aren't in the library yet. Enriches the single plant via Gemini and inserts one row (dedup via `scientific_name_key`).
+
+### AI search + single add (admin "AI ✦" tab)
+
+The search-method registry (`src/services/plantLibrarySearch/`) has a fifth method, `ai`. It calls `search-plants-ai` for the query, then for each suggested name checks `plant_library` (case-insensitive `common_name`). Existing plants render as normal rows; ones not in the library render as dashed "candidate" rows with an **Add to Library** button. Clicking it calls `add-plant-to-library`, which enriches + inserts that single plant and flips the row to "Added ✓".
 
 ### Cron / scheduled jobs that affect this surface
 

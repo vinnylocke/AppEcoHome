@@ -1,5 +1,5 @@
 import { describe, test, expect } from "vitest";
-import { plantRowToPlantDetails } from "../../../src/lib/plantCatalogue";
+import { plantRowToPlantDetails, libraryRowToPlantDetails } from "../../../src/lib/plantCatalogue";
 
 // `plantRowToPlantDetails` is a pure adapter; the rest of plantCatalogue.ts
 // is exercised by the E2E spec. We just want assurance that the column
@@ -76,5 +76,60 @@ describe("plantRowToPlantDetails", () => {
     });
     expect(out.verdantly_id).toBe("verd-abc");
     expect(out.perenual_id).toBeNull();
+  });
+});
+
+// libraryRowToPlantDetails is the shared adapter the bulk Add-to-Shed flow
+// uses to forward a plant_library row as `preloadedDetails` (so TheShed's AI
+// branch skips Gemini). It must always emit a library-safe PlantDetails:
+// source "ai", null provider ids, booleans coerced, seasons joined.
+describe("libraryRowToPlantDetails", () => {
+  test("maps a full library row into the PlantDetails contract", () => {
+    const lib = {
+      id: 42,
+      common_name: "Tomato",
+      scientific_name: ["Solanum lycopersicum"],
+      sunlight: ["full_sun"],
+      cycle: "Annual",
+      watering: "Frequent",
+      watering_min_days: 2,
+      watering_max_days: 4,
+      is_edible: 1,
+      is_toxic_pets: 0,
+      thumbnail_url: "https://example/tomato.jpg",
+      flowering_season: ["Jun", "Jul"],
+      harvest_season: ["Aug"],
+      pruning_month: ["May"],
+      propagation: ["seed"],
+    };
+    const out = libraryRowToPlantDetails(lib);
+    expect(out.common_name).toBe("Tomato");
+    expect(out.scientific_name).toEqual(["Solanum lycopersicum"]);
+    expect(out.sunlight).toEqual(["full_sun"]);
+    expect(out.watering_min_days).toBe(2);
+    expect(out.is_edible).toBe(true);
+    expect(out.is_toxic_pets).toBe(false);
+    expect(out.flowering_season).toBe("Jun, Jul");
+    expect(out.harvest_season).toBe("Aug");
+  });
+
+  test("always emits a library-safe source with null provider ids", () => {
+    const out = libraryRowToPlantDetails({ common_name: "Basil" });
+    expect(out.source).toBe("ai");
+    expect(out.perenual_id).toBeNull();
+    expect(out.verdantly_id).toBeNull();
+    expect(out.db_plant_id).toBeNull();
+    expect(out.from_catalogue).toBe(true);
+  });
+
+  test("defaults missing arrays/booleans to safe values", () => {
+    const out = libraryRowToPlantDetails({ common_name: "Fern" });
+    expect(out.scientific_name).toEqual([]);
+    expect(out.sunlight).toEqual([]);
+    expect(out.attracts).toEqual([]);
+    expect(out.pruning_month).toEqual([]);
+    expect(out.is_edible).toBe(false);
+    expect(out.indoor).toBe(false);
+    expect(out.flowering_season).toBeNull();
   });
 });

@@ -256,7 +256,14 @@ export async function fetchRecentPlantLibraryRuns(
  * `ManualPlantCreation`'s `initialData` prop — no transform needed.
  */
 export interface PlantLibraryRow {
+  /** Real rows have a positive bigserial id. AI-search candidates that
+   *  aren't yet in the library use a negative sentinel id. */
   id: number;
+  /** AI search only — true when this row is an AI suggestion not yet in
+   *  the library, surfaced with an "Add to Library" button. */
+  _aiCandidate?: boolean;
+  /** AI search only — the AI's one-line description of the candidate. */
+  _aiDescription?: string;
   common_name: string;
   scientific_name: string[];
   other_names: string[] | null;

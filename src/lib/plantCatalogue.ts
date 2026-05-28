@@ -266,33 +266,13 @@ async function findCataloguePlantBySciName(sciName: string | null): Promise<numb
 }
 
 /**
- * Clone a `plant_library` row into the home `plants` catalogue table
- * so the preview / care guide UI can use it without invoking Gemini.
- * If a matching catalogue row already exists (same scientific name),
- * returns that instead of creating a duplicate.
+ * Map a raw `plant_library` row to a normalised `PlantDetails`. Shared by
+ * the catalogue clone path and the bulk Add-to-Shed flow (which forwards it
+ * as `preloadedDetails` so the AI branch skips Gemini entirely).
  */
-async function ensureCataloguePlantFromLibrary(
-  libraryId: number,
-): Promise<CataloguePlant> {
-  const { data: lib, error: libErr } = await supabase
-    .from("plant_library")
-    .select("*")
-    .eq("id", libraryId)
-    .maybeSingle();
-  if (libErr) throw libErr;
-  if (!lib) throw new Error(`plant_library row ${libraryId} not found`);
-
-  // Dedup — if we've already cloned this species into the catalogue,
-  // reuse the existing row.
+export function libraryRowToPlantDetails(lib: any): PlantDetails {
   const sciNames = Array.isArray(lib.scientific_name) ? lib.scientific_name : [];
-  const sciFirst = sciNames[0] ?? null;
-  const existingId = await findCataloguePlantBySciName(sciFirst);
-  if (existingId) {
-    return await loadCataloguePlant(existingId);
-  }
-
-  // Build a PlantDetails-shaped row from the library data.
-  const details: PlantDetails = {
+  return {
     common_name:        lib.common_name ?? "",
     scientific_name:    sciNames,
     other_names:        Array.isArray(lib.other_names) ? lib.other_names : [],
@@ -342,6 +322,36 @@ async function ensureCataloguePlantFromLibrary(
     freshness_version:  null,
     from_catalogue:     true,
   };
+}
+
+/**
+ * Clone a `plant_library` row into the home `plants` catalogue table
+ * so the preview / care guide UI can use it without invoking Gemini.
+ * If a matching catalogue row already exists (same scientific name),
+ * returns that instead of creating a duplicate.
+ */
+async function ensureCataloguePlantFromLibrary(
+  libraryId: number,
+): Promise<CataloguePlant> {
+  const { data: lib, error: libErr } = await supabase
+    .from("plant_library")
+    .select("*")
+    .eq("id", libraryId)
+    .maybeSingle();
+  if (libErr) throw libErr;
+  if (!lib) throw new Error(`plant_library row ${libraryId} not found`);
+
+  // Dedup — if we've already cloned this species into the catalogue,
+  // reuse the existing row.
+  const sciNames = Array.isArray(lib.scientific_name) ? lib.scientific_name : [];
+  const sciFirst = sciNames[0] ?? null;
+  const existingId = await findCataloguePlantBySciName(sciFirst);
+  if (existingId) {
+    return await loadCataloguePlant(existingId);
+  }
+
+  // Build a PlantDetails-shaped row from the library data.
+  const details = libraryRowToPlantDetails(lib);
 
   const skeleton: Record<string, unknown> = {
     id: makeCatalogueId(),

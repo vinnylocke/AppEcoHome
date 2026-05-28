@@ -1,7 +1,6 @@
 import { expect } from "@playwright/test";
 import { test } from "../fixtures/auth";
 import { ShedPage } from "../pages/ShedPage";
-import { mockEdgeFunction } from "../fixtures/api-mocks";
 
 // All tests require an authenticated session and the plants seed (02_plants_shed.sql).
 // Seeded plants (active): Tomato, Basil, Rose, Boston Fern, Lavender
@@ -267,8 +266,29 @@ test.describe("Shed — Add plant modal", () => {
     ).toBeVisible({ timeout: 8000 });
   });
 
-  test("SHED-020: Perenual API search — mocked result appears in modal", async ({ authenticatedPage }) => {
-    // Mock Perenual external API to avoid real network calls
+  test("SHED-020: Add to Shed — library-first search input opens by default", async ({ authenticatedPage }) => {
+    // Library-first migration: the modal now opens straight onto the shared
+    // <PlantSearch> input (no per-provider tabs, no premium wall — the local
+    // library is free for every tier).
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    await shed.addButton.click();
+
+    await expect(shed.bulkSearchInput).toBeVisible({ timeout: 8000 });
+    await shed.bulkSearchInput.fill("Tomato");
+    // Debounced library search runs automatically; the empty prompt clears once
+    // criteria are present. We don't assert specific rows because the shared
+    // plant_library is not seeded in the test DB.
+    await authenticatedPage.waitForTimeout(700);
+
+    // The opt-in "search more databases" CTA is offered (live, not a nudge).
+    await expect(shed.bulkSearchExternalBtn).toBeVisible({ timeout: 6000 });
+  });
+
+  test("SHED-022a: Add to Shed — external opt-in surfaces a result, selectable into the cart", async ({ authenticatedPage }) => {
+    // Mock Perenual external API so the opt-in wider search yields a row.
     await authenticatedPage.route("https://perenual.com/api/v2/species-list*", (route) =>
       route.fulfill({
         status: 200,
@@ -289,66 +309,26 @@ test.describe("Shed — Add plant modal", () => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
-
-    await shed.addButton.click();
-    await authenticatedPage.waitForTimeout(400);
-
-    // Switch to the Perenual tab (premium required — skip if not available)
-    const perenualTab = authenticatedPage.getByRole("tab", { name: /Perenual/i });
-    const tabVisible = await perenualTab.isVisible({ timeout: 5000 }).catch(() => false);
-    if (!tabVisible) return;
-
-    await perenualTab.click();
-    await authenticatedPage.waitForTimeout(300);
-
-    // If "Premium Required" wall is shown, skip gracefully
-    const premiumWall = await authenticatedPage.getByText("Premium Required").isVisible({ timeout: 2000 }).catch(() => false);
-    if (premiumWall) return;
-
-    // Fill in a search query and submit
-    const searchInput = authenticatedPage.locator("#bulk-search-input");
-    await expect(searchInput).toBeVisible({ timeout: 5000 });
-    await searchInput.fill("Tomato");
-    await authenticatedPage.keyboard.press("Enter");
-
-    // Wait for spinner to clear then verify mocked result appears
-    await authenticatedPage.locator(".animate-spin").first().waitFor({ state: "hidden", timeout: 8000 }).catch(() => {});
-
-    await expect(
-      authenticatedPage.getByText("Test Tomato"),
-    ).toBeVisible({ timeout: 8000 });
-  });
-
-  test("SHED-022a: AI tab — mocked search result appears in modal", async ({ authenticatedPage }) => {
-    const MOCK_AI_MATCHES = { matches: ["Butterhead Lettuce (Lactuca sativa var. capitata)", "Romaine Lettuce (Lactuca sativa)"] };
-    await mockEdgeFunction(authenticatedPage, "plant-doctor", MOCK_AI_MATCHES);
-
-    const shed = new ShedPage(authenticatedPage);
-    await shed.goto();
-    await shed.waitForLoad();
     await shed.addButton.click();
 
-    const aiTab = authenticatedPage.getByRole("tab", { name: /AI/i });
-    const tabVisible = await aiTab.isVisible({ timeout: 5000 }).catch(() => false);
-    if (!tabVisible) return;
-    await aiTab.click();
+    await expect(shed.bulkSearchInput).toBeVisible({ timeout: 8000 });
+    await shed.bulkSearchInput.fill("Tomato");
+    await authenticatedPage.waitForTimeout(700);
 
-    const premiumWall = await authenticatedPage.getByText("Premium Required").isVisible({ timeout: 2000 }).catch(() => false);
-    if (premiumWall) return;
+    // Click the opt-in wider search (Perenual self-gates internally — skip if absent).
+    if (!(await shed.bulkSearchExternalBtn.isVisible({ timeout: 6000 }).catch(() => false))) return;
+    await shed.bulkSearchExternalBtn.click();
+    await authenticatedPage.waitForTimeout(1200);
 
-    const searchInput = authenticatedPage.locator("#bulk-search-input");
-    await expect(searchInput).toBeVisible({ timeout: 5000 });
-    await searchInput.fill("Lettuce");
-    await authenticatedPage.keyboard.press("Enter");
-
-    await authenticatedPage.locator(".animate-spin").first().waitFor({ state: "hidden", timeout: 8000 }).catch(() => {});
-    await expect(
-      authenticatedPage.getByText("Butterhead Lettuce (Lactuca sativa var. capitata)"),
-    ).toBeVisible({ timeout: 8000 });
+    // A multi-select result row should appear; selecting it reveals the cart bar.
+    if (await shed.bulkResultFirst.isVisible({ timeout: 6000 }).catch(() => false)) {
+      await shed.bulkResultFirst.click();
+      await expect(shed.bulkReviewBtn).toBeVisible({ timeout: 6000 });
+    }
   });
 
-  test("SHED-021: Perenual API search — no results shows empty list", async ({ authenticatedPage }) => {
-    // Mock Perenual returning an empty result set
+  test("SHED-021: Add to Shed — nonsense query surfaces no selectable rows", async ({ authenticatedPage }) => {
+    // Mock Perenual returning an empty result set so the opt-in wider search is empty too.
     await authenticatedPage.route("https://perenual.com/api/v2/species-list*", (route) =>
       route.fulfill({
         status: 200,
@@ -360,31 +340,20 @@ test.describe("Shed — Add plant modal", () => {
     const shed = new ShedPage(authenticatedPage);
     await shed.goto();
     await shed.waitForLoad();
-
     await shed.addButton.click();
-    await authenticatedPage.waitForTimeout(400);
 
-    const perenualTab = authenticatedPage.getByRole("tab", { name: /Perenual/i });
-    const tabVisible = await perenualTab.isVisible({ timeout: 5000 }).catch(() => false);
-    if (!tabVisible) return;
+    await expect(shed.bulkSearchInput).toBeVisible({ timeout: 8000 });
+    await shed.bulkSearchInput.fill("xyznotarealplant");
+    await authenticatedPage.waitForTimeout(700);
 
-    await perenualTab.click();
-    await authenticatedPage.waitForTimeout(300);
+    if (await shed.bulkSearchExternalBtn.isVisible({ timeout: 6000 }).catch(() => false)) {
+      await shed.bulkSearchExternalBtn.click();
+      await authenticatedPage.waitForTimeout(1000);
+    }
 
-    const premiumWall = await authenticatedPage.getByText("Premium Required").isVisible({ timeout: 2000 }).catch(() => false);
-    if (premiumWall) return;
-
-    const searchInput = authenticatedPage.locator("#bulk-search-input");
-    await expect(searchInput).toBeVisible({ timeout: 5000 });
-    await searchInput.fill("xyznotarealplant");
-    await authenticatedPage.keyboard.press("Enter");
-
-    await authenticatedPage.locator(".animate-spin").first().waitFor({ state: "hidden", timeout: 8000 }).catch(() => {});
-    await authenticatedPage.waitForTimeout(300);
-
-    // No selection buttons should appear when results are empty
-    const selectionButtons = authenticatedPage.locator('[aria-label="Add to selection"]');
-    expect(await selectionButtons.count()).toBe(0);
+    // No result rows and therefore no review CTA when nothing matches.
+    expect(await shed.bulkResultFirst.isVisible({ timeout: 2000 }).catch(() => false)).toBe(false);
+    await expect(shed.bulkReviewBtn).toHaveCount(0);
   });
 });
 
