@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "Opening a plant from the library no longer switches its name to a different variety of the same species — e.g. tapping \"Tomato\" now stays \"Tomato\" instead of flipping to \"Beefsteak Tomato\"."
+    ]
+  }
+]

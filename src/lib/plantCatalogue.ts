@@ -341,17 +341,31 @@ async function ensureCataloguePlantFromLibrary(
   if (libErr) throw libErr;
   if (!lib) throw new Error(`plant_library row ${libraryId} not found`);
 
-  // Dedup — if we've already cloned this species into the catalogue,
-  // reuse the existing row.
+  // Build a PlantDetails-shaped row from the library data.
+  const details = libraryRowToPlantDetails(lib);
+
+  // Dedup — the global AI catalogue holds at most ONE row per species
+  // (unique index plants_ai_global_dedup_idx on scientific_name_key). The
+  // library, however, has multiple common-name variants per species
+  // ("Tomato" vs "Beefsteak Tomato", both Solanum lycopersicum).
   const sciNames = Array.isArray(lib.scientific_name) ? lib.scientific_name : [];
   const sciFirst = sciNames[0] ?? null;
   const existingId = await findCataloguePlantBySciName(sciFirst);
   if (existingId) {
-    return await loadCataloguePlant(existingId);
+    const existing = await loadCataloguePlant(existingId);
+    const sameCommon =
+      (existing.details.common_name ?? "").trim().toLowerCase() ===
+      (lib.common_name ?? "").trim().toLowerCase();
+    // Same species + same common name → the catalogued row IS this plant.
+    if (sameCommon) return existing;
+    // Same species, DIFFERENT common name (e.g. catalogued "Beefsteak Tomato"
+    // vs the selected "Tomato"): we can't insert a second global row for the
+    // species, so reuse the catalogue id for the species-level tabs (Grow
+    // Guide / Companions / Light) but present the SELECTED library plant's own
+    // identity + care data — otherwise the name would flip to the other variant.
+    details.db_plant_id = existingId;
+    return { plantId: existingId, source: "ai", details, fromCache: true };
   }
-
-  // Build a PlantDetails-shaped row from the library data.
-  const details = libraryRowToPlantDetails(lib);
 
   const skeleton: Record<string, unknown> = {
     id: makeCatalogueId(),

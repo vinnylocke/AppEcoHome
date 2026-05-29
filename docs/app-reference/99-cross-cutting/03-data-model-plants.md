@@ -78,6 +78,8 @@ plants_forked_from_idx (forked_from_plant_id)
   WHERE forked_from_plant_id IS NOT NULL;
 ```
 
+**Species-keyed catalogue vs common-name library variants.** The global AI catalogue holds **one row per species** (the index above). `plant_library`, by contrast, has many common-name variants per species ("Tomato", "Beefsteak Tomato", "Cherry Tomato" are all *Solanum lycopersicum*). When `ensureCataloguePlantFromLibrary` clones a selected library row and the species is **already catalogued under a different common name**, it does **not** create a second global row (the unique index forbids it) and does **not** adopt the catalogued variant's name — it reuses the existing catalogue `plantId` for the species-level tabs (Grow Guide / Companions / Light) while **presenting the selected library row's own identity + care data**. This is why tapping library "Tomato" shows "Tomato" even when "Beefsteak Tomato" already owns the species' catalogue slot. See `src/lib/plantCatalogue.ts` → `ensureCataloguePlantFromLibrary`.
+
 ### New tables introduced by Wave 1 of AI Plant Overhaul
 
 | Table | Purpose | Key columns |
