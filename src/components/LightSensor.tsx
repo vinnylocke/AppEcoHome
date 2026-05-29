@@ -15,6 +15,7 @@ import {
   Smartphone,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import { getOptimalLuxRange } from "../lib/plantLightUtils";
 import toast from "react-hot-toast";
 
 import { LightSensor as NativeLightSensor } from "@capgo/capacitor-light-sensor";
@@ -400,30 +401,16 @@ export default function LightSensor({ homeId }: LightSensorProps) {
         .eq("home_id", homeId)
         .eq("area_id", selectedAreaId);
       if (cancelled) return;
-      const SUN_LUX: Record<string, [number, number]> = {
-        "deep shade":        [0, 500],
-        "full shade":        [0, 500],
-        "shade":             [500, 2_500],
-        "part shade":        [2_500, 10_000],
-        "partial shade":     [2_500, 10_000],
-        "filtered shade":    [2_500, 10_000],
-        "part sun":          [10_000, 20_000],
-        "partial sun":       [10_000, 20_000],
-        "bright indirect":   [2_500, 10_000],
-        "full sun":          [20_000, 100_000],
-        "sun":               [20_000, 100_000],
-      };
       const next = (data ?? []).map((row: any) => {
         const sun: string[] = Array.isArray(row.plants?.sunlight) ? row.plants.sunlight : [];
-        const ranges = sun.map((s) => SUN_LUX[String(s).toLowerCase()]).filter(Boolean) as Array<[number, number]>;
-        const minLux = ranges.length > 0 ? Math.min(...ranges.map((r) => r[0])) : 0;
-        const maxLux = ranges.length > 0 ? Math.max(...ranges.map((r) => r[1])) : 0;
+        // Shared sunlight→lux mapping (single source of truth).
+        const range = getOptimalLuxRange(sun);
         return {
           id: row.id,
           name: row.identifier || row.plant_name || "Plant",
           sunlight: sun,
-          minLux,
-          maxLux,
+          minLux: range?.min ?? 0,
+          maxLux: range?.max ?? 0,
         };
       });
       setAreaPlants(next);

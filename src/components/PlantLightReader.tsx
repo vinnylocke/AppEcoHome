@@ -4,6 +4,7 @@ import { ArrowLeft, Loader2, Save } from "lucide-react";
 import { LightSensor as NativeLightSensor } from "@capgo/capacitor-light-sensor";
 import {
   getLightFitness,
+  luxToBand,
   type LuxRange,
 } from "../lib/plantLightUtils";
 import { supabase } from "../lib/supabase";
@@ -19,16 +20,18 @@ interface PlantLightReaderProps {
   areaName?: string | null;
 }
 
+// Friendly reading-label + styling per canonical band. The lux cutoffs come
+// from the shared SUNLIGHT_BANDS (via luxToBand) — edit ranges there, not here.
+const CATEGORY_STYLE: Record<string, { label: string; color: string; border: string; bg: string; banner: string }> = {
+  "Deep Shade": { label: "Deep Shade",      color: "text-gray-500",   border: "border-gray-400",   bg: "bg-gray-50",   banner: "bg-gray-500" },
+  "Shade":      { label: "Low Light",       color: "text-blue-500",   border: "border-blue-400",   bg: "bg-blue-50",   banner: "bg-blue-500" },
+  "Part Shade": { label: "Bright Indirect", color: "text-green-500",  border: "border-green-400",  bg: "bg-green-50",  banner: "bg-green-500" },
+  "Part Sun":   { label: "Partial Sun",     color: "text-amber-500",  border: "border-amber-400",  bg: "bg-amber-50",  banner: "bg-amber-500" },
+  "Full Sun":   { label: "Direct Sun",      color: "text-orange-500", border: "border-orange-400", bg: "bg-orange-50", banner: "bg-orange-500" },
+};
+
 function getLightCategory(luxValue: number) {
-  if (luxValue < 500)
-    return { label: "Deep Shade", color: "text-gray-500", border: "border-gray-400", bg: "bg-gray-50", banner: "bg-gray-500" };
-  if (luxValue < 2500)
-    return { label: "Low Light", color: "text-blue-500", border: "border-blue-400", bg: "bg-blue-50", banner: "bg-blue-500" };
-  if (luxValue < 10000)
-    return { label: "Bright Indirect", color: "text-green-500", border: "border-green-400", bg: "bg-green-50", banner: "bg-green-500" };
-  if (luxValue < 20000)
-    return { label: "Partial Sun", color: "text-amber-500", border: "border-amber-400", bg: "bg-amber-50", banner: "bg-amber-500" };
-  return { label: "Direct Sun", color: "text-orange-500", border: "border-orange-400", bg: "bg-orange-50", banner: "bg-orange-500" };
+  return CATEGORY_STYLE[luxToBand(luxValue).label] ?? CATEGORY_STYLE["Full Sun"];
 }
 
 export default function PlantLightReader({ plantName, optimalRange, onClose, areaId, homeId, areaName }: PlantLightReaderProps) {

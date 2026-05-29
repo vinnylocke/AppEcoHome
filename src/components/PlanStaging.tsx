@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useNavigate, useLocation } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { targetLuxForSunlight } from "../lib/plantLightUtils";
 import {
   ArrowLeft,
   CalendarPlus,
@@ -542,15 +543,10 @@ export default function PlanStaging({
       if (areaMode === "new") {
         if (!newAreaLocationId)
           throw new Error("Please select a parent location.");
-        let targetLux = null;
         const aiSun =
-          localBlueprint.infrastructure_requirements.suggested_sunlight?.toLowerCase() ||
-          "";
-        if (aiSun.includes("full sun")) targetLux = 50000;
-        else if (aiSun.includes("part shade") || aiSun.includes("partial"))
-          targetLux = 25000;
-        else if (aiSun.includes("full shade") || aiSun.includes("shade"))
-          targetLux = 5000;
+          localBlueprint.infrastructure_requirements.suggested_sunlight || "";
+        // Shared sunlight→lux mapping (single source of truth).
+        const targetLux = targetLuxForSunlight(aiSun);
 
         const { data: newArea, error: createError } = await supabase
           .from("areas")

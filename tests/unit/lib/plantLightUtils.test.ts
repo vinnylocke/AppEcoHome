@@ -1,60 +1,56 @@
 import { describe, it, expect } from "vitest";
-import { getOptimalLuxRange, getLightFitness } from "../../../src/lib/plantLightUtils";
+import {
+  getOptimalLuxRange,
+  getLightFitness,
+  luxToBand,
+  targetLuxForSunlight,
+  bandForSunlightValue,
+} from "../../../src/lib/plantLightUtils";
 
+// Canonical bands (single source of truth): Full Sun 20k–100k, Part Sun
+// 10k–20k, Part Shade 2.5k–10k, Shade 500–2.5k, Deep Shade 0–500.
 describe("getOptimalLuxRange", () => {
-  it("maps Full sun to 20000–40000", () => {
-    const result = getOptimalLuxRange(["Full sun"]);
-    expect(result).toEqual({ min: 20000, max: 40000, label: "Full Sun" });
+  it("maps Full sun to 20000–100000", () => {
+    expect(getOptimalLuxRange(["Full sun"])).toEqual({ min: 20000, max: 100000, label: "Full Sun" });
   });
 
-  it("maps Partial shade to 5000–20000", () => {
-    const result = getOptimalLuxRange(["Partial shade"]);
-    expect(result).toEqual({ min: 5000, max: 20000, label: "Partial Sun" });
+  it("maps Partial shade to the Part Shade band (2500–10000)", () => {
+    expect(getOptimalLuxRange(["Partial shade"])).toEqual({ min: 2500, max: 10000, label: "Part Shade" });
   });
 
-  it("maps Shade to 0–1500", () => {
-    const result = getOptimalLuxRange(["Shade"]);
-    expect(result).toEqual({ min: 0, max: 1500, label: "Full Shade" });
+  it("maps Part sun to the Part Sun band (10000–20000)", () => {
+    expect(getOptimalLuxRange(["Part sun"])).toEqual({ min: 10000, max: 20000, label: "Part Sun" });
+  });
+
+  it("maps Shade to 500–2500", () => {
+    expect(getOptimalLuxRange(["Shade"])).toEqual({ min: 500, max: 2500, label: "Shade" });
   });
 
   it("takes union when multiple sunlight values present", () => {
     const result = getOptimalLuxRange(["Full sun", "Partial shade"]);
-    expect(result).not.toBeNull();
-    expect(result!.min).toBe(5000);
-    expect(result!.max).toBe(40000);
+    expect(result!.min).toBe(2500);
+    expect(result!.max).toBe(100000);
   });
 
   it("matches underscore-format values (Verdantly): full_sun", () => {
-    expect(getOptimalLuxRange(["full_sun"])).toEqual({
-      min: 20000,
-      max: 40000,
-      label: "Full Sun",
-    });
+    expect(getOptimalLuxRange(["full_sun"])).toEqual({ min: 20000, max: 100000, label: "Full Sun" });
   });
 
-  it("maps part_shade to Partial Sun, not Full Shade", () => {
-    // Regression: "part_shade".includes("shade") used to mis-map to Full Shade.
-    expect(getOptimalLuxRange(["part_shade"])).toEqual({
-      min: 5000,
-      max: 20000,
-      label: "Partial Sun",
-    });
+  it("maps part_shade to Part Shade, not Deep Shade", () => {
+    // Regression: "part_shade".includes("shade") must not fall to the shade bands.
+    expect(getOptimalLuxRange(["part_shade"])).toEqual({ min: 2500, max: 10000, label: "Part Shade" });
   });
 
-  it("maps deep_shade to Full Shade", () => {
-    expect(getOptimalLuxRange(["deep_shade"])).toEqual({
-      min: 0,
-      max: 1500,
-      label: "Full Shade",
-    });
+  it("maps deep_shade to Deep Shade (0–500)", () => {
+    expect(getOptimalLuxRange(["deep_shade"])).toEqual({ min: 0, max: 500, label: "Deep Shade" });
   });
 
   it("spans the union of underscore values and labels both bands", () => {
     // Verdantly "full sun → partial shade" stores ["full_sun","part_shade"].
     const result = getOptimalLuxRange(["full_sun", "part_shade"]);
-    expect(result!.min).toBe(5000);
-    expect(result!.max).toBe(40000);
-    expect(result!.label).toBe("Partial Sun – Full Sun");
+    expect(result!.min).toBe(2500);
+    expect(result!.max).toBe(100000);
+    expect(result!.label).toBe("Part Shade – Full Sun");
   });
 
   it("returns null for empty array", () => {
@@ -66,9 +62,37 @@ describe("getOptimalLuxRange", () => {
   });
 
   it("is case-insensitive", () => {
-    const lower = getOptimalLuxRange(["full sun"]);
-    const upper = getOptimalLuxRange(["FULL SUN"]);
-    expect(lower).toEqual(upper);
+    expect(getOptimalLuxRange(["full sun"])).toEqual(getOptimalLuxRange(["FULL SUN"]));
+  });
+});
+
+describe("bandForSunlightValue", () => {
+  it("matches full sun before bare sun, and part shade before bare shade", () => {
+    expect(bandForSunlightValue("full sun")?.label).toBe("Full Sun");
+    expect(bandForSunlightValue("part shade")?.label).toBe("Part Shade");
+    expect(bandForSunlightValue("shade")?.label).toBe("Shade");
+    expect(bandForSunlightValue("nope")).toBeNull();
+  });
+});
+
+describe("luxToBand", () => {
+  it("labels a live reading by the canonical band it falls in", () => {
+    expect(luxToBand(70000).label).toBe("Full Sun");
+    expect(luxToBand(15000).label).toBe("Part Sun");
+    expect(luxToBand(5000).label).toBe("Part Shade");
+    expect(luxToBand(1000).label).toBe("Shade");
+    expect(luxToBand(100).label).toBe("Deep Shade");
+    expect(luxToBand(0).label).toBe("Deep Shade");
+  });
+});
+
+describe("targetLuxForSunlight", () => {
+  it("returns the midpoint of the matched range", () => {
+    expect(targetLuxForSunlight("full sun")).toBe(60000); // (20000+100000)/2
+    expect(targetLuxForSunlight(["full_sun", "part_shade"])).toBe(51250); // (2500+100000)/2
+  });
+  it("returns null when nothing matches", () => {
+    expect(targetLuxForSunlight("unknown")).toBeNull();
   });
 });
 

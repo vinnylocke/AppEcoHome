@@ -69,13 +69,17 @@ getPlantSunFit(plantBand, areaSunClass) → "ok" | "marginal" | "wrong"
 getShapeFitSummary(shape, plants) → fitTally
 ```
 
-### Plant Light tab — optimal lux range (`src/lib/plantLightUtils.ts`)
+### Sunlight ⇄ lux mapping — single source of truth (`src/lib/plantLightUtils.ts`)
 
-The per-plant **Light** tab (reached from the Shed tile's light icon, the Library preview, and the plant detail modal) converts a plant's `sunlight` values into an optimal **lux** range via `getOptimalLuxRange(sunlight: string[])`.
+`SUNLIGHT_BANDS` in `plantLightUtils.ts` is the **one** place the sunlight↔lux mapping lives. Everything derives from it:
+- `getOptimalLuxRange(sunlight: string[])` — sunlight → lux range (per-plant **Light** tab, reached from the Shed tile's light icon, the Library preview, and the plant detail modal). A plant can carry several requirements; the range spans the **lowest band's min → highest band's max** (e.g. `["full sun", "part shade"]` → **2,500–100,000 lux**, "Part Shade – Full Sun"). Values are normalised (`_` / `-` → space) so Verdantly's underscore format and Perenual/AI/manual's space format match the same bands.
+- `getLightFitness(lux, range)` — rates a live reading Best / Great / Good / Bad / Worse against that range.
+- `luxToBand(lux)` — labels a live sensor reading (used by the Light Sensor + `PlantLightReader`).
+- `targetLuxForSunlight(sunlight)` — a single representative lux (range midpoint) for a new area's `target_lux` (used by Plan Staging).
 
-A plant can carry several light requirements; the returned range spans the **lowest band's min → highest band's max** across all of them — e.g. `["full sun", "part shade"]` → **5,000–40,000 lux**, labelled "Partial Sun – Full Sun". Values are normalised first (`_` / `-` → space) so both Verdantly's underscore format (`full_sun`, `part_shade`, `deep_shade`) and the Perenual / AI / manual space format match the same bands. `getLightFitness(lux, range)` then rates a live sensor reading Best / Great / Good / Bad / Worse against that range.
+The **Light Sensor** area readings (`LightSensor.tsx`) and the live-reading category label (`PlantLightReader.tsx`) both read from this table — previously they had their own divergent copies.
 
-Bands: Full Sun 20,000–40,000 · Partial Sun 5,000–20,000 · Filtered Shade 1,500–5,000 · Full Shade 0–1,500.
+**Bands:** Full Sun 20,000–100,000 · Part Sun 10,000–20,000 · Part Shade 2,500–10,000 · Shade 500–2,500 · Deep Shade 0–500. (Edit ranges in `SUNLIGHT_BANDS` only.)
 
 ### Sun overlay (Garden Layout Editor)
 
