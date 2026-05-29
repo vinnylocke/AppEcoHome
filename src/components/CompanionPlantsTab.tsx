@@ -291,7 +291,7 @@ export default function CompanionPlantsTab({
         if (hit) {
           const details = await getProviderPlantDetails({
             source: hit._provider === "verdantly" ? "verdantly" : "api",
-            perenual_id: hit._provider === "verdantly" ? null : (hit.perenual_id ?? Number((hit as any).id) || null),
+            perenual_id: hit._provider === "verdantly" ? null : (hit.perenual_id ?? (Number((hit as any).id) || null)),
             verdantly_id: hit._provider === "verdantly" ? (hit.verdantly_id ?? (hit as any).id ?? null) : null,
           }).catch(() => null);
           if (details) return cache(details, hit);
