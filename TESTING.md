@@ -764,6 +764,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `edge_function_auth.test.ts` | 7 | Edge function auth — plant-doctor/contact-support/scan-area/generate-guide/image-proxy reject missing/invalid JWT; scan-area 400 on missing homeId |
 | `aiPlantCatalogue.test.ts` | 22 | Wave 2 of AI Plant Overhaul — `normaliseScientificKey`, `parseMatchString`, `diffCareGuide` |
 | `refreshStaleAiPlants.test.ts` | 5 | Wave 4 of AI Plant Overhaul — changed/unchanged paths, empty batch, mid-batch crash isolation, batch-size cap |
+| `sceneJson.test.ts` | 6 | Multi-ID — `parseSceneJson` tolerant parse (clean JSON, code fence, prose preamble, truncated-array salvage, unrecoverable → empty, null/empty input) |
 
 ### E2E tests — 422 tests across 26 files (+ 13 isolation tests)
 

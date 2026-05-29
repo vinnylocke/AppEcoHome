@@ -12,6 +12,7 @@ import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
 import { getFallback } from "../_shared/fallbacks.ts";
 import { reverseGeocodeCity } from "../_shared/locationContext.ts";
 import { normaliseScientificKey, parseMatchString } from "../_shared/aiPlantCatalogue.ts";
+import { parseSceneJson } from "../_shared/sceneJson.ts";
 import { buildEnvBlock } from "../_shared/visionEnvContext.ts";
 import { validateFrostPayload } from "../_shared/frostValidation.ts";
 import {
@@ -1118,11 +1119,15 @@ Add a brief overall observation in notes.`;
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN,
         toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
-        // Pro-first cascade + low temperature for the steadiest boxes.
-        { responseSchema: SCENE_MAP_SCHEMA, models: VISION_DIAGNOSIS_MODELS, temperature: 0.2, logContext: { action } },
+        // Pro-first cascade + low temperature for the steadiest boxes. A large
+        // token budget is essential: the Pro "thinking" models spend most of the
+        // default 2048 on reasoning, truncating the JSON mid-array otherwise.
+        { responseSchema: SCENE_MAP_SCHEMA, models: VISION_DIAGNOSIS_MODELS, temperature: 0.2, maxOutputTokens: 8192, logContext: { action } },
       );
 
-      const parsedRaw = JSON.parse(rawText);
+      // Tolerant parse — survives a prose preamble ("Here is the…") and salvages
+      // complete regions from a truncated array rather than 500-ing.
+      const parsedRaw = parseSceneJson(rawText);
       // Server-side hygiene: keep only well-formed regions (real 0–1000 box with
       // positive area + ≥1 named candidate); clamp confidence; sort; cap at 12.
       const cleanRegions = (Array.isArray(parsedRaw.regions) ? parsedRaw.regions : [])

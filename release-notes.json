@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "Multi-ID no longer fails with a JSON error on busy photos — the AI's response is now parsed reliably (with a larger budget so it isn't cut off), and partial results are recovered instead of erroring out."
+    ]
+  }
+]
