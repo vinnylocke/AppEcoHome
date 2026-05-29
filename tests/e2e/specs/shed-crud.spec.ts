@@ -443,6 +443,50 @@ test.describe("Shed — Plant card actions", () => {
     await expect(shed.deleteWithInstancesModal).toBeHidden({ timeout: 5000 });
   });
 
+  test("SHED-023d: Bulk delete offers keep-history vs delete-everything for selected plants with instances", async ({ authenticatedPage }) => {
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    const tomato = shed.plantCard("Tomato");
+    if (!(await tomato.isVisible({ timeout: 8000 }).catch(() => false))) return;
+
+    await shed.selectModeBtn.click();
+    await tomato.click(); // select Tomato (has a seeded instance)
+    await expect(shed.bulkActionBar).toBeVisible({ timeout: 6000 });
+
+    await shed.bulkDeleteBtn.click();
+    await expect(shed.bulkDeleteModal).toBeVisible({ timeout: 8000 });
+    await expect(shed.bulkDeleteKeepEol).toBeVisible();
+    await expect(shed.bulkDeleteEverything).toBeVisible();
+
+    // Non-destructive — cancel so the seed stays intact.
+    await authenticatedPage.keyboard.press("Escape");
+    await expect(shed.bulkDeleteModal).toBeHidden({ timeout: 5000 });
+  });
+
+  test("SHED-023e: Bulk assign opens the assign modal for selected plants", async ({ authenticatedPage }) => {
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    const tomato = shed.plantCard("Tomato");
+    if (!(await tomato.isVisible({ timeout: 8000 }).catch(() => false))) return;
+
+    await shed.selectModeBtn.click();
+    await tomato.click();
+    await expect(shed.bulkActionBar).toBeVisible({ timeout: 6000 });
+
+    await shed.bulkAssignBtn.click();
+    await expect(shed.bulkAssignModal).toBeVisible({ timeout: 8000 });
+    // Per-plant quantity input + the "add to garden" target option are present.
+    await expect(shed.bulkAssignNoArea).toBeVisible();
+    await expect(shed.bulkAssignConfirm).toBeVisible();
+
+    // Non-destructive — close without assigning.
+    await authenticatedPage.keyboard.press("Escape");
+  });
+
   test("SHED-024: Archive and restore a plant within a single test", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
     const plantName = `E2E Archive ${Date.now()}`;

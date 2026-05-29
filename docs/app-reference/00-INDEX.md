@@ -163,6 +163,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Grow Guide Tab](./08-modals-and-overlays/36-grow-guide-tab.md) — 9-section AI-generated comprehensive grow guide on Plant + Instance Edit modals
 - [x] [Lifecycle Complete Modal](./08-modals-and-overlays/37-lifecycle-complete.md) — gentle end-of-life flow with optional Gemini analysis of likely causes
 - [x] [Plant Detail Modal](./08-modals-and-overlays/38-plant-detail-modal.md) — full Care/Grow/Companions/Light overlay opened from "See full care" in the Add-to-Shed search preview
+- [x] [Bulk Assign Modal](./08-modals-and-overlays/39-bulk-assign-modal.md) — assign several selected plants into one area at once (per-plant quantity + optional smart schedules)
 
 ## 09 — Persistent UI
 

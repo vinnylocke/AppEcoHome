@@ -256,7 +256,9 @@ The card-grid layout lets you scan visually. The status chips at the bottom of e
 
 - Tap **Select** at top → checkboxes appear on each card.
 - Tap plants to add to selection.
-- Bottom action bar offers Bulk Archive / Bulk Restore / Bulk Delete.
+- Bottom action bar (active view) offers **Assign**, **Archive**, and **Delete**; the archived view offers **Restore**.
+  - **Assign** (`BulkAssignModal`) — pick one location/area (or "add to garden, no area"), set a quantity per selected plant, choose Planted/Unplanted, and optionally generate a smart planting schedule per plant (Sage+). `handleBulkAssign` inserts the instances and applies each plant's recommended schedule as tasks.
+  - **Delete** (`BulkDeleteModal`) — when any selected plant has instances, offers **Keep the history** (mark the instances End of Life → Senescence and archive every selected plant — `handleBulkEndOfLifeInstead`) vs **Delete everything** (`handleBulkDelete`, cascades). When none have instances, a plain "Delete N plants?" confirm.
 
 #### 3. Tap a plant card
 

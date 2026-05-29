@@ -33,6 +33,7 @@ import { Logger } from "../lib/errorHandler";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantEditModal from "./PlantEditModal";
 import PlantAssignmentModal from "./PlantAssignmentModal";
+import BulkAssignModal from "./BulkAssignModal";
 import BulkSearchModal from "./BulkSearchModal";
 import PlantSourcePicker from "./PlantSourcePicker";
 import { PerenualService } from "../lib/perenualService";
@@ -136,6 +137,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   const [selectMode, setSelectMode] = useState(false);
   const [selectedPlantIds, setSelectedPlantIds] = useState<Set<number>>(new Set());
   const [bulkActionState, setBulkActionState] = useState<"idle" | "archiving" | "deleting">("idle");
+  const [bulkDeleteState, setBulkDeleteState] = useState<{ open: boolean; instanceCount: number }>({ open: false, instanceCount: 0 });
+  const [showBulkAssign, setShowBulkAssign] = useState(false);
   const [showBulkSearch, setShowBulkSearch] = useState(false);
   const [planMembership, setPlanMembership] = useState<Set<number>>(new Set());
   const [unassignedPlantIds, setUnassignedPlantIds] = useState<Set<number>>(new Set());
@@ -762,6 +765,234 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       Logger.error("Bulk restore failed", err, { count: selectedPlantIds.size }, "Could not restore — try again.");
     } finally {
       setBulkActionState("idle");
+    }
+  };
+
+  // Count instances across the selected plants, then open the bulk-delete
+  // dialog (which offers the Keep-history / Delete-everything choice when
+  // any of them have instances).
+  const openBulkDeleteConfirm = async () => {
+    if (selectedPlantIds.size === 0) return;
+    const ids = Array.from(selectedPlantIds);
+    const { count } = await supabase
+      .from("inventory_items")
+      .select("id", { count: "exact", head: true })
+      .in("plant_id", ids);
+    setBulkDeleteState({ open: true, instanceCount: count ?? 0 });
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedPlantIds.size === 0) return;
+    setBulkActionState("deleting");
+    try {
+      const ids = Array.from(selectedPlantIds);
+      // Clean up task_blueprints referencing the affected inventory items
+      // (uuid[] column, no FK cascade).
+      const { data: items } = await supabase
+        .from("inventory_items")
+        .select("id")
+        .in("plant_id", ids);
+      const inventoryIds = (items ?? []).map((i: any) => i.id);
+      if (inventoryIds.length > 0) {
+        await supabase
+          .from("task_blueprints")
+          .delete()
+          .eq("home_id", homeId)
+          .overlaps("inventory_item_ids", inventoryIds);
+      }
+      const { error } = await supabase.from("plants").delete().in("id", ids);
+      if (error) throw error;
+      toast.success(`Deleted ${ids.length} plant${ids.length !== 1 ? "s" : ""}.`);
+      setBulkDeleteState({ open: false, instanceCount: 0 });
+      exitSelectMode();
+      refreshShed();
+    } catch (err: any) {
+      Logger.error("Bulk delete failed", err, { count: selectedPlantIds.size }, "Could not delete — try again.");
+    } finally {
+      setBulkActionState("idle");
+    }
+  };
+
+  // "Keep the history" for a batch: end every selected plant's still-active
+  // instances (→ Senescence) and archive all selected plants. Nothing is
+  // deleted; fully restorable. Plants with no instances are simply archived.
+  const handleBulkEndOfLifeInstead = async () => {
+    if (selectedPlantIds.size === 0) return;
+    setBulkActionState("deleting");
+    try {
+      const ids = Array.from(selectedPlantIds);
+      const endedAt = new Date().toISOString();
+      const summary = `Retired from your Plants on ${new Date().toLocaleDateString()}.`;
+      const { data: ended, error: endErr } = await supabase
+        .from("inventory_items")
+        .update({
+          ended_at: endedAt,
+          was_natural_end: null,
+          end_summary: summary,
+          status: "Archived",
+        })
+        .in("plant_id", ids)
+        .is("ended_at", null)
+        .select("id");
+      if (endErr) throw endErr;
+
+      const endedIds = (ended ?? []).map((r: any) => r.id);
+      if (endedIds.length > 0) {
+        await supabase.from("plant_journals").insert(
+          endedIds.map((id: string) => ({
+            home_id: homeId,
+            inventory_item_id: id,
+            subject: "Lifecycle complete",
+            description: "Retired from your Plants.",
+          })),
+        );
+      }
+
+      const { error: archErr } = await supabase
+        .from("plants")
+        .update({ is_archived: true })
+        .in("id", ids);
+      if (archErr) throw archErr;
+
+      toast.success(
+        endedIds.length > 0
+          ? `Archived ${ids.length} plant${ids.length !== 1 ? "s" : ""}; ${endedIds.length} marked End of Life.`
+          : `Archived ${ids.length} plant${ids.length !== 1 ? "s" : ""}.`,
+      );
+      setBulkDeleteState({ open: false, instanceCount: 0 });
+      exitSelectMode();
+      refreshShed();
+    } catch (err: any) {
+      Logger.error("Bulk End-of-Life failed", err, { count: selectedPlantIds.size }, "Could not keep the history — try again.");
+    } finally {
+      setBulkActionState("idle");
+    }
+  };
+
+  // Bulk assign — place a chosen quantity of each selected plant into one
+  // target area (or "in the garden, area unknown"), optionally generating a
+  // smart planting schedule per plant. Reuses the per-row shape from
+  // handleAssign; the schedule generation mirrors PlantAssignmentModal.
+  const handleBulkAssign = async (data: {
+    areaId: string;
+    status: string;
+    isPlanted: boolean;
+    isEstablished: boolean;
+    plantedDate: string;
+    growthState: string;
+    smartSchedules: boolean;
+    quantities: Record<number, number>;
+  }) => {
+    setActionLoading(true);
+    try {
+      const noArea = !data.areaId;
+      let areaContext: {
+        location_id: string | null;
+        location_name: string | null;
+        area_id: string | null;
+        area_name: string | null;
+      } = { location_id: null, location_name: null, area_id: null, area_name: null };
+      let areaDetails: any = null;
+      if (!noArea) {
+        const { data: areaData, error: areaError } = await supabase
+          .from("areas")
+          .select("*, locations(name)")
+          .eq("id", data.areaId)
+          .single();
+        if (areaError) throw areaError;
+        areaDetails = areaData;
+        areaContext = {
+          area_id: data.areaId,
+          area_name: areaData.name,
+          location_id: areaData.location_id,
+          location_name: (areaData.locations as any)?.name || "Unknown Location",
+        };
+      }
+
+      const selectedPlants = plants.filter((p) => selectedPlantIds.has(p.id as number));
+      const rows: any[] = [];
+      for (const plant of selectedPlants) {
+        const qty = Math.max(1, data.quantities[plant.id as number] ?? 1);
+        for (let i = 0; i < qty; i++) {
+          rows.push({
+            home_id: homeId,
+            plant_id: plant.id,
+            plant_name: plant.common_name,
+            status: data.status,
+            ...areaContext,
+            planted_at: data.isPlanted && !data.isEstablished ? data.plantedDate : null,
+            is_established: data.isEstablished,
+            growth_state: data.isPlanted ? data.growthState : null,
+            identifier: `${plant.common_name} #${Math.floor(Math.random() * 10000).toString().padStart(4, "0")}`,
+          });
+        }
+      }
+      if (rows.length === 0) return;
+
+      const { data: inserted, error: insertError } = await supabase
+        .from("inventory_items")
+        .insert(rows)
+        .select("id, plant_id");
+      if (insertError) throw insertError;
+
+      const totalTypes = selectedPlants.length;
+
+      // Smart planting schedules — per plant, best-effort. Applies the
+      // recommended viable method's phases as Planting tasks.
+      let homeAddress: string | null = null;
+      if (!noArea && data.smartSchedules && aiEnabled) {
+        const { data: homeData } = await supabase.from("homes").select("address").eq("id", homeId).single();
+        homeAddress = homeData?.address ?? null;
+        if (homeAddress) {
+          for (const plant of selectedPlants) {
+            try {
+              const { data: aiData, error: aiErr } = await supabase.functions.invoke("smart-plant-scheduler", {
+                body: {
+                  plantName: plant.common_name,
+                  areaDetails,
+                  address: homeAddress,
+                  homeId,
+                  plantMetadata: (plant as any).plant_metadata ?? null,
+                },
+              });
+              if (aiErr || !aiData) continue;
+              const viable = (aiData.schedules ?? []).filter((s: any) => s.is_viable);
+              const chosen = viable[0];
+              if (!chosen) continue;
+              const invIds = (inserted ?? []).filter((r: any) => r.plant_id === plant.id).map((r: any) => r.id);
+              const tasksToInsert = (chosen.phases ?? []).map((phase: any) => ({
+                home_id: homeId,
+                location_id: areaContext.location_id,
+                area_id: areaContext.area_id,
+                inventory_item_ids: invIds,
+                type: "Planting",
+                title: `${phase.phase_name} (${plant.common_name})`,
+                description: `Method: ${chosen.method}\nPhase: ${phase.phase_name}\n\nInstructions:\n${(phase.steps ?? []).map((s: string, i: number) => `${i + 1}. ${s}`).join("\n")}\n\nReasoning:\n${chosen.reasoning ?? ""}`,
+                due_date: phase.recommended_date,
+                status: "Pending",
+              }));
+              if (tasksToInsert.length > 0) {
+                await supabase.from("tasks").insert(tasksToInsert);
+              }
+            } catch (err) {
+              Logger.warn("Bulk assign smart-schedule failed for a plant", { plant: plant.common_name, err });
+            }
+          }
+        }
+      }
+
+      toast.success(
+        noArea
+          ? `${rows.length} plant${rows.length !== 1 ? "s" : ""} added to your garden — place them when ready.`
+          : `Assigned ${rows.length} plant${rows.length !== 1 ? "s" : ""} across ${totalTypes} type${totalTypes !== 1 ? "s" : ""}.`,
+      );
+      setShowBulkAssign(false);
+      exitSelectMode();
+      refreshShed();
+    } catch (err: any) {
+      Logger.error("Bulk assign failed", err, { count: selectedPlantIds.size }, "Could not assign — try again.");
+    } finally {
+      setActionLoading(false);
     }
   };
 
@@ -1752,15 +1983,35 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
             </div>
             <div className="w-px h-6 bg-white/15" />
             {viewTab === "active" ? (
-              <button
-                data-testid="shed-bulk-archive"
-                onClick={handleBulkArchive}
-                disabled={bulkActionState !== "idle"}
-                className="flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl text-xs font-black hover:bg-white/10 transition-colors disabled:opacity-50"
-              >
-                {bulkActionState === "archiving" ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
-                Archive
-              </button>
+              <>
+                <button
+                  data-testid="shed-bulk-assign"
+                  onClick={() => setShowBulkAssign(true)}
+                  disabled={bulkActionState !== "idle"}
+                  className="flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl text-xs font-black hover:bg-white/10 transition-colors disabled:opacity-50"
+                >
+                  <MapPin size={13} />
+                  Assign
+                </button>
+                <button
+                  data-testid="shed-bulk-archive"
+                  onClick={handleBulkArchive}
+                  disabled={bulkActionState !== "idle"}
+                  className="flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl text-xs font-black hover:bg-white/10 transition-colors disabled:opacity-50"
+                >
+                  {bulkActionState === "archiving" ? <Loader2 size={13} className="animate-spin" /> : <Archive size={13} />}
+                  Archive
+                </button>
+                <button
+                  data-testid="shed-bulk-delete"
+                  onClick={openBulkDeleteConfirm}
+                  disabled={bulkActionState !== "idle"}
+                  className="flex items-center gap-1.5 px-3 py-2 min-h-[40px] rounded-xl text-xs font-black text-rose-300 hover:bg-rose-500/15 transition-colors disabled:opacity-50"
+                >
+                  {bulkActionState === "deleting" ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
+                  Delete
+                </button>
+              </>
             ) : (
               <button
                 data-testid="shed-bulk-restore"
@@ -1941,6 +2192,27 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 isAssigning={actionLoading}
                 homeId={homeId}
                 aiEnabled={aiEnabled}
+              />
+            )}
+            {bulkDeleteState.open && (
+              <BulkDeleteModal
+                count={selectedPlantIds.size}
+                instanceCount={bulkDeleteState.instanceCount}
+                isLoading={bulkActionState === "deleting"}
+                onClose={() => setBulkDeleteState({ open: false, instanceCount: 0 })}
+                onEndOfLife={handleBulkEndOfLifeInstead}
+                onDeleteAll={handleBulkDelete}
+              />
+            )}
+            {showBulkAssign && (
+              <BulkAssignModal
+                plants={plants.filter((p) => selectedPlantIds.has(p.id as number))}
+                locations={locations}
+                homeId={homeId}
+                aiEnabled={aiEnabled}
+                isAssigning={actionLoading}
+                onAssign={handleBulkAssign}
+                onClose={() => setShowBulkAssign(false)}
               />
             )}
             {showSourcePicker && sourcePickerPlants.length > 0 && (
@@ -2159,6 +2431,118 @@ function DeleteWithInstancesModal({
             Cancel
           </button>
         </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Bulk delete dialog. When the selected plants have instances it offers the
+ * same Keep-history / Delete-everything choice as the single-plant flow,
+ * applied across the batch; otherwise a plain destructive confirm.
+ */
+function BulkDeleteModal({
+  count,
+  instanceCount,
+  isLoading,
+  onClose,
+  onEndOfLife,
+  onDeleteAll,
+}: {
+  count: number;
+  instanceCount: number;
+  isLoading: boolean;
+  onClose: () => void;
+  onEndOfLife: () => void;
+  onDeleteAll: () => void;
+}) {
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const plantsPlural = count !== 1;
+  const hasInstances = instanceCount > 0;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div
+        role="dialog"
+        aria-modal="true"
+        data-testid="bulk-delete-modal"
+        className="bg-rhozly-surface-lowest p-6 rounded-3xl w-full max-w-sm"
+      >
+        <h3 className="font-black text-lg mb-2">
+          Delete {count} plant{plantsPlural ? "s" : ""}?
+        </h3>
+        {hasInstances ? (
+          <>
+            <p className="text-sm font-bold text-rhozly-on-surface/60 mb-5">
+              {plantsPlural ? "These plants have" : "This plant has"} {instanceCount} plant
+              {instanceCount !== 1 ? "s" : ""} in your garden. Keep the history, or remove everything permanently.
+            </p>
+            <div className="space-y-2.5">
+              <button
+                onClick={onEndOfLife}
+                disabled={isLoading}
+                data-testid="bulk-delete-keep-eol"
+                className="w-full py-3 px-4 rounded-2xl font-black text-white bg-rhozly-primary hover:opacity-90 disabled:opacity-60 text-left flex items-center justify-between gap-2"
+              >
+                <span>
+                  Keep the history
+                  <span className="block text-[11px] font-bold text-white/70">
+                    Mark their instances End of Life (kept in Senescence) and archive the plant{plantsPlural ? "s" : ""}.
+                  </span>
+                </span>
+                {isLoading && <Loader2 className="animate-spin shrink-0" size={16} />}
+              </button>
+              <button
+                onClick={onDeleteAll}
+                disabled={isLoading}
+                data-testid="bulk-delete-everything"
+                className="w-full py-3 px-4 rounded-2xl font-black text-rhozly-error border border-rhozly-error/30 hover:bg-rhozly-error/5 disabled:opacity-60 text-left"
+              >
+                Delete everything
+                <span className="block text-[11px] font-bold text-rhozly-error/70">
+                  Permanently remove the plant{plantsPlural ? "s" : ""} and all {instanceCount} instance
+                  {instanceCount !== 1 ? "s" : ""}.
+                </span>
+              </button>
+              <button
+                onClick={onClose}
+                disabled={isLoading}
+                className="w-full py-3 rounded-2xl font-bold bg-rhozly-surface-low hover:bg-rhozly-surface text-rhozly-on-surface disabled:opacity-60"
+              >
+                Cancel
+              </button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-sm font-bold text-rhozly-on-surface/60 mb-6">
+              Permanently delete {count} plant{plantsPlural ? "s" : ""}? This can't be undone.
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={onClose}
+                disabled={isLoading}
+                className="flex-1 py-3 rounded-2xl font-bold bg-rhozly-surface-low hover:bg-rhozly-surface text-rhozly-on-surface disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={onDeleteAll}
+                disabled={isLoading}
+                data-testid="bulk-delete-everything"
+                className="flex-1 py-3 rounded-2xl font-bold text-white bg-rhozly-error hover:opacity-90 disabled:opacity-60"
+              >
+                {isLoading ? <Loader2 className="animate-spin mx-auto" size={18} /> : "Delete"}
+              </button>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

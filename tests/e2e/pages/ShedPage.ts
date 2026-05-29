@@ -34,6 +34,18 @@ export class ShedPage {
   readonly deleteKeepEol: Locator;
   readonly deleteEverything: Locator;
 
+  // Multi-select / bulk actions
+  readonly selectModeBtn: Locator;
+  readonly bulkActionBar: Locator;
+  readonly bulkAssignBtn: Locator;
+  readonly bulkDeleteBtn: Locator;
+  readonly bulkDeleteModal: Locator;
+  readonly bulkDeleteKeepEol: Locator;
+  readonly bulkDeleteEverything: Locator;
+  readonly bulkAssignModal: Locator;
+  readonly bulkAssignNoArea: Locator;
+  readonly bulkAssignConfirm: Locator;
+
   constructor(page: Page) {
     this.page = page;
     this.heading = page.getByRole("heading", { name: "Plants" });
@@ -63,6 +75,17 @@ export class ShedPage {
     this.deleteWithInstancesModal = page.locator('[data-testid="delete-with-instances-modal"]');
     this.deleteKeepEol = page.locator('[data-testid="delete-keep-eol"]');
     this.deleteEverything = page.locator('[data-testid="delete-everything"]');
+
+    this.selectModeBtn = page.locator('[data-testid="shed-select-mode-btn"]');
+    this.bulkActionBar = page.locator('[data-testid="shed-bulk-action-bar"]');
+    this.bulkAssignBtn = page.locator('[data-testid="shed-bulk-assign"]');
+    this.bulkDeleteBtn = page.locator('[data-testid="shed-bulk-delete"]');
+    this.bulkDeleteModal = page.locator('[data-testid="bulk-delete-modal"]');
+    this.bulkDeleteKeepEol = page.locator('[data-testid="bulk-delete-keep-eol"]');
+    this.bulkDeleteEverything = page.locator('[data-testid="bulk-delete-everything"]');
+    this.bulkAssignModal = page.locator('[data-testid="bulk-assign-modal"]');
+    this.bulkAssignNoArea = page.locator('[data-testid="bulk-assign-no-area"]');
+    this.bulkAssignConfirm = page.locator('[data-testid="bulk-assign-confirm"]');
   }
 
   /** The light-needs icon on a plant tile (opens the edit modal's Light tab). */
