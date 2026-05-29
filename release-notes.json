@@ -1,9 +1,1 @@
-[
-  {
-    "label": "Improved",
-    "items": [
-      "Multi-ID is now interactive — for each plant the AI spots you can pick and confirm the right identity, tap any guess to see its info pills and description (with a \"See full care\" button into the full Care / Grow Guide / Companions / Light view), and tick the plants you want to add straight to your Shed.",
-      "Plant info across Multi-ID and the Companions tab now comes from one shared resolver — your library first, then the wider plant databases, and AI only when nothing else has it."
-    ]
-  }
-]
+[]
