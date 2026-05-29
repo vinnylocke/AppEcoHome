@@ -58,7 +58,9 @@ Vision-heavy plant-doctor actions opt out of the Flash-only default. `_shared/ge
 3. `gemini-3-flash-preview` (Flash safety net)
 4. `gemini-2.5-flash` (last resort)
 
-Used by `identify_vision`, `diagnose`, `identify_pest`, `analyse_comprehensive` in `plant-doctor/index.ts`. Trades ~20× cost per call for noticeably better visual reasoning. Other vision actions across the codebase can opt in by passing `models: VISION_DIAGNOSIS_MODELS` to `callGeminiCascade`.
+Used by `identify_vision`, `diagnose`, `identify_pest`, `analyse_comprehensive`, and `identify_scene` in `plant-doctor/index.ts`. Trades ~20× cost per call for noticeably better visual reasoning. Other vision actions across the codebase can opt in by passing `models: VISION_DIAGNOSIS_MODELS` to `callGeminiCascade`.
+
+**Object detection (`identify_scene` / Multi-ID).** Gemini returns native bounding boxes as `box_2d = [ymin, xmin, ymax, xmax]` normalised to **0–1000** (top-left origin). The `SCENE_MAP_SCHEMA` responseSchema requests one box + ranked candidate IDs per detected plant; the client maps `box_2d` → CSS percentages via `src/lib/sceneMap.ts` to overlay boxes on the rendered photo. Boxes are approximate — pair them with the confidence weighting rather than treating them as pixel-exact.
 
 ### Pricing (per 1M tokens, confirmed against https://ai.google.dev/gemini-api/docs/pricing)
 

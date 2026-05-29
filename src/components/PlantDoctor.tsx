@@ -25,6 +25,7 @@ import {
   ShieldCheck,
   Sun,
   Edit3,
+  ScanSearch,
 } from "lucide-react";
 import { IconDoctor, IconPlantDB, IconPest, IconAI, IconPlant, IconGuides, IconShopping } from "../constants/icons";
 import { toast } from "react-hot-toast";
@@ -41,6 +42,7 @@ import PlantDoctorHistory from "./PlantDoctorHistory";
 import { usePlantDoctorSessions } from "../hooks/usePlantDoctorSessions";
 import PhotoAnnotationOverlay, { type PhotoAnnotation } from "./PhotoAnnotationOverlay";
 import AnalyseResultCard from "./lens/AnalyseResultCard";
+import SceneMapResultCard from "./lens/SceneMapResultCard";
 import InfoTooltip from "./InfoTooltip";
 import { usePersona } from "../hooks/usePersona";
 
@@ -52,6 +54,7 @@ import {
   type AnalyseResult,
   type DiseaseInfo,
   type VisionResult,
+  type SceneMapResult,
 } from "../services/plantDoctorService";
 
 interface PlantDoctorProps {
@@ -100,7 +103,7 @@ export default function PlantDoctor({
   const [isFetchingDetails, setIsFetchingDetails] = useState(false);
   const [isGeneratingTreatment, setIsGeneratingTreatment] = useState(false);
   const [activeAction, setActiveAction] = useState<
-    "identify" | "diagnose" | "pest" | "analyse" | null
+    "identify" | "diagnose" | "pest" | "analyse" | "scene" | null
   >(null);
 
   const [myInventory, setMyInventory] = useState<any[]>([]);
@@ -109,6 +112,7 @@ export default function PlantDoctor({
 
   const [aiResult, setAiResult] = useState<VisionResult | null>(null);
   const [analyseResult, setAnalyseResult] = useState<AnalyseResult | null>(null);
+  const [sceneResult, setSceneResult] = useState<SceneMapResult | null>(null);
 
   const [selectedPlantName, setSelectedPlantName] = useState<string | null>(null);
   const [selectedPlantScientific, setSelectedPlantScientific] = useState<string | null>(null);
@@ -334,6 +338,7 @@ export default function PlantDoctor({
     setActiveAction(null);
     setAiResult(null);
     setAnalyseResult(null);
+    setSceneResult(null);
     setSelectedPlantName(null);
     setSelectedPlantScientific(null);
     setSelectedDisease(null);
@@ -462,6 +467,7 @@ export default function PlantDoctor({
     setActiveAction(action);
     setAiResult(null);
     setAnalyseResult(null);
+    setSceneResult(null);
     setSelectedPlantName(null);
     setSelectedPlantScientific(null);
     setSelectedDisease(null);
@@ -506,6 +512,43 @@ export default function PlantDoctor({
     }
   };
 
+  const handleMultiId = async () => {
+    if (!aiEnabled) return toast.error("AI features are disabled.");
+    if (!selectedFile) return toast.error("Upload an image first.");
+
+    setIsProcessing(true);
+    setActiveAction("scene");
+    setAiResult(null);
+    setAnalyseResult(null);
+    setSceneResult(null);
+    setSelectedPlantName(null);
+    setSelectedPlantScientific(null);
+    setSelectedDisease(null);
+    setSelectedPest(null);
+
+    try {
+      const base64Data = await compressImage(selectedFile);
+      const data = await PlantDoctorService.identifyScene({
+        homeId,
+        imageBase64: base64Data,
+        mimeType: "image/jpeg",
+        deviceLat: deviceLocation?.lat,
+        deviceLng: deviceLocation?.lng,
+      });
+      setSceneResult(data);
+      logEvent(EVENT.AI_IDENTIFY, { multi_id_regions: data.regions.length });
+      toast.success(
+        data.regions.length > 0
+          ? `Found ${data.regions.length} plant${data.regions.length === 1 ? "" : "s"}.`
+          : "No distinct plants found in that photo.",
+      );
+    } catch (error: any) {
+      Logger.error("Plant Multi-ID failed", error, { homeId }, error.message || "Failed to identify plants.");
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const handleAnalyse = async () => {
     if (!aiEnabled) return toast.error("AI features are disabled.");
     if (!selectedFile) return toast.error("Upload an image first.");
@@ -514,6 +557,7 @@ export default function PlantDoctor({
     setActiveAction("analyse");
     setAiResult(null);
     setAnalyseResult(null);
+    setSceneResult(null);
     setSelectedPlantName(null);
     setSelectedPlantScientific(null);
     setSelectedDisease(null);
@@ -920,7 +964,7 @@ export default function PlantDoctor({
                 </button>
 
               {!compact && (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 sm:gap-3">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
                   <button
                     onClick={() => handleAiAction("identify")}
                     disabled={isUIBusy}
@@ -963,6 +1007,20 @@ export default function PlantDoctor({
                     <span>Identify</span>
                     <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Pest</span>
                   </button>
+                  <button
+                    onClick={handleMultiId}
+                    disabled={isUIBusy}
+                    data-testid="doctor-btn-multi-id"
+                    className={`flex flex-col items-center justify-center gap-1.5 p-3 sm:p-4 min-h-[44px] rounded-2xl font-black text-xs sm:text-sm transition-all group ${activeAction === "scene" ? "bg-sky-600 text-white shadow-md scale-[1.02]" : "bg-sky-50 text-sky-800 border border-sky-200 hover:bg-sky-100 hover:border-sky-300 disabled:opacity-50"}`}
+                  >
+                    {isProcessing && activeAction === "scene" ? (
+                      <Loader2 className="w-5 h-5 animate-spin" />
+                    ) : (
+                      <ScanSearch className="w-5 h-5 group-hover:scale-110 transition-transform" />
+                    )}
+                    <span>Multi-ID</span>
+                    <span className="text-[10px] opacity-60 font-bold normal-case tracking-normal">Many plants</span>
+                  </button>
                 </div>
               )}
               </div>
@@ -978,7 +1036,13 @@ export default function PlantDoctor({
                 </div>
               )}
 
-              {activeAction !== "analyse" && aiResult && (
+              {activeAction === "scene" && sceneResult && imagePreview && (
+                <div className="animate-in fade-in slide-in-from-top-4">
+                  <SceneMapResultCard imageUrl={imagePreview} result={sceneResult} />
+                </div>
+              )}
+
+              {activeAction !== "analyse" && activeAction !== "scene" && aiResult && (
                 <div className="space-y-4 animate-in fade-in slide-in-from-top-4">
                   <div className="bg-white border border-rhozly-primary/20 rounded-3xl p-6 shadow-sm">
                     <div className="flex items-center gap-2 mb-3">

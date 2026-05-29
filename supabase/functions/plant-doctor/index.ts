@@ -132,6 +132,42 @@ const IDENTIFY_VISION_SCHEMA = {
   required: ["notes", "possible_names"],
 };
 
+// Multi-ID — detect every distinct plant in one photo, each with a bounding
+// box ([ymin, xmin, ymax, xmax] normalised 0–1000) and ranked candidate IDs.
+const SCENE_MAP_SCHEMA = {
+  type: "OBJECT",
+  properties: {
+    notes: { type: "STRING" },
+    regions: {
+      type: "ARRAY",
+      items: {
+        type: "OBJECT",
+        properties: {
+          box_2d: {
+            type: "ARRAY",
+            description: "Bounding box [ymin, xmin, ymax, xmax], each value normalised 0–1000 (top-left origin).",
+            items: { type: "INTEGER" },
+          },
+          candidates: {
+            type: "ARRAY",
+            items: {
+              type: "OBJECT",
+              properties: {
+                name:            { type: "STRING",  description: "Well-known common name of the plant" },
+                scientific_name: { type: "STRING",  description: "Latin binomial scientific name" },
+                confidence:      { type: "INTEGER", description: "0–100 confidence based on visible features" },
+              },
+              required: ["name", "scientific_name", "confidence"],
+            },
+          },
+        },
+        required: ["box_2d", "candidates"],
+      },
+    },
+  },
+  required: ["notes", "regions"],
+};
+
 const DIAGNOSE_SCHEMA = {
   type: "OBJECT",
   properties: {
@@ -1050,6 +1086,71 @@ Also return a brief observation in notes.`;
       await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_vision", usage });
       log(FN, "result", { action, possibleNames: (parsed.possible_names ?? []).map((n: any) => `${n.name} (${n.confidence}%)`) });
       return new Response(rawText, {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // ── action: identify_scene (Multi-ID — detect every plant + weighted IDs) ──
+
+    if (action === "identify_scene") {
+      if (!imageBase64) throw new Error("No image data provided.");
+      const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+
+      const promptText = `Detect every DISTINCT plant in this photo — there may be several.
+${locationLine ? `The gardener is located: ${locationLine}. Prioritise plants native to or commonly grown in this region.` : ""}
+
+For each distinct plant return:
+- box_2d: a bounding box [ymin, xmin, ymax, xmax] drawn tightly around that plant, each value normalised 0–1000 (top-left origin).
+- candidates: the top 1–3 most likely identities, each with:
+  - name: the well-known common name (e.g. "Lavender", "Cherry Tomato") — what most gardeners call it
+  - scientific_name: the Latin binomial (e.g. "Lavandula angustifolia")
+  - confidence: 0–100 based on visible leaf shape, colour, texture, and growth habit; 90+ = highly certain, 50–70 = plausible with ambiguity, below 40 = speculative
+
+Rules:
+- Only box things that are clearly plants. Do NOT invent regions for pots, soil, mulch, labels, hands, or background.
+- One box per distinct plant. If the same species appears as several separate plants, box each one.
+- Order each region's candidates by confidence, highest first.
+- Return at most 12 regions — the most prominent plants if there are more.
+- If you cannot find any distinct plants, return an empty regions array.
+
+Add a brief overall observation in notes.`;
+
+      const { text: rawText, usage } = await callGeminiCascade(
+        apiKey, FN,
+        toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
+        // Pro-first cascade + low temperature for the steadiest boxes.
+        { responseSchema: SCENE_MAP_SCHEMA, models: VISION_DIAGNOSIS_MODELS, temperature: 0.2, logContext: { action } },
+      );
+
+      const parsedRaw = JSON.parse(rawText);
+      // Server-side hygiene: keep only well-formed regions (real 0–1000 box with
+      // positive area + ≥1 named candidate); clamp confidence; sort; cap at 12.
+      const cleanRegions = (Array.isArray(parsedRaw.regions) ? parsedRaw.regions : [])
+        .map((r: any) => {
+          const box = Array.isArray(r?.box_2d) ? r.box_2d.map((n: any) => Math.round(Number(n))) : [];
+          const candidates = (Array.isArray(r?.candidates) ? r.candidates : [])
+            .filter((c: any) => c && typeof c.name === "string" && c.name.trim())
+            .map((c: any) => ({
+              name: c.name.trim(),
+              scientific_name: typeof c.scientific_name === "string" ? c.scientific_name.trim() : "",
+              confidence: Math.max(0, Math.min(100, Math.round(Number(c.confidence) || 0))),
+            }))
+            .sort((a: any, b: any) => b.confidence - a.confidence);
+          return { box_2d: box, candidates };
+        })
+        .filter((r: any) =>
+          r.box_2d.length === 4 &&
+          r.box_2d.every((n: number) => Number.isFinite(n) && n >= 0 && n <= 1000) &&
+          r.box_2d[2] > r.box_2d[0] &&
+          r.box_2d[3] > r.box_2d[1] &&
+          r.candidates.length > 0,
+        )
+        .slice(0, 12);
+
+      const result = { notes: parsedRaw.notes ?? "", regions: cleanRegions };
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_scene", usage });
+      log(FN, "result", { action, regionCount: cleanRegions.length });
+      return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

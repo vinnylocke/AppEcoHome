@@ -19,6 +19,7 @@ Four actions powered by Gemini Vision via `PlantDoctorService`:
 | Identify | `identify_vision` | Plant name(s), scientific name, care snapshot |
 | Diagnose | `diagnose` | Diseases possible, treatments, severity, plant-instance link |
 | Pest Scan | `identify_pest` | Possible pests, control measures |
+| **Multi-ID** | `identify_scene` | One photo of **several** plants → a bounding box per detected plant (overlaid on the image) + a mapping listing each box's ranked candidate identities with a confidence weight. Identification-only; creates nothing. |
 
 The `plant-doctor` edge function also exposes **two non-screen actions** consumed by the [Localized Task Calendar](../02-dashboard/10-localized-task-calendar.md):
 
@@ -46,9 +47,10 @@ PlantDoctor
 │   ├── (Optional) Plant Instance Picker
 │   ├── Action buttons
 │   │   ├── ✨ Analyse (primary, full-width hero)
-│   │   └── Identify · Diagnose · Pest Scan (secondary row)
+│   │   └── Identify · Diagnose · Pest Scan · Multi-ID (secondary grid; hidden in compact)
 │   ├── Result panel
 │   │   ├── AnalyseResultCard (when activeAction === "analyse")
+│   │   ├── SceneMapResultCard (when activeAction === "scene") — box overlay + weighted mapping
 │   │   │   ├── Identification (always open)
 │   │   │   ├── Health & Light (always open) — health pill + sunlight check
 │   │   │   ├── Pruning (collapsible)
@@ -147,7 +149,7 @@ All actions route through the single `plant-doctor` edge function (action-discri
 
 ### Vision-cascade model selection
 
-The four vision-heavy actions (`identify_vision`, `diagnose`, `identify_pest`, `analyse_comprehensive`) opt into a dedicated **Pro-first cascade** instead of the default Flash cascade:
+The five vision-heavy actions (`identify_vision`, `diagnose`, `identify_pest`, `analyse_comprehensive`, `identify_scene`) opt into a dedicated **Pro-first cascade** instead of the default Flash cascade:
 
 ```
 1. gemini-2.5-pro          ($1.25 / $10.00 per 1M)  ← primary
@@ -209,6 +211,7 @@ All actions go through the single `plant-doctor` edge function, discriminated by
 | `identify_vision` | Identify button |
 | `diagnose` | Diagnose button |
 | `identify_pest` | Pest Scan button |
+| `identify_scene` | **Multi-ID** button — detects every distinct plant and returns `regions[{ box_2d:[ymin,xmin,ymax,xmax] (0–1000), candidates:[{ name, scientific_name, confidence }] }]`. Uses the Pro-first cascade at temperature 0.2; server-side it drops malformed/empty regions, clamps confidence, sorts candidates, caps at 12. No session write (logged via `logAiUsage`). |
 | `lookup_frost_dates` | Mobile Quick Access Wave 3 — cached frost-date lookup (open to all tiers). Reads/writes `home_climate`. |
 | `plant_when_to_plant` | Mobile Quick Access Wave 3 — per-plant planting guidance anchored to the home's frost dates. Sage+ only. |
 | `get_ai_disease_info` | After diagnosis, drill into a specific disease (AI) |
@@ -230,7 +233,7 @@ None (Chat uses its own — see [03-plant-doctor-chat.md](./03-plant-doctor-chat
 
 | Feature | Tier |
 |---------|------|
-| Identify / Diagnose / Pest | Sage / Evergreen (gated by `aiEnabled`) — Sprout/Botanist see "AI tier required" lock |
+| Identify / Diagnose / Pest / Multi-ID | Sage / Evergreen (gated by `aiEnabled`) — Sprout/Botanist see "AI tier required" lock. All rate-limited via the shared `enforceRateLimit`. |
 | Plant DB lookups | Botanist+ (`perenualEnabled`) |
 | History tab | Every tier (shows past sessions) |
 
@@ -280,8 +283,9 @@ This is Rhozly's heaviest AI hitter. Four jobs you couldn't easily do before:
 2. **Identify** — "What is this plant?" Snap it, get its name + a care snapshot. Best when you already know it's healthy and you just need a name.
 3. **Diagnose** — "What's wrong with this plant?" Snap the affected area, get likely diseases + treatments. Best when you have a known plant that looks unwell.
 4. **Pest Scan** — "Is there a pest in this photo?" Snap the leaf, get a workup. Best when you can see insects or damage.
+5. **Multi-ID** — "What are all these plants?" Snap one photo containing several plants; the AI draws a box around each plant on the image and lists, per box, its best-guess identities with a confidence weighting. Best for a mixed bed, a nursery shelf, or a friend's border you want to make sense of in one shot. Identification-only — it doesn't add anything to your garden.
 
-For new gardeners, **Analyse** is where the app earns its keep — one tap, one full answer. For experts, the three targeted actions are a faster path when you already know what you're checking for.
+For new gardeners, **Analyse** is where the app earns its keep — one tap, one full answer. For experts, the targeted actions are a faster path when you already know what you're checking for, and **Multi-ID** turns "what's all this?" into a single labelled photo.
 
 ### Every flow on this screen
 
@@ -378,6 +382,8 @@ For new gardeners, **Analyse** is where the app earns its keep — one tap, one 
 
 - `src/components/PlantDoctor.tsx` — orchestrator
 - `src/components/lens/AnalyseResultCard.tsx` — comprehensive analysis result rendering (Mobile Quick Access Wave 1)
+- `src/components/lens/SceneMapResultCard.tsx` — Multi-ID result: box overlay + weighted candidate mapping (two-way highlight)
+- `src/lib/sceneMap.ts` — pure box→percent / validation / top-candidate helpers (unit-tested in `tests/unit/lib/sceneMap.test.ts`)
 - `src/components/TaskActionButtons.tsx` — shared task-commit UI (writes `task_blueprints` / `tasks` / `task_dependencies`). Consumed by both PlantDoctorChat and AnalyseResultCard.
 - `src/services/plantDoctorService.ts` — API + storage upload; defines `AnalyseResult` type + `analyseComprehensive` method
 - `src/hooks/usePlantDoctorSessions.ts` — history

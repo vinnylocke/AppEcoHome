@@ -481,6 +481,9 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | DOC-011 | Nav link navigates | ✅ | Click "Plant Doctor" nav link → URL `/doctor` | Bootstrap | — | ✅ Passing |
 | DOC-012 | PlantDoctorChat FAB — globally visible | ✅ | On `/dashboard` → chat floating button visible | Bootstrap | — | ✅ Passing |
 | DOC-013 | Upload invalid file type | ❌ | Upload a `.txt` file → error message shown, buttons remain hidden | Bootstrap | — | ✅ Passing |
+| DOC-014 | Multi-ID — boxes + weighted mapping | ⬜ | Upload image → `doctor-btn-multi-id` visible (Sage+) → click → mock `plant-doctor` `identify_scene` returns 2 regions → `scene-map-result` shows `scene-map-box-0/1` overlaid + `scene-map-region-0/1` with candidate names + confidence %. Boxes are AI/network-dependent — assert structure, not pixels. | Bootstrap | `plant-doctor` identify_scene | ⬜ Planned |
+| DOC-015 | Multi-ID — empty state | ⬜ | Mock `identify_scene` returns `{ regions: [] }` → "No distinct plants found" empty state shown | Bootstrap | `plant-doctor` identify_scene (empty) | ⬜ Planned |
+| DOC-016 | Multi-ID — AI disabled | ⬜ | `ai_enabled=false` → `doctor-btn-multi-id` disabled | Bootstrap (no AI) | Supabase profile mock | ⬜ Planned |
 
 ---
 

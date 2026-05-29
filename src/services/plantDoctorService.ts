@@ -223,6 +223,24 @@ export interface PlantingGuidance {
   tips: string[];
 }
 
+// ── Multi-ID (identify_scene) ───────────────────────────────────────────────
+export interface SceneCandidate {
+  name: string;
+  scientific_name?: string;
+  confidence: number;
+}
+
+export interface SceneRegion {
+  /** [ymin, xmin, ymax, xmax] normalised 0–1000 (top-left origin). */
+  box: [number, number, number, number];
+  candidates: SceneCandidate[];
+}
+
+export interface SceneMapResult {
+  notes?: string;
+  regions: SceneRegion[];
+}
+
 async function invoke<T>(body: Record<string, unknown>): Promise<T> {
   const { data, error } = await supabase.functions.invoke("plant-doctor", {
     body,
@@ -259,6 +277,31 @@ export const PlantDoctorService = {
     deviceLng?: number;
   }): Promise<AnalyseResult> {
     return invoke({ action: "analyse_comprehensive", ...params });
+  },
+
+  // Multi-ID — one photo of several plants → a box + ranked IDs per plant.
+  async identifyScene(params: {
+    homeId?: string;
+    imageBase64: string;
+    mimeType: string;
+    deviceLat?: number;
+    deviceLng?: number;
+  }): Promise<SceneMapResult> {
+    const raw = await invoke<{
+      notes?: string;
+      regions?: Array<{ box_2d?: number[]; candidates?: SceneCandidate[] }>;
+    }>({ action: "identify_scene", ...params });
+    const regions: SceneRegion[] = (raw.regions ?? [])
+      .filter((r) => Array.isArray(r.box_2d) && r.box_2d.length === 4)
+      .map((r) => ({
+        box: (r.box_2d as number[]).slice(0, 4) as [number, number, number, number],
+        candidates: (r.candidates ?? []).map((c) => ({
+          name: c.name,
+          scientific_name: c.scientific_name || undefined,
+          confidence: c.confidence,
+        })),
+      }));
+    return { notes: raw.notes, regions };
   },
 
   lookupFrostDates(homeId: string): Promise<FrostDates> {

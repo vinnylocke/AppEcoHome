@@ -56,7 +56,7 @@ Then `onTierChange()` lifts flags into App state so the rest of the app re-rende
 
 | Feature | Gate |
 |---------|------|
-| Plant Doctor Identify / Diagnose / Pest | `ai_enabled` |
+| Plant Doctor Identify / Diagnose / Pest / Multi-ID | `ai_enabled` |
 | Plant Doctor Chat | `ai_enabled` |
 | AI Assistant Card | `ai_enabled` |
 | New Plan Form (AI blueprint) | `ai_enabled` |
