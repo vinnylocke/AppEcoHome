@@ -323,6 +323,7 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | SHED-022 | Card click opens PlantEditModal | ✅ | Click Tomato card → edit modal opens showing "Tomato" name | Plants | — | ✅ Passing |
 | SHED-023 | PlantEditModal — close | ✅ | Click Close in modal → modal gone, no changes | Plants | — | ✅ Passing |
 | SHED-023b | Tile light icon → Light tab | ✅ | Tap the light (sun) icon on a plant tile → edit modal opens on the Light tab (light-tab content visible), not the Sun Tracker | Plants | — | ✅ Passing |
+| SHED-023c | Delete plant with instances — choice | ✅ | Delete a plant that has instances (Tomato) → modal offers "Keep the history (End of Life)" vs "Delete everything"; Cancel is non-destructive | Plants | — | ✅ Passing |
 | SHED-024 | Archive plant — happy path | ✅ | Click archive icon on Tomato, confirm → Tomato removed from Active, appears in Archived | Plants | — | ✅ Passing |
 | SHED-025 | Archive plant — cancel | ✅ | Click archive icon, Cancel → Tomato still in Active | Plants | — | ✅ Passing |
 | SHED-026 | Restore archived plant | ✅ | In Archived tab, click restore on Mint → Mint appears in Active | Plants | — | ✅ Passing |

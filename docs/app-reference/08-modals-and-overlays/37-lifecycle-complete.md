@@ -1,8 +1,12 @@
 # Lifecycle Complete Modal
 
-> The gentle "this plant's journey is over" flow. Replaces the old archive toggle with a deliberate moment that captures a closing note, final photo, and (optionally) an AI analysis of what may have gone wrong.
+> The gentle "this plant's journey is over" flow. Replaces the old archive toggle with a deliberate moment that captures a closing note, final photo, and (optionally) an AI analysis of what may have gone wrong. The same modal also **amends** an already-ended instance.
 
-**Trigger:** "Mark lifecycle complete" button inside `InstanceEditModal` for any plant instance that doesn't already have `ended_at` set.
+**Trigger:** "Mark lifecycle complete" button inside `InstanceEditModal` for any plant instance that doesn't already have `ended_at` set. For an instance that's **already ended**, the same modal opens in **amend mode** via the "Amend" button on the "Lifecycle complete" card.
+
+**Modes (`mode` prop):**
+- `"create"` (default) — stamps `ended_at` + `was_natural_end` + `end_summary`, sets `status = "Archived"`, inserts a closing journal entry, and (when not natural + AI-enabled) runs `analyse-plant-end-of-life`.
+- `"amend"` — seeded with the instance's current values (`initial`); updates **only** `was_natural_end` + `end_summary` (leaves `ended_at`/status), hides the photo step, journals a "Lifecycle details updated" entry, and re-runs the AI analysis **only** when the user flips natural → not-natural (so a late correction earns the same insight).
 **Source files:**
 - `src/components/LifecycleCompleteModal.tsx` — the capture step
 - `src/components/LifecycleAnalysisModal.tsx` — the result step

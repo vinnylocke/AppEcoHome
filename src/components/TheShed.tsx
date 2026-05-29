@@ -801,6 +801,66 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     }
   };
 
+  // "Keep the history" alternative to delete: mark the plant's still-active
+  // instances as End of Life (so they live on in Senescence) and archive the
+  // plant species rather than deleting it. We can't delete the plant AND keep
+  // the instances — inventory_items.plant_id is ON DELETE CASCADE — so the
+  // safe, fully-restorable outcome is archive + end.
+  const executeEndOfLifeInstead = async () => {
+    const plant = confirmState.plant;
+    if (!plant) return;
+    setActionLoading(true);
+    try {
+      const endedAt = new Date().toISOString();
+      const summary = `Retired from your Plants on ${new Date().toLocaleDateString()}.`;
+      // End only instances that aren't already ended.
+      const { data: ended, error: endErr } = await supabase
+        .from("inventory_items")
+        .update({
+          ended_at: endedAt,
+          was_natural_end: null,
+          end_summary: summary,
+          status: "Archived",
+        })
+        .eq("plant_id", plant.id)
+        .is("ended_at", null)
+        .select("id");
+      if (endErr) throw endErr;
+
+      const endedIds = (ended ?? []).map((r: any) => r.id);
+      if (endedIds.length > 0) {
+        // Closing journal entries so the history thread is unbroken (best-effort).
+        await supabase.from("plant_journals").insert(
+          endedIds.map((id: string) => ({
+            home_id: homeId,
+            inventory_item_id: id,
+            subject: "Lifecycle complete",
+            description: `${plant.common_name} was retired from your Plants.`,
+          })),
+        );
+      }
+
+      // Archive the plant species rather than deleting it.
+      const { error: archErr } = await supabase
+        .from("plants")
+        .update({ is_archived: true })
+        .eq("id", plant.id);
+      if (archErr) throw archErr;
+
+      toast.success(
+        endedIds.length > 0
+          ? `${plant.common_name} archived; ${endedIds.length} plant${endedIds.length !== 1 ? "s" : ""} marked End of Life.`
+          : `${plant.common_name} archived.`,
+      );
+      setConfirmState({ isOpen: false, type: "delete", plant: null });
+      refreshShed(); // 🚀 BACKGROUND SYNC
+    } catch (err: any) {
+      Logger.error("Failed to retire plant instances as End of Life", err, {}, "Could not keep the history — please try again.");
+    } finally {
+      setActionLoading(false);
+    }
+  };
+
   const handleManualSave = async (plantData: any) => {
     setActionLoading(true);
     try {
@@ -1820,7 +1880,17 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               </div>
             )}
 
-            {confirmState.isOpen && confirmState.plant && (
+            {confirmState.isOpen && confirmState.plant && confirmState.type === "delete" && (confirmState.inventoryCount ?? 0) > 0 && (
+              <DeleteWithInstancesModal
+                plantName={confirmState.plant.common_name}
+                count={confirmState.inventoryCount ?? 0}
+                isLoading={actionLoading}
+                onClose={() => setConfirmState({ isOpen: false, type: "delete", plant: null })}
+                onEndOfLife={executeEndOfLifeInstead}
+                onDeleteAll={executeDelete}
+              />
+            )}
+            {confirmState.isOpen && confirmState.plant && !(confirmState.type === "delete" && (confirmState.inventoryCount ?? 0) > 0) && (
               <ConfirmModal
                 isOpen={confirmState.isOpen}
                 isLoading={actionLoading}
@@ -2003,6 +2073,90 @@ function ConfirmModal({
             ) : (
               confirmText
             )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/**
+ * Delete dialog shown when a plant still has instances. Offers a choice:
+ * keep the garden history by marking the instances End of Life (and
+ * archiving the plant), or delete the plant + every instance permanently.
+ */
+function DeleteWithInstancesModal({
+  plantName,
+  count,
+  isLoading,
+  onClose,
+  onEndOfLife,
+  onDeleteAll,
+}: {
+  plantName: string;
+  count: number;
+  isLoading: boolean;
+  onClose: () => void;
+  onEndOfLife: () => void;
+  onDeleteAll: () => void;
+}) {
+  const modalRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
+  const plural = count !== 1;
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+      <div
+        ref={modalRef}
+        role="dialog"
+        aria-modal="true"
+        data-testid="delete-with-instances-modal"
+        className="bg-rhozly-surface-lowest p-6 rounded-3xl w-full max-w-sm"
+      >
+        <h3 className="font-black text-lg mb-2">Delete {plantName}?</h3>
+        <p className="text-sm font-bold text-rhozly-on-surface/60 mb-5">
+          {plantName} has {count} plant{plural ? "s" : ""} in your garden. You can keep {plural ? "their" : "its"} history,
+          or remove everything permanently.
+        </p>
+        <div className="space-y-2.5">
+          <button
+            onClick={onEndOfLife}
+            disabled={isLoading}
+            data-testid="delete-keep-eol"
+            className="w-full py-3 px-4 rounded-2xl font-black text-white bg-rhozly-primary hover:opacity-90 disabled:opacity-60 text-left flex items-center justify-between gap-2"
+          >
+            <span>
+              Keep the history
+              <span className="block text-[11px] font-bold text-white/70">
+                Mark {plural ? "them" : "it"} End of Life (kept in Senescence) and archive {plantName}.
+              </span>
+            </span>
+            {isLoading && <Loader2 className="animate-spin shrink-0" size={16} />}
+          </button>
+          <button
+            onClick={onDeleteAll}
+            disabled={isLoading}
+            data-testid="delete-everything"
+            className="w-full py-3 px-4 rounded-2xl font-black text-rhozly-error border border-rhozly-error/30 hover:bg-rhozly-error/5 disabled:opacity-60 text-left"
+          >
+            Delete everything
+            <span className="block text-[11px] font-bold text-rhozly-error/70">
+              Permanently remove {plantName} and {plural ? "all" : "the"} {count} plant{plural ? "s" : ""}.
+            </span>
+          </button>
+          <button
+            onClick={onClose}
+            disabled={isLoading}
+            className="w-full py-3 rounded-2xl font-bold bg-rhozly-surface-low hover:bg-rhozly-surface text-rhozly-on-surface disabled:opacity-60"
+          >
+            Cancel
           </button>
         </div>
       </div>

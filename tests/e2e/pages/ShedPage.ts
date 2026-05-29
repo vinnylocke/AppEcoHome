@@ -29,6 +29,11 @@ export class ShedPage {
   readonly modalLightTab: Locator;
   readonly lightTabContent: Locator;
 
+  // Delete-with-instances choice modal
+  readonly deleteWithInstancesModal: Locator;
+  readonly deleteKeepEol: Locator;
+  readonly deleteEverything: Locator;
+
   constructor(page: Page) {
     this.page = page;
     this.heading = page.getByRole("heading", { name: "Plants" });
@@ -54,6 +59,10 @@ export class ShedPage {
 
     this.modalLightTab = page.locator('[data-testid="plant-modal-tab-light"]');
     this.lightTabContent = page.locator('[data-testid^="light-tab-"]').first();
+
+    this.deleteWithInstancesModal = page.locator('[data-testid="delete-with-instances-modal"]');
+    this.deleteKeepEol = page.locator('[data-testid="delete-keep-eol"]');
+    this.deleteEverything = page.locator('[data-testid="delete-everything"]');
   }
 
   /** The light-needs icon on a plant tile (opens the edit modal's Light tab). */

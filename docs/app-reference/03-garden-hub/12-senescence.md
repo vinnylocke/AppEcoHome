@@ -75,6 +75,7 @@ SenescenceTab
    - Falls back to placeholder image if no journal photo exists
 3. **InstanceEditModal opening**
    - Defers to that modal's own read paths (plant details, journal entries, schedule history). See [PlantEditModal](../03-garden-hub/01-the-shed.md) for the shared modal's data flow notes.
+   - From here the user can **Amend** the End-of-Life — the modal's "Lifecycle complete" card has an "Amend" button that opens [LifecycleCompleteModal](../08-modals-and-overlays/37-lifecycle-complete.md) in amend mode to correct `was_natural_end` (natural ↔ other) and `end_summary` without restoring + re-ending. Flipping natural → other re-runs the AI analysis (Sage+). The `natural` / `not-natural` filter pills reflect the amended value after refresh.
 
 ### Data flow — write paths
 

@@ -424,6 +424,25 @@ test.describe("Shed — Plant card actions", () => {
     await expect(shed.lightTabContent).toBeVisible({ timeout: 8000 });
   });
 
+  test("SHED-023c: Deleting a plant with instances offers keep-history vs delete-everything", async ({ authenticatedPage }) => {
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    // Tomato (seed) has one inventory instance, so delete shows the choice.
+    const tomato = shed.plantCard("Tomato");
+    if (!(await tomato.isVisible({ timeout: 8000 }).catch(() => false))) return;
+
+    await shed.deleteButtonFor("Tomato").click();
+    await expect(shed.deleteWithInstancesModal).toBeVisible({ timeout: 8000 });
+    await expect(shed.deleteKeepEol).toBeVisible();
+    await expect(shed.deleteEverything).toBeVisible();
+
+    // Non-destructive — cancel so the seed stays intact for other tests.
+    await authenticatedPage.keyboard.press("Escape");
+    await expect(shed.deleteWithInstancesModal).toBeHidden({ timeout: 5000 });
+  });
+
   test("SHED-024: Archive and restore a plant within a single test", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
     const plantName = `E2E Archive ${Date.now()}`;

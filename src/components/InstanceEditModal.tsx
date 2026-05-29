@@ -121,8 +121,10 @@ export default function InstanceEditModal({
     | null
   >(null);
 
-  // Lifecycle-end flow state — shown when the user taps "Mark lifecycle complete".
+  // Lifecycle-end flow state — shown when the user taps "Mark lifecycle
+  // complete" (create) or "Amend" on an already-ended instance.
   const [lifecycleModalOpen, setLifecycleModalOpen] = useState(false);
+  const [lifecycleMode, setLifecycleMode] = useState<"create" | "amend">("create");
   const [lifecycleAnalysis, setLifecycleAnalysis] = useState<{
     open: boolean;
     wasNaturalEnd: boolean;
@@ -635,17 +637,30 @@ export default function InstanceEditModal({
                 <div className="p-2 rounded-xl bg-rhozly-primary/10 text-rhozly-primary">
                   <BookOpenCheck size={16} />
                 </div>
-                <div className="flex-1 text-sm">
+                <div className="flex-1 text-sm min-w-0">
                   <p className="font-black text-rhozly-on-surface">Lifecycle complete</p>
                   <p className="text-xs font-bold text-rhozly-on-surface/50 mt-0.5">
-                    This plant's records are archived. Its journal stays in your garden history.
+                    {(instance as any)?.was_natural_end
+                      ? "Marked as a natural end. "
+                      : (instance as any)?.was_natural_end === false
+                        ? "Marked as 'something went wrong'. "
+                        : ""}
+                    Its journal stays in your garden history.
                   </p>
                 </div>
+                <button
+                  type="button"
+                  onClick={() => { setLifecycleMode("amend"); setLifecycleModalOpen(true); }}
+                  data-testid="instance-amend-lifecycle"
+                  className="shrink-0 px-3 py-2 rounded-xl border border-rhozly-outline/20 text-xs font-black text-rhozly-on-surface/70 hover:border-rhozly-primary/40 hover:text-rhozly-primary transition-colors"
+                >
+                  Amend
+                </button>
               </div>
             ) : (
               <button
                 type="button"
-                onClick={() => setLifecycleModalOpen(true)}
+                onClick={() => { setLifecycleMode("create"); setLifecycleModalOpen(true); }}
                 data-testid="instance-mark-lifecycle-complete"
                 className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-2xl border border-rhozly-outline/20 text-sm font-black text-rhozly-on-surface/70 hover:border-rhozly-primary/40 hover:text-rhozly-primary transition-colors"
               >
@@ -861,12 +876,28 @@ export default function InstanceEditModal({
         homeId={homeId}
         plantName={instance.identifier || instance.plant_name || "this plant"}
         aiEnabled={aiEnabled}
+        mode={lifecycleMode}
+        initial={
+          lifecycleMode === "amend"
+            ? {
+                wasNaturalEnd: !!(instance as any).was_natural_end,
+                endSummary: ((instance as any).end_summary as string) ?? "",
+              }
+            : undefined
+        }
         onClose={() => setLifecycleModalOpen(false)}
         onCompleted={({ wasNaturalEnd, analysis }) => {
           setLifecycleModalOpen(false);
-          setEditForm((prev) => ({ ...prev, status: "Archived" }));
-          onUpdate({ ...instance, status: "Archived", ended_at: new Date().toISOString() });
-          setLifecycleAnalysis({ open: true, wasNaturalEnd, analysis });
+          if (lifecycleMode === "amend") {
+            // Already ended — just reflect the corrected flag/note and refresh.
+            onUpdate({ ...instance, was_natural_end: wasNaturalEnd });
+            // Only surface the analysis modal when a fresh insight was produced.
+            if (analysis) setLifecycleAnalysis({ open: true, wasNaturalEnd, analysis });
+          } else {
+            setEditForm((prev) => ({ ...prev, status: "Archived" }));
+            onUpdate({ ...instance, status: "Archived", ended_at: new Date().toISOString() });
+            setLifecycleAnalysis({ open: true, wasNaturalEnd, analysis });
+          }
         }}
       />
 

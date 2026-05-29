@@ -126,6 +126,8 @@ Realtime triggers re-render.
 
 #### Delete
 
+When a plant has **no** instances, a simple confirm → `plants.delete()`:
+
 ```ts
 supabase.from("plants")
   .delete()
@@ -133,6 +135,10 @@ supabase.from("plants")
 ```
 
 Cascades to `inventory_items` and dependent rows via FK ON DELETE CASCADE.
+
+When the plant **has instances** (`inventoryCount > 0`), the dialog (`DeleteWithInstancesModal`) offers two outcomes instead of a single confirm:
+- **Keep the history** (`executeEndOfLifeInstead`) — mark every still-active instance End of Life (`inventory_items.ended_at = now`, `was_natural_end = null`, `end_summary`, `status = "Archived"`), journal a closing entry per instance, then **archive the plant** (`plants.is_archived = true`). Nothing is deleted; the instances appear in Senescence and the whole thing is restorable. Chosen because the FK cascade means the plant can't be deleted without losing the instances.
+- **Delete everything** (`executeDelete`) — `plants.delete()` (cascades instances/tasks/journals) + `task_blueprints` cleanup.
 
 #### Multi-select bulk actions
 
@@ -271,7 +277,7 @@ Each card shows up to four chips:
 - **Light needs** (sun icon): opens this plant's edit modal on the **Light** tab — shows the plant's optimal lux range and, via the light reader, how close your current light is to what it needs. (Previously jumped to the Sun Tracker; the Sun Tracker is still reachable from inside the plant modal and from Tools.)
 - **Ask AI** (sparkles): opens Plant Doctor chat scoped to this plant.
 - **Archive** (box icon): hides the plant from active view without deleting.
-- **Delete** (trash): permanent removal — confirms first.
+- **Delete** (trash): confirms first. If the plant has instances, you choose between **Keep the history** (mark them End of Life → Senescence, and archive the plant) or **Delete everything** (permanent, cascades to instances).
 
 #### 6. Smart filter chips
 

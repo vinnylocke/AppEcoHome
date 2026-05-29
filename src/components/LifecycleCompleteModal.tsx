@@ -15,6 +15,15 @@ interface Props {
   plantName: string;
   /** True when the user's tier supports AI analysis. */
   aiEnabled: boolean;
+  /**
+   * "create" (default) marks a live plant's lifecycle complete. "amend"
+   * edits an already-ended instance — changes `was_natural_end` /
+   * `end_summary` only (keeps `ended_at`/status), and re-runs the AI
+   * analysis if the user flips natural → not-natural.
+   */
+  mode?: "create" | "amend";
+  /** Seed values when amending an existing End-of-Life record. */
+  initial?: { wasNaturalEnd: boolean; endSummary: string };
   onClose: () => void;
   /** Called after a successful save + (optional) analysis. */
   onCompleted: (result: {
@@ -47,13 +56,16 @@ export default function LifecycleCompleteModal({
   homeId,
   plantName,
   aiEnabled,
+  mode = "create",
+  initial,
   onClose,
   onCompleted,
 }: Props) {
-  const [endSummary, setEndSummary] = useState("");
+  const isAmend = mode === "amend";
+  const [endSummary, setEndSummary] = useState(initial?.endSummary ?? "");
   const [imageUrl, setImageUrl] = useState("");
   const [uploading, setUploading] = useState(false);
-  const [wasNaturalEnd, setWasNaturalEnd] = useState(false);
+  const [wasNaturalEnd, setWasNaturalEnd] = useState(initial?.wasNaturalEnd ?? false);
   const [saving, setSaving] = useState(false);
   const trapRef = useFocusTrap<HTMLDivElement>(isOpen);
 
@@ -61,27 +73,42 @@ export default function LifecycleCompleteModal({
     setSaving(true);
     const endedAt = new Date().toISOString();
     try {
-      // 1) Stamp lifecycle-end columns on the instance.
+      // 1) Stamp / amend lifecycle-end columns on the instance. Amend mode
+      // leaves ended_at + status untouched (the instance stays ended) and
+      // only corrects the natural flag + note.
       const { error: updateErr } = await supabase
         .from("inventory_items")
-        .update({
-          ended_at: endedAt,
-          was_natural_end: wasNaturalEnd,
-          end_summary: endSummary.trim() || null,
-          status: "Archived",
-        })
+        .update(
+          isAmend
+            ? {
+                was_natural_end: wasNaturalEnd,
+                end_summary: endSummary.trim() || null,
+              }
+            : {
+                ended_at: endedAt,
+                was_natural_end: wasNaturalEnd,
+                end_summary: endSummary.trim() || null,
+                status: "Archived",
+              },
+        )
         .eq("id", instanceId);
       if (updateErr) throw updateErr;
 
-      // 2) Save the closing journal entry (always — natural or not).
-      const closingSubject = wasNaturalEnd
-        ? "Lifecycle complete (natural)"
-        : "Lifecycle complete";
+      // 2) Journal entry. Create → a closing entry; amend → an update note.
+      const closingSubject = isAmend
+        ? "Lifecycle details updated"
+        : wasNaturalEnd
+          ? "Lifecycle complete (natural)"
+          : "Lifecycle complete";
       const closingDescription =
         endSummary.trim() ||
-        (wasNaturalEnd
-          ? `${plantName} reached the end of its natural life.`
-          : `${plantName}'s journey ended.`);
+        (isAmend
+          ? wasNaturalEnd
+            ? `${plantName}'s end was updated to a natural end.`
+            : `${plantName}'s end was updated — something went wrong.`
+          : wasNaturalEnd
+            ? `${plantName} reached the end of its natural life.`
+            : `${plantName}'s journey ended.`);
       const { error: journalErr } = await supabase.from("plant_journals").insert({
         home_id: homeId,
         inventory_item_id: instanceId,
@@ -90,12 +117,15 @@ export default function LifecycleCompleteModal({
         image_url: imageUrl || null,
       });
       if (journalErr) {
-        Logger.error("LifecycleCompleteModal: closing entry insert failed", journalErr);
+        Logger.error("LifecycleCompleteModal: journal entry insert failed", journalErr);
       }
 
-      // 3) Run AI analysis when warranted.
+      // 3) Run AI analysis when the end is "not natural". On amend we only
+      // (re)run it when the user flips natural → not-natural, so a late
+      // correction still earns the same insight the create flow gives.
+      const shouldAnalyse = !wasNaturalEnd && aiEnabled && (!isAmend || initial?.wasNaturalEnd === true);
       let analysis: LifecycleAnalysis | null = null;
-      if (!wasNaturalEnd && aiEnabled) {
+      if (shouldAnalyse) {
         try {
           const { data, error: fnErr } = await supabase.functions.invoke(
             "analyse-plant-end-of-life",
@@ -150,10 +180,12 @@ export default function LifecycleCompleteModal({
                 id="lifecycle-complete-title"
                 className="text-lg font-black text-rhozly-on-surface"
               >
-                {plantName}'s journey
+                {isAmend ? `Amend ${plantName}'s end` : `${plantName}'s journey`}
               </h2>
               <p className="text-xs font-bold text-rhozly-on-surface/50 mt-0.5 leading-relaxed">
-                Mark this plant's lifecycle as complete. It stays in your records — you can revisit its journal any time.
+                {isAmend
+                  ? "Update how this plant's life ended — for example if you first thought it was natural but later found something went wrong."
+                  : "Mark this plant's lifecycle as complete. It stays in your records — you can revisit its journal any time."}
               </p>
             </div>
           </div>
@@ -183,21 +215,23 @@ export default function LifecycleCompleteModal({
             />
           </div>
 
-          <div>
-            <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-1.5 block">
-              Final photo (optional)
-            </label>
-            <PhotoUploader
-              bucket="plant-images"
-              pathPrefix={`journal/${homeId}/lifecycle`}
-              value={imageUrl || null}
-              onChange={(url) => setImageUrl(url ?? "")}
-              onUploadStart={() => setUploading(true)}
-              onUploadEnd={() => setUploading(false)}
-              testIdPrefix="lifecycle-photo"
-              label="Add a closing photo"
-            />
-          </div>
+          {!isAmend && (
+            <div>
+              <label className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-1.5 block">
+                Final photo (optional)
+              </label>
+              <PhotoUploader
+                bucket="plant-images"
+                pathPrefix={`journal/${homeId}/lifecycle`}
+                value={imageUrl || null}
+                onChange={(url) => setImageUrl(url ?? "")}
+                onUploadStart={() => setUploading(true)}
+                onUploadEnd={() => setUploading(false)}
+                testIdPrefix="lifecycle-photo"
+                label="Add a closing photo"
+              />
+            </div>
+          )}
 
           <label
             className="flex items-start gap-3 p-4 bg-rhozly-surface-low rounded-2xl cursor-pointer"
@@ -241,16 +275,20 @@ export default function LifecycleCompleteModal({
             {saving ? (
               <>
                 <Loader2 size={14} className="animate-spin" />
-                {wasNaturalEnd
-                  ? "Closing the chapter…"
-                  : aiEnabled
+                {isAmend
+                  ? !wasNaturalEnd && aiEnabled && initial?.wasNaturalEnd === true
                     ? "Looking back over your records…"
-                    : "Closing the chapter…"}
+                    : "Saving changes…"
+                  : wasNaturalEnd
+                    ? "Closing the chapter…"
+                    : aiEnabled
+                      ? "Looking back over your records…"
+                      : "Closing the chapter…"}
               </>
             ) : (
               <>
                 <Leaf size={14} />
-                Mark lifecycle complete
+                {isAmend ? "Save changes" : "Mark lifecycle complete"}
               </>
             )}
           </button>
