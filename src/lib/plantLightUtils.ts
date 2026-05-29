@@ -11,18 +11,19 @@ export interface LightFitness {
   description: string;
 }
 
-// Ordered most-specific first so "full sun" matches before "sun"
+// Ordered most-specific first so "part shade"/"part sun" match before the
+// bare "shade" catch-all, and "full sun" before anything else.
 const SUNLIGHT_LUX_MAP: Array<{ keywords: string[]; range: LuxRange }> = [
   {
     keywords: ["full sun"],
     range: { min: 20000, max: 40000, label: "Full Sun" },
   },
   {
-    keywords: ["partial", "part sun", "part shade", "part-shade"],
+    keywords: ["partial", "part sun", "part shade"],
     range: { min: 5000, max: 20000, label: "Partial Sun" },
   },
   {
-    keywords: ["filtered", "indirect"],
+    keywords: ["filtered", "indirect", "dappled"],
     range: { min: 1500, max: 5000, label: "Filtered Shade" },
   },
   {
@@ -31,24 +32,42 @@ const SUNLIGHT_LUX_MAP: Array<{ keywords: string[]; range: LuxRange }> = [
   },
 ];
 
+/**
+ * Optimal lux range for a plant's light requirements. A plant can carry
+ * several values (e.g. ["full sun", "part shade"]); the returned range
+ * spans the **lowest** band's min to the **highest** band's max across all
+ * of them, and the label names that span (e.g. "Partial Sun – Full Sun").
+ *
+ * Values are normalised before matching so both storage formats work:
+ * Verdantly uses underscores ("full_sun", "part_shade", "deep_shade"),
+ * while Perenual / AI / manual use spaces ("full sun", "part shade").
+ */
 export function getOptimalLuxRange(sunlight: string[]): LuxRange | null {
   if (!sunlight || sunlight.length === 0) return null;
 
   let combinedMin = Infinity;
   let combinedMax = -Infinity;
-  let bestLabel = "";
+  let lowLabel = "";
+  let highLabel = "";
   let matched = false;
 
   for (const s of sunlight) {
-    const lower = s.toLowerCase();
+    // Treat "_" and "-" as spaces so "full_sun" / "part-shade" match the
+    // space-separated keywords below.
+    const norm = String(s)
+      .toLowerCase()
+      .replace(/[_-]+/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
     for (const entry of SUNLIGHT_LUX_MAP) {
-      if (entry.keywords.some((kw) => lower.includes(kw))) {
+      if (entry.keywords.some((kw) => norm.includes(kw))) {
         if (entry.range.min < combinedMin) {
           combinedMin = entry.range.min;
-          bestLabel = entry.range.label;
+          lowLabel = entry.range.label;
         }
         if (entry.range.max > combinedMax) {
           combinedMax = entry.range.max;
+          highLabel = entry.range.label;
         }
         matched = true;
         break;
@@ -58,8 +77,8 @@ export function getOptimalLuxRange(sunlight: string[]): LuxRange | null {
 
   if (!matched) return null;
 
-  // When min of the union is lower than the original label's min, pick label from the lowest range
-  return { min: combinedMin, max: combinedMax, label: bestLabel };
+  const label = lowLabel === highLabel ? lowLabel : `${lowLabel} – ${highLabel}`;
+  return { min: combinedMin, max: combinedMax, label };
 }
 
 export function getLightFitness(lux: number, range: LuxRange): LightFitness {

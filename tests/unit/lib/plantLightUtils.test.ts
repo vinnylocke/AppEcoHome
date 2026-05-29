@@ -24,6 +24,39 @@ describe("getOptimalLuxRange", () => {
     expect(result!.max).toBe(40000);
   });
 
+  it("matches underscore-format values (Verdantly): full_sun", () => {
+    expect(getOptimalLuxRange(["full_sun"])).toEqual({
+      min: 20000,
+      max: 40000,
+      label: "Full Sun",
+    });
+  });
+
+  it("maps part_shade to Partial Sun, not Full Shade", () => {
+    // Regression: "part_shade".includes("shade") used to mis-map to Full Shade.
+    expect(getOptimalLuxRange(["part_shade"])).toEqual({
+      min: 5000,
+      max: 20000,
+      label: "Partial Sun",
+    });
+  });
+
+  it("maps deep_shade to Full Shade", () => {
+    expect(getOptimalLuxRange(["deep_shade"])).toEqual({
+      min: 0,
+      max: 1500,
+      label: "Full Shade",
+    });
+  });
+
+  it("spans the union of underscore values and labels both bands", () => {
+    // Verdantly "full sun → partial shade" stores ["full_sun","part_shade"].
+    const result = getOptimalLuxRange(["full_sun", "part_shade"]);
+    expect(result!.min).toBe(5000);
+    expect(result!.max).toBe(40000);
+    expect(result!.label).toBe("Partial Sun – Full Sun");
+  });
+
   it("returns null for empty array", () => {
     expect(getOptimalLuxRange([])).toBeNull();
   });

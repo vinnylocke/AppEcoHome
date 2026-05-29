@@ -69,6 +69,14 @@ getPlantSunFit(plantBand, areaSunClass) → "ok" | "marginal" | "wrong"
 getShapeFitSummary(shape, plants) → fitTally
 ```
 
+### Plant Light tab — optimal lux range (`src/lib/plantLightUtils.ts`)
+
+The per-plant **Light** tab (reached from the Shed tile's light icon, the Library preview, and the plant detail modal) converts a plant's `sunlight` values into an optimal **lux** range via `getOptimalLuxRange(sunlight: string[])`.
+
+A plant can carry several light requirements; the returned range spans the **lowest band's min → highest band's max** across all of them — e.g. `["full sun", "part shade"]` → **5,000–40,000 lux**, labelled "Partial Sun – Full Sun". Values are normalised first (`_` / `-` → space) so both Verdantly's underscore format (`full_sun`, `part_shade`, `deep_shade`) and the Perenual / AI / manual space format match the same bands. `getLightFitness(lux, range)` then rates a live sensor reading Best / Great / Good / Bad / Worse against that range.
+
+Bands: Full Sun 20,000–40,000 · Partial Sun 5,000–20,000 · Filtered Shade 1,500–5,000 · Full Shade 0–1,500.
+
 ### Sun overlay (Garden Layout Editor)
 
 Tints each shape based on its `sunClass`. Drives the "Sun" overlay toggle.
