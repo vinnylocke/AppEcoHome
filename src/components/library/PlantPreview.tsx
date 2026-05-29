@@ -23,6 +23,7 @@ import { useShedPlantMatcher } from "../../hooks/useShedPlantMatcher";
 import { PlantDoctorService } from "../../services/plantDoctorService";
 import { fetchCompanions as prefetchCompanions } from "../../lib/companionCache";
 import ManualPlantCreation from "../ManualPlantCreation";
+import PlantResultThumb from "../PlantResultThumb";
 import GrowGuideTab from "../GrowGuideTab";
 import CompanionPlantsTab from "../CompanionPlantsTab";
 import LightTab from "../LightTab";
@@ -425,21 +426,18 @@ export default function PlantPreview({ homeId, aiEnabled, isPremium }: Props) {
         </button>
       </header>
 
-      {/* Hero image */}
-      {plant.details.thumbnail_url && (
-        <div
-          data-testid="plant-preview-hero"
-          className="rounded-3xl overflow-hidden mb-4 bg-rhozly-primary/5 aspect-[16/9]"
-        >
-          <img
-            src={plant.details.thumbnail_url}
-            alt={plant.details.common_name}
-            loading="lazy"
-            decoding="async"
-            className="w-full h-full object-cover"
-          />
-        </div>
-      )}
+      {/* Hero image — self-resolves by name for library rows (null image). */}
+      <div
+        data-testid="plant-preview-hero"
+        className="rounded-3xl overflow-hidden mb-4 bg-rhozly-primary/5 aspect-[16/9] flex items-center justify-center text-rhozly-primary/40"
+      >
+        <PlantResultThumb
+          name={plant.details.common_name}
+          url={plant.details.thumbnail_url}
+          source={plant.source}
+          iconSize={32}
+        />
+      </div>
 
       {/* Tab bar */}
       <div

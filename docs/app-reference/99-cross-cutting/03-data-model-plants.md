@@ -194,6 +194,10 @@ The `plants.family` column (text, populated by the AI in `plant_library` enrichm
 
 The 12 families with rotation rules — Solanaceae, Brassicaceae, Fabaceae, Alliaceae, Cucurbitaceae, Apiaceae, Asteraceae, Amaranthaceae, Lamiaceae, Poaceae, Polygonaceae, Liliaceae — are listed in `src/lib/rotationFamilies.ts` (browser) and `supabase/functions/_shared/rotationFamilies.ts` (server). A Deno parity test asserts the two stay in sync.
 
+### `plant_library` images are null by design
+
+AI-seeded `plant_library` rows store `image_url` = `thumbnail_url` = **null** (`seedRowToColumnShape` in `_shared/plantSeedPrompt.ts`) — Gemini enrichment produces care data, not photos. Search-result and detail-hero UI therefore resolves an image **by name** at display time via `<PlantResultThumb>` → `plant-image-search` (server-cached in `plant_image_cache`), rather than relying on a stored library URL. See [Image Sources](./24-image-sources.md).
+
 ---
 
 ## Related reference files

@@ -315,6 +315,7 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | SHED-020 | Add to Shed — library-first input opens by default | ✅ | Open Add modal → shared `<PlantSearch>` input visible (no provider tabs); typing offers the opt-in "search more databases" CTA | Plants | — | ✅ Passing |
 | SHED-021 | Add to Shed — nonsense query, no selectable rows | ❌ | Type nonsense → no result rows, no Review CTA (library + mocked-empty external) | Plants | Perenual API mock (empty) | ✅ Passing |
 | SHED-022a | Add to Shed — preview, see full care, then select into cart | ✅ | Type name → "search more databases" → mocked row → info icon previews inline (no select) → "See full care" opens detail modal (care/grow/companions) → close → tap row selects → Review & Add CTA appears | Plants | Perenual API mock | ✅ Passing |
+| SHED-022b | Add to Shed — result thumbnails self-resolve | ⬜ | Result rows render `<PlantResultThumb>`: library rows (null stored image) and Perenual `upgrade_access` placeholders resolve a photo by name via `plant-image-search` (count:1), else fall back to the leaf/sparkles icon. Image is decorative + network-dependent; assert the row renders, not the pixels. | Plants | `plant-image-search` mock | ⬜ Planned |
 
 ### Plant Card Actions
 

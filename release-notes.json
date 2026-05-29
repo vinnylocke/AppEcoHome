@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "Plant search results now show real photos. Library plants (and external results that were showing a leaf icon or a broken image) now fetch a picture automatically by name — in the search list, the Add-to-Shed and Shopping pickers, and the full plant preview."
+    ]
+  }
+]

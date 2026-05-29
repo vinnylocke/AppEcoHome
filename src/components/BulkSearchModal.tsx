@@ -10,7 +10,6 @@ import {
   Trash2,
   Edit3,
 } from "lucide-react";
-import { IconPlantDB, IconAI } from "../constants/icons";
 import { getProviderPlantDetails, careGuideToPlantDetails } from "../lib/plantProvider";
 import type { PlantDetails } from "../lib/verdantlyUtils";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -19,7 +18,9 @@ import ManualPlantCreation from "./ManualPlantCreation";
 import PlantInfoPanel from "./PlantInfoPanel";
 import PlantSearch from "./shared/PlantSearch";
 import PlantDetailModal from "./PlantDetailModal";
+import PlantResultThumb from "./PlantResultThumb";
 import { libraryRowToPlantDetails } from "../lib/plantCatalogue";
+import { isUsablePlantImageUrl } from "../lib/plantThumb";
 import { selectionToProviderResult, type PlantSelection } from "../lib/unifiedPlantSearch";
 import type { ProviderSearchResult } from "../lib/verdantlyUtils";
 
@@ -332,10 +333,9 @@ export default function BulkSearchModal({
                   : typeof item.data === "string"
                     ? null
                     : item.data.thumbnail_url;
-              const thumbnail =
-                rawThumb && !rawThumb.includes("upgrade_access")
-                  ? rawThumb
-                  : detailsCache.get(id)?.thumbnail_url || null;
+              const thumbnail = isUsablePlantImageUrl(rawThumb)
+                ? rawThumb
+                : detailsCache.get(id)?.thumbnail_url || null;
 
               const badgeClass =
                 item.type === "api"       ? "bg-rhozly-primary/10 text-rhozly-primary" :
@@ -354,13 +354,12 @@ export default function BulkSearchModal({
                   <div className="p-4 flex items-center justify-between">
                     <div className="flex items-center gap-4">
                       <div className="w-12 h-12 rounded-xl bg-rhozly-primary/5 overflow-hidden shrink-0 flex items-center justify-center text-rhozly-primary/40">
-                        {thumbnail ? (
-                          <img src={thumbnail} alt={name} className="w-full h-full object-cover" />
-                        ) : isDb ? (
-                          <IconPlantDB size={20} />
-                        ) : (
-                          <IconAI size={20} />
-                        )}
+                        <PlantResultThumb
+                          name={name}
+                          url={thumbnail}
+                          source={item.type === "ai" ? "ai" : item.type === "verdantly" ? "verdantly" : "perenual"}
+                          iconSize={20}
+                        />
                       </div>
                       <div>
                         <h4 className="font-black text-rhozly-on-surface leading-tight">{name}</h4>

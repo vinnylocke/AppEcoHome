@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import ManualPlantCreation from "./ManualPlantCreation";
 import PlantSearch from "./shared/PlantSearch";
 import { libraryRowToPlantDetails } from "../lib/plantCatalogue";
+import { isUsablePlantImageUrl } from "../lib/plantThumb";
 import type { PlantSelection } from "../lib/unifiedPlantSearch";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 
@@ -148,7 +149,7 @@ export default function PlantSearchModal({
 
       const safeImage =
         [fullPlantData.image_url, fullPlantData.thumbnail_url, sel.thumbnail_url].find(
-          (u) => u && typeof u === "string" && !u.includes("upgrade_access"),
+          isUsablePlantImageUrl,
         ) ?? "";
 
       const isLibrary = sel.source === "library";

@@ -41,6 +41,18 @@ Tries multiple URLs in order; falls back to placeholder on all-fail:
 />
 ```
 
+### `PlantResultThumb` — search-result + hero thumbnails (self-resolving)
+
+`src/components/PlantResultThumb.tsx` is the single place plant **search-result and detail-hero** images resolve. It shows the stored URL when usable; otherwise — or when that URL fails to load — it lazily resolves one **by name** via `plant-image-search` (the `count:1` hot path, server-cached in `plant_image_cache`), then falls back to a leaf / sparkles placeholder.
+
+Why it exists: AI-seeded `plant_library` rows store `image_url` / `thumbnail_url` = **null** (Gemini enrichment has no images), and Perenual free-tier search returns the `upgrade_access` placeholder — so most result rows had no usable stored URL. `PlantResultThumb` fills the gap without backfilling the library (the image cache already persists results cross-user for 90 days).
+
+Helpers in `src/lib/plantThumb.ts`:
+- `isUsablePlantImageUrl(url)` — rejects empty values + the Perenual `upgrade_access` placeholder (centralises a filter previously duplicated in `BulkSearchModal` / `PlantSearchModal`).
+- `resolvePlantThumbUrl(name)` — calls `plant-image-search` `{ query, count: 1 }`, returns the first usable `thumb_url` or null; module-level promise map dedupes repeat/concurrent lookups in a session.
+
+Used by: `PlantSearch` result rows (every host), the `BulkSearchModal` cart list, `PlantPreview` hero, and the read-only `ManualPlantCreation` hero (so `PlantDetailModal` + `PlantSearchModal` previews get it too).
+
 ### `image-proxy` edge function
 
 Rewrites external URLs through Supabase with cache headers + CORS. Used for providers that block hotlinking or lack CORS headers.
@@ -95,4 +107,6 @@ Different providers have different strengths:
 - `supabase/functions/plant-image-search/index.ts`
 - `supabase/functions/image-proxy/index.ts`
 - `src/components/SmartImage.tsx`
+- `src/components/PlantResultThumb.tsx` — self-resolving result/hero thumbnail
+- `src/lib/plantThumb.ts` — `isUsablePlantImageUrl` + `resolvePlantThumbUrl`
 - `src/lib/wikipedia.ts`

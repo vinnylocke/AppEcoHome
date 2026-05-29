@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Search, Loader2, Sparkles, Database, Leaf, Plus, Pencil, Lock, SlidersHorizontal, ChevronDown, Check, Info, ChevronUp, BookOpen } from "lucide-react";
+import { Search, Loader2, Sparkles, Database, Plus, Pencil, Lock, SlidersHorizontal, ChevronDown, Check, Info, ChevronUp, BookOpen } from "lucide-react";
 import {
   searchLibrary,
   didYouMean,
@@ -17,6 +17,7 @@ import { getProviderPlantDetails } from "../../lib/plantProvider";
 import { libraryRowToPlantDetails } from "../../lib/plantCatalogue";
 import { Logger } from "../../lib/errorHandler";
 import PlantInfoPanel from "../PlantInfoPanel";
+import PlantResultThumb from "../PlantResultThumb";
 
 export interface PlantSearchGates {
   /** Botanist+ — may opt into Perenual + Verdantly ("more databases"). */
@@ -542,13 +543,7 @@ function ResultRow({
             className="flex-1 min-w-0 flex items-center gap-3 text-left active:scale-[0.99] transition-transform"
           >
             <div className="w-11 h-11 shrink-0 rounded-2xl overflow-hidden bg-rhozly-primary/5 flex items-center justify-center text-rhozly-primary/50">
-              {thumb ? (
-                <img src={thumb} alt={name} loading="lazy" decoding="async" className="w-full h-full object-cover" />
-              ) : source === "ai" ? (
-                <Sparkles size={18} />
-              ) : (
-                <Leaf size={18} />
-              )}
+              <PlantResultThumb name={name} url={thumb} source={source} iconSize={18} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-black text-rhozly-on-surface text-sm leading-tight truncate">{name}</p>

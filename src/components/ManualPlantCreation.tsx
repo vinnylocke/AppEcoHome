@@ -22,6 +22,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import WikiImagePicker from "./WikiImagePicker";
+import PlantResultThumb from "./PlantResultThumb";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -518,18 +519,24 @@ export default function ManualPlantCreation({
                   onClick={() => !isReadOnly && fileInputRef.current?.click()}
                   className={`relative w-40 h-40 rounded-[2.5rem] bg-rhozly-surface-low border-2 border-dashed border-rhozly-outline/20 overflow-hidden group transition-all ${!isReadOnly ? "cursor-pointer hover:border-rhozly-primary/40" : ""}`}
                 >
-                  {formData.thumbnail_url || formData.image_url ? (
+                  {isReadOnly ? (
+                    <div className="w-full h-full flex items-center justify-center text-rhozly-on-surface/30">
+                      <PlantResultThumb
+                        name={formData.common_name || "plant"}
+                        url={formData.thumbnail_url || formData.image_url}
+                        iconSize={32}
+                      />
+                    </div>
+                  ) : formData.thumbnail_url || formData.image_url ? (
                     <>
                       <img
                         src={formData.thumbnail_url || formData.image_url}
                         className="w-full h-full object-cover"
                         alt="Preview"
                       />
-                      {!isReadOnly && (
-                        <div className="absolute inset-0 bg-black/25 flex items-center justify-center text-white text-[10px] font-black uppercase tracking-widest">
-                          Change Photo
-                        </div>
-                      )}
+                      <div className="absolute inset-0 bg-black/25 flex items-center justify-center text-white text-[10px] font-black uppercase tracking-widest">
+                        Change Photo
+                      </div>
                     </>
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full text-rhozly-on-surface/30">
@@ -538,11 +545,9 @@ export default function ManualPlantCreation({
                       ) : (
                         <Camera size={32} />
                       )}
-                      {!isReadOnly && (
-                        <span className="text-[10px] font-black uppercase mt-2">
-                          Add Photo
-                        </span>
-                      )}
+                      <span className="text-[10px] font-black uppercase mt-2">
+                        Add Photo
+                      </span>
                     </div>
                   )}
                 </div>

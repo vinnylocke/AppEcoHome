@@ -44,6 +44,7 @@ Design + decisions: [docs/plans/plant-search-overhaul-design.md](../../plans/pla
 ### Behaviour
 
 - Debounced (350ms) library search on type; stale-guarded via a sequence ref.
+- Result-row thumbnails render through `<PlantResultThumb>` (`src/components/PlantResultThumb.tsx`): it shows the row's stored image when usable, otherwise self-resolves one by name via `plant-image-search` (server-cached). Library rows store null images and Perenual returns `upgrade_access` placeholders, so without this most rows showed only a leaf icon. See [Image Sources](./24-image-sources.md).
 - Spelling chips render when library results ≤1 (`didYouMean`), tapping re-runs the search.
 - External + AI are **opt-in buttons** below the library results (never auto-fired) — the common case stays free + instant.
 - Empty query → gentle prompt.
