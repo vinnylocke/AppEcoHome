@@ -1219,6 +1219,7 @@ Edge function mock via `mockEdgeFunction(page, "companion-planting", ...)`.
 |----|------|-------------|------------|--------|
 | CPT-006 | ✅ | Add to Shed button appears when a companion is checked; clicking opens PlantSourcePicker | click `companion-plant-verd-123` → `companion-add-to-shed` visible | ✅ Passing |
 | CPT-007 | ✅ | ai_required response shows upgrade message | mock returns `{ error: "ai_required" }` → "AI Add-on Required" text visible | ✅ Passing |
+| CPT-008 | ⬜ | ⓘ peek populates info pills + description for a companion (library-first, provider fallback) | click `companion-info-{key}` → `companion-info-panel` visible with pills/description; resolution is library → Verdantly/Perenual (no AI) → AI-by-name only on full-guide open. Tapping `companion-open-{key}` opens `PlantDetailModal`, cloning from library/provider when matched. | ⬜ Planned (needs `plant_library` RPC + provider search mock) |
 
 ---
 

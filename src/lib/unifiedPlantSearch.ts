@@ -216,3 +216,34 @@ export function providerResultToSelection(r: ProviderSearchResult): PlantSelecti
     raw: r,
   };
 }
+
+/**
+ * Convert a `PlantSelection` back into a `ProviderSearchResult` — the shape the
+ * preview/detail pipeline (`PlantDetailModal`, the `/library` preview page)
+ * consumes. Library hits route through the AI provider path carrying
+ * `plant_library_id` so the catalogue clone skips Gemini; external hits pass
+ * their original record through; anything else becomes an AI result by name.
+ * Single source of truth shared by every host (Add-to-Shed, /library,
+ * Shopping, Nursery).
+ */
+export function selectionToProviderResult(sel: PlantSelection): ProviderSearchResult {
+  const sci = sel.scientific_name ? [sel.scientific_name] : [];
+  if (sel.source === "library") {
+    return {
+      id: `library-${sel.library_id}`,
+      common_name: sel.common_name,
+      scientific_name: sci,
+      thumbnail_url: sel.thumbnail_url ?? null,
+      _provider: "ai",
+      plant_library_id: sel.library_id,
+    } as ProviderSearchResult;
+  }
+  if (sel.raw) return sel.raw as ProviderSearchResult;
+  return {
+    id: `ai-${sel.common_name}`,
+    common_name: sel.common_name,
+    scientific_name: sci,
+    thumbnail_url: sel.thumbnail_url ?? null,
+    _provider: "ai",
+  } as ProviderSearchResult;
+}

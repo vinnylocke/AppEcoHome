@@ -1,8 +1,7 @@
 import React, { useCallback } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import PlantSearch from "../shared/PlantSearch";
-import type { PlantSelection } from "../../lib/unifiedPlantSearch";
-import type { ProviderSearchResult } from "../../lib/verdantlyUtils";
+import { selectionToProviderResult, type PlantSelection } from "../../lib/unifiedPlantSearch";
 
 interface Props {
   homeId: string;
@@ -40,35 +39,13 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
     [setSearchParams],
   );
 
+  // Tapping a result navigates to the full-screen preview (the Library's own
+  // detail surface). The inline ⓘ peek (allowPreview) gives a quick look
+  // first; we don't add a separate "See full care" overlay here because the
+  // row tap already opens the full plant page.
   const handleSelect = useCallback(
     (sel: PlantSelection) => {
-      let result: ProviderSearchResult;
-      if (sel.source === "library") {
-        // Route library hits through the AI provider path carrying
-        // plant_library_id — the preview clones the library row into the
-        // catalogue without paying Gemini.
-        result = {
-          id: `library-${sel.library_id}`,
-          common_name: sel.common_name,
-          scientific_name: sel.scientific_name ? [sel.scientific_name] : [],
-          thumbnail_url: sel.thumbnail_url ?? null,
-          _provider: "ai",
-          plant_library_id: sel.library_id,
-        };
-      } else if (sel.raw) {
-        // External (Perenual / Verdantly / AI) results carry their original
-        // ProviderSearchResult in `raw` — pass it straight through.
-        result = sel.raw as ProviderSearchResult;
-      } else {
-        result = {
-          id: `ai-${sel.common_name}`,
-          common_name: sel.common_name,
-          scientific_name: sel.scientific_name ? [sel.scientific_name] : [],
-          thumbnail_url: sel.thumbnail_url ?? null,
-          _provider: "ai",
-        };
-      }
-      navigate("/library/plant/preview", { state: { result } });
+      navigate("/library/plant/preview", { state: { result: selectionToProviderResult(sel) } });
     },
     [navigate],
   );
@@ -79,6 +56,7 @@ export default function LibrarySearchTab({ homeId, aiEnabled }: Props) {
         homeId={homeId}
         autoFocus
         showFilters
+        allowPreview
         placeholder="Search any plant by name…"
         initialQuery={initialQuery}
         onQueryChange={handleQueryChange}

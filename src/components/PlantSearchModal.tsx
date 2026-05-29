@@ -422,6 +422,7 @@ export default function PlantSearchModal({
               homeId={homeId}
               autoFocus
               showFilters
+              allowPreview
               placeholder="Search any plant by name…"
               initialQuery={initialSearchTerm}
               gates={{

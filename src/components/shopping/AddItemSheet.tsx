@@ -9,7 +9,9 @@ import { SHOPPING_CATEGORIES } from "../../constants/shoppingCategories";
 import type { ShoppingListItem } from "../../types/shopping";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 import PlantSearch from "../shared/PlantSearch";
-import type { PlantSelection } from "../../lib/unifiedPlantSearch";
+import PlantDetailModal from "../PlantDetailModal";
+import { selectionToProviderResult, type PlantSelection } from "../../lib/unifiedPlantSearch";
+import type { ProviderSearchResult } from "../../lib/verdantlyUtils";
 
 type Tab = "plant" | "product";
 
@@ -32,6 +34,8 @@ export default function AddItemSheet({
   const [submitting, setSubmitting] = useState(false);
   const [shedOfferPlant, setShedOfferPlant] = useState<{ name: string; thumbnail_url?: string } | null>(null);
   const [addingToShed, setAddingToShed] = useState(false);
+  // "See full care" overlay — shared <PlantSearch> hands a selection here.
+  const [detailResult, setDetailResult] = useState<ProviderSearchResult | null>(null);
 
   // Product flow
   const [productName, setProductName] = useState("");
@@ -178,6 +182,8 @@ export default function AddItemSheet({
                   <PlantSearch
                     homeId={homeId}
                     autoFocus
+                    showFilters
+                    allowPreview
                     placeholder="Search plants to add…"
                     gates={{
                       // Verdantly is free; Perenual self-gates inside searchAllProviders.
@@ -186,6 +192,7 @@ export default function AddItemSheet({
                     }}
                     allowManual
                     onSelect={handlePlantSelected}
+                    onViewDetails={(sel) => setDetailResult(selectionToProviderResult(sel))}
                   />
                   {submitting && (
                     <div className="flex items-center gap-2 justify-center py-2 text-xs font-bold text-rhozly-on-surface/50">
@@ -257,6 +264,16 @@ export default function AddItemSheet({
           )}
         </div>
       </div>
+
+      {detailResult && (
+        <PlantDetailModal
+          result={detailResult}
+          homeId={homeId}
+          aiEnabled={aiEnabled}
+          isPremium={perenualEnabled}
+          onClose={() => setDetailResult(null)}
+        />
+      )}
     </div>
   );
 

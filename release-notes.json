@@ -1,1 +1,15 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "Companion plant info now fills in for common plants — tap ⓘ on any companion to see its sunlight, watering, edibility and more, even when the plant isn't in our own library yet. We check the wider plant databases before ever asking the AI."
+    ]
+  },
+  {
+    "label": "Improved",
+    "items": [
+      "Plant search now works the same everywhere — tap ⓘ for quick info pills and a description on every result, across the Shed, your Shopping lists and the nursery picker.",
+      "From a Shopping list you can now open a plant's full care guide (Care, Grow Guide, Companions and Light) before adding it."
+    ]
+  }
+]

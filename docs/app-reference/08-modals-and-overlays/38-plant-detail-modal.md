@@ -2,7 +2,10 @@
 
 > A full plant detail overlay — Care Guide, Grow Guide, Companions and Light tabs — for a plant the user is *considering* but hasn't added yet. Opened from "See full care" in the Add-to-Shed search preview.
 
-**Route / how to reach it:** No route. Rendered as a portal overlay by a host. Today: `BulkSearchModal` (Add-to-Shed) → tap a result's ⓘ info icon → "See full care".
+**Route / how to reach it:** No route. Rendered as a portal overlay by a host. Hosts today:
+- `BulkSearchModal` (Add-to-Shed) → tap a result's ⓘ → "See full care".
+- `AddItemSheet` (Shopping list "Add Plant") → ⓘ → "See full care".
+- `CompanionPlantsTab` → tap a companion's name (opens that companion's full guide).
 **Source files (entry points):**
 - `src/components/PlantDetailModal.tsx` — the overlay
 - `src/hooks/useCataloguePlantFromResult.ts` — ensures a catalogue plant from a search result
@@ -125,4 +128,6 @@ No difference.
 - `src/hooks/useCataloguePlantFromResult.ts` — catalogue-ensure + placeholder
 - `src/components/library/PlantPreview.tsx` — the route-based sibling (shared tab components)
 - `src/lib/plantCatalogue.ts` — `ensureCataloguePlantFromSearchResult` / `ensureCataloguePlantFromLibrary`
-- `src/components/BulkSearchModal.tsx` — first host (`onViewDetails` → opens this modal)
+- `src/components/BulkSearchModal.tsx` — Add-to-Shed host (`onViewDetails` → opens this modal)
+- `src/components/shopping/AddItemSheet.tsx` — Shopping host (`onViewDetails` → opens this modal)
+- `src/components/CompanionPlantsTab.tsx` — opens this modal from a companion's name

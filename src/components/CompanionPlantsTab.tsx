@@ -16,6 +16,7 @@ import { getHemisphere, normalizePeriods } from "../lib/seasonal";
 import { buildAutoSeasonalSchedules } from "../lib/plantScheduleFactory";
 import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
 import { searchLibrary } from "../lib/unifiedPlantSearch";
+import { searchAllProviders, getProviderPlantDetails } from "../lib/plantProvider";
 import { libraryRowToPlantDetails } from "../lib/plantCatalogue";
 import PlantInfoPanel from "./PlantInfoPanel";
 import type { PlantDetails, ProviderSearchResult } from "../lib/verdantlyUtils";
@@ -199,7 +200,9 @@ export default function CompanionPlantsTab({
   // is open in the full care guide.
   const [companionDetails, setCompanionDetails] = useState<Map<string, PlantDetails | null>>(new Map());
   const [companionDetailsLoading, setCompanionDetailsLoading] = useState<Set<string>>(new Set());
-  const [companionLibId, setCompanionLibId] = useState<Map<string, number | null>>(new Map());
+  // The resolved result to hand the full care guide (library clone, provider
+  // clone, or AI-by-name) — cached per row alongside its pill details.
+  const [companionResult, setCompanionResult] = useState<Map<string, ProviderSearchResult>>(new Map());
   const [detailResult, setDetailResult] = useState<ProviderSearchResult | null>(null);
   const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [pickerSelections, setPickerSelections] = useState<{ type: "api" | "ai" | "verdantly"; data: any }[]>([]);
@@ -247,31 +250,62 @@ export default function CompanionPlantsTab({
 
   useEffect(() => { fetchCompanions(); }, [fetchCompanions]);
 
-  // Resolve a companion name to care details + a library id (for the ⓘ pills
-  // and to clone cheaply when opening the full care guide). Library-first,
-  // cached per row; a miss means "not in the library" (no pills, AI on open).
+  // Resolve a companion name to care details (for the ⓘ pills) + the result to
+  // hand the full care guide. Resolution order keeps AI last:
+  //   1. plant_library  — free, no AI; clone via plant_library_id.
+  //   2. provider DB     — Verdantly (free) → Perenual; clone from the provider.
+  //   3. miss            — AI-by-name; Gemini only runs if the guide is opened.
+  // Cached per row; both the pills (details) and the open-result are stored.
   const resolveCompanion = useCallback(
-    async (plant: CompanionPlant, key: string): Promise<{ details: PlantDetails | null; libId: number | null }> => {
+    async (plant: CompanionPlant, key: string): Promise<{ details: PlantDetails | null; result: ProviderSearchResult }> => {
+      const sci = plant.scientificName ? [plant.scientificName] : [];
+      const aiResult = { id: `ai-${plant.name}`, common_name: plant.name, scientific_name: sci, thumbnail_url: null, _provider: "ai" } as ProviderSearchResult;
+
       if (companionDetails.has(key)) {
-        return { details: companionDetails.get(key) ?? null, libId: companionLibId.get(key) ?? null };
+        return { details: companionDetails.get(key) ?? null, result: companionResult.get(key) ?? aiResult };
       }
+
+      const cache = (details: PlantDetails | null, result: ProviderSearchResult) => {
+        setCompanionDetails((prev) => new Map(prev).set(key, details));
+        setCompanionResult((prev) => new Map(prev).set(key, result));
+        return { details, result };
+      };
+
       setCompanionDetailsLoading((prev) => new Set(prev).add(key));
       try {
+        // 1) Library-first — free, no AI.
         const { rows } = await searchLibrary(plant.name, { pageSize: 1 });
-        const row = rows[0] ?? null;
-        const details = row ? libraryRowToPlantDetails(row) : null;
-        const libId = (row?.id as number | undefined) ?? null;
-        setCompanionDetails((prev) => new Map(prev).set(key, details));
-        setCompanionLibId((prev) => new Map(prev).set(key, libId));
-        return { details, libId };
+        const libRow = rows[0] ?? null;
+        if (libRow) {
+          const details = libraryRowToPlantDetails(libRow);
+          return cache(details, {
+            id: `library-${libRow.id}`, common_name: plant.name, scientific_name: sci,
+            thumbnail_url: details.thumbnail_url ?? null, _provider: "ai", plant_library_id: libRow.id as number,
+          } as ProviderSearchResult);
+        }
+
+        // 2) Provider DB (Verdantly/Perenual) — still no AI. Prefer the free
+        // Verdantly hit; fetch its full details for the pills + clone source.
+        const hits = await searchAllProviders(plant.name, undefined, ["perenual", "verdantly"]).catch(() => [] as ProviderSearchResult[]);
+        const hit = hits.find((h) => h._provider === "verdantly") ?? hits[0] ?? null;
+        if (hit) {
+          const details = await getProviderPlantDetails({
+            source: hit._provider === "verdantly" ? "verdantly" : "api",
+            perenual_id: hit._provider === "verdantly" ? null : (hit.perenual_id ?? Number((hit as any).id) || null),
+            verdantly_id: hit._provider === "verdantly" ? (hit.verdantly_id ?? (hit as any).id ?? null) : null,
+          }).catch(() => null);
+          if (details) return cache(details, hit);
+        }
+
+        // 3) Nothing in library or provider DBs — AI only when the guide opens.
+        return cache(null, aiResult);
       } catch {
-        setCompanionDetails((prev) => new Map(prev).set(key, null));
-        return { details: null, libId: null };
+        return cache(null, aiResult);
       } finally {
         setCompanionDetailsLoading((prev) => { const s = new Set(prev); s.delete(key); return s; });
       }
     },
-    [companionDetails, companionLibId],
+    [companionDetails, companionResult],
   );
 
   const handlePreview = useCallback((plant: CompanionPlant, key: string) => {
@@ -280,14 +314,10 @@ export default function CompanionPlantsTab({
   }, [resolveCompanion]);
 
   // Open the full care guide (Care / Grow Guide / Companions / Light) for a
-  // companion. Library matches clone with no Gemini; otherwise the modal
-  // generates the guide on open.
+  // companion. Library/provider matches clone with no Gemini; a total miss
+  // generates the guide via AI on open.
   const openCareGuide = useCallback(async (plant: CompanionPlant, key: string) => {
-    const { libId } = await resolveCompanion(plant, key);
-    const sci = plant.scientificName ? [plant.scientificName] : [];
-    const result = (libId != null
-      ? { id: `library-${libId}`, common_name: plant.name, scientific_name: sci, thumbnail_url: null, _provider: "ai", plant_library_id: libId }
-      : { id: `ai-${plant.name}`, common_name: plant.name, scientific_name: sci, thumbnail_url: null, _provider: "ai" }) as ProviderSearchResult;
+    const { result } = await resolveCompanion(plant, key);
     setDetailResult(result);
   }, [resolveCompanion]);
 
