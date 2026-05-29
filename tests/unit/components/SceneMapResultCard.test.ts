@@ -47,7 +47,7 @@ const result: SceneMapResult = {
   ],
 };
 
-const renderCard = (r: SceneMapResult = result) =>
+const renderCard = (r: SceneMapResult = result, onConfirm?: any) =>
   render(
     React.createElement(SceneMapResultCard, {
       imageUrl: "blob:test",
@@ -55,6 +55,7 @@ const renderCard = (r: SceneMapResult = result) =>
       homeId: "home-1",
       aiEnabled: true,
       isPremium: true,
+      onConfirm,
     }),
   );
 
@@ -81,6 +82,14 @@ describe("SceneMapResultCard", () => {
     fireEvent.click(screen.getByTestId("scene-map-candidate-0-1")); // pick Mint
     fireEvent.click(screen.getByTestId("scene-map-confirm-0"));
     expect(screen.getByTestId("scene-map-confirmed-0").textContent).toContain("Mint");
+  });
+
+  test("confirming fires onConfirm with the chosen name + the region's candidates", () => {
+    const onConfirm = vi.fn();
+    renderCard(result, onConfirm);
+    fireEvent.click(screen.getByTestId("scene-map-confirm-0"));
+    expect(onConfirm).toHaveBeenCalledTimes(1);
+    expect(onConfirm).toHaveBeenCalledWith("Basil", result.regions[0].candidates);
   });
 
   test("checking a region reveals the Add to Shed button", () => {

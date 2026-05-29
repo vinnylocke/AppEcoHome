@@ -21,6 +21,9 @@ interface Props {
   isPremium: boolean;
   /** Fired after plants are added to the Shed so the host can refresh. */
   onPlantsAdded?: () => void;
+  /** Fired when the user confirms a plant's identity — the host records it as
+   *  an identification-feedback session (same training signal as single Identify). */
+  onConfirm?: (confirmedName: string, candidates: SceneCandidate[]) => void;
 }
 
 // Distinct, repeating palette so adjacent boxes/rows are easy to tell apart.
@@ -38,7 +41,7 @@ const ck = (r: number, c: number) => `${r}-${c}`;
  * (pills + description + "See full care" → PlantDetailModal), and tick plants
  * to add to the Shed (their confirmed identity, resolved library-first then AI).
  */
-export default function SceneMapResultCard({ imageUrl, result, homeId, aiEnabled, isPremium, onPlantsAdded }: Props) {
+export default function SceneMapResultCard({ imageUrl, result, homeId, aiEnabled, isPremium, onPlantsAdded, onConfirm }: Props) {
   const regions = result.regions ?? [];
 
   const [activeRegion, setActiveRegion] = useState<number | null>(null);
@@ -94,7 +97,10 @@ export default function SceneMapResultCard({ imageUrl, result, homeId, aiEnabled
   const confirmRegion = (r: number) => {
     setConfirmed((prev) => { const s = new Set(prev); s.add(r); return s; });
     const cand = selectedCand(r);
-    if (cand) logEvent(EVENT.AI_IDENTIFY, { multi_id_confirmed: cand.name });
+    if (cand) {
+      logEvent(EVENT.AI_IDENTIFY, { multi_id_confirmed: cand.name });
+      onConfirm?.(cand.name, regions[r].candidates);
+    }
   };
 
   const toggleCheck = (r: number) => {

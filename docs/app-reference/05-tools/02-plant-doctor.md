@@ -19,7 +19,7 @@ Four actions powered by Gemini Vision via `PlantDoctorService`:
 | Identify | `identify_vision` | Plant name(s), scientific name, care snapshot |
 | Diagnose | `diagnose` | Diseases possible, treatments, severity, plant-instance link |
 | Pest Scan | `identify_pest` | Possible pests, control measures |
-| **Multi-ID** | `identify_scene` | One photo of **several** plants → a bounding box per detected plant (overlaid on the image) + a mapping listing each box's ranked candidate identities with a confidence weight. Per plant the user can **select + confirm** an identity, tap a candidate for **library-first/AI info** (pills + description + **See full care** → `PlantDetailModal`), and **check plants to add to the Shed** (their confirmed identity, resolved library-first then AI via `saveToShed`). |
+| **Multi-ID** | `identify_scene` | One photo of **several** plants → a bounding box per detected plant (overlaid on the image) + a mapping listing each box's ranked candidate identities with a confidence weight. Per plant the user can **select + confirm** an identity (each confirm writes a per-plant `identify`-shaped `plant_doctor_sessions` row with `confirmed_value` — same training signal + History surface as the single Identify; one shared image upload per run), tap a candidate for **library-first/AI info** (pills + description + **See full care** → `PlantDetailModal`), and **check plants to add to the Shed** (their confirmed identity, resolved library-first then AI via `saveToShed`). |
 
 The `plant-doctor` edge function also exposes **two non-screen actions** consumed by the [Localized Task Calendar](../02-dashboard/10-localized-task-calendar.md):
 
@@ -213,7 +213,7 @@ All actions go through the single `plant-doctor` edge function, discriminated by
 | `identify_vision` | Identify button |
 | `diagnose` | Diagnose button |
 | `identify_pest` | Pest Scan button |
-| `identify_scene` | **Multi-ID** button — detects every distinct plant and returns `regions[{ box_2d:[ymin,xmin,ymax,xmax] (0–1000), candidates:[{ name, scientific_name, confidence }] }]`. Uses the Pro-first cascade at temperature 0.2; server-side it drops malformed/empty regions, clamps confidence, sorts candidates, caps at 12. No session write (logged via `logAiUsage`). |
+| `identify_scene` | **Multi-ID** button — detects every distinct plant and returns `regions[{ box_2d:[ymin,xmin,ymax,xmax] (0–1000), candidates:[{ name, scientific_name, confidence }] }]`. Uses the Pro-first cascade at temperature 0.2; server-side it drops malformed/empty regions, clamps confidence, sorts candidates, caps at 12. The function itself writes no session (logged via `logAiUsage`); the **client** writes a per-plant `identify`-shaped session when the user confirms a plant (see Multi-ID confirm above). |
 | `lookup_frost_dates` | Mobile Quick Access Wave 3 — cached frost-date lookup (open to all tiers). Reads/writes `home_climate`. |
 | `plant_when_to_plant` | Mobile Quick Access Wave 3 — per-plant planting guidance anchored to the home's frost dates. Sage+ only. |
 | `get_ai_disease_info` | After diagnosis, drill into a specific disease (AI) |

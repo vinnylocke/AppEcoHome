@@ -55,6 +55,7 @@ import {
   type DiseaseInfo,
   type VisionResult,
   type SceneMapResult,
+  type SceneCandidate,
 } from "../services/plantDoctorService";
 
 interface PlantDoctorProps {
@@ -113,6 +114,10 @@ export default function PlantDoctor({
   const [aiResult, setAiResult] = useState<VisionResult | null>(null);
   const [analyseResult, setAnalyseResult] = useState<AnalyseResult | null>(null);
   const [sceneResult, setSceneResult] = useState<SceneMapResult | null>(null);
+  // Multi-ID image (for confirm → session write) + the uploaded session image
+  // path, cached per run so multiple confirms share one upload.
+  const [sceneImageBase64, setSceneImageBase64] = useState<string | null>(null);
+  const scenePathRef = useRef<string | null>(null);
 
   const [selectedPlantName, setSelectedPlantName] = useState<string | null>(null);
   const [selectedPlantScientific, setSelectedPlantScientific] = useState<string | null>(null);
@@ -339,6 +344,8 @@ export default function PlantDoctor({
     setAiResult(null);
     setAnalyseResult(null);
     setSceneResult(null);
+    setSceneImageBase64(null);
+    scenePathRef.current = null;
     setSelectedPlantName(null);
     setSelectedPlantScientific(null);
     setSelectedDisease(null);
@@ -526,8 +533,10 @@ export default function PlantDoctor({
     setSelectedDisease(null);
     setSelectedPest(null);
 
+    scenePathRef.current = null;
     try {
       const base64Data = await compressImage(selectedFile);
+      setSceneImageBase64(base64Data);
       const data = await PlantDoctorService.identifyScene({
         homeId,
         imageBase64: base64Data,
@@ -546,6 +555,34 @@ export default function PlantDoctor({
       Logger.error("Plant Multi-ID failed", error, { homeId }, error.message || "Failed to identify plants.");
     } finally {
       setIsProcessing(false);
+    }
+  };
+
+  // Record a confirmed Multi-ID plant as an identification-feedback session —
+  // one identify-shaped row per confirmed plant (same training signal + History
+  // surface as the single Identify confirm). Fire-and-forget; the card owns the
+  // visual confirmed state. Multiple confirms in a run share one image upload.
+  const confirmScenePlant = async (confirmedName: string, candidates: SceneCandidate[]) => {
+    if (!userId || !sceneImageBase64) return;
+    try {
+      if (!scenePathRef.current) {
+        const sid = crypto.randomUUID();
+        const path = `${userId}/${sid}.jpg`;
+        const bytes = Uint8Array.from(atob(sceneImageBase64), (c) => c.charCodeAt(0));
+        await supabase.storage.from("doctor-sessions").upload(path, new Blob([bytes], { type: "image/jpeg" }));
+        scenePathRef.current = path;
+      }
+      await supabase.from("plant_doctor_sessions").insert({
+        user_id: userId,
+        home_id: homeId,
+        action: "identify",
+        image_path: scenePathRef.current,
+        results: { possible_names: candidates, notes: "Multi-ID detection" },
+        confirmed_value: confirmedName,
+        confirmed_at: new Date().toISOString(),
+      });
+    } catch (err) {
+      Logger.warn("Multi-ID confirm session write failed", err, { homeId });
     }
   };
 
@@ -1045,6 +1082,7 @@ export default function PlantDoctor({
                     aiEnabled={aiEnabled}
                     isPremium={isPremium}
                     onPlantsAdded={onTasksAdded}
+                    onConfirm={confirmScenePlant}
                   />
                 </div>
               )}

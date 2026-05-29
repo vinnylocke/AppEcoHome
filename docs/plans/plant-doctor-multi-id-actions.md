@@ -56,8 +56,8 @@ Pass `homeId`, `aiEnabled`, `isPremium`, and `onPlantsAdded={onTasksAdded}` (das
 
 ## Out of scope (flagged)
 
-- **AI-training feedback for Multi-ID confirm** — the single-identifier writes `plant_doctor_sessions.confirmed_value`; Multi-ID has no session (sessions are single-plant). Confirm here is a client-side lock + analytics event; wiring a per-region training session would need schema thought. Say the word if you want it.
-- **Per-region source picker** — we auto-resolve library→provider→AI (matching "library first, else AI"); no manual source-choice step.
+- **AI-training feedback for Multi-ID confirm** — ✅ **DONE (follow-up):** confirming a plant now writes a per-plant `identify`-shaped `plant_doctor_sessions` row (`results.possible_names` = the region's candidates, `confirmed_value` = the chosen name), via `SceneMapResultCard`'s `onConfirm` → `PlantDoctor.confirmScenePlant`. One shared image upload per run (cached in `scenePathRef`). Same training signal + History surface as the single Identify; no schema change.
+- **Per-region source picker** — intentionally omitted: we auto-resolve library→provider→AI (matching "library first, else AI"); no manual source-choice step.
 
 ## Tests
 

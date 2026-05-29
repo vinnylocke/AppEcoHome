@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Improved",
+    "items": [
+      "Confirming a plant in Multi-ID now works like the single plant identifier — your confirmed choice is saved to your Plant Doctor history and helps improve future identifications."
+    ]
+  }
+]
