@@ -53,6 +53,8 @@ Design + decisions: [docs/plans/plant-search-overhaul-design.md](../../plans/pla
 
 When `allowPreview` is set, each result row gets an info (ⓘ) button next to the select control. Tapping it (a) does **not** select the row and (b) expands an inline `PlantInfoPanel` beneath it. The component owns the preview state (`previewKey` / `previewCache` / `previewLoading`) keyed by the row's testid: library rows resolve instantly from the row data, Perenual/Verdantly fetch on demand with a spinner. This restores the "inspect before adding" affordance the legacy BulkSearchModal had. Single-select hosts (Shopping, `/library`, Nursery) leave it off — they already preview on tap/navigate.
 
+The Companions tab reuses these same shared pieces: each companion row's ⓘ resolves the plant via `searchLibrary` → `libraryRowToPlantDetails` and shows the same `PlantInfoPanel` pills (+ the companion reason), and tapping a companion opens `PlantDetailModal` (its Care / Grow Guide / Companions / Light) — so the info-pills + care-guide experience is identical to plant search. (`PlantDetailModal` is lazy-imported there to avoid the CompanionPlantsTab ⇄ PlantDetailModal cycle.)
+
 When `onViewDetails` is also passed, the preview panel gains a **"See full care"** button. In Add-to-Shed it hands the selection to `PlantDetailModal` — a portal overlay (above the bulk modal) rendering the full Care Guide / Grow Guide / Companions / Light tabs, the same set the Library's `PlantPreview` screen uses. The overlay reuses `useCataloguePlantFromResult` (clones the plant into the catalogue to drive the tabs) and closes back to the search with the in-progress cart intact. See [Plant Detail Modal](../08-modals-and-overlays/38-plant-detail-modal.md).
 
 ### Library row → `plants` (per host)

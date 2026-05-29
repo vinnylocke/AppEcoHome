@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, lazy, Suspense } from "react";
 import {
   Loader2, Plus, CheckSquare, Square, ChevronDown, ChevronRight,
   Sprout, ShieldAlert, Minus, Lock, Info, X,
@@ -15,6 +15,14 @@ import { derivePlantLabels } from "../lib/plantLabels";
 import { getHemisphere, normalizePeriods } from "../lib/seasonal";
 import { buildAutoSeasonalSchedules } from "../lib/plantScheduleFactory";
 import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
+import { searchLibrary } from "../lib/unifiedPlantSearch";
+import { libraryRowToPlantDetails } from "../lib/plantCatalogue";
+import PlantInfoPanel from "./PlantInfoPanel";
+import type { PlantDetails, ProviderSearchResult } from "../lib/verdantlyUtils";
+
+// Lazy to break the CompanionPlantsTab ⇄ PlantDetailModal import cycle
+// (PlantDetailModal's own Companions tab renders CompanionPlantsTab).
+const PlantDetailModal = lazy(() => import("./PlantDetailModal"));
 
 interface CompanionPlant {
   id: string | null;
@@ -46,81 +54,6 @@ interface Props {
   onPlantsAdded?: () => void;
 }
 
-// ─── Inline image panel ────────────────────────────────────────────────────────
-
-interface ImagePanelProps {
-  plantName: string;
-  reason: string | null | undefined;
-  onClose: () => void;
-}
-
-function ImagePanel({ plantName, reason, onClose }: ImagePanelProps) {
-  const [images, setImages] = useState<GalleryImage[]>([]);
-  const [loading, setLoading] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-    supabase.functions
-      .invoke("plant-image-search", { body: { query: plantName, count: 4 } })
-      .then(({ data }) => {
-        if (!cancelled) setImages(data?.images ?? []);
-      })
-      .catch(() => {})
-      .finally(() => { if (!cancelled) setLoading(false); });
-    return () => { cancelled = true; };
-  }, [plantName]);
-
-  const hasContent = loading || images.length > 0;
-
-  return (
-    <div className="mt-1 mb-2 mx-3 rounded-xl bg-rhozly-surface-low/60 border border-rhozly-outline/10 overflow-hidden animate-in slide-in-from-top-2 duration-200">
-      <div className="flex items-center justify-between px-3 pt-2.5 pb-1">
-        <span className="text-[10px] font-black text-rhozly-on-surface/50 uppercase tracking-widest">{plantName}</span>
-        <button onClick={onClose} className="p-1 rounded-lg hover:bg-rhozly-surface transition-colors">
-          <X size={12} className="text-rhozly-on-surface/40" />
-        </button>
-      </div>
-
-      {reason && (
-        <p className="px-3 pb-2 text-[10px] font-semibold text-rhozly-on-surface/70 leading-relaxed">
-          {reason}
-        </p>
-      )}
-
-      {hasContent && (
-        <div className="overflow-x-auto px-3 pb-3">
-          <div className="flex gap-1.5">
-            {loading
-              ? [0, 1, 2].map((i) => (
-                  <div key={i} className="w-16 h-16 rounded-xl bg-rhozly-surface animate-pulse shrink-0" />
-                ))
-              : images.map((img) => (
-                  <a
-                    key={img.id}
-                    href={img.full_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 rounded-xl overflow-hidden block"
-                  >
-                    <img
-                      src={img.thumb_url}
-                      alt={img.alt}
-                      className="w-16 h-16 object-cover hover:scale-105 transition-transform"
-                    />
-                  </a>
-                ))
-            }
-          </div>
-        </div>
-      )}
-
-      {!loading && images.length === 0 && !reason && (
-        <p className="px-3 pb-3 text-[10px] text-rhozly-on-surface/40">No additional information available.</p>
-      )}
-    </div>
-  );
-}
-
 // ─── Section component ─────────────────────────────────────────────────────────
 
 interface SectionProps {
@@ -131,13 +64,20 @@ interface SectionProps {
   checked: Set<string>;
   onToggle: (key: string) => void;
   expandedKey: string | null;
-  onExpand: (key: string | null) => void;
+  /** Toggle the inline info preview (ⓘ) for a companion, resolving its details. */
+  onPreview: (plant: CompanionPlant, key: string) => void;
+  /** Open the full care guide (PlantDetailModal) for a companion. */
+  onOpenCareGuide: (plant: CompanionPlant, key: string) => void;
+  /** Resolved care details per row (null = looked up, not in library). */
+  details: Map<string, PlantDetails | null>;
+  /** Rows whose details are being resolved. */
+  detailsLoading: Set<string>;
   defaultOpen?: boolean;
 }
 
 function CompanionSection({
   title, icon, headerClass, plants, checked, onToggle,
-  expandedKey, onExpand, defaultOpen = true,
+  expandedKey, onPreview, onOpenCareGuide, details, detailsLoading, defaultOpen = true,
 }: SectionProps) {
   const [open, setOpen] = useState(defaultOpen);
 
@@ -178,20 +118,26 @@ function CompanionSection({
                       : <Square size={16} className="text-rhozly-on-surface/30" />}
                   </button>
 
-                  {/* Name + scientific name */}
-                  <div className="flex-1 min-w-0">
-                    <span className="block text-xs font-black text-rhozly-on-surface">{plant.name}</span>
+                  {/* Name + scientific name — tap to open the full care guide */}
+                  <button
+                    type="button"
+                    onClick={() => onOpenCareGuide(plant, key)}
+                    data-testid={`companion-open-${key}`}
+                    className="flex-1 min-w-0 text-left group"
+                  >
+                    <span className="block text-xs font-black text-rhozly-on-surface group-hover:text-rhozly-primary transition-colors">{plant.name}</span>
                     {plant.scientificName && (
                       <span className="block text-[10px] font-medium text-rhozly-on-surface/50 italic">{plant.scientificName}</span>
                     )}
                     {plant.reason && !isExpanded && (
                       <span className="block text-[10px] font-semibold text-rhozly-on-surface/60 mt-0.5 leading-relaxed line-clamp-2">{plant.reason}</span>
                     )}
-                  </div>
+                  </button>
 
                   {/* Info toggle */}
                   <button
-                    onClick={() => onExpand(isExpanded ? null : key)}
+                    onClick={() => onPreview(plant, key)}
+                    data-testid={`companion-info-${key}`}
                     className={`shrink-0 p-1.5 rounded-lg transition-colors ${isExpanded ? "bg-rhozly-primary/10 text-rhozly-primary" : "hover:bg-rhozly-surface-low text-rhozly-on-surface/30 hover:text-rhozly-on-surface/60"}`}
                     aria-label={isExpanded ? "Close details" : "Show details"}
                   >
@@ -199,13 +145,30 @@ function CompanionSection({
                   </button>
                 </div>
 
-                {/* Inline image panel */}
+                {/* Inline preview — companion reason + the same info pills plant search shows */}
                 {isExpanded && (
-                  <ImagePanel
-                    plantName={plant.name}
-                    reason={plant.reason}
-                    onClose={() => onExpand(null)}
-                  />
+                  <div data-testid="companion-info-panel" className="px-4 pb-3">
+                    {plant.reason && (
+                      <p className="text-[11px] font-semibold text-rhozly-on-surface/70 leading-relaxed mb-2">{plant.reason}</p>
+                    )}
+                    {detailsLoading.has(key) ? (
+                      <div className="flex items-center gap-2 py-3 text-[11px] font-bold text-rhozly-on-surface/50">
+                        <Loader2 size={13} className="animate-spin" /> Loading details…
+                      </div>
+                    ) : details.get(key) ? (
+                      <div className="rounded-xl border border-rhozly-outline/10 overflow-hidden">
+                        <PlantInfoPanel details={details.get(key) ?? null} loading={false} plantName={plant.name} />
+                      </div>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => onOpenCareGuide(plant, key)}
+                        className="text-[11px] font-black text-rhozly-primary hover:underline"
+                      >
+                        Open {plant.name} for its full care guide →
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
             );
@@ -232,6 +195,12 @@ export default function CompanionPlantsTab({
   const [error, setError] = useState<"ai_required" | "fetch_failed" | "rate_limited" | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
+  // Per-companion resolved care details (for the ⓘ info pills) + which plant
+  // is open in the full care guide.
+  const [companionDetails, setCompanionDetails] = useState<Map<string, PlantDetails | null>>(new Map());
+  const [companionDetailsLoading, setCompanionDetailsLoading] = useState<Set<string>>(new Set());
+  const [companionLibId, setCompanionLibId] = useState<Map<string, number | null>>(new Map());
+  const [detailResult, setDetailResult] = useState<ProviderSearchResult | null>(null);
   const [showSourcePicker, setShowSourcePicker] = useState(false);
   const [pickerSelections, setPickerSelections] = useState<{ type: "api" | "ai" | "verdantly"; data: any }[]>([]);
   const [showBulkModal, setShowBulkModal] = useState(false);
@@ -277,6 +246,50 @@ export default function CompanionPlantsTab({
   }, [source, verdantlyId, plantName, aiEnabled]);
 
   useEffect(() => { fetchCompanions(); }, [fetchCompanions]);
+
+  // Resolve a companion name to care details + a library id (for the ⓘ pills
+  // and to clone cheaply when opening the full care guide). Library-first,
+  // cached per row; a miss means "not in the library" (no pills, AI on open).
+  const resolveCompanion = useCallback(
+    async (plant: CompanionPlant, key: string): Promise<{ details: PlantDetails | null; libId: number | null }> => {
+      if (companionDetails.has(key)) {
+        return { details: companionDetails.get(key) ?? null, libId: companionLibId.get(key) ?? null };
+      }
+      setCompanionDetailsLoading((prev) => new Set(prev).add(key));
+      try {
+        const { rows } = await searchLibrary(plant.name, { pageSize: 1 });
+        const row = rows[0] ?? null;
+        const details = row ? libraryRowToPlantDetails(row) : null;
+        const libId = (row?.id as number | undefined) ?? null;
+        setCompanionDetails((prev) => new Map(prev).set(key, details));
+        setCompanionLibId((prev) => new Map(prev).set(key, libId));
+        return { details, libId };
+      } catch {
+        setCompanionDetails((prev) => new Map(prev).set(key, null));
+        return { details: null, libId: null };
+      } finally {
+        setCompanionDetailsLoading((prev) => { const s = new Set(prev); s.delete(key); return s; });
+      }
+    },
+    [companionDetails, companionLibId],
+  );
+
+  const handlePreview = useCallback((plant: CompanionPlant, key: string) => {
+    setExpandedKey((prev) => (prev === key ? null : key));
+    resolveCompanion(plant, key);
+  }, [resolveCompanion]);
+
+  // Open the full care guide (Care / Grow Guide / Companions / Light) for a
+  // companion. Library matches clone with no Gemini; otherwise the modal
+  // generates the guide on open.
+  const openCareGuide = useCallback(async (plant: CompanionPlant, key: string) => {
+    const { libId } = await resolveCompanion(plant, key);
+    const sci = plant.scientificName ? [plant.scientificName] : [];
+    const result = (libId != null
+      ? { id: `library-${libId}`, common_name: plant.name, scientific_name: sci, thumbnail_url: null, _provider: "ai", plant_library_id: libId }
+      : { id: `ai-${plant.name}`, common_name: plant.name, scientific_name: sci, thumbnail_url: null, _provider: "ai" }) as ProviderSearchResult;
+    setDetailResult(result);
+  }, [resolveCompanion]);
 
   const toggleChecked = (key: string) => {
     setChecked((prev) => {
@@ -518,7 +531,15 @@ export default function CompanionPlantsTab({
     );
   }
 
-  const sectionProps = { checked, onToggle: toggleChecked, expandedKey, onExpand: setExpandedKey };
+  const sectionProps = {
+    checked,
+    onToggle: toggleChecked,
+    expandedKey,
+    onPreview: handlePreview,
+    onOpenCareGuide: openCareGuide,
+    details: companionDetails,
+    detailsLoading: companionDetailsLoading,
+  };
 
   return (
     <div className="flex flex-col gap-3 pb-24">
@@ -534,7 +555,7 @@ export default function CompanionPlantsTab({
       </div>
 
       <p className="text-[10px] font-semibold text-rhozly-on-surface/50 leading-relaxed">
-        Tap <Info size={10} className="inline" /> to see images. Tick the checkbox next to any companion you want to add to your Shed.
+        Tap <Info size={10} className="inline" /> for quick details, or tap a plant to open its full care guide. Tick the checkbox next to any companion you want to add to your Shed.
       </p>
 
       <CompanionSection
@@ -606,6 +627,18 @@ export default function CompanionPlantsTab({
           onManualSave={handleManualSave}
           onClose={() => setShowBulkModal(false)}
         />
+      )}
+
+      {detailResult && (
+        <Suspense fallback={null}>
+          <PlantDetailModal
+            result={detailResult}
+            homeId={homeId}
+            aiEnabled={!!aiEnabled}
+            isPremium={!!isPremium}
+            onClose={() => setDetailResult(null)}
+          />
+        </Suspense>
       )}
     </div>
   );
