@@ -51,7 +51,7 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 | `smart-plant-scheduler` | PlantAssignment (smart schedules) | Builds tailored care schedules. |
 | `optimise-area-ai` | OptimiseTab AI | AI proposal generation. |
 | `generate-guide` | Admin Guide Generator | Gemini-authored guides. |
-| `companion-planting` | Companion overlay | Companion / antagonist queries. |
+| `companion-planting` | Companion overlay | Companion / antagonist queries. **Cached in `companion_cache`** (key: `verdantly`+id or `ai`+lower(name)): cache hits skip the rate limit; AI results are permanent, Verdantly refreshes after a 30-day TTL, empty results are not cached (so they re-generate). |
 | `garden-shape-suggestions` | Garden Layout | Suggest beds/zones from area data. |
 | `predict-yield` | YieldTab | Forecast yield from past records. |
 | `visualiser-analyse` | PlantCameraView | AR placement feedback. |

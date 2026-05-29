@@ -163,11 +163,78 @@ Include 5–10 beneficial plants, 3–6 harmful plants, and 3–6 neutral plants
   };
 }
 
+// ─── Server-side cache (companion_cache) ──────────────────────────────────────
+
+// Verdantly data can change; AI companion knowledge is stable. AI rows are
+// kept permanently; Verdantly rows are refreshed after this TTL.
+const VERDANTLY_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+
+function isNonEmpty(r: CompanionPlantsResult): boolean {
+  return (
+    (r.beneficial?.length ?? 0) > 0 ||
+    (r.harmful?.length ?? 0) > 0 ||
+    (r.neutral?.length ?? 0) > 0
+  );
+}
+
+async function readCache(
+  db: any,
+  source: string,
+  cacheKey: string,
+): Promise<(CompanionPlantsResult & { generated_at: string }) | null> {
+  const { data } = await db
+    .from("companion_cache")
+    .select("beneficial, harmful, neutral, generated_at")
+    .eq("source", source)
+    .eq("cache_key", cacheKey)
+    .maybeSingle();
+  return data ?? null;
+}
+
+function isCacheFresh(
+  row: { beneficial: any[]; harmful: any[]; neutral: any[]; generated_at: string },
+  source: string,
+): boolean {
+  // An empty stored result means "regenerate" (per product requirement).
+  if (!isNonEmpty(row)) return false;
+  if (source === "verdantly") {
+    return Date.now() - new Date(row.generated_at).getTime() < VERDANTLY_TTL_MS;
+  }
+  return true; // ai: permanent
+}
+
+async function writeCache(
+  db: any,
+  source: string,
+  cacheKey: string,
+  result: CompanionPlantsResult,
+): Promise<void> {
+  // Only cache non-empty results so genuinely-empty plants re-call next time.
+  if (!isNonEmpty(result)) return;
+  await db.from("companion_cache").upsert(
+    {
+      source,
+      cache_key: cacheKey,
+      beneficial: result.beneficial ?? [],
+      harmful: result.harmful ?? [],
+      neutral: result.neutral ?? [],
+      generated_at: new Date().toISOString(),
+    },
+    { onConflict: "source,cache_key" },
+  );
+}
+
 // ─── Main ────────────────────────────────────────────────────────────────────
 
 serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
+
+  const json = (body: unknown, status = 200) =>
+    new Response(JSON.stringify(body), {
+      status,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
+    });
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
   const serviceKey  = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -181,48 +248,56 @@ serve(async (req) => {
     if (authResult instanceof Response) return authResult;
     const userId = authResult.user.id;
 
-    const rateLimitErr = await enforceRateLimit(db, userId, FN);
-    if (rateLimitErr) return rateLimitErr;
-
     const { source, verdantly_id, plant_name, ai_enabled } = await req.json();
 
     if (!plant_name?.trim()) {
-      return new Response(JSON.stringify({ error: "plant_name is required" }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      return json({ error: "plant_name is required" }, 400);
+    }
+
+    const isVerdantly = source === "verdantly" && !!verdantly_id;
+
+    // Tier gate for the AI path (Verdantly companions are free). Checked before
+    // the cache so non-AI tiers stay gated even once a result is cached.
+    if (!isVerdantly && !ai_enabled) {
+      return json({ error: "ai_required" });
+    }
+
+    const cacheSource = isVerdantly ? "verdantly" : "ai";
+    const cacheKey = isVerdantly ? String(verdantly_id) : plant_name.trim().toLowerCase();
+
+    // 1) Cache read — a hit is a cheap DB lookup and does NOT consume the
+    // rate limit (only fresh generations do).
+    const cached = await readCache(db, cacheSource, cacheKey);
+    if (cached && isCacheFresh(cached, cacheSource)) {
+      log(FN, "cache_hit", { cacheSource, cacheKey });
+      return json({
+        beneficial: cached.beneficial ?? [],
+        harmful: cached.harmful ?? [],
+        neutral: cached.neutral ?? [],
       });
     }
 
-    // ── Verdantly plant ───────────────────────────────────────────────────────
-    if (source === "verdantly" && verdantly_id) {
+    // 2) Miss / expired / empty → generate (rate-limited).
+    const rateLimitErr = await enforceRateLimit(db, userId, FN);
+    if (rateLimitErr) return rateLimitErr;
+
+    let result: CompanionPlantsResult;
+    if (isVerdantly) {
       if (!apiKey) throw new Error("Missing VERDANTLY_API_KEY");
       log(FN, "verdantly_lookup", { verdantly_id });
-      const result = await fetchVerdantlyCompanions(verdantly_id, apiKey);
-      return new Response(JSON.stringify(result), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
-
-    // ── AI fallback (Perenual, ai, manual) ───────────────────────────────────
-    if (ai_enabled) {
+      result = await fetchVerdantlyCompanions(verdantly_id, apiKey);
+    } else {
       log(FN, "ai_lookup", { plant_name, source });
-      const result = await generateAiCompanions(plant_name, geminiKey);
-      return new Response(JSON.stringify(result), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      result = await generateAiCompanions(plant_name, geminiKey);
     }
 
-    // ── No AI access ──────────────────────────────────────────────────────────
-    return new Response(JSON.stringify({ error: "ai_required" }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // 3) Persist (no-op for empty results, so they re-call next time).
+    await writeCache(db, cacheSource, cacheKey, result);
 
+    return json(result);
   } catch (err: any) {
     logError(FN, "unhandled_error", err);
     captureException(err, { fn: FN });
-    return new Response(JSON.stringify({ error: err.message }), {
-      status: 500,
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    return json({ error: err.message }, 500);
   }
 });

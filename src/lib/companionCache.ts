@@ -64,8 +64,24 @@ export function fetchCompanions(req: CompanionRequest): Promise<CompanionResult>
         ai_enabled: req.aiEnabled,
       },
     })
-    .then(({ data, error }): CompanionResult => {
-      if (error) throw new Error(error.message);
+    .then(async ({ data, error }): Promise<CompanionResult> => {
+      if (error) {
+        // FunctionsHttpError hides the real body/status — read it so callers
+        // can tell a rate-limit (429) apart from a generic failure.
+        let message = error.message;
+        let status = 0;
+        try {
+          const ctx = (error as any).context;
+          status = ctx?.status ?? 0;
+          const body = await ctx?.json?.();
+          if (body?.error) message = body.error;
+        } catch {
+          /* keep generic */
+        }
+        const e = new Error(message) as Error & { rateLimited?: boolean };
+        e.rateLimited = status === 429 || /rate limit/i.test(message);
+        throw e;
+      }
       if (data?.error) {
         return { beneficial: [], harmful: [], neutral: [], error: data.error };
       }

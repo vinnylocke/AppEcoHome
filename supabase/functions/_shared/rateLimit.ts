@@ -37,6 +37,9 @@ const TIER_LIMITS: Record<string, Record<string, number>> = {
   "predict-yield":                   { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
   "smart-plant-scheduler":           { sprout: 0, botanist: 5,  sage: 15, evergreen: 30 },
   "search-plants-ai":                { sprout: 0, botanist: 20, sage: 40, evergreen: 80 },
+  // Cached server-side (companion_cache) — only first-time generations count,
+  // so the limit just guards against a burst of misses.
+  "companion-planting":              { sprout: 0, botanist: 20, sage: 40, evergreen: 80 },
   "visualiser-analyse":              { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
   "home-location-details":           { sprout: 0, botanist: 2,  sage: 5,  evergreen: 10 },
   "optimise-area-ai":                { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },

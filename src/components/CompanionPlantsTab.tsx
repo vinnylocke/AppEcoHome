@@ -229,7 +229,7 @@ export default function CompanionPlantsTab({
 }: Props) {
   const [companions, setCompanions] = useState<CompanionResult | null>(null);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<"ai_required" | "fetch_failed" | null>(null);
+  const [error, setError] = useState<"ai_required" | "fetch_failed" | "rate_limited" | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   const [showSourcePicker, setShowSourcePicker] = useState(false);
@@ -256,7 +256,11 @@ export default function CompanionPlantsTab({
       if (data.error === "ai_required") { setError("ai_required"); return; }
       if (data.error) throw new Error(data.error);
       setCompanions({ beneficial: data.beneficial, harmful: data.harmful, neutral: data.neutral });
-    } catch {
+    } catch (firstErr: any) {
+      // Don't auto-retry a rate-limit — retrying just burns the window. Show a
+      // dedicated message instead. (With the server-side cache, hitting the
+      // limit should now be rare.)
+      if (firstErr?.rateLimited) { setError("rate_limited"); return; }
       try {
         invalidateCompanions(req);
         await new Promise((r) => setTimeout(r, 900));
@@ -264,8 +268,8 @@ export default function CompanionPlantsTab({
         if (data.error === "ai_required") { setError("ai_required"); return; }
         if (data.error) throw new Error(data.error);
         setCompanions({ beneficial: data.beneficial, harmful: data.harmful, neutral: data.neutral });
-      } catch {
-        setError("fetch_failed");
+      } catch (retryErr: any) {
+        setError(retryErr?.rateLimited ? "rate_limited" : "fetch_failed");
       }
     } finally {
       setLoading(false);
@@ -464,6 +468,24 @@ export default function CompanionPlantsTab({
             Upgrade in <span className="font-black text-rhozly-primary">Account Settings</span> to unlock this.
           </p>
         </div>
+      </div>
+    );
+  }
+
+  // ── Rate limited ─────────────────────────────────────────────────────────
+  if (error === "rate_limited") {
+    return (
+      <div className="flex flex-col items-center justify-center gap-4 py-16 text-center px-6">
+        <p className="text-xs font-bold text-rhozly-on-surface/60 leading-relaxed max-w-xs">
+          You've generated a lot of companion guides recently. Please try again in a little while — your saved guides still load instantly.
+        </p>
+        <button
+          onClick={fetchCompanions}
+          data-testid="companion-retry"
+          className="px-4 py-2 min-h-[44px] bg-rhozly-surface-low text-rhozly-on-surface/70 text-xs font-black uppercase tracking-widest rounded-xl hover:bg-rhozly-surface transition-colors"
+        >
+          Try again
+        </button>
       </div>
     );
   }
