@@ -571,7 +571,7 @@ export default function TaskCalendar({
                 ))}
               </div>
             </div>
-            <div className="flex flex-wrap sm:flex-nowrap gap-4 w-full xl:w-auto mt-2 sm:mt-0">
+            <div className="flex flex-col sm:flex-row gap-4 w-full xl:w-auto mt-2 sm:mt-0">
               <div className="flex-1 sm:w-40">
                 <label className="text-[10px] font-black uppercase text-rhozly-on-surface/40 block mb-3 ml-1">
                   Location

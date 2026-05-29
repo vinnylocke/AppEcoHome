@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "Calendar filters are now readable on phones — the Location, Area and Garden Plan dropdowns stack full-width instead of being squashed into one row with their text cut off."
+    ]
+  }
+]
