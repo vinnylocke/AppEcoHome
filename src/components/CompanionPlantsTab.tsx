@@ -15,9 +15,7 @@ import { derivePlantLabels } from "../lib/plantLabels";
 import { getHemisphere, normalizePeriods } from "../lib/seasonal";
 import { buildAutoSeasonalSchedules } from "../lib/plantScheduleFactory";
 import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
-import { searchLibrary } from "../lib/unifiedPlantSearch";
-import { searchAllProviders, getProviderPlantDetails } from "../lib/plantProvider";
-import { libraryRowToPlantDetails } from "../lib/plantCatalogue";
+import { resolvePlantInfo } from "../lib/plantInfoResolver";
 import PlantInfoPanel from "./PlantInfoPanel";
 import type { PlantDetails, ProviderSearchResult } from "../lib/verdantlyUtils";
 
@@ -258,49 +256,17 @@ export default function CompanionPlantsTab({
   // Cached per row; both the pills (details) and the open-result are stored.
   const resolveCompanion = useCallback(
     async (plant: CompanionPlant, key: string): Promise<{ details: PlantDetails | null; result: ProviderSearchResult }> => {
-      const sci = plant.scientificName ? [plant.scientificName] : [];
-      const aiResult = { id: `ai-${plant.name}`, common_name: plant.name, scientific_name: sci, thumbnail_url: null, _provider: "ai" } as ProviderSearchResult;
-
       if (companionDetails.has(key)) {
+        const aiResult = { id: `ai-${plant.name}`, common_name: plant.name, scientific_name: plant.scientificName ? [plant.scientificName] : [], thumbnail_url: null, _provider: "ai" } as ProviderSearchResult;
         return { details: companionDetails.get(key) ?? null, result: companionResult.get(key) ?? aiResult };
       }
 
-      const cache = (details: PlantDetails | null, result: ProviderSearchResult) => {
-        setCompanionDetails((prev) => new Map(prev).set(key, details));
-        setCompanionResult((prev) => new Map(prev).set(key, result));
-        return { details, result };
-      };
-
       setCompanionDetailsLoading((prev) => new Set(prev).add(key));
       try {
-        // 1) Library-first — free, no AI.
-        const { rows } = await searchLibrary(plant.name, { pageSize: 1 });
-        const libRow = rows[0] ?? null;
-        if (libRow) {
-          const details = libraryRowToPlantDetails(libRow);
-          return cache(details, {
-            id: `library-${libRow.id}`, common_name: plant.name, scientific_name: sci,
-            thumbnail_url: details.thumbnail_url ?? null, _provider: "ai", plant_library_id: libRow.id as number,
-          } as ProviderSearchResult);
-        }
-
-        // 2) Provider DB (Verdantly/Perenual) — still no AI. Prefer the free
-        // Verdantly hit; fetch its full details for the pills + clone source.
-        const hits = await searchAllProviders(plant.name, undefined, ["perenual", "verdantly"]).catch(() => [] as ProviderSearchResult[]);
-        const hit = hits.find((h) => h._provider === "verdantly") ?? hits[0] ?? null;
-        if (hit) {
-          const details = await getProviderPlantDetails({
-            source: hit._provider === "verdantly" ? "verdantly" : "api",
-            perenual_id: hit._provider === "verdantly" ? null : (hit.perenual_id ?? (Number((hit as any).id) || null)),
-            verdantly_id: hit._provider === "verdantly" ? (hit.verdantly_id ?? (hit as any).id ?? null) : null,
-          }).catch(() => null);
-          if (details) return cache(details, hit);
-        }
-
-        // 3) Nothing in library or provider DBs — AI only when the guide opens.
-        return cache(null, aiResult);
-      } catch {
-        return cache(null, aiResult);
+        const resolved = await resolvePlantInfo(plant.name, plant.scientificName);
+        setCompanionDetails((prev) => new Map(prev).set(key, resolved.details));
+        setCompanionResult((prev) => new Map(prev).set(key, resolved.result));
+        return resolved;
       } finally {
         setCompanionDetailsLoading((prev) => { const s = new Set(prev); s.delete(key); return s; });
       }

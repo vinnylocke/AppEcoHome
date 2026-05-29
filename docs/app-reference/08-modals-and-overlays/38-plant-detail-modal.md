@@ -6,6 +6,7 @@
 - `BulkSearchModal` (Add-to-Shed) → tap a result's ⓘ → "See full care".
 - `AddItemSheet` (Shopping list "Add Plant") → ⓘ → "See full care".
 - `CompanionPlantsTab` → tap a companion's name (opens that companion's full guide).
+- `SceneMapResultCard` (Plant Doctor **Multi-ID**) → a detected plant's ⓘ → "See full care".
 **Source files (entry points):**
 - `src/components/PlantDetailModal.tsx` — the overlay
 - `src/hooks/useCataloguePlantFromResult.ts` — ensures a catalogue plant from a search result
@@ -131,3 +132,4 @@ No difference.
 - `src/components/BulkSearchModal.tsx` — Add-to-Shed host (`onViewDetails` → opens this modal)
 - `src/components/shopping/AddItemSheet.tsx` — Shopping host (`onViewDetails` → opens this modal)
 - `src/components/CompanionPlantsTab.tsx` — opens this modal from a companion's name
+- `src/components/lens/SceneMapResultCard.tsx` — Multi-ID host (`onViewDetails` equivalent: a detected plant's "See full care")

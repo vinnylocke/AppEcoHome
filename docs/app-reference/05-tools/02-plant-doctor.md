@@ -19,7 +19,7 @@ Four actions powered by Gemini Vision via `PlantDoctorService`:
 | Identify | `identify_vision` | Plant name(s), scientific name, care snapshot |
 | Diagnose | `diagnose` | Diseases possible, treatments, severity, plant-instance link |
 | Pest Scan | `identify_pest` | Possible pests, control measures |
-| **Multi-ID** | `identify_scene` | One photo of **several** plants → a bounding box per detected plant (overlaid on the image) + a mapping listing each box's ranked candidate identities with a confidence weight. Identification-only; creates nothing. |
+| **Multi-ID** | `identify_scene` | One photo of **several** plants → a bounding box per detected plant (overlaid on the image) + a mapping listing each box's ranked candidate identities with a confidence weight. Per plant the user can **select + confirm** an identity, tap a candidate for **library-first/AI info** (pills + description + **See full care** → `PlantDetailModal`), and **check plants to add to the Shed** (their confirmed identity, resolved library-first then AI via `saveToShed`). |
 
 The `plant-doctor` edge function also exposes **two non-screen actions** consumed by the [Localized Task Calendar](../02-dashboard/10-localized-task-calendar.md):
 
@@ -51,6 +51,8 @@ PlantDoctor
 │   ├── Result panel
 │   │   ├── AnalyseResultCard (when activeAction === "analyse")
 │   │   ├── SceneMapResultCard (when activeAction === "scene") — box overlay + weighted mapping
+│   │   │   ├── per region: select+confirm · ⓘ info (PlantInfoPanel) + See full care (PlantDetailModal) · check
+│   │   │   └── sticky "Add N to Shed" → ensureCataloguePlantFromSearchResult → saveToShed
 │   │   │   ├── Identification (always open)
 │   │   │   ├── Health & Light (always open) — health pill + sunlight check
 │   │   │   ├── Pruning (collapsible)
@@ -382,8 +384,10 @@ For new gardeners, **Analyse** is where the app earns its keep — one tap, one 
 
 - `src/components/PlantDoctor.tsx` — orchestrator
 - `src/components/lens/AnalyseResultCard.tsx` — comprehensive analysis result rendering (Mobile Quick Access Wave 1)
-- `src/components/lens/SceneMapResultCard.tsx` — Multi-ID result: box overlay + weighted candidate mapping (two-way highlight)
+- `src/components/lens/SceneMapResultCard.tsx` — Multi-ID result: box overlay + weighted candidate mapping (two-way highlight), per-region select+confirm, ⓘ info + See full care, check + Add-to-Shed
 - `src/lib/sceneMap.ts` — pure box→percent / validation / top-candidate helpers (unit-tested in `tests/unit/lib/sceneMap.test.ts`)
+- `src/lib/plantInfoResolver.ts` — shared library→provider→AI resolver (also used by CompanionPlantsTab; unit-tested in `tests/unit/lib/plantInfoResolver.test.ts`)
+- `src/lib/saveToShed.ts` — shed insert used by the Multi-ID add path
 - `src/components/TaskActionButtons.tsx` — shared task-commit UI (writes `task_blueprints` / `tasks` / `task_dependencies`). Consumed by both PlantDoctorChat and AnalyseResultCard.
 - `src/services/plantDoctorService.ts` — API + storage upload; defines `AnalyseResult` type + `analyseComprehensive` method
 - `src/hooks/usePlantDoctorSessions.ts` — history

@@ -65,12 +65,14 @@ Companions tab renders this component).
 fetchCompanions({ source, verdantlyId, plantName, aiEnabled })   // src/lib/companionCache.ts
 //   → supabase.functions.invoke("companion-planting", …)
 
-// 2. ⓘ pills + care-guide clone source — library-first, AI last:
-searchLibrary(plant.name, { pageSize: 1 })            // plant_library (free, no AI)
-  → libraryRowToPlantDetails(row)                     // → pills; clone via plant_library_id
-searchAllProviders(name, undefined, ["perenual","verdantly"])  // provider DB fallback (no AI)
-  → getProviderPlantDetails({ source, perenual_id | verdantly_id })  // → pills; clone from provider
-// miss → AI-by-name result; Gemini only runs if the full care guide is opened
+// 2. ⓘ pills + care-guide clone source — via the shared resolver
+//    src/lib/plantInfoResolver.ts (library-first → provider DB → AI last):
+resolvePlantInfo(plant.name, plant.scientificName)    // { details, result }
+//   library (plant_library) → libraryRowToPlantDetails → clone via plant_library_id
+//   miss → Verdantly/Perenual → getProviderPlantDetails → clone from provider
+//   miss → AI-by-name; Gemini only runs if the full care guide is opened
+// `resolveCompanion` wraps this with its per-row details/result cache.
+// The same resolver powers Plant Doctor Multi-ID's per-plant ⓘ + add-to-Shed.
 ```
 
 ### Data flow — write paths
@@ -217,6 +219,7 @@ what to grow alongside it.
 ## Code references for ongoing maintenance
 
 - `src/components/CompanionPlantsTab.tsx`
+- `src/lib/plantInfoResolver.ts` — shared library→provider→AI resolver for the ⓘ pills + care-guide hand-off (also used by Plant Doctor Multi-ID)
 - `src/lib/companionCache.ts` — client promise cache + 429 detection
 - `src/components/PlantInfoPanel.tsx` — the ⓘ pills/description panel
 - `supabase/functions/companion-planting/index.ts` — generation + `companion_cache` read/write

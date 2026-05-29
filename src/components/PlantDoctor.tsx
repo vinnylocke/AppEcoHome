@@ -1038,7 +1038,14 @@ export default function PlantDoctor({
 
               {activeAction === "scene" && sceneResult && imagePreview && (
                 <div className="animate-in fade-in slide-in-from-top-4">
-                  <SceneMapResultCard imageUrl={imagePreview} result={sceneResult} />
+                  <SceneMapResultCard
+                    imageUrl={imagePreview}
+                    result={sceneResult}
+                    homeId={homeId}
+                    aiEnabled={aiEnabled}
+                    isPremium={isPremium}
+                    onPlantsAdded={onTasksAdded}
+                  />
                 </div>
               )}
 
