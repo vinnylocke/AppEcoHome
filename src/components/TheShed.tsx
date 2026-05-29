@@ -151,6 +151,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
 
   const [selectedPlant, setSelectedPlant] = useState<Plant | null>(null);
   const [editingPlant, setEditingPlant] = useState<any | null>(null);
+  // Which tab PlantEditModal opens on — "care" for a normal tile tap,
+  // "light" when launched from the tile's light icon.
+  const [editingPlantTab, setEditingPlantTab] = useState<string>("care");
 
   const [confirmState, setConfirmState] = useState<{
     isOpen: boolean;
@@ -1522,27 +1525,14 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                       <LayoutGrid size={16} />
                     </button>
                     <button
-                      data-testid={`plant-card-sun-${plant.id}`}
+                      data-testid={`plant-card-light-${plant.id}`}
                       onClick={(e) => {
                         e.stopPropagation();
-                        try {
-                          const sunlight = Array.isArray(plant.sunlight)
-                            ? (plant.sunlight[0] ?? null)
-                            : (typeof plant.sunlight === "string" ? plant.sunlight : null);
-                          sessionStorage.setItem(
-                            "rhozly:sun-tracker-plant",
-                            JSON.stringify({
-                              id: String(plant.id),
-                              name: plant.common_name || "Plant",
-                              sunlight,
-                              source: "shed",
-                            }),
-                          );
-                        } catch { /* ignore */ }
-                        navigate("/sun-trajectory?mode=garden");
+                        setEditingPlantTab("light");
+                        setEditingPlant(plant);
                       }}
-                      aria-label={`Find a spot for ${plant.common_name} in the Sun Tracker`}
-                      title="Find a spot in the Sun Tracker"
+                      aria-label={`Check light levels for ${plant.common_name}`}
+                      title="Light needs"
                       className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-amber-500 flex items-center justify-center shadow-md transition-all active:scale-90"
                     >
                       <Sun size={16} />
@@ -1914,8 +1904,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               <PlantEditModal
                 homeId={homeId}
                 plant={editingPlant}
+                initialTab={editingPlantTab}
                 onSave={handleUpdatePlant}
-                onClose={() => setEditingPlant(null)}
+                onClose={() => { setEditingPlant(null); setEditingPlantTab("care"); }}
                 isSaving={actionLoading}
                 aiEnabled={aiEnabled}
                 isPremium={perenualEnabled}

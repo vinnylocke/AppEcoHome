@@ -406,6 +406,24 @@ test.describe("Shed — Plant card actions", () => {
     await expect(shed.heading).toBeVisible({ timeout: 5000 });
   });
 
+  test("SHED-023b: Tile light icon opens the plant edit modal on the Light tab", async ({ authenticatedPage }) => {
+    const shed = new ShedPage(authenticatedPage);
+    await shed.goto();
+    await shed.waitForLoad();
+
+    const card = shed.plantCard("Tomato");
+    await expect(card).toBeVisible({ timeout: 10000 });
+
+    // Tap the light-needs icon on the tile (not the card body).
+    await shed.lightButtonFor("Tomato").click();
+
+    // The edit modal opens straight onto the Light tab — its content
+    // (optimal range / no-data / get-reading button) renders, which only
+    // happens on the Light tab, proving it didn't open on Care.
+    await expect(shed.modalLightTab).toBeVisible({ timeout: 8000 });
+    await expect(shed.lightTabContent).toBeVisible({ timeout: 8000 });
+  });
+
   test("SHED-024: Archive and restore a plant within a single test", async ({ authenticatedPage }) => {
     const shed = new ShedPage(authenticatedPage);
     const plantName = `E2E Archive ${Date.now()}`;

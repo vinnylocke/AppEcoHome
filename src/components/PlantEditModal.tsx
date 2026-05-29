@@ -136,6 +136,9 @@ interface PlantEditModalProps {
   isSaving?: boolean;
   aiEnabled?: boolean;
   isPremium?: boolean;
+  /** Tab to open on (defaults to "care"). e.g. "light" when launched from
+   *  the Shed tile's light icon. */
+  initialTab?: string;
 }
 
 export default function PlantEditModal({
@@ -146,13 +149,14 @@ export default function PlantEditModal({
   isSaving,
   aiEnabled = false,
   isPremium = false,
+  initialTab = "care",
 }: PlantEditModalProps) {
   // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
   const trapRef = useFocusTrap<HTMLDivElement>(true);
 
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("care");
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [fullPlantData, setFullPlantData] = useState<any>(plant);
   const [isFetchingApiData, setIsFetchingApiData] = useState(false);
   const [fetchError, setFetchError] = useState(false);

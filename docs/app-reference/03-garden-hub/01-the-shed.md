@@ -9,7 +9,7 @@
 
 ## Quick Summary
 
-A grid of plant cards. Each card represents one `plants` row (a species/type, not an individual instance). Cards show common name, scientific name, source badge (Perenual / Verdantly / AI / Manual), planted count chip, and a row of action buttons (View on Layout, Sun Tracker, Ask AI, Archive, Delete). At the top: a sticky search bar, multi-select toggle, smart filter chips (unassigned / in-plan / harvest-ready), and Add Plant button.
+A grid of plant cards. Each card represents one `plants` row (a species/type, not an individual instance). Cards show common name, scientific name, source badge (Perenual / Verdantly / AI / Manual), planted count chip, and a row of action buttons (View on Layout, Light needs, Ask AI, Archive, Delete). At the top: a sticky search bar, multi-select toggle, smart filter chips (unassigned / in-plan / harvest-ready), and Add Plant button.
 
 A **Plants / Nursery** toggle pill under the page title swaps the body to [The Nursery](./10-nursery.md) — seed packets + sowings + the plant-out lifecycle. Nursery mode hides the plant search bar and grid; seedlings graduate from the Nursery back into the Shed via the Plant Out flow.
 
@@ -39,7 +39,7 @@ TheShed
 │       ├── Source badge (Perenual / Verdantly / AI / Manual)
 │       ├── Action buttons (top right)
 │       │   ├── Layout (LayoutGrid icon)
-│       │   ├── Sun Tracker (Sun icon)
+│       │   ├── Light needs (Sun icon → plant's Light tab)
 │       │   ├── Ask AI (Sparkles, Sage/Evergreen only)
 │       │   ├── Archive/Restore
 │       │   └── Delete (perm-gated)
@@ -268,7 +268,7 @@ Each card shows up to four chips:
 #### 5. Use the per-card action buttons (top right of each card)
 
 - **Layout** (grid icon): jumps to Garden Layout so you can place this plant.
-- **Sun Tracker** (sun icon): saves the plant context to sessionStorage, jumps to Sun Tracker so you can find a spot matching its sun needs.
+- **Light needs** (sun icon): opens this plant's edit modal on the **Light** tab — shows the plant's optimal lux range and, via the light reader, how close your current light is to what it needs. (Previously jumped to the Sun Tracker; the Sun Tracker is still reachable from inside the plant modal and from Tools.)
 - **Ask AI** (sparkles): opens Plant Doctor chat scoped to this plant.
 - **Archive** (box icon): hides the plant from active view without deleting.
 - **Delete** (trash): permanent removal — confirms first.
@@ -321,7 +321,7 @@ The BetaFeedbackBanner sits above the page (global), not Shed-specific.
 
 - **Add a new plant from a garden-centre haul:** Add Plant → search → pick → assign to an area.
 - **End-of-season review:** Filter by "harvest ready" → harvest and archive (or delete if you're done with that variety).
-- **Find a spot for a new plant:** open the plant card → tap Sun Tracker button → see where it'll thrive.
+- **Check a plant's light needs:** tap the light (sun) icon on its tile → opens the Light tab → see its optimal lux range and how close your current light is. (To find a physical spot, use the Sun Tracker from the plant modal or Tools.)
 - **Quick AI consult:** tap the Sparkles button on a plant card → ask the doctor about it.
 
 ### What to do if something looks wrong

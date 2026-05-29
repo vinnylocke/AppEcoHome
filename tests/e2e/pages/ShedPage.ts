@@ -25,6 +25,10 @@ export class ShedPage {
   readonly bulkReviewBtn: Locator;
   readonly bulkStartImportBtn: Locator;
 
+  // Plant edit modal — Light tab (opened from the tile's light icon)
+  readonly modalLightTab: Locator;
+  readonly lightTabContent: Locator;
+
   constructor(page: Page) {
     this.page = page;
     this.heading = page.getByRole("heading", { name: "Plants" });
@@ -47,6 +51,14 @@ export class ShedPage {
     this.bulkDetailClose = page.locator('[data-testid="plant-detail-close"]');
     this.bulkReviewBtn = page.locator('[data-testid="bulk-search-review"]');
     this.bulkStartImportBtn = page.locator('[data-testid="bulk-search-start-import"]');
+
+    this.modalLightTab = page.locator('[data-testid="plant-modal-tab-light"]');
+    this.lightTabContent = page.locator('[data-testid^="light-tab-"]').first();
+  }
+
+  /** The light-needs icon on a plant tile (opens the edit modal's Light tab). */
+  lightButtonFor(name: string): Locator {
+    return this.plantCard(name).locator('[data-testid^="plant-card-light-"]');
   }
 
   async goto() {
