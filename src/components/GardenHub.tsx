@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { Leaf } from "lucide-react";
-import { IconShed, IconAilment } from "../constants/icons";
+import { IconPlants, IconAilment } from "../constants/icons";
 import TheShed from "./TheShed";
 import AilmentWatchlist from "./AilmentWatchlist";
 import SenescenceTab from "./garden/SenescenceTab";
@@ -13,7 +13,7 @@ interface Props {
 }
 
 const TABS = [
-  { id: "shed",       label: "Plants",    icon: <IconShed size={16} /> },
+  { id: "shed",       label: "Plants",    icon: <IconPlants size={16} /> },
   { id: "watchlist",  label: "Watchlist", icon: <IconAilment size={16} /> },
   { id: "senescence", label: "Senescence", icon: <Leaf size={16} /> },
 ] as const;

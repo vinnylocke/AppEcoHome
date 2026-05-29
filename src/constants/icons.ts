@@ -9,7 +9,7 @@
  */
 
 // ── Navigation ────────────────────────────────────────────────────────────────
-export { Warehouse    as IconShed          } from "lucide-react"; // was: Database
+export { Shrub        as IconPlants        } from "lucide-react"; // the "Plants" tab (your inventory); was: Warehouse/Database
 export { ClipboardList as IconPlanner      } from "lucide-react"; // was: Map
 export { ShieldAlert  as IconAilment       } from "lucide-react"; // was: Bug (covers pests, diseases, invasives)
 export { Stethoscope  as IconDoctor        } from "lucide-react";

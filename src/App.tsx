@@ -14,7 +14,7 @@ import {
   Zap,
   BookOpen,
 } from "lucide-react";
-import { IconShed, IconPlanner, IconDoctor, IconAI, IconIntegrations } from "./constants/icons";
+import { IconPlants, IconPlanner, IconDoctor, IconAI, IconIntegrations } from "./constants/icons";
 
 // 🚀 NATIVE IMPORT
 import { App as CapApp } from "@capacitor/app";
@@ -1053,7 +1053,7 @@ function AppShell() {
       ? [{ id: "quick", icon: <Zap />, label: "Quick", matchPaths: ["/quick"] }]
       : []),
     { id: "dashboard", icon: <Home />, label: "Dashboard", matchPaths: ["/dashboard", ...(isMobile ? [] : ["/"])], badge: overdueTaskCount, badgeTone: "rose" },
-    { id: "shed",      icon: <IconShed />, label: "Plants", matchPaths: ["/shed", "/watchlist"] },
+    { id: "shed",      icon: <IconPlants />, label: "Plants", matchPaths: ["/shed", "/watchlist"] },
     { id: "planner",   icon: <IconPlanner />, label: "Planner",    matchPaths: ["/planner", "/shopping"] },
     { id: "journal",   icon: <BookOpen />, label: "Journal",    matchPaths: ["/journal"] },
     { id: "tools",        icon: <IconDoctor />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
