@@ -21,9 +21,9 @@ interface Props {
   isPremium: boolean;
   /** Fired after plants are added to the Shed so the host can refresh. */
   onPlantsAdded?: () => void;
-  /** Fired when the user confirms a plant's identity — the host records it as
-   *  an identification-feedback session (same training signal as single Identify). */
-  onConfirm?: (confirmedName: string, candidates: SceneCandidate[]) => void;
+  /** Fired when the user confirms a plant's identity — the host records it in
+   *  the run's Group ID history session (results.confirmed[regionIndex]). */
+  onConfirm?: (regionIndex: number, confirmedName: string) => void;
 }
 
 // Distinct, repeating palette so adjacent boxes/rows are easy to tell apart.
@@ -99,7 +99,7 @@ export default function SceneMapResultCard({ imageUrl, result, homeId, aiEnabled
     const cand = selectedCand(r);
     if (cand) {
       logEvent(EVENT.AI_IDENTIFY, { multi_id_confirmed: cand.name });
-      onConfirm?.(cand.name, regions[r].candidates);
+      onConfirm?.(r, cand.name);
     }
   };
 

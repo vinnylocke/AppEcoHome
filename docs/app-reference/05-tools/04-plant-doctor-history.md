@@ -1,6 +1,6 @@
 # Plant Doctor History
 
-> Past Plant Doctor sessions — every Identify / Diagnose / Pest scan you've ever run, with the photo, results, confirmation status, and a search/filter UI.
+> Past Plant Doctor sessions — every Identify / Diagnose / Pest scan and **Group ID** (Multi-ID) run you've ever done, with the photo, results, confirmation status, and a search/filter UI.
 
 **Trigger:** "History" tab inside Plant Doctor screen.
 **Source files:**
@@ -27,15 +27,20 @@ PlantDoctorHistory
 └── SessionCard list (newest first)
     └── Card
         ├── Thumbnail (or ImageOff icon if missing)
-        ├── Header row (action type icon, date)
-        ├── Top candidate (name, scientific, confidence pill)
+        ├── Header row (action type icon — incl. "Group ID" for scene — + date)
+        ├── Summary (top candidate for identify/diagnose/pest; "N plants — …" for Group ID)
         ├── Confirmed badge (if confirmed)
         ├── Expand chevron
         └── Expanded body
-            ├── All candidates as chips
-            ├── Per-candidate Confirm button
+            ├── identify/diagnose/pest: all candidates as chips
+            ├── Group ID (scene): SceneRegionRow per detected plant
+            │     └── CroppedPlantImage (photo cropped to the plant's box) + ranked candidates + confirmed mark
             └── Open Image (lightbox)
 ```
+
+### Group ID (Multi-ID) sessions
+
+A Multi-ID run writes one `scene` session (`results.regions` = detected plants with `box` + `candidates`; `results.confirmed` = `{ regionIndex: name }`). The card shows the main photo + a "N plants — …" summary; expanding **drills down** into one row per detected plant, each with the photo **cropped to that plant's bounding box** (`CroppedPlantImage` — canvas `drawImage` via `boxToCropRect`, display-only so no CORS taint) beside its ranked candidates, the confirmed one marked. A "Group ID" entry exists in the action filter.
 
 ### Props
 
@@ -205,7 +210,8 @@ Every AI scan you've ever done is here. Useful for:
 
 ## Code references for ongoing maintenance
 
-- `src/components/PlantDoctorHistory.tsx`
-- `src/hooks/usePlantDoctorSessions.ts`
+- `src/components/PlantDoctorHistory.tsx` — incl. `CroppedPlantImage` + `SceneRegionRow` (Group ID drill-down)
+- `src/lib/sceneMap.ts` — `boxToCropRect` (crop math, unit-tested)
+- `src/hooks/usePlantDoctorSessions.ts` — `PlantDoctorSession` (incl. `scene` action + `results.regions`/`confirmed`)
 - `supabase/migrations/*_plant_doctor_sessions.sql` — schema
 - `plant-doctor-images` storage bucket policies

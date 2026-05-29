@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   Search,
   Activity,
@@ -9,9 +9,11 @@ import {
   ImageOff,
   Clock,
   X,
+  ScanSearch,
 } from "lucide-react";
 import { IconPest } from "../constants/icons";
-import type { PlantDoctorSession, SessionCandidate } from "../hooks/usePlantDoctorSessions";
+import type { PlantDoctorSession, SessionCandidate, SessionRegion } from "../hooks/usePlantDoctorSessions";
+import { boxToCropRect } from "../lib/sceneMap";
 
 interface Props {
   sessions: PlantDoctorSession[];
@@ -42,14 +44,88 @@ function candidateScientific(c: SessionCandidate): string | null {
   return typeof c === "string" ? null : (c.scientific_name ?? null);
 }
 
+/** Renders the photo cropped to a detected plant's bounding box (canvas
+ *  drawImage — display only, so no CORS-taint with the signed storage URL).
+ *  Preserves the region's true aspect ratio; the parent constrains the box. */
+function CroppedPlantImage({ src, box, alt }: { src: string | null; box: number[]; alt?: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas || !src || box.length !== 4) return;
+    let cancelled = false;
+    const img = new Image();
+    img.onload = () => {
+      if (cancelled) return;
+      const { sx, sy, sw, sh } = boxToCropRect(box as [number, number, number, number], img.naturalWidth, img.naturalHeight);
+      const MAX = 320;
+      const scale = Math.min(1, MAX / Math.max(sw, sh));
+      canvas.width = Math.max(1, Math.round(sw * scale));
+      canvas.height = Math.max(1, Math.round(sh * scale));
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      try { ctx.drawImage(img, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height); }
+      catch { if (!cancelled) setFailed(true); }
+    };
+    img.onerror = () => { if (!cancelled) setFailed(true); };
+    img.src = src;
+    return () => { cancelled = true; };
+  }, [src, box]);
+
+  if (failed || !src) {
+    return <ImageOff size={16} className="text-rhozly-on-surface/20" />;
+  }
+  return <canvas ref={canvasRef} aria-label={alt} className="max-w-full max-h-full" />;
+}
+
+/** A drill-down row for one detected plant in a Group ID session. */
+function SceneRegionRow({ session, region, index }: { session: PlantDoctorSession; region: SessionRegion; index: number }) {
+  const confirmedName = session.results.confirmed?.[String(index)] ?? null;
+  return (
+    <div data-testid={`doctor-history-scene-plant-${index}`} className="flex gap-3 p-2 rounded-xl bg-rhozly-surface-low/60">
+      <div className="w-16 h-16 shrink-0 rounded-lg overflow-hidden bg-rhozly-surface-low flex items-center justify-center">
+        <CroppedPlantImage src={session.imageUrl ?? null} box={region.box} alt={`Plant ${index + 1}`} />
+      </div>
+      <div className="min-w-0 flex-1">
+        <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-1">Plant {index + 1}</p>
+        <div className="space-y-1">
+          {(region.candidates ?? []).map((c, i) => {
+            const name = candidateName(c);
+            const confidence = candidateConfidence(c);
+            const isConfirmed = confirmedName != null && name === confirmedName;
+            return (
+              <div key={i} className={`flex items-center justify-between gap-2 px-2 py-1 rounded-lg text-xs font-bold ${isConfirmed ? "bg-green-50 text-green-800" : "text-rhozly-on-surface/60"}`}>
+                <span className="flex items-center gap-1.5 min-w-0">
+                  {isConfirmed && <CheckCircle2 size={12} className="text-green-600 shrink-0" />}
+                  <span className="truncate">{name}</span>
+                </span>
+                {confidence !== null && <span className="shrink-0 text-[10px] font-black text-rhozly-on-surface/50 tabular-nums">{confidence}%</span>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function SessionCard({ session }: { session: PlantDoctorSession }) {
   const [expanded, setExpanded] = useState(false);
+  const isScene = session.action === "scene";
   const isIdentify = session.action === "identify";
   const isPest = session.action === "pest";
+  const regions = session.results.regions ?? [];
+  // Summary names for a Group ID card — confirmed identity preferred, else top candidate.
+  const sceneNames = isScene
+    ? regions.map((r, i) => session.results.confirmed?.[String(i)] ?? (r.candidates?.[0] ? candidateName(r.candidates[0]) : "Unknown"))
+    : [];
   const candidates = isIdentify
     ? session.results.possible_names ?? []
     : isPest
     ? session.results.possible_pests ?? []
+    : isScene
+    ? []
     : session.results.possible_diseases ?? [];
 
   return (
@@ -80,15 +156,17 @@ function SessionCard({ session }: { session: PlantDoctorSession }) {
             <div className="flex items-center gap-2 mb-1.5">
               <span
                 className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full ${
-                  isIdentify
+                  isScene
+                    ? "bg-sky-100 text-sky-700"
+                    : isIdentify
                     ? "bg-rhozly-primary/10 text-rhozly-primary"
                     : isPest
                     ? "bg-orange-100 text-orange-700"
                     : "bg-amber-100 text-amber-700"
                 }`}
               >
-                {isIdentify ? <Search size={9} /> : isPest ? <IconPest size={9} /> : <Activity size={9} />}
-                {isIdentify ? "Identify" : isPest ? "Pest" : "Diagnose"}
+                {isScene ? <ScanSearch size={9} /> : isIdentify ? <Search size={9} /> : isPest ? <IconPest size={9} /> : <Activity size={9} />}
+                {isScene ? "Group ID" : isIdentify ? "Identify" : isPest ? "Pest" : "Diagnose"}
               </span>
               <span className="text-[10px] font-bold text-rhozly-on-surface/40 flex items-center gap-1">
                 <Clock size={9} />
@@ -96,7 +174,16 @@ function SessionCard({ session }: { session: PlantDoctorSession }) {
               </span>
             </div>
 
-            {session.confirmed_value ? (
+            {isScene ? (
+              regions.length > 0 ? (
+                <p className="text-xs font-bold text-rhozly-on-surface/50 truncate">
+                  {regions.length} plant{regions.length === 1 ? "" : "s"} — {sceneNames.slice(0, 2).join(", ")}
+                  {sceneNames.length > 2 && ` +${sceneNames.length - 2} more`}
+                </p>
+              ) : (
+                <p className="text-xs font-bold text-rhozly-on-surface/30 italic">No plants detected</p>
+              )
+            ) : session.confirmed_value ? (
               <div className="flex items-center gap-1.5">
                 <CheckCircle2 size={14} className="text-green-600 shrink-0" />
                 <span className="text-sm font-black text-rhozly-on-surface truncate">
@@ -139,6 +226,19 @@ function SessionCard({ session }: { session: PlantDoctorSession }) {
               <p className="text-sm text-rhozly-on-surface/70 font-medium leading-relaxed whitespace-pre-wrap">
                 {session.results.notes}
               </p>
+            </div>
+          )}
+
+          {isScene && regions.length > 0 && (
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-2">
+                Detected plants
+              </p>
+              <div className="space-y-2" data-testid="doctor-history-scene-plants">
+                {regions.map((region, i) => (
+                  <SceneRegionRow key={i} session={session} region={region} index={i} />
+                ))}
+              </div>
             </div>
           )}
 
@@ -189,7 +289,7 @@ function SessionCard({ session }: { session: PlantDoctorSession }) {
             </div>
           )}
 
-          {session.confirmed_value ? (
+          {!isScene && (session.confirmed_value ? (
             <div className="flex items-center gap-2 py-2 px-3 bg-green-50 rounded-xl border border-green-200">
               <CheckCircle2 size={15} className="text-green-600 shrink-0" />
               <div>
@@ -203,20 +303,21 @@ function SessionCard({ session }: { session: PlantDoctorSession }) {
             <p className="text-xs font-bold text-rhozly-on-surface/30 italic text-center py-1">
               Result not confirmed
             </p>
-          )}
+          ))}
         </div>
       )}
     </div>
   );
 }
 
-type ActionFilter = "all" | "identify" | "diagnose" | "pest";
+type ActionFilter = "all" | "identify" | "diagnose" | "pest" | "scene";
 
 const ACTION_LABELS: Record<ActionFilter, string> = {
   all: "All",
   identify: "Identify",
   diagnose: "Diagnose",
   pest: "Pest",
+  scene: "Group ID",
 };
 
 export default function PlantDoctorHistory({ sessions, isLoading, onLoad }: Props) {
@@ -234,18 +335,24 @@ export default function PlantDoctorHistory({ sessions, isLoading, onLoad }: Prop
       if (!q) return true;
       // Match against confirmed value + every candidate name (string or object).
       const haystack: string[] = [s.confirmed_value ?? ""];
-      const candidatesList = s.action === "identify"
-        ? s.results.possible_names
-        : s.action === "pest"
-          ? s.results.possible_pests
-          : s.results.possible_diseases;
-      (candidatesList ?? []).forEach((c) => {
+      const pushCandidate = (c: SessionCandidate) => {
         if (typeof c === "string") haystack.push(c);
         else {
           haystack.push(c.name);
           if (c.scientific_name) haystack.push(c.scientific_name);
         }
-      });
+      };
+      if (s.action === "scene") {
+        Object.values(s.results.confirmed ?? {}).forEach((v) => haystack.push(v));
+        (s.results.regions ?? []).forEach((r) => (r.candidates ?? []).forEach(pushCandidate));
+      } else {
+        const candidatesList = s.action === "identify"
+          ? s.results.possible_names
+          : s.action === "pest"
+            ? s.results.possible_pests
+            : s.results.possible_diseases;
+        (candidatesList ?? []).forEach(pushCandidate);
+      }
       return haystack.some((h) => h.toLowerCase().includes(q));
     });
   }, [sessions, actionFilter, searchQuery]);

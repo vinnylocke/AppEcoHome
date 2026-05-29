@@ -4,6 +4,7 @@ import {
   isValidBox,
   clampConfidence,
   topCandidate,
+  boxToCropRect,
   type Box2d,
 } from "../../../src/lib/sceneMap";
 import type { SceneRegion } from "../../../src/services/plantDoctorService";
@@ -65,5 +66,22 @@ describe("topCandidate", () => {
   });
   it("returns null when there are no candidates", () => {
     expect(topCandidate({ box: [0, 0, 100, 100], candidates: [] })).toBeNull();
+  });
+});
+
+describe("boxToCropRect", () => {
+  it("maps a 0–1000 box to source pixels for the natural image size", () => {
+    // box [ymin,xmin,ymax,xmax] = [100,200,600,700] on a 2000×1000 image
+    const r = boxToCropRect([100, 200, 600, 700], 2000, 1000);
+    expect(r.sx).toBeCloseTo(400); // 200/1000 * 2000
+    expect(r.sy).toBeCloseTo(100); // 100/1000 * 1000
+    expect(r.sw).toBeCloseTo(1000); // (700-200)/1000 * 2000
+    expect(r.sh).toBeCloseTo(500); // (600-100)/1000 * 1000
+  });
+
+  it("floors width/height to at least 1px for a degenerate box", () => {
+    const r = boxToCropRect([500, 500, 500, 500], 1000, 1000);
+    expect(r.sw).toBe(1);
+    expect(r.sh).toBe(1);
   });
 });

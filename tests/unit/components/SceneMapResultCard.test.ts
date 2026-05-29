@@ -84,12 +84,12 @@ describe("SceneMapResultCard", () => {
     expect(screen.getByTestId("scene-map-confirmed-0").textContent).toContain("Mint");
   });
 
-  test("confirming fires onConfirm with the chosen name + the region's candidates", () => {
+  test("confirming fires onConfirm with the region index + chosen name", () => {
     const onConfirm = vi.fn();
     renderCard(result, onConfirm);
     fireEvent.click(screen.getByTestId("scene-map-confirm-0"));
     expect(onConfirm).toHaveBeenCalledTimes(1);
-    expect(onConfirm).toHaveBeenCalledWith("Basil", result.regions[0].candidates);
+    expect(onConfirm).toHaveBeenCalledWith(0, "Basil");
   });
 
   test("checking a region reveals the Add to Shed button", () => {

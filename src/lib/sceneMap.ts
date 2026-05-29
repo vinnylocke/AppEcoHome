@@ -54,3 +54,20 @@ export function topCandidate(region: SceneRegion): SceneCandidate | null {
     clampConfidence(c.confidence) > clampConfidence(best.confidence) ? c : best,
   );
 }
+
+/** Source rectangle (in natural image pixels) for cropping a box out of the
+ *  photo — feeds `ctx.drawImage(img, sx, sy, sw, sh, …)`. Width/height are
+ *  floored to ≥1px so a degenerate box never produces a zero-size draw. */
+export function boxToCropRect(
+  box: Box2d,
+  naturalW: number,
+  naturalH: number,
+): { sx: number; sy: number; sw: number; sh: number } {
+  const [ymin, xmin, ymax, xmax] = box;
+  return {
+    sx: (xmin / 1000) * naturalW,
+    sy: (ymin / 1000) * naturalH,
+    sw: Math.max(1, ((xmax - xmin) / 1000) * naturalW),
+    sh: Math.max(1, ((ymax - ymin) / 1000) * naturalH),
+  };
+}

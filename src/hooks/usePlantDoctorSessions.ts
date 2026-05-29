@@ -5,11 +5,17 @@ import { supabase } from "../lib/supabase";
 // newer entries are objects. Both formats must be handled.
 export type SessionCandidate = string | { name: string; scientific_name?: string; confidence?: number };
 
+/** A detected plant in a Multi-ID ("scene") session — box + ranked candidates. */
+export interface SessionRegion {
+  box: number[];
+  candidates: SessionCandidate[];
+}
+
 export interface PlantDoctorSession {
   id: string;
   user_id: string;
   home_id: string;
-  action: "identify" | "diagnose" | "pest";
+  action: "identify" | "diagnose" | "pest" | "scene";
   image_path: string | null;
   results: {
     notes?: string;
@@ -18,6 +24,10 @@ export interface PlantDoctorSession {
     possible_pests?: SessionCandidate[];
     is_pest?: boolean;
     pest_severity?: string | null;
+    // Multi-ID ("scene") sessions:
+    regions?: SessionRegion[];
+    /** regionIndex (as string, jsonb key) → confirmed candidate name. */
+    confirmed?: Record<string, string>;
   };
   confirmed_value: string | null;
   confirmed_at: string | null;
