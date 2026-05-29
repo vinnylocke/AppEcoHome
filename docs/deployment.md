@@ -64,14 +64,13 @@ Supported labels: `New`, `Fixed`, `Improved`, `Removed`.
 
 Users will see the notes in a modal on their next visit.
 
-### Step 1: Commit and push to GitHub
+### Step 1: Commit your changes
 
-Stage and commit all changed files, then push to `main` before deploying. The deploy script reads from disk, not from git, but keeping the repo in sync ensures the history is accurate and rollbacks are clean.
+Stage and commit all changed files. The deploy script reads from disk, not from git, but committing first keeps history accurate and rollbacks clean. **Don't push yet** — push *after* the deploy (Step 3) so the push also captures the `chore(release)` commit the script makes when it resets `release-notes.json`.
 
 ```bash
 git add <files>          # stage specific files — avoid git add -A to prevent accidental includes
 git commit -m "feat/fix/chore: description"
-git push origin main
 ```
 
 ### Step 2: Count your changes and deploy
@@ -90,14 +89,28 @@ Optionally add a custom maintenance message as the first non-flag argument:
 node scripts/deploy.mjs --bump 2 "Deploying care schedule improvements — back in ~2 mins!"
 ```
 
+### Step 3: Push to `main` (always)
+
+**Every deploy finishes with a push to `main` — this is the default, not an optional extra.** Production is built from the working tree, so the remote must be brought back in line afterwards or history and rollbacks drift from what's actually live.
+
+```bash
+git push origin main
+```
+
+Push *after* the deploy so it includes both your Step 1 commit **and** the `chore(release)` commit the script makes when it resets `release-notes.json`. **A deploy is not considered complete until `main` is pushed.**
+
 ### What the deploy script does step by step
 
 | Step | Command | What it does |
 |---|---|---|
-| 1 | `PATCH app_config` (service role) | Sets `maintenance_mode.enabled = true` — all active users see maintenance screen within seconds |
-| 2 | `supabase db push` | Applies any pending SQL migrations to production |
-| 3 | `vercel --prod` | Builds and deploys the frontend; script waits for Vercel to confirm the deployment is live |
-| 4 | `PATCH app_config` (service role) | Sets `maintenance_mode.enabled = false` — users receive a Realtime event and are automatically reloaded |
+| 1 | `PATCH app_config` (service role) | Sets `maintenance_mode.enabled = true` — all active users see the maintenance screen within seconds |
+| 2 | `supabase db push --include-all` | Applies any pending SQL migrations to production |
+| 3 | `supabase functions deploy` | Deploys all edge functions |
+| 4 | `vercel --prod` | Builds and deploys the frontend; waits for Vercel to confirm the deployment is live |
+| 5 | Save release notes + reset `release-notes.json` | Inserts the notes into `release_notes`, bumps the app version, resets the file to `[]`, and commits that as `chore(release): … [skip ci]` |
+| 6 | `PATCH app_config` (service role) | Sets `maintenance_mode.enabled = false` — users get a Realtime event and auto-reload |
+
+> The script does **not** push to git. That's **Step 3** above — run it after the script returns so the remote matches production.
 
 ---
 
@@ -145,13 +158,17 @@ supabase db push
 
 ## Checklist before deploying
 
-- [ ] All local changes committed and pushed to `main`
+- [ ] All local changes committed (Step 1)
 - [ ] `npm run test:unit` passes
 - [ ] Migration files (if any) created in `supabase/migrations/` with correct timestamp naming (`YYYYMMDDHHMMSS_description.sql`)
 - [ ] Migration tested locally (`supabase db query --local --file ...`)
 - [ ] Feature tested in the browser against local Supabase
 - [ ] `.env` contains `SUPABASE_SERVICE_ROLE_KEY`
 - [ ] Vercel CLI linked to project (`vercel link`)
+
+## After deploying (required)
+
+- [ ] `git push origin main` — **every deploy ends with a push** so the remote matches production (includes the script's `chore(release)` commit)
 
 ---
 
