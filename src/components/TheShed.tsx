@@ -1556,8 +1556,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
               />
               <input
                 type="text"
-                placeholder="Search plants..."
-                aria-label="Search your plant library"
+                placeholder="Search your saved plants..."
+                aria-label="Search your saved plants"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full pl-10 pr-10 py-3 bg-rhozly-surface-lowest border border-rhozly-outline/20 rounded-2xl text-sm font-bold outline-none focus:border-rhozly-primary transition-all"

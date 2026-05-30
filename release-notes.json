@@ -1,9 +1,8 @@
 [
   {
-    "label": "Fixed",
+    "label": "Improved",
     "items": [
-      "Garden AI chat now answers general gardening questions directly — spacing, watering frequency, sowing depth, technique — instead of falling back to a canned \"couldn't find tools\" reply.",
-      "Garden Overhaul plans that open to an empty Phase 2 now show clear guidance — Add Custom Plant or Regenerate — instead of a blank Shed."
+      "Plants page search now reads \"Search your saved plants…\" so it's clear it filters your library, not the global plant database."
     ]
   }
 ]
