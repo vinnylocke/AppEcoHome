@@ -1370,23 +1370,35 @@ export default function PlanStaging({
                   })()}
                 </div>
 
-                <div className="space-y-3">
-                  {localBlueprint.plant_manifest.map((p: any, idx: number) => (
-                    <WikiPlantCard
-                      key={idx}
-                      plant={p}
-                      idx={idx}
-                      isStarted={isStarted}
-                      isPhase2Done={isPhase2Done}
-                      plantMapping={plantMapping}
-                      setPlantMapping={setPlantMapping}
-                      selectedForProcurement={selectedForProcurement}
-                      setSelectedForProcurement={setSelectedForProcurement}
-                      handleDeletePlant={handleDeletePlant}
-                      shedPlants={shedPlants}
-                    />
-                  ))}
-                </div>
+                {localBlueprint.plant_manifest.length === 0 ? (
+                  <div
+                    data-testid="phase-2-empty-state"
+                    className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-sm leading-snug"
+                  >
+                    <p className="font-black mb-1">No plants in this blueprint yet.</p>
+                    <p className="text-amber-900/85">
+                      The AI didn't suggest any plants for this overhaul. Use <span className="font-black">Add Custom Plant</span> below to populate The Shed manually, or jump back to Phase&nbsp;0 and <span className="font-black">Regenerate</span> with more detail in your likes / wants.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {localBlueprint.plant_manifest.map((p: any, idx: number) => (
+                      <WikiPlantCard
+                        key={idx}
+                        plant={p}
+                        idx={idx}
+                        isStarted={isStarted}
+                        isPhase2Done={isPhase2Done}
+                        plantMapping={plantMapping}
+                        setPlantMapping={setPlantMapping}
+                        selectedForProcurement={selectedForProcurement}
+                        setSelectedForProcurement={setSelectedForProcurement}
+                        handleDeletePlant={handleDeletePlant}
+                        shedPlants={shedPlants}
+                      />
+                    ))}
+                  </div>
+                )}
 
                 {!isPhase2Done && (
                   <div className="mt-4">

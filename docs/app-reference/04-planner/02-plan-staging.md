@@ -183,6 +183,7 @@ None.
 | Regen fails | Toast; blueprint unchanged |
 | Phase confirm fails | Inline error chip; state not advanced |
 | Maintenance activation partial fail | Logs error; user can retry from Phase 5 |
+| Overhaul blueprint has empty `plant_list` | Phase 2 shows the `phase-2-empty-state` panel ("No plants in this blueprint yet…") with guidance to Add Custom Plant or regenerate. Logged server-side as `ai_returned_empty_plant_list` in `generate-garden-overhaul`. |
 
 ### Performance
 
@@ -272,6 +273,7 @@ This is where the AI blueprint (the project overview, plant list, maintenance sc
 - **Picking an existing area that's already crowded.** Phase 3 lets you place plants, but if there's no space, you'll squeeze them and they won't thrive. Better to make a new area.
 - **Skipping Phase 5.** Without maintenance activation, your plan runs out of momentum two weeks after planting. Activate it.
 - **Resetting to Draft loses tasks.** The reset purges all tasks + blueprints attached. Make peace with that before tapping.
+- **Overhaul plan opened to an empty Phase 2.** Sometimes the AI returns no plant list for an overhaul — Phase 2 shows the guidance panel. Either Add Custom Plant manually, or regenerate from Phase 0 with more concrete likes / wants so the AI has more to work with.
 
 ### Recommended workflows
 

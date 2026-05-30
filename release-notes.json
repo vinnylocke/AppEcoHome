@@ -1,19 +1,9 @@
 [
   {
-    "label": "New",
+    "label": "Fixed",
     "items": [
-      "To-Do Lists are here — bundle several jobs under one date, then tick, edit or remove them from one place.",
-      "New \"List\" button on the Today screen and the desktop calendar agenda opens the new Add To-Do List sheet.",
-      "Global quick-add menu now includes \"Add To-Do List\" and \"My To-Do Lists\" shortcuts.",
-      "Opening a task that came from a list shows a \"From: …\" pill — tap it to jump straight to that list."
-    ]
-  },
-  {
-    "label": "Improved",
-    "items": [
-      "Today screen reordered — weather banner sits at the top, then your tasks, then what to grow this week.",
-      "\"Grow this week\" cards are now collapsible everywhere they appear and remember their state per surface.",
-      "The Plants tile in the main nav now uses the same Sprout icon as the Quick Access plants link."
+      "Garden AI chat now answers general gardening questions directly — spacing, watering frequency, sowing depth, technique — instead of falling back to a canned \"couldn't find tools\" reply.",
+      "Garden Overhaul plans that open to an empty Phase 2 now show clear guidance — Add Custom Plant or Regenerate — instead of a blank Shed."
     ]
   }
 ]

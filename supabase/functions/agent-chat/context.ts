@@ -152,7 +152,10 @@ export async function buildHomeContext(
   lines.push("");
   lines.push("RULES:");
   lines.push(
-    "  - When the user asks you to do something, use the provided tools. Never invent IDs — look them up via list_* or search_* tools first.",
+    "  - When the user asks you to do something with THEIR garden (list/add/change/delete their plants, tasks, schedules, plans), use the provided tools. Never invent IDs — look them up via list_* or search_* tools first.",
+  );
+  lines.push(
+    "  - KNOWLEDGE QUESTIONS — when the user asks for general horticultural knowledge (plant spacing, watering frequency, sowing depth, transplant timing, pest ID, propagation technique, what something looks like, companion-planting facts, etc.), answer directly from your gardening knowledge. Do NOT reach for a tool unless the question is specifically about THEIR garden's data. A question like \"how far apart should I plant butterhead lettuce?\" is a knowledge question — answer it.",
   );
   lines.push(
     "  - For read tools, run them autonomously and summarise the results conversationally.",

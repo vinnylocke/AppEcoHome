@@ -199,6 +199,12 @@ async function handleSendMessage(
     { role: "user", parts: [{ text: message }] },
   ];
 
+  // Frozen copy of the original conversation — used by the knowledge
+  // fallback below if the agentic loop exits with no text. We can't
+  // reuse `messages` because the loop mutates it with tool calls +
+  // tool responses.
+  const originalMessages: GeminiMessage[] = [...messages];
+
   const apiKey = Deno.env.get("GEMINI_API_KEY") ?? "";
   if (!apiKey) return json({ error: "GEMINI_API_KEY not configured" }, 500);
 
@@ -349,7 +355,25 @@ async function handleSendMessage(
   }
 
   if (!finalReply) {
-    finalReply = "I ran the tools but couldn't put a final answer together — try rephrasing or asking again.";
+    // The tool-driven path produced no text. Most often this is a
+    // knowledge question (e.g. "how far apart should I plant butterhead
+    // lettuce?") that doesn't match any tool. Re-ask Gemini with no
+    // tools so the user always gets a real conversational answer
+    // instead of a canned "I ran the tools…" line.
+    try {
+      const fallback = await callGeminiWithTools(apiKey, FN, originalMessages, [], {
+        systemPrompt: `${fullPrompt}\n\nAnswer the user's last message directly and conversationally as a knowledgeable gardener. Do not mention tools or apologise for not using them.`,
+        toolChoice: "NONE",
+        logContext: { round: "knowledge_fallback", userId },
+      });
+      totalTokensSpent += fallback.usage.totalTokenCount;
+      finalReply = fallback.text?.trim() || "";
+    } catch (err: any) {
+      warn(FN, "knowledge_fallback_failed", { error: err.message });
+    }
+    if (!finalReply) {
+      finalReply = "I'm not quite sure how to help with that — could you rephrase or give me a bit more detail?";
+    }
   }
 
   // Update the chat_messages row with the final content.

@@ -21,7 +21,7 @@
 // ai_usage_log so the audit page sees accurate per-call cost.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
-import { log, error as logError } from "../_shared/logger.ts";
+import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
@@ -317,11 +317,23 @@ async function backgroundGenerate(
       })
       .eq("id", planId);
 
+    const plantCount = Array.isArray(parsed.blueprint?.plant_list)
+      ? parsed.blueprint.plant_list.length
+      : 0;
     log(FN, "vision_succeeded", {
       plan_id: planId,
       vision_cost_usd: visionCostUsd,
       concept_count: conceptPrompts.length,
+      plant_count: plantCount,
     });
+    if (plantCount === 0) {
+      // The schema asks for 8–15 plants. Gemini occasionally returns an
+      // empty array anyway — when it does the user opens Phase 2 of
+      // Plan Staging to a blank Shed. PlanStaging shows a guidance
+      // empty-state in that case; we surface it loudly in logs so we
+      // can spot the failure rate.
+      warn(FN, "ai_returned_empty_plant_list", { plan_id: planId });
+    }
 
     // ── Step 2 — N parallel image transformations ───────────────
     // gemini-2.5-flash-image accepts the user's photo as a
