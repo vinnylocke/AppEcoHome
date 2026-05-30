@@ -164,6 +164,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Lifecycle Complete Modal](./08-modals-and-overlays/37-lifecycle-complete.md) — gentle end-of-life flow with optional Gemini analysis of likely causes
 - [x] [Plant Detail Modal](./08-modals-and-overlays/38-plant-detail-modal.md) — full Care/Grow/Companions/Light overlay opened from "See full care" in the Add-to-Shed search preview
 - [x] [Bulk Assign Modal](./08-modals-and-overlays/39-bulk-assign-modal.md) — assign several selected plants into one area at once (per-plant quantity + optional smart schedules)
+- [x] [To-Do Lists (Add + Manage)](./08-modals-and-overlays/40-todo-lists.md) — group N tasks under one date; tick / edit / delete tasks; delete list with keep-or-cascade
 
 ## 09 — Persistent UI
 

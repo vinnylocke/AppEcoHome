@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Sparkles, Loader2, RefreshCw, AlertCircle, Calendar, ChevronLeft, ChevronRight } from "lucide-react";
+import { Sparkles, Loader2, RefreshCw, AlertCircle, Calendar, ChevronLeft, ChevronRight, ChevronDown, ChevronUp } from "lucide-react";
 import {
   fetchSeasonalPicks,
   type SeasonalPicksResponse,
@@ -48,6 +48,26 @@ export default function SeasonalPicksCard({
   // Detail overlay for a tapped pick — same Care/Grow Guide/Companions/Light
   // modal we use from plant search results everywhere else.
   const [detailResult, setDetailResult] = useState<ProviderSearchResult | null>(null);
+  // Collapse state — persisted per variant so the user's preference on the
+  // dashboard doesn't override their preference on Today / the carousel.
+  // Read lazily in an effect to keep the render path SSR-safe + robust against
+  // test environments that swap out window.localStorage.
+  const collapseKey = `rhozly_seasonal_picks_collapsed:${variant}`;
+  const [collapsed, setCollapsed] = useState<boolean>(false);
+  useEffect(() => {
+    try {
+      if (typeof window !== "undefined" && window.localStorage.getItem(collapseKey) === "1") {
+        setCollapsed(true);
+      }
+    } catch { /* test env / private mode — fall back to expanded */ }
+  }, [collapseKey]);
+  const toggleCollapsed = useCallback(() => {
+    setCollapsed((prev) => {
+      const next = !prev;
+      try { window.localStorage.setItem(collapseKey, next ? "1" : "0"); } catch { /* private mode */ }
+      return next;
+    });
+  }, [collapseKey]);
   // One-shot logEvent guard so two mounts of the card (Today + Dashboard
   // visible together on a tablet) don't double-fire the analytics event.
   const loggedRef = useRef(false);
@@ -210,11 +230,21 @@ export default function SeasonalPicksCard({
             )}
           </button>
         )}
+        <button
+          type="button"
+          data-testid="seasonal-picks-collapse"
+          onClick={toggleCollapsed}
+          aria-pressed={collapsed}
+          aria-label={collapsed ? "Expand seasonal picks" : "Collapse seasonal picks"}
+          className={`shrink-0 ${isCarousel ? "w-8 h-8" : "w-9 h-9"} rounded-xl bg-white border border-rhozly-outline/20 text-rhozly-on-surface/60 hover:text-rhozly-primary hover:border-rhozly-primary/30 transition flex items-center justify-center`}
+        >
+          {collapsed ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+        </button>
       </div>
 
       {/* Tiles — three layouts: today (horizontal scroll, 1.x visible),
           dashboard (responsive grid), carousel (one-at-a-time pager). */}
-      {variant === "today" && (
+      {!collapsed && variant === "today" && (
         <div
           data-testid="seasonal-picks-list"
           className="flex gap-3 overflow-x-auto pb-1 -mx-1 px-1 snap-x snap-mandatory"
@@ -226,7 +256,7 @@ export default function SeasonalPicksCard({
           ))}
         </div>
       )}
-      {variant === "dashboard" && (
+      {!collapsed && variant === "dashboard" && (
         <div
           data-testid="seasonal-picks-list"
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
@@ -236,7 +266,7 @@ export default function SeasonalPicksCard({
           ))}
         </div>
       )}
-      {isCarousel && (
+      {!collapsed && isCarousel && (
         <>
           <div
             ref={carouselRef}

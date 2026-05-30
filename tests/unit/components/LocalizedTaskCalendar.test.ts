@@ -95,6 +95,27 @@ vi.mock("../../../src/components/quick/QuickAddTaskModal", () => ({
     ),
 }));
 
+// Stub SeasonalPicksCard — its internals are tested separately and pulling in
+// the real one would mount heavy dependencies (plant detail modal, etc.).
+vi.mock("../../../src/components/seasonal/SeasonalPicksCard", () => ({
+  default: () =>
+    React.createElement("div", { "data-testid": "stub-seasonal-picks" }, "seasonal"),
+}));
+
+// Stub AddToDoListModal — confirm it mounts on List button press.
+vi.mock("../../../src/components/todo/AddToDoListModal", () => ({
+  default: ({ onClose }: { onClose: () => void }) =>
+    React.createElement(
+      "div",
+      { "data-testid": "stub-add-todo-modal" },
+      React.createElement(
+        "button",
+        { type: "button", "data-testid": "stub-add-todo-close", onClick: onClose },
+        "fake close",
+      ),
+    ),
+}));
+
 // Mock react-router useNavigate.
 const navigateMock = vi.fn();
 vi.mock("react-router-dom", async () => {
@@ -161,12 +182,12 @@ beforeEach(() => {
   taskListRenderCount = 0;
 });
 
-function renderCalendar(aiEnabled = true) {
+function renderCalendar(aiEnabled = true, isPremium = true) {
   return render(
     React.createElement(
       MemoryRouter,
       null,
-      React.createElement(LocalizedTaskCalendar, { homeId: "home-1", aiEnabled }),
+      React.createElement(LocalizedTaskCalendar, { homeId: "home-1", aiEnabled, isPremium }),
     ),
   );
 }
@@ -182,7 +203,7 @@ describe("LocalizedTaskCalendar", () => {
   });
 
   test("passes aiEnabled prop through to PlantingCalendarCard", () => {
-    renderCalendar(false);
+    renderCalendar(false, true);
     expect(
       screen.getByTestId("stub-planting-card").getAttribute("data-ai-enabled"),
     ).toBe("false");

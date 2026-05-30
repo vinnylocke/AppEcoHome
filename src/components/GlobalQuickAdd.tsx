@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { Plus, CheckSquare, MapPin } from "lucide-react";
+import { Plus, CheckSquare, MapPin, ListChecks } from "lucide-react";
 import { IconPlant, IconPlanner, IconAilment, IconGuides } from "../constants/icons";
 import { useNavigate } from "react-router-dom";
 
@@ -9,6 +9,18 @@ const ITEMS = [
     icon: <CheckSquare size={16} />,
     url: "/dashboard?view=calendar&open=add-task",
     testId: "quick-add-add-task",
+  },
+  {
+    label: "Add To-Do List",
+    icon: <ListChecks size={16} />,
+    url: "/dashboard?view=calendar&open=add-todo-list",
+    testId: "quick-add-add-todo-list",
+  },
+  {
+    label: "My To-Do Lists",
+    icon: <ListChecks size={16} />,
+    url: "/dashboard?view=calendar&open=todo-lists",
+    testId: "quick-add-todo-lists",
   },
   {
     label: "Add Task Automation",

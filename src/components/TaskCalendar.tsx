@@ -11,6 +11,7 @@ import {
   RefreshCw,
   CalendarDays,
   Download,
+  ListChecks,
 } from "lucide-react";
 import { buildTasksIcs, downloadIcs } from "../lib/icsExport";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
@@ -18,6 +19,8 @@ import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 import AddTaskModal from "./AddTaskModal";
+import AddToDoListModal from "./todo/AddToDoListModal";
+import ToDoListsModal from "./todo/ToDoListsModal";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
 import TaskList from "./TaskList";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -93,13 +96,17 @@ export default function TaskCalendar({
   const [inventoryDict, setInventoryDict] = useState<Record<string, any>>({});
   const [blockedTaskIds, setBlockedTaskIds] = useState<Set<string>>(new Set());
   const [isAddingTask, setIsAddingTask] = useState(false);
+  const [isAddingToDo, setIsAddingToDo] = useState(false);
+  const [todoListsOpenId, setTodoListsOpenId] = useState<string | null | "auto">(null);
 
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
-    if (searchParams.get("open") === "add-task") {
-      setIsAddingTask(true);
-      setSearchParams((prev) => { prev.delete("open"); return prev; }, { replace: true });
-    }
+    const open = searchParams.get("open");
+    if (open === "add-task") setIsAddingTask(true);
+    else if (open === "add-todo-list") setIsAddingToDo(true);
+    else if (open === "todo-lists") setTodoListsOpenId("auto");
+    if (open) setSearchParams((prev) => { prev.delete("open"); return prev; }, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -946,12 +953,22 @@ export default function TaskCalendar({
                 })}
               </p>
             </div>
-            <button
-              onClick={() => setIsAddingTask(true)}
-              className="flex items-center gap-1 text-xs font-black bg-rhozly-primary text-white px-4 py-3 rounded-xl shadow-md hover:scale-105 transition-transform active:scale-95"
-            >
-              <Plus size={16} strokeWidth={3} /> Add Task
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                data-testid="calendar-add-todo-list"
+                onClick={() => setIsAddingToDo(true)}
+                title="Group a batch of tasks under one date"
+                className="flex items-center gap-1 text-xs font-black bg-rhozly-surface-low text-rhozly-on-surface px-4 py-3 rounded-xl shadow-sm hover:bg-rhozly-surface-mid transition-colors"
+              >
+                <ListChecks size={16} strokeWidth={2.5} /> To-Do List
+              </button>
+              <button
+                onClick={() => setIsAddingTask(true)}
+                className="flex items-center gap-1 text-xs font-black bg-rhozly-primary text-white px-4 py-3 rounded-xl shadow-md hover:scale-105 transition-transform active:scale-95"
+              >
+                <Plus size={16} strokeWidth={3} /> Add Task
+              </button>
+            </div>
           </div>
 
           <div className="flex-1 overflow-y-auto overflow-x-hidden custom-scrollbar pr-1 sm:pr-2 relative">
@@ -973,6 +990,7 @@ export default function TaskCalendar({
                 preloadedTasks={agendaTasks}
                 preloadedInventoryDict={inventoryDict}
                 preloadedBlockedTaskIds={blockedTaskIds}
+                onOpenToDoList={(listId) => setTodoListsOpenId(listId)}
               />
             )}
           </div>
@@ -988,6 +1006,31 @@ export default function TaskCalendar({
           onSuccess={() => {
             setIsAddingTask(false);
             toast.success("Task added to your schedule.");
+            fetchTasksAndBlueprints();
+            setRefreshKey((prev) => prev + 1);
+          }}
+        />
+      )}
+
+      {isAddingToDo && (
+        <AddToDoListModal
+          homeId={homeId}
+          onClose={() => setIsAddingToDo(false)}
+          onSuccess={() => {
+            setIsAddingToDo(false);
+            fetchTasksAndBlueprints();
+            setRefreshKey((prev) => prev + 1);
+          }}
+          onViewLists={() => setTodoListsOpenId("auto")}
+        />
+      )}
+
+      {todoListsOpenId !== null && (
+        <ToDoListsModal
+          homeId={homeId}
+          initialOpenListId={todoListsOpenId === "auto" ? undefined : todoListsOpenId}
+          onClose={() => setTodoListsOpenId(null)}
+          onChange={() => {
             fetchTasksAndBlueprints();
             setRefreshKey((prev) => prev + 1);
           }}

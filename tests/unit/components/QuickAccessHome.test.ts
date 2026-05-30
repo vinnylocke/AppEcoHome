@@ -43,6 +43,13 @@ vi.mock("../../../src/lib/taskEngine", () => ({
   },
 }));
 
+// Stub SeasonalPicksCard so the QuickAccessHome render doesn't pull in its
+// heavy dependencies (plant detail modal, etc.).
+vi.mock("../../../src/components/seasonal/SeasonalPicksCard", () => ({
+  default: () =>
+    React.createElement("div", { "data-testid": "stub-seasonal-picks" }, "seasonal"),
+}));
+
 import QuickAccessHome from "../../../src/components/QuickAccessHome";
 
 function renderHome(props?: { firstName?: string | null; homeId?: string | null }) {

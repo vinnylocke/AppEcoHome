@@ -270,6 +270,10 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | CAL-008 | Navigate to previous month | ✅ | Click previous month → calendar grid updates | Bootstrap | — | ✅ Passing |
 | CAL-009 | Completed task on calendar | ✅ | Completed task date shows completed indicator/strikethrough | Tasks (03) | — | ✅ Passing |
 | CAL-010 | Skipped task not shown as pending | ✅ | Skipped task date not shown as pending indicator | Tasks (03) | — | ✅ Passing |
+| CAL-011 | To-Do List button visible | ✅ | `data-testid="calendar-add-todo-list"` rendered next to Add Task | Bootstrap | — | ⏳ Not yet written |
+| CAL-012 | Add To-Do List modal — create flow | ✅ | Click List → fill date + 2 task rows → submit → both rows appear in tasks linked to one `todo_lists` row | Bootstrap | — | ⏳ Not yet written |
+| CAL-013 | My To-Do Lists modal — render | ✅ | `?open=todo-lists` → list renders with status pill; tick a row → derived status flips when all rows Completed | Bootstrap + freshly created list | — | ⏳ Not yet written |
+| CAL-014 | TaskModal From-list pill | ✅ | Open a task linked to a list → "From: …" pill visible → click opens Manage modal scrolled to that list | Bootstrap + freshly created list | — | ⏳ Not yet written |
 
 ---
 

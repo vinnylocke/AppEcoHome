@@ -25,6 +25,7 @@ import {
   Save,
   CloudRain,
   Users,
+  ListChecks,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -45,6 +46,10 @@ interface TaskModalProps {
   onToggleComplete: () => void;
   materializeTask: (task: any) => Promise<any>;
   onTasksUpdated: () => void;
+  /** When the task belongs to a to-do list, clicking the "From: <list>" pill
+   *  closes this modal and opens the Manage To-Do Lists modal expanded to that
+   *  list. The host owns both modals. */
+  onOpenToDoList?: (listId: string) => void;
 }
 
 
@@ -60,6 +65,7 @@ export default function TaskModal({
   onToggleComplete,
   materializeTask,
   onTasksUpdated,
+  onOpenToDoList,
 }: TaskModalProps) {
   const navigate = useNavigate();
   const { homeMembers } = usePermissions();
@@ -467,15 +473,30 @@ export default function TaskModal({
               placeholder="Task Title"
             />
           ) : (
-            <div className="flex-1 flex gap-2 pr-4">
-              <h3 className="text-xl font-black leading-tight">{task.title}</h3>
-              <button
-                onClick={() => setIsEditingDetails(true)}
-                className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-primary/60 hover:text-rhozly-primary transition-colors shrink-0"
-                title="Edit Task Details"
-              >
-                <Edit3 size={16} />
-              </button>
+            <div className="flex-1 pr-4">
+              {/* From-list pill — links back to the to-do list this task belongs to. */}
+              {task.todo_list_id && onOpenToDoList && (
+                <button
+                  type="button"
+                  data-testid="task-from-todo-list"
+                  onClick={() => onOpenToDoList(task.todo_list_id)}
+                  className="inline-flex items-center gap-1.5 mb-2 px-2.5 py-1 rounded-full bg-rhozly-primary/10 text-rhozly-primary text-[10px] font-black uppercase tracking-widest hover:bg-rhozly-primary/15 transition-colors"
+                  title="Open the to-do list this task belongs to"
+                >
+                  <ListChecks size={11} />
+                  From: {task.todo_list?.name?.trim() || `To-do for ${task.due_date}`}
+                </button>
+              )}
+              <div className="flex gap-2">
+                <h3 className="text-xl font-black leading-tight">{task.title}</h3>
+                <button
+                  onClick={() => setIsEditingDetails(true)}
+                  className="min-w-[44px] min-h-[44px] flex items-center justify-center text-rhozly-primary/60 hover:text-rhozly-primary transition-colors shrink-0"
+                  title="Edit Task Details"
+                >
+                  <Edit3 size={16} />
+                </button>
+              </div>
             </div>
           )}
           <button

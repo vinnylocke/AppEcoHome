@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { ChevronLeft, Loader2, Plus } from "lucide-react";
+import { ChevronLeft, Loader2, Plus, ListChecks } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { Logger } from "../../lib/errorHandler";
 import { usePermissions } from "../../context/HomePermissionsContext";
@@ -10,6 +10,7 @@ import RainWaterAdvice from "./RainWaterAdvice";
 import QuickAddTaskModal from "./QuickAddTaskModal";
 import TaskList from "../TaskList";
 import SeasonalPicksCard from "../seasonal/SeasonalPicksCard";
+import AddToDoListModal from "../todo/AddToDoListModal";
 
 interface Props {
   homeId: string;
@@ -41,6 +42,7 @@ export default function LocalizedTaskCalendar({ homeId, aiEnabled, isPremium }: 
   // Increment to force TaskList remount + re-fetch after a Quick Add save.
   const [tasksRefreshKey, setTasksRefreshKey] = useState(0);
   const [quickAddOpen, setQuickAddOpen] = useState(false);
+  const [addToDoOpen, setAddToDoOpen] = useState(false);
 
   const canCreateHomeTask = can("tasks.create_home");
 
@@ -144,29 +146,41 @@ export default function LocalizedTaskCalendar({ homeId, aiEnabled, isPremium }: 
           />
         ) : null}
 
-        {/* 3. Seasonal picks — "what to grow this week", horizontal scroll. */}
-        <SeasonalPicksCard homeId={homeId} aiEnabled={aiEnabled} isPremium={isPremium} variant="today" />
-
-        {/* 4. Today's tasks (compact) */}
+        {/* 3. Today's tasks (compact) — promoted above seasonal picks so the
+            weather banner → tasks → "what to grow" reading order matches what
+            users actually want to scan first on the Today screen. */}
         <section
           data-testid="quick-calendar-tasks"
           className="rounded-3xl bg-white border border-rhozly-outline/15 shadow-sm p-4 sm:p-5"
         >
-          <div className="flex items-center justify-between mb-3">
+          <div className="flex items-center justify-between mb-3 gap-2">
             <h2 className="font-black text-sm uppercase tracking-widest text-rhozly-on-surface/60">
               Today's tasks
             </h2>
-            <button
-              type="button"
-              data-testid="quick-calendar-add-task"
-              onClick={() => setQuickAddOpen(true)}
-              disabled={!canCreateHomeTask}
-              title={canCreateHomeTask ? "Add a task quickly" : "You don't have permission to add tasks here."}
-              className="inline-flex items-center gap-1 px-3 py-1.5 min-h-[36px] rounded-xl bg-rhozly-primary/10 text-rhozly-primary text-[11px] font-black uppercase tracking-widest hover:bg-rhozly-primary/15 disabled:opacity-40 disabled:cursor-not-allowed transition"
-            >
-              <Plus size={14} />
-              Add
-            </button>
+            <div className="flex items-center gap-1.5">
+              <button
+                type="button"
+                data-testid="quick-calendar-add-todo-list"
+                onClick={() => setAddToDoOpen(true)}
+                disabled={!canCreateHomeTask}
+                title={canCreateHomeTask ? "Add a to-do list" : "You don't have permission to add tasks here."}
+                className="inline-flex items-center gap-1 px-3 py-1.5 min-h-[36px] rounded-xl bg-rhozly-surface-low text-rhozly-on-surface/70 text-[11px] font-black uppercase tracking-widest hover:bg-rhozly-surface-mid disabled:opacity-40 disabled:cursor-not-allowed transition"
+              >
+                <ListChecks size={14} />
+                List
+              </button>
+              <button
+                type="button"
+                data-testid="quick-calendar-add-task"
+                onClick={() => setQuickAddOpen(true)}
+                disabled={!canCreateHomeTask}
+                title={canCreateHomeTask ? "Add a task quickly" : "You don't have permission to add tasks here."}
+                className="inline-flex items-center gap-1 px-3 py-1.5 min-h-[36px] rounded-xl bg-rhozly-primary/10 text-rhozly-primary text-[11px] font-black uppercase tracking-widest hover:bg-rhozly-primary/15 disabled:opacity-40 disabled:cursor-not-allowed transition"
+              >
+                <Plus size={14} />
+                Add
+              </button>
+            </div>
           </div>
           <TaskList
             key={tasksRefreshKey}
@@ -175,12 +189,23 @@ export default function LocalizedTaskCalendar({ homeId, aiEnabled, isPremium }: 
             targetDate={new Date()}
           />
         </section>
+
+        {/* 4. Seasonal picks — "what to grow this week", below today's tasks. */}
+        <SeasonalPicksCard homeId={homeId} aiEnabled={aiEnabled} isPremium={isPremium} variant="today" />
       </div>
 
       {quickAddOpen && (
         <QuickAddTaskModal
           homeId={homeId}
           onClose={() => setQuickAddOpen(false)}
+          onSuccess={() => setTasksRefreshKey((k) => k + 1)}
+        />
+      )}
+
+      {addToDoOpen && (
+        <AddToDoListModal
+          homeId={homeId}
+          onClose={() => setAddToDoOpen(false)}
           onSuccess={() => setTasksRefreshKey((k) => k + 1)}
         />
       )}

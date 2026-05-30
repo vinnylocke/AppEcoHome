@@ -62,6 +62,9 @@ interface TaskListProps {
    * "View calendar →" link at the bottom. Default false.
    */
   compact?: boolean;
+  /** When the opened task belongs to a to-do list, the modal renders a pill
+   *  that calls this with the list id so the host can open ToDoListsModal. */
+  onOpenToDoList?: (listId: string) => void;
 }
 
 
@@ -79,6 +82,7 @@ export default function TaskList({
   preloadedInventoryDict,
   preloadedBlockedTaskIds,
   compact = false,
+  onOpenToDoList,
 }: TaskListProps) {
   const navigate = useNavigate();
   const { preferences } = usePlantDoctor();
@@ -1299,6 +1303,11 @@ export default function TaskList({
                     fetchTasksAndGhosts(true);
                     onTaskUpdated?.();
                   }}
+                  onOpenToDoList={onOpenToDoList ? (listId) => {
+                    // Close the task modal first so the list modal stacks cleanly.
+                    setSelectedTask(null);
+                    onOpenToDoList(listId);
+                  } : undefined}
                 />
               )}
 

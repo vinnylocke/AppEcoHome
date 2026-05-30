@@ -64,6 +64,24 @@ Ghost tasks are materialised into real `tasks` rows when the user acts on them (
 | `completed_by` | uuid | |
 | `location_id`, `area_id`, `plan_id`, `inventory_item_ids` | | |
 | `seed_packet_id` | uuid? | FK → `seed_packets(id)`. Drives the inline `LogSowingFromTaskModal` on completion. Inserts a `seed_sowings` row with `task_id` set (unique partial index ensures idempotency). |
+| `todo_list_id` | uuid? | FK → `todo_lists(id)` ON DELETE SET NULL. Back-link to the parent to-do list when the task was created via the [Add To-Do List modal](../08-modals-and-overlays/40-todo-lists.md). NULL for every other task. |
+
+### `todo_lists` table
+
+Sibling table that groups N `tasks` rows under a shared `due_date`. Created by the user via the Add To-Do List modal; managed via the My To-Do Lists modal.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | uuid | PK |
+| `home_id` | uuid | FK → `homes(id)` ON DELETE CASCADE |
+| `name` | text? | Optional; UI shows "To-do for {due_date}" when null |
+| `due_date` | date | Single shared due date for every linked task |
+| `created_by` | uuid? | FK → `auth.users(id)` ON DELETE SET NULL |
+| `created_at` | timestamptz | Default `now()` |
+
+Indexes: `todo_lists_home_created_idx (home_id, created_at desc)`, `tasks_todo_list_idx` partial index on `tasks(todo_list_id) where todo_list_id is not null`.
+
+Status is **derived**, not stored — a list is complete iff every linked task is `Completed` or `Skipped`. No trigger, no drift. RLS mirrors `tasks`: `home_members` of the matching `home_id` get full CRUD.
 
 ### `unique_blueprint_date` constraint
 
@@ -113,6 +131,7 @@ Blueprints can fire daily for years. If we materialised every future occurrence,
 - [Add Task / Edit Schedule Modal](../08-modals-and-overlays/01-add-task-modal.md)
 - [Task Detail Modal](../08-modals-and-overlays/02-task-modal.md)
 - [Optimise Tab](../04-planner/08-optimise-tab.md)
+- [To-Do Lists — Add + Manage Modals](../08-modals-and-overlays/40-todo-lists.md)
 
 ## Code references for ongoing maintenance
 
@@ -120,3 +139,4 @@ Blueprints can fire daily for years. If we materialised every future occurrence,
 - `src/services/blueprintService.ts`
 - `supabase/functions/generate-tasks/index.ts`
 - `supabase/migrations/*_tasks.sql`, `*_task_blueprints.sql`
+- `supabase/migrations/20260630000000_todo_lists.sql` — `todo_lists` table, `tasks.todo_list_id` column, RLS + grants
