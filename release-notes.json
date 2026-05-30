@@ -1,15 +1,1 @@
-[
-  {
-    "label": "Removed",
-    "items": [
-      "The standalone Library screen has been retired — plant search now lives in the places you'd actually use it: Add Plant in the Shed, Add to your Shopping list, the Nursery picker, and Plant Lens. The full plant database behind all of those is unchanged."
-    ]
-  },
-  {
-    "label": "Improved",
-    "items": [
-      "Plants is now the fourth default tile on your quick-access menu — tap it to go straight to your Shed.",
-      "Tapping a Seasonal Pick now opens the same Care / Grow Guide / Companions / Light overlay you get from any plant search result, instead of bouncing you out to a separate page."
-    ]
-  }
-]
+[]
