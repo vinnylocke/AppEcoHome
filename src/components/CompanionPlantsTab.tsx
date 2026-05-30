@@ -192,6 +192,10 @@ export default function CompanionPlantsTab({
   const [companions, setCompanions] = useState<CompanionResult | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<"ai_required" | "fetch_failed" | "rate_limited" | null>(null);
+  // The underlying message we captured from the edge function — surfaced
+  // in the Retry block so the user can see WHY it failed (e.g. "Gemini
+  // returned no usable text (finishReason: SAFETY)").
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [checked, setChecked] = useState<Set<string>>(new Set());
   const [expandedKey, setExpandedKey] = useState<string | null>(null);
   // Per-companion resolved care details (for the ⓘ info pills) + which plant
@@ -210,6 +214,7 @@ export default function CompanionPlantsTab({
   const fetchCompanions = useCallback(async () => {
     setLoading(true);
     setError(null);
+    setErrorMessage(null);
     const req = { source, verdantlyId: verdantlyId ?? null, plantName, aiEnabled };
 
     // Goes via the shared promise cache so a Library "pre-warm" call (fired
@@ -239,7 +244,16 @@ export default function CompanionPlantsTab({
         if (data.error) throw new Error(data.error);
         setCompanions({ beneficial: data.beneficial, harmful: data.harmful, neutral: data.neutral });
       } catch (retryErr: any) {
-        setError(retryErr?.rateLimited ? "rate_limited" : "fetch_failed");
+        const isRateLimit = !!retryErr?.rateLimited;
+        setError(isRateLimit ? "rate_limited" : "fetch_failed");
+        if (!isRateLimit) {
+          // Surface the underlying message so the user (and us, in support
+          // tickets) can see WHY it failed — e.g. Gemini safety block,
+          // invalid JSON, edge-fn timeout. Falls back to firstErr if the
+          // retry threw without a message.
+          const msg = retryErr?.message || firstErr?.message || null;
+          setErrorMessage(msg ? String(msg).slice(0, 300) : null);
+        }
       }
     } finally {
       setLoading(false);
@@ -502,12 +516,20 @@ export default function CompanionPlantsTab({
   // ── Error ──────────────────────────────────────────────────────────────────
   if (error === "fetch_failed" || !companions) {
     return (
-      <div className="flex flex-col items-center justify-center gap-4 py-16 text-center px-6">
-        <p className="text-xs font-bold text-rhozly-on-surface/50">Could not load companion data.</p>
+      <div className="flex flex-col items-center justify-center gap-3 py-16 text-center px-6">
+        <p className="text-xs font-black text-rhozly-on-surface/60">Could not load companion data.</p>
+        {errorMessage && (
+          <p
+            data-testid="companion-error-detail"
+            className="text-[11px] font-semibold text-rhozly-on-surface/45 leading-snug max-w-xs"
+          >
+            {errorMessage}
+          </p>
+        )}
         <button
           onClick={fetchCompanions}
           data-testid="companion-retry"
-          className="px-4 py-2 min-h-[44px] bg-rhozly-primary text-white text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-90 transition-opacity"
+          className="px-4 py-2 min-h-[44px] mt-1 bg-rhozly-primary text-white text-xs font-black uppercase tracking-widest rounded-xl hover:opacity-90 transition-opacity"
         >
           Retry
         </button>
@@ -520,9 +542,17 @@ export default function CompanionPlantsTab({
   // ── Empty ──────────────────────────────────────────────────────────────────
   if (!hasAny) {
     return (
-      <div className="flex flex-col items-center justify-center gap-3 py-16 text-rhozly-on-surface/40">
-        <Sprout size={28} />
-        <p className="text-xs font-bold">No companion data found for this plant.</p>
+      <div
+        data-testid="companion-empty-state"
+        className="flex flex-col items-center justify-center gap-3 py-16 text-center px-6 text-rhozly-on-surface/55"
+      >
+        <Sprout size={28} className="text-rhozly-on-surface/30" />
+        <p className="text-xs font-black text-rhozly-on-surface/65">
+          No companion plants for {plantName}.
+        </p>
+        <p className="text-[11px] font-semibold leading-snug max-w-xs text-rhozly-on-surface/45">
+          That's normal for unusual species — carnivorous bog plants, strictly aquatic plants, and houseplants kept in their own pots typically have no traditional companions.
+        </p>
       </div>
     );
   }

@@ -1,8 +1,9 @@
 [
   {
-    "label": "Improved",
+    "label": "Fixed",
     "items": [
-      "The Plants page \"Add Plant\" button is now \"Find a plant\" — it opens a plant-database search, so the label now matches the action."
+      "Companion tab no longer gets stuck on the Retry button for unusual plants like Venus flytrap — the AI is now told it's fine to return an empty companion list for carnivorous, aquatic, or indoor-only species, and the empty state explains why.",
+      "When the Companion tab does fail, it now shows the actual reason (e.g. AI safety block, parse failure) under the Retry button instead of an opaque \"Could not load companion data\"."
     ]
   }
 ]

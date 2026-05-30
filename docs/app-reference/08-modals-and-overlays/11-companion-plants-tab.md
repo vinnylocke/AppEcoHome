@@ -30,8 +30,8 @@ and "Add N to Shed" runs them through the source picker → bulk-add flow.
 ```
 CompanionPlantsTab
 ├── Loading state (spinner)
-├── Error states — ai_required (tier gate) | rate_limited | fetch_failed (retry)
-├── Empty state ("No companion data found for this plant.")
+├── Error states — ai_required (tier gate) | rate_limited | fetch_failed (retry + reason)
+├── Empty state ("No companion plants for X — that's normal for carnivorous, aquatic, indoor-only species.")
 ├── Intro card ("What is companion planting?")
 ├── CompanionSection × 3 (Beneficial / Harmful / Neutral)
 │   └── row: checkbox · name button (→ care guide) · ⓘ toggle
@@ -124,8 +124,8 @@ Add-to-Shed inserts respect the home's RLS (member of `home_members`).
 |-------|--------|
 | `ai_required` | Tier-gate panel (Sage+ to generate AI companions) |
 | `rate_limited` | "You've hit the limit — try again shortly" (no retry) |
-| `fetch_failed` | Retry banner (one silent auto-retry already attempted on first load) |
-| No companions | "No companion data found for this plant." |
+| `fetch_failed` | Retry banner. The captured upstream message (e.g. `"Gemini gemini-2.0-flash returned no usable text (finishReason: SAFETY)"`) is surfaced below the headline via `data-testid="companion-error-detail"` so the user can see WHY it failed instead of an opaque Retry. One silent auto-retry was already attempted before this banner shows. |
+| No companions | `data-testid="companion-empty-state"` — "No companion plants for {plantName}" with a sub-line explaining unusual species (carnivorous bog plants, strictly aquatic species, indoor-only houseplants) typically have no traditional companions. The edge function's prompt explicitly allows the AI to return empty arrays for those cases instead of inventing companions. |
 | ⓘ library + provider miss | Reason only + "Open … for its full care guide →" link |
 
 ### Performance

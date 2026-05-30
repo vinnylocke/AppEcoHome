@@ -135,7 +135,9 @@ For each plant include:
 - reason: brief explanation of the relationship (1–2 sentences; null for neutral plants)
 - id: always null (you are an AI, not a database)
 
-Include 5–10 beneficial plants, 3–6 harmful plants, and 3–6 neutral plants. Focus on commonly grown garden plants.`;
+Include up to 10 beneficial plants, up to 6 harmful plants, and up to 6 neutral plants. Focus on commonly grown garden plants.
+
+IMPORTANT: If "${plantName}" has no commonly known companion plants — for example carnivorous bog plants (Venus flytraps, sundews, pitcher plants), strictly aquatic plants, parasitic plants, or species only grown indoors in isolated pots — return empty arrays for the categories that don't apply rather than inventing companions. Empty arrays are a correct and useful answer in those cases.`;
 
   const { text } = await callGeminiCascade(
     geminiKey,
@@ -152,7 +154,18 @@ Include 5–10 beneficial plants, 3–6 harmful plants, and 3–6 neutral plants
     },
   );
 
-  const parsed = JSON.parse(text) as CompanionPlantsResult;
+  let parsed: CompanionPlantsResult;
+  try {
+    parsed = JSON.parse(text) as CompanionPlantsResult;
+  } catch (parseErr) {
+    log(FN, "ai_parse_failed", {
+      plant_name: plantName,
+      snippet: text.slice(0, 200),
+    });
+    throw new Error(
+      `AI returned invalid JSON for "${plantName}". Try again in a moment.`,
+    );
+  }
 
   // Ensure id is null for all AI results
   const nullId = (item: any): CompanionPlant => ({ ...item, id: null });

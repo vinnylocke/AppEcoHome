@@ -207,8 +207,24 @@ async function callOnce(
   }
 
   const data = await res.json();
+  // Defensive read — Gemini can return no candidates (safety block) or a
+  // candidate with empty `parts` when the model hits MAX_TOKENS during
+  // thinking. The raw destructure below would crash with a cryptic
+  // `TypeError: Cannot read properties of undefined` and the caller
+  // would see no attributable reason. Surface finishReason/blockReason
+  // instead so the cascade can fall through to the next model and the
+  // client can show a useful error.
+  const candidate = data.candidates?.[0];
+  const text = candidate?.content?.parts?.[0]?.text;
+  if (typeof text !== "string") {
+    const finishReason = candidate?.finishReason ?? "UNKNOWN";
+    const blockReason = data.promptFeedback?.blockReason;
+    throw new Error(
+      `Gemini ${model} returned no usable text (finishReason: ${finishReason}${blockReason ? `, blockReason: ${blockReason}` : ""}).`,
+    );
+  }
   return {
-    text: data.candidates[0].content.parts[0].text,
+    text,
     usage: {
       promptTokenCount: data.usageMetadata?.promptTokenCount ?? 0,
       candidatesTokenCount: data.usageMetadata?.candidatesTokenCount ?? 0,
