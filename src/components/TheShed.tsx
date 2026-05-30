@@ -1506,10 +1506,10 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                   <button
                     data-testid="shed-add-plant-btn"
                     onClick={() => setShowBulkSearch(true)}
-                    aria-label="Add plant"
+                    aria-label="Find a plant"
                     className="flex items-center gap-2 px-4 sm:px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
                   >
-                    <Plus size={18} /> Add Plant
+                    <Plus size={18} /> Find a plant
                   </button>
                 )}
               </div>

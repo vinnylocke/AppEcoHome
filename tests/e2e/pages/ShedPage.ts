@@ -49,12 +49,12 @@ export class ShedPage {
   constructor(page: Page) {
     this.page = page;
     this.heading = page.getByRole("heading", { name: "Plants" });
-    this.searchInput = page.getByLabel("Search your plant library");
+    this.searchInput = page.getByLabel("Search your saved plants");
     this.emptyState = page.getByText("No plants here");
     this.noMatchState = page.getByText("No matches found");
     this.activeTab = page.getByRole("button", { name: "Active" });
     this.archivedTab = page.getByRole("button", { name: "Archived" });
-    this.addButton = page.getByLabel("Add plant");
+    this.addButton = page.getByLabel("Find a plant");
     this.clearSearchButton = page.getByLabel("Clear search");
     this.sourceFilterSelect = page.getByLabel("Filter by source");
 

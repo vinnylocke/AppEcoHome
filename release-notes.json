@@ -2,7 +2,7 @@
   {
     "label": "Improved",
     "items": [
-      "Plants page search now reads \"Search your saved plants…\" so it's clear it filters your library, not the global plant database."
+      "The Plants page \"Add Plant\" button is now \"Find a plant\" — it opens a plant-database search, so the label now matches the action."
     ]
   }
 ]
