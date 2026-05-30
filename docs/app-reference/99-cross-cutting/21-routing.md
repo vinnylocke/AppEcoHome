@@ -11,9 +11,8 @@ BrowserRouter
 └── App.tsx routes
     ├── /                  ← Conditional redirect: useIsMobile() === true → /quick, else → /dashboard
     ├── /quick             ← QuickAccessHome (Mobile Quick Access Wave 2 — mobile home page)
-    ├── /quick/lens        ← QuickAccessLens (mounts <PlantDoctor compact />)
+    │     └── (retired: /quick/lens, /quick/journal — see Wave 17 notes)
     ├── /quick/calendar    ← LocalizedTaskCalendar (Mobile Quick Access Wave 3 — planting + rain advice + today's tasks)
-    ├── /quick/journal     ← QuickCapture (Mobile Quick Access Wave 4 — capture-first journal, assign to plant later)
     ├── /library/*         ← LibraryHome (The Library — plant database)
     │     ├── /library/search        ← LibrarySearchTab (multi-provider search, ?q= persists query)
     │     ├── /library/saved         ← LibrarySavedTab  (filterable list of Shed plants)

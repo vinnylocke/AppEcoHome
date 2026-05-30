@@ -374,7 +374,7 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <StatCard
             data-testid="dash-stat-doctor-sessions"
-            label="Plant Doctor"
+            label="Plant Lens"
             value={additional.plantDoctorSessions}
             sub="sessions"
             onClick={additional.plantDoctorSessions > 0 ? () => navigate("/doctor") : undefined}

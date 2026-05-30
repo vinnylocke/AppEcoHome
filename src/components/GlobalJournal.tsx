@@ -10,7 +10,7 @@ import {
   Globe,
   Settings as SettingsIcon,
 } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import { useGlobalJournal, getEntryTargetType } from "../hooks/useGlobalJournal";
@@ -70,6 +70,17 @@ export default function GlobalJournal({ homeId }: Props) {
   const { entries, loading, error, refresh, remove } = useGlobalJournal(homeId);
   const [filter, setFilter] = useState<JournalFilter>("all");
   const [composerOpen, setComposerOpen] = useState(false);
+  // Quick-link / deep-link entry — opening /journal?open=add-entry pops the
+  // composer straight away (Capture tile uses this path). One-shot: the param
+  // is stripped so refreshes don't re-open the sheet.
+  const [searchParams, setSearchParams] = useSearchParams();
+  useEffect(() => {
+    if (searchParams.get("open") === "add-entry") {
+      setComposerOpen(true);
+      setSearchParams((prev) => { prev.delete("open"); return prev; }, { replace: true });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   const [deleteTarget, setDeleteTarget] = useState<JournalEntry | null>(null);
   const [targetLabels, setTargetLabels] = useState<
     Partial<Record<JournalTargetType, Record<string, string>>>

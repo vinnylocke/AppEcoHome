@@ -86,9 +86,7 @@ const AdminGuideGenerator = lazy(() => import("./components/AdminGuideGenerator"
 const PlantLibraryAdmin = lazy(() => import("./components/admin/PlantLibraryAdmin"));
 const PlantDoctor         = lazy(() => import("./components/PlantDoctor"));
 const QuickAccessHome     = lazy(() => import("./components/QuickAccessHome"));
-const QuickAccessLens     = lazy(() => import("./components/QuickAccessLens"));
 const LocalizedTaskCalendar = lazy(() => import("./components/quick/LocalizedTaskCalendar"));
-const QuickCapture          = lazy(() => import("./components/quick/QuickCapture"));
 const GlobalJournal         = lazy(() => import("./components/GlobalJournal"));
 const LibraryHome           = lazy(() => import("./components/library/LibraryHome"));
 const GardenWalk            = lazy(() => import("./components/walk/GardenWalk"));
@@ -183,7 +181,6 @@ export default function App() {
 const TAB_URL: Record<string, string> = {
   quick:           "/quick",
   quick_calendar:  "/quick/calendar",
-  quick_journal:   "/quick/journal",
   journal:         "/journal",
   dashboard:       "/dashboard",
   task_management: "/schedule",
@@ -1241,28 +1238,12 @@ function AppShell() {
                           />
                         </div>
                       } />
-                      <Route path="/quick/lens" element={
-                        <div className="h-full animate-in fade-in duration-500">
-                          <QuickAccessLens
-                            homeId={profile?.home_id}
-                            userId={session?.user?.id}
-                            aiEnabled={profile?.ai_enabled}
-                            isPremium={profile?.enable_perenual}
-                            perenualEnabled={profile?.enable_perenual}
-                          />
-                        </div>
-                      } />
                       <Route path="/quick/calendar" element={
                         <div className="h-full animate-in fade-in duration-500">
                           <LocalizedTaskCalendar
                             homeId={profile?.home_id ?? ""}
                             aiEnabled={!!profile?.ai_enabled}
                           />
-                        </div>
-                      } />
-                      <Route path="/quick/journal" element={
-                        <div className="h-full animate-in fade-in duration-500">
-                          <QuickCapture homeId={profile?.home_id ?? ""} />
                         </div>
                       } />
 

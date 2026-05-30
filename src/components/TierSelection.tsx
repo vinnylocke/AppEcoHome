@@ -84,7 +84,7 @@ const COMPARISON_FEATURES: Array<{ label: string; sprout: boolean; botanist: boo
   { label: "Plant search (Perenual)",     sprout: false, botanist: true,  sage: false, evergreen: true  },
   { label: "Per-species care schedules",  sprout: false, botanist: true,  sage: false, evergreen: true  },
   { label: "AI plant identification",     sprout: false, botanist: false, sage: true,  evergreen: true  },
-  { label: "AI Plant Doctor (diagnosis)", sprout: false, botanist: false, sage: true,  evergreen: true  },
+  { label: "AI Plant Lens (diagnosis)",   sprout: false, botanist: false, sage: true,  evergreen: true  },
   { label: "AI area scanning",            sprout: false, botanist: false, sage: true,  evergreen: true  },
   { label: "AI optimisation (schedules)", sprout: false, botanist: false, sage: true,  evergreen: true  },
 ];

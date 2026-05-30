@@ -1,8 +1,8 @@
-# Quick Capture Journal
+# Quick Capture Journal — **RETIRED**
 
-> Phone-first capture-first journal mode. Snap a photo + jot a note → Save. The entry lands in `plant_journals` without an `inventory_item_id`, then you assign it to a specific plant later from either device. Backed by the same `plant_journals` table the [Global Journal](../03-garden-hub/11-global-journal.md) and the per-instance [Plant Journal Tab](../08-modals-and-overlays/10-plant-journal-tab.md) read — no migration, no parallel schema. Unassigned entries surface on the Global Journal under the "Unassigned" filter; once assigned, they appear on the relevant plant's journal tab too.
+> **This surface has been removed.** The standalone `/quick/journal` page (`QuickCapture.tsx`) was retired; the **Capture** quick-link tile now deep-links to the full Journal with the Add Entry sheet open (`/journal?open=add-entry`) so users get the proper journal experience instead of a stripped-down capture-first one. The note below is kept for historical reference (the underlying `plant_journals` schema is unchanged — see [Global Journal](../03-garden-hub/11-global-journal.md)).
 
-**Route:** `/quick/journal`
+**Route:** ~~`/quick/journal`~~ → `/journal?open=add-entry`
 **Source files (entry points):**
 - `src/components/quick/QuickCapture.tsx` — the screen
 - `src/components/quick/AssignToPlantSheet.tsx` — bottom-sheet plant picker

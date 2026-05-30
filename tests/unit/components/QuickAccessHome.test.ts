@@ -69,16 +69,16 @@ describe("QuickAccessHome", () => {
 
   test("renders the four default tiles", () => {
     renderHome();
-    expect(screen.getByTestId("quick-tile-lens")).toBeTruthy();
+    expect(screen.getByTestId("quick-tile-doctor")).toBeTruthy();
     expect(screen.getByTestId("quick-tile-today")).toBeTruthy();
     expect(screen.getByTestId("quick-tile-capture")).toBeTruthy();
     expect(screen.getByTestId("quick-tile-library")).toBeTruthy();
   });
 
-  test("tapping Lens navigates to /quick/lens", () => {
+  test("tapping Plant Lens (doctor) tile navigates to /doctor", () => {
     renderHome();
-    fireEvent.click(screen.getByTestId("quick-tile-lens"));
-    expect(navigateMock).toHaveBeenCalledWith("/quick/lens");
+    fireEvent.click(screen.getByTestId("quick-tile-doctor"));
+    expect(navigateMock).toHaveBeenCalledWith("/doctor");
   });
 
   test("tapping Today tile navigates to /quick/calendar", () => {
@@ -88,10 +88,10 @@ describe("QuickAccessHome", () => {
     expect(toastFn).not.toHaveBeenCalled();
   });
 
-  test("tapping Capture tile navigates to /quick/journal", () => {
+  test("tapping Capture tile navigates to /journal?open=add-entry", () => {
     renderHome();
     fireEvent.click(screen.getByTestId("quick-tile-capture"));
-    expect(navigateMock).toHaveBeenCalledWith("/quick/journal");
+    expect(navigateMock).toHaveBeenCalledWith("/journal?open=add-entry");
     expect(toastFn).not.toHaveBeenCalled();
   });
 
@@ -176,7 +176,7 @@ describe("QuickAccessHome", () => {
   test("each tile receives its own signature launcher accent", () => {
     renderHome({ firstName: "Vinny" });
     expect(
-      screen.getByTestId("quick-tile-lens").getAttribute("data-accent"),
+      screen.getByTestId("quick-tile-doctor").getAttribute("data-accent"),
     ).toBe("green");
     expect(
       screen.getByTestId("quick-tile-today").getAttribute("data-accent"),
@@ -235,7 +235,7 @@ describe("QuickAccessHome", () => {
   // Wave 16 — customisable launcher. The grid now renders the user's
   // pinned destinations from the catalogue. Tile order, count and
   // accents are pin-driven. With no saved preference the four default
-  // pins (lens / today / capture / library) land in a 2×2 grid.
+  // pins (doctor / today / capture / library) land in a 2×2 grid.
   test("tiles render inside a 2-column grid with a pinned-count attribute", () => {
     renderHome({ firstName: "Vinny" });
     const grid = screen.getByTestId("quick-tiles-grid");
@@ -248,7 +248,7 @@ describe("QuickAccessHome", () => {
   test("each tile uses the compact layout", () => {
     renderHome({ firstName: "Vinny" });
     for (const id of [
-      "quick-tile-lens",
+      "quick-tile-doctor",
       "quick-tile-today",
       "quick-tile-capture",
       "quick-tile-library",

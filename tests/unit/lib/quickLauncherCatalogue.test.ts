@@ -18,7 +18,7 @@ describe("QUICK_LAUNCHER_CATALOGUE", () => {
   test("contains the four defaults", () => {
     const ids = QUICK_LAUNCHER_CATALOGUE.map((d) => d.id);
     expect(ids).toEqual(
-      expect.arrayContaining(["lens", "today", "capture", "library"]),
+      expect.arrayContaining(["doctor", "today", "capture", "library"]),
     );
   });
 
@@ -36,13 +36,13 @@ describe("QUICK_LAUNCHER_CATALOGUE", () => {
 
 describe("resolvePins", () => {
   test("preserves order and filters unknown ids", () => {
-    const result = resolvePins(["today", "bogus", "lens"], baseCtx);
-    expect(result.map((d) => d.id)).toEqual(["today", "lens"]);
+    const result = resolvePins(["today", "bogus", "doctor"], baseCtx);
+    expect(result.map((d) => d.id)).toEqual(["today", "doctor"]);
   });
 
   test("drops duplicate ids", () => {
-    const result = resolvePins(["lens", "lens", "today"], baseCtx);
-    expect(result.map((d) => d.id)).toEqual(["lens", "today"]);
+    const result = resolvePins(["doctor", "doctor", "today"], baseCtx);
+    expect(result.map((d) => d.id)).toEqual(["doctor", "today"]);
   });
 
   test("respects isAvailable predicate", () => {
@@ -60,8 +60,8 @@ describe("resolvePins", () => {
         ctx.subscriptionTier === "sage" || ctx.subscriptionTier === "evergreen",
     };
     try {
-      const out = resolvePins(["lens", "__test_sage_only__"], sageOnlyCtx);
-      expect(out.map((d) => d.id)).toEqual(["lens"]);
+      const out = resolvePins(["doctor", "__test_sage_only__"], sageOnlyCtx);
+      expect(out.map((d) => d.id)).toEqual(["doctor"]);
     } finally {
       if (original) QUICK_LAUNCHER_BY_ID["__test_sage_only__"] = original;
       else delete QUICK_LAUNCHER_BY_ID["__test_sage_only__"];
@@ -76,9 +76,10 @@ describe("partitionForPicker", () => {
       baseCtx,
     );
     expect(pinned.map((d) => d.id)).toEqual(["today", "library"]);
-    // 'lens' and 'capture' should be in available, ahead of 'shed', 'planner', etc.
+    // 'capture' (the next catalogue entry after the pinned ones) should
+    // sit ahead of 'shed', 'planner', etc.
     const availIds = available.map((d) => d.id);
-    expect(availIds[0]).toBe("lens");
+    expect(availIds[0]).toBe("capture");
     expect(availIds).toContain("capture");
     expect(availIds).not.toContain("today");
     expect(availIds).not.toContain("library");

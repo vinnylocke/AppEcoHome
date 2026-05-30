@@ -49,18 +49,18 @@ function installMockLocalStorage(): { restore: () => void } {
 
 describe("sanitisePins", () => {
   test("drops unknown ids", () => {
-    const result = sanitisePins(["lens", "not-a-real-id", "today"]);
-    expect(result).toEqual(["lens", "today"]);
+    const result = sanitisePins(["doctor", "not-a-real-id", "today"]);
+    expect(result).toEqual(["doctor", "today"]);
   });
 
   test("drops duplicates preserving first occurrence", () => {
-    const result = sanitisePins(["lens", "today", "lens", "capture"]);
-    expect(result).toEqual(["lens", "today", "capture"]);
+    const result = sanitisePins(["doctor", "today", "doctor", "capture"]);
+    expect(result).toEqual(["doctor", "today", "capture"]);
   });
 
   test("trims to MAX (10)", () => {
     const result = sanitisePins([
-      "lens",
+      "visualiser",
       "today",
       "capture",
       "library",
@@ -75,7 +75,7 @@ describe("sanitisePins", () => {
     ]);
     expect(result).toHaveLength(10);
     expect(result).toEqual([
-      "lens",
+      "visualiser",
       "today",
       "capture",
       "library",
@@ -95,7 +95,7 @@ describe("sanitisePins", () => {
   test("falls back to defaults when input is not an array", () => {
     expect(sanitisePins(null)).toEqual([...DEFAULT_QUICK_LAUNCHER_PINS]);
     expect(sanitisePins(undefined)).toEqual([...DEFAULT_QUICK_LAUNCHER_PINS]);
-    expect(sanitisePins("lens" as unknown)).toEqual([
+    expect(sanitisePins("doctor" as unknown)).toEqual([
       ...DEFAULT_QUICK_LAUNCHER_PINS,
     ]);
   });
@@ -107,8 +107,8 @@ describe("sanitisePins", () => {
   });
 
   test("ignores non-string entries", () => {
-    expect(sanitisePins([1, true, "lens", null, "today"])).toEqual([
-      "lens",
+    expect(sanitisePins([1, true, "doctor", null, "today"])).toEqual([
+      "doctor",
       "today",
     ]);
   });
@@ -153,7 +153,7 @@ describe("readLocalPins / writeLocalPins / clearLocalPins", () => {
   });
 
   test("write sanitises before persisting", () => {
-    writeLocalPins(["lens", "lens", "bogus", "today"]);
-    expect(readLocalPins()).toEqual(["lens", "today"]);
+    writeLocalPins(["doctor", "doctor", "bogus", "today"]);
+    expect(readLocalPins()).toEqual(["doctor", "today"]);
   });
 });

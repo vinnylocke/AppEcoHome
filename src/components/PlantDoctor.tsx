@@ -155,7 +155,7 @@ export default function PlantDoctor({
         const blob = await res.blob();
         if (cancelled) return;
         if (blob.size > 10 * 1024 * 1024) {
-          toast.error("Image too large for Plant Doctor");
+          toast.error("Image too large for Plant Lens");
           return;
         }
         const file = new File([blob], "bed-photo.jpg", { type: blob.type || "image/jpeg" });
@@ -814,10 +814,10 @@ export default function PlantDoctor({
             <div>
               <h1 className="text-2xl sm:text-3xl font-black font-display text-rhozly-on-surface tracking-tight flex items-center gap-3">
                 <IconDoctor className="w-8 h-8 text-rhozly-primary" />
-                Plant Doctor
+                Plant Lens
               </h1>
               <p className="text-xs sm:text-sm font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-1">
-                Take a photo — Rhozly will identify your plant or spot what's wrong
+                Take a photo — Rhozly will identify it, spot what's wrong and suggest care tasks
               </p>
             </div>
             <div className="flex gap-1 bg-rhozly-surface-low rounded-2xl p-1 shrink-0">

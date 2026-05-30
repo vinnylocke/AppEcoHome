@@ -30,12 +30,8 @@ test.describe("Quick Access — mobile routing", () => {
     await expect(authenticatedPage.getByTestId("quick-tile-journal")).toBeVisible();
   });
 
-  test("QUICK-003: tapping Visual Lens tile navigates to /quick/lens", async ({ authenticatedPage }) => {
-    await authenticatedPage.goto("/quick");
-    await authenticatedPage.getByTestId("quick-tile-lens").click();
-    await expect(authenticatedPage).toHaveURL(/\/quick\/lens$/);
-    await expect(authenticatedPage.getByTestId("quick-access-lens")).toBeVisible();
-  });
+  // QUICK-003 retired: /quick/lens removed; the equivalent of the Lens is
+  // the full Plant Lens at /doctor (default-pinned as the "doctor" tile).
 
   test("QUICK-004: Calendar tile shows toast and stays on /quick", async ({ authenticatedPage }) => {
     await authenticatedPage.goto("/quick");
@@ -63,22 +59,8 @@ test.describe("Quick Access — mobile routing", () => {
     await expect(authenticatedPage).toHaveURL(/\/dashboard$/);
   });
 
-  test("QUICK-007: lens screen mounts Analyse button in compact mode", async ({ authenticatedPage }) => {
-    await authenticatedPage.goto("/quick/lens");
-    await expect(authenticatedPage.getByTestId("quick-access-lens")).toBeVisible();
-    await expect(authenticatedPage.getByTestId("doctor-btn-analyse")).toBeVisible();
-    // Compact mode hides Identify/Diagnose/Pest secondary row + the tab bar
-    await expect(authenticatedPage.getByTestId("doctor-btn-identify")).toBeHidden();
-    await expect(authenticatedPage.getByTestId("doctor-btn-diagnose")).toBeHidden();
-    await expect(authenticatedPage.getByTestId("doctor-btn-pest")).toBeHidden();
-    await expect(authenticatedPage.getByTestId("doctor-tab-analyse")).toBeHidden();
-  });
-
-  test("QUICK-008: back button on lens returns to /quick", async ({ authenticatedPage }) => {
-    await authenticatedPage.goto("/quick/lens");
-    await authenticatedPage.getByTestId("quick-lens-back").click();
-    await expect(authenticatedPage).toHaveURL(/\/quick$/);
-  });
+  // QUICK-007 / QUICK-008 retired: the /quick/lens route and its component
+  // were removed in favour of the full Plant Lens at /doctor.
 });
 
 test.describe("Quick Access — desktop routing", () => {
@@ -145,12 +127,10 @@ test.describe("Quick Access focus mode (Wave 6)", () => {
     await expect(authenticatedPage).toHaveURL(/\/quick$/);
   });
 
-  test("QUICK-016: focus mode also applies to /quick/calendar and /quick/journal", async ({ authenticatedPage }) => {
+  test("QUICK-016: focus mode also applies to /quick/calendar", async ({ authenticatedPage }) => {
+    // /quick/journal was retired alongside the standalone Capture page —
+    // the Capture tile now deep-links into the full /journal screen.
     await authenticatedPage.goto("/quick/calendar");
-    await expect(authenticatedPage.getByRole("banner")).toHaveCount(0);
-    await expect(authenticatedPage.getByTestId("quick-access-menu-button")).toBeVisible();
-
-    await authenticatedPage.goto("/quick/journal");
     await expect(authenticatedPage.getByRole("banner")).toHaveCount(0);
     await expect(authenticatedPage.getByTestId("quick-access-menu-button")).toBeVisible();
   });

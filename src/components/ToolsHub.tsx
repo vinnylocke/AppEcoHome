@@ -76,8 +76,8 @@ const GROUPS: ToolGroup[] = [
       {
         id: "plant-doctor",
         icon: <IconDoctor size={22} />,
-        label: "Plant Doctor",
-        description: "Identify plants, diagnose problems, and get AI-powered care advice.",
+        label: "Plant Lens",
+        description: "Snap a plant — identify it, diagnose problems and get AI care suggestions.",
         path: "/doctor",
         color: "bg-emerald-100 text-emerald-700 border-emerald-200",
       },
@@ -114,7 +114,7 @@ const WORKFLOWS: Workflow[] = [
     id: "sick-plant",
     label: "A plant looks unwell",
     steps: [
-      { label: "Snap a photo with Plant Doctor", path: "/doctor" },
+      { label: "Snap a photo with Plant Lens", path: "/doctor" },
       { label: "Confirm against guides",       path: "/guides" },
       { label: "Track on Watchlist",           path: "/shed?tab=watchlist" },
     ],

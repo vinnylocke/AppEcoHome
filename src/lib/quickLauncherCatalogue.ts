@@ -6,7 +6,6 @@ import {
   Sprout,
   ClipboardList,
   Footprints,
-  Stethoscope,
   ShoppingCart,
   LayoutGrid,
   ScanLine,
@@ -85,14 +84,6 @@ const todayPrefetch = ({ homeId }: { homeId: string | null }) => {
 
 export const QUICK_LAUNCHER_CATALOGUE: readonly QuickLauncherDestination[] = [
   {
-    id: "lens",
-    label: "Lens",
-    description: "Identify, diagnose, get tasks from a photo.",
-    icon: Camera,
-    accent: "green",
-    route: "/quick/lens",
-  },
-  {
     id: "today",
     label: "Today",
     description: "Tasks, rain forecast, planting helper.",
@@ -104,10 +95,10 @@ export const QUICK_LAUNCHER_CATALOGUE: readonly QuickLauncherDestination[] = [
   {
     id: "capture",
     label: "Capture",
-    description: "Snap a photo and jot a note — file later.",
+    description: "Snap a photo and jot a note — files into your journal.",
     icon: NotebookPen,
     accent: "red",
-    route: "/quick/journal",
+    route: "/journal?open=add-entry",
   },
   {
     id: "library",
@@ -142,11 +133,13 @@ export const QUICK_LAUNCHER_CATALOGUE: readonly QuickLauncherDestination[] = [
     route: "/walk",
   },
   {
+    // The id stays "doctor" for backward-compatibility with persisted user
+    // pins — the user-visible label/icon is what's been refreshed.
     id: "doctor",
-    label: "Doctor",
-    description: "Full Plant Doctor — history, chat, deeper analysis.",
-    icon: Stethoscope,
-    accent: "red",
+    label: "Plant Lens",
+    description: "Snap a plant to identify it, diagnose problems and get care tasks.",
+    icon: Camera,
+    accent: "green",
     route: "/doctor",
   },
   {
@@ -213,7 +206,7 @@ export const QUICK_LAUNCHER_BY_ID: Record<string, QuickLauncherDestination> =
 
 /** The default pin set when the user has no preference saved. */
 export const DEFAULT_QUICK_LAUNCHER_PINS: readonly string[] = [
-  "lens",
+  "doctor",
   "today",
   "capture",
   "library",

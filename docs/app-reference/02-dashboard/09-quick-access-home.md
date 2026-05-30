@@ -1,6 +1,8 @@
 # Quick Access Home
 
-> The mobile shortcut home. A customisable launcher tuned for one-thumb operation in the garden — by default Lens, Today (Localized Task Calendar), Capture (Quick Capture Journal), and Library, but users can swap in any of the catalogue's destinations (Plants, Planner, Walk, Doctor, Shopping) and reorder them from Account Settings. Phone users land here on app open instead of the full dashboard; the full dashboard is still a tap away.
+> The mobile shortcut home. A customisable launcher tuned for one-thumb operation in the garden — by default **Plant Lens** (the full `/doctor` Plant Doctor, rebranded), **Today** (Localized Task Calendar), **Capture** (deep-links into the full Journal with the Add Entry sheet open), and **Library**. Users can swap in any of the catalogue's destinations and reorder them from Account Settings. Phone users land here on app open instead of the full dashboard.
+
+> **Retired:** the `/quick/lens` route (and its `QuickAccessLens` wrapper) and the `/quick/journal` route (with `QuickCapture`) — their tiles now route to `/doctor` and `/journal?open=add-entry` respectively. The historical body below still references those routes for context but should be read with that in mind.
 
 **Route:** `/quick`
 **Source files (entry points):**
