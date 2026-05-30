@@ -13,16 +13,15 @@ BrowserRouter
     ├── /quick             ← QuickAccessHome (Mobile Quick Access Wave 2 — mobile home page)
     │     └── (retired: /quick/lens, /quick/journal — see Wave 17 notes)
     ├── /quick/calendar    ← LocalizedTaskCalendar (Mobile Quick Access Wave 3 — planting + rain advice + today's tasks)
-    ├── /library/*         ← LibraryHome (The Library — plant database)
-    │     ├── /library/search        ← LibrarySearchTab (multi-provider search, ?q= persists query)
-    │     ├── /library/saved         ← LibrarySavedTab  (filterable list of Shed plants)
-    │     └── /library/plant/:plantId ← PlantPreview     (Care / Grow / Companions / Light tabs + Save CTA)
+    │   (retired: /library/* — the entire Library UI was removed in Wave 17.
+    │    Plant search is now in-context (Add-to-Shed / Shopping / Multi-ID /
+    │    Nursery picker); the detail overlay is PlantDetailModal, opened from
+    │    any search-result row + Seasonal Picks tiles.)
     ├── /walk              ← GardenWalk (guided card-per-plant inspection)
     │
-    │   (Wave 6: on mobile, the /quick/* AND /library/* AND /walk routes
-    │    render in focus mode — persistent top bar + side nav hidden;
-    │    QuickAccessMenuButton + MobileNavDrawer provide nav access on
-    │    demand. Desktop unchanged.)
+    │   (Wave 6: on mobile, the /quick/* AND /walk routes render in focus
+    │    mode — persistent top bar + side nav hidden; QuickAccessMenuButton +
+    │    MobileNavDrawer provide nav access on demand. Desktop unchanged.)
     ├── /dashboard         ← Home (Dashboard / Locations / Calendar / Weather sub-tabs via ?view=)
     ├── /shed              ← TheShed
     ├── /schedule          ← BlueprintManager

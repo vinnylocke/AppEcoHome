@@ -28,6 +28,9 @@ interface Props {
   subscriptionTier?: SubscriptionTier | null;
   /** Whether the user has an AI-enabled tier. */
   aiEnabled?: boolean;
+  /** Whether the user has the premium (Perenual) tier — threaded through to
+   *  the embedded `<SeasonalPicksCard>`'s detail-modal overlay. */
+  isPremium?: boolean;
   /** Whether the user is a beta participant — gates beta-only destinations. */
   isBeta?: boolean;
 }
@@ -56,6 +59,7 @@ export default function QuickAccessHome({
   userId,
   subscriptionTier,
   aiEnabled = false,
+  isPremium = false,
   isBeta = false,
 }: Props) {
   const navigate = useNavigate();
@@ -260,7 +264,7 @@ export default function QuickAccessHome({
           all fit on a typical phone viewport. */}
       {homeId && (
         <div className="shrink-0 mb-3">
-          <SeasonalPicksCard homeId={homeId} variant="carousel" />
+          <SeasonalPicksCard homeId={homeId} aiEnabled={aiEnabled} isPremium={isPremium} variant="carousel" />
         </div>
       )}
 

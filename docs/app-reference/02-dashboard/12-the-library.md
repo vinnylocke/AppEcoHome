@@ -1,8 +1,14 @@
-# The Library
+# The Library — **RETIRED**
 
-> Browse the plant database — search any species, see its care guide, grow guide, companions and light requirements, save what you want to your Shed.
+> **This surface has been removed.** The standalone `/library/*` screens (search, saved, plant preview) were retired in favour of in-context plant search. The `plant_library` database table is **unchanged** and still feeds every plant search in the app.
+>
+> - **Search any species:** use the **Add Plant** flow in The Shed (`/shed`), the Shopping Add-Item sheet, the Nursery picker, or **Plant Lens** (`/doctor`) — all backed by the shared `<PlantSearch>` component.
+> - **Care guide / Grow guide / Companions / Light overlay:** opened by tapping a search result's ⓘ → **See full care** anywhere; the **Seasonal Picks** card also opens the same overlay (`PlantDetailModal`) when you tap a pick.
+> - **Save to Shed:** the search-result row's checkbox / Add button.
 
-**Route / how to reach it:** `/library/search` (and `/library/saved`, `/library/plant/:plantId`). Surfaced as a Quick Access tile on `/quick` on mobile; reachable on desktop via direct URL.
+The body below is preserved for historical reference; the routes and component files it describes no longer exist.
+
+**Route / how to reach it:** ~~`/library/search` / `/library/saved` / `/library/plant/:plantId`~~ — **retired**.
 **Source files (entry points):**
 - `src/components/library/LibraryHome.tsx`
 - `src/components/library/LibrarySearchTab.tsx`

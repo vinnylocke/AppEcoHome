@@ -52,10 +52,10 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [AI Assistant Card](./02-dashboard/06-assistant-card.md) — user_insights surface
 - [x] [Location Page (Drill-In)](./02-dashboard/07-location-page.md) — `?locationId=` view
 - [x] [Weather Alert Banner](./02-dashboard/08-weather-alert-banner.md) — frost / heat / wind / rain alerts
-- [x] [Quick Access Home](./02-dashboard/09-quick-access-home.md) — mobile shortcut home (`/quick`) with the customisable launcher (defaults: **Plant Lens / Today / Capture / Library**)
+- [x] [Quick Access Home](./02-dashboard/09-quick-access-home.md) — mobile shortcut home (`/quick`) with the customisable launcher (defaults: **Plant Lens / Today / Capture / Plants**)
 - [x] [Localized Task Calendar](./02-dashboard/10-localized-task-calendar.md) — mobile `/quick/calendar` with frost-aware planting helper, rain-vs-watering advice, and today's pending tasks
 - [~] [Quick Capture Journal](./02-dashboard/11-quick-capture-journal.md) — **RETIRED:** `/quick/journal` removed; Capture tile now deep-links to `/journal?open=add-entry`
-- [x] [The Library](./02-dashboard/12-the-library.md) — `/library/*` plant database — search any species, preview care / grow guide / companions / light, save to Shed
+- [~] [The Library](./02-dashboard/12-the-library.md) — **RETIRED:** `/library/*` UI removed. Plant search lives inside Add-to-Shed, Shopping, Multi-ID and the Nursery picker; the `plant_library` DB table is unchanged. The detail overlay (Care / Grow Guide / Companions / Light) is now `PlantDetailModal`, opened from any search-result row.
 - [x] [Garden Walk](./02-dashboard/13-garden-walk.md) — `/walk` guided card-by-card tour of every plant; Snap / Note / All good / Skip per plant with rolled-up session summary
 - [x] [Seasonal Picks Card](./02-dashboard/14-seasonal-picks.md) — "what can I grow right now?" — weekly card on Dashboard + Today screen with 4-6 personalised, hemisphere/frost-aware sowing picks; AI for Sage+, deterministic fallback for Sprout/Botanist
 

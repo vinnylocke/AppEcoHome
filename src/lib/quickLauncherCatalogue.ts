@@ -2,7 +2,6 @@ import {
   Camera,
   CalendarDays,
   NotebookPen,
-  BookOpen,
   Sprout,
   ClipboardList,
   Footprints,
@@ -101,19 +100,14 @@ export const QUICK_LAUNCHER_CATALOGUE: readonly QuickLauncherDestination[] = [
     route: "/journal?open=add-entry",
   },
   {
-    id: "library",
-    label: "Library",
-    description: "Search any plant — care guide, grow guide, save.",
-    icon: BookOpen,
-    accent: "blue",
-    route: "/library/search",
-  },
-  {
     id: "shed",
     label: "Plants",
-    description: "Jump straight to The Shed.",
+    description: "Jump straight to your plants in The Shed.",
     icon: Sprout,
-    accent: "green",
+    // Takes over the slot the retired "library" tile freed up so the four
+    // default pins (doctor / today / capture / shed) each have a distinct
+    // accent — Plant Lens is already green.
+    accent: "blue",
     route: "/shed",
   },
   {
@@ -209,7 +203,7 @@ export const DEFAULT_QUICK_LAUNCHER_PINS: readonly string[] = [
   "doctor",
   "today",
   "capture",
-  "library",
+  "shed",
 ];
 
 export const QUICK_LAUNCHER_MIN = 1;

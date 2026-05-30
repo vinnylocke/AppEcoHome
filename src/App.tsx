@@ -88,7 +88,6 @@ const PlantDoctor         = lazy(() => import("./components/PlantDoctor"));
 const QuickAccessHome     = lazy(() => import("./components/QuickAccessHome"));
 const LocalizedTaskCalendar = lazy(() => import("./components/quick/LocalizedTaskCalendar"));
 const GlobalJournal         = lazy(() => import("./components/GlobalJournal"));
-const LibraryHome           = lazy(() => import("./components/library/LibraryHome"));
 const GardenWalk            = lazy(() => import("./components/walk/GardenWalk"));
 const MobileNavDrawer       = lazy(() => import("./components/MobileNavDrawer"));
 const QuickAccessMenuButton = lazy(() => import("./components/QuickAccessMenuButton"));
@@ -216,12 +215,10 @@ function AppShell() {
   const isMobile = useIsMobile();
   // Mobile Quick Access Wave 6 — focus-mode shell on /quick/* mobile routes:
   // hide the top bar + persistent side nav, expose nav via an overlay drawer.
-  // The Library lives at /library/* and Garden Walk at /walk; both share
-  // the focus-mode treatment.
+  // Garden Walk at /walk shares the focus-mode treatment.
   const isFocusMode =
     isMobile &&
     (routerLocation.pathname.startsWith("/quick") ||
-      routerLocation.pathname.startsWith("/library") ||
       routerLocation.pathname.startsWith("/walk"));
   const [quickDrawerOpen, setQuickDrawerOpen] = useState(false);
 
@@ -1234,6 +1231,7 @@ function AppShell() {
                             userId={session?.user?.id ?? null}
                             subscriptionTier={profile?.subscription_tier ?? null}
                             aiEnabled={!!profile?.ai_enabled}
+                            isPremium={!!profile?.enable_perenual}
                             isBeta={!!profile?.is_beta}
                           />
                         </div>
@@ -1241,15 +1239,6 @@ function AppShell() {
                       <Route path="/quick/calendar" element={
                         <div className="h-full animate-in fade-in duration-500">
                           <LocalizedTaskCalendar
-                            homeId={profile?.home_id ?? ""}
-                            aiEnabled={!!profile?.ai_enabled}
-                          />
-                        </div>
-                      } />
-
-                      <Route path="/library/*" element={
-                        <div className="h-full animate-in fade-in duration-500">
-                          <LibraryHome
                             homeId={profile?.home_id ?? ""}
                             aiEnabled={!!profile?.ai_enabled}
                             isPremium={!!profile?.enable_perenual}
@@ -1413,7 +1402,7 @@ function AppShell() {
                                     {/* Weekly stats + today's tasks */}
                                     <Suspense fallback={RouteFallback}>
                                       {profile?.home_id && (
-                                        <HomeDashboard homeId={profile.home_id} />
+                                        <HomeDashboard homeId={profile.home_id} aiEnabled={!!profile?.ai_enabled} isPremium={!!profile?.enable_perenual} />
                                       )}
                                     </Suspense>
                                   </div>

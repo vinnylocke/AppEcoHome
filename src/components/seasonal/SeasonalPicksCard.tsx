@@ -7,9 +7,15 @@ import {
 import { Logger } from "../../lib/errorHandler";
 import { logEvent, EVENT } from "../../events/registry";
 import SeasonalPickTile from "./SeasonalPickTile";
+import PlantDetailModal from "../PlantDetailModal";
+import type { ProviderSearchResult } from "../../lib/verdantlyUtils";
 
 interface Props {
   homeId: string;
+  /** Threaded through to the in-card `PlantDetailModal` so the Grow Guide /
+   *  Companions / Light tabs gate correctly when a pick is opened. */
+  aiEnabled: boolean;
+  isPremium: boolean;
   /**
    * `today`     — Today screen. Horizontal scroll showing 1.x tiles at a time.
    * `dashboard` — Full-width desktop card. Responsive grid.
@@ -30,6 +36,8 @@ interface Props {
  */
 export default function SeasonalPicksCard({
   homeId,
+  aiEnabled,
+  isPremium,
   variant = "dashboard",
   hideRefresh = false,
 }: Props) {
@@ -37,6 +45,9 @@ export default function SeasonalPicksCard({
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Detail overlay for a tapped pick — same Care/Grow Guide/Companions/Light
+  // modal we use from plant search results everywhere else.
+  const [detailResult, setDetailResult] = useState<ProviderSearchResult | null>(null);
   // One-shot logEvent guard so two mounts of the card (Today + Dashboard
   // visible together on a tablet) don't double-fire the analytics event.
   const loggedRef = useRef(false);
@@ -210,7 +221,7 @@ export default function SeasonalPicksCard({
         >
           {payload.picks.map((pick, i) => (
             <div key={`${pick.scientific_name}-${i}`} className="snap-start">
-              <SeasonalPickTile pick={pick} index={i} />
+              <SeasonalPickTile pick={pick} index={i} onOpen={setDetailResult} />
             </div>
           ))}
         </div>
@@ -221,7 +232,7 @@ export default function SeasonalPicksCard({
           className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
         >
           {payload.picks.map((pick, i) => (
-            <SeasonalPickTile key={`${pick.scientific_name}-${i}`} pick={pick} index={i} />
+            <SeasonalPickTile key={`${pick.scientific_name}-${i}`} pick={pick} index={i} onOpen={setDetailResult} />
           ))}
         </div>
       )}
@@ -243,7 +254,7 @@ export default function SeasonalPicksCard({
                 key={`${pick.scientific_name}-${i}`}
                 className="snap-start shrink-0 w-full pr-2 last:pr-0 [&>button]:!w-full"
               >
-                <SeasonalPickTile pick={pick} index={i} />
+                <SeasonalPickTile pick={pick} index={i} onOpen={setDetailResult} />
               </div>
             ))}
           </div>
@@ -268,6 +279,15 @@ export default function SeasonalPicksCard({
             </div>
           )}
         </>
+      )}
+      {detailResult && (
+        <PlantDetailModal
+          result={detailResult}
+          homeId={homeId}
+          aiEnabled={aiEnabled}
+          isPremium={isPremium}
+          onClose={() => setDetailResult(null)}
+        />
       )}
     </section>
   );

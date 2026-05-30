@@ -14,6 +14,7 @@ import SeasonalPicksCard from "../seasonal/SeasonalPicksCard";
 interface Props {
   homeId: string;
   aiEnabled: boolean;
+  isPremium: boolean;
 }
 
 interface ClimateThresholds {
@@ -30,7 +31,7 @@ const DEFAULTS: ClimateThresholds = { rain_skip_mm: 5, rain_water_mm: 1 };
  *   2. RainWaterAdvice (synthesised locally — no AI)
  *   3. TaskList compact (today's pending)
  */
-export default function LocalizedTaskCalendar({ homeId, aiEnabled }: Props) {
+export default function LocalizedTaskCalendar({ homeId, aiEnabled, isPremium }: Props) {
   const navigate = useNavigate();
   const { can } = usePermissions();
   const [rain, setRain] = useState<{ today: number; tomorrow: number } | null>(null);
@@ -144,7 +145,7 @@ export default function LocalizedTaskCalendar({ homeId, aiEnabled }: Props) {
         ) : null}
 
         {/* 3. Seasonal picks — "what to grow this week", horizontal scroll. */}
-        <SeasonalPicksCard homeId={homeId} variant="today" />
+        <SeasonalPicksCard homeId={homeId} aiEnabled={aiEnabled} isPremium={isPremium} variant="today" />
 
         {/* 4. Today's tasks (compact) */}
         <section

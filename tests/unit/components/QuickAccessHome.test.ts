@@ -72,7 +72,7 @@ describe("QuickAccessHome", () => {
     expect(screen.getByTestId("quick-tile-doctor")).toBeTruthy();
     expect(screen.getByTestId("quick-tile-today")).toBeTruthy();
     expect(screen.getByTestId("quick-tile-capture")).toBeTruthy();
-    expect(screen.getByTestId("quick-tile-library")).toBeTruthy();
+    expect(screen.getByTestId("quick-tile-shed")).toBeTruthy();
   });
 
   test("tapping Plant Lens (doctor) tile navigates to /doctor", () => {
@@ -185,7 +185,7 @@ describe("QuickAccessHome", () => {
       screen.getByTestId("quick-tile-capture").getAttribute("data-accent"),
     ).toBe("red");
     expect(
-      screen.getByTestId("quick-tile-library").getAttribute("data-accent"),
+      screen.getByTestId("quick-tile-shed").getAttribute("data-accent"),
     ).toBe("blue");
   });
 
@@ -242,7 +242,7 @@ describe("QuickAccessHome", () => {
     expect(grid).toBeTruthy();
     expect(grid.className).toContain("grid-cols-2");
     expect(grid.getAttribute("data-pinned-count")).toBe("4");
-    expect(screen.getByTestId("quick-tile-library")).toBeTruthy();
+    expect(screen.getByTestId("quick-tile-shed")).toBeTruthy();
   });
 
   test("each tile uses the compact layout", () => {
@@ -251,7 +251,7 @@ describe("QuickAccessHome", () => {
       "quick-tile-doctor",
       "quick-tile-today",
       "quick-tile-capture",
-      "quick-tile-library",
+      "quick-tile-shed",
     ]) {
       expect(screen.getByTestId(id).getAttribute("data-layout")).toBe("compact");
     }

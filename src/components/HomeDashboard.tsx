@@ -23,6 +23,10 @@ import { usePersona } from "../hooks/usePersona";
 
 interface Props {
   homeId: string;
+  /** Threaded through to the in-dashboard `<SeasonalPicksCard>` so its
+   *  `PlantDetailModal` overlay gates Grow Guide / Companions correctly. */
+  aiEnabled: boolean;
+  isPremium: boolean;
 }
 
 const DAY_LABELS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -488,7 +492,7 @@ function formatWeekRange(weekStart: string | null, weekEnd: string | null): stri
   return `${fmt(weekStart)} – ${fmt(weekEnd)}`;
 }
 
-export default function HomeDashboard({ homeId }: Props) {
+export default function HomeDashboard({ homeId, aiEnabled, isPremium }: Props) {
   const { stats, loading, error, refresh, weekStart, weekEnd } = useHomeDashboardStats(homeId);
   const weekRange = formatWeekRange(weekStart, weekEnd);
   const persona = usePersona();
@@ -554,7 +558,7 @@ export default function HomeDashboard({ homeId }: Props) {
       {/* "What can I grow right now?" — personalised, hemisphere-aware
           picks for this ISO week. Especially valuable for new gardeners
           with an empty Shed — it's their "where do I start" answer. */}
-      <SeasonalPicksCard homeId={homeId} variant="dashboard" />
+      <SeasonalPicksCard homeId={homeId} aiEnabled={aiEnabled} isPremium={isPremium} variant="dashboard" />
 
       {/* Two-column layout: stats left, tasks right — stacks on mobile */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">

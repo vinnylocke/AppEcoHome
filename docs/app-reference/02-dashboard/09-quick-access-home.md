@@ -1,8 +1,8 @@
 # Quick Access Home
 
-> The mobile shortcut home. A customisable launcher tuned for one-thumb operation in the garden — by default **Plant Lens** (the full `/doctor` Plant Doctor, rebranded), **Today** (Localized Task Calendar), **Capture** (deep-links into the full Journal with the Add Entry sheet open), and **Library**. Users can swap in any of the catalogue's destinations and reorder them from Account Settings. Phone users land here on app open instead of the full dashboard.
+> The mobile shortcut home. A customisable launcher tuned for one-thumb operation in the garden — by default **Plant Lens** (the full `/doctor` Plant Doctor, rebranded), **Today** (Localized Task Calendar), **Capture** (deep-links into the full Journal with the Add Entry sheet open), and **Plants** (jumps straight to The Shed). Users can swap in any of the catalogue's destinations and reorder them from Account Settings. Phone users land here on app open instead of the full dashboard.
 
-> **Retired:** the `/quick/lens` route (and its `QuickAccessLens` wrapper) and the `/quick/journal` route (with `QuickCapture`) — their tiles now route to `/doctor` and `/journal?open=add-entry` respectively. The historical body below still references those routes for context but should be read with that in mind.
+> **Retired:** the `/quick/lens` route (and its `QuickAccessLens` wrapper), the `/quick/journal` route (with `QuickCapture`), and the entire `/library/*` UI tree — their tiles now route to `/doctor`, `/journal?open=add-entry`, and `/shed` respectively. Plant search lives inside Add-to-Shed, Shopping, Multi-ID, and the Nursery picker; the `plant_library` DB table is unchanged. The historical body below still references those routes for context but should be read with that in mind.
 
 **Route:** `/quick`
 **Source files (entry points):**

@@ -18,7 +18,7 @@ describe("QUICK_LAUNCHER_CATALOGUE", () => {
   test("contains the four defaults", () => {
     const ids = QUICK_LAUNCHER_CATALOGUE.map((d) => d.id);
     expect(ids).toEqual(
-      expect.arrayContaining(["doctor", "today", "capture", "library"]),
+      expect.arrayContaining(["doctor", "today", "capture", "shed"]),
     );
   });
 
@@ -72,16 +72,16 @@ describe("resolvePins", () => {
 describe("partitionForPicker", () => {
   test("splits pins from available in catalogue order", () => {
     const { pinned, available } = partitionForPicker(
-      ["today", "library"],
+      ["today", "shed"],
       baseCtx,
     );
-    expect(pinned.map((d) => d.id)).toEqual(["today", "library"]);
+    expect(pinned.map((d) => d.id)).toEqual(["today", "shed"]);
     // 'capture' (the next catalogue entry after the pinned ones) should
     // sit ahead of 'shed', 'planner', etc.
     const availIds = available.map((d) => d.id);
     expect(availIds[0]).toBe("capture");
     expect(availIds).toContain("capture");
     expect(availIds).not.toContain("today");
-    expect(availIds).not.toContain("library");
+    expect(availIds).not.toContain("shed");
   });
 });

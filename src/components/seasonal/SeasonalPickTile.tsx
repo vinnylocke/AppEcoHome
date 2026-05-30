@@ -1,5 +1,4 @@
 import React, { useEffect, useState } from "react";
-import { useLocation, useNavigate } from "react-router-dom";
 import {
   Sprout, Home as HomeIcon, Scissors, Combine, MoveRight,
   Sun, CloudSun, Cloud, Trees, Carrot, Flower2, ChevronRight,
@@ -14,6 +13,9 @@ interface Props {
   pick: SeasonalPick;
   /** Test-id suffix so list rendering produces unique ids. */
   index: number;
+  /** Open this pick in the shared `PlantDetailModal` overlay (Care / Grow
+   *  Guide / Companions / Light). The parent card owns the modal state. */
+  onOpen: (result: ProviderSearchResult) => void;
 }
 
 const SOW_ICON: Record<SeasonalPick["sow_method"], React.ReactNode> = {
@@ -50,14 +52,13 @@ function shortMonth(iso: string): string {
  * lazily (we cache per common_name in sessionStorage via the wiki helper
  * so the second time the card mounts the image is instant).
  *
- * Tap → routes to the existing PlantPreview at `/library/plant/preview`
- * with a synthesised `ProviderSearchResult` carried in `location.state`.
- * PlantPreview will fire `ensureCataloguePlantFromSearchResult` in the
- * background and swap the URL to `/library/plant/:id` once resolved.
+ * Tap → hands a synthesised `ProviderSearchResult` up to the parent card,
+ * which opens it in the shared `PlantDetailModal` overlay (Care / Grow
+ * Guide / Companions / Light). The catalogue ensure (clone-from-library or
+ * Gemini) happens inside the modal's `useCataloguePlantFromResult` hook —
+ * same path every other plant-search consumer takes.
  */
-export default function SeasonalPickTile({ pick, index }: Props) {
-  const navigate = useNavigate();
-  const routerLocation = useLocation();
+export default function SeasonalPickTile({ pick, index, onOpen }: Props) {
   const [thumb, setThumb] = useState<string | null>(null);
   const [imgErrored, setImgErrored] = useState(false);
 
@@ -94,12 +95,7 @@ export default function SeasonalPickTile({ pick, index }: Props) {
       effort: pick.effort,
       edible: pick.edible,
     });
-    // Pass `from` so PlantPreview's in-page back button can return us
-    // to the originating route (Dashboard / Today / Quick Access menu)
-    // rather than its default of /library/search — which is the route
-    // the user has never visited when they came in via a seasonal pick.
-    const from = routerLocation.pathname + routerLocation.search;
-    navigate("/library/plant/preview", { state: { result: synthResult, from } });
+    onOpen(synthResult);
   };
 
   const window =
