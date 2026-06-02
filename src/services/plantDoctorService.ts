@@ -35,6 +35,52 @@ export interface VisionResult {
   severity?: "Low" | "Medium" | "High" | "Healthy" | null;
   environmental_factors?: string[] | null;
   immediate_actions?: string[] | null;
+  plantnet?: PlantNetIdentificationBlock | null;
+}
+
+/** Plant organ tag passed to Pl@ntNet alongside each image. `auto` lets
+ *  Pl@ntNet decide. Explicit tags measurably improve accuracy. */
+export type PlantOrgan = "auto" | "leaf" | "flower" | "fruit" | "bark";
+
+/** A single image input. Used by every single-plant action (multi-ID still
+ *  accepts only one). */
+export interface PhotoInput {
+  /** Base64-encoded image data, no `data:image/…;base64,` prefix. */
+  base64: string;
+  mimeType: string;
+  organ?: PlantOrgan;
+}
+
+export interface PlantNetMatch {
+  score: number;                          // 0–1
+  commonName: string | null;
+  scientificName: string;                 // species without authorship
+  scientificNameAuthored?: string | null;
+  genus?: string | null;
+  family?: string | null;
+  gbifId?: string | null;
+}
+
+export type IdentificationSource =
+  | "plantnet"                            // Trusted, Gemini skipped
+  | "plantnet+ai_confirmed"               // Cross-check agreed
+  | "plantnet_vs_ai_disagreement"         // Cross-check differed
+  | "ai_fallback";                        // No Pl@ntNet usable
+
+/** What the edge function returns under `plantnet` on identify_vision and
+ *  analyse_comprehensive responses. `null` when Pl@ntNet wasn't queried. */
+export interface PlantNetIdentificationBlock {
+  best_match: PlantNetMatch | null;
+  top_matches: PlantNetMatch[];
+  identification_source: IdentificationSource;
+  /** When `identification_source === "plantnet_vs_ai_disagreement"`, the
+   *  Gemini-suggested scientific name lives here so the UI can offer a
+   *  "AI suggested X" chip alongside the Pl@ntNet match. */
+  ai_suggested_name: string | null;
+  remaining_requests: number | null;
+  /** Set when Pl@ntNet itself errored — the UI may surface a quiet note
+   *  but the response is otherwise pure Gemini fallback. */
+  error?: string;
 }
 
 /**
@@ -122,6 +168,9 @@ export interface AnalyseResult {
     prevention_methods: string[];
   } | null;
   suggested_tasks: SuggestedTask[];
+  /** Pl@ntNet provenance + cross-check decision. Null when Pl@ntNet
+   *  wasn't queried (e.g. the caller already supplied `targetPlant`). */
+  plantnet?: PlantNetIdentificationBlock | null;
 }
 
 /**
@@ -253,8 +302,8 @@ async function invoke<T>(body: Record<string, unknown>): Promise<T> {
 export const PlantDoctorService = {
   analyzeImage(params: {
     homeId?: string;
-    imageBase64: string;
-    mimeType: string;
+    /** Up to 5 images. Single-photo callers pass an array of length 1. */
+    images: PhotoInput[];
     action: "identify_vision" | "diagnose" | "identify_pest";
     plantSearch?: string;
     targetPlant?: string;
@@ -268,8 +317,8 @@ export const PlantDoctorService = {
 
   analyseComprehensive(params: {
     homeId?: string;
-    imageBase64: string;
-    mimeType: string;
+    /** Up to 5 images for the comprehensive analyse. */
+    images: PhotoInput[];
     targetPlant?: string;
     inventoryItemId?: string;
     areaId?: string;
@@ -282,8 +331,8 @@ export const PlantDoctorService = {
   // Multi-ID — one photo of several plants → a box + ranked IDs per plant.
   async identifyScene(params: {
     homeId?: string;
-    imageBase64: string;
-    mimeType: string;
+    /** Multi-ID is intentionally single-photo. */
+    images: [PhotoInput];
     deviceLat?: number;
     deviceLng?: number;
   }): Promise<SceneMapResult> {

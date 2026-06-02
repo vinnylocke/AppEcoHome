@@ -138,8 +138,10 @@ function SessionCard({ session }: { session: PlantDoctorSession }) {
         onClick={() => setExpanded((v) => !v)}
       >
         <div className="flex gap-3 p-4">
-          {/* Thumbnail */}
-          <div className="w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-rhozly-surface-low flex items-center justify-center">
+          {/* Thumbnail — shows the lead photo plus a small "+N" badge for
+              multi-photo sessions so users can see at a glance which were
+              shot with several angles. */}
+          <div className="relative w-16 h-16 rounded-xl overflow-hidden shrink-0 bg-rhozly-surface-low flex items-center justify-center">
             {session.imageUrl ? (
               <img
                 src={session.imageUrl}
@@ -148,6 +150,15 @@ function SessionCard({ session }: { session: PlantDoctorSession }) {
               />
             ) : (
               <ImageOff size={20} className="text-rhozly-on-surface/20" />
+            )}
+            {(session.imageUrls?.length ?? 0) > 1 && (
+              <span
+                data-testid="history-multi-photo-badge"
+                className="absolute bottom-0.5 right-0.5 text-[9px] font-black bg-black/70 text-white px-1 rounded"
+                title={`${session.imageUrls!.length} photos`}
+              >
+                +{session.imageUrls!.length - 1}
+              </span>
             )}
           </div>
 
@@ -210,13 +221,24 @@ function SessionCard({ session }: { session: PlantDoctorSession }) {
 
       {expanded && (
         <div className="border-t border-rhozly-outline/10 p-4 space-y-4 animate-in fade-in duration-200">
-          {session.imageUrl && (
+          {(session.imageUrls?.length ?? 0) > 1 ? (
+            <div data-testid="history-photo-grid" className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {session.imageUrls!.map((url, i) => (
+                <img
+                  key={i}
+                  src={url}
+                  alt={`Session photo ${i + 1}`}
+                  className="w-full aspect-square object-cover rounded-xl bg-rhozly-surface-low"
+                />
+              ))}
+            </div>
+          ) : session.imageUrl ? (
             <img
               src={session.imageUrl}
               alt="Session full"
               className="w-full max-h-64 object-contain rounded-xl bg-rhozly-surface-low"
             />
-          )}
+          ) : null}
 
           {session.results.notes && (
             <div>

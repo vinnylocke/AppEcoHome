@@ -55,7 +55,28 @@ import {
   type DiseaseInfo,
   type VisionResult,
   type SceneMapResult,
+  type PhotoInput,
+  type PlantOrgan,
 } from "../services/plantDoctorService";
+
+// Wave-19 — Plant Lens accepts up to 5 photos per single-plant action
+// (identify / diagnose / pest / analyse). Multi-ID is intentionally
+// single-photo. Each entry tracks the source File, an object-URL preview,
+// and the optional Pl@ntNet organ tag.
+export interface PhotoEntry {
+  file: File;
+  previewUrl: string;
+  organ: PlantOrgan;
+}
+
+const MAX_PHOTOS = 5;
+const ORGAN_OPTIONS: { value: PlantOrgan; label: string }[] = [
+  { value: "auto", label: "Auto" },
+  { value: "leaf", label: "Leaf" },
+  { value: "flower", label: "Flower" },
+  { value: "fruit", label: "Fruit" },
+  { value: "bark", label: "Bark" },
+];
 
 interface PlantDoctorProps {
   homeId: string;
@@ -94,8 +115,12 @@ export default function PlantDoctor({
   const { sessions, isLoading: historyLoading, load: loadHistory, confirmSession } =
     usePlantDoctorSessions(userId ?? null);
 
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // Wave-19: up to 5 photos per ID (except Multi-ID which stays at 1). All
+  // existing JSX still references `selectedFile` / `imagePreview` — those are
+  // derived from `photos[0]` so the bulk of the component is untouched.
+  const [photos, setPhotos] = useState<PhotoEntry[]>([]);
+  const selectedFile = photos[0]?.file ?? null;
+  const imagePreview = photos[0]?.previewUrl ?? null;
   const [annotations, setAnnotations] = useState<PhotoAnnotation[]>([]);
   const [annotatingPhoto, setAnnotatingPhoto] = useState(false);
 
@@ -159,8 +184,7 @@ export default function PlantDoctor({
           return;
         }
         const file = new File([blob], "bed-photo.jpg", { type: blob.type || "image/jpeg" });
-        setImagePreview(URL.createObjectURL(file));
-        setSelectedFile(file);
+        addPhoto(file);
         setAiResult(null);
         toast("Photo loaded — pick an action below");
       } catch (err) {
@@ -271,6 +295,50 @@ export default function PlantDoctor({
     };
   }, []);
 
+  // ── Photo strip helpers ────────────────────────────────────────────────
+  // `addPhoto` appends to the strip; over the 5-photo cap it shows a
+  // toast and drops the extras. `removePhoto` revokes the object URL to
+  // avoid memory leaks. The strip is the only thing that writes `photos`;
+  // every other read goes through the derived `selectedFile / imagePreview`.
+
+  const addPhoto = React.useCallback(
+    (file: File, organ: PlantOrgan = "auto") => {
+      setPhotos((prev) => {
+        if (prev.length >= MAX_PHOTOS) {
+          toast(`You can add up to ${MAX_PHOTOS} photos.`);
+          return prev;
+        }
+        const previewUrl = URL.createObjectURL(file);
+        return [...prev, { file, previewUrl, organ }];
+      });
+    },
+    [],
+  );
+
+  const removePhoto = React.useCallback((idx: number) => {
+    setPhotos((prev) => {
+      const next = prev.filter((_, i) => i !== idx);
+      const removed = prev[idx];
+      if (removed) URL.revokeObjectURL(removed.previewUrl);
+      return next;
+    });
+  }, []);
+
+  const setPhotoOrgan = React.useCallback((idx: number, organ: PlantOrgan) => {
+    setPhotos((prev) =>
+      prev.map((p, i) => (i === idx ? { ...p, organ } : p)),
+    );
+  }, []);
+
+  // Revoke any remaining object URLs on unmount so HMR + nav don't pile up
+  // detached blobs.
+  React.useEffect(() => {
+    return () => {
+      photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const handleNativeCamera = async () => {
     try {
       const photo = await Camera.getPhoto({
@@ -290,8 +358,7 @@ export default function PlantDoctor({
           { type: `image/${photo.format}` },
         );
 
-        setImagePreview(URL.createObjectURL(file));
-        setSelectedFile(file);
+        addPhoto(file);
         setAiResult(null);
         setSelectedPlantName(null);
         setSelectedPlantScientific(null);
@@ -322,8 +389,7 @@ export default function PlantDoctor({
       if (file.size > 10 * 1024 * 1024)
         return toast.error("Image must be under 10MB.");
 
-      setImagePreview(URL.createObjectURL(file));
-      setSelectedFile(file);
+      addPhoto(file);
       setAiResult(null);
       setSelectedPlantName(null);
       setSelectedPlantScientific(null);
@@ -336,8 +402,8 @@ export default function PlantDoctor({
   };
 
   const clearImage = () => {
-    setImagePreview(null);
-    setSelectedFile(null);
+    photos.forEach((p) => URL.revokeObjectURL(p.previewUrl));
+    setPhotos([]);
     setPlantSearch("");
     setActiveAction(null);
     setAiResult(null);
@@ -361,29 +427,37 @@ export default function PlantDoctor({
   const saveSession = async (
     action: "identify" | "diagnose" | "pest",
     result: typeof aiResult,
-    base64: string,
+    base64Photos: string[],
   ) => {
-    if (!userId || !result) return;
+    if (!userId || !result || base64Photos.length === 0) return;
     setSessionSaveError(false);
     try {
       const sessionId = crypto.randomUUID();
-      const path = `${userId}/${sessionId}.jpg`;
-      const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
-      const blob = new Blob([bytes], { type: "image/jpeg" });
-      await supabase.storage.from("doctor-sessions").upload(path, blob);
+      const paths: string[] = [];
+      for (let i = 0; i < base64Photos.length; i++) {
+        const path = i === 0
+          ? `${userId}/${sessionId}.jpg`
+          : `${userId}/${sessionId}_${i}.jpg`;
+        const bytes = Uint8Array.from(atob(base64Photos[i]), (c) => c.charCodeAt(0));
+        const blob = new Blob([bytes], { type: "image/jpeg" });
+        await supabase.storage.from("doctor-sessions").upload(path, blob);
+        paths.push(path);
+      }
       const { data } = await supabase
         .from("plant_doctor_sessions")
         .insert({
           user_id: userId,
           home_id: homeId,
           action,
-          image_path: path,
+          image_path: paths[0],
+          image_paths: paths,
           results: {
             notes: result.notes,
             possible_names: result.possible_names,
             possible_diseases: result.possible_diseases,
             possible_pests: result.possible_pests,
           },
+          plantnet_result: result.plantnet ?? null,
           annotations,
         })
         .select("id")
@@ -467,7 +541,7 @@ export default function PlantDoctor({
 
   const handleAiAction = async (action: "identify" | "diagnose" | "pest") => {
     if (!aiEnabled) return toast.error("AI features are disabled.");
-    if (!selectedFile) return toast.error("Upload an image first.");
+    if (photos.length === 0) return toast.error("Upload an image first.");
 
     setIsProcessing(true);
     setActiveAction(action);
@@ -481,7 +555,12 @@ export default function PlantDoctor({
     setSickInventoryId(null);
 
     try {
-      const base64Data = await compressImage(selectedFile);
+      const compressed = await Promise.all(photos.map((p) => compressImage(p.file)));
+      const images: PhotoInput[] = compressed.map((base64, i) => ({
+        base64,
+        mimeType: "image/jpeg",
+        organ: photos[i].organ,
+      }));
       const sickPlantName = sickInventoryId
         ? myInventory.find((i) => i.id === sickInventoryId)?.plants?.common_name
         : undefined;
@@ -489,8 +568,7 @@ export default function PlantDoctor({
       const sickItem = sickInventoryId ? myInventory.find((i) => i.id === sickInventoryId) : null;
       const data = await PlantDoctorService.analyzeImage({
         homeId,
-        imageBase64: base64Data,
-        mimeType: "image/jpeg",
+        images,
         action: apiAction,
         plantSearch: action !== "pest" ? plantSearch : undefined,
         targetPlant: action === "diagnose" ? (sickPlantName ?? undefined) : undefined,
@@ -501,7 +579,7 @@ export default function PlantDoctor({
       });
 
       setAiResult(data);
-      saveSession(action, data, base64Data); // fire-and-forget
+      saveSession(action, data, compressed); // fire-and-forget; all photos persisted
       if (action === "identify") {
         logEvent(EVENT.AI_IDENTIFY, { plant_name: data?.possible_names?.[0]?.name ?? null });
       } else if (action === "diagnose") {
@@ -521,6 +599,10 @@ export default function PlantDoctor({
   const handleMultiId = async () => {
     if (!aiEnabled) return toast.error("AI features are disabled.");
     if (!selectedFile) return toast.error("Upload an image first.");
+    // Multi-ID is intentionally single-photo. Note it but proceed with photo 1.
+    if (photos.length > 1) {
+      toast("Multi-ID uses the first photo only — it's designed to detect every plant in one overview shot.", { duration: 5000 });
+    }
 
     setIsProcessing(true);
     setActiveAction("scene");
@@ -538,8 +620,7 @@ export default function PlantDoctor({
       const base64Data = await compressImage(selectedFile);
       const data = await PlantDoctorService.identifyScene({
         homeId,
-        imageBase64: base64Data,
-        mimeType: "image/jpeg",
+        images: [{ base64: base64Data, mimeType: "image/jpeg", organ: photos[0].organ }],
         deviceLat: deviceLocation?.lat,
         deviceLng: deviceLocation?.lng,
       });
@@ -610,7 +691,7 @@ export default function PlantDoctor({
 
   const handleAnalyse = async () => {
     if (!aiEnabled) return toast.error("AI features are disabled.");
-    if (!selectedFile) return toast.error("Upload an image first.");
+    if (photos.length === 0) return toast.error("Upload an image first.");
 
     setIsProcessing(true);
     setActiveAction("analyse");
@@ -623,7 +704,12 @@ export default function PlantDoctor({
     setSelectedPest(null);
 
     try {
-      const base64Data = await compressImage(selectedFile);
+      const compressed = await Promise.all(photos.map((p) => compressImage(p.file)));
+      const images: PhotoInput[] = compressed.map((base64, i) => ({
+        base64,
+        mimeType: "image/jpeg",
+        organ: photos[i].organ,
+      }));
       const sickPlantName = sickInventoryId
         ? myInventory.find((i) => i.id === sickInventoryId)?.plants?.common_name
         : undefined;
@@ -631,8 +717,7 @@ export default function PlantDoctor({
 
       const data = await PlantDoctorService.analyseComprehensive({
         homeId,
-        imageBase64: base64Data,
-        mimeType: "image/jpeg",
+        images,
         targetPlant: sickPlantName ?? (plantSearch || undefined),
         inventoryItemId: sickInventoryId ?? undefined,
         areaId: sickItem?.area_id ?? undefined,
@@ -647,18 +732,27 @@ export default function PlantDoctor({
         setSessionSaveError(false);
         try {
           const sessionId = crypto.randomUUID();
-          const path = `${userId}/${sessionId}.jpg`;
-          const bytes = Uint8Array.from(atob(base64Data), (c) => c.charCodeAt(0));
-          const blob = new Blob([bytes], { type: "image/jpeg" });
-          await supabase.storage.from("doctor-sessions").upload(path, blob);
+          const paths: string[] = [];
+          // Upload all photos so History can show the multi-photo strip.
+          for (let i = 0; i < compressed.length; i++) {
+            const path = i === 0
+              ? `${userId}/${sessionId}.jpg`
+              : `${userId}/${sessionId}_${i}.jpg`;
+            const bytes = Uint8Array.from(atob(compressed[i]), (c) => c.charCodeAt(0));
+            const blob = new Blob([bytes], { type: "image/jpeg" });
+            await supabase.storage.from("doctor-sessions").upload(path, blob);
+            paths.push(path);
+          }
           const { data: sessionRow } = await supabase
             .from("plant_doctor_sessions")
             .insert({
               user_id: userId,
               home_id: homeId,
               action: "analyse",
-              image_path: path,
+              image_path: paths[0],
+              image_paths: paths,
               results: data,
+              plantnet_result: data.plantnet ?? null,
               annotations,
             })
             .select("id")
@@ -979,6 +1073,91 @@ export default function PlantDoctor({
                         : "Optional — point out specific areas before you analyse."}
                   </p>
                 </div>
+
+                {/* ── Multi-photo strip ─────────────────────────────────── */}
+                {/* Up to 5 photos per ID for everything except Multi-ID
+                    (which uses the first). Adding extra photos from
+                    different angles, or tagged with the right organ,
+                    materially improves Pl@ntNet's accuracy. */}
+                <div
+                  data-testid="doctor-photo-strip"
+                  className="flex items-center gap-2 px-1 pt-2 overflow-x-auto"
+                >
+                  {photos.map((p, i) => {
+                    const organMeta = ORGAN_OPTIONS.find((o) => o.value === p.organ);
+                    const next: PlantOrgan = (() => {
+                      const idx = ORGAN_OPTIONS.findIndex((o) => o.value === p.organ);
+                      return ORGAN_OPTIONS[(idx + 1) % ORGAN_OPTIONS.length].value;
+                    })();
+                    return (
+                      <div
+                        key={p.previewUrl}
+                        data-testid={`doctor-photo-strip-item-${i}`}
+                        className="relative shrink-0 flex flex-col items-center gap-1"
+                      >
+                        <div className="relative w-14 h-14 rounded-xl overflow-hidden border border-rhozly-outline/15 bg-rhozly-surface-low">
+                          <img
+                            src={p.previewUrl}
+                            alt={`Photo ${i + 1}`}
+                            className="w-full h-full object-cover"
+                          />
+                          {i === 0 && (
+                            <span
+                              className="absolute top-0 left-0 px-1 text-[8px] font-black uppercase tracking-widest bg-rhozly-primary text-white rounded-br-md"
+                              title="Main photo — used for the preview and annotation overlay"
+                            >
+                              1
+                            </span>
+                          )}
+                          <button
+                            type="button"
+                            data-testid={`doctor-photo-strip-remove-${i}`}
+                            onClick={() => removePhoto(i)}
+                            disabled={isUIBusy}
+                            aria-label={`Remove photo ${i + 1}`}
+                            className="absolute -top-1.5 -right-1.5 w-5 h-5 rounded-full bg-white shadow-sm border border-rhozly-outline/15 text-rhozly-on-surface/60 hover:text-red-500 hover:bg-red-50 flex items-center justify-center transition-colors disabled:opacity-40"
+                          >
+                            <X size={10} />
+                          </button>
+                        </div>
+                        <button
+                          type="button"
+                          data-testid={`doctor-photo-strip-organ-${i}`}
+                          onClick={() => setPhotoOrgan(i, next)}
+                          disabled={isUIBusy}
+                          title="Tag the organ in this photo — improves identification accuracy"
+                          className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded transition-colors disabled:opacity-50 ${
+                            p.organ === "auto"
+                              ? "text-rhozly-on-surface/40 hover:text-rhozly-on-surface/70"
+                              : "bg-rhozly-primary/10 text-rhozly-primary hover:bg-rhozly-primary/20"
+                          }`}
+                        >
+                          {organMeta?.label ?? "Auto"}
+                        </button>
+                      </div>
+                    );
+                  })}
+                  {photos.length < MAX_PHOTOS && (
+                    <button
+                      type="button"
+                      data-testid="doctor-photo-strip-add"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={isUIBusy}
+                      className="shrink-0 w-14 h-14 rounded-xl border-2 border-dashed border-rhozly-primary/30 bg-rhozly-primary/5 hover:bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center transition-colors disabled:opacity-40"
+                      aria-label="Add another photo"
+                      title={`Add another photo (${photos.length}/${MAX_PHOTOS})`}
+                    >
+                      <span className="text-2xl font-black leading-none">+</span>
+                    </button>
+                  )}
+                </div>
+                <p className="text-[10px] font-bold text-rhozly-on-surface/40 leading-snug px-1">
+                  {photos.length === 1
+                    ? "Adding photos of different angles or organs (leaf, flower, fruit) measurably improves identification accuracy."
+                    : photos.length < MAX_PHOTOS
+                      ? `${photos.length} of ${MAX_PHOTOS} photos. Multi-ID uses the first photo only.`
+                      : `Maximum ${MAX_PHOTOS} photos reached.`}
+                </p>
               </div>
 
               {/* Right: analysis + results */}
@@ -1128,13 +1307,43 @@ export default function PlantDoctor({
                     !selectedPlantName &&
                     activeAction === "identify" && (
                       <div className="bg-rhozly-surface-low border border-rhozly-outline/10 rounded-3xl p-6 shadow-sm animate-in fade-in">
-                        <h3 className="font-black text-rhozly-on-surface mb-4 flex items-center gap-2">
-                          <CheckCircle2
-                            className="text-rhozly-primary"
-                            size={20}
-                          />{" "}
-                          Which of these looks correct?
-                        </h3>
+                        <div className="flex items-center justify-between gap-2 mb-4 flex-wrap">
+                          <h3 className="font-black text-rhozly-on-surface flex items-center gap-2">
+                            <CheckCircle2
+                              className="text-rhozly-primary"
+                              size={20}
+                            />{" "}
+                            Which of these looks correct?
+                          </h3>
+                          {aiResult.plantnet && (() => {
+                            const source = aiResult.plantnet.identification_source;
+                            const label =
+                              source === "plantnet" ? "Pl@ntNet" :
+                              source === "plantnet+ai_confirmed" ? "Pl@ntNet + AI agreed" :
+                              source === "plantnet_vs_ai_disagreement" ? "Pl@ntNet (AI disagreed)" :
+                              "AI only";
+                            const classes =
+                              source === "plantnet" || source === "plantnet+ai_confirmed"
+                                ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+                                : source === "plantnet_vs_ai_disagreement"
+                                  ? "bg-amber-50 text-amber-700 border-amber-200"
+                                  : "bg-rhozly-surface text-rhozly-on-surface/60 border-rhozly-outline/20";
+                            const best = aiResult.plantnet?.best_match;
+                            return (
+                              <span
+                                data-testid="identify-source"
+                                className={`inline-block text-[10px] font-black uppercase tracking-widest border px-2 py-0.5 rounded-md ${classes}`}
+                              >
+                                {label}{best && ` · ${Math.round(best.score * 100)}%`}
+                              </span>
+                            );
+                          })()}
+                        </div>
+                        {aiResult.plantnet?.identification_source === "plantnet_vs_ai_disagreement" && aiResult.plantnet.ai_suggested_name && aiResult.plantnet.best_match && (
+                          <p className="text-[11px] font-semibold text-amber-700/90 leading-snug mb-3">
+                            Pl@ntNet matched as <span className="italic">{aiResult.plantnet.best_match.scientificName}</span>, but Rhozly AI suggested <span className="italic">{aiResult.plantnet.ai_suggested_name}</span>. Compare both against the photo.
+                          </p>
+                        )}
                         <div className="space-y-2">
                           {aiResult.possible_names.map((item, i) => (
                             <button

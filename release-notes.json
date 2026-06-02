@@ -1,9 +1,19 @@
 [
   {
-    "label": "Fixed",
+    "label": "New",
     "items": [
-      "Companion tab no longer gets stuck on the Retry button for unusual plants like Venus flytrap — the AI is now told it's fine to return an empty companion list for carnivorous, aquatic, or indoor-only species, and the empty state explains why.",
-      "When the Companion tab does fail, it now shows the actual reason (e.g. AI safety block, parse failure) under the Retry button instead of an opaque \"Could not load companion data\"."
+      "Up to 5 photos per Plant Lens identification — better angle coverage, dramatically more accurate species ID. Multi-ID stays at one overview photo by design.",
+      "Pl@ntNet is now the primary plant identifier, with Gemini cross-checking. Pl@ntNet's botanical database beats general AI vision on species accuracy; Gemini still handles care guides, health, disease, pest and suggested tasks.",
+      "Tag each photo's organ (leaf / flower / fruit / bark) by tapping the chip under the thumbnail — improves Pl@ntNet's confidence and lets it short-circuit the AI ID round-trip on confident matches."
+    ]
+  },
+  {
+    "label": "Improved",
+    "items": [
+      "Identification results show a provenance pill — \"Pl@ntNet\", \"Pl@ntNet + AI agreed\", \"Pl@ntNet (AI disagreed)\", or \"AI only\" — so you can see which engine drove the answer.",
+      "When Pl@ntNet and the AI disagree on the species, both names are surfaced side by side so you can verify against the photo before saving.",
+      "Plant Lens History now shows a \"+N\" badge on the thumbnail when a session used multiple photos, and expands into a grid view.",
+      "Fixed: Multi-ID and Analyse sessions were silently failing the History table's action constraint — both now persist correctly."
     ]
   }
 ]

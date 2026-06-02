@@ -119,6 +119,27 @@ usePlantDoctorSessions(userId);
 
 Both buttons surface separately on mobile (no "select source" prompt — direct).
 
+### Multi-photo strip (Wave 19)
+
+Every single-plant action (`identify` / `diagnose` / `pest` / `analyse`) accepts **up to 5 photos** per run. Multi-ID stays single-photo by design — its premise is one overview shot with several plants. The strip lives below the annotation row in `PlantDoctor.tsx` and writes the `photos: PhotoEntry[]` state. Single-photo callers see no UX change: the strip collapses to one thumbnail.
+
+- Each thumbnail has a remove button and an organ chip (`Auto` / `Leaf` / `Flower` / `Fruit` / `Bark`). Tapping the chip cycles values — Pl@ntNet uses these per-image to improve accuracy.
+- The "+ Add another photo" affordance reuses the existing file input so capture buttons remain mobile-friendly.
+- `selectedFile` / `imagePreview` continue to derive from `photos[0]` so the bulk of the JSX (annotation overlay, preview area, history mounting) stayed untouched.
+- Multi-ID warns if the user has >1 photo and uses only the first.
+
+### Pl@ntNet primary identifier (Wave 19)
+
+`identify_vision` and the ID step of `analyse_comprehensive` now route through Pl@ntNet first. See [Pl@ntNet (cross-cutting)](../99-cross-cutting/38-plantnet.md) for the full contract. Quick recap:
+
+- **score ≥ 0.4** → trust Pl@ntNet. `identify_vision` synthesises the result from Pl@ntNet's top matches and **skips the Gemini ID round-trip**. `analyse_comprehensive` still runs Gemini for everything else but feeds the confirmed species into the prompt.
+- **0.15 ≤ score < 0.4** → cross-check. Both run; the response includes `identification_source: "plantnet+ai_confirmed"` or `"plantnet_vs_ai_disagreement"` and a `ai_suggested_name` chip when they differ.
+- **score < 0.15** or rejected → AI fallback (today's behaviour).
+
+The response includes `plantnet: { best_match, top_matches, identification_source, ai_suggested_name, remaining_requests }` which the result cards render as a provenance pill (`Pl@ntNet` / `Pl@ntNet + AI agreed` / `Pl@ntNet (AI disagreed)` / `AI only`).
+
+Missing `PLANTNET_API_KEY` → silent AI-only fallback with a warn-level log. Pl@ntNet errors (auth, quota, network) → also silent fallback so the user always gets *some* result.
+
 ### Action handler
 
 ```ts

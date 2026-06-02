@@ -22,8 +22,73 @@ import {
   type PlantGrowGuide,
 } from "../_shared/growGuide.ts";
 import { generateSeasonalPicksForHome } from "../_shared/seasonalPicksHandler.ts";
+import {
+  identifyWithPlantNet,
+  decideRouting,
+  resolveCrossCheck,
+  PlantNetError,
+  type PlantNetImageInput,
+  type PlantNetResult,
+} from "../_shared/plantnet.ts";
 
 const FN = "plant-doctor";
+
+// ─── Multi-image normaliser ─────────────────────────────────────────────────
+//
+// Wave-19 Plant Lens accepts up to 5 photos per single-plant action. Older
+// clients still send the legacy `imageBase64 / mimeType` pair. This helper
+// normalises both shapes into a single array used by the prompt builder and
+// the Pl@ntNet helper.
+
+interface NormalisedImage {
+  base64: string;       // raw, no data-URL prefix
+  mimeType: string;
+  organ?: "leaf" | "flower" | "fruit" | "bark" | "auto";
+}
+
+const stripDataUrlPrefix = (b64: string) =>
+  b64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+
+function normaliseImages(body: any): NormalisedImage[] {
+  const out: NormalisedImage[] = [];
+
+  // New shape — `images: [{base64, mimeType, organ?}, …]`.
+  if (Array.isArray(body?.images)) {
+    for (const img of body.images.slice(0, 5)) {
+      const b64 = typeof img?.base64 === "string" ? stripDataUrlPrefix(img.base64) : null;
+      if (!b64) continue;
+      out.push({
+        base64: b64,
+        mimeType: typeof img?.mimeType === "string" ? img.mimeType : "image/jpeg",
+        organ: typeof img?.organ === "string"
+          ? (img.organ as NormalisedImage["organ"])
+          : "auto",
+      });
+    }
+  }
+
+  // Legacy shape — single `imageBase64 / mimeType`. Folded in if no `images`.
+  if (out.length === 0 && typeof body?.imageBase64 === "string") {
+    out.push({
+      base64: stripDataUrlPrefix(body.imageBase64),
+      mimeType: typeof body?.mimeType === "string" ? body.mimeType : "image/jpeg",
+      organ: "auto",
+    });
+  }
+
+  return out;
+}
+
+// Build the `parts[]` payload Gemini expects from a normalised image set.
+// One text part is prepended; each image becomes its own inlineData part.
+function buildVisionMessage(promptText: string, images: NormalisedImage[]) {
+  return toMessages([
+    promptText,
+    ...images.map((img) => ({
+      inlineData: { data: img.base64, mimeType: img.mimeType },
+    })),
+  ]);
+}
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -512,9 +577,15 @@ serve(async (req) => {
     } = body;
     action = _action;
 
+    // Multi-image normalisation. New clients send `images: [{base64, mimeType,
+    // organ?}, …]`; legacy clients still send `imageBase64 / mimeType`.
+    const images = normaliseImages(body);
+
     log(FN, "request_received", {
       action, homeId: homeId ?? null, targetPlant: targetPlant ?? null,
-      diseaseName: diseaseName ?? null, hasImage: !!imageBase64,
+      diseaseName: diseaseName ?? null,
+      imageCount: images.length,
+      hasImage: images.length > 0,
       hasDiagnosisContext: !!diagnosisContext, hasAreaData: !!areaData,
       currentPlantsCount: currentPlants?.length ?? 0,
       hasDeviceLocation: !!(deviceLat && deviceLng),
@@ -1062,11 +1133,78 @@ Use specific common names (e.g. "French Marigold" not "Marigold").`;
     // ── action: identify_vision ────────────────────────────────────────────
 
     if (action === "identify_vision") {
-      if (!imageBase64) throw new Error("No image data provided.");
-      const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+      if (images.length === 0) throw new Error("No image data provided.");
+
+      // ── Pl@ntNet primary ID ────────────────────────────────────────────────
+      // We treat Pl@ntNet as the trusted identifier because it's purpose-built
+      // for botanical species (vs a general vision LLM). Routing:
+      //   score ≥ 0.4  → trust Pl@ntNet, skip the Gemini ID round trip.
+      //   0.15 – 0.4   → cross-check: run Gemini too; surface disagreement.
+      //   < 0.15 / null → AI-fallback (Gemini-only, as before).
+      const plantNetKey = Deno.env.get("PLANTNET_API_KEY");
+      let pnResult: PlantNetResult | null = null;
+      let pnRoutingError: string | null = null;
+      try {
+        pnResult = await identifyWithPlantNet({
+          images: images as PlantNetImageInput[],
+          apiKey: plantNetKey,
+        });
+      } catch (err) {
+        if (err instanceof PlantNetError) {
+          pnRoutingError = err.reason.kind;
+          warn(FN, "plantnet_error", { kind: err.reason.kind, message: err.message });
+          // Silently fall back to AI-only ID on any Pl@ntNet error.
+        } else {
+          throw err;
+        }
+      }
+
+      const routing = decideRouting(pnResult?.bestMatch ?? null);
+
+      // High-confidence Pl@ntNet match → skip Gemini, synthesise the result
+      // from Pl@ntNet's top matches. Saves the Gemini round-trip and gives
+      // the user a faster + more accurate response.
+      if (routing.source === "plantnet" && pnResult?.bestMatch) {
+        const possible_names = pnResult.topMatches.slice(0, 3).map((m) => ({
+          name: m.commonName ?? m.scientificName,
+          scientific_name: m.scientificName,
+          // Convert 0-1 score → 0-100 confidence. Pl@ntNet's calibration is
+          // conservative; a 0.4 match is genuinely "very likely".
+          confidence: Math.min(100, Math.round(m.score * 100)),
+        }));
+        const synthResult = {
+          notes: pnResult.bestMatch.commonName
+            ? `Pl@ntNet matched as ${pnResult.bestMatch.commonName} (${pnResult.bestMatch.scientificName}) — confidence ${Math.round(pnResult.bestMatch.score * 100)}%.`
+            : `Pl@ntNet matched as ${pnResult.bestMatch.scientificName} — confidence ${Math.round(pnResult.bestMatch.score * 100)}%.`,
+          possible_names,
+          plantnet: {
+            best_match: pnResult.bestMatch,
+            top_matches: pnResult.topMatches.slice(0, 5),
+            identification_source: "plantnet" as const,
+            ai_suggested_name: null,
+            remaining_requests: pnResult.remainingRequests,
+          },
+        };
+        log(FN, "result", {
+          action,
+          identification_source: "plantnet",
+          best_score: pnResult.bestMatch.score,
+          species: pnResult.bestMatch.scientificName,
+        });
+        return new Response(JSON.stringify(synthResult), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // AI-fallback path (and the cross-check path which adds a Gemini call).
+      // Gemini gets a hint when Pl@ntNet had a partial match.
+      const plantNetHint = routing.confirmedSpecies
+        ? `Pl@ntNet's top candidate is "${routing.confirmedCommonName ?? routing.confirmedSpecies}" (${routing.confirmedSpecies}) but its confidence was moderate. Use this as one hypothesis but don't be afraid to suggest a different species if the photo clearly shows something else.`
+        : "";
 
       const promptText = `Identify the plant in this image.
 ${plantSearch ? `The user thinks it might be a "${plantSearch}". Confirm if this is correct.` : ""}
+${plantNetHint}
 ${locationLine ? `The gardener is located: ${locationLine}. Prioritise plants native to or commonly grown in this region.` : ""}
 
 Return the top 3 most likely identifications in possible_names. For each candidate provide:
@@ -1078,15 +1216,57 @@ Also return a brief observation in notes.`;
 
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN,
-        toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
+        buildVisionMessage(promptText, images),
         // Pro-first cascade — identification accuracy matters more
         // than the ~20× cost delta (still cents per call).
         { responseSchema: IDENTIFY_VISION_SCHEMA, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },
       );
       const parsed = JSON.parse(rawText);
       await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_vision", usage });
-      log(FN, "result", { action, possibleNames: (parsed.possible_names ?? []).map((n: any) => `${n.name} (${n.confidence}%)`) });
-      return new Response(rawText, {
+
+      // Stitch the Pl@ntNet result onto the response so the client can show
+      // provenance + cross-check disagreement when relevant.
+      let identification_source = routing.source;
+      let ai_suggested_name: string | null = null;
+      if (routing.crossCheck && pnResult?.bestMatch) {
+        const aiTopSciName = parsed?.possible_names?.[0]?.scientific_name ?? null;
+        identification_source = resolveCrossCheck(
+          pnResult.bestMatch.scientificName,
+          aiTopSciName,
+        );
+        if (identification_source === "plantnet_vs_ai_disagreement") {
+          ai_suggested_name = aiTopSciName;
+        }
+      }
+
+      const responseBody = {
+        ...parsed,
+        plantnet: pnResult
+          ? {
+              best_match: pnResult.bestMatch,
+              top_matches: pnResult.topMatches.slice(0, 5),
+              identification_source,
+              ai_suggested_name,
+              remaining_requests: pnResult.remainingRequests,
+            }
+          : pnRoutingError
+            ? {
+                best_match: null,
+                top_matches: [],
+                identification_source: "ai_fallback" as const,
+                ai_suggested_name: null,
+                remaining_requests: null,
+                error: pnRoutingError,
+              }
+            : null,
+      };
+
+      log(FN, "result", {
+        action,
+        identification_source,
+        possibleNames: (parsed.possible_names ?? []).map((n: any) => `${n.name} (${n.confidence}%)`),
+      });
+      return new Response(JSON.stringify(responseBody), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -1094,8 +1274,20 @@ Also return a brief observation in notes.`;
     // ── action: identify_scene (Multi-ID — detect every plant + weighted IDs) ──
 
     if (action === "identify_scene") {
-      if (!imageBase64) throw new Error("No image data provided.");
-      const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+      if (images.length === 0) throw new Error("No image data provided.");
+      // Multi-ID is intentionally single-photo — its premise is "one overview
+      // photo with several plants". Extra photos would just confuse the box
+      // detector; reject them with a clear 400 so the UI can guide the user.
+      if (images.length > 1) {
+        return new Response(
+          JSON.stringify({
+            error:
+              "Multi-ID accepts exactly one overview photo. Use Identify or Analyse for multi-photo identification.",
+          }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      const sceneImage = images[0];
 
       const promptText = `Detect every DISTINCT plant in this photo — there may be several.
 ${locationLine ? `The gardener is located: ${locationLine}. Prioritise plants native to or commonly grown in this region.` : ""}
@@ -1118,7 +1310,7 @@ Add a brief overall observation in notes.`;
 
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN,
-        toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
+        buildVisionMessage(promptText, [sceneImage]),
         // Pro-first cascade + low temperature for the steadiest boxes. A large
         // token budget is essential: the Pro "thinking" models spend most of the
         // default 2048 on reasoning, truncating the JSON mid-array otherwise.
@@ -1163,8 +1355,7 @@ Add a brief overall observation in notes.`;
     // ── action: diagnose ───────────────────────────────────────────────────
 
     if (action === "diagnose") {
-      if (!imageBase64) throw new Error("No image data provided.");
-      const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+      if (images.length === 0) throw new Error("No image data provided.");
 
       const envBlock = await buildEnvBlock(supabase, { inventoryItemId, areaId, homeId });
 
@@ -1212,7 +1403,7 @@ RESPONSE RULES:
 
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN,
-        toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
+        buildVisionMessage(promptText, images),
         // Pro-first cascade + low temp + two-stage prompt — all three
         // working together to keep diagnoses evidence-grounded.
         { responseSchema: DIAGNOSE_SCHEMA, temperature: 0.2, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },
@@ -1260,14 +1451,42 @@ RESPONSE RULES:
     // ── action: analyse_comprehensive ──────────────────────────────────────
 
     if (action === "analyse_comprehensive") {
-      if (!imageBase64) throw new Error("No image data provided.");
-      const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+      if (images.length === 0) throw new Error("No image data provided.");
+
+      // ── Pl@ntNet ID pre-pass ──────────────────────────────────────────────
+      // For comprehensive analyse we always still run Gemini (for health /
+      // pruning / disease / pest / tasks). Pl@ntNet just upgrades the ID step
+      // — when its match is confident we tell Gemini the species name so it
+      // doesn't waste reasoning on identification and focuses on the rest.
+      const plantNetKey = Deno.env.get("PLANTNET_API_KEY");
+      let pnResult: PlantNetResult | null = null;
+      let pnRoutingError: string | null = null;
+      if (!targetPlant) { // skip Pl@ntNet when caller already named the plant
+        try {
+          pnResult = await identifyWithPlantNet({
+            images: images as PlantNetImageInput[],
+            apiKey: plantNetKey,
+          });
+        } catch (err) {
+          if (err instanceof PlantNetError) {
+            pnRoutingError = err.reason.kind;
+            warn(FN, "plantnet_error", { kind: err.reason.kind, message: err.message });
+          } else {
+            throw err;
+          }
+        }
+      }
+      const routing = decideRouting(pnResult?.bestMatch ?? null);
 
       const envBlock = await buildEnvBlock(supabase, { inventoryItemId, areaId, homeId });
 
       const plantContext = targetPlant
         ? `This plant is a "${targetPlant}". Use this to ground your identification.`
-        : "The plant species is unknown — identify it from the image.";
+        : routing.source === "plantnet" && routing.confirmedSpecies
+          ? `Pl@ntNet has identified this plant as "${routing.confirmedCommonName ?? routing.confirmedSpecies}" (${routing.confirmedSpecies}) with high confidence. Use this as the identification and focus your effort on health, pruning, propagation, disease, pest, and tasks.`
+          : routing.confirmedSpecies
+            ? `Pl@ntNet's top candidate is "${routing.confirmedCommonName ?? routing.confirmedSpecies}" (${routing.confirmedSpecies}) but its confidence was moderate. Treat this as a strong hypothesis but reach a different identification if the image clearly shows something else.`
+            : "The plant species is unknown — identify it from the image.";
 
       const promptText = `${plantContext}
 ${locationLine ? `Gardener location: ${locationLine}. Use regional climate to time pruning, propagation, and harvest windows.` : ""}${envBlock}
@@ -1301,7 +1520,7 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
 
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN,
-        toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
+        buildVisionMessage(promptText, images),
         // Pro-first cascade — comprehensive analyse benefits even
         // more from Pro vision since it integrates many signals at
         // once (health + disease + pest + edibility + pruning).
@@ -1315,10 +1534,46 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
         action: "analyse_comprehensive",
         usage,
       });
+
+      // Stitch the Pl@ntNet result + cross-check decision onto the response.
+      let identification_source = routing.source;
+      let ai_suggested_name: string | null = null;
+      if (routing.crossCheck && pnResult?.bestMatch) {
+        const aiTopSciName = parsed?.identification?.scientific_name?.[0] ?? null;
+        identification_source = resolveCrossCheck(
+          pnResult.bestMatch.scientificName,
+          aiTopSciName,
+        );
+        if (identification_source === "plantnet_vs_ai_disagreement") {
+          ai_suggested_name = aiTopSciName;
+        }
+      }
+      const responseBody = {
+        ...parsed,
+        plantnet: pnResult
+          ? {
+              best_match: pnResult.bestMatch,
+              top_matches: pnResult.topMatches.slice(0, 5),
+              identification_source,
+              ai_suggested_name,
+              remaining_requests: pnResult.remainingRequests,
+            }
+          : pnRoutingError
+            ? {
+                best_match: null,
+                top_matches: [],
+                identification_source: "ai_fallback" as const,
+                ai_suggested_name: null,
+                remaining_requests: null,
+                error: pnRoutingError,
+              }
+            : null,
+      };
       log(FN, "result", {
         action,
         identifiedAs: parsed.identification?.common_name ?? null,
         confidence: parsed.identification?.confidence ?? null,
+        identification_source,
         healthState: parsed.health?.state ?? null,
         hasDisease: !!parsed.disease,
         hasPest: !!parsed.pest,
@@ -1326,7 +1581,7 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
         suggestedTasksCount: (parsed.suggested_tasks ?? []).length,
         hasEnvContext: !!envBlock,
       });
-      return new Response(rawText, {
+      return new Response(JSON.stringify(responseBody), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
@@ -1754,8 +2009,7 @@ CRITICAL RULES:
     // ── action: identify_pest ──────────────────────────────────────────────
 
     if (action === "identify_pest") {
-      if (!imageBase64) throw new Error("No image data provided.");
-      const cleanBase64 = imageBase64.replace(/^data:image\/(png|jpeg|jpg|webp);base64,/, "");
+      if (images.length === 0) throw new Error("No image data provided.");
 
       const promptText = `You are identifying an insect or creature LITERALLY VISIBLE in this photo. Hallucinated identifications (claiming you see a pest that isn't actually in the image) damage user trust more than declining to identify a partially-visible specimen.
 
@@ -1792,7 +2046,7 @@ RESPONSE RULES:
 
       const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN,
-        toMessages([promptText, { inlineData: { data: cleanBase64, mimeType: mimeType || "image/jpeg" } }]),
+        buildVisionMessage(promptText, images),
         // Pro-first cascade + low temp + two-stage prompt for the same
         // anti-hallucination reasoning we use on diagnose.
         { responseSchema: IDENTIFY_PEST_SCHEMA, temperature: 0.2, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },

@@ -125,6 +125,23 @@ export default function AnalyseResultCard({ result, homeId, onTasksAdded }: Prop
 
   const healthPill = HEALTH_PILL[health.state];
   const sciName = identification.scientific_name?.[0];
+  const plantnet = result.plantnet ?? null;
+  const provenance = plantnet?.identification_source ?? null;
+  const pnBest = plantnet?.best_match ?? null;
+  const provenanceLabel = (() => {
+    switch (provenance) {
+      case "plantnet": return "Pl@ntNet";
+      case "plantnet+ai_confirmed": return "Pl@ntNet + AI agreed";
+      case "plantnet_vs_ai_disagreement": return "Pl@ntNet (AI disagreed)";
+      case "ai_fallback": return "AI only";
+      default: return null;
+    }
+  })();
+  const provenanceClasses = provenance === "plantnet" || provenance === "plantnet+ai_confirmed"
+    ? "bg-emerald-50 text-emerald-700 border-emerald-200"
+    : provenance === "plantnet_vs_ai_disagreement"
+      ? "bg-amber-50 text-amber-700 border-amber-200"
+      : "bg-rhozly-surface-low text-rhozly-on-surface/60 border-rhozly-outline/20";
 
   return (
     <div data-testid="analyse-result-card" className="space-y-3">
@@ -143,9 +160,59 @@ export default function AnalyseResultCard({ result, homeId, onTasksAdded }: Prop
             <span className="italic text-rhozly-on-surface/55 text-sm">{sciName}</span>
           )}
         </div>
-        <span className="inline-block text-[10px] font-black uppercase tracking-widest bg-rhozly-surface-low text-rhozly-on-surface/70 px-2 py-0.5 rounded-md">
-          {identification.confidence}% confident
-        </span>
+        <div className="flex flex-wrap items-center gap-2 mt-1">
+          <span className="inline-block text-[10px] font-black uppercase tracking-widest bg-rhozly-surface-low text-rhozly-on-surface/70 px-2 py-0.5 rounded-md">
+            {identification.confidence}% confident
+          </span>
+          {provenanceLabel && (
+            <span
+              data-testid="analyse-identification-source"
+              title={
+                provenance === "plantnet"
+                  ? "Identified by Pl@ntNet — Gemini was skipped for this step because Pl@ntNet was highly confident."
+                  : provenance === "plantnet+ai_confirmed"
+                    ? "Pl@ntNet and Rhozly AI agreed on the species."
+                    : provenance === "plantnet_vs_ai_disagreement"
+                      ? `Pl@ntNet picked ${pnBest?.scientificName} but the AI suggested ${plantnet?.ai_suggested_name}. Verify in the photo.`
+                      : "Pl@ntNet wasn't usable for this image (low confidence, rejected, or unavailable) — identified by Rhozly AI alone."
+              }
+              className={`inline-block text-[10px] font-black uppercase tracking-widest border px-2 py-0.5 rounded-md ${provenanceClasses}`}
+            >
+              {provenanceLabel}
+              {pnBest && ` · ${Math.round(pnBest.score * 100)}%`}
+            </span>
+          )}
+        </div>
+        {provenance === "plantnet_vs_ai_disagreement" && plantnet?.ai_suggested_name && (
+          <p
+            data-testid="analyse-identification-disagreement"
+            className="text-[11px] font-semibold text-amber-700/90 leading-snug mt-2 max-w-md"
+          >
+            Pl@ntNet matched as <span className="italic">{pnBest?.scientificName}</span>, but Rhozly AI suggested <span className="italic">{plantnet.ai_suggested_name}</span>. Compare both names against the photo to confirm.
+          </p>
+        )}
+        {plantnet && plantnet.top_matches.length > 1 && (
+          <details className="mt-2">
+            <summary className="cursor-pointer text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 hover:text-rhozly-on-surface/70">
+              Pl@ntNet candidates ({plantnet.top_matches.length})
+            </summary>
+            <ul className="mt-2 space-y-1 text-[11px] font-semibold text-rhozly-on-surface/65">
+              {plantnet.top_matches.slice(0, 5).map((m, i) => (
+                <li key={i} className="flex justify-between gap-3">
+                  <span>
+                    {m.commonName ?? m.scientificName}
+                    {m.commonName && (
+                      <span className="italic text-rhozly-on-surface/45"> · {m.scientificName}</span>
+                    )}
+                  </span>
+                  <span className="text-rhozly-on-surface/45 tabular-nums">
+                    {Math.round(m.score * 100)}%
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
       </Section>
 
       {/* Health — always open */}
