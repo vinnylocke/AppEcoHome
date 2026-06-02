@@ -14,7 +14,7 @@ function makeErrorChain(error: unknown) {
   const chain: Record<string, unknown> = {};
   const noop = () => chain;
   for (const method of [
-    "select", "eq", "neq", "gte", "lte", "not", "in",
+    "select", "eq", "neq", "gte", "lte", "not", "in", "or",
     "order", "overlaps", "single", "update", "insert", "delete",
   ]) {
     chain[method] = noop;
@@ -30,7 +30,7 @@ function makeChain(data: unknown[]) {
   const chain: Record<string, unknown> = {};
   const noop = () => chain;
   for (const method of [
-    "select", "eq", "neq", "gte", "lte", "not", "in",
+    "select", "eq", "neq", "gte", "lte", "not", "in", "or",
     "order", "overlaps", "single", "update", "insert", "delete",
   ]) {
     chain[method] = noop;

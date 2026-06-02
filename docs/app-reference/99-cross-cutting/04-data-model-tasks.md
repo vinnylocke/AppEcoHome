@@ -65,6 +65,19 @@ Ghost tasks are materialised into real `tasks` rows when the user acts on them (
 | `location_id`, `area_id`, `plan_id`, `inventory_item_ids` | | |
 | `seed_packet_id` | uuid? | FK → `seed_packets(id)`. Drives the inline `LogSowingFromTaskModal` on completion. Inserts a `seed_sowings` row with `task_id` set (unique partial index ensures idempotency). |
 | `todo_list_id` | uuid? | FK → `todo_lists(id)` ON DELETE SET NULL. Back-link to the parent to-do list when the task was created via the [Add To-Do List modal](../08-modals-and-overlays/40-todo-lists.md). NULL for every other task. |
+| `window_end_date` | date? | **Wave-20 harvest window model.** For tasks generated from a Harvesting blueprint with both `start_date` and `end_date`, this is the last day the harvest window is open. The task is "active" through `due_date..window_end_date` and only flags overdue afterwards. NULL on all other tasks. |
+| `next_check_at` | date? | **Wave-20 snooze.** When the user (or AI ripeness check) defers a window task via "Not yet", this is the date the task should re-appear. While in the future, the task is hidden from Today / Calendar queries. NULL on completion / window close. |
+
+### Harvest window-task semantics (Wave 20)
+
+Harvesting blueprints used to fire a ghost every day inside the window (`frequency_days: 1`) — a 90-day harvest window meant 90 overdue tasks if the user couldn't harvest on day one. Wave 20 fixed this:
+
+- The ghost engine ([`src/lib/taskEngine.ts`](../../../src/lib/taskEngine.ts) — harvest branch) now emits **one ghost per window** when `bp.task_type === "Harvesting" && bp.end_date`. The ghost's `due_date` is the window start; `window_end_date` is the window close.
+- Visibility queries include the task as long as `window_end_date >= startDate AND due_date <= endDate`.
+- `isTaskOverdue(task, today)` returns false while `today <= window_end_date`.
+- "Not yet" snoozes set `next_check_at = today + N` (3 / 5 / 7 days, capped at `window_end_date`). The task disappears from Today until then.
+- AI ripeness path: `HarvestRipenessSheet` (new component) sends one photo through `analyse_comprehensive`, reads `edibility.ripeness`, and either completes the task or sets `next_check_at` automatically.
+- Window-end behaviour: when `today > window_end_date` and the task is still Pending, the modal switches to "Log yield anyway / Mark missed" (the latter sets `status = 'Skipped'`).
 
 ### `todo_lists` table
 
@@ -135,8 +148,11 @@ Blueprints can fire daily for years. If we materialised every future occurrence,
 
 ## Code references for ongoing maintenance
 
-- `src/lib/taskEngine.ts` — `fetchTasksWithGhosts`, `materializeTask`
+- `src/lib/taskEngine.ts` — `fetchTasksWithGhosts`, `materializeTask`, `isTaskOverdue`, `isInsideHarvestWindow`, `daysLeftInWindow` (Wave 20)
 - `src/services/blueprintService.ts`
 - `supabase/functions/generate-tasks/index.ts`
 - `supabase/migrations/*_tasks.sql`, `*_task_blueprints.sql`
 - `supabase/migrations/20260630000000_todo_lists.sql` — `todo_lists` table, `tasks.todo_list_id` column, RLS + grants
+- `supabase/migrations/20260702000000_tasks_window_end_date.sql` — `window_end_date` + `next_check_at` columns + partial index (Wave 20 harvest model)
+- `src/components/HarvestRipenessSheet.tsx` — AI photo-check sheet for in-window harvest tasks
+- `tests/unit/lib/taskOverdue.test.ts` — Vitest matrix for window-task overdue / in-window / days-left semantics

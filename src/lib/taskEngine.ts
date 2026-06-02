@@ -8,6 +8,54 @@ export const getLocalDateString = (date: Date) => {
 };
 
 // ---------------------------------------------------------------------------
+// Window-task helpers (Wave 20 — harvest window-task model)
+// ---------------------------------------------------------------------------
+//
+// Harvest tasks carry a `window_end_date` — the last day the harvest window
+// is open. While inside that window the task is "active" (visible on Today
+// + Calendar) but not overdue. Only after `window_end_date` does it flag.
+// `next_check_at` is a per-task snooze the user (or AI ripeness) sets via
+// the "Not yet" action; while it's in the future the task is hidden.
+
+/** True if the task is past its due date in the user-meaningful sense.
+ *  Window tasks (Harvesting with `window_end_date`) are overdue only AFTER
+ *  the window closes. Everything else uses the legacy `due_date < today`. */
+export function isTaskOverdue(
+  task: { status?: string; due_date?: string | null; window_end_date?: string | null },
+  todayStr: string,
+): boolean {
+  if (!task.due_date) return false;
+  if (task.status && task.status !== "Pending") return false;
+  if (task.window_end_date) {
+    return task.window_end_date < todayStr;
+  }
+  return task.due_date < todayStr;
+}
+
+/** True if the task is currently inside its harvest window — i.e. a
+ *  window task whose due_date <= today <= window_end_date. */
+export function isInsideHarvestWindow(
+  task: { due_date?: string | null; window_end_date?: string | null },
+  todayStr: string,
+): boolean {
+  if (!task.window_end_date || !task.due_date) return false;
+  return task.due_date <= todayStr && todayStr <= task.window_end_date;
+}
+
+/** Days remaining in the harvest window, inclusive of today. Returns 0
+ *  when today is the last day, -1 when the window has closed. */
+export function daysLeftInWindow(
+  task: { window_end_date?: string | null },
+  todayStr: string,
+): number | null {
+  if (!task.window_end_date) return null;
+  const end = new Date(task.window_end_date);
+  const today = new Date(todayStr);
+  const diff = Math.round((end.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+  return diff;
+}
+
+// ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------
 
@@ -154,13 +202,19 @@ export const TaskEngine = {
 
     const run = async (): Promise<FullResult> => {
       // Round 1 — fetch all three independent sources in parallel.
+      // Window-task semantics: a Harvesting task with `window_end_date` is
+      // "active" through the whole window, so include it when the window
+      // intersects the requested range — its `due_date` may be far in the
+      // past. The `tasks_window_end_idx` partial index keeps this cheap.
       let tasksQuery = supabase
         .from("tasks")
         .select("*, locations(name, is_outside), areas(name), plans(name)")
         .eq("home_id", homeId)
         .neq("status", "Skipped");
       if (!includeOverdue) {
-        tasksQuery = tasksQuery.gte("due_date", startDateStr);
+        tasksQuery = tasksQuery.or(
+          `due_date.gte.${startDateStr},window_end_date.gte.${startDateStr}`,
+        );
       }
       tasksQuery = tasksQuery.lte("due_date", endDateStr);
 
@@ -195,8 +249,19 @@ export const TaskEngine = {
         ),
       );
 
-      // Filter historical completed tasks out of the window.
-      const rawTasks = (physicalTasks || []).filter((task) => {
+      // Filter historical completed tasks out of the window, AND hide
+      // window tasks the user (or AI ripeness) snoozed via "Not yet"
+      // when their `next_check_at` is still in the future.
+      const rawTasks = (physicalTasks || []).filter((task: any) => {
+        if (
+          task.status === "Pending"
+          && task.next_check_at
+          && task.next_check_at > todayStr
+        ) {
+          return false;
+        }
+        return true;
+      }).filter((task) => {
         if (task.status !== "Completed") return true;
         const isDueInWindow =
           task.due_date >= startDateStr && task.due_date <= endDateStr;
@@ -219,6 +284,47 @@ export const TaskEngine = {
         const pausedUntil = bp.paused_until ? new Date(bp.paused_until).getTime() : null;
         const isPaused = pausedUntil !== null && pausedUntil > nowMs;
         if (isPaused) return;
+
+        // ── Harvest window branch ────────────────────────────────────────
+        // Harvest blueprints with both a start_date AND end_date emit ONE
+        // ghost per window — due_date is the window start, window_end_date
+        // is the window close. The engine + UI then treat the task as
+        // "active in window" rather than overdue-by-default. See
+        // docs/app-reference/04-schedule/01-blueprint-manager.md.
+        if (bp.task_type === "Harvesting" && bp.end_date) {
+          const ghostStartIso = bp.start_date;
+          const intersectsRange =
+            ghostStartIso <= endDateStr && bp.end_date >= startDateStr;
+          if (!intersectsRange) return;
+
+          const alreadyExists =
+            rawTasks.some(
+              (t: any) => t.blueprint_id === bp.id && t.due_date === ghostStartIso,
+            ) || tombstoneSet.has(`${bp.id}:${ghostStartIso}`);
+          if (alreadyExists) return;
+
+          ghosts.push({
+            id: `ghost-${bp.id}-${ghostStartIso}`,
+            blueprint_id: bp.id,
+            home_id: bp.home_id,
+            title: bp.title,
+            description: bp.description,
+            type: bp.task_type,
+            due_date: ghostStartIso,
+            window_end_date: bp.end_date,
+            status: "Pending",
+            location_id: bp.location_id,
+            area_id: bp.area_id,
+            plan_id: bp.plan_id,
+            inventory_item_ids: bp.inventory_item_ids || [],
+            locations: bp.locations,
+            scope: bp.scope || "home",
+            created_by: bp.created_by || null,
+            assigned_to: bp.assigned_to || null,
+            isGhost: true,
+          });
+          return;
+        }
 
         const freq = bp.frequency_days;
         let currentGhostDate = new Date(bp.start_date);

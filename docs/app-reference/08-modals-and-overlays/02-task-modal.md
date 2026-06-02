@@ -11,13 +11,27 @@
 A modal with sections:
 - **Header** — title + type icon + status chip.
 - **Details** — date, location, area, plan, linked plants.
-- **Actions** — Complete/Uncomplete, Postpone, Edit Blueprint, Delete.
+- **Window pill (Wave 20)** — for Harvesting tasks with a `window_end_date`, a green "Harvest window · N days left" pill appears above the date row while inside the window. After the window closes the pill flips amber: "Window closed — was open until {date}".
+- **Actions** — Complete/Uncomplete, Postpone, Edit Blueprint, Delete. **Replaced for in-window harvest tasks** by the three-button HarvestWindowFooter (see Role 1).
 - **Completion photo** — optional, uploaded after completion to `task-photos` bucket.
 - **Linked instances** — list of plant instances this task touches.
 - **Weather context** — if the day's weather data exists, shown inline.
 - **Members** — who can see/work this task (home tasks only).
 
 Handles ghost tasks: when you complete a ghost (virtual task from a blueprint), it gets materialised into `tasks` first, then marked complete.
+
+### Harvest window-task footer (Wave 20)
+
+When `task.type === "Harvesting"` and `task.window_end_date` is set, the standard "Mark Complete / Postpone / Delete" footer is replaced by **HarvestWindowFooter** while the user is inside the window:
+
+- **🌾 Harvested** — same effect as the legacy Mark Complete (materialises the ghost, sets `status = Completed`).
+- **🕒 Not yet** — pops a 3 / 5 / 7-day snooze popover. Picked → sets `next_check_at = today + N` (capped at `window_end_date`) so the task disappears from Today until that date.
+- **✨ Check with AI** — opens [`HarvestRipenessSheet`](../../../src/components/HarvestRipenessSheet.tsx). The sheet sends one photo through `analyse_comprehensive` with `targetPlant = inferred plant name`. The verdict either marks the task as harvested (`ripe` / `overripe`) or sets `next_check_at` to the AI's `estimated_days_until_ripe` (capped 1–28).
+
+When the window has closed without a harvest, the footer switches again to **HarvestWindowClosedFooter**:
+
+- **🌾 Log yield anyway** — marks Completed even past the window so late harvests still log.
+- **❌ Mark missed** — sets `status = 'Skipped'`. Task disappears from active lists. (Hard to undo by design — keeps history honest.)
 
 ---
 

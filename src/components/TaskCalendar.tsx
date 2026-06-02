@@ -416,6 +416,7 @@ export default function TaskCalendar({
             area_id: task.area_id,
             plan_id: task.plan_id,
             inventory_item_ids: task.inventory_item_ids,
+            window_end_date: task.window_end_date ?? null,
           });
         if (error) throw error;
       } else {

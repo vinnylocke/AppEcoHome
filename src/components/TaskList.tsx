@@ -617,6 +617,9 @@ export default function TaskList({
         area_id: taskObj.area_id,
         plan_id: taskObj.plan_id,
         inventory_item_ids: taskObj.inventory_item_ids,
+        // Wave-20 — window tasks need the close date carried through so
+        // the materialised row preserves its "active in window" semantics.
+        window_end_date: taskObj.window_end_date ?? null,
       })
       .select()
       .single();
@@ -1076,8 +1079,19 @@ export default function TaskList({
               task.plans?.ai_blueprint?.project_overview?.title;
 
             const isCompleted = task.status === "Completed";
-            const isOverdue = !isCompleted && task.due_date < todayStr;
-            const isToday = !isCompleted && !isOverdue && task.due_date === todayStr;
+            // Wave-20 — harvest tasks are "in window" while
+            // due_date <= today <= window_end_date. They're styled green
+            // and aren't overdue until the window closes.
+            const isInHarvestWindow = !!task.window_end_date
+              && task.due_date <= todayStr
+              && todayStr <= task.window_end_date
+              && !isCompleted;
+            const isOverdue = !isCompleted && (
+              task.window_end_date
+                ? task.window_end_date < todayStr
+                : task.due_date < todayStr
+            );
+            const isToday = !isCompleted && !isOverdue && !isInHarvestWindow && task.due_date === todayStr;
             const isBlocked = blockedTaskIds.has(task.id);
             const isSelected = selectedTaskIds.has(task.id);
 
@@ -1089,6 +1103,8 @@ export default function TaskList({
               cardStyle = "bg-rhozly-surface-low border-gray-300 opacity-80";
             } else if (isOverdue) {
               cardStyle = "bg-red-100 border-red-300 hover:border-red-500 shadow-red-100";
+            } else if (isInHarvestWindow) {
+              cardStyle = "bg-emerald-50 border-emerald-200 hover:border-emerald-400";
             } else if (isToday) {
               cardStyle = "bg-sky-50 border-sky-200 hover:border-sky-400";
             }

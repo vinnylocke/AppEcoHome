@@ -1,9 +1,18 @@
 [
   {
+    "label": "New",
+    "items": [
+      "Harvest tasks now use a \"window\" model — one task per harvest window instead of a new task every day. No more overdue pile-ups when your tomatoes aren't quite ripe on day one.",
+      "Inside the harvest window a green \"Harvest window · N days left\" pill replaces the standard task footer with three actions: Harvested · Not yet · Check with AI.",
+      "\"Not yet\" snoozes the task for 3, 5 or 7 days (capped at window close) — no more deleting or repeated postponing.",
+      "\"Check with AI\" sends a photo to Rhozly AI, which reads the crop's ripeness and either marks it ready or automatically snoozes by the estimated days-until-ripe."
+    ]
+  },
+  {
     "label": "Improved",
     "items": [
-      "Plant Lens identification results now show the plant's common name in bold and the scientific name beneath it on every candidate card and on the saved confirmation card — easier to scan, and the Latin name is no longer a tiny afterthought.",
-      "The Analyse identification section uses a larger, bolder common name and a clearly visible italic scientific name for consistency with the rest of the result."
+      "Harvest tasks only flag as overdue once the window has actually closed — and even then, you get two clear choices: \"Log yield anyway\" or \"Mark missed\".",
+      "Today / Calendar list cards now show in-window harvest tasks with a green tile so they read as upcoming, not nagging."
     ]
   }
 ]

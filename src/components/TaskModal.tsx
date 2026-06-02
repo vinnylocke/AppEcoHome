@@ -26,6 +26,10 @@ import {
   CloudRain,
   Users,
   ListChecks,
+  Sprout,
+  Clock,
+  Sparkles,
+  XCircle,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -33,6 +37,13 @@ import { formatDisplayDate } from "../lib/dateUtils";
 import { usePermissions } from "../context/HomePermissionsContext";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import PhotoUploader from "./PhotoUploader";
+import HarvestRipenessSheet from "./HarvestRipenessSheet";
+import {
+  isTaskOverdue,
+  isInsideHarvestWindow,
+  daysLeftInWindow,
+  getLocalDateString,
+} from "../lib/taskEngine";
 
 interface TaskModalProps {
   task: any;
@@ -874,21 +885,74 @@ export default function TaskModal({
               {/* Due Date row — always visible */}
               {(() => {
                 const today = new Date().toISOString().split("T")[0];
-                const isOverdue = task.due_date && task.due_date < today && task.status !== "Completed";
+                // Wave-20 — window tasks (Harvesting with `window_end_date`)
+                // are only overdue past the window close; inside the window
+                // they're "active", not overdue.
+                const isOverdue = isTaskOverdue(task, today);
+                const isInWindow = isInsideHarvestWindow(task, today);
+                const daysLeft = daysLeftInWindow(task, today);
+                const closedAt = task.window_end_date && !isInWindow && task.status === "Pending"
+                  ? task.window_end_date
+                  : null;
                 return (
-                  <div className={`flex items-center gap-3 p-3 rounded-2xl border ${isOverdue ? "bg-red-50 border-red-100" : "bg-rhozly-surface-lowest border-rhozly-outline/10"}`}>
-                    <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isOverdue ? "bg-red-100 text-red-500" : "bg-rhozly-surface text-rhozly-primary"}`}>
-                      <Calendar size={16} />
+                  <>
+                    {isInWindow && task.status !== "Completed" && (
+                      <div
+                        data-testid="task-harvest-window-pill"
+                        className="flex items-center gap-3 p-3 rounded-2xl border bg-emerald-50 border-emerald-200"
+                      >
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-emerald-100 text-emerald-700">
+                          <Sprout size={16} />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700/80">
+                            Harvest window
+                          </p>
+                          <p className="text-sm font-black text-emerald-800">
+                            {daysLeft === 0
+                              ? "Last day of the window"
+                              : daysLeft === 1
+                                ? "1 day left"
+                                : `${daysLeft} days left`}
+                            {task.window_end_date && (
+                              <span className="font-semibold text-emerald-700/70"> · closes {formatDisplayDate(task.window_end_date)}</span>
+                            )}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {closedAt && (
+                      <div
+                        data-testid="task-harvest-window-closed"
+                        className="flex items-center gap-3 p-3 rounded-2xl border bg-amber-50 border-amber-200"
+                      >
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-amber-100 text-amber-700">
+                          <Calendar size={16} />
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-black uppercase tracking-widest text-amber-700/80">
+                            Window closed
+                          </p>
+                          <p className="text-sm font-black text-amber-800">
+                            Was open until {formatDisplayDate(closedAt)}
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    <div className={`flex items-center gap-3 p-3 rounded-2xl border ${isOverdue ? "bg-red-50 border-red-100" : "bg-rhozly-surface-lowest border-rhozly-outline/10"}`}>
+                      <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${isOverdue ? "bg-red-100 text-red-500" : "bg-rhozly-surface text-rhozly-primary"}`}>
+                        <Calendar size={16} />
+                      </div>
+                      <div>
+                        <p className={`text-[10px] font-black uppercase tracking-widest ${isOverdue ? "text-red-400" : "text-rhozly-on-surface/40"}`}>
+                          {isOverdue ? "Overdue" : task.status === "Completed" ? "Completed on" : "Due Date"}
+                        </p>
+                        <p className={`text-sm font-bold ${isOverdue ? "text-red-600" : "text-rhozly-on-surface"}`}>
+                          {task.due_date ? formatDisplayDate(task.due_date) : "No date set"}
+                        </p>
+                      </div>
                     </div>
-                    <div>
-                      <p className={`text-[10px] font-black uppercase tracking-widest ${isOverdue ? "text-red-400" : "text-rhozly-on-surface/40"}`}>
-                        {isOverdue ? "Overdue" : task.status === "Completed" ? "Completed on" : "Due Date"}
-                      </p>
-                      <p className={`text-sm font-bold ${isOverdue ? "text-red-600" : "text-rhozly-on-surface"}`}>
-                        {task.due_date ? formatDisplayDate(task.due_date) : "No date set"}
-                      </p>
-                    </div>
-                  </div>
+                  </>
                 );
               })()}
 
@@ -1265,39 +1329,315 @@ export default function TaskModal({
         )}
 
         {/* Action Footer */}
-        <div className="flex gap-3 mt-auto shrink-0 pt-4 border-t border-rhozly-outline/10">
-          <button
-            onClick={onDelete}
-            className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shrink-0"
-          >
-            <Trash2 size={20} />
-          </button>
-          <button
-            onClick={onPostpone}
-            className="w-14 h-14 bg-rhozly-surface text-rhozly-primary rounded-2xl flex items-center justify-center hover:bg-rhozly-primary hover:text-white transition-all shrink-0"
-            title="Reschedule task"
-          >
-            <CalendarClock size={20} />
-          </button>
-          <button
-            onClick={onToggleComplete}
-            disabled={isBlocked && task.status !== "Completed"}
-            className={`flex-1 h-14 rounded-2xl font-black text-white flex items-center justify-center gap-2 transition-all ${isBlocked && task.status !== "Completed" ? "bg-rhozly-surface-low text-rhozly-on-surface/30 cursor-not-allowed" : task.status === "Completed" ? "bg-rhozly-on-surface hover:bg-rhozly-on-surface/90" : "bg-rhozly-primary hover:scale-[1.02]"}`}
-          >
-            {isUpdating ? (
-              <Loader2 className="animate-spin" size={20} />
-            ) : task.status === "Completed" ? (
-              "Mark as Pending"
-            ) : isBlocked ? (
-              <>
-                <Lock size={20} /> Blocked
-              </>
-            ) : (
-              "Mark as Complete"
-            )}
-          </button>
-        </div>
+        {(() => {
+          const todayStr = getLocalDateString(new Date());
+          const isInWindow = isInsideHarvestWindow(task, todayStr);
+          const windowClosed = !!task.window_end_date
+            && task.status === "Pending"
+            && !isInWindow
+            && task.window_end_date < todayStr;
+          const isHarvestPending = task.type === "Harvesting" && task.status === "Pending";
+
+          if (isHarvestPending && isInWindow) {
+            return (
+              <HarvestWindowFooter
+                task={task}
+                homeId={homeId}
+                inventoryDict={inventoryDict}
+                onDelete={onDelete}
+                onComplete={onToggleComplete}
+                materializeTask={materializeTask}
+                onTasksUpdated={onTasksUpdated}
+                onClose={onClose}
+                isUpdating={isUpdating}
+              />
+            );
+          }
+          if (isHarvestPending && windowClosed) {
+            return (
+              <HarvestWindowClosedFooter
+                task={task}
+                onDelete={onDelete}
+                onLogYield={onToggleComplete}
+                materializeTask={materializeTask}
+                onTasksUpdated={onTasksUpdated}
+                onClose={onClose}
+                isUpdating={isUpdating}
+              />
+            );
+          }
+
+          return (
+            <div className="flex gap-3 mt-auto shrink-0 pt-4 border-t border-rhozly-outline/10">
+              <button
+                onClick={onDelete}
+                className="w-14 h-14 bg-red-50 text-red-500 rounded-2xl flex items-center justify-center hover:bg-red-500 hover:text-white transition-all shrink-0"
+              >
+                <Trash2 size={20} />
+              </button>
+              <button
+                onClick={onPostpone}
+                className="w-14 h-14 bg-rhozly-surface text-rhozly-primary rounded-2xl flex items-center justify-center hover:bg-rhozly-primary hover:text-white transition-all shrink-0"
+                title="Reschedule task"
+              >
+                <CalendarClock size={20} />
+              </button>
+              <button
+                onClick={onToggleComplete}
+                disabled={isBlocked && task.status !== "Completed"}
+                className={`flex-1 h-14 rounded-2xl font-black text-white flex items-center justify-center gap-2 transition-all ${isBlocked && task.status !== "Completed" ? "bg-rhozly-surface-low text-rhozly-on-surface/30 cursor-not-allowed" : task.status === "Completed" ? "bg-rhozly-on-surface hover:bg-rhozly-on-surface/90" : "bg-rhozly-primary hover:scale-[1.02]"}`}
+              >
+                {isUpdating ? (
+                  <Loader2 className="animate-spin" size={20} />
+                ) : task.status === "Completed" ? (
+                  "Mark as Pending"
+                ) : isBlocked ? (
+                  <>
+                    <Lock size={20} /> Blocked
+                  </>
+                ) : (
+                  "Mark as Complete"
+                )}
+              </button>
+            </div>
+          );
+        })()}
       </div>
+    </div>
+  );
+}
+
+// ─── HarvestWindowFooter ──────────────────────────────────────────────────
+// Three actions when the user opens a harvest task inside its window:
+//   - Harvested: marks complete (parent handles yield-log flow).
+//   - Not yet: pops a 3 / 5 / 7-day snooze popover; sets `next_check_at`.
+//   - Check with AI: opens HarvestRipenessSheet; verdict either marks
+//     complete (ripe) or snoozes by the AI's estimated days.
+// All paths materialise ghost tasks before writing.
+
+interface HarvestWindowFooterProps {
+  task: any;
+  homeId: string;
+  inventoryDict: Record<string, any>;
+  onDelete: () => void;
+  onComplete: () => void;
+  materializeTask: (t: any) => Promise<any>;
+  onTasksUpdated: () => void;
+  onClose: () => void;
+  isUpdating: boolean;
+}
+
+function HarvestWindowFooter({
+  task,
+  homeId,
+  inventoryDict,
+  onDelete,
+  onComplete,
+  materializeTask,
+  onTasksUpdated,
+  onClose,
+  isUpdating,
+}: HarvestWindowFooterProps) {
+  const [snoozeOpen, setSnoozeOpen] = useState(false);
+  const [ripenessOpen, setRipenessOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  // Resolve a sensible "plant name" for the AI grounding — first linked
+  // inventory item's plant name when present, else the task title minus
+  // any "Harvest" suffix.
+  const linkedPlant = (() => {
+    const ids = Array.isArray(task.inventory_item_ids) ? task.inventory_item_ids : [];
+    for (const id of ids) {
+      const item = inventoryDict?.[id];
+      if (item?.plants?.common_name) return item.plants.common_name as string;
+      if (item?.plant_name) return item.plant_name as string;
+    }
+    return null;
+  })();
+  const plantNameGuess = linkedPlant
+    ?? (typeof task.title === "string"
+      ? task.title.replace(/\s+harvest\s*$/i, "").trim() || null
+      : null);
+
+  const snoozeFor = async (days: number) => {
+    setBusy(true);
+    try {
+      let target = task;
+      if (target.isGhost) target = await materializeTask(target);
+      const today = new Date();
+      const next = new Date(today);
+      next.setDate(today.getDate() + days);
+      const nextStr = getLocalDateString(next);
+      // Cap snooze at window end so we never push past the window.
+      const cap = target.window_end_date;
+      const finalStr = cap && nextStr > cap ? cap : nextStr;
+      const { error } = await supabase
+        .from("tasks")
+        .update({ next_check_at: finalStr })
+        .eq("id", target.id);
+      if (error) throw error;
+      toast.success(`Snoozed until ${formatDisplayDate(finalStr)} — still in window.`);
+      onTasksUpdated();
+      onClose();
+    } catch (err: any) {
+      Logger.error("Harvest snooze failed", err, { taskId: task.id }, "Couldn't snooze that task.");
+    } finally {
+      setBusy(false);
+      setSnoozeOpen(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3 mt-auto shrink-0 pt-4 border-t border-rhozly-outline/10">
+      <div className="grid grid-cols-3 gap-2">
+        <button
+          data-testid="harvest-action-harvested"
+          onClick={onComplete}
+          disabled={busy || isUpdating}
+          className="h-14 rounded-2xl bg-rhozly-primary text-white font-black flex flex-col items-center justify-center gap-0.5 hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          {isUpdating ? (
+            <Loader2 className="animate-spin" size={18} />
+          ) : (
+            <>
+              <Sprout size={18} />
+              <span className="text-xs">Harvested</span>
+            </>
+          )}
+        </button>
+        <button
+          data-testid="harvest-action-not-yet"
+          onClick={() => setSnoozeOpen((v) => !v)}
+          disabled={busy || isUpdating}
+          className="h-14 rounded-2xl bg-rhozly-surface text-rhozly-on-surface font-black flex flex-col items-center justify-center gap-0.5 hover:bg-rhozly-surface-mid transition-colors disabled:opacity-50"
+        >
+          <Clock size={18} />
+          <span className="text-xs">Not yet</span>
+        </button>
+        <button
+          data-testid="harvest-action-check-ai"
+          onClick={() => setRipenessOpen(true)}
+          disabled={busy || isUpdating}
+          className="h-14 rounded-2xl bg-emerald-50 text-emerald-700 font-black flex flex-col items-center justify-center gap-0.5 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+        >
+          <Sparkles size={18} />
+          <span className="text-xs">Check with AI</span>
+        </button>
+      </div>
+      {snoozeOpen && (
+        <div
+          data-testid="harvest-snooze-popover"
+          className="grid grid-cols-3 gap-2 p-2 rounded-2xl bg-rhozly-surface-lowest border border-rhozly-outline/10"
+        >
+          {[3, 5, 7].map((d) => (
+            <button
+              key={d}
+              data-testid={`harvest-snooze-${d}`}
+              onClick={() => snoozeFor(d)}
+              disabled={busy}
+              className="py-2.5 rounded-xl bg-white border border-rhozly-outline/15 text-sm font-black text-rhozly-on-surface hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-colors disabled:opacity-50"
+            >
+              {busy ? <Loader2 className="animate-spin mx-auto" size={14} /> : `${d} days`}
+            </button>
+          ))}
+        </div>
+      )}
+      <button
+        onClick={onDelete}
+        className="text-[11px] font-black uppercase tracking-widest text-rhozly-on-surface/40 hover:text-red-500 transition-colors py-1"
+      >
+        Delete task
+      </button>
+      <HarvestRipenessSheet
+        isOpen={ripenessOpen}
+        onClose={() => setRipenessOpen(false)}
+        homeId={homeId}
+        taskTitle={task.title}
+        plantName={plantNameGuess}
+        onReady={onComplete}
+        onSnoozeFor={(d) => snoozeFor(Math.max(1, Math.min(28, Math.round(d))))}
+      />
+    </div>
+  );
+}
+
+// ─── HarvestWindowClosedFooter ────────────────────────────────────────────
+// When the window has elapsed without a harvest, the user picks between
+// "Log yield anyway" (treat as completed + open yield log) and "Mark
+// missed" (status = Skipped). No more snoozing past window close.
+
+interface HarvestWindowClosedFooterProps {
+  task: any;
+  onDelete: () => void;
+  onLogYield: () => void;
+  materializeTask: (t: any) => Promise<any>;
+  onTasksUpdated: () => void;
+  onClose: () => void;
+  isUpdating: boolean;
+}
+
+function HarvestWindowClosedFooter({
+  task,
+  onDelete,
+  onLogYield,
+  materializeTask,
+  onTasksUpdated,
+  onClose,
+  isUpdating,
+}: HarvestWindowClosedFooterProps) {
+  const [busy, setBusy] = useState(false);
+
+  const markMissed = async () => {
+    setBusy(true);
+    try {
+      let target = task;
+      if (target.isGhost) target = await materializeTask(target);
+      const { error } = await supabase
+        .from("tasks")
+        .update({ status: "Skipped" })
+        .eq("id", target.id);
+      if (error) throw error;
+      toast("Marked as missed — won't appear in your active tasks.");
+      onTasksUpdated();
+      onClose();
+    } catch (err: any) {
+      Logger.error("Mark missed failed", err, { taskId: task.id }, "Couldn't mark that task.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-3 mt-auto shrink-0 pt-4 border-t border-rhozly-outline/10">
+      <p className="text-xs font-bold text-rhozly-on-surface/60 leading-snug px-1">
+        The harvest window has closed. Did you harvest?
+      </p>
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          data-testid="harvest-closed-log-yield"
+          onClick={onLogYield}
+          disabled={busy || isUpdating}
+          className="h-14 rounded-2xl bg-rhozly-primary text-white font-black flex items-center justify-center gap-2 hover:opacity-90 transition-opacity disabled:opacity-50"
+        >
+          {isUpdating ? <Loader2 className="animate-spin" size={18} /> : <Sprout size={18} />}
+          Log yield anyway
+        </button>
+        <button
+          data-testid="harvest-closed-mark-missed"
+          onClick={markMissed}
+          disabled={busy || isUpdating}
+          className="h-14 rounded-2xl bg-rhozly-surface text-rhozly-on-surface/80 font-black flex items-center justify-center gap-2 hover:bg-rhozly-surface-mid transition-colors disabled:opacity-50"
+        >
+          {busy ? <Loader2 className="animate-spin" size={18} /> : <XCircle size={18} />}
+          Mark missed
+        </button>
+      </div>
+      <button
+        onClick={onDelete}
+        className="text-[11px] font-black uppercase tracking-widest text-rhozly-on-surface/40 hover:text-red-500 transition-colors py-1"
+      >
+        Delete task
+      </button>
     </div>
   );
 }
