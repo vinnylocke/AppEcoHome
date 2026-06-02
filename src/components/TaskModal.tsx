@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import {
@@ -38,6 +38,7 @@ import { usePermissions } from "../context/HomePermissionsContext";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import PhotoUploader from "./PhotoUploader";
 import HarvestRipenessSheet from "./HarvestRipenessSheet";
+import HarvestPartialPickSheet from "./HarvestPartialPickSheet";
 import {
   isTaskOverdue,
   isInsideHarvestWindow,
@@ -1440,14 +1441,22 @@ function HarvestWindowFooter({
 }: HarvestWindowFooterProps) {
   const [snoozeOpen, setSnoozeOpen] = useState(false);
   const [ripenessOpen, setRipenessOpen] = useState(false);
+  const [partialOpen, setPartialOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  // Running total picked-so-far across all linked instances for this task,
+  // grouped by unit so we don't pretend "100g + 5 punnets" is comparable.
+  const [yieldTotals, setYieldTotals] = useState<Record<string, number>>({});
+
+  const instanceIds = useMemo(
+    () => (Array.isArray(task.inventory_item_ids) ? task.inventory_item_ids : []) as string[],
+    [task.inventory_item_ids],
+  );
 
   // Resolve a sensible "plant name" for the AI grounding — first linked
   // inventory item's plant name when present, else the task title minus
   // any "Harvest" suffix.
   const linkedPlant = (() => {
-    const ids = Array.isArray(task.inventory_item_ids) ? task.inventory_item_ids : [];
-    for (const id of ids) {
+    for (const id of instanceIds) {
       const item = inventoryDict?.[id];
       if (item?.plants?.common_name) return item.plants.common_name as string;
       if (item?.plant_name) return item.plant_name as string;
@@ -1458,6 +1467,47 @@ function HarvestWindowFooter({
     ?? (typeof task.title === "string"
       ? task.title.replace(/\s+harvest\s*$/i, "").trim() || null
       : null);
+
+  // Fetch picked-so-far totals once on mount + whenever the linked
+  // instance set changes. Window start as a lower bound keeps the total
+  // honest — only counts harvests inside THIS window.
+  useEffect(() => {
+    if (instanceIds.length === 0) {
+      setYieldTotals({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const sinceIso = task.due_date ? new Date(task.due_date).toISOString() : null;
+        let q = supabase
+          .from("yield_records")
+          .select("value, unit")
+          .in("instance_id", instanceIds);
+        if (sinceIso) q = q.gte("harvested_at", sinceIso);
+        const { data } = await q;
+        if (cancelled) return;
+        const totals: Record<string, number> = {};
+        (data ?? []).forEach((r: any) => {
+          if (typeof r?.value !== "number" || !r?.unit) return;
+          totals[r.unit] = (totals[r.unit] ?? 0) + Number(r.value);
+        });
+        setYieldTotals(totals);
+      } catch {
+        // Non-fatal — totals are an enhancement, not load-bearing.
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [instanceIds, task.due_date]);
+
+  const totalsLine = Object.entries(yieldTotals)
+    .filter(([, v]) => v > 0)
+    .map(([unit, v]) => {
+      // Round to 2dp without trailing zeros for the inline display.
+      const rounded = Math.round(v * 100) / 100;
+      return `${rounded}${unit === "count" ? "" : unit}`;
+    })
+    .join(" · ");
 
   const snoozeFor = async (days: number) => {
     setBusy(true);
@@ -1489,38 +1539,60 @@ function HarvestWindowFooter({
 
   return (
     <div className="flex flex-col gap-3 mt-auto shrink-0 pt-4 border-t border-rhozly-outline/10">
-      <div className="grid grid-cols-3 gap-2">
+      {totalsLine && (
+        <div
+          data-testid="harvest-running-total"
+          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800"
+        >
+          <Sprout size={14} className="shrink-0" />
+          <p className="text-[11px] font-black uppercase tracking-widest">
+            Picked so far in this window
+          </p>
+          <p className="ml-auto text-sm font-black tabular-nums">{totalsLine}</p>
+        </div>
+      )}
+      <div className="grid grid-cols-2 gap-2">
         <button
           data-testid="harvest-action-harvested"
           onClick={onComplete}
           disabled={busy || isUpdating}
-          className="h-14 rounded-2xl bg-rhozly-primary text-white font-black flex flex-col items-center justify-center gap-0.5 hover:opacity-90 transition-opacity disabled:opacity-50"
+          className="h-16 rounded-2xl bg-rhozly-primary text-white font-black flex flex-col items-center justify-center gap-1 hover:opacity-90 transition-opacity disabled:opacity-50"
         >
           {isUpdating ? (
-            <Loader2 className="animate-spin" size={18} />
+            <Loader2 className="animate-spin" size={20} />
           ) : (
             <>
-              <Sprout size={18} />
+              <Sprout size={20} />
               <span className="text-xs">Harvested</span>
             </>
           )}
         </button>
         <button
+          data-testid="harvest-action-picked-some"
+          onClick={() => setPartialOpen(true)}
+          disabled={busy || isUpdating || instanceIds.length === 0}
+          title={instanceIds.length === 0 ? "Link a plant to this task to log partial picks." : "Log a partial harvest — task stays open."}
+          className="h-16 rounded-2xl bg-amber-50 text-amber-800 font-black flex flex-col items-center justify-center gap-1 hover:bg-amber-100 transition-colors disabled:opacity-40"
+        >
+          <Sprout size={20} />
+          <span className="text-xs">Picked some</span>
+        </button>
+        <button
           data-testid="harvest-action-not-yet"
           onClick={() => setSnoozeOpen((v) => !v)}
           disabled={busy || isUpdating}
-          className="h-14 rounded-2xl bg-rhozly-surface text-rhozly-on-surface font-black flex flex-col items-center justify-center gap-0.5 hover:bg-rhozly-surface-mid transition-colors disabled:opacity-50"
+          className="h-16 rounded-2xl bg-rhozly-surface text-rhozly-on-surface font-black flex flex-col items-center justify-center gap-1 hover:bg-rhozly-surface-mid transition-colors disabled:opacity-50"
         >
-          <Clock size={18} />
+          <Clock size={20} />
           <span className="text-xs">Not yet</span>
         </button>
         <button
           data-testid="harvest-action-check-ai"
           onClick={() => setRipenessOpen(true)}
           disabled={busy || isUpdating}
-          className="h-14 rounded-2xl bg-emerald-50 text-emerald-700 font-black flex flex-col items-center justify-center gap-0.5 hover:bg-emerald-100 transition-colors disabled:opacity-50"
+          className="h-16 rounded-2xl bg-emerald-50 text-emerald-700 font-black flex flex-col items-center justify-center gap-1 hover:bg-emerald-100 transition-colors disabled:opacity-50"
         >
-          <Sparkles size={18} />
+          <Sparkles size={20} />
           <span className="text-xs">Check with AI</span>
         </button>
       </div>
@@ -1556,6 +1628,15 @@ function HarvestWindowFooter({
         plantName={plantNameGuess}
         onReady={onComplete}
         onSnoozeFor={(d) => snoozeFor(Math.max(1, Math.min(28, Math.round(d))))}
+      />
+      <HarvestPartialPickSheet
+        isOpen={partialOpen}
+        onClose={() => setPartialOpen(false)}
+        homeId={homeId}
+        instanceIds={instanceIds}
+        taskTitle={task.title}
+        plantName={plantNameGuess}
+        onLogged={(days) => snoozeFor(days)}
       />
     </div>
   );

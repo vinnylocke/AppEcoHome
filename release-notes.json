@@ -2,17 +2,15 @@
   {
     "label": "New",
     "items": [
-      "Harvest tasks now use a \"window\" model — one task per harvest window instead of a new task every day. No more overdue pile-ups when your tomatoes aren't quite ripe on day one.",
-      "Inside the harvest window a green \"Harvest window · N days left\" pill replaces the standard task footer with three actions: Harvested · Not yet · Check with AI.",
-      "\"Not yet\" snoozes the task for 3, 5 or 7 days (capped at window close) — no more deleting or repeated postponing.",
-      "\"Check with AI\" sends a photo to Rhozly AI, which reads the crop's ripeness and either marks it ready or automatically snoozes by the estimated days-until-ripe."
+      "Partial harvests — new \"Picked some\" action on the harvest task footer lets you log a yield (quantity + unit + notes) and snooze the task for 1, 3, 5 or 7 days without closing it. Perfect for berries, beans, courgettes, chillies and anything else you pick over weeks.",
+      "The task modal now shows a \"Picked so far in this window\" running total above the action buttons so you can see how much you've harvested this season."
     ]
   },
   {
-    "label": "Improved",
+    "label": "Fixed",
     "items": [
-      "Harvest tasks only flag as overdue once the window has actually closed — and even then, you get two clear choices: \"Log yield anyway\" or \"Mark missed\".",
-      "Today / Calendar list cards now show in-window harvest tasks with a green tile so they read as upcoming, not nagging."
+      "One-time cleanup: existing harvest tasks that piled up under the old daily-cadence model are now backfilled to the new window model, and the per-day duplicates inside each window are collapsed into one task. Your harvest backlog should look a lot calmer.",
+      "Harvest action footer reorganised into a 2×2 grid (Harvested · Picked some · Not yet · Check with AI) so the new action gets equal weight without crowding."
     ]
   }
 ]

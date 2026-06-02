@@ -22,11 +22,14 @@ Handles ghost tasks: when you complete a ghost (virtual task from a blueprint), 
 
 ### Harvest window-task footer (Wave 20)
 
-When `task.type === "Harvesting"` and `task.window_end_date` is set, the standard "Mark Complete / Postpone / Delete" footer is replaced by **HarvestWindowFooter** while the user is inside the window:
+When `task.type === "Harvesting"` and `task.window_end_date` is set, the standard "Mark Complete / Postpone / Delete" footer is replaced by **HarvestWindowFooter** while the user is inside the window. Four actions in a 2×2 grid plus a "picked so far" running total above them:
 
-- **🌾 Harvested** — same effect as the legacy Mark Complete (materialises the ghost, sets `status = Completed`).
+- **🌾 Harvested** — same effect as the legacy Mark Complete (materialises the ghost, sets `status = Completed`). The *final* pick.
+- **🌾 Picked some (Wave 20.1)** — opens [`HarvestPartialPickSheet`](../../../src/components/HarvestPartialPickSheet.tsx) for a partial harvest: quantity + unit + optional notes + snooze (1/3/5/7 days). Inserts a `yield_records` row per linked instance and snoozes the task without closing it. Disabled when no `inventory_item_ids` are linked.
 - **🕒 Not yet** — pops a 3 / 5 / 7-day snooze popover. Picked → sets `next_check_at = today + N` (capped at `window_end_date`) so the task disappears from Today until that date.
 - **✨ Check with AI** — opens [`HarvestRipenessSheet`](../../../src/components/HarvestRipenessSheet.tsx). The sheet sends one photo through `analyse_comprehensive` with `targetPlant = inferred plant name`. The verdict either marks the task as harvested (`ripe` / `overripe`) or sets `next_check_at` to the AI's `estimated_days_until_ripe` (capped 1–28).
+
+The **picked so far** total (Wave 20.1) sums `yield_records` matching this task's linked instances filtered to `harvested_at >= task.due_date` — i.e. only the current window's picks count. Multiple units are shown separated by `·` because we don't pretend "100g + 5 punnets" is comparable.
 
 When the window has closed without a harvest, the footer switches again to **HarvestWindowClosedFooter**:
 

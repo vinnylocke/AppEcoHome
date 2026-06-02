@@ -154,5 +154,7 @@ Blueprints can fire daily for years. If we materialised every future occurrence,
 - `supabase/migrations/*_tasks.sql`, `*_task_blueprints.sql`
 - `supabase/migrations/20260630000000_todo_lists.sql` — `todo_lists` table, `tasks.todo_list_id` column, RLS + grants
 - `supabase/migrations/20260702000000_tasks_window_end_date.sql` — `window_end_date` + `next_check_at` columns + partial index (Wave 20 harvest model)
+- `supabase/migrations/20260703000000_backfill_harvest_window_tasks.sql` — one-time backfill: sets `window_end_date` on existing pending Harvesting tasks AND collapses per-day duplicates per `(blueprint_id, window_end_date)` group by marking the extras `Skipped`
 - `src/components/HarvestRipenessSheet.tsx` — AI photo-check sheet for in-window harvest tasks
+- `src/components/HarvestPartialPickSheet.tsx` — partial-pick sheet (Wave 20.1): quantity + unit + notes form, inserts `yield_records` and snoozes the task without closing it
 - `tests/unit/lib/taskOverdue.test.ts` — Vitest matrix for window-task overdue / in-window / days-left semantics
