@@ -105,6 +105,14 @@ export default function TaskCalendar({
   // 🚀 Tasks array now holds the fully calculated physical AND ghost tasks for the entire month!
   const [tasks, setTasks] = useState<Task[]>([]);
   const [overdueTasks, setOverdueTasks] = useState<Task[]>([]);
+  // Wave-20.5 — every active harvest window in the home, regardless of
+  // which month the calendar is currently showing. Decouples the green
+  // tint from the main tasks fetch so the highlight is reliable across
+  // any view (it used to silently go dark when a windowed task fell
+  // outside the calendar's 3-month fetch range).
+  const [harvestWindowTasks, setHarvestWindowTasks] = useState<
+    Array<{ due_date: string; window_end_date: string; status: string }>
+  >([]);
 
   const [locations, setLocations] = useState<any[]>(preloadedLocations ?? []);
   const [plans, setPlans] = useState<any[]>([]);
@@ -137,15 +145,19 @@ export default function TaskCalendar({
 
   const todayStr = getLocalDateString(new Date());
 
-  // Wave-20.2 — pre-compute every date string inside an active harvest
-  // window from the loaded tasks. The calendar cell renderer checks
-  // membership in this set to apply the green tint. Empty when the user
-  // has toggled the highlight off, so the cell renderer can skip the
-  // lookup entirely on the "off" path.
+  // Wave-20.5 — pre-compute every date string inside an active harvest
+  // window. The set powers the green tint on each day cell.
+  //
+  // Source = the dedicated `harvestWindowTasks` query (fetched alongside
+  // the main task fetch in fetchTasksAndBlueprints). That query pulls
+  // every Pending Harvesting task in the home with a non-null
+  // window_end_date, regardless of view range — so the highlight is
+  // reliable across any month, even for windows that fall outside the
+  // calendar's 3-month main fetch range.
   const harvestWindowDates = useMemo(() => {
     if (!showHarvestWindows) return new Set<string>();
-    return collectHarvestWindowDates([...tasks, ...overdueTasks]);
-  }, [tasks, overdueTasks, showHarvestWindows]);
+    return collectHarvestWindowDates(harvestWindowTasks);
+  }, [harvestWindowTasks, showHarvestWindows]);
 
   const getTasksForDate = useCallback(
     (date: Date) => {
@@ -339,7 +351,7 @@ export default function TaskCalendar({
       const ninetyDaysAgo = new Date();
       ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
 
-      const [result, overdueResult] = await Promise.all([
+      const [result, overdueResult, harvestWindowResult] = await Promise.all([
         TaskEngine.fetchTasksWithGhosts({
           homeId,
           startDateStr: getLocalDateString(startOfMonth),
@@ -356,12 +368,33 @@ export default function TaskCalendar({
           .eq("status", "Pending")
           .lt("due_date", todayStr)
           .gte("due_date", getLocalDateString(ninetyDaysAgo)),
+        // Wave-20.5 — dedicated harvest-window query, independent of the
+        // calendar's main fetch range. Captures every Pending harvest
+        // task with a window_end_date in the home so the green tint
+        // can render reliably no matter which month is in view. This
+        // includes any tasks whose due_date is far outside the current
+        // 3-month window (which the engine's `due_date.lte.endDateStr`
+        // clause would otherwise exclude).
+        supabase
+          .from("tasks")
+          .select("due_date, window_end_date, status")
+          .eq("home_id", homeId)
+          .eq("status", "Pending")
+          .eq("type", "Harvesting")
+          .not("window_end_date", "is", null),
       ]);
 
       setTasks(result.tasks);
       setInventoryDict(result.inventoryDict);
       setBlockedTaskIds(result.blockedTaskIds);
       setOverdueTasks((overdueResult.data as Task[]) || []);
+      setHarvestWindowTasks(
+        (harvestWindowResult.data as Array<{
+          due_date: string;
+          window_end_date: string;
+          status: string;
+        }>) || [],
+      );
       setHasLoadedOnce(true);
       setRefreshKey((k) => k + 1);
     } catch (err: any) {

@@ -2,8 +2,8 @@
   {
     "label": "Fixed",
     "items": [
-      "Harvest tasks now appear in the day panel when you tap ANY day inside the window — not just on the window's start date. Previously, backfilled window tasks were anchored to a past start date, so clicking today (or any mid-window day) showed an empty panel under the green tint.",
-      "Calendar dots remain clean — a single dot still only appears on the original due_date, so the grid doesn't get cluttered when several harvest windows overlap. The green tint is still the visual cue for \"window is active on this day\"."
+      "Harvest window highlight now appears reliably in every month, not just the months where the calendar's main task fetch happened to include the windowed task. The green tint is now driven by a dedicated query that pulls every active harvest window in the home, regardless of which month you're viewing.",
+      "Internal: previously the highlight piggy-backed on the calendar's 3-month view-range fetch, so a window task whose due_date sat outside that range could silently drop out of the tint set even though its window covered the visible days."
     ]
   }
 ]
