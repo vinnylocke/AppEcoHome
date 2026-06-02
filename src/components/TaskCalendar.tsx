@@ -152,7 +152,19 @@ export default function TaskCalendar({
       const dateStr = getLocalDateString(date);
 
       // 🚀 The Engine already did the hard work. Just filter the array for this date.
-      const dayTasks = tasks.filter((t) => t.due_date === dateStr);
+      //
+      // Window tasks (Harvesting with `window_end_date`) are "active"
+      // throughout their window — tapping ANY day from due_date through
+      // window_end_date should reveal the harvest task in the panel.
+      // Without this branch the task would only appear on its due_date,
+      // which for a backfilled window task is the window start (often in
+      // the past) — so the user sees a green tint with nothing under it.
+      const dayTasks = tasks.filter((t) => {
+        if (t.window_end_date && t.due_date) {
+          return t.due_date <= dateStr && dateStr <= t.window_end_date;
+        }
+        return t.due_date === dateStr;
+      });
 
       return dayTasks.filter((task) => {
         if (selectedTypes.length > 0 && !selectedTypes.includes(task.type))
@@ -867,8 +879,19 @@ export default function TaskCalendar({
               const isSelected = isSameDay(dayObj.date, selectedDate);
               const isToday = isSameDay(dayObj.date, new Date());
               const dayTasks = getTasksForDate(dayObj.date);
+              // Wave-20.4 — dots on the calendar grid only ever indicate
+              // tasks whose due_date matches this cell. Window tasks
+              // intentionally don't paint a dot on every day inside the
+              // window; the green tint handles that. The full task panel
+              // (after the user taps the day) still includes window
+              // tasks via getTasksForDate's expanded match.
+              const dayDateStrForDots = getLocalDateString(dayObj.date);
               const pendingTasks = dayTasks.filter(
-                (t) => t.status === "Pending",
+                (t) =>
+                  t.status === "Pending"
+                  && (t.window_end_date
+                    ? t.due_date === dayDateStrForDots
+                    : true),
               );
 
               const hasPreferredTasks =

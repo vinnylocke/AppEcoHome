@@ -2,8 +2,8 @@
   {
     "label": "Fixed",
     "items": [
-      "Snoozed harvest tasks no longer regenerate a duplicate ghost behind the scenes, which means snoozing the same task twice no longer fails with a duplicate-key error and the old snoozed task no longer reappears as overdue while a hidden copy still exists in the database.",
-      "Internally: the task engine now builds its ghost-suppression index from every materialised task with a blueprint, regardless of whether the task is currently hidden by a snooze or out-of-window filter."
+      "Harvest tasks now appear in the day panel when you tap ANY day inside the window — not just on the window's start date. Previously, backfilled window tasks were anchored to a past start date, so clicking today (or any mid-window day) showed an empty panel under the green tint.",
+      "Calendar dots remain clean — a single dot still only appears on the original due_date, so the grid doesn't get cluttered when several harvest windows overlap. The green tint is still the visual cue for \"window is active on this day\"."
     ]
   }
 ]

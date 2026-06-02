@@ -143,6 +143,54 @@ describe("daysLeftInWindow", () => {
 // collectHarvestWindowDates — the set used by the calendar to tint cells
 // ──────────────────────────────────────────────────────────────────────────
 
+// ──────────────────────────────────────────────────────────────────────────
+// Mid-window date-list inclusion — the calendar's click-panel filter
+// (Wave 20.4) must include the task on every day inside [due_date,
+// window_end_date], not just on the due_date itself.
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("calendar day-panel inclusion (window-task date match)", () => {
+  // Mirror of the calendar's filter — kept here so the rule stays in
+  // sight even if the calendar file is rewritten.
+  const matchesDay = (
+    task: { due_date?: string | null; window_end_date?: string | null },
+    dateStr: string,
+  ): boolean => {
+    if (task.window_end_date && task.due_date) {
+      return task.due_date <= dateStr && dateStr <= task.window_end_date;
+    }
+    return task.due_date === dateStr;
+  };
+
+  const windowTask = { due_date: "2026-05-01", window_end_date: "2026-09-30" };
+
+  test("matches on window start", () => {
+    expect(matchesDay(windowTask, "2026-05-01")).toBe(true);
+  });
+
+  test("matches mid-window", () => {
+    expect(matchesDay(windowTask, "2026-07-15")).toBe(true);
+  });
+
+  test("matches on window close", () => {
+    expect(matchesDay(windowTask, "2026-09-30")).toBe(true);
+  });
+
+  test("does not match before window start", () => {
+    expect(matchesDay(windowTask, "2026-04-30")).toBe(false);
+  });
+
+  test("does not match after window close", () => {
+    expect(matchesDay(windowTask, "2026-10-01")).toBe(false);
+  });
+
+  test("non-window task still uses exact due_date", () => {
+    const plain = { due_date: "2026-06-15", window_end_date: null };
+    expect(matchesDay(plain, "2026-06-15")).toBe(true);
+    expect(matchesDay(plain, "2026-06-16")).toBe(false);
+  });
+});
+
 describe("collectHarvestWindowDates", () => {
   test("empty list → empty set", () => {
     expect(collectHarvestWindowDates([]).size).toBe(0);
