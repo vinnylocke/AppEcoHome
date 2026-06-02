@@ -55,6 +55,43 @@ export function daysLeftInWindow(
   return diff;
 }
 
+/** Collect every YYYY-MM-DD inside ANY active harvest window in the
+ *  supplied task list. Used by TaskCalendar to tint days that belong to
+ *  one or more harvest windows.
+ *
+ *  - Only counts tasks where `window_end_date` is set.
+ *  - Skips completed / skipped tasks so resolved windows don't pollute
+ *    the highlight.
+ *  - Inclusive on both ends.
+ *  - Iteration is bounded at 400 days per window — guards against bad
+ *    data without sacrificing real-world windows (longest UK fruit
+ *    seasons top out around 6 months).
+ */
+export function collectHarvestWindowDates(
+  tasks: Array<{
+    status?: string;
+    due_date?: string | null;
+    window_end_date?: string | null;
+  }>,
+): Set<string> {
+  const set = new Set<string>();
+  for (const t of tasks) {
+    if (!t.window_end_date || !t.due_date) continue;
+    if (t.status && t.status !== "Pending") continue;
+    const start = new Date(t.due_date);
+    const end = new Date(t.window_end_date);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
+    if (end < start) continue;
+    const cursor = new Date(start);
+    let guard = 0;
+    while (cursor <= end && guard++ < 400) {
+      set.add(getLocalDateString(cursor));
+      cursor.setDate(cursor.getDate() + 1);
+    }
+  }
+  return set;
+}
+
 // ---------------------------------------------------------------------------
 // Types
 // ---------------------------------------------------------------------------

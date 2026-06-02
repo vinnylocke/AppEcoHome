@@ -12,6 +12,7 @@ import {
   CalendarDays,
   Download,
   ListChecks,
+  Sprout,
 } from "lucide-react";
 import { buildTasksIcs, downloadIcs } from "../lib/icsExport";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
@@ -24,7 +25,7 @@ import ToDoListsModal from "./todo/ToDoListsModal";
 import { TASK_CATEGORIES } from "../constants/taskCategories";
 import TaskList from "./TaskList";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
-import { TaskEngine } from "../lib/taskEngine";
+import { TaskEngine, collectHarvestWindowDates } from "../lib/taskEngine";
 import { getLocalDateString } from "../lib/dateUtils";
 
 export interface Task {
@@ -80,6 +81,23 @@ export default function TaskCalendar({
   useEffect(() => {
     try { window.localStorage.setItem("rhozly_calendar_view", calendarView); } catch { /* noop */ }
   }, [calendarView]);
+  // Wave-20.2 — harvest-window highlight. When ON, every day inside an
+  // active harvest window gets a subtle green tint so the user can see
+  // "this whole stretch is ripening". Persists per browser via local
+  // storage so the preference sticks across visits.
+  const [showHarvestWindows, setShowHarvestWindows] = useState<boolean>(() => {
+    if (typeof window === "undefined") return true;
+    const saved = window.localStorage.getItem("rhozly_calendar_harvest_windows");
+    return saved === null ? true : saved === "1";
+  });
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(
+        "rhozly_calendar_harvest_windows",
+        showHarvestWindows ? "1" : "0",
+      );
+    } catch { /* noop */ }
+  }, [showHarvestWindows]);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [dragOverDate, setDragOverDate] = useState<string | null>(null);
   const [rescheduling, setRescheduling] = useState(false);
@@ -118,6 +136,16 @@ export default function TaskCalendar({
   const [selectedPlan, setSelectedPlan] = useState<string>("all");
 
   const todayStr = getLocalDateString(new Date());
+
+  // Wave-20.2 — pre-compute every date string inside an active harvest
+  // window from the loaded tasks. The calendar cell renderer checks
+  // membership in this set to apply the green tint. Empty when the user
+  // has toggled the highlight off, so the cell renderer can skip the
+  // lookup entirely on the "off" path.
+  const harvestWindowDates = useMemo(() => {
+    if (!showHarvestWindows) return new Set<string>();
+    return collectHarvestWindowDates([...tasks, ...overdueTasks]);
+  }, [tasks, overdueTasks, showHarvestWindows]);
 
   const getTasksForDate = useCallback(
     (date: Date) => {
@@ -527,6 +555,26 @@ export default function TaskCalendar({
             <Download size={16} /> Export
           </button>
           <button
+            data-testid="calendar-harvest-windows-toggle"
+            onClick={() => setShowHarvestWindows((v) => !v)}
+            aria-pressed={showHarvestWindows}
+            title={
+              showHarvestWindows
+                ? "Harvest windows are highlighted on the calendar. Tap to hide."
+                : "Harvest windows are hidden. Tap to highlight them."
+            }
+            className={`px-3 sm:px-4 py-3 rounded-2xl font-black flex items-center gap-1.5 transition-all shadow-sm border-2 ${
+              showHarvestWindows
+                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                : "bg-rhozly-surface-low text-rhozly-on-surface/55 border-transparent hover:bg-rhozly-surface-mid"
+            }`}
+          >
+            <Sprout size={16} />
+            <span className="hidden sm:inline text-sm">
+              {showHarvestWindows ? "Harvest windows" : "Harvest windows off"}
+            </span>
+          </button>
+          <button
             onClick={() => {
               const today = new Date();
               setCurrentDate(today);
@@ -739,10 +787,12 @@ export default function TaskCalendar({
                 const isPastDay = dayDateStr < todayStr;
                 const dayTasks = getTasksForDate(dayDate).filter((t) => t.status !== "Skipped");
                 const isDragTarget = dragOverDate === dayDateStr;
+                const isHarvestWindow = harvestWindowDates.has(dayDateStr) && !isSelected;
                 return (
                   <div
                     key={index}
                     onClick={() => setSelectedDate(dayDate)}
+                    data-harvest-window={isHarvestWindow ? "true" : undefined}
                     onDragOver={(e) => {
                       if (draggingTaskId) {
                         e.preventDefault();
@@ -752,7 +802,7 @@ export default function TaskCalendar({
                     onDragLeave={() => setDragOverDate((d) => (d === dayDateStr ? null : d))}
                     onDrop={(e) => { e.preventDefault(); handleDropOnDate(dayDate); }}
                     className={`relative flex flex-col rounded-3xl p-3 min-h-[200px] border-2 transition-all cursor-pointer
-                      ${isSelected ? "border-rhozly-primary bg-rhozly-primary/5" : "border-rhozly-outline/10 bg-white"}
+                      ${isSelected ? "border-rhozly-primary bg-rhozly-primary/5" : isHarvestWindow ? "border-emerald-200/60 bg-emerald-50" : "border-rhozly-outline/10 bg-white"}
                       ${isToday && !isSelected ? "border-rhozly-primary/30" : ""}
                       ${isPastDay && !isSelected ? "opacity-80" : ""}
                       ${isDragTarget ? "ring-2 ring-rhozly-primary scale-[1.02] bg-rhozly-primary/10" : ""}
@@ -833,14 +883,20 @@ export default function TaskCalendar({
               const hasAnyIndicator = cellInd
                 ? cellInd.greenCount > 0 || cellInd.redCheckCount > 0 || cellInd.redXCount > 0 || cellInd.faintCount > 0
                 : false;
+              // Tint the cell green when this date is inside an active
+              // harvest window AND the user hasn't toggled the highlight
+              // off. Selected / Today states take precedence visually so
+              // we skip the tint for those.
+              const isHarvestWindow = harvestWindowDates.has(dayDateStr) && !isSelected && !isToday;
 
               return (
                 <button
                   key={index}
                   onClick={() => setSelectedDate(dayObj.date)}
+                  data-harvest-window={isHarvestWindow ? "true" : undefined}
                   className={`relative flex flex-col items-center justify-center aspect-square rounded-2xl sm:rounded-3xl transition-all border-2
                     ${dayObj.isCurrentMonth ? "text-rhozly-on-surface hover:border-rhozly-primary/30" : "text-rhozly-on-surface/20 hover:border-rhozly-outline/10"}
-                    ${isSelected ? "bg-rhozly-primary text-white border-rhozly-primary shadow-lg scale-105 z-10" : "bg-transparent border-transparent"}
+                    ${isSelected ? "bg-rhozly-primary text-white border-rhozly-primary shadow-lg scale-105 z-10" : isHarvestWindow ? "bg-emerald-50 border-emerald-200/60" : "bg-transparent border-transparent"}
                     ${isToday && !isSelected ? "bg-rhozly-primary/5 border-rhozly-primary/20 text-rhozly-primary" : ""}
                   `}
                 >

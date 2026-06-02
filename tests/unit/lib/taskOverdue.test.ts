@@ -3,6 +3,7 @@ import {
   isTaskOverdue,
   isInsideHarvestWindow,
   daysLeftInWindow,
+  collectHarvestWindowDates,
 } from "../../../src/lib/taskEngine";
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -135,5 +136,64 @@ describe("daysLeftInWindow", () => {
 
   test("returns null for non-window tasks", () => {
     expect(daysLeftInWindow({ window_end_date: null }, "2026-06-05")).toBeNull();
+  });
+});
+
+// ──────────────────────────────────────────────────────────────────────────
+// collectHarvestWindowDates — the set used by the calendar to tint cells
+// ──────────────────────────────────────────────────────────────────────────
+
+describe("collectHarvestWindowDates", () => {
+  test("empty list → empty set", () => {
+    expect(collectHarvestWindowDates([]).size).toBe(0);
+  });
+
+  test("single 3-day window emits every day inclusive", () => {
+    const set = collectHarvestWindowDates([
+      { status: "Pending", due_date: "2026-06-01", window_end_date: "2026-06-03" },
+    ]);
+    expect(set.size).toBe(3);
+    expect(set.has("2026-06-01")).toBe(true);
+    expect(set.has("2026-06-02")).toBe(true);
+    expect(set.has("2026-06-03")).toBe(true);
+  });
+
+  test("two overlapping windows deduplicate dates", () => {
+    const set = collectHarvestWindowDates([
+      { status: "Pending", due_date: "2026-06-01", window_end_date: "2026-06-05" }, // 5 days
+      { status: "Pending", due_date: "2026-06-04", window_end_date: "2026-06-08" }, // 5 days, overlaps 2
+    ]);
+    // Union should be 2026-06-01 through 2026-06-08 = 8 days.
+    expect(set.size).toBe(8);
+  });
+
+  test("ignores tasks without window_end_date", () => {
+    const set = collectHarvestWindowDates([
+      { status: "Pending", due_date: "2026-06-01", window_end_date: null },
+      { status: "Pending", due_date: "2026-06-10", window_end_date: undefined as any },
+    ]);
+    expect(set.size).toBe(0);
+  });
+
+  test("ignores completed / skipped tasks", () => {
+    const set = collectHarvestWindowDates([
+      { status: "Completed", due_date: "2026-06-01", window_end_date: "2026-06-05" },
+      { status: "Skipped", due_date: "2026-07-01", window_end_date: "2026-07-05" },
+    ]);
+    expect(set.size).toBe(0);
+  });
+
+  test("end before start is skipped (bad data)", () => {
+    const set = collectHarvestWindowDates([
+      { status: "Pending", due_date: "2026-09-30", window_end_date: "2026-06-01" },
+    ]);
+    expect(set.size).toBe(0);
+  });
+
+  test("bounded at 400 days per window (data safety)", () => {
+    const set = collectHarvestWindowDates([
+      { status: "Pending", due_date: "2026-01-01", window_end_date: "2099-01-01" },
+    ]);
+    expect(set.size).toBeLessThanOrEqual(400);
   });
 });

@@ -2,15 +2,8 @@
   {
     "label": "New",
     "items": [
-      "Partial harvests — new \"Picked some\" action on the harvest task footer lets you log a yield (quantity + unit + notes) and snooze the task for 1, 3, 5 or 7 days without closing it. Perfect for berries, beans, courgettes, chillies and anything else you pick over weeks.",
-      "The task modal now shows a \"Picked so far in this window\" running total above the action buttons so you can see how much you've harvested this season."
-    ]
-  },
-  {
-    "label": "Fixed",
-    "items": [
-      "One-time cleanup: existing harvest tasks that piled up under the old daily-cadence model are now backfilled to the new window model, and the per-day duplicates inside each window are collapsed into one task. Your harvest backlog should look a lot calmer.",
-      "Harvest action footer reorganised into a 2×2 grid (Harvested · Picked some · Not yet · Check with AI) so the new action gets equal weight without crowding."
+      "Calendar now tints every day inside an active harvest window with a subtle green wash — easy to see at a glance which stretches of the month are ripening.",
+      "New \"Harvest windows\" toggle in the calendar header lets you hide the tint when it gets visually busy. Your preference sticks across visits."
     ]
   }
 ]
