@@ -47,19 +47,27 @@ export interface Task {
   lateCompletionFrom?: string;
 }
 
+// Canonical map — used both for the calendar legend at the bottom of
+// the view AND as the source of dot colours. Keep this list to the
+// CANONICAL task type names only so the legend doesn't show duplicates.
+// The legacy synonym 'Harvest' is mapped into 'Harvesting' inside
+// `taskDotColor` so any task still carrying the old value renders the
+// right colour without polluting the legend.
 const TASK_TYPE_DOT: Record<string, string> = {
   Watering:    "bg-blue-400",
   Planting:    "bg-emerald-400",
   Harvesting:  "bg-amber-400",
-  // Legacy synonym from Save-to-Shed + Companion Plants — same colour.
-  Harvest:     "bg-amber-400",
   Maintenance: "bg-purple-400",
   Pruning:     "bg-lime-400",
 };
 
 function taskDotColor(type: string, isSelected: boolean): string {
   if (isSelected) return "bg-white";
-  return TASK_TYPE_DOT[type] ?? "bg-rhozly-primary";
+  // Normalise legacy synonyms before lookup so the dot is correct for
+  // any pre-normalisation row that still leaks through from the
+  // offline queue or a stale cache.
+  const lookup = type === "Harvest" ? "Harvesting" : type;
+  return TASK_TYPE_DOT[lookup] ?? "bg-rhozly-primary";
 }
 
 export default function TaskCalendar({
@@ -883,7 +891,7 @@ export default function TaskCalendar({
                         </p>
                       )}
                       {dayTasks.slice(0, 6).map((t) => {
-                        const dotCls = TASK_TYPE_DOT[t.type] ?? "bg-rhozly-primary";
+                        const dotCls = taskDotColor(t.type, false);
                         const completed = t.status === "Completed";
                         return (
                           <div

@@ -1,9 +1,8 @@
 [
   {
-    "label": "Improved",
+    "label": "Fixed",
     "items": [
-      "All harvest tasks now use a single canonical type — \"Harvesting\". The codebase used to carry both \"Harvest\" (legacy, from Save-to-Shed and Companion Plants) and \"Harvesting\" (canonical), which showed up as two separate labels with the same amber dot in some places. They're now collapsed into one across every existing task, blueprint and plant schedule, and both creators that produced the legacy name now emit \"Harvesting\" going forward.",
-      "The defensive code that accepted either spelling stays in place under the hood, so any rare task that slips through from an offline queue or stale cache still behaves correctly."
+      "The colour key at the bottom of the calendar no longer shows both \"Harvest\" and \"Harvesting\" — only the canonical \"Harvesting\" label appears. Any rogue task still carrying the legacy spelling still renders with the right amber dot via a small synonym map inside the dot-colour helper."
     ]
   }
 ]
