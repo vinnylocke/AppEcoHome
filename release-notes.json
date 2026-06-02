@@ -1,10 +1,8 @@
 [
   {
-    "label": "Fixed",
+    "label": "New",
     "items": [
-      "Harvest tasks created via Save-to-Shed and Companion Plants — anything stored as the legacy task type \"Harvest\" rather than \"Harvesting\" — now get the full window-task experience: green calendar tint, in-window task modal with Harvested / Picked some / Not yet / Check with AI actions, and the click-any-day-in-window panel.",
-      "A one-time backfill ran across every legacy \"Harvest\" task in the database to set window_end_date from the parent blueprint and collapse the per-day duplicates the same way the original Wave 20 backfill handled \"Harvesting\" tasks. Existing summer / autumn harvest pile-ups should be cleaner now.",
-      "Calendar dot colours treat both \"Harvest\" and \"Harvesting\" the same amber, so the legacy type no longer renders as the default fallback colour."
+      "New \"Check for update\" button in the profile menu (right below Contact Support) — forces a fresh DB version check + service-worker update probe and tells you whether an update is waiting or you're already on the latest version. Use this when the app feels behind and the automatic update poller hasn't caught up."
     ]
   }
 ]

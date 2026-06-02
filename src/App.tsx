@@ -1130,6 +1130,7 @@ function AppShell() {
                 canViewAudit={profile?.can_view_audit ?? false}
                 appVersion={appVersion ?? undefined}
                 onVersionClick={() => setReleaseNotesMode("history")}
+                onCheckForUpdate={versionState.refresh}
               />
             </header>
             )}

@@ -14,9 +14,12 @@ import {
   ClipboardList,
   Rocket,
   Sparkles,
+  RefreshCw,
+  Loader2,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
+import toast from "react-hot-toast";
 import ContactSupportModal from "./ContactSupportModal";
 
 const WHATS_NEW_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
@@ -41,6 +44,12 @@ interface Props {
   canViewAudit?: boolean;
   appVersion?: string;
   onVersionClick?: () => void;
+  /**
+   * Manual "Check for update" trigger. Forces a fresh DB version fetch +
+   * service-worker update probe. Resolves with whether an update is
+   * pending so the dropdown can paint an appropriate toast.
+   */
+  onCheckForUpdate?: () => Promise<{ updateAvailable: boolean }>;
 }
 
 interface DropdownItem {
@@ -74,14 +83,36 @@ function SectionLabel({ label }: { label: string }) {
   );
 }
 
-export default function UserProfileDropdown({ displayName, firstName, email, subscriptionTier, isAdmin, canViewAudit, appVersion, onVersionClick }: Props) {
+export default function UserProfileDropdown({ displayName, firstName, email, subscriptionTier, isAdmin, canViewAudit, appVersion, onVersionClick, onCheckForUpdate }: Props) {
   const tierLabel = subscriptionTier ? TIER_LABEL[subscriptionTier] : "Sprout (Free)";
   const nameLabel = displayName || firstName || email?.split("@")[0] || tierLabel;
   const [open, setOpen] = useState(false);
   const [supportOpen, setSupportOpen] = useState(false);
   const [whatsNewVersion, setWhatsNewVersion] = useState<string | null>(null);
+  const [isCheckingForUpdate, setIsCheckingForUpdate] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const navigate = useNavigate();
+
+  const handleCheckForUpdate = async () => {
+    if (!onCheckForUpdate || isCheckingForUpdate) return;
+    setIsCheckingForUpdate(true);
+    try {
+      const { updateAvailable } = await onCheckForUpdate();
+      if (updateAvailable) {
+        // The hook's poller already dispatches `pwa-update-available` when
+        // a mismatch is observed, which the UpdateBanner picks up and
+        // counts down a reload. Show a light confirmation toast and let
+        // the banner take over.
+        toast.success("Update available — applying now…");
+      } else {
+        toast.success("You're on the latest version.");
+      }
+    } catch {
+      toast.error("Couldn't check for an update — please try again.");
+    } finally {
+      setIsCheckingForUpdate(false);
+    }
+  };
 
   useEffect(() => {
     if (!appVersion) return;
@@ -268,6 +299,25 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
                 <span className="flex-1 text-left">Contact Support</span>
                 <ChevronRight size={12} className="text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50 transition-colors" />
               </button>
+              {onCheckForUpdate && (
+                <button
+                  data-testid="user-profile-check-for-update"
+                  onClick={(e) => { e.stopPropagation(); handleCheckForUpdate(); }}
+                  disabled={isCheckingForUpdate}
+                  className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors group disabled:opacity-60 disabled:cursor-wait"
+                >
+                  <span className="text-rhozly-on-surface/40 group-hover:text-rhozly-primary transition-colors">
+                    {isCheckingForUpdate ? (
+                      <Loader2 size={15} className="animate-spin" />
+                    ) : (
+                      <RefreshCw size={15} />
+                    )}
+                  </span>
+                  <span className="flex-1 text-left">
+                    {isCheckingForUpdate ? "Checking…" : "Check for update"}
+                  </span>
+                </button>
+              )}
             </div>
 
             {/* Sign out */}

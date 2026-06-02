@@ -33,6 +33,20 @@ export interface AppVersionState {
   dbVersion: string | null;         // "Rhozly OS 01.0048" — null until fetched
   dbVersionKey: string | null;      // "01.0048" — null until fetched
   updateAvailable: boolean;         // true when dbVersion > bundleVersion
+  /**
+   * Force a fresh DB version fetch + service-worker update check. Used by
+   * the "Check for update" affordance in the profile dropdown when the
+   * user wants to bypass the polling cadence and confirm whether a new
+   * version is waiting.
+   *
+   * Returns the latest comparison so the caller can render a toast
+   * ("Update available" vs "You're on the latest").
+   */
+  refresh: () => Promise<{
+    updateAvailable: boolean;
+    bundleVersionKey: string | null;
+    dbVersionKey: string | null;
+  }>;
 }
 
 const POLL_INTERVAL_MS = 30_000;
@@ -207,11 +221,47 @@ export function useAppVersion(): AppVersionState {
     );
   }, [updateAvailable, bundleVersionKey, dbVersionKey]);
 
+  // Manual "Check for update" path. Triggers the same DB fetch the
+  // poller does + a fresh service-worker update probe (the SW is
+  // cached aggressively and may not detect a new bundle on its own
+  // schedule). Resolves with the post-refresh comparison so the
+  // caller can pick a toast.
+  const refresh = async () => {
+    // Service-worker update probe — fire-and-forget; if a new SW is
+    // waiting, the SW's own `onNeedRefresh` will dispatch the
+    // pwa-update-available event and the banner will take over.
+    if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
+      try {
+        const reg = await navigator.serviceWorker.getRegistration();
+        await reg?.update();
+      } catch (err) {
+        Logger.error("useAppVersion: SW update probe failed", err);
+      }
+    }
+    const next = await fetchDbVersion();
+    let resolvedDbKey: string | null = dbVersionKey;
+    if (next) {
+      setDb(next);
+      resolvedDbKey = formatKey(next);
+    }
+    const resolvedBundleKey = bundleVersionKey;
+    const isAhead =
+      bundle != null
+      && next != null
+      && compareVersions(next, bundle) > 0;
+    return {
+      updateAvailable: isAhead,
+      bundleVersionKey: resolvedBundleKey,
+      dbVersionKey: resolvedDbKey,
+    };
+  };
+
   return {
     bundleVersion: bundleVersionKey ? `Rhozly OS ${bundleVersionKey}` : null,
     bundleVersionKey,
     dbVersion: dbVersionKey ? `Rhozly OS ${dbVersionKey}` : null,
     dbVersionKey,
     updateAvailable,
+    refresh,
   };
 }
