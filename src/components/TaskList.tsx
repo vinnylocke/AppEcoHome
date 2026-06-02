@@ -1104,7 +1104,7 @@ export default function TaskList({
             } else if (isOverdue) {
               cardStyle = "bg-red-100 border-red-300 hover:border-red-500 shadow-red-100";
             } else if (isInHarvestWindow) {
-              cardStyle = "bg-emerald-50 border-emerald-200 hover:border-emerald-400";
+              cardStyle = "bg-amber-50 border-amber-200 hover:border-amber-400";
             } else if (isToday) {
               cardStyle = "bg-sky-50 border-sky-200 hover:border-sky-400";
             }

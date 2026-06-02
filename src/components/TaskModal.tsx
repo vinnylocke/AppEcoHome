@@ -900,23 +900,23 @@ export default function TaskModal({
                     {isInWindow && task.status !== "Completed" && (
                       <div
                         data-testid="task-harvest-window-pill"
-                        className="flex items-center gap-3 p-3 rounded-2xl border bg-emerald-50 border-emerald-200"
+                        className="flex items-center gap-3 p-3 rounded-2xl border bg-amber-50 border-amber-200"
                       >
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-emerald-100 text-emerald-700">
+                        <div className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0 bg-amber-100 text-amber-700">
                           <Sprout size={16} />
                         </div>
                         <div>
-                          <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700/80">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-amber-700/80">
                             Harvest window
                           </p>
-                          <p className="text-sm font-black text-emerald-800">
+                          <p className="text-sm font-black text-amber-800">
                             {daysLeft === 0
                               ? "Last day of the window"
                               : daysLeft === 1
                                 ? "1 day left"
                                 : `${daysLeft} days left`}
                             {task.window_end_date && (
-                              <span className="font-semibold text-emerald-700/70"> · closes {formatDisplayDate(task.window_end_date)}</span>
+                              <span className="font-semibold text-amber-700/70"> · closes {formatDisplayDate(task.window_end_date)}</span>
                             )}
                           </p>
                         </div>
@@ -1545,7 +1545,7 @@ function HarvestWindowFooter({
       {totalsLine && (
         <div
           data-testid="harvest-running-total"
-          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800"
+          className="flex items-center gap-2 px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800"
         >
           <Sprout size={14} className="shrink-0" />
           <p className="text-[11px] font-black uppercase tracking-widest">

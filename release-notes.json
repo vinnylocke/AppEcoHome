@@ -1,8 +1,11 @@
 [
   {
-    "label": "New",
+    "label": "Fixed",
     "items": [
-      "New \"Check for update\" button in the profile menu (right below Contact Support) — forces a fresh DB version check + service-worker update probe and tells you whether an update is waiting or you're already on the latest version. Use this when the app feels behind and the automatic update poller hasn't caught up."
+      "Delaying a harvest task no longer disassociates it from its harvest window. Previously the postpone helper rebuilt the task without window_end_date, so the rescheduled task showed as a standalone one-off rather than part of the harvest range. The window date and snooze date are now preserved across postpone, snooze and bulk reschedule.",
+      "Recovery backfill: any harvest task that already lost its window context due to the postpone bug gets window_end_date restored from its parent blueprint on this deploy. The next page load should show the harvest range intact again.",
+      "Harvest window highlight on the calendar (and the in-modal window pill, the day toggle button, the running total chip, and the in-window task list card) now use the same amber palette as the Harvest task type dot, so the colour story is consistent across the app.",
+      "Internal: the dedicated harvest-window query now logs an error when it fails — silently going to empty made \"missing tint\" untraceable."
     ]
   }
 ]

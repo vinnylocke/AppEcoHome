@@ -17,6 +17,14 @@ export function buildGhostPayload(
     area_id: ghost.area_id,
     plan_id: ghost.plan_id,
     inventory_item_ids: ghost.inventory_item_ids,
+    // Wave-20.8 — preserve harvest window context across materialisation
+    // / postpone. Without these, a delayed (postponed) harvest task would
+    // be created without window_end_date and silently lose every window
+    // affordance — green tint, in-window footer, click-any-day-in-range
+    // visibility. Same applies to next_check_at when a snoozed task is
+    // moved.
+    window_end_date: ghost.window_end_date ?? null,
+    next_check_at: ghost.next_check_at ?? null,
     ...overrides,
   };
 }

@@ -392,6 +392,16 @@ export default function TaskCalendar({
       setInventoryDict(result.inventoryDict);
       setBlockedTaskIds(result.blockedTaskIds);
       setOverdueTasks((overdueResult.data as Task[]) || []);
+      // Wave-20.8 — surface dedicated harvest-window query errors. The
+      // highlight depended on this query silently going to empty when
+      // it errored, which made "missing tint" impossible to diagnose.
+      if (harvestWindowResult.error) {
+        Logger.error(
+          "Calendar harvest-window query failed (highlight will be empty)",
+          harvestWindowResult.error,
+          { homeId },
+        );
+      }
       setHarvestWindowTasks(
         (harvestWindowResult.data as Array<{
           due_date: string;
@@ -614,7 +624,7 @@ export default function TaskCalendar({
             }
             className={`px-3 sm:px-4 py-3 rounded-2xl font-black flex items-center gap-1.5 transition-all shadow-sm border-2 ${
               showHarvestWindows
-                ? "bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100"
+                ? "bg-amber-50 text-amber-700 border-amber-200 hover:bg-amber-100"
                 : "bg-rhozly-surface-low text-rhozly-on-surface/55 border-transparent hover:bg-rhozly-surface-mid"
             }`}
           >
@@ -851,7 +861,7 @@ export default function TaskCalendar({
                     onDragLeave={() => setDragOverDate((d) => (d === dayDateStr ? null : d))}
                     onDrop={(e) => { e.preventDefault(); handleDropOnDate(dayDate); }}
                     className={`relative flex flex-col rounded-3xl p-3 min-h-[200px] border-2 transition-all cursor-pointer
-                      ${isSelected ? "border-rhozly-primary bg-rhozly-primary/5" : isHarvestWindow ? "border-emerald-200/60 bg-emerald-50" : "border-rhozly-outline/10 bg-white"}
+                      ${isSelected ? "border-rhozly-primary bg-rhozly-primary/5" : isHarvestWindow ? "border-amber-300/60 bg-amber-100/70" : "border-rhozly-outline/10 bg-white"}
                       ${isToday && !isSelected ? "border-rhozly-primary/30" : ""}
                       ${isPastDay && !isSelected ? "opacity-80" : ""}
                       ${isDragTarget ? "ring-2 ring-rhozly-primary scale-[1.02] bg-rhozly-primary/10" : ""}
@@ -956,7 +966,7 @@ export default function TaskCalendar({
                   data-harvest-window={isHarvestWindow ? "true" : undefined}
                   className={`relative flex flex-col items-center justify-center aspect-square rounded-2xl sm:rounded-3xl transition-all border-2
                     ${dayObj.isCurrentMonth ? "text-rhozly-on-surface hover:border-rhozly-primary/30" : "text-rhozly-on-surface/20 hover:border-rhozly-outline/10"}
-                    ${isSelected ? "bg-rhozly-primary text-white border-rhozly-primary shadow-lg scale-105 z-10" : isHarvestWindow ? "bg-emerald-50 border-emerald-200/60" : "bg-transparent border-transparent"}
+                    ${isSelected ? "bg-rhozly-primary text-white border-rhozly-primary shadow-lg scale-105 z-10" : isHarvestWindow ? "bg-amber-100/70 border-amber-300/60" : "bg-transparent border-transparent"}
                     ${isToday && !isSelected ? "bg-rhozly-primary/5 border-rhozly-primary/20 text-rhozly-primary" : ""}
                   `}
                 >
