@@ -1352,13 +1352,17 @@ export default function PlantDoctor({
                                 setSelectedPlantName(item.name);
                                 setSelectedPlantScientific(item.scientific_name ?? null);
                               }}
-                              className="w-full text-left p-4 bg-white rounded-2xl border border-rhozly-outline/10 font-bold hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-rhozly-on-surface"
+                              className="w-full text-left p-4 bg-white rounded-2xl border border-rhozly-outline/10 hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-rhozly-on-surface"
                             >
                               <div className="flex items-center justify-between gap-3">
-                                <div>
-                                  <div>{item.name}</div>
+                                <div className="min-w-0 flex-1">
+                                  <div className="font-black text-base sm:text-lg text-rhozly-on-surface leading-tight truncate">
+                                    {item.name}
+                                  </div>
                                   {item.scientific_name && (
-                                    <div className="text-xs font-medium text-rhozly-on-surface/40 italic mt-0.5">{item.scientific_name}</div>
+                                    <div className="text-sm font-semibold text-rhozly-on-surface/60 italic mt-0.5 truncate">
+                                      {item.scientific_name}
+                                    </div>
                                   )}
                                 </div>
                                 <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${item.confidence >= 80 ? "bg-emerald-50 text-emerald-700" : item.confidence >= 60 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
@@ -1373,18 +1377,28 @@ export default function PlantDoctor({
 
                   {selectedPlantName && activeAction === "identify" && (
                     <div className="bg-rhozly-primary/5 border border-rhozly-primary/20 rounded-3xl p-6 shadow-sm animate-in zoom-in-95">
-                      <div className="flex items-center justify-between mb-4">
-                        <h3 className="font-black text-rhozly-on-surface">
-                          Save {selectedPlantName}
-                        </h3>
+                      <div className="flex items-start justify-between gap-3 mb-4">
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-1">
+                            Save
+                          </p>
+                          <h3 className="font-black text-lg sm:text-xl text-rhozly-on-surface leading-tight truncate">
+                            {selectedPlantName}
+                          </h3>
+                          {selectedPlantScientific && (
+                            <p className="text-sm font-semibold text-rhozly-on-surface/60 italic leading-tight truncate mt-0.5">
+                              {selectedPlantScientific}
+                            </p>
+                          )}
+                        </div>
                         {confirmedValue ? (
-                          <span className="flex items-center gap-1 text-xs font-black text-rhozly-primary bg-rhozly-primary/10 px-2 py-1 rounded-lg">
+                          <span className="shrink-0 flex items-center gap-1 text-xs font-black text-rhozly-primary bg-rhozly-primary/10 px-2 py-1 rounded-lg">
                             <CheckCircle2 size={12} /> Confirmed
                           </span>
                         ) : (
                           <button
                             onClick={() => { setSelectedPlantName(null); setSelectedPlantScientific(null); }}
-                            className="flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors min-h-[44px] px-2"
+                            className="shrink-0 flex items-center gap-1 text-xs font-black text-rhozly-on-surface/40 hover:text-rhozly-primary transition-colors min-h-[44px] px-2"
                           >
                             <ChevronLeft size={14} /> Change
                           </button>

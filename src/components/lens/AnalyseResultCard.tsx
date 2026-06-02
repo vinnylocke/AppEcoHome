@@ -152,12 +152,20 @@ export default function AnalyseResultCard({ result, homeId, onTasksAdded }: Prop
         testId="analyse-section-identification"
         defaultOpen
       >
-        <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h3 className="font-black text-lg text-rhozly-on-surface">
+        <div className="space-y-0.5">
+          <h3
+            data-testid="analyse-identification-common-name"
+            className="font-black text-xl sm:text-2xl text-rhozly-on-surface leading-tight"
+          >
             {identification.common_name}
           </h3>
           {sciName && (
-            <span className="italic text-rhozly-on-surface/55 text-sm">{sciName}</span>
+            <p
+              data-testid="analyse-identification-scientific-name"
+              className="italic font-semibold text-rhozly-on-surface/65 text-sm sm:text-base leading-tight"
+            >
+              {sciName}
+            </p>
           )}
         </div>
         <div className="flex flex-wrap items-center gap-2 mt-1">
