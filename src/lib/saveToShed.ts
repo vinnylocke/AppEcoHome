@@ -127,7 +127,11 @@ export async function saveToShed(
       plant_id: savedPlant.id,
       home_id: homeId,
       title: "Check for harvest",
-      task_type: "Harvest",
+      // Wave-20.9 — canonical type is 'Harvesting' (the constraint allows
+      // both for back-compat, but we standardise on this one across the
+      // codebase so the type filter / task type labels only show one
+      // bucket).
+      task_type: "Harvesting",
       trigger_event: "Planted",
       start_reference: "Trigger Date",
       start_offset_days: harvestMeta.harvest_days_min,

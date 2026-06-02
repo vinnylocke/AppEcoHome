@@ -349,7 +349,10 @@ export default function CompanionPlantsTab({
     const harvestMeta = (fullCareData as any)?.plant_metadata ?? skeleton.plant_metadata;
     if (harvestMeta?.harvest_days_min && skeleton.source === "verdantly") {
       await supabase.from("plant_schedules").insert({
-        plant_id: saved.id, home_id: homeId, title: "Check for harvest", task_type: "Harvest",
+        plant_id: saved.id, home_id: homeId, title: "Check for harvest",
+        // Wave-20.9 — canonical type is 'Harvesting'. See
+        // 20260706000000_normalize_harvest_to_harvesting.sql.
+        task_type: "Harvesting",
         trigger_event: "Planted", start_reference: "Trigger Date",
         start_offset_days: harvestMeta.harvest_days_min, end_reference: "Trigger Date",
         end_offset_days: harvestMeta.harvest_days_max ?? harvestMeta.harvest_days_min,

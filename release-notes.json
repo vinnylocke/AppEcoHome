@@ -1,11 +1,9 @@
 [
   {
-    "label": "Fixed",
+    "label": "Improved",
     "items": [
-      "Delaying a harvest task no longer disassociates it from its harvest window. Previously the postpone helper rebuilt the task without window_end_date, so the rescheduled task showed as a standalone one-off rather than part of the harvest range. The window date and snooze date are now preserved across postpone, snooze and bulk reschedule.",
-      "Recovery backfill: any harvest task that already lost its window context due to the postpone bug gets window_end_date restored from its parent blueprint on this deploy. The next page load should show the harvest range intact again.",
-      "Harvest window highlight on the calendar (and the in-modal window pill, the day toggle button, the running total chip, and the in-window task list card) now use the same amber palette as the Harvest task type dot, so the colour story is consistent across the app.",
-      "Internal: the dedicated harvest-window query now logs an error when it fails — silently going to empty made \"missing tint\" untraceable."
+      "All harvest tasks now use a single canonical type — \"Harvesting\". The codebase used to carry both \"Harvest\" (legacy, from Save-to-Shed and Companion Plants) and \"Harvesting\" (canonical), which showed up as two separate labels with the same amber dot in some places. They're now collapsed into one across every existing task, blueprint and plant schedule, and both creators that produced the legacy name now emit \"Harvesting\" going forward.",
+      "The defensive code that accepted either spelling stays in place under the hood, so any rare task that slips through from an offline queue or stale cache still behaves correctly."
     ]
   }
 ]
