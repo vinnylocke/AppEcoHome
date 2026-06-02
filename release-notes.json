@@ -1,9 +1,9 @@
 [
   {
-    "label": "New",
+    "label": "Fixed",
     "items": [
-      "Calendar now tints every day inside an active harvest window with a subtle green wash — easy to see at a glance which stretches of the month are ripening.",
-      "New \"Harvest windows\" toggle in the calendar header lets you hide the tint when it gets visually busy. Your preference sticks across visits."
+      "Snoozed harvest tasks no longer regenerate a duplicate ghost behind the scenes, which means snoozing the same task twice no longer fails with a duplicate-key error and the old snoozed task no longer reappears as overdue while a hidden copy still exists in the database.",
+      "Internally: the task engine now builds its ghost-suppression index from every materialised task with a blueprint, regardless of whether the task is currently hidden by a snooze or out-of-window filter."
     ]
   }
 ]

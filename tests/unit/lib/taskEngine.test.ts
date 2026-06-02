@@ -174,6 +174,38 @@ describe("TaskEngine.fetchTasksWithGhosts — ghost generation", () => {
     ).toHaveLength(1);
   });
 
+  test("snoozed physical task (next_check_at > today) STILL suppresses the matching ghost", async () => {
+    // Regression — Wave 20.3. The next_check_at visibility filter used
+    // to hide the snoozed task from rawTasks, which was ALSO the source
+    // for ghost suppression. The ghost regenerated at the same
+    // (blueprint_id, due_date) key, and snoozing again tripped the
+    // unique_blueprint_date constraint on materialisation.
+    const snoozed = makeTask({
+      due_date: "2026-05-01",
+      next_check_at: "2099-01-01", // far future — definitely > today
+    });
+    queueTable("tasks", [snoozed], []);
+    queueTable("task_blueprints", [makeBlueprint()]);
+    queueTable("task_dependencies", []);
+
+    const result = await TaskEngine.fetchTasksWithGhosts(PARAMS);
+
+    // No ghost re-generated at the snoozed date.
+    expect(
+      result.tasks.filter((t: any) => t.isGhost && t.due_date === "2026-05-01"),
+    ).toHaveLength(0);
+
+    // The snoozed physical task is also hidden from the visible list.
+    expect(
+      result.tasks.filter((t: any) => t.id === snoozed.id),
+    ).toHaveLength(0);
+
+    // Other dates in the window still ghost normally.
+    expect(
+      result.tasks.filter((t: any) => t.isGhost && t.due_date === "2026-05-08"),
+    ).toHaveLength(1);
+  });
+
   test("blueprint without frequency_days produces no ghost tasks", async () => {
     queueTable("tasks", [], []);
     queueTable("task_blueprints", [makeBlueprint({ frequency_days: null })]);

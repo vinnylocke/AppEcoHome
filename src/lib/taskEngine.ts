@@ -286,10 +286,26 @@ export const TaskEngine = {
         ),
       );
 
+      const physicalRows = physicalTasks || [];
+
+      // Wave-20.3 — Suppression index built from EVERY physical task that
+      // has a blueprint_id, BEFORE any visibility filter runs. This is
+      // what the ghost loop checks below. The materialised-but-hidden
+      // case (snoozed via next_check_at, or completed-outside-window) MUST
+      // still suppress the ghost, otherwise the engine emits a duplicate
+      // ghost at the same (blueprint_id, due_date) key and the next
+      // materialisation INSERT trips the `unique_blueprint_date`
+      // constraint. See docs/plans/harvest-snooze-duplicate-ghost-fix.md.
+      const materialisedKeys = new Set(
+        physicalRows
+          .filter((t: any) => t.blueprint_id && t.due_date)
+          .map((t: any) => `${t.blueprint_id}:${t.due_date}`),
+      );
+
       // Filter historical completed tasks out of the window, AND hide
       // window tasks the user (or AI ripeness) snoozed via "Not yet"
       // when their `next_check_at` is still in the future.
-      const rawTasks = (physicalTasks || []).filter((task: any) => {
+      const rawTasks = physicalRows.filter((task: any) => {
         if (
           task.status === "Pending"
           && task.next_check_at
@@ -335,9 +351,8 @@ export const TaskEngine = {
           if (!intersectsRange) return;
 
           const alreadyExists =
-            rawTasks.some(
-              (t: any) => t.blueprint_id === bp.id && t.due_date === ghostStartIso,
-            ) || tombstoneSet.has(`${bp.id}:${ghostStartIso}`);
+            materialisedKeys.has(`${bp.id}:${ghostStartIso}`)
+            || tombstoneSet.has(`${bp.id}:${ghostStartIso}`);
           if (alreadyExists) return;
 
           ghosts.push({
@@ -384,9 +399,8 @@ export const TaskEngine = {
           if (bp.end_date && ghostDateStr > bp.end_date) break;
 
           const alreadyExists =
-            rawTasks.some(
-              (t) => t.blueprint_id === bp.id && t.due_date === ghostDateStr,
-            ) || tombstoneSet.has(`${bp.id}:${ghostDateStr}`);
+            materialisedKeys.has(`${bp.id}:${ghostDateStr}`)
+            || tombstoneSet.has(`${bp.id}:${ghostDateStr}`);
 
           if (
             !alreadyExists &&
