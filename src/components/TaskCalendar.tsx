@@ -51,6 +51,8 @@ const TASK_TYPE_DOT: Record<string, string> = {
   Watering:    "bg-blue-400",
   Planting:    "bg-emerald-400",
   Harvesting:  "bg-amber-400",
+  // Legacy synonym from Save-to-Shed + Companion Plants — same colour.
+  Harvest:     "bg-amber-400",
   Maintenance: "bg-purple-400",
   Pruning:     "bg-lime-400",
 };
@@ -371,16 +373,18 @@ export default function TaskCalendar({
         // Wave-20.5 — dedicated harvest-window query, independent of the
         // calendar's main fetch range. Captures every Pending harvest
         // task with a window_end_date in the home so the green tint
-        // can render reliably no matter which month is in view. This
-        // includes any tasks whose due_date is far outside the current
-        // 3-month window (which the engine's `due_date.lte.endDateStr`
-        // clause would otherwise exclude).
+        // can render reliably no matter which month is in view.
+        //
+        // Wave-20.6 — accept BOTH `Harvesting` (canonical) and `Harvest`
+        // (legacy, still produced by Save-to-Shed + Companion Plants).
+        // Excluding the legacy type was why every "summer harvest" task
+        // was silently missing from the tint.
         supabase
           .from("tasks")
           .select("due_date, window_end_date, status")
           .eq("home_id", homeId)
           .eq("status", "Pending")
-          .eq("type", "Harvesting")
+          .in("type", ["Harvesting", "Harvest"])
           .not("window_end_date", "is", null),
       ]);
 

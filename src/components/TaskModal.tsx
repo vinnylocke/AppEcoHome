@@ -1337,7 +1337,10 @@ export default function TaskModal({
             && task.status === "Pending"
             && !isInWindow
             && task.window_end_date < todayStr;
-          const isHarvestPending = task.type === "Harvesting" && task.status === "Pending";
+          // Accept both the canonical "Harvesting" and the legacy "Harvest"
+          // produced by Save-to-Shed + Companion Plants — same concept,
+          // both deserve the window-task footer.
+          const isHarvestPending = (task.type === "Harvesting" || task.type === "Harvest") && task.status === "Pending";
 
           if (isHarvestPending && isInWindow) {
             return (

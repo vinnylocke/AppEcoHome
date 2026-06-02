@@ -2,8 +2,9 @@
   {
     "label": "Fixed",
     "items": [
-      "Harvest window highlight now appears reliably in every month, not just the months where the calendar's main task fetch happened to include the windowed task. The green tint is now driven by a dedicated query that pulls every active harvest window in the home, regardless of which month you're viewing.",
-      "Internal: previously the highlight piggy-backed on the calendar's 3-month view-range fetch, so a window task whose due_date sat outside that range could silently drop out of the tint set even though its window covered the visible days."
+      "Harvest tasks created via Save-to-Shed and Companion Plants — anything stored as the legacy task type \"Harvest\" rather than \"Harvesting\" — now get the full window-task experience: green calendar tint, in-window task modal with Harvested / Picked some / Not yet / Check with AI actions, and the click-any-day-in-window panel.",
+      "A one-time backfill ran across every legacy \"Harvest\" task in the database to set window_end_date from the parent blueprint and collapse the per-day duplicates the same way the original Wave 20 backfill handled \"Harvesting\" tasks. Existing summer / autumn harvest pile-ups should be cleaner now.",
+      "Calendar dot colours treat both \"Harvest\" and \"Harvesting\" the same amber, so the legacy type no longer renders as the default fallback colour."
     ]
   }
 ]

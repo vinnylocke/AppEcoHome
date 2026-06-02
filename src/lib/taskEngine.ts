@@ -344,7 +344,15 @@ export const TaskEngine = {
         // is the window close. The engine + UI then treat the task as
         // "active in window" rather than overdue-by-default. See
         // docs/app-reference/04-schedule/01-blueprint-manager.md.
-        if (bp.task_type === "Harvesting" && bp.end_date) {
+        // Wave-20.6 — accept both "Harvesting" (plantScheduleFactory + the
+        // current canonical name) AND the legacy "Harvest" (no -ing) used
+        // by Save-to-Shed and Companion plants. Both refer to the same
+        // concept; treating only one of them as windowed was the root
+        // cause of "summer harvest" tasks never getting the window model.
+        if (
+          (bp.task_type === "Harvesting" || bp.task_type === "Harvest")
+          && bp.end_date
+        ) {
           const ghostStartIso = bp.start_date;
           const intersectsRange =
             ghostStartIso <= endDateStr && bp.end_date >= startDateStr;
