@@ -2,7 +2,7 @@
   {
     "label": "Improved",
     "items": [
-      "When you click \"Add to Shed\" from a Plant Lens identification result, it now opens the same library-first search the \"Find a plant\" button on the Plants page uses — so you see plant library, Verdantly and Perenual results alongside any AI guide, instead of being auto-routed to an AI-only flow. The scientific name (when available) is used as the search seed for the most precise library match."
+      "Plant Lens photo upload now accepts multiple photos in a single picker dialog — select all the angles you want in one go from your library instead of repeating the upload one by one. The 5-photo cap still applies and the strip will tell you if a file was skipped (wrong type, over 10MB, or you hit the cap)."
     ]
   }
 ]

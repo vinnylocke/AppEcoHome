@@ -382,14 +382,30 @@ export default function PlantDoctor({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      if (!file.type.startsWith("image/"))
-        return toast.error("Invalid file type.");
-      if (file.size > 10 * 1024 * 1024)
-        return toast.error("Image must be under 10MB.");
-
-      addPhoto(file);
+      // Wave-19.x — accept multiple files in one go. The `multiple`
+      // attribute on the input lets the OS picker select several photos
+      // at once; we walk them here and add each to the strip in order.
+      // `addPhoto` already enforces the 5-photo cap and toasts the
+      // overflow, so we don't need to short-circuit early.
+      const files = Array.from(e.target.files ?? []);
+      if (files.length === 0) return;
+      let added = 0;
+      for (const file of files) {
+        if (!file.type.startsWith("image/")) {
+          toast.error(`Skipped ${file.name || "a file"} — not an image.`);
+          continue;
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          toast.error(`Skipped ${file.name || "a file"} — over 10MB.`);
+          continue;
+        }
+        addPhoto(file);
+        added += 1;
+      }
+      if (added === 0) return;
+      // Reset the input value so picking the same set again triggers
+      // change (otherwise the browser dedupes by identity).
+      if (e.target) e.target.value = "";
       setAiResult(null);
       setSelectedPlantName(null);
       setSelectedPlantScientific(null);
@@ -2261,6 +2277,7 @@ export default function PlantDoctor({
           <input
             type="file"
             accept="image/*"
+            multiple
             className="hidden"
             ref={fileInputRef}
             onChange={handleFileChange}
