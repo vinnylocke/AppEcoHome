@@ -1510,12 +1510,22 @@ export default function PlantDoctor({
                       <div className="mt-4">
                         <button
                           data-testid="doctor-add-to-shed"
-                          onClick={() => navigate("/shed", {
-                            state: {
-                              autoImport: [selectedPlantName],
-                              returnTo: location.pathname + location.search,
-                            },
-                          })}
+                          onClick={() => {
+                            // Route through the Shed's library-first
+                            // BulkSearchModal (the same engine the "Find a
+                            // plant" button uses) so the user sees plant
+                            // library + Verdantly + Perenual results
+                            // alongside any AI guide — instead of the
+                            // previous autoImport path which opened the
+                            // SourcePicker and auto-selected AI by default.
+                            // Prefer the Latin name when available because
+                            // it gives the most precise library match;
+                            // fall back to the common name otherwise.
+                            const seed = selectedPlantScientific?.trim() || selectedPlantName || "";
+                            navigate(`/shed/add/search?query=${encodeURIComponent(seed)}`, {
+                              state: { returnTo: location.pathname + location.search },
+                            });
+                          }}
                           disabled={isUIBusy}
                           className="w-full flex items-center justify-center gap-2 py-4 px-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-sm hover:bg-rhozly-primary-container transition-colors disabled:opacity-50"
                         >

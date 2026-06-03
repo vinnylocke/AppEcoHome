@@ -2,8 +2,7 @@
   {
     "label": "Improved",
     "items": [
-      "Pl@ntNet's best match now always appears as its own clickable tile, even when the score is low or the AI happens to suggest the same species — so you can always see Pl@ntNet's verdict and confidence and click straight through to the care guide and grow guide. Two tiles for the same plant from different sources is now intentional: each shows its own confidence so you can decide which one to trust.",
-      "The \"Pl@ntNet didn't return a match\" note now only appears when Pl@ntNet genuinely returned zero candidates (e.g. the photo was rejected as non-plant or the service was unavailable). When Pl@ntNet returned even a low-confidence guess, the tile is shown above with a red percentage chip and the note is suppressed."
+      "When you click \"Add to Shed\" from a Plant Lens identification result, it now opens the same library-first search the \"Find a plant\" button on the Plants page uses — so you see plant library, Verdantly and Perenual results alongside any AI guide, instead of being auto-routed to an AI-only flow. The scientific name (when available) is used as the search seed for the most precise library match."
     ]
   }
 ]
