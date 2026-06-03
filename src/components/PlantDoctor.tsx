@@ -1345,45 +1345,44 @@ export default function PlantDoctor({
                           </p>
                         )}
                         {(() => {
-                          // Pl@ntNet didn't return a usable match (no key, quota,
-                          // image rejected as non-plant, low confidence). Surface
-                          // a quiet note so the user knows it was tried but
-                          // didn't help here — not silence.
-                          const src = aiResult.plantnet?.identification_source;
-                          const pnAttemptedButEmpty = src === "ai_fallback" || (aiResult.plantnet && !aiResult.plantnet.best_match);
-                          if (!pnAttemptedButEmpty) return null;
+                          // Pl@ntNet truly returned nothing for this photo
+                          // (key missing, quota, image rejected as non-plant,
+                          // or zero candidates). Show a quiet note so the
+                          // user knows it was tried instead of silence.
+                          // When Pl@ntNet returned even a low-confidence
+                          // guess, we show its tile above (in red %) —
+                          // no need for the note as well.
+                          if (aiResult.plantnet?.best_match) return null;
+                          // Only mention Pl@ntNet at all if the edge
+                          // function attached the block (i.e. the call ran).
+                          if (!aiResult.plantnet) return null;
                           return (
                             <p className="text-[11px] font-semibold text-rhozly-on-surface/45 leading-snug mb-3 flex items-center gap-1.5">
                               <span className="inline-block w-1.5 h-1.5 rounded-full bg-rhozly-on-surface/30" />
-                              Pl@ntNet didn't return a confident match for this photo — the suggestions below are from Rhozly AI.
+                              Pl@ntNet didn't return a match for this photo — the suggestions below are from Rhozly AI.
                             </p>
                           );
                         })()}
                         <div className="space-y-2">
                           {(() => {
-                            // Render the Pl@ntNet best match as its own tile
-                            // alongside the AI candidates so the user can
-                            // pick it even when AI disagreed. Suppress only
-                            // when Pl@ntNet's match is already in
-                            // `possible_names` (trust path: the edge
-                            // function synthesised possible_names FROM
-                            // Pl@ntNet's top matches — those tiles already
-                            // ARE Pl@ntNet's match, labelled accordingly).
+                            // Always render the Pl@ntNet best match as its
+                            // own tile alongside the AI candidates so the
+                            // user can pick it even when Pl@ntNet's
+                            // confidence is low or AI agreed. Two tiles
+                            // for the same species (one Pl@ntNet, one AI)
+                            // is intentional here — the user wants to see
+                            // each source's confidence explicitly to
+                            // decide which to trust.
+                            //
+                            // The ONLY suppression is the trust path
+                            // (source === "plantnet"), because possible_names
+                            // IS already Pl@ntNet's top matches and those
+                            // tiles below carry the Pl@ntNet badge — a
+                            // separate tile would be a literal duplicate.
                             const pn = aiResult.plantnet?.best_match;
                             const src = aiResult.plantnet?.identification_source;
                             if (!pn) return null;
-                            // In the trust path, possible_names IS the
-                            // Pl@ntNet result, so don't render a duplicate
-                            // tile — the candidate tiles below will carry
-                            // the Pl@ntNet badge instead.
                             if (src === "plantnet") return null;
-                            const pnSciKey = pn.scientificName.trim().toLowerCase();
-                            const alreadyListed = (aiResult.possible_names ?? []).some(
-                              (n) =>
-                                n.scientific_name &&
-                                n.scientific_name.trim().toLowerCase() === pnSciKey,
-                            );
-                            if (alreadyListed) return null;
                             const pnConfidence = Math.round(pn.score * 100);
                             const pnDisplayName = pn.commonName ?? pn.scientificName;
                             return (

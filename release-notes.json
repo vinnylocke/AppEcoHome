@@ -1,15 +1,9 @@
 [
   {
-    "label": "Fixed",
-    "items": [
-      "Plant identification candidates are now labelled with the correct source. Previously, when Pl@ntNet was highly confident and the edge function synthesised the candidate list from its own top matches, every tile incorrectly showed the \"Rhozly AI\" badge — which made Pl@ntNet look like it wasn't running at all. Tiles now show the \"Pl@ntNet\" badge when the result came from Pl@ntNet, and \"Rhozly AI\" when it came from Gemini.",
-      "When Pl@ntNet didn't return a confident match for your photo (e.g. low score, image rejected as non-plant, quota exhausted), a small note now explains that the suggestions below are from Rhozly AI instead — so you know Pl@ntNet was tried but couldn't help on this one."
-    ]
-  },
-  {
     "label": "Improved",
     "items": [
-      "Each candidate tile's confidence percentage now shows a tooltip explaining whose confidence it is (Pl@ntNet or Rhozly AI), since they grade slightly differently."
+      "Pl@ntNet's best match now always appears as its own clickable tile, even when the score is low or the AI happens to suggest the same species — so you can always see Pl@ntNet's verdict and confidence and click straight through to the care guide and grow guide. Two tiles for the same plant from different sources is now intentional: each shows its own confidence so you can decide which one to trust.",
+      "The \"Pl@ntNet didn't return a match\" note now only appears when Pl@ntNet genuinely returned zero candidates (e.g. the photo was rejected as non-plant or the service was unavailable). When Pl@ntNet returned even a low-confidence guess, the tile is shown above with a red percentage chip and the note is suppressed."
     ]
   }
 ]
