@@ -1345,6 +1345,55 @@ export default function PlantDoctor({
                           </p>
                         )}
                         <div className="space-y-2">
+                          {(() => {
+                            // Wave-19.x — render the Pl@ntNet best match as a
+                            // clickable tile alongside the AI candidates so
+                            // the user can pick it even when AI disagreed.
+                            // Suppress when Pl@ntNet's match is already in
+                            // `possible_names` (i.e. trust path → the edge
+                            // function synthesised possible_names FROM
+                            // Pl@ntNet's top matches, no need to duplicate).
+                            const pn = aiResult.plantnet?.best_match;
+                            if (!pn) return null;
+                            const pnSciKey = pn.scientificName.trim().toLowerCase();
+                            const alreadyListed = (aiResult.possible_names ?? []).some(
+                              (n) =>
+                                n.scientific_name &&
+                                n.scientific_name.trim().toLowerCase() === pnSciKey,
+                            );
+                            if (alreadyListed) return null;
+                            const pnConfidence = Math.round(pn.score * 100);
+                            const pnDisplayName = pn.commonName ?? pn.scientificName;
+                            return (
+                              <button
+                                data-testid="identify-plantnet-tile"
+                                onClick={() => {
+                                  setSelectedPlantName(pnDisplayName);
+                                  setSelectedPlantScientific(pn.scientificName);
+                                }}
+                                className="w-full text-left p-4 bg-emerald-50/40 rounded-2xl border-2 border-emerald-200/70 hover:border-emerald-400 hover:bg-emerald-50 transition-all text-rhozly-on-surface"
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 mb-0.5">
+                                      <span className="text-[9px] font-black uppercase tracking-widest bg-emerald-600 text-white px-1.5 py-0.5 rounded">
+                                        Pl@ntNet
+                                      </span>
+                                    </div>
+                                    <div className="font-black text-base sm:text-lg text-rhozly-on-surface leading-tight truncate">
+                                      {pnDisplayName}
+                                    </div>
+                                    <div className="text-sm font-semibold text-rhozly-on-surface/60 italic mt-0.5 truncate">
+                                      {pn.scientificName}
+                                    </div>
+                                  </div>
+                                  <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${pnConfidence >= 80 ? "bg-emerald-100 text-emerald-700" : pnConfidence >= 40 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
+                                    {pnConfidence}%
+                                  </span>
+                                </div>
+                              </button>
+                            );
+                          })()}
                           {aiResult.possible_names.map((item, i) => (
                             <button
                               key={i}
@@ -1356,6 +1405,11 @@ export default function PlantDoctor({
                             >
                               <div className="flex items-center justify-between gap-3">
                                 <div className="min-w-0 flex-1">
+                                  <div className="flex items-center gap-2 mb-0.5">
+                                    <span className="text-[9px] font-black uppercase tracking-widest bg-rhozly-primary/10 text-rhozly-primary px-1.5 py-0.5 rounded">
+                                      Rhozly AI
+                                    </span>
+                                  </div>
                                   <div className="font-black text-base sm:text-lg text-rhozly-on-surface leading-tight truncate">
                                     {item.name}
                                   </div>

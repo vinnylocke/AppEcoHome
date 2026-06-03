@@ -1,8 +1,10 @@
 [
   {
-    "label": "Fixed",
+    "label": "Improved",
     "items": [
-      "The colour key at the bottom of the calendar no longer shows both \"Harvest\" and \"Harvesting\" — only the canonical \"Harvesting\" label appears. Any rogue task still carrying the legacy spelling still renders with the right amber dot via a small synonym map inside the dot-colour helper."
+      "Pl@ntNet's plant identification now shows up as its own clickable tile in the \"Which of these looks correct?\" list, sitting alongside the AI candidates with a small Pl@ntNet badge. Useful when Pl@ntNet and Rhozly AI disagree — you can pick either one to save to your Shed.",
+      "AI candidates now carry a small \"Rhozly AI\" badge for the same reason, so the source of each suggestion is obvious at a glance.",
+      "When Pl@ntNet is highly confident and its match already appears in the AI candidate list, the tile is suppressed so you don't see the same plant twice."
     ]
   }
 ]
