@@ -1344,17 +1344,39 @@ export default function PlantDoctor({
                             Pl@ntNet matched as <span className="italic">{aiResult.plantnet.best_match.scientificName}</span>, but Rhozly AI suggested <span className="italic">{aiResult.plantnet.ai_suggested_name}</span>. Compare both against the photo.
                           </p>
                         )}
+                        {(() => {
+                          // Pl@ntNet didn't return a usable match (no key, quota,
+                          // image rejected as non-plant, low confidence). Surface
+                          // a quiet note so the user knows it was tried but
+                          // didn't help here — not silence.
+                          const src = aiResult.plantnet?.identification_source;
+                          const pnAttemptedButEmpty = src === "ai_fallback" || (aiResult.plantnet && !aiResult.plantnet.best_match);
+                          if (!pnAttemptedButEmpty) return null;
+                          return (
+                            <p className="text-[11px] font-semibold text-rhozly-on-surface/45 leading-snug mb-3 flex items-center gap-1.5">
+                              <span className="inline-block w-1.5 h-1.5 rounded-full bg-rhozly-on-surface/30" />
+                              Pl@ntNet didn't return a confident match for this photo — the suggestions below are from Rhozly AI.
+                            </p>
+                          );
+                        })()}
                         <div className="space-y-2">
                           {(() => {
-                            // Wave-19.x — render the Pl@ntNet best match as a
-                            // clickable tile alongside the AI candidates so
-                            // the user can pick it even when AI disagreed.
-                            // Suppress when Pl@ntNet's match is already in
-                            // `possible_names` (i.e. trust path → the edge
+                            // Render the Pl@ntNet best match as its own tile
+                            // alongside the AI candidates so the user can
+                            // pick it even when AI disagreed. Suppress only
+                            // when Pl@ntNet's match is already in
+                            // `possible_names` (trust path: the edge
                             // function synthesised possible_names FROM
-                            // Pl@ntNet's top matches, no need to duplicate).
+                            // Pl@ntNet's top matches — those tiles already
+                            // ARE Pl@ntNet's match, labelled accordingly).
                             const pn = aiResult.plantnet?.best_match;
+                            const src = aiResult.plantnet?.identification_source;
                             if (!pn) return null;
+                            // In the trust path, possible_names IS the
+                            // Pl@ntNet result, so don't render a duplicate
+                            // tile — the candidate tiles below will carry
+                            // the Pl@ntNet badge instead.
+                            if (src === "plantnet") return null;
                             const pnSciKey = pn.scientificName.trim().toLowerCase();
                             const alreadyListed = (aiResult.possible_names ?? []).some(
                               (n) =>
@@ -1387,44 +1409,68 @@ export default function PlantDoctor({
                                       {pn.scientificName}
                                     </div>
                                   </div>
-                                  <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${pnConfidence >= 80 ? "bg-emerald-100 text-emerald-700" : pnConfidence >= 40 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
+                                  <span
+                                    title="Pl@ntNet's confidence in this match"
+                                    className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${pnConfidence >= 80 ? "bg-emerald-100 text-emerald-700" : pnConfidence >= 40 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}
+                                  >
                                     {pnConfidence}%
                                   </span>
                                 </div>
                               </button>
                             );
                           })()}
-                          {aiResult.possible_names.map((item, i) => (
-                            <button
-                              key={i}
-                              onClick={() => {
-                                setSelectedPlantName(item.name);
-                                setSelectedPlantScientific(item.scientific_name ?? null);
-                              }}
-                              className="w-full text-left p-4 bg-white rounded-2xl border border-rhozly-outline/10 hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-rhozly-on-surface"
-                            >
-                              <div className="flex items-center justify-between gap-3">
-                                <div className="min-w-0 flex-1">
-                                  <div className="flex items-center gap-2 mb-0.5">
-                                    <span className="text-[9px] font-black uppercase tracking-widest bg-rhozly-primary/10 text-rhozly-primary px-1.5 py-0.5 rounded">
-                                      Rhozly AI
-                                    </span>
-                                  </div>
-                                  <div className="font-black text-base sm:text-lg text-rhozly-on-surface leading-tight truncate">
-                                    {item.name}
-                                  </div>
-                                  {item.scientific_name && (
-                                    <div className="text-sm font-semibold text-rhozly-on-surface/60 italic mt-0.5 truncate">
-                                      {item.scientific_name}
+                          {(() => {
+                            // Source the badge label from the identification
+                            // path. In the trust path, possible_names IS
+                            // Pl@ntNet's data (the edge function
+                            // synthesised it from the top matches); calling
+                            // those tiles "Rhozly AI" mislabelled the
+                            // source and made it look like Pl@ntNet wasn't
+                            // running at all.
+                            const src = aiResult.plantnet?.identification_source;
+                            const isPlantNetSource = src === "plantnet";
+                            const badgeLabel = isPlantNetSource ? "Pl@ntNet" : "Rhozly AI";
+                            const badgeClass = isPlantNetSource
+                              ? "bg-emerald-600 text-white"
+                              : "bg-rhozly-primary/10 text-rhozly-primary";
+                            const cardClass = isPlantNetSource
+                              ? "w-full text-left p-4 bg-emerald-50/40 rounded-2xl border-2 border-emerald-200/70 hover:border-emerald-400 hover:bg-emerald-50 transition-all text-rhozly-on-surface"
+                              : "w-full text-left p-4 bg-white rounded-2xl border border-rhozly-outline/10 hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-rhozly-on-surface";
+                            return aiResult.possible_names!.map((item, i) => (
+                              <button
+                                key={i}
+                                onClick={() => {
+                                  setSelectedPlantName(item.name);
+                                  setSelectedPlantScientific(item.scientific_name ?? null);
+                                }}
+                                className={cardClass}
+                              >
+                                <div className="flex items-center justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 mb-0.5">
+                                      <span className={`text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded ${badgeClass}`}>
+                                        {badgeLabel}
+                                      </span>
                                     </div>
-                                  )}
+                                    <div className="font-black text-base sm:text-lg text-rhozly-on-surface leading-tight truncate">
+                                      {item.name}
+                                    </div>
+                                    {item.scientific_name && (
+                                      <div className="text-sm font-semibold text-rhozly-on-surface/60 italic mt-0.5 truncate">
+                                        {item.scientific_name}
+                                      </div>
+                                    )}
+                                  </div>
+                                  <span
+                                    title={isPlantNetSource ? "Pl@ntNet's confidence in this match" : "Rhozly AI's confidence in this match"}
+                                    className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${item.confidence >= 80 ? "bg-emerald-50 text-emerald-700" : item.confidence >= 60 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}
+                                  >
+                                    {item.confidence}%
+                                  </span>
                                 </div>
-                                <span className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${item.confidence >= 80 ? "bg-emerald-50 text-emerald-700" : item.confidence >= 60 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}>
-                                  {item.confidence}%
-                                </span>
-                              </div>
-                            </button>
-                          ))}
+                              </button>
+                            ));
+                          })()}
                         </div>
                       </div>
                     )}
