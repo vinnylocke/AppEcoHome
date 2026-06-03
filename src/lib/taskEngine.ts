@@ -267,13 +267,22 @@ export const TaskEngine = {
           .eq("home_id", homeId)
           .eq("is_recurring", true)
           .eq("is_archived", false),
+        // Wave-20.x — tombstone fetch is no longer date-bounded. The
+        // harvest ghost branch generates a ghost at the parent
+        // blueprint's start_date, which can sit far outside the
+        // current fetch range (e.g. a "Summer Harvest" blueprint
+        // starts in June, but the Today quick link asks for July
+        // only). The old range filter dropped tombstones at the
+        // blueprint start_date, so a Skipped harvest task silently
+        // failed to suppress its ghost and the user saw the same
+        // task pop back onto Today's list. Skipped rows with
+        // blueprint_id are rare enough that fetching them all is
+        // negligible compared to the wrong-task pile-up.
         supabase
           .from("tasks")
           .select("blueprint_id, due_date")
           .eq("home_id", homeId)
           .eq("status", "Skipped")
-          .gte("due_date", startDateStr)
-          .lte("due_date", endDateStr)
           .not("blueprint_id", "is", null),
       ]);
 

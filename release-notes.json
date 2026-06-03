@@ -1,8 +1,8 @@
 [
   {
-    "label": "Improved",
+    "label": "Fixed",
     "items": [
-      "Plant Lens photo upload now accepts multiple photos in a single picker dialog — select all the angles you want in one go from your library instead of repeating the upload one by one. The 5-photo cap still applies and the strip will tell you if a file was skipped (wrong type, over 10MB, or you hit the cap)."
+      "Skipped harvest tasks no longer reappear on Today's quick link as a ghost. The engine was fetching Skipped tombstones bounded by the requested date range — but a harvest-window ghost is generated at its parent blueprint's start date (often months ago), so its tombstone never showed up in the Today-only lookup and the ghost regenerated silently. The tombstone fetch is now blueprint-scoped instead of date-scoped, so a Skipped harvest at any past date correctly suppresses its ghost on every view."
     ]
   }
 ]
