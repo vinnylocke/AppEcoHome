@@ -496,6 +496,7 @@ export default function HomeDashboard({ homeId, aiEnabled, isPremium }: Props) {
   const { stats, loading, error, refresh, weekStart, weekEnd } = useHomeDashboardStats(homeId);
   const weekRange = formatWeekRange(weekStart, weekEnd);
   const persona = usePersona();
+  const navigate = useNavigate();
 
   // Garden Snapshot collapse — open by default for experienced users
   // who want to see the numbers, collapsed for newcomers (or null
@@ -531,15 +532,26 @@ export default function HomeDashboard({ homeId, aiEnabled, isPremium }: Props) {
             {weekRange || "Sun – Sat"}
           </p>
         </div>
-        <button
-          data-testid="dash-refresh"
-          onClick={refresh}
-          disabled={loading}
-          className="flex items-center gap-1.5 text-xs font-bold text-rhozly-on-surface/50 hover:text-rhozly-primary transition-colors disabled:opacity-40"
-        >
-          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-          {loading ? "Loading..." : "Refresh"}
-        </button>
+        <div className="flex items-center gap-3">
+          <button
+            data-testid="dash-weekly-overview"
+            onClick={() => navigate("/weekly")}
+            className="flex items-center gap-1.5 text-xs font-bold text-rhozly-primary hover:opacity-80 transition-opacity"
+          >
+            <Calendar size={14} />
+            Week ahead
+            <ChevronRight size={12} />
+          </button>
+          <button
+            data-testid="dash-refresh"
+            onClick={refresh}
+            disabled={loading}
+            className="flex items-center gap-1.5 text-xs font-bold text-rhozly-on-surface/50 hover:text-rhozly-primary transition-colors disabled:opacity-40"
+          >
+            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+            {loading ? "Loading..." : "Refresh"}
+          </button>
+        </div>
       </div>
 
       {error && (

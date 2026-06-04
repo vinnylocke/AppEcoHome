@@ -1,6 +1,7 @@
 import {
   Camera,
   CalendarDays,
+  CalendarRange,
   NotebookPen,
   Sprout,
   ClipboardList,
@@ -192,6 +193,14 @@ export const QUICK_LAUNCHER_CATALOGUE: readonly QuickLauncherDestination[] = [
     icon: Compass,
     accent: "teal",
     route: "/sun-trajectory",
+  },
+  {
+    id: "weekly",
+    label: "Week Ahead",
+    description: "Sunday-morning summary of tasks, weather, sow / harvest / prune windows and tips.",
+    icon: CalendarRange,
+    accent: "amber",
+    route: "/weekly",
   },
 ];
 

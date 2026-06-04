@@ -62,7 +62,7 @@ QuickAccessLens (mounted at /quick/lens)
 
 The launcher is data-driven. Every pinnable destination has a stable id, label, description, icon, accent and route in `QUICK_LAUNCHER_CATALOGUE` (`src/lib/quickLauncherCatalogue.ts`). User preference is `string[]` of ids stored in two places:
 
-Current catalogue (15 destinations): `lens`, `today`, `capture`, `library`, `shed`, `planner`, `walk`, `doctor`, `shopping`, plus the Journal + Tools Hub additions — `journal` (`/journal`), `guides` (`/guides`), `garden-layout`, `visualiser`, `light-sensor`, `sun-tracker`. Adding a pinnable destination = appending one catalogue entry; the picker auto-renders it.
+Current catalogue (16 destinations): `lens`, `today`, `capture`, `library`, `shed`, `planner`, `walk`, `doctor`, `shopping`, plus the Journal + Tools Hub additions — `journal` (`/journal`), `guides` (`/guides`), `garden-layout`, `visualiser`, `light-sensor`, `sun-tracker`, and `weekly` (`/weekly`, the Wave 21 Weekly Overview page). Adding a pinnable destination = appending one catalogue entry; the picker auto-renders it.
 
 | Layer | Key | Role |
 |-------|-----|------|

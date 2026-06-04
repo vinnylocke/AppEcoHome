@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Improved",
+    "items": [
+      "Weekly Overview discoverability — added a 'Week ahead →' link to the dashboard header (next to Refresh) and a new opt-in 'Week Ahead' tile in the Quick Launcher catalogue, so the Sunday-morning overview is reachable without waiting for the push notification."
+    ]
+  }
+]

@@ -13,6 +13,13 @@ A single read-mostly page that surfaces "your week" in seven sections. The data 
 
 Default-on pref: `weeklyOverview` in the [Notifications Tab](../06-account/02-notifications-tab.md).
 
+### Entry points
+
+- **Dashboard** — "Week ahead →" pill in the "This Week at a Glance" header row ([`HomeDashboard.tsx`](../../../src/components/HomeDashboard.tsx)).
+- **Quick Launcher** — opt-in tile (`weekly` catalogue id, accent amber). Not in the default pin set; users add it from Account Settings → Quick Launcher.
+- **Push notification** — Sunday morning `weekly_overview` notification deep-links to `/weekly`.
+- **URL** — `/weekly`.
+
 ---
 
 ## Role 1 — Technical Reference
