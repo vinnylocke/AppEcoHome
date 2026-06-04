@@ -37,7 +37,9 @@ The Dashboard Tab opens with a personalised greeting (Daily Brief), then layers 
     ├── Quiz Prompt Card (conditional — quiz not completed & not dismissed)
     ├── AssistantCard (conditional — user_insights row exists)
     └── HomeDashboard (always)
-        ├── Header (weekly date range + "Week ahead →" pill + Refresh)
+        ├── TodayFocusCard (variant: "dashboard")
+        ├── WeekAheadPreview (sneak-peek card → /weekly)
+        ├── Header (weekly date range + Refresh)
         ├── SeasonalPicksCard (variant: "dashboard")
         ├── Week strip with day chips
         ├── Today's tasks (filtered TaskList)

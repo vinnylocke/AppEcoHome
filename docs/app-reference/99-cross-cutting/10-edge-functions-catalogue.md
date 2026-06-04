@@ -82,6 +82,9 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 | `refresh-behaviour-summary` | weekly | Build per-user AI context summary. |
 | `daily-batch-notifications` | daily | Send push / email digests. |
 | `weekly-digest` | weekly | Weekly summary email. |
+| `generate-weekly-overviews` | Sunday 06:00 UTC + on-demand from `/weekly` | Build the `weekly_overviews` jsonb payload per home (tasks, weather, sow / harvest / prune windows, pest risk, pollen, AI-grounded seasonal tips). Accepts optional `{ home_id, notify }` body — with `home_id` scopes to one home; `notify` defaults to false on the scoped path. CORS-enabled. |
+| `weekly-optimise-digest` | Sunday 07:00 UTC + on-demand | Activity-aware digest pointing at the Optimise tab. Same `{ home_id, notify }` contract as above. CORS-enabled. |
+| `fetch-pollen` | Daily 02:00 UTC | Pulls Open-Meteo pollen forecast into `pollen_snapshots`. CORS-enabled (cron-only today but ready for a manual refresh surface). |
 | `purge-stale-species-cache` | weekly | Clear old provider caches. |
 | `refresh-stale-ai-plants` | daily | AI Plant Overhaul Wave 4: re-check global AI care guides every ~90 days, write diff-based revisions. |
 | `run-automations` | every 1 minute | Fire due watering automations. |

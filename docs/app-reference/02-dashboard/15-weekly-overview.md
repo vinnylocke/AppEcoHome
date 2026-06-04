@@ -15,10 +15,23 @@ Default-on pref: `weeklyOverview` in the [Notifications Tab](../06-account/02-no
 
 ### Entry points
 
-- **Dashboard** — "Week ahead →" pill in the "This Week at a Glance" header row ([`HomeDashboard.tsx`](../../../src/components/HomeDashboard.tsx)).
+- **Dashboard** — `WeekAheadPreview` sneak-peek card just below `TodayFocusCard` ([`src/components/shared/WeekAheadPreview.tsx`](../../../src/components/shared/WeekAheadPreview.tsx)). Reads the latest `weekly_overviews` row and surfaces a chip strip (e.g. "5 tasks · 2 weather alerts · 3 to sow"). Whole card is a button → `/weekly`. Renders a generic "Tap to generate this week's overview" CTA when no row exists yet.
 - **Quick Launcher** — opt-in tile (`weekly` catalogue id, accent amber). Not in the default pin set; users add it from Account Settings → Quick Launcher.
 - **Push notification** — Sunday morning `weekly_overview` notification deep-links to `/weekly`.
 - **URL** — `/weekly`.
+
+### Edge function contract (Wave 21.0003 update)
+
+The `generate-weekly-overviews` function now accepts an optional JSON body:
+
+```ts
+{ home_id?: string, notify?: boolean }
+```
+
+- **No body** (cron path) — iterates every home and inserts a `weekly_overview` notification per member, exactly as before.
+- **`home_id` set** (manual regen from `/weekly`) — scopes all queries + upsert to that single home. `notify` defaults to **false** on this path so users don't receive a duplicate push from their own Regenerate tap. Override with `notify: true` if you ever need a programmatic notification trigger.
+
+The function also responds correctly to `OPTIONS` preflights with the standard `corsHeaders` constant — required for browser-side `supabase.functions.invoke` calls from `https://rhozly.com`. Same pattern applied to `weekly-optimise-digest` and `fetch-pollen`.
 
 ---
 

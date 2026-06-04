@@ -17,6 +17,13 @@ import { captureException } from "../_shared/sentry.ts";
 const FN = "fetch-pollen";
 const POLLEN_API = "https://air-quality-api.open-meteo.com/v1/air-quality";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+
 // Open-Meteo returns hourly values; we want one peak per day.
 type Hourly = {
   time: string[];
@@ -59,7 +66,11 @@ function rollupDaily(hourly: Hourly, kind: "grass_pollen" | "birch_pollen" | "ra
   }));
 }
 
-serve(async (_req) => {
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
@@ -74,7 +85,7 @@ serve(async (_req) => {
       .not("lng", "is", null);
 
     if (!homes || homes.length === 0) {
-      return new Response(JSON.stringify({ message: "No geo-located homes." }), { status: 200 });
+      return new Response(JSON.stringify({ message: "No geo-located homes." }), { status: 200, headers: jsonHeaders });
     }
 
     const today = new Date().toISOString().split("T")[0];
@@ -121,12 +132,10 @@ serve(async (_req) => {
     }
 
     log(FN, "complete", { written });
-    return new Response(JSON.stringify({ success: true, written }), {
-      headers: { "Content-Type": "application/json" },
-    });
+    return new Response(JSON.stringify({ success: true, written }), { headers: jsonHeaders });
   } catch (err: any) {
     logError(FN, "unhandled", { error: err.message });
     await captureException(FN, err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: jsonHeaders });
   }
 });

@@ -26,6 +26,13 @@ import { captureException } from "../_shared/sentry.ts";
 
 const FN = "generate-weekly-overviews";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+
 // ── Date helpers ────────────────────────────────────────────────────────
 //
 // Week window is Monday → Sunday for the upcoming week. When the cron
@@ -336,23 +343,44 @@ Return only the 2 tips, one per line, each a single sentence under 22 words. No 
 
 // ── Main ────────────────────────────────────────────────────────────────
 
-serve(async (_req) => {
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const geminiKey = Deno.env.get("GEMINI_API_KEY");
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { weekStart, weekEnd } = getUpcomingWeekWindow();
-    log(FN, "start", { weekStart, weekEnd });
+    // Parse body. When `home_id` is provided we scope the work to that
+    // home only (manual regenerate path from /weekly); otherwise we
+    // process every home (cron path). `notify` defaults to FALSE on the
+    // manual path so users aren't double-notified.
+    let bodyHomeId: string | null = null;
+    let notify = true;
+    if (req.method === "POST") {
+      try {
+        const body = await req.json();
+        if (body && typeof body.home_id === "string") bodyHomeId = body.home_id;
+        if (typeof body?.notify === "boolean") notify = body.notify;
+        else if (bodyHomeId) notify = false; // manual regen: suppress by default
+      } catch { /* empty / non-JSON body = treat as cron call */ }
+    }
 
-    // 1. Every home + its lat/lng (for hemisphere) + members.
+    const { weekStart, weekEnd } = getUpcomingWeekWindow();
+    log(FN, "start", { weekStart, weekEnd, bodyHomeId, notify });
+
+    // 1. Homes (scoped to one when invoked manually) + members.
+    const homesQuery = supabase.from("homes").select("id, name, lat, lng");
+    if (bodyHomeId) homesQuery.eq("id", bodyHomeId);
     const [{ data: homes }, { data: homeMembers }] = await Promise.all([
-      supabase.from("homes").select("id, name, lat, lng"),
+      homesQuery,
       supabase.from("home_members").select("home_id, user_id"),
     ]);
     if (!homes || homes.length === 0) {
-      return new Response(JSON.stringify({ message: "No homes." }), { status: 200 });
+      return new Response(JSON.stringify({ message: "No homes." }), { status: 200, headers: jsonHeaders });
     }
 
     const membersByHome: Record<string, string[]> = {};
@@ -491,34 +519,36 @@ serve(async (_req) => {
       }
       overviewsWritten += 1;
 
-      // 11. Notify every member.
-      const taskTotal = Object.values(taskCounts).reduce((a, b) => a + b, 0);
-      const body = taskTotal === 0
-        ? "Your week's overview is ready — no scheduled tasks but plenty of seasonal ideas inside."
-        : `Your week ahead: ${taskTotal} task${taskTotal === 1 ? "" : "s"}${weatherEvents.length ? ` · ${weatherEvents.length} weather alert${weatherEvents.length === 1 ? "" : "s"}` : ""}. Tap to plan.`;
-      const notifications = membersByHome[home.id].map((user_id) => ({
-        user_id,
-        home_id: home.id,
-        title: "🌿 Your week ahead",
-        body,
-        type: "weekly_overview",
-        data: { route: "/weekly" },
-        is_read: false,
-      }));
-      const { error: notifErr } = await supabase
-        .from("notifications")
-        .insert(notifications);
-      if (!notifErr) notificationsQueued += notifications.length;
+      // 11. Notify every member — suppressed on manual regenerate.
+      if (notify) {
+        const taskTotal = Object.values(taskCounts).reduce((a, b) => a + b, 0);
+        const body = taskTotal === 0
+          ? "Your week's overview is ready — no scheduled tasks but plenty of seasonal ideas inside."
+          : `Your week ahead: ${taskTotal} task${taskTotal === 1 ? "" : "s"}${weatherEvents.length ? ` · ${weatherEvents.length} weather alert${weatherEvents.length === 1 ? "" : "s"}` : ""}. Tap to plan.`;
+        const notifications = membersByHome[home.id].map((user_id) => ({
+          user_id,
+          home_id: home.id,
+          title: "🌿 Your week ahead",
+          body,
+          type: "weekly_overview",
+          data: { route: "/weekly" },
+          is_read: false,
+        }));
+        const { error: notifErr } = await supabase
+          .from("notifications")
+          .insert(notifications);
+        if (!notifErr) notificationsQueued += notifications.length;
+      }
     }
 
     log(FN, "complete", { overviewsWritten, notificationsQueued });
     return new Response(
       JSON.stringify({ success: true, overviewsWritten, notificationsQueued }),
-      { headers: { "Content-Type": "application/json" } },
+      { headers: jsonHeaders },
     );
   } catch (err: any) {
     logError(FN, "unhandled", { error: err.message });
     await captureException(FN, err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: jsonHeaders });
   }
 });

@@ -19,6 +19,7 @@ import { useHomeDashboardStats, type HomeDashboardStats } from "../hooks/useHome
 import TaskList from "./TaskList";
 import SeasonalPicksCard from "./seasonal/SeasonalPicksCard";
 import TodayFocusCard from "./shared/TodayFocusCard";
+import WeekAheadPreview from "./shared/WeekAheadPreview";
 import { usePersona } from "../hooks/usePersona";
 
 interface Props {
@@ -496,7 +497,6 @@ export default function HomeDashboard({ homeId, aiEnabled, isPremium }: Props) {
   const { stats, loading, error, refresh, weekStart, weekEnd } = useHomeDashboardStats(homeId);
   const weekRange = formatWeekRange(weekStart, weekEnd);
   const persona = usePersona();
-  const navigate = useNavigate();
 
   // Garden Snapshot collapse — open by default for experienced users
   // who want to see the numbers, collapsed for newcomers (or null
@@ -524,6 +524,10 @@ export default function HomeDashboard({ homeId, aiEnabled, isPremium }: Props) {
           "what should I do today?" before anything else. */}
       <TodayFocusCard homeId={homeId} variant="dashboard" />
 
+      {/* Sneak-peek of the Sunday-morning Weekly Overview — previews
+          task / weather / sow counts and deep-links to /weekly. */}
+      <WeekAheadPreview homeId={homeId} />
+
       {/* Header */}
       <div className="flex items-center justify-between px-1">
         <div>
@@ -532,26 +536,15 @@ export default function HomeDashboard({ homeId, aiEnabled, isPremium }: Props) {
             {weekRange || "Sun – Sat"}
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <button
-            data-testid="dash-weekly-overview"
-            onClick={() => navigate("/weekly")}
-            className="flex items-center gap-1.5 text-xs font-bold text-rhozly-primary hover:opacity-80 transition-opacity"
-          >
-            <Calendar size={14} />
-            Week ahead
-            <ChevronRight size={12} />
-          </button>
-          <button
-            data-testid="dash-refresh"
-            onClick={refresh}
-            disabled={loading}
-            className="flex items-center gap-1.5 text-xs font-bold text-rhozly-on-surface/50 hover:text-rhozly-primary transition-colors disabled:opacity-40"
-          >
-            <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
-            {loading ? "Loading..." : "Refresh"}
-          </button>
-        </div>
+        <button
+          data-testid="dash-refresh"
+          onClick={refresh}
+          disabled={loading}
+          className="flex items-center gap-1.5 text-xs font-bold text-rhozly-on-surface/50 hover:text-rhozly-primary transition-colors disabled:opacity-40"
+        >
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
+          {loading ? "Loading..." : "Refresh"}
+        </button>
       </div>
 
       {error && (

@@ -16,6 +16,13 @@ import { captureException } from "../_shared/sentry.ts";
 
 const FN = "weekly-optimise-digest";
 
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+};
+
+const jsonHeaders = { ...corsHeaders, "Content-Type": "application/json" };
+
 function getPastWeekWindow(now: Date = new Date()): { start: string; end: string } {
   const end = new Date(now);
   end.setUTCDate(now.getUTCDate() - 1);
@@ -27,21 +34,41 @@ function getPastWeekWindow(now: Date = new Date()): { start: string; end: string
   };
 }
 
-serve(async (_req) => {
+serve(async (req) => {
+  if (req.method === "OPTIONS") {
+    return new Response("ok", { headers: corsHeaders });
+  }
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { start, end } = getPastWeekWindow();
-    log(FN, "start", { start, end });
+    // Optional body — when home_id is provided, scope to that one home
+    // (manual trigger path). notify defaults to false on the scoped path
+    // so users aren't double-notified.
+    let bodyHomeId: string | null = null;
+    let notify = true;
+    if (req.method === "POST") {
+      try {
+        const body = await req.json();
+        if (body && typeof body.home_id === "string") bodyHomeId = body.home_id;
+        if (typeof body?.notify === "boolean") notify = body.notify;
+        else if (bodyHomeId) notify = false;
+      } catch { /* empty body = cron call */ }
+    }
 
+    const { start, end } = getPastWeekWindow();
+    log(FN, "start", { start, end, bodyHomeId, notify });
+
+    const homesQuery = supabase.from("homes").select("id, name");
+    if (bodyHomeId) homesQuery.eq("id", bodyHomeId);
     const [{ data: homes }, { data: homeMembers }] = await Promise.all([
-      supabase.from("homes").select("id, name"),
+      homesQuery,
       supabase.from("home_members").select("home_id, user_id"),
     ]);
     if (!homes || homes.length === 0) {
-      return new Response(JSON.stringify({ message: "No homes." }), { status: 200 });
+      return new Response(JSON.stringify({ message: "No homes." }), { status: 200, headers: jsonHeaders });
     }
 
     const membersByHome: Record<string, string[]> = {};
@@ -106,33 +133,35 @@ serve(async (_req) => {
         body = `Last week: ${cComp} done, ${cSkip} skipped, ${cOver} overdue. The Optimise tab will turn this into concrete schedule suggestions.`;
       }
 
-      const notifications = membersByHome[home.id].map((user_id) => ({
-        user_id,
-        home_id: home.id,
-        title,
-        body,
-        type: "weekly_optimise_digest",
-        data: { route: "/schedule?tab=optimise" },
-        is_read: false,
-      }));
-      const { error: notifErr } = await supabase
-        .from("notifications")
-        .insert(notifications);
-      if (notifErr) {
-        warn(FN, "notif_failed", { home_id: home.id, error: notifErr.message });
-        continue;
+      if (notify) {
+        const notifications = membersByHome[home.id].map((user_id) => ({
+          user_id,
+          home_id: home.id,
+          title,
+          body,
+          type: "weekly_optimise_digest",
+          data: { route: "/schedule?tab=optimise" },
+          is_read: false,
+        }));
+        const { error: notifErr } = await supabase
+          .from("notifications")
+          .insert(notifications);
+        if (notifErr) {
+          warn(FN, "notif_failed", { home_id: home.id, error: notifErr.message });
+          continue;
+        }
+        notificationsQueued += notifications.length;
       }
-      notificationsQueued += notifications.length;
     }
 
     log(FN, "complete", { notificationsQueued });
     return new Response(
       JSON.stringify({ success: true, notificationsQueued }),
-      { headers: { "Content-Type": "application/json" } },
+      { headers: jsonHeaders },
     );
   } catch (err: any) {
     logError(FN, "unhandled", { error: err.message });
     await captureException(FN, err);
-    return new Response(JSON.stringify({ error: err.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: err.message }), { status: 500, headers: jsonHeaders });
   }
 });
