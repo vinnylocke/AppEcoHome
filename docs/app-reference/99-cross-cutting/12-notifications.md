@@ -53,7 +53,9 @@ for each user:
 ### Notification categories (from [Notifications Tab](../06-account/02-notifications-tab.md))
 
 - watering, harvesting, pruning, weatherAlerts (wired today)
-- goldenHour, optimiseDigest (coming soon)
+- goldenHour (Wave 21.B — wired via the existing `daily-batch-notifications` cron with NOAA sunset calc per home)
+- optimiseDigest (Wave 21.C — wired via the new `weekly-optimise-digest` cron; activity-aware headline + deep link to Optimise tab)
+- weeklyOverview (Wave 21.A — wired via the new `generate-weekly-overviews` cron + `/weekly` route)
 - betaPrompts (wired)
 
 ### In-app toast
@@ -68,8 +70,11 @@ for each user:
 
 | Cron | Effect |
 |------|--------|
-| `daily-batch-notifications` | Daily push delivery |
-| `weekly-digest` | Weekly summary email |
+| `daily-batch-notifications` | Daily push delivery (Wave 21.B added Golden Hour wiring per home) |
+| `weekly-digest` | Weekly summary EMAIL (Resend) — separate from in-app `weekly_overview` |
+| `generate-weekly-overviews` | **Wave 21.A** — Sunday 06:00 UTC. Builds the jsonb payload on `weekly_overviews` per home + writes `weekly_overview` notification |
+| `weekly-optimise-digest` | **Wave 21.C** — Sunday 07:00 UTC. Activity-aware digest pointing at Optimise tab |
+| `fetch-pollen-daily` | **Wave 21.E** — daily 02:00 UTC. Pulls Open-Meteo pollen data into `pollen_snapshots` |
 | `push-webhook` | External-source push triggers |
 
 ### Realtime channels

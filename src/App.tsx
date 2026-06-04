@@ -88,6 +88,7 @@ const PlantDoctor         = lazy(() => import("./components/PlantDoctor"));
 const QuickAccessHome     = lazy(() => import("./components/QuickAccessHome"));
 const LocalizedTaskCalendar = lazy(() => import("./components/quick/LocalizedTaskCalendar"));
 const GlobalJournal         = lazy(() => import("./components/GlobalJournal"));
+const WeeklyOverviewPage    = lazy(() => import("./components/WeeklyOverviewPage"));
 const GardenWalk            = lazy(() => import("./components/walk/GardenWalk"));
 const MobileNavDrawer       = lazy(() => import("./components/MobileNavDrawer"));
 const QuickAccessMenuButton = lazy(() => import("./components/QuickAccessMenuButton"));
@@ -1515,6 +1516,14 @@ function AppShell() {
                         profile?.home_id ? (
                           <div className="h-full overflow-auto animate-in fade-in duration-500">
                             <GlobalJournal homeId={profile.home_id} />
+                          </div>
+                        ) : null
+                      } />
+
+                      <Route path="/weekly" element={
+                        profile?.home_id ? (
+                          <div className="h-full overflow-auto animate-in fade-in duration-500">
+                            <WeeklyOverviewPage homeId={profile.home_id} />
                           </div>
                         ) : null
                       } />

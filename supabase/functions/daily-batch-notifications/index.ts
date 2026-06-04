@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
+import { sunsetUtc, formatSunsetLocal } from "../_shared/sunsetTime.ts";
 
 const FN = "daily-batch-notifications";
 
@@ -115,6 +116,55 @@ serve(async (req) => {
         data: { route: "/schedule" },
         is_read: false,
       });
+    }
+
+    // ── Wave 21.B — Golden Hour notifications ──────────────────────────
+    //
+    // For every home with a lat/lng, compute today's sunset and queue a
+    // golden_hour notification per member. Skip when:
+    //   - the home has no lat/lng (can't compute)
+    //   - sunset is in the past or within 2h of now (user missed it)
+    //   - the polar circles don't have a sunset today (sunsetUtc returns null)
+    //
+    // We send to every member; the client respects their own
+    // `goldenHour` pref locally. Once notification prefs land server-
+    // side these will check the column too.
+    try {
+      const { data: homesWithGeo } = await supabase
+        .from("homes")
+        .select("id, lat, lng, timezone")
+        .in("id", homeIds);
+      if (homesWithGeo && homesWithGeo.length > 0) {
+        const nowMs = Date.now();
+        const todayUtc = new Date();
+        const goldenHourNotifs: any[] = [];
+        for (const home of homesWithGeo) {
+          const lat = Number((home as any).lat ?? NaN);
+          const lng = Number((home as any).lng ?? NaN);
+          if (!Number.isFinite(lat) || !Number.isFinite(lng)) continue;
+          const sunset = sunsetUtc(todayUtc, lat, lng);
+          if (!sunset) continue;
+          if (sunset.getTime() < nowMs + 2 * 60 * 60 * 1000) continue;
+          const sunsetLabel = formatSunsetLocal(sunset, (home as any).timezone);
+          for (const member of homeMembers ?? []) {
+            if (member.home_id !== home.id) continue;
+            goldenHourNotifs.push({
+              user_id: member.user_id,
+              home_id: home.id,
+              title: "📷 Golden hour later",
+              body: `Sunset around ${sunsetLabel}. Great soft light for plant photos, deadheading, and a calm evening watering.`,
+              type: "golden_hour",
+              data: { route: "/dashboard", sunset_iso: sunset.toISOString() },
+              is_read: false,
+            });
+          }
+        }
+        if (goldenHourNotifs.length > 0) {
+          notificationsToInsert.push(...goldenHourNotifs);
+        }
+      }
+    } catch (err: any) {
+      warn(FN, "golden_hour_failed", { error: err.message });
     }
 
     if (notificationsToInsert.length === 0) {

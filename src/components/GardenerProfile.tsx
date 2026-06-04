@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { toast } from "react-hot-toast";
-import { User, Trophy, BarChart2, Save, Loader2, Lock, Trash2, AlertTriangle, X, CheckCircle2, Bell, Droplets, Wheat, Scissors, Cloud, Sun, Sparkles, MessageSquare, Eye } from "lucide-react";
+import { User, Trophy, BarChart2, Save, Loader2, Lock, Trash2, AlertTriangle, X, CheckCircle2, Bell, Droplets, Wheat, Scissors, Cloud, Sun, Sparkles, MessageSquare, Eye, Calendar as CalendarIcon } from "lucide-react";
 import { TIERS, type TierId } from "../constants/tiers";
 import { useAchievements } from "../hooks/useAchievements";
 import { ACHIEVEMENTS } from "../lib/achievements";
@@ -35,25 +35,27 @@ type Tab = "account" | "notifications" | "achievements" | "stats";
 const LS_NOTIF_PREFS = "rhozly_notif_prefs";
 
 interface NotificationPrefs {
-  master:        boolean;
-  watering:      boolean;
-  harvesting:    boolean;
-  pruning:       boolean;
-  weatherAlerts: boolean;
-  goldenHour:    boolean;
-  optimiseDigest:boolean;
-  betaPrompts:   boolean;
+  master:         boolean;
+  watering:       boolean;
+  harvesting:     boolean;
+  pruning:        boolean;
+  weatherAlerts:  boolean;
+  goldenHour:     boolean;
+  optimiseDigest: boolean;
+  weeklyOverview: boolean;
+  betaPrompts:    boolean;
 }
 
 const DEFAULT_NOTIF_PREFS: NotificationPrefs = {
-  master:        true,
-  watering:      true,
-  harvesting:    true,
-  pruning:       true,
-  weatherAlerts: true,
-  goldenHour:    false,
-  optimiseDigest:false,
-  betaPrompts:   true,
+  master:         true,
+  watering:       true,
+  harvesting:     true,
+  pruning:        true,
+  weatherAlerts:  true,
+  goldenHour:     true,   // Wave 21.B — wired
+  optimiseDigest: true,   // Wave 21.C — wired
+  weeklyOverview: true,   // Wave 21.A — new
+  betaPrompts:    true,
 };
 
 function loadNotifPrefs(): NotificationPrefs {
@@ -100,8 +102,9 @@ function NotificationsTab() {
     { key: "harvesting",     label: "Harvest reminders",      sub: "When a fruit / veg / herb is ready",                                   icon: <Wheat size={14} className="text-amber-500" />,     wired: true  },
     { key: "pruning",        label: "Pruning reminders",      sub: "When a pruning task is due",                                           icon: <Scissors size={14} className="text-rose-500" />,   wired: true  },
     { key: "weatherAlerts",  label: "Weather alerts",         sub: "Frost · heatwave · heavy rain · strong wind",                          icon: <Cloud size={14} className="text-indigo-500" />,    wired: true  },
-    { key: "goldenHour",     label: "Golden hour reminders",  sub: "A photo nudge before sunset",                                          icon: <Sun size={14} className="text-orange-500" />,      wired: false },
-    { key: "optimiseDigest", label: "Weekly optimise digest", sub: "A summary of suggested schedule improvements",                         icon: <Sparkles size={14} className="text-violet-500" />, wired: false },
+    { key: "goldenHour",     label: "Golden hour reminders",  sub: "A photo nudge before sunset",                                          icon: <Sun size={14} className="text-orange-500" />,      wired: true  },
+    { key: "optimiseDigest", label: "Weekly optimise digest", sub: "A summary of suggested schedule improvements",                         icon: <Sparkles size={14} className="text-violet-500" />, wired: true  },
+    { key: "weeklyOverview", label: "Weekly garden overview", sub: "Sunday morning summary of your week ahead",                            icon: <CalendarIcon size={14} className="text-rhozly-primary" />, wired: true  },
     { key: "betaPrompts",    label: "Beta feedback prompts",  sub: "Occasional in-app surveys on new features",                            icon: <MessageSquare size={14} className="text-emerald-500" />, wired: true },
   ];
 
@@ -202,7 +205,7 @@ function NotificationsTab() {
       </section>
 
       <p className="text-[10px] font-bold text-rhozly-on-surface/40 px-1 leading-snug">
-        Preferences are saved on this device. Categories marked "Coming soon" persist but don't yet affect delivery — wiring lands in a future release.
+        Preferences are saved on this device.
       </p>
     </div>
   );
