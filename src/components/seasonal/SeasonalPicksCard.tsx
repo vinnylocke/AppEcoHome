@@ -335,8 +335,8 @@ function Header({ variant }: { variant: "today" | "dashboard" | "carousel" }) {
         <Sparkles size={isCarousel ? 12 : 14} />
       </span>
       <h2
-        className={`font-display font-black text-rhozly-on-surface leading-tight truncate ${
-          isCarousel ? "text-xs" : "text-sm sm:text-base"
+        className={`font-display font-black text-rhozly-on-surface leading-tight flex-1 min-w-0 ${
+          isCarousel ? "text-xs truncate" : "text-sm sm:text-base"
         }`}
       >
         {isCarousel
@@ -346,7 +346,7 @@ function Header({ variant }: { variant: "today" | "dashboard" | "carousel" }) {
             : "Sow & grow this week"}
       </h2>
       {!isCarousel && (
-        <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-rhozly-surface-low text-rhozly-on-surface/55 text-[9px] font-black uppercase tracking-widest">
+        <span className="hidden sm:inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-rhozly-surface-low text-rhozly-on-surface/55 text-[9px] font-black uppercase tracking-widest shrink-0">
           <Calendar size={10} />
           This week
         </span>
