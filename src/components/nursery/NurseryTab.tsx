@@ -190,7 +190,7 @@ export default function NurseryTab({
     <div data-testid="nursery-tab" className="space-y-3">
       {/* Summary header */}
       <div className="flex items-center justify-between gap-3 px-1">
-        <p className="text-[11px] text-rhozly-on-surface/60">
+        <p className="text-[11px] text-rhozly-on-surface/60 min-w-0 flex-1 truncate">
           <span className="font-bold text-rhozly-on-surface">{summary.total}</span>
           {summary.total === 1 ? " packet" : " packets"}
           {summary.activeSowings > 0 && (
@@ -204,7 +204,7 @@ export default function NurseryTab({
             </span>
           )}
         </p>
-        <div className="flex items-center gap-1.5">
+        <div className="flex items-center gap-1.5 shrink-0">
           {aiEnabled && (
             <button
               type="button"
@@ -236,7 +236,8 @@ export default function NurseryTab({
             className="inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-xl bg-rhozly-primary text-white text-[10px] font-black uppercase tracking-widest hover:opacity-95 transition"
           >
             <Plus size={12} />
-            Add packets
+            <span className="hidden sm:inline">Add packets</span>
+            <span className="sm:hidden">Add</span>
           </button>
         </div>
       </div>
