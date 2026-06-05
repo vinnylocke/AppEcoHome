@@ -19,6 +19,7 @@ import {
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
+import SeasonalPicksCard from "./seasonal/SeasonalPicksCard";
 
 // ─── Weekly Overview ──────────────────────────────────────────────────────
 //
@@ -119,9 +120,11 @@ const POLLEN_BADGE: Record<PollenDay["level"], string> = {
 
 interface Props {
   homeId: string;
+  aiEnabled?: boolean;
+  isPremium?: boolean;
 }
 
-export default function WeeklyOverviewPage({ homeId }: Props) {
+export default function WeeklyOverviewPage({ homeId, aiEnabled = false, isPremium = false }: Props) {
   const navigate = useNavigate();
   const [payload, setPayload] = useState<WeeklyOverviewPayload | null>(null);
   const [weekStart, setWeekStart] = useState<string | null>(null);
@@ -302,6 +305,11 @@ export default function WeeklyOverviewPage({ homeId }: Props) {
               </div>
             </Section>
           )}
+
+          {/* What to grow this week — personalised picks (used to live on /quick).
+              Complements the deterministic "Sow this week" chip strip above with
+              the rich "why these for you" exploration card. */}
+          <SeasonalPicksCard homeId={homeId} aiEnabled={aiEnabled} isPremium={isPremium} variant="dashboard" />
 
           {/* Harvest */}
           {(payload.harvest_this_week ?? []).length > 0 && (

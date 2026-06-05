@@ -4,7 +4,6 @@ import { ArrowRight, Info, Sparkles, Settings2 } from "lucide-react";
 
 import QuickTile from "./quick/QuickTile";
 import WalkStartTile from "./walk/WalkStartTile";
-import SeasonalPicksCard from "./seasonal/SeasonalPicksCard";
 import TodayFocusCard from "./shared/TodayFocusCard";
 import { useIsMobile } from "../hooks/useIsMobile";
 import { useQuickLauncherPins } from "../hooks/useQuickLauncherPins";
@@ -257,16 +256,6 @@ export default function QuickAccessHome({
       <div className="shrink-0 mb-3">
         <WalkStartTile enabled={true} />
       </div>
-
-      {/* Seasonal picks — carousel pager. One pick visible at a time;
-          prev / next chevrons + dot indicator + native swipe. Compact
-          enough that the hero + tile row + walk tile + carousel + footer
-          all fit on a typical phone viewport. */}
-      {homeId && (
-        <div className="shrink-0 mb-3">
-          <SeasonalPicksCard homeId={homeId} aiEnabled={aiEnabled} isPremium={isPremium} variant="carousel" />
-        </div>
-      )}
 
       {/* Power-user escape hatch — pinned to the bottom via mt-auto so
           when there's vertical space the picks/walk strip sits up near

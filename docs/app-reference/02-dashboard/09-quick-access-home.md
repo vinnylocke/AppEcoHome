@@ -45,7 +45,6 @@ QuickAccessHome (mounted at /quick)
 │       (e.g. Today prefetches the calendar) then navigate(route).
 ├── "Customise" link → navigate("/gardener?section=quick-launcher")
 ├── WalkStartTile (wide tile under the grid) → navigate("/walk")
-├── SeasonalPicksCard (carousel variant — one pick at a time)
 └── "Open full dashboard →" pill → navigate("/dashboard")
 
 QuickLauncherPicker (mounted inside GardenerProfile AccountTab)

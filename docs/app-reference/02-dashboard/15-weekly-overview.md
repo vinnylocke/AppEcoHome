@@ -46,6 +46,7 @@ WeeklyOverviewPage
 ├── Section — Tasks this week (chips per task type)
 ├── Section — Weather watch (per-day alert badges)
 ├── Section — Sow this week (tiles)
+├── SeasonalPicksCard (Wave 21.0005 — "what to grow this week" personalised picks)
 ├── Section — Ready to harvest (tiles)
 ├── Section — Pruning windows (tiles)
 ├── Section — Routine maintenance (count + Calendar link)
@@ -59,6 +60,8 @@ WeeklyOverviewPage
 | Prop | Type | Source |
 |------|------|--------|
 | `homeId` | `string` | App.tsx — gates the page render |
+| `aiEnabled` | `boolean?` | App.tsx — threaded into the embedded `SeasonalPicksCard` for tier-aware picks |
+| `isPremium` | `boolean?` | App.tsx — threaded into `SeasonalPicksCard`'s `PlantDetailModal` overlay |
 
 ### Data flow — read paths
 

@@ -4,9 +4,9 @@
 
 **Routes:**
 - `/dashboard` — desktop grid card above the two-column stats/tasks layout.
-- `/quick` — carousel variant on the mobile Quick Launcher home.
+- `/weekly` — mounted as a section on the Weekly Overview page between "Sow this week" and "Ready to harvest" (Wave 21.0005).
 
-> The Today screen (`/quick/calendar`) used to host this card too (`variant="today"`) but it was removed in Wave 21.0004 — the Today screen now stays tight on "what's happening right now" (frost helper, rain advice, today's tasks). Seasonal Picks duplicated content available on the Dashboard and Quick Launcher home.
+> Previously also on `/quick/calendar` (`variant="today"`, removed Wave 21.0004) and `/quick` (`variant="carousel"`, removed Wave 21.0005). Both placements duplicated content; the Today screen now stays tight on "what's happening right now" and the Quick Launcher home now leads with the customisable launcher + walk tile. Personalised picks live on `/weekly` where they pair naturally with the deterministic "Sow this week" chip strip and the rest of the week-ahead context.
 
 **Source files:**
 - `src/components/seasonal/SeasonalPicksCard.tsx`

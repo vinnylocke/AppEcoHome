@@ -1524,7 +1524,7 @@ function AppShell() {
                       <Route path="/weekly" element={
                         profile?.home_id ? (
                           <div className="h-full overflow-auto animate-in fade-in duration-500">
-                            <WeeklyOverviewPage homeId={profile.home_id} />
+                            <WeeklyOverviewPage homeId={profile.home_id} aiEnabled={!!profile?.ai_enabled} isPremium={!!profile?.enable_perenual} />
                           </div>
                         ) : null
                       } />
