@@ -188,9 +188,10 @@ export default function NurseryTab({
 
   return (
     <div data-testid="nursery-tab" className="space-y-3">
-      {/* Summary header */}
-      <div className="flex items-center justify-between gap-3 px-1">
-        <p className="text-[11px] text-rhozly-on-surface/60 min-w-0 flex-1 truncate">
+      {/* Summary header — stacks on phone so the summary text reads in full;
+          side-by-side on sm+ where there's room for both. */}
+      <div className="flex flex-col items-stretch gap-2 px-1 sm:flex-row sm:items-center sm:justify-between sm:gap-3">
+        <p className="text-[11px] text-rhozly-on-surface/60">
           <span className="font-bold text-rhozly-on-surface">{summary.total}</span>
           {summary.total === 1 ? " packet" : " packets"}
           {summary.activeSowings > 0 && (
