@@ -6,7 +6,6 @@ import {
   Sun,
   Wind,
   Snowflake,
-  Sprout,
   Wheat,
   Scissors,
   Wrench,
@@ -35,7 +34,6 @@ import SeasonalPicksCard from "./seasonal/SeasonalPicksCard";
 interface WeeklyOverviewPayload {
   task_counts?: Record<string, number>;
   weather_events?: WeatherEvent[];
-  sow_this_week?: { plant_name: string; why?: string }[];
   harvest_this_week?: { plant_name: string; reason?: string }[];
   prune_this_week?: { plant_name: string; reason?: string }[];
   maintenance_count?: number;
@@ -290,25 +288,11 @@ export default function WeeklyOverviewPage({ homeId, aiEnabled = false, isPremiu
             )}
           </Section>
 
-          {/* Sow */}
-          {(payload.sow_this_week ?? []).length > 0 && (
-            <Section icon={<Sprout size={16} />} title="Sow this week" subtitle={`${payload.sow_this_week!.length} plant${payload.sow_this_week!.length === 1 ? "" : "s"} in the sowing window`}>
-              <div className="flex flex-wrap gap-2">
-                {payload.sow_this_week!.map((s, i) => (
-                  <span
-                    key={i}
-                    className="inline-block px-3 py-1.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-black"
-                  >
-                    {s.plant_name}
-                  </span>
-                ))}
-              </div>
-            </Section>
-          )}
-
-          {/* What to grow this week — personalised picks (used to live on /quick).
-              Complements the deterministic "Sow this week" chip strip above with
-              the rich "why these for you" exploration card. */}
+          {/* Sow & grow this week — personalised picks. Wave 21.0006 dropped the
+              parallel deterministic "Sow this week" chip strip (its source table,
+              public.sowing_calendar, was never migrated — the section had been
+              silently empty since Wave 21 shipped). SeasonalPicksCard is now the
+              canonical sow surface on the weekly page. */}
           <SeasonalPicksCard homeId={homeId} aiEnabled={aiEnabled} isPremium={isPremium} variant="dashboard" />
 
           {/* Harvest */}

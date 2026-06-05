@@ -451,21 +451,6 @@ serve(async (req) => {
         else harvest.push(entry);
       }
 
-      // 6. Sow this week — from sowing_calendar table if present (best-effort).
-      let sowing: { plant_name: string; why: string }[] = [];
-      try {
-        const monthIndex = parseInt(weekStart.split("-")[1], 10) - 1;
-        const { data: rawSow } = await supabase
-          .from("sowing_calendar")
-          .select("plant_name, months")
-          .contains("months", [monthIndex])
-          .limit(20);
-        sowing = (rawSow ?? []).slice(0, 5).map((r: any) => ({
-          plant_name: r.plant_name,
-          why: "In sowing window this month",
-        }));
-      } catch { /* table may not exist on every project — non-fatal */ }
-
       // 7. Risk module.
       const riskLines = extractRiskLines(weather, weekStart, weekEnd, plantNames);
 
@@ -493,7 +478,6 @@ serve(async (req) => {
       const payload = {
         task_counts: taskCounts,
         weather_events: weatherEvents,
-        sow_this_week: sowing,
         harvest_this_week: harvest,
         prune_this_week: prune,
         maintenance_count:

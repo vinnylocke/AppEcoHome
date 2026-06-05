@@ -343,7 +343,7 @@ function Header({ variant }: { variant: "today" | "dashboard" | "carousel" }) {
           ? "Grow this week"
           : variant === "today"
             ? "This week's sowing picks"
-            : "What you could grow this week"}
+            : "Sow & grow this week"}
       </h2>
       {!isCarousel && (
         <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-rhozly-surface-low text-rhozly-on-surface/55 text-[9px] font-black uppercase tracking-widest">

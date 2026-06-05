@@ -45,14 +45,16 @@ WeeklyOverviewPage
 ├── Empty state (no row yet)
 ├── Section — Tasks this week (chips per task type)
 ├── Section — Weather watch (per-day alert badges)
-├── Section — Sow this week (tiles)
-├── SeasonalPicksCard (Wave 21.0005 — "what to grow this week" personalised picks)
+├── SeasonalPicksCard (titled "Sow & grow this week" on the dashboard variant —
+│                       canonical sow surface as of Wave 21.0006)
 ├── Section — Ready to harvest (tiles)
 ├── Section — Pruning windows (tiles)
 ├── Section — Routine maintenance (count + Calendar link)
 ├── Section — Risks to watch (pest/disease rule output)
 ├── Section — Pollen forecast (per-day per-pollen badges)
 └── Section — Tips for the week (bulleted, AI-grounded when available)
+
+> The pre-Wave-21.0006 "Sow this week" deterministic chip strip was dropped because its source table (`public.sowing_calendar`) was never migrated, so the section had been silently empty on every overview since launch. SeasonalPicksCard is now the canonical sow surface.
 ```
 
 ### Props
