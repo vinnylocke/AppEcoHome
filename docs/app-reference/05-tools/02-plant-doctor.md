@@ -132,8 +132,8 @@ Every single-plant action (`identify` / `diagnose` / `pest` / `analyse`) accepts
 
 `identify_vision` and the ID step of `analyse_comprehensive` now route through Pl@ntNet first. See [Pl@ntNet (cross-cutting)](../99-cross-cutting/38-plantnet.md) for the full contract. Quick recap:
 
-- **score ≥ 0.4** → trust Pl@ntNet. `identify_vision` synthesises the result from Pl@ntNet's top matches and **skips the Gemini ID round-trip**. `analyse_comprehensive` still runs Gemini for everything else but feeds the confirmed species into the prompt.
-- **0.15 ≤ score < 0.4** → cross-check. Both run; the response includes `identification_source: "plantnet+ai_confirmed"` or `"plantnet_vs_ai_disagreement"` and a `ai_suggested_name` chip when they differ.
+- **score ≥ 0.4** → trust Pl@ntNet. `identify_vision`'s `possible_names` is synthesised from Pl@ntNet's top matches. **Wave 21.0010 update:** Gemini now runs in parallel and its top 3 candidates surface under a new `ai_alternatives` field, which the UI renders as an "Also from Rhozly AI" tile group below the Pl@ntNet tiles — so users can compare the LLM's independent guess against Pl@ntNet's confident match. `analyse_comprehensive` runs Gemini for everything else and feeds the confirmed species into the prompt as before.
+- **0.15 ≤ score < 0.4** → cross-check. Both run; the response includes `identification_source: "plantnet+ai_confirmed"` or `"plantnet_vs_ai_disagreement"` and an `ai_suggested_name` chip when they differ. `ai_alternatives` is unused here because `possible_names` already carries Gemini's data.
 - **score < 0.15** or rejected → AI fallback (today's behaviour).
 
 The response includes `plantnet: { best_match, top_matches, identification_source, ai_suggested_name, remaining_requests }` which the result cards render as a provenance pill (`Pl@ntNet` / `Pl@ntNet + AI agreed` / `Pl@ntNet (AI disagreed)` / `AI only`).

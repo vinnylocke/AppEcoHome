@@ -1486,6 +1486,55 @@ export default function PlantDoctor({
                               </button>
                             ));
                           })()}
+                          {/* Wave 21.0010 — Also from Rhozly AI. Only renders
+                              on the trust path (identification_source = "plantnet")
+                              because on the cross-check / ai_fallback paths the
+                              main possible_names group is already Gemini's data. */}
+                          {aiResult.plantnet?.identification_source === "plantnet"
+                            && (aiResult.ai_alternatives?.length ?? 0) > 0 && (
+                            <>
+                              <div className="flex items-center gap-2 pt-3 mt-1 border-t border-rhozly-outline/10">
+                                <span className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/45">
+                                  Also from Rhozly AI
+                                </span>
+                              </div>
+                              {aiResult.ai_alternatives!.map((item, i) => (
+                                <button
+                                  key={`ai-${i}`}
+                                  data-testid={`identify-ai-alternative-${i}`}
+                                  onClick={() => {
+                                    setSelectedPlantName(item.name);
+                                    setSelectedPlantScientific(item.scientific_name ?? null);
+                                  }}
+                                  className="w-full text-left p-4 bg-white rounded-2xl border border-rhozly-outline/10 hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-rhozly-on-surface"
+                                >
+                                  <div className="flex items-center justify-between gap-3">
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2 mb-0.5">
+                                        <span className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded bg-rhozly-primary/10 text-rhozly-primary">
+                                          Rhozly AI
+                                        </span>
+                                      </div>
+                                      <div className="font-black text-base sm:text-lg text-rhozly-on-surface leading-tight truncate">
+                                        {item.name}
+                                      </div>
+                                      {item.scientific_name && (
+                                        <div className="text-sm font-semibold text-rhozly-on-surface/60 italic mt-0.5 truncate">
+                                          {item.scientific_name}
+                                        </div>
+                                      )}
+                                    </div>
+                                    <span
+                                      title="Rhozly AI's confidence in this match"
+                                      className={`shrink-0 text-[10px] font-black px-2 py-0.5 rounded-full ${item.confidence >= 80 ? "bg-emerald-50 text-emerald-700" : item.confidence >= 60 ? "bg-amber-50 text-amber-700" : "bg-red-50 text-red-700"}`}
+                                    >
+                                      {item.confidence}%
+                                    </span>
+                                  </div>
+                                </button>
+                              ))}
+                            </>
+                          )}
                         </div>
                       </div>
                     )}

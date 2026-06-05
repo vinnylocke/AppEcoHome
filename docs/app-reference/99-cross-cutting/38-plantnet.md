@@ -58,7 +58,7 @@ Implemented in `decideRouting(bestMatch)`. Thresholds are exported as `TRUST_THR
 |------------------|-------------------------|---------------|-----------|
 | `null` or `< 0.15` | `ai_fallback` | false | Gemini does the ID exactly as before. |
 | `0.15` – `0.4` | placeholder, resolved post-Gemini | **true** | Gemini ID runs too. Final source = `plantnet+ai_confirmed` if names agree, `plantnet_vs_ai_disagreement` otherwise. |
-| `≥ 0.4` | `plantnet` | false | Trust Pl@ntNet. For `identify_vision` we **skip the Gemini ID round-trip** entirely. For `analyse_comprehensive` we feed Gemini the confirmed name and let it focus on the non-ID sections. |
+| `≥ 0.4` | `plantnet` | false | Trust Pl@ntNet for the lead `possible_names`. **Wave 21.0010 update:** for `identify_vision` we now run Gemini in parallel anyway and surface its top 3 candidates under `ai_alternatives` — the UI renders these as an "Also from Rhozly AI" tile group below the Pl@ntNet tiles. Total latency stays at `max(pn, gemini)` because the two calls run via `Promise.all`. For `analyse_comprehensive` we still feed Gemini the confirmed name and let it focus on the non-ID sections. |
 
 Disagreement detection uses `speciesNamesAgree(a, b)` — case-insensitive genus+species comparison (ignores authorship suffix). Returns `false` on empty strings.
 

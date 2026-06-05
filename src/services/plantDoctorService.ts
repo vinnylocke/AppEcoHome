@@ -24,6 +24,12 @@ export interface IdentificationCandidate {
 export interface VisionResult {
   notes?: string;
   possible_names?: IdentificationCandidate[];
+  /** Wave 21.0010 — Gemini's top 3 candidates surfaced as a secondary
+   *  "Also from Rhozly AI" tile group on the trust path (when Pl@ntNet
+   *  is confident enough that its own matches lead `possible_names`).
+   *  Empty / undefined on cross-check and ai_fallback paths because
+   *  `possible_names` already carries Gemini's data there. */
+  ai_alternatives?: IdentificationCandidate[];
   possible_diseases?: IdentificationCandidate[] | null;
   diseaseInfo?: DiseaseInfo;
   plantData?: any;
