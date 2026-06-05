@@ -1135,21 +1135,44 @@ Use specific common names (e.g. "French Marigold" not "Marigold").`;
     if (action === "identify_vision") {
       if (images.length === 0) throw new Error("No image data provided.");
 
-      // ── Parallel Pl@ntNet + Gemini ID (Wave 21.0010) ───────────────────────
+      // ── Pl@ntNet primary ID ────────────────────────────────────────────────
       // We treat Pl@ntNet as the trusted identifier because it's purpose-built
-      // for botanical species (vs a general vision LLM). Routing decides
-      // which goes into `possible_names` (the primary lead):
-      //   score ≥ 0.4   → trust Pl@ntNet for possible_names; Gemini's top 3
-      //                   surface under `ai_alternatives` ("Also from Rhozly AI").
-      //   0.15 – 0.4    → cross-check: Gemini's possible_names lead; surface
-      //                   disagreement when sci names diverge.
-      //   < 0.15 / null → AI-fallback (Gemini's possible_names lead).
-      // The two calls run in parallel — total latency ≈ max(pn, gemini) — and
-      // Gemini gets no Pl@ntNet hint so its answer is independently sourced.
+      // for botanical species (vs a general vision LLM). Routing:
+      //   score ≥ 0.4  → trust Pl@ntNet for possible_names; Gemini still runs
+      //                  (Wave 21.0010) and its top 3 surface as ai_alternatives.
+      //   0.15 – 0.4   → cross-check: Gemini's possible_names lead; surface
+      //                  disagreement.
+      //   < 0.15 / null → AI-fallback (Gemini-only as before).
       const plantNetKey = Deno.env.get("PLANTNET_API_KEY");
+      let pnResult: PlantNetResult | null = null;
+      let pnRoutingError: string | null = null;
+      try {
+        pnResult = await identifyWithPlantNet({
+          images: images as PlantNetImageInput[],
+          apiKey: plantNetKey,
+        });
+      } catch (err) {
+        if (err instanceof PlantNetError) {
+          pnRoutingError = err.reason.kind;
+          warn(FN, "plantnet_error", { kind: err.reason.kind, message: err.message });
+          // Silently fall back to AI-only ID on any Pl@ntNet error.
+        } else {
+          throw err;
+        }
+      }
+
+      const routing = decideRouting(pnResult?.bestMatch ?? null);
+
+      // Gemini ID — runs on ALL paths now (Wave 21.0010). On the trust path
+      // its top 3 surface as `ai_alternatives` ("Also from Rhozly AI") so users
+      // can compare an independent LLM guess against Pl@ntNet's confident match.
+      const plantNetHint = routing.confirmedSpecies && routing.crossCheck
+        ? `Pl@ntNet's top candidate is "${routing.confirmedCommonName ?? routing.confirmedSpecies}" (${routing.confirmedSpecies}) but its confidence was moderate. Use this as one hypothesis but don't be afraid to suggest a different species if the photo clearly shows something else.`
+        : "";
 
       const promptText = `Identify the plant in this image.
 ${plantSearch ? `The user thinks it might be a "${plantSearch}". Confirm if this is correct.` : ""}
+${plantNetHint}
 ${locationLine ? `The gardener is located: ${locationLine}. Prioritise plants native to or commonly grown in this region.` : ""}
 
 Return the top 3 most likely identifications in possible_names. For each candidate provide:
@@ -1159,64 +1182,22 @@ Return the top 3 most likely identifications in possible_names. For each candida
 
 Also return a brief observation in notes.`;
 
-      const pnPromise = (async () => {
-        try {
-          return {
-            ok: true as const,
-            result: await identifyWithPlantNet({
-              images: images as PlantNetImageInput[],
-              apiKey: plantNetKey,
-            }),
-          };
-        } catch (err) {
-          if (err instanceof PlantNetError) {
-            warn(FN, "plantnet_error", { kind: err.reason.kind, message: err.message });
-            return { ok: false as const, error: err.reason.kind };
-          }
-          throw err;
-        }
-      })();
-
-      const geminiPromise = callGeminiCascade(
+      const { text: rawText, usage } = await callGeminiCascade(
         apiKey, FN,
         buildVisionMessage(promptText, images),
         // Pro-first cascade — identification accuracy matters more
         // than the ~20× cost delta (still cents per call).
         { responseSchema: IDENTIFY_VISION_SCHEMA, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },
-      ).then((r) => ({ ok: true as const, text: r.text, usage: r.usage }))
-        .catch((err) => {
-          warn(FN, "gemini_error", { message: String(err?.message ?? err) });
-          return { ok: false as const, error: String(err?.message ?? err) };
-        });
-
-      const [pnOutcome, geminiOutcome] = await Promise.all([pnPromise, geminiPromise]);
-
-      const pnResult: PlantNetResult | null = pnOutcome.ok ? pnOutcome.result : null;
-      const pnRoutingError: string | null = !pnOutcome.ok ? pnOutcome.error : null;
-
-      const routing = decideRouting(pnResult?.bestMatch ?? null);
-
-      // Parse Gemini's result if it succeeded. Both can't fail at once
-      // (without that we have nothing to return), so guard that explicitly.
-      const aiParsed = geminiOutcome.ok
-        ? (() => {
-            try { return JSON.parse(geminiOutcome.text); }
-            catch { return null; }
-          })()
-        : null;
-      if (aiParsed && geminiOutcome.ok) {
-        await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_vision", usage: geminiOutcome.usage });
-      }
-      if (!pnResult?.bestMatch && !aiParsed) {
-        throw new Error(`Both identifiers failed: pn=${pnRoutingError ?? "no match"}, gemini=${geminiOutcome.ok ? "no parse" : geminiOutcome.error}`);
-      }
+      );
+      const aiParsed = JSON.parse(rawText);
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_vision", usage });
 
       const aiAlternatives = Array.isArray(aiParsed?.possible_names)
         ? aiParsed.possible_names.slice(0, 3)
         : [];
 
       // possible_names lead: Pl@ntNet on the trust path (its top 3 synthesised),
-      // Gemini on the cross-check / ai_fallback paths (as before).
+      // Gemini on the cross-check / ai_fallback paths.
       let parsed: any;
       if (routing.source === "plantnet" && pnResult?.bestMatch) {
         parsed = {
@@ -1231,21 +1212,8 @@ Also return a brief observation in notes.`;
             confidence: Math.min(100, Math.round(m.score * 100)),
           })),
         };
-      } else if (aiParsed) {
-        parsed = aiParsed;
       } else {
-        // Gemini died on a non-trust path. Best effort: serve whatever
-        // Pl@ntNet gave us (even mid-confidence) so the user gets something.
-        parsed = {
-          notes: pnResult?.bestMatch
-            ? `Pl@ntNet matched as ${pnResult.bestMatch.scientificName} (low confidence). AI suggestion unavailable.`
-            : "Identification unavailable.",
-          possible_names: (pnResult?.topMatches ?? []).slice(0, 3).map((m) => ({
-            name: m.commonName ?? m.scientificName,
-            scientific_name: m.scientificName,
-            confidence: Math.min(100, Math.round(m.score * 100)),
-          })),
-        };
+        parsed = aiParsed;
       }
 
       // Stitch the Pl@ntNet result + cross-check disagreement.
@@ -1264,10 +1232,10 @@ Also return a brief observation in notes.`;
 
       const responseBody = {
         ...parsed,
-        // Wave 21.0010 — Gemini's top 3 candidates are surfaced as a
-        // secondary tile group on the trust path ("Also from Rhozly AI").
-        // On the cross-check / ai_fallback paths the UI ignores this since
-        // possible_names already carries Gemini's data.
+        // Wave 21.0010 — Gemini's top 3 candidates as a secondary tile group
+        // on the trust path ("Also from Rhozly AI"). On cross-check /
+        // ai_fallback the UI ignores this because possible_names already
+        // carries Gemini's data.
         ai_alternatives: aiAlternatives,
         plantnet: pnResult
           ? {
