@@ -33,8 +33,6 @@ LocalizedTaskCalendar (mounted at /quick/calendar)
 │   └── PlantingGuidance result (when populated)
 ├── RainWaterAdvice
 │   └── Computed verdict (skip / settled / water / info)
-├── SeasonalPicksCard (variant: "today")
-│   └── Horizontal-scroll list of 4-6 tiles — tap → /library/plant/preview
 ├── Today's tasks card
 │   ├── Header: "Today's tasks" + [+ Add] button (Mobile Quick Access Wave 5)
 │   └── TaskList compact (today's pending) ─ remounts via key after Add saves

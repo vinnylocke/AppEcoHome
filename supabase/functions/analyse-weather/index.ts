@@ -58,6 +58,24 @@ Deno.serve(async (req) => {
       );
     }
 
+    // --- Expire stale alerts (>24h past starts_at) for this home's locations ---
+    // The rule engine only upserts NEW alerts on (location_id, type); if
+    // conditions no longer match, the previous row stays is_active=true
+    // forever. This sweeps anything older than 24h so the WeatherAlertBanner
+    // doesn't show "high temperature tomorrow" weeks after the fact.
+    const staleCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    const { error: expireErr, count: expiredCount } = await supabase
+      .from("weather_alerts")
+      .update({ is_active: false }, { count: "exact" })
+      .in("location_id", outsideLocationIds)
+      .eq("is_active", true)
+      .lt("starts_at", staleCutoff);
+    if (expireErr) {
+      warn(FN, "expire_failed", { error: expireErr.message });
+    } else if ((expiredCount ?? 0) > 0) {
+      log(FN, "alerts_expired", { count: expiredCount });
+    }
+
     // Check if any tropical plants occupy outdoor areas
     const { data: outsideAreas } = await supabase
       .from("areas")

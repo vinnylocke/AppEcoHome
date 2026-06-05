@@ -78,7 +78,22 @@ serve(async (req) => {
 
     // 2. Loop through blueprints and project tasks. Pure JS — no DB calls
     // inside the loop now that last_task is precomputed.
+    let harvestSkipped = 0;
     for (const bp of blueprints || []) {
+      // ── Harvest window blueprints follow Wave-20's window model: a
+      // single task per blueprint at start_date with window_end_date
+      // populated, emitted by the frontend ghost engine and materialised
+      // only when the user interacts. Daily cron materialisation here
+      // produces duplicate non-window tasks that appear alongside the
+      // canonical window task across the visible window (the
+      // "after-skipping-it-doubled-up" bug). Skip them entirely.
+      if (
+        (bp.task_type === "Harvesting" || bp.task_type === "Harvest")
+        && bp.end_date
+      ) {
+        harvestSkipped += 1;
+        continue;
+      }
       const startStr = bp.start_date || bp.created_at.split("T")[0];
       const lastDate = lastTaskByBp.get(bp.id);
 
@@ -164,7 +179,7 @@ serve(async (req) => {
       }
     }
 
-    log(FN, "complete", { projected: tasksToInsert.length, inserted, duplicates });
+    log(FN, "complete", { projected: tasksToInsert.length, inserted, duplicates, harvestSkipped });
 
     return new Response(
       JSON.stringify({

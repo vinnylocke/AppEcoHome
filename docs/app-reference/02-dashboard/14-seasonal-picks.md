@@ -4,7 +4,9 @@
 
 **Routes:**
 - `/dashboard` — desktop grid card above the two-column stats/tasks layout.
-- `/quick/calendar` — horizontal-scroll card on the mobile Today screen, between Rain & Watering Advice and Today's Tasks.
+- `/quick` — carousel variant on the mobile Quick Launcher home.
+
+> The Today screen (`/quick/calendar`) used to host this card too (`variant="today"`) but it was removed in Wave 21.0004 — the Today screen now stays tight on "what's happening right now" (frost helper, rain advice, today's tasks). Seasonal Picks duplicated content available on the Dashboard and Quick Launcher home.
 
 **Source files:**
 - `src/components/seasonal/SeasonalPicksCard.tsx`

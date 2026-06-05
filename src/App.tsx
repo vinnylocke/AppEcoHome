@@ -631,6 +631,7 @@ function AppShell() {
               .select("*")
               .in("location_id", locationIds)
               .eq("is_active", true)
+              .gte("starts_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
               .order("starts_at", { ascending: true }),
             supabase
               .from("tasks")

@@ -13,11 +13,18 @@ sync-weather (cron, hourly)
         └── upsert weather_snapshots row
 
 analyse-weather (cron, hourly)
+├── expire stale alerts (is_active=false where starts_at < now()-24h)
 └── for each weather_snapshot:
     └── for each rule in _shared/weatherRules/:
         └── evaluate(ctx) → WeatherRuleResult
             └── insert / update weather_alerts
 ```
+
+### Alert lifecycle (Wave 21.0004)
+
+`analyse-weather` only upserts NEW alerts on `(location_id, type)` — if conditions stop matching the rule, the previous row sits there with `is_active = true` forever. So the function now begins each run with a sweep that flips `is_active = false` on any row whose `starts_at` is more than 24 hours in the past. The 24-hour grace window keeps morning rain alerts visible the rest of the day.
+
+Defence-in-depth: every read site that surfaces alerts to the user (the WeatherAlertBanner fetch in `App.tsx`, the TodayFocusCard's hasHeatAlert check) also applies `is_active = true` + `starts_at >= now()-24h` filters. The historical `useGardenReport` queries intentionally include deactivated rows (they're counting monthly totals).
 
 ---
 

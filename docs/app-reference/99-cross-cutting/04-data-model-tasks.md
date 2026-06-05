@@ -79,6 +79,18 @@ Harvesting blueprints used to fire a ghost every day inside the window (`frequen
 - AI ripeness path: `HarvestRipenessSheet` (new component) sends one photo through `analyse_comprehensive`, reads `edibility.ripeness`, and either completes the task or sets `next_check_at` automatically.
 - Window-end behaviour: when `today > window_end_date` and the task is still Pending, the modal switches to "Log yield anyway / Mark missed" (the latter sets `status = 'Skipped'`).
 
+### Harvest canonical-window invariant (Wave 21.0004)
+
+Wave 20 introduced the window model on the frontend ghost engine + `buildGhostPayload`, but the **`generate-tasks` cron was never updated** — it kept materialising one daily Pending task per harvest blueprint with `window_end_date = NULL`. Those daily tasks appeared alongside the canonical window task across every in-window day and looked like duplicates (the user-reported "doubled up after skipping" bug).
+
+Wave 21.0004 closes this with three reinforcing changes:
+
+1. **`generate-tasks` skips harvest blueprints with `end_date`** — they're owned by the frontend ghost engine now. The cron logs `harvestSkipped` per run for observability.
+2. **`taskEngine` defensive dedup** — after fetch, if a Pending harvest task with `window_end_date` set exists for a blueprint, any Pending non-window harvest task for the SAME blueprint whose `due_date` falls inside the canonical window is dropped from the rendered list. Belt-and-braces for cached browser sessions and any future drift.
+3. **One-shot prod cleanup** — `DELETE FROM tasks WHERE status='Pending' AND window_end_date IS NULL AND blueprint_id IN (harvest blueprints with end_date)` ran post-deploy. The DELETE scope is narrow enough that watering / pruning / planting tasks are untouched.
+
+Invariant going forward: **at most one Pending harvest task per blueprint at any time**, with `window_end_date` matching `blueprint.end_date`.
+
 ### `todo_lists` table
 
 Sibling table that groups N `tasks` rows under a shared `due_date`. Created by the user via the Add To-Do List modal; managed via the My To-Do Lists modal.

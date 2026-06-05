@@ -123,7 +123,7 @@ None directly. `AddTaskModal` may call AI helpers (photo-to-task suggestions); `
 
 | Cron | Effect |
 |------|--------|
-| `generate-tasks` | Reads active blueprints daily and materialises `tasks` rows |
+| `generate-tasks` | Reads active blueprints daily and materialises `tasks` rows. **Wave 21.0004:** skips Harvesting/Harvest blueprints with `end_date` set — those follow the window model managed by the frontend ghost engine (one ghost at start_date with `window_end_date = end_date`). |
 | `run-automations` | Some automation triggers create blueprints |
 
 ### Tier gating

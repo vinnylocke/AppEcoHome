@@ -127,6 +127,7 @@ export default function TodayFocusCard({ homeId, variant = "dashboard", classNam
           .from("weather_alerts")
           .select("type")
           .eq("home_id", homeId)
+          .eq("is_active", true)
           .gte("starts_at", today)
           .lt("starts_at", `${today}T23:59:59`)
           .limit(5);

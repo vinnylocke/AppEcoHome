@@ -336,6 +336,44 @@ export const TaskEngine = {
 
       const bps = blueprints || [];
 
+      // ── Harvest canonical-window dedup ──────────────────────────────────
+      // Wave-21.0004 — defence-in-depth against the pre-fix `generate-tasks`
+      // cron that materialised daily Pending tasks for harvest blueprints
+      // without `window_end_date`. Those duplicates appear alongside the
+      // canonical window task across every in-window day (the same plant
+      // chip on the same day, what the user saw as "doubled up after
+      // skipping"). The cron is fixed in this release + a one-shot prod
+      // cleanup removes the bad rows, but this pass drops any non-window
+      // Pending harvest task whose due_date falls inside a canonical
+      // window from the same blueprint — so old data on cached browsers
+      // or any future drift can't resurface the duplicate.
+      const canonicalWindow = new Map<string, { start: string; end: string }>();
+      for (const t of rawTasks) {
+        if (
+          (t.type === "Harvesting" || t.type === "Harvest")
+          && t.window_end_date
+          && t.blueprint_id
+          && t.status === "Pending"
+        ) {
+          const existing = canonicalWindow.get(t.blueprint_id);
+          if (!existing || t.due_date < existing.start) {
+            canonicalWindow.set(t.blueprint_id, {
+              start: t.due_date,
+              end: t.window_end_date,
+            });
+          }
+        }
+      }
+      const dedupedRawTasks = rawTasks.filter((t) => {
+        if (!t.blueprint_id) return true;
+        if (t.status !== "Pending") return true;
+        if (t.type !== "Harvesting" && t.type !== "Harvest") return true;
+        if (t.window_end_date) return true;
+        const c = canonicalWindow.get(t.blueprint_id);
+        if (!c) return true;
+        return !(t.due_date >= c.start && t.due_date <= c.end);
+      });
+
       // Generate ghost tasks from blueprints (pure JS — no DB calls).
       const ghosts: any[] = [];
       const nowMs = Date.now();
@@ -449,7 +487,7 @@ export const TaskEngine = {
       });
 
       // Phase 1 complete — fire all subscribers with the partial snapshot.
-      const tasks = [...rawTasks, ...ghosts];
+      const tasks = [...dedupedRawTasks, ...ghosts];
       const snapshot: Phase1Snapshot = { tasks, blueprints: bps };
       entry.phase1Snapshot = snapshot;
       for (const cb of entry.phase1Callbacks) {
