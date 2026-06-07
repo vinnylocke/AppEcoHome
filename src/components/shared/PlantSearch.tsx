@@ -398,6 +398,7 @@ export default function PlantSearch({
                 name={row.common_name}
                 sub={Array.isArray(row.scientific_name) ? row.scientific_name[0] : undefined}
                 thumb={row.thumbnail_url ?? row.image_url ?? null}
+                credit={(row as any).image_credit ?? null}
                 source="library"
                 multiSelect={multiSelect}
                 selected={multiSelect ? !!isSelected?.(sel) : false}
@@ -428,6 +429,7 @@ export default function PlantSearch({
                   name={r.common_name}
                   sub={r.scientific_name?.[0]}
                   thumb={r.thumbnail_url ?? null}
+                  credit={(r as any).image_credit ?? null}
                   source={r._provider}
                   multiSelect={multiSelect}
                   selected={multiSelect ? !!isSelected?.(sel) : false}
@@ -510,13 +512,16 @@ export default function PlantSearch({
 }
 
 function ResultRow({
-  testId, name, sub, thumb, source, onClick, multiSelect = false, selected = false,
+  testId, name, sub, thumb, credit, source, onClick, multiSelect = false, selected = false,
   allowPreview = false, onInfo, infoActive = false, infoLoading = false, preview = null,
 }: {
   testId: string;
   name: string;
   sub?: string;
   thumb: string | null;
+  /** Wave 22.0005 — forwarded to PlantResultThumb so the credit badge
+   *  renders on the 44px tile when the row carries provider metadata. */
+  credit?: unknown;
   source: string;
   onClick: () => void;
   multiSelect?: boolean;
@@ -543,7 +548,7 @@ function ResultRow({
             className="flex-1 min-w-0 flex items-center gap-3 text-left active:scale-[0.99] transition-transform"
           >
             <div className="w-11 h-11 shrink-0 rounded-2xl overflow-hidden bg-rhozly-primary/5 flex items-center justify-center text-rhozly-primary/50">
-              <PlantResultThumb name={name} url={thumb} source={source} iconSize={18} />
+              <PlantResultThumb name={name} url={thumb} source={source} iconSize={18} credit={credit} />
             </div>
             <div className="flex-1 min-w-0">
               <p className="font-black text-rhozly-on-surface text-sm leading-tight truncate">{name}</p>

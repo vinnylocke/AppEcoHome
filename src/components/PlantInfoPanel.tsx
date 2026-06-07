@@ -2,14 +2,10 @@ import React, { useState, useEffect } from "react";
 import { Sun, Droplets, Leaf, TriangleAlert, Bird } from "lucide-react";
 import type { PlantDetails } from "../lib/verdantlyUtils";
 import { supabase } from "../lib/supabase";
-
-interface GalleryImage {
-  id: string;
-  thumb_url: string;
-  full_url: string;
-  alt: string;
-  source: "unsplash" | "pixabay" | "wikipedia";
-}
+// Wave 22.0005 — reuse the canonical Lightbox so plant gallery thumbs
+// enlarge in-app (with prev/next + arrow keys + per-image attribution)
+// instead of opening the original in a new browser tab.
+import { Lightbox, type GalleryImage } from "./DiagnosisImageGallery";
 
 // ─── Label helpers ─────────────────────────────────────────────────────────────
 
@@ -68,6 +64,9 @@ const DESCRIPTION_LIMIT = 300;
 export default function PlantInfoPanel({ details, loading, plantName }: Props) {
   const [descExpanded, setDescExpanded] = useState(false);
   const [galleryImages, setGalleryImages] = useState<GalleryImage[]>([]);
+  // Wave 22.0005 — in-app lightbox state. null = closed; otherwise the
+  // index of the image to show first.
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [galleryLoading, setGalleryLoading] = useState(false);
   const hasDetails = !!details;
 
@@ -181,24 +180,31 @@ export default function PlantInfoPanel({ details, loading, plantName }: Props) {
               ? [0, 1, 2].map((i) => (
                   <div key={i} className="w-16 h-16 rounded-xl bg-rhozly-surface-low animate-pulse shrink-0" />
                 ))
-              : galleryImages.map((img) => (
-                  <a
+              : galleryImages.map((img, i) => (
+                  <button
                     key={img.id}
-                    href={img.full_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="shrink-0 rounded-xl overflow-hidden block"
+                    type="button"
+                    onClick={() => setLightboxIndex(i)}
+                    aria-label={`Enlarge ${img.alt}`}
+                    className="shrink-0 rounded-xl overflow-hidden block focus:outline-none focus:ring-2 focus:ring-rhozly-primary/40"
                   >
                     <img
                       src={img.thumb_url}
                       alt={img.alt}
                       className="w-16 h-16 object-cover hover:scale-105 transition-transform"
                     />
-                  </a>
+                  </button>
                 ))
             }
           </div>
         </div>
+      )}
+      {lightboxIndex !== null && galleryImages.length > 0 && (
+        <Lightbox
+          images={galleryImages}
+          startIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
       )}
     </div>
   );
