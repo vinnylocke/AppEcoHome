@@ -1804,91 +1804,6 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                       {plant.source === "api" ? "Perenual" : plant.source === "verdantly" ? "Verdantly" : plant.source === "ai" ? "AI" : "Manual"}
                     </span>
                   </div>
-                  <div className="absolute top-4 right-4 flex gap-1.5 sm:gap-2">
-                    <button
-                      data-testid={`plant-card-layout-${plant.id}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        navigate("/garden-layout");
-                      }}
-                      aria-label={`View ${plant.common_name} on the garden layout`}
-                      title="View on garden layout"
-                      className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-violet-600 flex items-center justify-center shadow-md transition-all active:scale-90"
-                    >
-                      <LayoutGrid size={16} />
-                    </button>
-                    <button
-                      data-testid={`plant-card-light-${plant.id}`}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setEditingPlantTab("light");
-                        setEditingPlant(plant);
-                      }}
-                      aria-label={`Check light levels for ${plant.common_name}`}
-                      title="Light needs"
-                      className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-amber-500 flex items-center justify-center shadow-md transition-all active:scale-90"
-                    >
-                      <Sun size={16} />
-                    </button>
-                    {aiEnabled && (
-                      <button
-                        data-testid={`plant-card-ask-ai-${plant.id}`}
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setPageContext({
-                            action: "Asking about a plant in the Shed",
-                            plant: {
-                              id: plant.id,
-                              common_name: plant.common_name,
-                              scientific_name: plant.scientific_name?.[0] ?? null,
-                              source: plant.source,
-                              sunlight: plant.sunlight ?? null,
-                              cycle: plant.cycle ?? null,
-                              edible: plant.edible ?? null,
-                            },
-                          });
-                          setIsOpen(true);
-                        }}
-                        aria-label={`Ask Rhozly AI about ${plant.common_name}`}
-                        title="Ask Rhozly AI about this plant"
-                        className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-rhozly-primary flex items-center justify-center shadow-md transition-all active:scale-90"
-                      >
-                        <Sparkles size={16} />
-                      </button>
-                    )}
-                    {can("shed.delete") && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setConfirmState({
-                            isOpen: true,
-                            type: plant.is_archived ? "unarchive" : "archive",
-                            plant,
-                          });
-                        }}
-                        aria-label={plant.is_archived ? `Restore ${plant.common_name}` : `Archive ${plant.common_name}`}
-                        className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-orange-600 flex items-center justify-center shadow-md transition-all active:scale-90"
-                      >
-                        {plant.is_archived ? (
-                          <ArchiveRestore size={16} />
-                        ) : (
-                          <Archive size={16} />
-                        )}
-                      </button>
-                    )}
-                    {can("shed.delete") && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          openDeleteConfirm(plant);
-                        }}
-                        aria-label={`Delete ${plant.common_name}`}
-                        className="w-11 h-11 bg-white/90 backdrop-blur-md rounded-xl text-rhozly-on-surface/60 hover:text-red-600 flex items-center justify-center shadow-md transition-all active:scale-90"
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    )}
-                  </div>
                 </div>
                 <div className="p-6">
                   <h3 className="text-xl font-black text-rhozly-on-surface leading-tight mb-1">
@@ -1942,6 +1857,96 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                       </div>
                     );
                   })()}
+                  {/* Wave 22.0009 — action buttons moved off the photo into
+                      the card body. Ghost-icon style; click handlers and
+                      gating identical to the previous photo overlay. */}
+                  <div className="mt-3 flex items-center gap-1" data-testid={`plant-card-actions-${plant.id}`}>
+                    <button
+                      data-testid={`plant-card-layout-${plant.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        navigate("/garden-layout");
+                      }}
+                      aria-label={`View ${plant.common_name} on the garden layout`}
+                      title="View on garden layout"
+                      className="w-9 h-9 rounded-xl text-rhozly-on-surface/55 hover:bg-rhozly-surface-low hover:text-violet-600 flex items-center justify-center transition-colors active:scale-95"
+                    >
+                      <LayoutGrid size={16} />
+                    </button>
+                    <button
+                      data-testid={`plant-card-light-${plant.id}`}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setEditingPlantTab("light");
+                        setEditingPlant(plant);
+                      }}
+                      aria-label={`Check light levels for ${plant.common_name}`}
+                      title="Light needs"
+                      className="w-9 h-9 rounded-xl text-rhozly-on-surface/55 hover:bg-rhozly-surface-low hover:text-amber-600 flex items-center justify-center transition-colors active:scale-95"
+                    >
+                      <Sun size={16} />
+                    </button>
+                    {aiEnabled && (
+                      <button
+                        data-testid={`plant-card-ask-ai-${plant.id}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setPageContext({
+                            action: "Asking about a plant in the Shed",
+                            plant: {
+                              id: plant.id,
+                              common_name: plant.common_name,
+                              scientific_name: plant.scientific_name?.[0] ?? null,
+                              source: plant.source,
+                              sunlight: plant.sunlight ?? null,
+                              cycle: plant.cycle ?? null,
+                              edible: plant.edible ?? null,
+                            },
+                          });
+                          setIsOpen(true);
+                        }}
+                        aria-label={`Ask Rhozly AI about ${plant.common_name}`}
+                        title="Ask Rhozly AI about this plant"
+                        className="w-9 h-9 rounded-xl text-rhozly-on-surface/55 hover:bg-rhozly-surface-low hover:text-rhozly-primary flex items-center justify-center transition-colors active:scale-95"
+                      >
+                        <Sparkles size={16} />
+                      </button>
+                    )}
+                    {can("shed.delete") && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setConfirmState({
+                            isOpen: true,
+                            type: plant.is_archived ? "unarchive" : "archive",
+                            plant,
+                          });
+                        }}
+                        aria-label={plant.is_archived ? `Restore ${plant.common_name}` : `Archive ${plant.common_name}`}
+                        title={plant.is_archived ? "Restore" : "Archive"}
+                        className="w-9 h-9 rounded-xl text-rhozly-on-surface/55 hover:bg-rhozly-surface-low hover:text-orange-600 flex items-center justify-center transition-colors active:scale-95"
+                      >
+                        {plant.is_archived ? (
+                          <ArchiveRestore size={16} />
+                        ) : (
+                          <Archive size={16} />
+                        )}
+                      </button>
+                    )}
+                    {can("shed.delete") && (
+                      <button
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          openDeleteConfirm(plant);
+                        }}
+                        aria-label={`Delete ${plant.common_name}`}
+                        title="Delete"
+                        className="w-9 h-9 rounded-xl text-rhozly-on-surface/55 hover:bg-rhozly-surface-low hover:text-red-600 flex items-center justify-center transition-colors active:scale-95"
+                      >
+                        <Trash2 size={16} />
+                      </button>
+                    )}
+                  </div>
                   <div className="mt-auto pt-5 border-t border-rhozly-outline/10 flex items-center justify-between">
                     <div>
                       <p className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest mb-1">
