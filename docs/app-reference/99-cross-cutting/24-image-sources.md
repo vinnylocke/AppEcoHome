@@ -83,6 +83,15 @@ Stored as `image_credit jsonb` on `plants`, `inventory_items`, `plant_journals`.
 
 Surfaced via `<ImageCredit credit={…} variant="overlay" | "inline" | "badge-only" />` and the `<CreditedImage>` wrapper. Tapping any badge opens `<CreditPopover>` — provider, attribution, licence link, source link, and a footer link to `/credits` (the umbrella attribution page). Backfill for existing rows is deferred to Wave 22.0004; in the meantime the badge dims and points to `/credits`.
 
+**Wave 22.0004 — backfill + remaining hero surfaces:**
+- One-off SQL migration `20260710000000_image_credits_backfill.sql` populates:
+  - `plants.image_credit` from `species_cache.raw_data.default_image` (Perenual licence + original URL). Zero new API calls — uses the raw payload we already cache.
+  - `inventory_items.image_credit` from the related plant's credit (instance heroes inherit catalogue photos).
+  - `plant_journals.image_credit` to `{ provider: "user" }` for rows whose `image_url` points at our own storage buckets.
+  - Each UPDATE is guarded on `image_credit IS NULL` and safe to re-run.
+- `ManualPlantCreation` — passes `initialData.image_credit` into the read-only hero `PlantResultThumb`, so the plant detail modal hero now carries the badge.
+- `InstanceEditModal` — pinned cover photo now carries a "Your photo" badge anchored top-right.
+
 **Wave 22.0003 — live surface integrations:**
 - `PlantResultThumb` — badge-only overlay whenever the caller passes a `credit` prop. Cascades to every search-result row and tile that uses this component.
 - `MultiImageGallery` strip thumbnails — badge-only overlay sourced from each `plant-image-search` result's `image_credit`.

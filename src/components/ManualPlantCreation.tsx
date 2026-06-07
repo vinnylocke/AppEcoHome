@@ -525,6 +525,7 @@ export default function ManualPlantCreation({
                         name={formData.common_name || "plant"}
                         url={formData.thumbnail_url || formData.image_url}
                         iconSize={32}
+                        credit={(initialData as any)?.image_credit ?? (formData as any)?.image_credit}
                       />
                     </div>
                   ) : formData.thumbnail_url || formData.image_url ? (

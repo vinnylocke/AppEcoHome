@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import { IconGrowth, IconPlant, IconPlantDB, IconHarvest, IconLight } from "../constants/icons";
 import { supabase } from "../lib/supabase";
+import ImageCredit from "./credit/ImageCredit";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import InstanceCareRoutine from "./InstanceCareRoutine";
@@ -400,6 +401,12 @@ export default function InstanceEditModal({
               className="w-full h-full object-cover"
             />
             <div className="absolute inset-0 bg-gradient-to-t from-rhozly-surface-lowest via-rhozly-surface-lowest/30 to-transparent" />
+            {/* Wave 22.0004 — cover photos come through the Photos tab,
+                so they're always user uploads. Render the badge so the
+                "tap-the-badge-anywhere" promise holds across the app. */}
+            <div className="absolute top-2 right-2">
+              <ImageCredit credit={{ provider: "user" }} variant="badge-only" />
+            </div>
           </div>
         )}
         <div className="flex justify-between items-start mb-6 relative z-10">
