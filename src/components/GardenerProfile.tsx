@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { toast } from "react-hot-toast";
-import { User, Trophy, BarChart2, Save, Loader2, Lock, Trash2, AlertTriangle, X, CheckCircle2, Bell, Droplets, Wheat, Scissors, Cloud, Sun, Sparkles, MessageSquare, Eye, Calendar as CalendarIcon } from "lucide-react";
+import { User, Trophy, BarChart2, Save, Loader2, Lock, Trash2, AlertTriangle, X, CheckCircle2, Bell, Droplets, Wheat, Scissors, Cloud, Sun, Sparkles, MessageSquare, Eye, Calendar as CalendarIcon, Volume2 } from "lucide-react";
 import { TIERS, type TierId } from "../constants/tiers";
 import { useAchievements } from "../hooks/useAchievements";
 import { ACHIEVEMENTS } from "../lib/achievements";
@@ -204,10 +204,97 @@ function NotificationsTab() {
         ))}
       </section>
 
+      {/* Wave 22.0001-A — Voice */}
+      <VoiceSection />
+
       <p className="text-[10px] font-bold text-rhozly-on-surface/40 px-1 leading-snug">
         Preferences are saved on this device.
       </p>
     </div>
+  );
+}
+
+// ─── Voice section (Wave 22.0001-A) ────────────────────────────────────
+//
+// Stores `voice_settings` on `user_profiles` (server-side, syncs across
+// devices). For now exposes a single toggle — auto-read AI replies aloud.
+// The voice picker is deferred to a follow-up; the underlying jsonb
+// column already accepts `preferred_voice` for when we ship it.
+
+function VoiceSection() {
+  const [userId, setUserId] = useState<string | null>(null);
+  const [autoRead, setAutoRead] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getUser().then(({ data }) => {
+      const uid = data.user?.id ?? null;
+      if (cancelled) return;
+      setUserId(uid);
+      if (!uid) { setLoading(false); return; }
+      supabase
+        .from("user_profiles")
+        .select("voice_settings")
+        .eq("id", uid)
+        .maybeSingle()
+        .then(({ data }) => {
+          if (cancelled) return;
+          const vs = (data?.voice_settings ?? {}) as { auto_read_assistant_replies?: boolean };
+          setAutoRead(!!vs.auto_read_assistant_replies);
+          setLoading(false);
+        });
+    });
+    return () => { cancelled = true; };
+  }, []);
+
+  const update = async (next: boolean) => {
+    if (!userId) return;
+    setAutoRead(next);
+    setSaving(true);
+    try {
+      await supabase
+        .from("user_profiles")
+        .update({ voice_settings: { auto_read_assistant_replies: next } })
+        .eq("id", userId);
+    } catch (err) {
+      // Best-effort — revert UI state on failure.
+      setAutoRead(!next);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <section className="bg-white rounded-2xl border border-rhozly-outline/10 p-4 space-y-3" data-testid="voice-section">
+      <h3 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/55 flex items-center gap-2">
+        <Volume2 size={13} className="text-rhozly-primary" />
+        Voice
+      </h3>
+      <label className="flex items-center justify-between gap-3 cursor-pointer">
+        <div className="min-w-0">
+          <p className="text-sm font-black text-rhozly-on-surface">Read AI replies aloud</p>
+          <p className="text-[11px] font-medium text-rhozly-on-surface/55 leading-snug">
+            Garden AI will speak every reply as soon as it lands. Tap the speaker icon on any message to listen on demand. You can also tap the mic to talk to it.
+          </p>
+        </div>
+        <input
+          data-testid="voice-auto-read-toggle"
+          type="checkbox"
+          checked={autoRead}
+          disabled={loading || saving || !userId}
+          onChange={(e) => update(e.target.checked)}
+          aria-label="Read AI replies aloud"
+          className="w-11 h-6 shrink-0 appearance-none rounded-full bg-rhozly-outline/30 checked:bg-rhozly-primary transition-colors relative cursor-pointer
+            after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:shadow-md after:transition-transform
+            checked:after:translate-x-5 disabled:opacity-50 disabled:cursor-wait"
+        />
+      </label>
+      <p className="text-[10px] font-bold text-rhozly-on-surface/45 leading-snug">
+        Voice uses Google's natural-voice service; clips are cached server-side so re-playing a reply is free.
+      </p>
+    </section>
   );
 }
 

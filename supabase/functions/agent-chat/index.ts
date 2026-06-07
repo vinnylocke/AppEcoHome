@@ -134,10 +134,27 @@ async function handleSendMessage(
   body: any,
   authToken: string,
 ) {
-  const { homeId, message, history } = body;
-  if (!homeId || !message) return json({ error: "homeId and message are required" }, 400);
-  if (typeof message !== "string" || message.length > 4000) {
+  const { homeId, message, history, audio } = body;
+  if (!homeId || (!message && !audio)) return json({ error: "homeId and either message or audio are required" }, 400);
+  if (message && (typeof message !== "string" || message.length > 4000)) {
     return json({ error: "message must be a string under 4000 chars" }, 400);
+  }
+
+  // Wave 22.0001-A — Voice in chat. When the client sends audio (as
+  // { base64, mimeType }), we attach it as an `inlineData` part on the
+  // user turn so Gemini transcribes + reasons in one round-trip. The
+  // text `message` is optional in that case (the AI hears the audio
+  // directly). Caps mirror Gemini's limits: ~10 MB of base64 per part.
+  let audioPart: { inlineData: { data: string; mimeType: string } } | null = null;
+  if (audio && typeof audio === "object") {
+    const data = typeof audio.base64 === "string" ? audio.base64 : null;
+    const mime = typeof audio.mimeType === "string" ? audio.mimeType : null;
+    if (data && mime && /^audio\//.test(mime)) {
+      if (data.length > 10_000_000) {
+        return json({ error: "audio must be under ~7.5 MB encoded" }, 400);
+      }
+      audioPart = { inlineData: { data, mimeType: mime } };
+    }
   }
 
   // Membership check
@@ -194,9 +211,18 @@ async function handleSendMessage(
     userId, homeId, tier: context.tier, tools: tools.length,
   });
 
+  // When the user turn carries audio, attach it as a sibling inlineData
+  // part. The text part is always present (defaults to the empty string
+  // when audio-only, which Gemini handles fine — the audio is enough
+  // signal).
+  const userParts: Array<{ text?: string } | { inlineData: { data: string; mimeType: string } }> = [
+    { text: typeof message === "string" ? message : "" },
+  ];
+  if (audioPart) userParts.push(audioPart);
+
   const messages: GeminiMessage[] = [
     ...(Array.isArray(history) ? history.slice(-10) : []),
-    { role: "user", parts: [{ text: message }] },
+    { role: "user", parts: userParts as any },
   ];
 
   // Frozen copy of the original conversation — used by the knowledge

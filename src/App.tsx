@@ -13,6 +13,7 @@ import {
   HelpCircle,
   Zap,
   BookOpen,
+  NotebookPen,
 } from "lucide-react";
 import { IconPlants, IconPlanner, IconDoctor, IconAI, IconIntegrations } from "./constants/icons";
 
@@ -89,6 +90,7 @@ const QuickAccessHome     = lazy(() => import("./components/QuickAccessHome"));
 const LocalizedTaskCalendar = lazy(() => import("./components/quick/LocalizedTaskCalendar"));
 const GlobalJournal         = lazy(() => import("./components/GlobalJournal"));
 const WeeklyOverviewPage    = lazy(() => import("./components/WeeklyOverviewPage"));
+const NotesPage             = lazy(() => import("./components/notes/NotesPage"));
 const GardenWalk            = lazy(() => import("./components/walk/GardenWalk"));
 const MobileNavDrawer       = lazy(() => import("./components/MobileNavDrawer"));
 const QuickAccessMenuButton = lazy(() => import("./components/QuickAccessMenuButton"));
@@ -182,6 +184,7 @@ const TAB_URL: Record<string, string> = {
   quick:           "/quick",
   quick_calendar:  "/quick/calendar",
   journal:         "/journal",
+  notes:           "/notes",
   dashboard:       "/dashboard",
   task_management: "/schedule",
   shed:            "/shed",
@@ -1052,6 +1055,7 @@ function AppShell() {
     { id: "shed",      icon: <IconPlants />, label: "Plants", matchPaths: ["/shed", "/watchlist"] },
     { id: "planner",   icon: <IconPlanner />, label: "Planner",    matchPaths: ["/planner", "/shopping"] },
     { id: "journal",   icon: <BookOpen />, label: "Journal",    matchPaths: ["/journal"] },
+    { id: "notes",     icon: <NotebookPen />, label: "Notes",   matchPaths: ["/notes"] },
     { id: "tools",        icon: <IconDoctor />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
     { id: "integrations", icon: <IconIntegrations />,        label: "Integrations", matchPaths: ["/integrations"] },
   ];
@@ -1525,6 +1529,14 @@ function AppShell() {
                         profile?.home_id ? (
                           <div className="h-full overflow-auto animate-in fade-in duration-500">
                             <WeeklyOverviewPage homeId={profile.home_id} aiEnabled={!!profile?.ai_enabled} isPremium={!!profile?.enable_perenual} />
+                          </div>
+                        ) : null
+                      } />
+
+                      <Route path="/notes" element={
+                        profile?.home_id ? (
+                          <div className="h-full overflow-auto animate-in fade-in duration-500">
+                            <NotesPage homeId={profile.home_id} />
                           </div>
                         ) : null
                       } />

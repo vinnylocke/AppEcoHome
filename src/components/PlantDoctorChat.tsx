@@ -16,6 +16,9 @@ import {
   ImagePlus,
 } from "lucide-react";
 import { IconGrowth, IconPlant } from "../constants/icons";
+import MicButton, { type VoiceCaptureResult } from "./chat/MicButton";
+import ReadAloudButton from "./chat/ReadAloudButton";
+import { useTextToSpeech } from "../hooks/useTextToSpeech";
 import { Camera as CapCamera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { Capacitor } from "@capacitor/core";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -144,6 +147,15 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
 
   const [pendingImage, setPendingImage] = useState<PendingImage | null>(null);
 
+  // Wave 22.0001-A — Voice in chat.
+  // `autoReadReplies` mirrors `user_profiles.voice_settings.auto_read_assistant_replies`.
+  // Loaded once on chat open; the setting itself is toggled from the
+  // GardenerProfile Voice section.
+  const [autoReadReplies, setAutoReadReplies] = useState<boolean>(false);
+  // When set, the next sendMessage attaches this audio clip to the
+  // agent-chat call instead of (or alongside) text.
+  const [pendingAudio, setPendingAudio] = useState<VoiceCaptureResult | null>(null);
+
   /** Per-call confirm/done/failed state for Phase 2 tool calls. Keyed by call_id. */
   const [callStates, setCallStates] = useState<Record<string, ConfirmState>>({});
 
@@ -220,6 +232,23 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       .getUser()
       .then(({ data }) => setUserId(data.user?.id ?? null));
   }, []);
+
+  // Load voice_settings whenever a user resolves. Cheap: one row.
+  useEffect(() => {
+    if (!userId) return;
+    let cancelled = false;
+    supabase
+      .from("user_profiles")
+      .select("voice_settings")
+      .eq("id", userId)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (cancelled) return;
+        const vs = (data?.voice_settings ?? {}) as { auto_read_assistant_replies?: boolean };
+        setAutoReadReplies(!!vs.auto_read_assistant_replies);
+      });
+    return () => { cancelled = true; };
+  }, [userId]);
 
   // Load persisted chat history from DB. Pulled out as a stable
   // callback so the retry banner can re-fire it without re-mounting.
@@ -383,6 +412,39 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     }
   }, [messages]);
 
+  // Wave 22.0001-A — auto-read the latest assistant reply when the setting
+  // is enabled. Guarded so we don't speak history on chat open (only fires
+  // after scrollToNewMsgRef sets — i.e. genuinely new assistant turn).
+  const tts = useTextToSpeech();
+  const lastSpokenKeyRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (!autoReadReplies || !isOpen) return;
+    if (messages.length === 0) return;
+    const last = messages[messages.length - 1];
+    if (last.role !== "assistant" || !last.content) return;
+    // Only speak fresh replies. The welcome message and history loads
+    // bypass scrollToNewMsgRef, so check we're not just re-rendering.
+    if (lastSpokenKeyRef.current === last._key) return;
+    if (isLoading) return;
+    lastSpokenKeyRef.current = last._key;
+    // Skip the welcome content — it never changes and getting it spoken
+    // every open would be annoying.
+    if (last.content === WELCOME_CONTENT) return;
+    tts.speak(last.content, { key: `chat-${last._key}` }).catch(() => { /* swallowed in hook */ });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [messages, autoReadReplies, isOpen, isLoading]);
+
+  const handleVoiceRecorded = (audio: VoiceCaptureResult) => {
+    setPendingAudio(audio);
+    // Auto-send so the user just talks → answer. Keep any draft text
+    // alongside the audio in case the user typed something first.
+    const form = document.querySelector('form[data-rhozly-chat-form]') as HTMLFormElement | null;
+    // Fall back to a synthetic submit if the form ref is unreachable.
+    setTimeout(() => {
+      if (form) form.requestSubmit();
+    }, 50);
+  };
+
   const handleStartFresh = () => {
     setMessages([
       { _key: nextKey(), role: "assistant", content: WELCOME_CONTENT },
@@ -430,6 +492,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     image: PendingImage | null | undefined,
     priorPlanSuggested: boolean,
     userText: string,
+    audio?: VoiceCaptureResult | null,
   ): Promise<{
     reply: string;
     suggested_plants?: Array<{ name: string; search_query: string }>;
@@ -441,7 +504,8 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
   }> => {
     // Phase 1 routing: text-only messages go to the agent-chat function
     // (tool-aware), image messages stay on the legacy plant-doctor-ai
-    // diagnosis path. Phase 4+ will unify them.
+    // diagnosis path. Phase 4+ will unify them. Audio rides the agent-chat
+    // path too — Gemini transcribes the audio + reasons in one round-trip.
     if (!image) {
       // Convert legacy {role, content} history to Gemini-shape parts.
       const geminiHistory = historyForAI.slice(0, -1).map((m) => ({
@@ -454,6 +518,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
           homeId,
           message: userText,
           history: geminiHistory,
+          audio: audio ? { base64: audio.base64, mimeType: audio.mimeType } : undefined,
         },
       });
       if (error) throw error;
@@ -538,9 +603,12 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
 
   const sendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if ((!input.trim() && !pendingImage) || isLoading) return;
+    if ((!input.trim() && !pendingImage && !pendingAudio) || isLoading) return;
 
-    const userText = input.trim() || (pendingImage ? "Please identify or diagnose what you see in this image." : "");
+    const audioSnapshot = pendingAudio;
+    const userText = input.trim()
+      || (pendingImage ? "Please identify or diagnose what you see in this image." : "")
+      || (audioSnapshot ? "🎤 Voice message" : "");
     const imageSnapshot = pendingImage;
     const userKey = nextKey();
 
@@ -556,6 +624,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     logEvent(EVENT.PLANT_DOCTOR_CHAT_MESSAGE, { has_image: !!imageSnapshot });
     setInput("");
     setPendingImage(null);
+    setPendingAudio(null);
     setIsLoading(true);
 
     try {
@@ -580,7 +649,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
         (m) => m.role === "assistant" && !!m.plan_suggestion,
       );
 
-      const data = await callAI(historyForAI, imageSnapshot, priorPlanSuggested, userText);
+      const data = await callAI(historyForAI, imageSnapshot, priorPlanSuggested, userText, audioSnapshot);
 
       const assistantKey = nextKey();
       scrollToNewMsgRef.current = true;
@@ -964,6 +1033,14 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                         {/* Feedback + regenerate row (DB-saved assistant messages only) */}
                         {msg.role === "assistant" && msg.id && (
                           <div className="flex items-center gap-1 mt-1 pt-1 border-t border-rhozly-outline/5">
+                            {/* Wave 22.0001-A — Read aloud */}
+                            {msg.content && (
+                              <ReadAloudButton
+                                text={msg.content}
+                                messageKey={`chat-${msg._key}`}
+                                size="sm"
+                              />
+                            )}
                             <button
                               onClick={() =>
                                 handleFeedback(msg.id!, "positive")
@@ -1049,6 +1126,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
 
           {/* Input */}
           <form
+            data-rhozly-chat-form="1"
             onSubmit={sendMessage}
             className="p-3 bg-white border-t border-rhozly-outline/10 flex gap-2 shrink-0 items-center"
           >
@@ -1073,17 +1151,24 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
               {Capacitor.isNativePlatform() ? <Camera size={20} /> : <ImagePlus size={20} />}
             </button>
 
+            {/* Mic — Wave 22.0001-A */}
+            <MicButton
+              disabled={isLoading || isLoadingHistory}
+              onRecorded={handleVoiceRecorded}
+              size="md"
+            />
+
             <input
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={pendingImage ? "Ask about this photo…" : "Ask about your garden…"}
+              placeholder={pendingImage ? "Ask about this photo…" : pendingAudio ? "🎤 Voice ready — tap send" : "Ask about your garden…"}
               className="flex-1 bg-rhozly-surface-low rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-rhozly-primary/20 transition-all"
               disabled={isLoading || isLoadingHistory}
             />
             <button
               type="submit"
-              disabled={isLoading || isLoadingHistory || (!input.trim() && !pendingImage)}
+              disabled={isLoading || isLoadingHistory || (!input.trim() && !pendingImage && !pendingAudio)}
               className="bg-rhozly-primary text-white p-3 rounded-xl disabled:opacity-50 hover:bg-rhozly-primary/90 transition-colors shrink-0"
             >
               <Send size={18} />

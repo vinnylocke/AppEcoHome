@@ -3,6 +3,7 @@ import {
   CalendarDays,
   CalendarRange,
   NotebookPen,
+  StickyNote,
   Sprout,
   ClipboardList,
   Footprints,
@@ -201,6 +202,14 @@ export const QUICK_LAUNCHER_CATALOGUE: readonly QuickLauncherDestination[] = [
     icon: CalendarRange,
     accent: "amber",
     route: "/weekly",
+  },
+  {
+    id: "notes",
+    label: "Notes",
+    description: "Free-form notes — rich text, images, tables, links to plants / areas / plans / ailments.",
+    icon: StickyNote,
+    accent: "purple",
+    route: "/notes",
   },
 ];
 
