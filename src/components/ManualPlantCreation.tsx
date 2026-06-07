@@ -19,10 +19,16 @@ import {
   X,
   Tag,
   Globe,
+  Pencil,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import WikiImagePicker from "./WikiImagePicker";
 import PlantResultThumb from "./PlantResultThumb";
+// Wave 22.0006 — hero image opens in-app lightbox (with credit overlay)
+// instead of firing the file picker. Change-photo moves to a dedicated
+// pencil button at the top-right of the hero.
+import { Lightbox, type GalleryImage } from "./DiagnosisImageGallery";
+import ImageCredit from "./credit/ImageCredit";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -139,6 +145,10 @@ export default function ManualPlantCreation({
   const [uploading, setUploading] = useState(false);
   const [savedConfirm, setSavedConfirm] = useState(false);
   const [showWikiPicker, setShowWikiPicker] = useState(false);
+  // Wave 22.0006 — opens the hero image in the canonical Lightbox so the
+  // user sees it full-size + the licence overlay. Edit affordance moves to
+  // a dedicated pencil button.
+  const [heroLightboxOpen, setHeroLightboxOpen] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const dropdownContainerRefs = useRef<Record<string, HTMLDivElement | null>>({});
 
@@ -512,32 +522,76 @@ export default function ManualPlantCreation({
         {/* IDENTITY SECTION */}
         <div className="space-y-4">
           <SectionHeader id="basics" title="Identity & Basics" icon={Info} />
-          {activeSection === "basics" && (
+          {activeSection === "basics" && (() => {
+            // Wave 22.0006 — split the hero behaviour:
+            //   • Image present (read-only OR edit) → tap opens the Lightbox.
+            //   • Edit mode + image present       → small pencil button at
+            //                                       top-right fires the file
+            //                                       picker; the tile-wide
+            //                                       "Change Photo" overlay
+            //                                       is gone.
+            //   • Edit mode + no image            → tap opens the file picker
+            //                                       (the empty-state pattern
+            //                                       is unchanged).
+            const heroUrl: string | null = formData.thumbnail_url || formData.image_url || null;
+            const heroCredit = (initialData as any)?.image_credit ?? (formData as any)?.image_credit ?? null;
+            const heroHasImage = !!heroUrl;
+            const heroLightboxImages: GalleryImage[] = heroHasImage ? [{
+              id: "hero",
+              thumb_url: heroUrl!,
+              full_url: heroUrl!,
+              alt: formData.common_name || "Plant",
+              source: "stored",
+              image_credit: heroCredit ?? undefined,
+            }] : [];
+            const onHeroClick = () => {
+              if (heroHasImage) setHeroLightboxOpen(true);
+              else if (!isReadOnly) fileInputRef.current?.click();
+            };
+            return (
             <div className="p-2 space-y-6 animate-in slide-in-from-top-2">
               <div className="flex flex-col items-center justify-center gap-4">
                 <div
-                  onClick={() => !isReadOnly && fileInputRef.current?.click()}
-                  className={`relative w-40 h-40 rounded-[2.5rem] bg-rhozly-surface-low border-2 border-dashed border-rhozly-outline/20 overflow-hidden group transition-all ${!isReadOnly ? "cursor-pointer hover:border-rhozly-primary/40" : ""}`}
+                  onClick={onHeroClick}
+                  className={`relative w-40 h-40 rounded-[2.5rem] bg-rhozly-surface-low border-2 border-dashed border-rhozly-outline/20 overflow-hidden group transition-all ${heroHasImage || !isReadOnly ? "cursor-pointer hover:border-rhozly-primary/40" : ""}`}
+                  aria-label={heroHasImage ? "Open photo full-size" : "Add a photo"}
                 >
                   {isReadOnly ? (
                     <div className="w-full h-full flex items-center justify-center text-rhozly-on-surface/30">
                       <PlantResultThumb
                         name={formData.common_name || "plant"}
-                        url={formData.thumbnail_url || formData.image_url}
+                        url={heroUrl}
                         iconSize={32}
-                        credit={(initialData as any)?.image_credit ?? (formData as any)?.image_credit}
+                        credit={heroCredit}
                       />
                     </div>
-                  ) : formData.thumbnail_url || formData.image_url ? (
+                  ) : heroHasImage ? (
                     <>
                       <img
-                        src={formData.thumbnail_url || formData.image_url}
+                        src={heroUrl!}
                         className="w-full h-full object-cover"
-                        alt="Preview"
+                        alt={formData.common_name || "Plant"}
                       />
-                      <div className="absolute inset-0 bg-black/25 flex items-center justify-center text-white text-[10px] font-black uppercase tracking-widest">
-                        Change Photo
-                      </div>
+                      {/* Wave 22.0006 — pencil button. Stops propagation so
+                          tapping it doesn't also open the Lightbox. */}
+                      <button
+                        type="button"
+                        data-testid="plant-hero-change-photo"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          fileInputRef.current?.click();
+                        }}
+                        aria-label="Change photo"
+                        title="Change photo"
+                        className="absolute top-2 right-2 w-9 h-9 min-w-[36px] min-h-[36px] rounded-full bg-white/90 backdrop-blur shadow-md text-rhozly-on-surface/70 hover:text-rhozly-primary hover:bg-white flex items-center justify-center transition-colors"
+                      >
+                        <Pencil size={14} />
+                      </button>
+                      {heroCredit && (
+                        <div className="absolute bottom-2 left-2" onClick={(e) => e.stopPropagation()}>
+                          <ImageCredit credit={heroCredit} variant="badge-only" />
+                        </div>
+                      )}
                     </>
                   ) : (
                     <div className="flex flex-col items-center justify-center h-full text-rhozly-on-surface/30">
@@ -717,8 +771,18 @@ export default function ManualPlantCreation({
                   </p>
                 </div>
               )}
+
+              {/* Wave 22.0006 — in-app lightbox for the hero photo. */}
+              {heroLightboxOpen && heroLightboxImages.length > 0 && (
+                <Lightbox
+                  images={heroLightboxImages}
+                  startIndex={0}
+                  onClose={() => setHeroLightboxOpen(false)}
+                />
+              )}
             </div>
-          )}
+          );
+          })()}
         </div>
 
         {/* GROWTH SECTION */}
