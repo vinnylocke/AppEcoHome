@@ -129,7 +129,21 @@ function ChatPlantCard({
 }
 
 export default function PlantDoctorChat({ homeId }: { homeId: string }) {
-  const { isOpen, setIsOpen, pageContext } = usePlantDoctor();
+  const { isOpen, setIsOpen, pageContext, setPageContext } = usePlantDoctor();
+
+  // Wave 22.0010 — narrow `pageContext` for the chip + pre-fill logic.
+  // pageContext is intentionally typed `string | object | null` upstream,
+  // so we coerce defensively at every read.
+  const contextPlant = (() => {
+    if (!pageContext || typeof pageContext !== "object") return null;
+    const plant = (pageContext as any).plant;
+    if (!plant || typeof plant !== "object") return null;
+    const common = typeof plant.common_name === "string" ? plant.common_name : null;
+    const sci = typeof plant.scientific_name === "string" ? plant.scientific_name : null;
+    const id = plant.id ?? null;
+    if (!common && !sci) return null;
+    return { id, common_name: common, scientific_name: sci };
+  })();
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
@@ -163,6 +177,11 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
   const lastAssistantRef = useRef<HTMLDivElement>(null);
   const scrollToNewMsgRef = useRef(false);
   const keyCounter = useRef(0);
+  // Wave 22.0010 — track the plant we last pre-filled the input for, plus
+  // the open state, so we don't trample a draft when the chat re-renders
+  // while open or re-opens with the same plant scope still active.
+  const lastPrefilledPlantIdRef = useRef<unknown>(null);
+  const prevIsOpenRef = useRef<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const nextKey = () => `k${++keyCounter.current}`;
 
@@ -398,6 +417,43 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
   useEffect(() => {
     if (isOpen) endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [isOpen]);
+
+  // Wave 22.0010 — when the chat opens (or the scoped plant changes), pre-fill
+  // the input with a plant-scoped starter so it's obvious which plant the AI
+  // is contextualised on. Guards:
+  //   - Only fires on the false→true open transition OR on a plant id change
+  //     while open.
+  //   - Skips when the user has already typed anything.
+  //   - Tracks the last pre-filled plant id so re-opening with the same plant
+  //     doesn't clobber a draft.
+  useEffect(() => {
+    const wasOpen = prevIsOpenRef.current;
+    prevIsOpenRef.current = isOpen;
+    if (!isOpen) {
+      lastPrefilledPlantIdRef.current = null;
+      return;
+    }
+    if (!contextPlant?.common_name) return;
+    if (input.trim().length > 0) return;
+    if (
+      lastPrefilledPlantIdRef.current === contextPlant.id
+      && wasOpen
+    ) {
+      return;
+    }
+    lastPrefilledPlantIdRef.current = contextPlant.id ?? contextPlant.common_name;
+    setInput(`About my ${contextPlant.common_name}: `);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, contextPlant?.id, contextPlant?.common_name]);
+
+  // Wave 22.0010 — clears the plant scope from pageContext. The chat itself
+  // stays open; the AI just stops contextualising on that specific plant.
+  const clearPlantContext = () => {
+    if (!pageContext || typeof pageContext !== "object") return;
+    const next: Record<string, unknown> = { ...(pageContext as Record<string, unknown>) };
+    delete next.plant;
+    setPageContext(Object.keys(next).length > 0 ? next : null);
+  };
 
   // On new messages: scroll to TOP of AI reply so the user sees it from the start;
   // for user messages and history loads, scroll to bottom as usual.
@@ -1121,6 +1177,31 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
               <p className="text-xs text-rhozly-on-surface/50 font-bold">
                 Image attached — ask me to identify or diagnose
               </p>
+            </div>
+          )}
+
+          {/* Wave 22.0010 — "Talking about" chip when the chat is scoped to
+              a specific plant (e.g. opened from a Shed tile's AI button).
+              Lets users tap × to clear the plant scope and continue with a
+              general garden conversation. */}
+          {contextPlant?.common_name && (
+            <div className="px-3 pt-2 -mb-1 bg-white border-t border-rhozly-outline/10 shrink-0">
+              <div
+                data-testid="chat-plant-context-chip"
+                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rhozly-primary/10 text-rhozly-primary text-[11px] font-black"
+              >
+                <IconPlant size={11} />
+                <span>Talking about: {contextPlant.common_name}</span>
+                <button
+                  type="button"
+                  data-testid="chat-plant-context-clear"
+                  onClick={clearPlantContext}
+                  aria-label={`Stop scoping to ${contextPlant.common_name}`}
+                  className="ml-0.5 p-0.5 rounded-full hover:bg-rhozly-primary/20 transition-colors"
+                >
+                  <X size={11} />
+                </button>
+              </div>
             </div>
           )}
 
