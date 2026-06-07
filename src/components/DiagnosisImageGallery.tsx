@@ -9,6 +9,11 @@ import {
   ChevronRight,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import {
+  coerceImageCredit,
+  isKnownCredit,
+  PROVIDER_LABEL,
+} from "../lib/imageCredit";
 
 export interface GalleryImage {
   id: string;
@@ -93,7 +98,54 @@ function LightboxAttribution({ image }: { image: GalleryImage }) {
       </a>
     );
   }
-  return null;
+  // Wave 22.0007 — fall back to the unified image_credit shape so plant
+  // heroes (which only carry image_credit, no legacy per-source fields)
+  // show their provider, attribution and licence in the Lightbox too.
+  const credit = coerceImageCredit(image.image_credit);
+  if (isKnownCredit(credit) && credit) {
+    return (
+      <div className="text-xs text-white/75 flex flex-wrap items-center gap-x-2 gap-y-0.5">
+        <span className="font-bold">via {PROVIDER_LABEL[credit.provider]}</span>
+        {credit.attribution && <span className="opacity-90">· {credit.attribution}</span>}
+        {credit.license_name && credit.license_url && (
+          <a
+            href={credit.license_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-white"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {credit.license_name}
+          </a>
+        )}
+        {credit.license_name && !credit.license_url && (
+          <span className="opacity-90">· {credit.license_name}</span>
+        )}
+        {credit.source_url && (
+          <a
+            href={credit.source_url}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="underline hover:text-white inline-flex items-center gap-1"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <ExternalLink size={10} /> View original
+          </a>
+        )}
+      </div>
+    );
+  }
+  // No legacy fields, no image_credit — show the umbrella attribution
+  // link so the "tap to learn the source" promise holds.
+  return (
+    <a
+      href="/credits"
+      className="text-xs text-white/55 underline hover:text-white/80 inline-flex items-center gap-1"
+      onClick={(e) => e.stopPropagation()}
+    >
+      Source unknown — see Credits
+    </a>
+  );
 }
 
 function ThumbAttribution({ image }: { image: GalleryImage }) {
