@@ -25,6 +25,51 @@ export interface GalleryImage {
   wiki_page?: string;
   // Pixabay — no attribution required, link optional
   pixabay_page?: string;
+  // Wave 22.0002 — unified image credit shape. Mirrors src/lib/imageCredit.ts.
+  image_credit?: {
+    provider: string;
+    license_name?: string | null;
+    license_url?: string | null;
+    attribution?: string | null;
+    source_url?: string | null;
+    commercial_ok?: boolean | null;
+  };
+}
+
+// Wave 22.0002 — Build the unified ImageCredit from a normalised
+// GalleryImage. Lets every consumer carry credit alongside the URL.
+function buildGalleryCredit(img: GalleryImage): GalleryImage["image_credit"] {
+  if (img.source === "unsplash") {
+    return {
+      provider:     "unsplash",
+      license_name: "Unsplash License",
+      license_url:  "https://unsplash.com/license",
+      attribution:  img.photographer_name ? `Photo by ${img.photographer_name}` : null,
+      source_url:   img.photo_page ?? null,
+      commercial_ok: true,
+    };
+  }
+  if (img.source === "pixabay") {
+    return {
+      provider:     "pixabay",
+      license_name: "Pixabay Content License",
+      license_url:  "https://pixabay.com/service/license-summary/",
+      attribution:  null,
+      source_url:   img.pixabay_page ?? null,
+      commercial_ok: true,
+    };
+  }
+  if (img.source === "wikipedia") {
+    return {
+      provider:     "wikipedia",
+      license_name: null,
+      license_url:  null,
+      attribution:  null,
+      source_url:   img.wiki_page ?? null,
+      commercial_ok: null,
+    };
+  }
+  return { provider: "unknown" };
 }
 
 function withUtm(url: string) {
@@ -268,7 +313,15 @@ serve(async (req) => {
         .catch(() => {});
     }
 
-    return new Response(JSON.stringify({ images }), {
+    // Wave 22.0002 — attach the unified image_credit to every result
+    // before sending it down the wire. Per-provider fields stay too for
+    // backwards compatibility with older clients.
+    const imagesWithCredit = images.map((img: GalleryImage) => ({
+      ...img,
+      image_credit: buildGalleryCredit(img),
+    }));
+
+    return new Response(JSON.stringify({ images: imagesWithCredit }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });

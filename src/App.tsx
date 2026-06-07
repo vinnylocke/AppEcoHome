@@ -91,6 +91,7 @@ const LocalizedTaskCalendar = lazy(() => import("./components/quick/LocalizedTas
 const GlobalJournal         = lazy(() => import("./components/GlobalJournal"));
 const WeeklyOverviewPage    = lazy(() => import("./components/WeeklyOverviewPage"));
 const NotesPage             = lazy(() => import("./components/notes/NotesPage"));
+const CreditsPage           = lazy(() => import("./components/CreditsPage"));
 const GardenWalk            = lazy(() => import("./components/walk/GardenWalk"));
 const MobileNavDrawer       = lazy(() => import("./components/MobileNavDrawer"));
 const QuickAccessMenuButton = lazy(() => import("./components/QuickAccessMenuButton"));
@@ -1539,6 +1540,13 @@ function AppShell() {
                             <NotesPage homeId={profile.home_id} />
                           </div>
                         ) : null
+                      } />
+
+                      {/* Wave 22.0002 — image credits umbrella attribution page. */}
+                      <Route path="/credits" element={
+                        <div className="h-full overflow-auto animate-in fade-in duration-500">
+                          <CreditsPage />
+                        </div>
                       } />
 
                       {/* Redirect legacy /watchlist deep-link to the Garden Hub watchlist tab */}

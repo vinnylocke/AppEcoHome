@@ -11,6 +11,7 @@ import {
   ChevronRight,
   Medal,
   LifeBuoy,
+  Image as ImageIcon,
   ClipboardList,
   Rocket,
   Sparkles,
@@ -297,6 +298,17 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
                   <LifeBuoy size={15} />
                 </span>
                 <span className="flex-1 text-left">Contact Support</span>
+                <ChevronRight size={12} className="text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50 transition-colors" />
+              </button>
+              <button
+                data-testid="user-profile-image-credits"
+                onClick={(e) => { e.stopPropagation(); go("/credits"); }}
+                className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors group"
+              >
+                <span className="text-rhozly-on-surface/40 group-hover:text-rhozly-primary transition-colors">
+                  <ImageIcon size={15} />
+                </span>
+                <span className="flex-1 text-left">Image credits</span>
                 <ChevronRight size={12} className="text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50 transition-colors" />
               </button>
               {onCheckForUpdate && (

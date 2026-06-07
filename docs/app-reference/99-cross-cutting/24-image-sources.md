@@ -63,9 +63,30 @@ Rewrites external URLs through Supabase with cache headers + CORS. Used for prov
 - Service worker runtime cache (PWA).
 - Image proxy adds long max-age for re-fetches.
 
-### Attribution
+### Attribution (Wave 22.0002)
 
-Per-provider attribution displayed in galleries (e.g. "via Wikipedia") to honour CC-BY.
+Every image now carries an `image_credit` JSON blob captured at ingestion. Shape:
+
+```ts
+interface ImageCredit {
+  provider: "perenual" | "verdantly" | "wikipedia" | "pixabay"
+          | "inaturalist" | "unsplash" | "plantnet" | "ai" | "user" | "unknown";
+  license_name?: string | null;
+  license_url?: string | null;
+  attribution?: string | null;   // verbatim, e.g. "Photo by Jane Doe"
+  source_url?: string | null;
+  commercial_ok?: boolean | null;
+}
+```
+
+Stored as `image_credit jsonb` on `plants`, `inventory_items`, `plant_journals`. The unified shape also rides in `plant-image-search`'s response (`image_credit` per image) and Verdantly / Perenual mapped responses.
+
+Surfaced via `<ImageCredit credit={…} variant="overlay" | "inline" | "badge-only" />` and the `<CreditedImage>` wrapper. Tapping any badge opens `<CreditPopover>` — provider, attribution, licence link, source link, and a footer link to `/credits` (the umbrella attribution page). Backfill for existing rows is deferred to Wave 22.0004; in the meantime the badge dims and points to `/credits`.
+
+Capture pipeline:
+- **Perenual** — `default_image.license_name` / `license_url` / `original_url` flow through `perenualService.buildPerenualImageCredit`.
+- **Verdantly** — no per-image licence in the API; we credit the platform per ToS.
+- **plant-image-search** — Unsplash / Pixabay / Wikipedia normalised to the unified shape.
 
 ### Sprite Wizard
 

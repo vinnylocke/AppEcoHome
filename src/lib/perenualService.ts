@@ -1,7 +1,40 @@
 import { supabase } from "./supabase";
 import { Logger } from "./errorHandler";
+import type { ImageCredit } from "./imageCredit";
+import { PROVIDER_DEFAULT_LICENSE_URL } from "./imageCredit";
 
 const CACHE_TTL_DAYS = 30;
+
+// Wave 22.0002 — Perenual's default_image carries explicit licence data.
+// Normalise it into the unified ImageCredit shape so it survives down to
+// the UI badge.
+function buildPerenualImageCredit(
+  defaultImage: any,
+  speciesId: number | string | undefined,
+): ImageCredit | null {
+  if (!defaultImage) return null;
+  const licenseName = typeof defaultImage.license_name === "string"
+    ? defaultImage.license_name
+    : null;
+  const licenseUrl = typeof defaultImage.license_url === "string"
+    ? defaultImage.license_url
+    : (PROVIDER_DEFAULT_LICENSE_URL.perenual ?? null);
+  const sourceUrl = typeof defaultImage.original_url === "string"
+    ? defaultImage.original_url
+    : (speciesId != null ? `https://perenual.com/plant/${speciesId}` : null);
+  const lc = (licenseName ?? "").toLowerCase();
+  const commercialOk = lc.includes("public domain")
+    || lc.includes("cc0")
+    || (lc.includes("cc") && !lc.includes("nc"));
+  return {
+    provider:      "perenual",
+    license_name:  licenseName,
+    license_url:   licenseUrl,
+    attribution:   null,
+    source_url:    sourceUrl,
+    commercial_ok: commercialOk || null,
+  };
+}
 
 // 🧹 DATA CLEANING HELPERS
 
@@ -162,6 +195,10 @@ export const PerenualService = {
         cycle: apiData.cycle || null,
         image_url: apiData.default_image?.regular_url || null,
         thumbnail_url: apiData.default_image?.thumbnail || null,
+        // Wave 22.0002 — capture licence + attribution from Perenual's
+        // default_image object so downstream callers can credit it
+        // wherever the image renders.
+        image_credit: buildPerenualImageCredit(apiData.default_image, apiData.id),
         watering: apiData.watering || null,
         watering_benchmark: apiData.watering_general_benchmark || null,
         watering_min_days: wateringDays.min,

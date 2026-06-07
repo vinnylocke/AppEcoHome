@@ -75,6 +75,26 @@ function buildMaintenance(care: any): string | null {
   return parts.length > 0 ? parts.join("\n\n") : null;
 }
 
+// Wave 22.0002 — Verdantly's v2 API returns no per-image licence data.
+// The image is sourced via their platform, so we credit Verdantly itself
+// per their Terms of Service. Includes a deep link to the species page
+// when we have an identifier we can use.
+function buildVerdantlyCredit(v: any): Record<string, unknown> | null {
+  if (!v?.imageUrl) return null;
+  const slug = v.slug ?? v.scientificName ?? v.name ?? null;
+  const sourceUrl = typeof slug === "string" && slug.trim()
+    ? `https://verdantly.app/plants/${encodeURIComponent(slug.trim().toLowerCase().replace(/\s+/g, "-"))}`
+    : null;
+  return {
+    provider:      "verdantly",
+    license_name:  "Verdantly Terms of Service",
+    license_url:   "https://rapidapi.com/Tomaslau/api/verdantly-gardening-api",
+    attribution:   null,
+    source_url:    sourceUrl,
+    commercial_ok: null,
+  };
+}
+
 // v2: ecology lives at v.distribution.ecology
 function buildAttracts(ecology: any): string[] {
   const result: string[] = [];
@@ -137,6 +157,7 @@ function mapToPlantDetails(v: any) {
     cycle:                 lc.duration ?? null,
     image_url:             v.imageUrl ?? null,
     thumbnail_url:         v.imageUrl ?? null,
+    image_credit:          buildVerdantlyCredit(v),
     watering:              waterDays?.label ?? null,
     watering_benchmark:    null,
     watering_min_days:     waterDays?.min ?? null,
