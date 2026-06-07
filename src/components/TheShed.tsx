@@ -1770,12 +1770,16 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                     label={plant.common_name}
                     existingImageUrl={plant.thumbnail_url}
                   />
-                  {(() => {
-                    // Wave 5 — AI freshness chip on the card image (bottom-left)
-                    const fresh = freshnessByPlantId[plant.id as number];
-                    if (!fresh?.has_update) return null;
-                    return (
-                      <div className="absolute bottom-3 left-3 z-10">
+                  {/* Wave 22.0008 — UpdatedChip (conditional) + source label
+                      share one bottom-left flex column so they never overlap
+                      each other AND don't crowd the action buttons row at
+                      top-right on narrow mobile viewports (the issue 22.0007
+                      introduced when it parked the source label at top-left). */}
+                  <div className="absolute bottom-3 left-3 z-10 flex flex-col items-start gap-1.5">
+                    {(() => {
+                      const fresh = freshnessByPlantId[plant.id as number];
+                      if (!fresh?.has_update) return null;
+                      return (
                         <UpdatedChip
                           count={fresh.updated_care_fields.length}
                           size="sm"
@@ -1785,13 +1789,8 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                           }}
                           className="shadow-sm"
                         />
-                      </div>
-                    );
-                  })()}
-                  {/* Wave 22.0007 — source label moved to top-left so it
-                      no longer overlaps with MultiImageGallery's "Photos"
-                      button at bottom-right. */}
-                  <div className="absolute top-3 left-3 z-10">
+                      );
+                    })()}
                     <span className={`bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-black uppercase flex items-center gap-1.5 shadow-sm border border-white/20 ${
                       plant.source === "api"       ? "text-rhozly-primary" :
                       plant.source === "verdantly" ? "text-emerald-600" :
