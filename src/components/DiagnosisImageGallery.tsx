@@ -25,6 +25,16 @@ export interface GalleryImage {
   wiki_page?: string;
   // Pixabay
   pixabay_page?: string;
+  // Wave 22.0002 — unified credit. Mirrors src/lib/imageCredit.ts.
+  // Optional because legacy callers may not populate it yet.
+  image_credit?: {
+    provider: string;
+    license_name?: string | null;
+    license_url?: string | null;
+    attribution?: string | null;
+    source_url?: string | null;
+    commercial_ok?: boolean | null;
+  };
 }
 
 // ---------------------------------------------------------------------------

@@ -45,6 +45,7 @@ import AnalyseResultCard from "./lens/AnalyseResultCard";
 import SceneMapResultCard from "./lens/SceneMapResultCard";
 import InfoTooltip from "./InfoTooltip";
 import { usePersona } from "../hooks/usePersona";
+import ImageCredit from "./credit/ImageCredit";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -1483,6 +1484,12 @@ export default function PlantDoctor({
                                     {item.confidence}%
                                   </span>
                                 </div>
+                                {/* Wave 22.0003 — inline credit so users see the data source / licence. */}
+                                {(item as any).image_credit && (
+                                  <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                                    <ImageCredit credit={(item as any).image_credit} variant="inline" />
+                                  </div>
+                                )}
                               </button>
                             ));
                           })()}
@@ -1531,6 +1538,13 @@ export default function PlantDoctor({
                                       {item.confidence}%
                                     </span>
                                   </div>
+                                  {/* Wave 22.0003 — credit AI-derived identifications so users
+                                      can distinguish them from real-photo / curated suggestions. */}
+                                  {(item as any).image_credit && (
+                                    <div className="mt-2" onClick={(e) => e.stopPropagation()}>
+                                      <ImageCredit credit={(item as any).image_credit} variant="inline" />
+                                    </div>
+                                  )}
                                 </button>
                               ))}
                             </>

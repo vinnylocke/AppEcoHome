@@ -1192,9 +1192,39 @@ Also return a brief observation in notes.`;
       const aiParsed = JSON.parse(rawText);
       await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_vision", usage });
 
+      const aiCredit = {
+        provider: "ai" as const,
+        license_name: "AI-generated identification",
+        license_url: null,
+        attribution: "Identification by Rhozly AI (Google Gemini)",
+        source_url: null,
+        commercial_ok: null,
+      };
       const aiAlternatives = Array.isArray(aiParsed?.possible_names)
-        ? aiParsed.possible_names.slice(0, 3)
+        ? aiParsed.possible_names.slice(0, 3).map((c: any) => ({
+            ...c,
+            // Wave 22.0003 — AI tiles carry an "identification by Rhozly AI"
+            // credit so users know the suggestion is LLM-derived, not a real
+            // photo / curated record.
+            image_credit: aiCredit,
+          }))
         : [];
+
+      // Wave 22.0003 — Pl@ntNet's species pages + images are CC-BY-SA. Build
+      // the credit once so both the trust path's synthesised possible_names
+      // and the response-level `plantnet.image_credit` field can reference it.
+      const plantnetCredit = pnResult?.bestMatch
+        ? {
+            provider: "plantnet" as const,
+            license_name: "Pl@ntNet — CC-BY-SA",
+            license_url: "https://creativecommons.org/licenses/by-sa/4.0/",
+            attribution: null,
+            source_url: pnResult.bestMatch.gbifId
+              ? `https://www.gbif.org/species/${pnResult.bestMatch.gbifId}`
+              : `https://identify.plantnet.org/k-world-flora/species/${encodeURIComponent(pnResult.bestMatch.scientificName)}/data`,
+            commercial_ok: false,
+          }
+        : null;
 
       // possible_names lead: Pl@ntNet on the trust path (its top 3 synthesised),
       // Gemini on the cross-check / ai_fallback paths.
@@ -1210,6 +1240,8 @@ Also return a brief observation in notes.`;
             // Convert 0-1 score → 0-100 confidence. Pl@ntNet's calibration is
             // conservative; a 0.4 match is genuinely "very likely".
             confidence: Math.min(100, Math.round(m.score * 100)),
+            // Wave 22.0003 — Pl@ntNet candidates carry the platform credit.
+            image_credit: plantnetCredit,
           })),
         };
       } else {

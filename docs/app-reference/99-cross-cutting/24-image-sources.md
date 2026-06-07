@@ -83,6 +83,12 @@ Stored as `image_credit jsonb` on `plants`, `inventory_items`, `plant_journals`.
 
 Surfaced via `<ImageCredit credit={…} variant="overlay" | "inline" | "badge-only" />` and the `<CreditedImage>` wrapper. Tapping any badge opens `<CreditPopover>` — provider, attribution, licence link, source link, and a footer link to `/credits` (the umbrella attribution page). Backfill for existing rows is deferred to Wave 22.0004; in the meantime the badge dims and points to `/credits`.
 
+**Wave 22.0003 — live surface integrations:**
+- `PlantResultThumb` — badge-only overlay whenever the caller passes a `credit` prop. Cascades to every search-result row and tile that uses this component.
+- `MultiImageGallery` strip thumbnails — badge-only overlay sourced from each `plant-image-search` result's `image_credit`.
+- `PlantDoctor` candidate tiles — inline credit line under both Pl@ntNet and Rhozly AI suggestions. Lets users tell at a glance which identifications are LLM-derived vs curated photo records.
+- `plant-doctor` edge fn — emits `image_credit` on each `possible_names` entry (Pl@ntNet → CC-BY-SA) and each `ai_alternatives` entry (Rhozly AI → "AI-generated identification").
+
 Capture pipeline:
 - **Perenual** — `default_image.license_name` / `license_url` / `original_url` flow through `perenualService.buildPerenualImageCredit`.
 - **Verdantly** — no per-image licence in the API; we credit the platform per ToS.

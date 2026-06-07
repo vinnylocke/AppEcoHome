@@ -1,6 +1,8 @@
 import React, { useEffect, useState } from "react";
 import { Leaf, Sparkles } from "lucide-react";
 import { isUsablePlantImageUrl, resolvePlantThumbUrl } from "../lib/plantThumb";
+import ImageCredit from "./credit/ImageCredit";
+import { coerceImageCredit, isKnownCredit, type ImageCredit as ImageCreditModel } from "../lib/imageCredit";
 
 interface Props {
   name: string;
@@ -11,6 +13,11 @@ interface Props {
   /** Placeholder icon size in px. */
   iconSize?: number;
   alt?: string;
+  /** Wave 22.0003 — optional licence + attribution. When present and not
+   *  unknown, a small badge-only credit pill anchors to the bottom-right
+   *  of the thumbnail. When null/undefined, no badge renders so we don't
+   *  decorate placeholder states. */
+  credit?: ImageCreditModel | null | unknown;
 }
 
 /**
@@ -19,8 +26,13 @@ interface Props {
  * `plant-image-search` (server-cached). Falls back to a leaf / sparkles
  * placeholder. Fills its parent (`w-full h-full`), so the parent controls
  * size + shape. This is the single place result/hero plant images resolve.
+ *
+ * Wave 22.0003 — when a `credit` prop is passed AND we're showing a real
+ * image (not the resolving / placeholder states), a small badge-only credit
+ * pill anchors to the bottom-right corner so users can tap through to the
+ * source / licence.
  */
-export default function PlantResultThumb({ name, url, source, iconSize = 18, alt }: Props) {
+export default function PlantResultThumb({ name, url, source, iconSize = 18, alt, credit }: Props) {
   const storedOk = isUsablePlantImageUrl(url);
   const [src, setSrc] = useState<string | null>(storedOk ? url : null);
   const [needsResolve, setNeedsResolve] = useState(!storedOk);
@@ -59,24 +71,33 @@ export default function PlantResultThumb({ name, url, source, iconSize = 18, alt
   }, [needsResolve, name]);
 
   if (src) {
+    const normalisedCredit = coerceImageCredit(credit);
+    const showBadge = isKnownCredit(normalisedCredit);
     return (
-      <img
-        src={src}
-        alt={alt ?? name}
-        loading="lazy"
-        decoding="async"
-        className="w-full h-full object-cover"
-        onError={() => {
-          // Stored URL broke → resolve a fallback by name once. A resolved URL
-          // that also breaks → drop to the placeholder.
-          if (src === url) {
-            setSrc(null);
-            setNeedsResolve(true);
-          } else {
-            setSrc(null);
-          }
-        }}
-      />
+      <div className="relative w-full h-full">
+        <img
+          src={src}
+          alt={alt ?? name}
+          loading="lazy"
+          decoding="async"
+          className="w-full h-full object-cover"
+          onError={() => {
+            // Stored URL broke → resolve a fallback by name once. A resolved URL
+            // that also breaks → drop to the placeholder.
+            if (src === url) {
+              setSrc(null);
+              setNeedsResolve(true);
+            } else {
+              setSrc(null);
+            }
+          }}
+        />
+        {showBadge && (
+          <div className="absolute bottom-1 right-1 z-[2]">
+            <ImageCredit credit={normalisedCredit} variant="badge-only" />
+          </div>
+        )}
+      </div>
     );
   }
 

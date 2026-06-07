@@ -3,6 +3,8 @@ import { Images } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import type { GalleryImage } from "./DiagnosisImageGallery";
 import { Lightbox } from "./DiagnosisImageGallery";
+import ImageCredit from "./credit/ImageCredit";
+import { coerceImageCredit, isKnownCredit } from "../lib/imageCredit";
 
 // ---------------------------------------------------------------------------
 // Gallery modal — fetches images lazily when first opened
@@ -82,15 +84,26 @@ function GalleryModal({
               style={{ scrollbarWidth: "none" }}
               onClick={(e) => e.stopPropagation()}
             >
-              {images.map((img, i) => (
-                <button
-                  key={img.id}
-                  onClick={() => setLightboxIndex(i)}
-                  className="shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-white/20 hover:border-white/60 transition-all"
-                >
-                  <img src={img.thumb_url} alt={img.alt} className="w-full h-full object-cover" />
-                </button>
-              ))}
+              {images.map((img, i) => {
+                const credit = coerceImageCredit((img as any).image_credit);
+                return (
+                  <button
+                    key={img.id}
+                    onClick={() => setLightboxIndex(i)}
+                    className="relative shrink-0 w-24 h-24 sm:w-28 sm:h-28 rounded-2xl overflow-hidden border-2 border-white/20 hover:border-white/60 transition-all"
+                  >
+                    <img src={img.thumb_url} alt={img.alt} className="w-full h-full object-cover" />
+                    {isKnownCredit(credit) && (
+                      <div
+                        className="absolute bottom-1 right-1 z-[2]"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ImageCredit credit={credit} variant="badge-only" />
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
               {loading && (
                 <div className="shrink-0 w-24 h-24 rounded-2xl bg-white/10 animate-pulse" />
               )}
