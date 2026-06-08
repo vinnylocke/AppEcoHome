@@ -45,7 +45,11 @@ export function sunsetUtc(date: Date, lat: number, lng: number): Date | null {
   if (cosHa < -1 || cosHa > 1) return null; // sun never sets / never rises today
 
   const ha = Math.acos(cosHa);
-  const sunsetMinUtc = 720 - 4 * (lng + (ha / DEG)) - eqtime;
+  // NOAA: sunset_utc = solar_noon + 4*ha, where solar_noon = 720 - 4*lng - eqtime.
+  // Expands to 720 - 4*lng + 4*ha - eqtime, factored as 720 - 4*(lng - ha) - eqtime.
+  // (Previously had `lng + ha` here, which computed sunrise and meant the
+  // Golden Hour notification cron silently skipped every day for months.)
+  const sunsetMinUtc = 720 - 4 * (lng - (ha / DEG)) - eqtime;
   const result = new Date(date);
   result.setUTCHours(0, 0, 0, 0);
   result.setUTCMinutes(Math.round(sunsetMinUtc));
