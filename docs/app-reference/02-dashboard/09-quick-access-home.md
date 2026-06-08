@@ -30,12 +30,13 @@ A focused, opinionated mobile home page that surfaces the three in-the-garden ta
 QuickAccessHome (mounted at /quick)
 ├── Focus-mode chrome (mobile only, Wave 6) — see App.tsx isFocusMode branch
 │   ├── (no top bar / no persistent side nav — both hidden on /quick/*)
-│   ├── QuickAccessMenuButton (floating top-right hamburger; first-visit "Menu" label)
-│   └── MobileNavDrawer (slide-in from left when the button is tapped)
+│   ├── QuickAccessMenuButton (floating top-LEFT hamburger; first-visit "Menu" label)
+│   ├── Floating UserProfileDropdown (top-right, same dropdown as the desktop header)
+│   └── MobileNavDrawer (slide-in from left when the burger is tapped)
 ├── Desktop preview banner (visible when useIsMobile() === false)
 │   └── "This is the mobile shortcut screen — your full dashboard is at /dashboard"
 ├── Brand stamp (logo + RHOZLY wordmark, centred — small, restrained)
-├── Hero card → navigate("/gardener")
+├── Hero card → navigate("/dashboard") (was /gardener pre-22.0015)
 ├── QuickTile × n (customisable launcher — 2 cols, 1-3 rows)
 │   └── Renders from `useQuickLauncherPins()` against `QUICK_LAUNCHER_CATALOGUE`.
 │       Default pins: lens / today / capture / library. User can swap in
@@ -44,8 +45,10 @@ QuickAccessHome (mounted at /quick)
 │       chosen order; tap fires the destination's optional `onTap` hook
 │       (e.g. Today prefetches the calendar) then navigate(route).
 ├── "Customise" link → navigate("/gardener?section=quick-launcher")
-├── WalkStartTile (wide tile under the grid) → navigate("/walk")
-└── "Open full dashboard →" pill → navigate("/dashboard")
+└── WalkStartTile (wide tile under the grid) → navigate("/walk")
+
+(The "Open full dashboard →" footer pill was removed in 22.0015 — the
+ hero card now does the same job.)
 
 QuickLauncherPicker (mounted inside GardenerProfile AccountTab)
 ├── Pinned list (count of MAX) — ↑↓ reorder + ✕ remove per row

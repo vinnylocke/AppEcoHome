@@ -103,12 +103,10 @@ export default function QuickAccessHome({
     >
     <main
       data-testid="quick-access-home"
-      // Top padding clears the Wave 6 floating menu button (top-right) +
-      // device safe-area (notches / dynamic islands). Bottom padding
-      // honours the home-indicator safe area, with extra breathing room
-      // so the "Open full dashboard" pill is never clipped on shorter
-      // phones. `min-h-0` lets the flex column shrink correctly inside
-      // the scroll wrapper.
+      // Top padding clears the floating top-bar controls (burger left,
+      // profile right) + device safe-area (notches / dynamic islands).
+      // Bottom padding honours the home-indicator safe area. `min-h-0`
+      // lets the flex column shrink correctly inside the scroll wrapper.
       style={{
         paddingTop: "calc(4rem + env(safe-area-inset-top, 0px))",
         paddingBottom: "calc(2rem + env(safe-area-inset-bottom, 0px))",
@@ -163,11 +161,10 @@ export default function QuickAccessHome({
       <button
         type="button"
         data-testid="quick-access-hero-card"
-        onClick={() => navigate("/gardener")}
-        aria-label="Open Account Settings"
-        // `pr-16` on mobile reserves space for the floating menu button
-        // (top-right, `z-[105]`) so the ArrowRight + helper line never
-        // get covered when the page scrolls beneath the button.
+        onClick={() => navigate("/dashboard")}
+        aria-label="Open the full dashboard"
+        // `pr-16` on mobile keeps the ArrowRight + helper line clear of
+        // any floating top-bar controls (burger left, profile right).
         className="shrink-0 relative z-0 w-full text-left mb-3 rounded-2xl border border-rhozly-primary-container/20 bg-gradient-to-br from-rhozly-primary-container/[0.08] via-white/40 to-rhozly-tertiary/25 overflow-hidden px-4 py-3 pr-16 sm:pr-4 shadow-[0_2px_12px_-4px_rgba(7,87,55,0.10)] transition-all hover:shadow-[0_4px_16px_-4px_rgba(7,87,55,0.14)] active:scale-[0.99] focus:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary/30 flex items-center gap-3"
       >
         <div className="shrink-0 w-9 h-9 rounded-xl bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center">
@@ -188,7 +185,7 @@ export default function QuickAccessHome({
             )}
           </h1>
           <p className="text-[11px] text-rhozly-on-surface/55 leading-snug truncate">
-            Tap to manage your account
+            Tap to open your dashboard
           </p>
         </div>
         <ArrowRight size={14} className="shrink-0 text-rhozly-on-surface/40" />
@@ -255,23 +252,6 @@ export default function QuickAccessHome({
           state handles the no-plants case gracefully. */}
       <div className="shrink-0 mb-3">
         <WalkStartTile enabled={true} />
-      </div>
-
-      {/* Power-user escape hatch — pinned to the bottom via mt-auto so
-          when there's vertical space the picks/walk strip sits up near
-          the tile grid and the dashboard pill stays at the foot. The
-          `pb-2` adds extra breathing room above the home-indicator on
-          shorter phones, so the pill is never clipped. */}
-      <div className="flex justify-center shrink-0 mt-auto pb-2">
-        <button
-          type="button"
-          data-testid="quick-access-open-dashboard"
-          onClick={() => navigate("/dashboard")}
-          className="inline-flex items-center gap-2 px-4 py-2 min-h-[40px] rounded-full bg-white border border-rhozly-outline/15 text-xs font-bold text-rhozly-on-surface/65 hover:text-rhozly-primary hover:border-rhozly-primary/30 hover:shadow-sm transition-all"
-        >
-          Open full dashboard
-          <ArrowRight size={12} />
-        </button>
       </div>
     </main>
     </div>

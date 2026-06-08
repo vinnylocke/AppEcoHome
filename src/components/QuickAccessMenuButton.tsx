@@ -8,12 +8,13 @@ interface Props {
 const SEEN_FLAG_KEY = "rhozly_quick_menu_seen";
 
 /**
- * Floating hamburger button mounted in the top-right corner of the
- * Quick Access focus-mode shell (Mobile Quick Access Wave 6). Always
- * renders a hamburger icon; **first-visit only** (per-device, tracked
- * via localStorage) it shows a "Menu" label alongside the icon to teach
- * users where the navigation went. After one interaction the label is
- * hidden forever on that device.
+ * Floating hamburger button mounted in the top-LEFT corner of the
+ * Quick Access focus-mode shell (Mobile Quick Access Wave 6, moved
+ * from top-right in 22.0015 to make room for the profile dropdown).
+ * Always renders a hamburger icon; **first-visit only** (per-device,
+ * tracked via localStorage) it shows a "Menu" label alongside the
+ * icon to teach users where the navigation went. After one
+ * interaction the label is hidden forever on that device.
  */
 export default function QuickAccessMenuButton({ onClick }: Props) {
   const [showLabel, setShowLabel] = useState(false);
@@ -46,13 +47,13 @@ export default function QuickAccessMenuButton({ onClick }: Props) {
       onClick={handleClick}
       data-testid="quick-access-menu-button"
       aria-label="Open navigation menu"
-      className={`fixed top-3 right-3 z-[105] flex items-center gap-2 min-h-[44px] rounded-2xl bg-rhozly-primary text-white shadow-lg ring-2 ring-white/40 hover:opacity-90 active:scale-95 transition-all ${
+      className={`fixed top-3 left-3 z-[105] flex items-center gap-2 min-h-[44px] rounded-2xl bg-rhozly-primary text-white shadow-lg ring-2 ring-white/40 hover:opacity-90 active:scale-95 transition-all ${
         showLabel ? "px-4 py-2.5" : "px-3 py-2.5 w-11 justify-center"
       }`}
       style={{
         // Respect notch / dynamic island safe area on native.
         top: `calc(0.75rem + env(safe-area-inset-top, 0px))`,
-        right: `calc(0.75rem + env(safe-area-inset-right, 0px))`,
+        left: `calc(0.75rem + env(safe-area-inset-left, 0px))`,
       }}
     >
       <Menu size={18} />

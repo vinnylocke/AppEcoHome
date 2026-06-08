@@ -1752,6 +1752,29 @@ function AppShell() {
           {isFocusMode && (
             <Suspense fallback={null}>
               <QuickAccessMenuButton onClick={() => setQuickDrawerOpen(true)} />
+              {/* Floating profile button mirrors the burger on the
+                  opposite corner. Tapping opens the same dropdown the
+                  desktop header uses — Account Settings, Routines,
+                  Members, Help, Check-for-update, Log out, etc. */}
+              <div
+                className="fixed top-3 right-3 z-[105] rounded-2xl bg-rhozly-primary shadow-lg ring-2 ring-white/40 px-2 py-1"
+                style={{
+                  top: `calc(0.75rem + env(safe-area-inset-top, 0px))`,
+                  right: `calc(0.75rem + env(safe-area-inset-right, 0px))`,
+                }}
+              >
+                <UserProfileDropdown
+                  displayName={profile?.display_name ?? null}
+                  firstName={profile?.first_name ?? null}
+                  email={session?.user?.email ?? null}
+                  subscriptionTier={profile?.subscription_tier ?? null}
+                  isAdmin={profile?.is_admin ?? false}
+                  canViewAudit={profile?.can_view_audit ?? false}
+                  appVersion={appVersion ?? undefined}
+                  onVersionClick={() => setReleaseNotesMode("history")}
+                  onCheckForUpdate={versionState.refresh}
+                />
+              </div>
               <MobileNavDrawer
                 open={quickDrawerOpen}
                 navLinks={navLinks}
