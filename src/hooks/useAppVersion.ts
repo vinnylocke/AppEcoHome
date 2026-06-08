@@ -209,31 +209,60 @@ export function useAppVersion(): AppVersionState {
   //    re-fire on every poll. UpdateBanner's listener is idempotent —
   //    it sets visibility on every event; the dedupe here keeps that
   //    cheap.
+  //
+  //    NOTE: we deliberately do NOT pass a `reload` fn. UpdateBanner's
+  //    own SW-aware reload (skipWaiting + controllerchange + reload) is
+  //    the one that actually activates a waiting SW. Passing a naive
+  //    `window.location.reload()` here used to win the banner's
+  //    first-fn-locked race and reload the page onto the OLD SW —
+  //    forcing the user to close and re-open the app.
   useEffect(() => {
     if (!updateAvailable || !bundleVersionKey || !dbVersionKey) return;
     const key = `${bundleVersionKey}->${dbVersionKey}`;
     if (lastDispatchedRef.current === key) return;
     lastDispatchedRef.current = key;
-    window.dispatchEvent(
-      new CustomEvent("pwa-update-available", {
-        detail: { reload: () => window.location.reload() },
-      }),
-    );
+    window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: {} }));
   }, [updateAvailable, bundleVersionKey, dbVersionKey]);
 
   // Manual "Check for update" path. Triggers the same DB fetch the
-  // poller does + a fresh service-worker update probe (the SW is
-  // cached aggressively and may not detect a new bundle on its own
-  // schedule). Resolves with the post-refresh comparison so the
-  // caller can pick a toast.
+  // poller does + a service-worker update probe. We deliberately wait
+  // for the SW probe to either install a new worker or confirm there
+  // isn't one — without that wait, the DB check often resolves first
+  // and we tell the user "you're on the latest version" right before
+  // the SW fires `onNeedRefresh` and the banner appears.
   const refresh = async () => {
-    // Service-worker update probe — fire-and-forget; if a new SW is
-    // waiting, the SW's own `onNeedRefresh` will dispatch the
-    // pwa-update-available event and the banner will take over.
+    let swUpdateQueued = false;
     if (typeof navigator !== "undefined" && "serviceWorker" in navigator) {
       try {
         const reg = await navigator.serviceWorker.getRegistration();
-        await reg?.update();
+        if (reg) {
+          await reg.update();
+          // `reg.waiting` = a new worker is already installed and waiting
+          //   to activate. `reg.installing` = a new worker is being
+          //   downloaded/installed right now (likely from the update()
+          //   call we just made). Either is a signal that a fresh
+          //   bundle is in flight.
+          if (reg.waiting) {
+            swUpdateQueued = true;
+          } else if (reg.installing) {
+            // Wait up to 3s for the in-progress install to settle. The
+            // user's already in the "Checking…" spinner so the small
+            // delay is invisible; the payoff is an accurate toast.
+            const installing = reg.installing;
+            swUpdateQueued = await new Promise<boolean>((resolve) => {
+              const t = setTimeout(() => resolve(false), 3000);
+              installing.addEventListener("statechange", () => {
+                if (installing.state === "installed") {
+                  clearTimeout(t);
+                  resolve(true);
+                } else if (installing.state === "redundant") {
+                  clearTimeout(t);
+                  resolve(false);
+                }
+              });
+            });
+          }
+        }
       } catch (err) {
         Logger.error("useAppVersion: SW update probe failed", err);
       }
@@ -245,12 +274,12 @@ export function useAppVersion(): AppVersionState {
       resolvedDbKey = formatKey(next);
     }
     const resolvedBundleKey = bundleVersionKey;
-    const isAhead =
+    const dbAhead =
       bundle != null
       && next != null
       && compareVersions(next, bundle) > 0;
     return {
-      updateAvailable: isAhead,
+      updateAvailable: dbAhead || swUpdateQueued,
       bundleVersionKey: resolvedBundleKey,
       dbVersionKey: resolvedDbKey,
     };

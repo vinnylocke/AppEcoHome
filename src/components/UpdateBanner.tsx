@@ -3,6 +3,43 @@ import React, { useEffect, useRef, useState } from "react";
 const COUNTDOWN_SECONDS = 3;
 
 /**
+ * SW-aware reload. Prefers `skipWaiting` + `controllerchange` so a
+ * newly-installed waiting worker activates BEFORE we navigate — without
+ * this, a plain `window.location.reload()` can land back on the old SW
+ * (the waiting worker doesn't activate until every client unloads) and
+ * the user has to close + re-open the app to see the new bundle.
+ *
+ * Falls back to `window.location.reload()` after a 1.5s timeout in case
+ * `controllerchange` never fires (no SW, or the new worker activated
+ * silently while we weren't looking).
+ */
+async function reloadWithSwActivation() {
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) {
+    window.location.reload();
+    return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    if (!reg?.waiting) {
+      window.location.reload();
+      return;
+    }
+    const fallback = window.setTimeout(() => window.location.reload(), 1500);
+    navigator.serviceWorker.addEventListener(
+      "controllerchange",
+      () => {
+        clearTimeout(fallback);
+        window.location.reload();
+      },
+      { once: true },
+    );
+    reg.waiting.postMessage({ type: "SKIP_WAITING" });
+  } catch {
+    window.location.reload();
+  }
+}
+
+/**
  * Mandatory "Updating Rhozly OS…" banner with a short non-cancellable
  * countdown. Updates are non-negotiable — when a new bundle is available
  * the user is given a few seconds of "we're about to reload" feedback,
@@ -11,29 +48,30 @@ const COUNTDOWN_SECONDS = 3;
  * Trigger: any `pwa-update-available` event on the window. Two paths
  * dispatch this event:
  *   1. The service worker's `onNeedRefresh` callback (`src/main.tsx`).
+ *      Detail provides `reload` — workbox's `updateSW(true)` path.
  *   2. `useAppVersion` when polling spots a `bundleVersion < dbVersion`
- *      mismatch (catches the case where the SW is asleep).
+ *      mismatch (catches the case where the SW is asleep). Detail is
+ *      empty — banner uses its own SW-aware reload.
  *
- * Duplicate events (e.g. SW + polling firing the same observation) are
- * idempotent — we keep the FIRST reload fn we received so the SW's
- * skipWaiting + controllerchange path is preferred when both fire.
+ * We prefer the detail.reload if it's provided (the SW path knows about
+ * itself best), and fall back to `reloadWithSwActivation()` otherwise.
  */
 export default function UpdateBanner() {
   const [visible, setVisible] = useState(false);
   const [reloadFn, setReloadFn] = useState<(() => void) | null>(null);
   const [countdown, setCountdown] = useState<number | null>(null);
 
-  // Tracks whether we've already captured a reload fn. The SW dispatch
-  // is the preferred path (it can SKIP_WAITING + controllerchange + reload
-  // cleanly) so we lock in the first fn we receive and ignore subsequent
-  // dispatches' reload fns.
+  // Tracks whether we've already captured a reload fn. The first
+  // dispatch with a non-null detail.reload wins — typically the SW
+  // path. If only the empty-detail (polling) dispatch fires, reloadFn
+  // stays null and the countdown handler uses the SW-aware fallback.
   const reloadFnLocked = useRef(false);
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const detail = (e as CustomEvent<{ reload: () => void }>).detail;
-      if (!reloadFnLocked.current) {
-        setReloadFn(() => detail.reload);
+      const detail = (e as CustomEvent<{ reload?: () => void }>).detail;
+      if (!reloadFnLocked.current && typeof detail?.reload === "function") {
+        setReloadFn(() => detail.reload!);
         reloadFnLocked.current = true;
       }
       setVisible(true);
@@ -43,11 +81,13 @@ export default function UpdateBanner() {
     return () => window.removeEventListener("pwa-update-available", handler);
   }, []);
 
-  // Countdown timer — ticks every second. At 0 we fire the reload fn.
+  // Countdown timer — ticks every second. At 0 we fire the reload fn,
+  // or fall back to the SW-aware reload when no fn was provided.
   useEffect(() => {
     if (!visible || countdown == null) return;
     if (countdown <= 0) {
-      reloadFn?.();
+      if (reloadFn) reloadFn();
+      else void reloadWithSwActivation();
       return;
     }
     const id = window.setTimeout(() => {
