@@ -59,6 +59,16 @@ serve(async (req) => {
     // 5. Blast the notification to all of the user's devices
     const fcmUrl = `https://fcm.googleapis.com/v1/projects/${serviceAccount.project_id}/messages:send`;
 
+    // FCM data fields must be strings. Coerce every value so non-strings
+    // (timestamps, numbers, booleans) don't get silently dropped.
+    const stringData: Record<string, string> = { notification_id: String(record.id) };
+    if (data && typeof data === "object") {
+      for (const [k, v] of Object.entries(data)) {
+        if (v === null || v === undefined) continue;
+        stringData[k] = typeof v === "string" ? v : JSON.stringify(v);
+      }
+    }
+
     const sendPromises = devices.map((device) => {
       return fetch(fcmUrl, {
         method: "POST",
@@ -73,7 +83,19 @@ serve(async (req) => {
               title: title,
               body: body,
             },
-            data: { ...data, notification_id: String(record.id) }, // Extra routing data
+            data: stringData,
+            // High-priority delivery so Android doesn't batch / delay
+            // these. Default is "normal" which can sit for hours waiting
+            // for the device to wake naturally — that's the cause of the
+            // user-visible delay on Weekly Overview and similar pushes.
+            android: {
+              priority: "HIGH",
+              notification: { sound: "default" },
+            },
+            apns: {
+              headers: { "apns-priority": "10" },
+              payload: { aps: { sound: "default" } },
+            },
           },
         }),
       });
