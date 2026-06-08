@@ -1755,9 +1755,11 @@ function AppShell() {
               {/* Floating profile button mirrors the burger on the
                   opposite corner. Tapping opens the same dropdown the
                   desktop header uses — Account Settings, Routines,
-                  Members, Help, Check-for-update, Log out, etc. */}
+                  Members, Help, Check-for-update, Log out, etc.
+                  The wrapper is a bare positioning shell — no chrome —
+                  so only the avatar's own circular silhouette shows. */}
               <div
-                className="fixed top-3 right-3 z-[105] rounded-2xl bg-rhozly-primary shadow-lg ring-2 ring-white/40 px-2 py-1"
+                className="fixed top-3 right-3 z-[105]"
                 style={{
                   top: `calc(0.75rem + env(safe-area-inset-top, 0px))`,
                   right: `calc(0.75rem + env(safe-area-inset-right, 0px))`,
