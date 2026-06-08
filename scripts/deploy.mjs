@@ -218,8 +218,15 @@ async function deploy() {
     console.log(`     → ${newVersion}  (public/build-version.json updated)`);
 
     // Step 4: deploy edge functions
+    // Flags explained:
+    //   --use-api     bundles functions server-side (skips local Docker)
+    //   --yes         answers yes to interactive prompts the CLI added in
+    //                 v2.104+, otherwise the deploy hangs forever waiting
+    //                 for a TTY confirmation that never arrives.
+    //   verify_jwt    NOT touched here — per-function settings live in
+    //                 supabase/config.toml and the CLI respects them.
     console.log("\n⚡  [4/6] Deploying edge functions...");
-    run("supabase functions deploy");
+    run("supabase functions deploy --use-api --yes");
 
     // Step 5: deploy to Vercel (blocks until live)
     console.log("\n🚀  [5/6] Deploying to Vercel...");
