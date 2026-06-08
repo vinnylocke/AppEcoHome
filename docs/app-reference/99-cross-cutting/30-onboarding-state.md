@@ -62,7 +62,7 @@ supabase.from("user_profiles")
 | [Getting Started Checklist](../01-onboarding/06-getting-started-checklist.md) | `getting_started.*` |
 | [Notification Opt-In](../01-onboarding/07-notification-opt-in.md) | `notification_opt_in` |
 | [PWA Install](../01-onboarding/08-pwa-install.md) | `pwa_install` (paired with localStorage) |
-| Shepherd flow registry (`src/onboarding/flowRegistry.ts`) | `<flowId>: "completed" \| "dismissed"` per tour |
+| Shepherd flow registry (`src/onboarding/flowRegistry.ts`) | `<flowId>: "completed" \| "dismissed"` per tour. 25 flows as of Wave 23.0003: `global_welcome`, `home_setup_tips`, `dashboard_tour`, `garden_hub_tour`, `weather_insights_tour`, `planner_tour`, `task_schedule_tour`, `tools_hub_tour`, `plant_doctor_tour`, `visualiser_tour`, `add_manual_plant`, `add_location_and_area`, `guides_tour`, `profile_quiz_tour`, plus 11 Wave-23.0003 additions: `quick_access_tour`, `weekly_overview_tour`, `notes_tour`, `voice_chat_tour`, `image_credits_tour`, `garden_ai_chat_tour`, `plantnet_identification_tour`, `nursery_tour`, `garden_walk_tour`, `seasonal_picks_tour`, `quick_launcher_customise_tour`. |
 | Pacing throttle (`src/onboarding/useAutoTrigger.ts`) | `last_auto_trigger_at` ISO timestamp |
 | Action-based triggers (`src/onboarding/signals.ts`) | `trigger_signals: { [signal]: true }` |
 
