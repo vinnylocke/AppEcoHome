@@ -50,6 +50,7 @@ import { PlantDoctorService } from "../services/plantDoctorService";
 import { logEvent, EVENT } from "../events/registry";
 import { derivePlantLabels } from "../lib/plantLabels";
 import { saveToShed as saveToShedLib } from "../lib/saveToShed";
+import { recordSignal } from "../onboarding/signals";
 import { usePermissions } from "../context/HomePermissionsContext";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { searchWikimediaImages, searchPixabayImages } from "../lib/wikipedia";
@@ -935,6 +936,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         .select("id, plant_id");
       if (insertError) throw insertError;
 
+      // Wave 23.0001 — first plant added unlocks the post-shed walkthrough.
+      void recordSignal("first_plant_created");
+
       const totalTypes = selectedPlants.length;
 
       // Smart planting schedules — per plant, best-effort. Applies the
@@ -1203,6 +1207,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
         .insert(recordsToInsert)
         .select();
       if (insertError) throw insertError;
+
+      // Wave 23.0001 — first plant added unlocks the post-shed walkthrough.
+      void recordSignal("first_plant_created");
 
       const newInventoryIds = insertedItems.map((item: any) => item.id);
 

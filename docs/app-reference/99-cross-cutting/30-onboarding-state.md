@@ -18,6 +18,13 @@ user_profiles.onboarding_state: {
   },
   notification_opt_in: "granted" | "denied" | "dismissed",
   pwa_install: "installed" | "dismissed",
+
+  // Wave 23.0001 — Shepherd.js flow registry state.
+  // Per-flow status, plus throttle + signal book-keeping.
+  [flowId: string]: "completed" | "dismissed",            // e.g. global_welcome: "completed"
+  last_auto_trigger_at: string,                            // ISO timestamp — used by useAutoTrigger throttle
+  trigger_signals: Record<string, true>,                   // first_chat_opened, first_notes_visit, etc.
+
   // ... per-surface state
 }
 ```
@@ -55,6 +62,26 @@ supabase.from("user_profiles")
 | [Getting Started Checklist](../01-onboarding/06-getting-started-checklist.md) | `getting_started.*` |
 | [Notification Opt-In](../01-onboarding/07-notification-opt-in.md) | `notification_opt_in` |
 | [PWA Install](../01-onboarding/08-pwa-install.md) | `pwa_install` (paired with localStorage) |
+| Shepherd flow registry (`src/onboarding/flowRegistry.ts`) | `<flowId>: "completed" \| "dismissed"` per tour |
+| Pacing throttle (`src/onboarding/useAutoTrigger.ts`) | `last_auto_trigger_at` ISO timestamp |
+| Action-based triggers (`src/onboarding/signals.ts`) | `trigger_signals: { [signal]: true }` |
+
+### Wave 23.0001 — pacing engine
+
+To stop new users being bombarded by auto-firing tours, three jsonb additions:
+
+1. **`last_auto_trigger_at`** — ISO timestamp set every time `useAutoTrigger` opens a non-`important` flow. The hook short-circuits if the stored timestamp is on the same local calendar day as `Date.now()`. Flows marked `important: true` in [`flowRegistry`](../../../src/onboarding/flowRegistry.ts) (e.g. `global_welcome`, `home_setup_tips`) bypass the throttle.
+2. **`trigger_signals`** — accrues `true` flags as the user touches each surface (`first_chat_opened`, `first_notes_visit`, `first_weekly_visit`, `first_plant_created`, `first_walk_started`, `first_nursery_open`). Flows with a matching `triggerSignal` field only fire after the signal is recorded.
+3. **Flow status keys** — each entry in the flow registry persists its outcome as `"completed"` or `"dismissed"`. Both states satisfy `isFlowDone()` so a dismissed tour does not re-fire.
+
+Recording a signal is fire-and-forget:
+
+```ts
+import { recordSignal } from "../onboarding/signals";
+useEffect(() => { void recordSignal("first_notes_visit"); }, []);
+```
+
+`recordSignal` is idempotent — it short-circuits via an in-memory `recordedThisSession` cache, then a DB read of the existing `trigger_signals` map. Safe to call on every mount.
 
 ### Why jsonb
 
@@ -94,3 +121,8 @@ You don't see the welcome modal twice. The getting-started checklist disappears 
 
 - `supabase/migrations/20260516000000_add_onboarding_state.sql`
 - `src/App.tsx` — onboarding state reads + writes
+- `src/onboarding/types.ts` — `OnboardingState`, `FlowDef`, `FlowStatus` typings
+- `src/onboarding/signals.ts` — `recordSignal`, `recordOnboardingSignal`, `isFlowDone`, `isSameLocalDay`
+- `src/onboarding/useAutoTrigger.ts` — throttle + prerequisite + triggerSignal eligibility check
+- `src/onboarding/flowRegistry.ts` — flow definitions (`important`, `prerequisite`, `triggerSignal` fields)
+- `src/onboarding/HelpCenter.tsx` — wires the hook to the live `OnboardingState`

@@ -19,6 +19,7 @@ import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import SeasonalPicksCard from "./seasonal/SeasonalPicksCard";
+import { recordSignal } from "../onboarding/signals";
 
 // ─── Weekly Overview ──────────────────────────────────────────────────────
 //
@@ -157,6 +158,10 @@ export default function WeeklyOverviewPage({ homeId, aiEnabled = false, isPremiu
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [homeId]);
+
+  // Wave 23.0001 — gate the weekly-overview walkthrough (23.0003) so it
+  // only fires after a real visit.
+  useEffect(() => { void recordSignal("first_weekly_visit"); }, []);
 
   const regenerate = async () => {
     setRegenerating(true);

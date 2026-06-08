@@ -21,7 +21,16 @@ export default function HelpCenter({ userId, onboardingState, onStateChange, ope
     [],
   );
 
-  useAutoTrigger(onboardingState, launchFlow, !!userId);
+  // Wave 23.0001 — pacing-aware auto-trigger. Object-args replaced the
+  // old positional call so the throttle has access to userId + setState
+  // to persist `last_auto_trigger_at` across devices.
+  useAutoTrigger({
+    userId,
+    state: onboardingState,
+    setState: onStateChange,
+    triggerFlow: launchFlow,
+    enabled: !!userId,
+  });
 
   return (
     <>

@@ -8,6 +8,9 @@ export const flowRegistry: FlowDef[] = [
     order: 1,
     trigger: "automatic",
     route: "global",
+    // Wave 23.0001 — first-session essential, bypasses the per-day
+    // throttle so brand-new users always see it on day 1.
+    important: true,
     title: "Welcome to Rhozly",
     description: "A quick tour of everything Rhozly can do for your garden.",
     category: "Getting Started",
@@ -56,6 +59,10 @@ export const flowRegistry: FlowDef[] = [
     order: 2,
     trigger: "automatic",
     route: "global",
+    // Wave 23.0001 — first-session essential. Chains after global_welcome
+    // so users always see the welcome first.
+    important: true,
+    prerequisite: "global_welcome",
     title: "Setting up your first home",
     description: "Tips on adding your first garden location after creating a home.",
     category: "Getting Started",

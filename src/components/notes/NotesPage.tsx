@@ -1,8 +1,9 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Plus, Search, NotebookPen, Loader2 } from "lucide-react";
 import { useNotes, type NoteWithLinks } from "../../hooks/useNotes";
 import NoteCard from "./NoteCard";
 import NoteEditorOverlay from "./NoteEditorOverlay";
+import { recordSignal } from "../../onboarding/signals";
 
 interface Props {
   homeId: string;
@@ -18,6 +19,10 @@ export default function NotesPage({ homeId }: Props) {
   const [editing, setEditing] = useState<NoteWithLinks | null>(null);
   const [composingNew, setComposingNew] = useState(false);
   const [query, setQuery] = useState("");
+
+  // Wave 23.0001 — record that the user has been to /notes. Gates the
+  // notes walkthrough (23.0003) so it only fires after a real visit.
+  useEffect(() => { void recordSignal("first_notes_visit"); }, []);
 
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();

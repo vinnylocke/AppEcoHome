@@ -16,6 +16,7 @@ import {
 } from "../../services/walkService";
 import WalkPlantCard from "./WalkPlantCard";
 import WalkSummaryCard from "./WalkSummaryCard";
+import { recordSignal } from "../../onboarding/signals";
 
 interface Props {
   homeId: string;
@@ -159,6 +160,10 @@ export default function GardenWalk({ homeId, userId, aiEnabled }: Props) {
   useEffect(() => {
     bootstrap();
   }, [bootstrap]);
+
+  // Wave 23.0001 — gate the walk walkthrough (23.0003) so it only fires
+  // after a real start.
+  useEffect(() => { void recordSignal("first_walk_started"); }, []);
 
   const handleOutcome = useCallback(
     (outcome: WalkVisitOutcome) => {

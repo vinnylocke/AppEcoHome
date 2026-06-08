@@ -12,6 +12,7 @@ import AddSeedPacketModal from "./AddSeedPacketModal";
 import SeedPacketDetailModal from "./SeedPacketDetailModal";
 import BulkPasteSeedPacketsModal from "./BulkPasteSeedPacketsModal";
 import ScanSeedPacketModal from "./ScanSeedPacketModal";
+import { recordSignal } from "../../onboarding/signals";
 
 interface Props {
   homeId: string;
@@ -61,6 +62,10 @@ export default function NurseryTab({
   useEffect(() => {
     load();
   }, [load]);
+
+  // Wave 23.0001 — gate the nursery walkthrough (23.0003) so it only
+  // fires after the tab has been opened.
+  useEffect(() => { void recordSignal("first_nursery_open"); }, []);
 
   const summary = useMemo(() => {
     const activeSowings = entries.filter(

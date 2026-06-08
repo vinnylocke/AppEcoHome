@@ -18,6 +18,7 @@ import {
 import { IconGrowth, IconPlant } from "../constants/icons";
 import MicButton, { type VoiceCaptureResult } from "./chat/MicButton";
 import ReadAloudButton from "./chat/ReadAloudButton";
+import { recordSignal } from "../onboarding/signals";
 import { useTextToSpeech } from "../hooks/useTextToSpeech";
 import { Camera as CapCamera, CameraResultType, CameraSource } from "@capacitor/camera";
 import { Capacitor } from "@capacitor/core";
@@ -416,6 +417,9 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
   // Scroll to bottom when chat opens
   useEffect(() => {
     if (isOpen) endOfMessagesRef.current?.scrollIntoView({ behavior: "smooth" });
+    // Wave 23.0001 — record "first chat opened" so the chat walkthrough
+    // (added in 23.0003) fires only after the user actually opens it.
+    if (isOpen) void recordSignal("first_chat_opened");
   }, [isOpen]);
 
   // Wave 22.0010 — when the chat opens (or the scoped plant changes), pre-fill
