@@ -13,6 +13,12 @@ import guides from "../../documentation/12-guides.md?raw";
 import tools from "../../documentation/13-tools.md?raw";
 import profile from "../../documentation/14-profile-preferences.md?raw";
 import navigation from "../../documentation/15-navigation-quick-add.md?raw";
+import notes from "../../documentation/16-notes.md?raw";
+import weeklyOverview from "../../documentation/17-weekly-overview.md?raw";
+import voiceInChat from "../../documentation/18-voice-in-chat.md?raw";
+import imageCredits from "../../documentation/19-image-credits.md?raw";
+import plantnet from "../../documentation/20-plantnet-identification.md?raw";
+import nursery from "../../documentation/21-nursery-and-sowing.md?raw";
 
 export interface DocEntry {
   id: string;
@@ -111,5 +117,41 @@ export const DOCS: DocEntry[] = [
     title: "Navigation & Quick Add",
     description: "Moving around the app, the global '+' menu, and switching homes.",
     content: navigation,
+  },
+  {
+    id: "notes",
+    title: "Notes",
+    description: "Your garden notebook — rich-text notes linked to plants, areas, and plans.",
+    content: notes,
+  },
+  {
+    id: "weekly-overview",
+    title: "Weekly Overview",
+    description: "Sunday-morning recap of the next 7 days — tasks, weather, sowings, harvests, AI tips.",
+    content: weeklyOverview,
+  },
+  {
+    id: "voice-in-chat",
+    title: "Voice in Chat",
+    description: "Tap to talk, tap to listen — mic input and read-aloud replies in Plant Lens chat.",
+    content: voiceInChat,
+  },
+  {
+    id: "image-credits",
+    title: "Image Credits",
+    description: "Who supplied each plant photo — credit badges, the /credits page, and how attribution works.",
+    content: imageCredits,
+  },
+  {
+    id: "plantnet-identification",
+    title: "Pl@ntNet Identification",
+    description: "How Plant Lens uses Pl@ntNet community photos — and why the cross-check with Rhozly AI matters.",
+    content: plantnet,
+  },
+  {
+    id: "nursery-and-sowing",
+    title: "Nursery & Sowing",
+    description: "Seed packets, sowings, germination tracking, and the plant-out queue.",
+    content: nursery,
   },
 ];

@@ -44,7 +44,7 @@ The banner shows:
 - **Time window** (start and end time)
 - **Recommended action**
 
-Alerts are fetched alongside the weather forecast and update automatically.
+Alerts are fetched alongside the weather forecast and update automatically. **Alerts expire after 24 hours** (Wave 21.0004) — once the window has fully passed, the banner clears so you're never staring at yesterday's frost warning.
 
 ---
 
@@ -104,6 +104,18 @@ For watering-related rules, Rhozly shows a **per-task breakdown** — which of y
 > 📸 Screenshot: Rain rule expanded showing a list of watering blueprints with green ticks (can skip) or grey (threshold not met)
 
 Each of your watering blueprints is listed alongside whether the forecasted rain is sufficient to replace that watering session.
+
+---
+
+## Weekly Overview — Weather at a Glance
+
+The full week's weather story also lives in the [Weekly Overview](./17-weekly-overview.md) page (under Tools). It rolls every alert, rain event, frost risk, and heatwave into a single Sunday-morning summary, alongside the week's tasks, sowing windows, and harvest opportunities. If you only check Rhozly once a week, that's the page to bookmark.
+
+---
+
+## Golden Hour Notification
+
+If you have notifications enabled, Rhozly sends a **Golden Hour** push when the conditions are about to be perfect for gardening (dry, mild, low wind). Use it as a gentle nudge to get outside before the window closes. Toggle it on or off under **Profile → Notifications**.
 
 ---
 

@@ -34,10 +34,10 @@ The sidebar provides the main navigation between sections.
 
 | Icon | Label | What's there |
 |------|-------|-------------|
-| 🏠 | **Dashboard** | Garden overview, weather, tasks, calendar |
-| 🌿 | **Garden** | The Shed (plants) + Ailment Watchlist |
+| 🏠 | **Dashboard** | Garden overview, weather, tasks, calendar, Today Focus, Week Ahead, Seasonal Picks |
+| 🌿 | **Garden** | The Shed (plants), Nursery, Notes, Ailment Watchlist |
 | 📋 | **Plan** | Garden plans + Shopping lists |
-| 🔧 | **Tools** | Plant Doctor, Visualiser, Light Sensor, Guides, Sun Tracker |
+| 🔧 | **Tools** | Plant Lens, Visualiser, Sun Tracker, Light Sensor, Garden Layout, Companion Planting, Weekly Overview, Guides |
 
 ### Footer Items
 
@@ -78,24 +78,40 @@ Each home has its own permissions system. The home owner can control what other 
 
 ---
 
-## Global Quick Add
+## Quick Launcher (formerly "Global Quick Add")
 
-The **+** button in the header is the fastest way to create anything in Rhozly — you can use it from any screen without navigating away.
+The **+** button in the header opens the **Quick Launcher** — a customisable sheet of shortcuts that lets you create or jump to anything without leaving the current page.
 
-> 📸 Screenshot: The Quick Add menu open, showing six options with icons
+> 📸 Screenshot: The Quick Launcher sheet with sixteen tiles in a grid, each labelled with an icon
 
-Tap **+** to open the menu, then tap an option:
+### The Tile Catalogue (16 destinations)
 
-| Option | Where it takes you | What opens |
-|--------|--------------------|-----------|
-| **Create Task** | Schedule page | Add task form |
-| **Add Plant** | The Shed | Add plant form |
-| **Create Plan** | Planner | New plan form |
-| **Create Location** | Location Manager | Add location form |
-| **Log Ailment** | Ailment Watchlist | Add ailment form |
-| **Create Guide** | Community Guides | Guide editor |
+| Tile | Where it takes you |
+|------|--------------------|
+| **Today Focus** | Highlights today's priorities |
+| **Add Task** | Schedule → Add task form |
+| **Add Plant** | The Shed → Add plant form |
+| **Plant Lens** | Camera + AI diagnosis |
+| **Notes** | New blank note |
+| **Week Ahead** | Weekly Overview page |
+| **Watering** | Today's watering tasks, filtered |
+| **Walk** | Start a Garden Walk |
+| **Nursery** | Garden → Nursery tab |
+| **Shopping List** | Active shopping list |
+| **Garden AI** | Chat with Rhozly AI |
+| **Areas** | Location Manager |
+| **Plans** | Planner |
+| **Visualiser** | Plant Visualiser |
+| **Sun Tracker** | Sun trajectory AR |
+| **Guides** | Knowledge base |
 
-The menu closes automatically after you tap an option, or tap anywhere outside the menu (or press **Escape**) to dismiss it without taking any action.
+You can pick which 8 (or more) tiles appear, and in what order, under **Profile → Quick Launcher** — see [Profile & Preferences](./14-profile-preferences.md#quick-launcher-customisation).
+
+The menu closes automatically after you tap a tile, or tap anywhere outside the menu (or press **Escape**) to dismiss it without taking any action.
+
+### Quick Access Home (Mobile)
+
+When you open Rhozly on mobile to a `/quick/*` URL — for example via a notification or a shared link — the app drops into the **Quick Access Home**, a stripped-back focus mode that shows just the relevant tile (or a small set of tiles) without the rest of the nav. Tap the back button to return to the full app.
 
 ---
 

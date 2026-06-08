@@ -10,14 +10,17 @@ The **Tools** hub (sidebar → Tools, or `/tools`) is the gateway to Rhozly's ad
 
 | Tool | Icon colour | What it does |
 |------|------------|--------------|
-| **Garden AI** | Emerald | Plant identification + disease diagnosis |
+| **Plant Lens** | Emerald | Plant identification + disease diagnosis (formerly "Plant Doctor") |
+| **Weekly Overview** | Indigo | Sunday-morning recap of the next 7 days — tasks, weather events, sowings, harvests |
 | **Garden Layout** | Violet | Design and visualise your garden in 2D and 3D |
 | **Plant Visualiser** | Sky blue | Preview plants in your space using your camera |
+| **Companion Planting** | Lime | See which plants help (or hinder) each other; auto-suggest planting groupings |
 | **Light Sensor** | Amber | Measure light levels for area profiling |
 | **Sun Tracker** | Orange | AR view of the sun's path and shadow zones |
 | **Guides** | Rose | Step-by-step care guides |
 
-**Garden AI** is covered fully in [Plant Doctor](./08-plant-doctor.md).
+**Plant Lens** is covered fully in [Plant Doctor (Lens)](./08-plant-doctor.md).
+**Weekly Overview** has its own page — see [Weekly Overview](./17-weekly-overview.md).
 **Guides** is covered fully in [Guides](./12-guides.md).
 
 ---
@@ -184,6 +187,26 @@ Access: Tools → Garden Layout (or `/layout`).
 4. Layouts are saved per area and can be revisited at any time.
 
 Use the Layout Builder to plan spacing before planting, check that plants fit your available space, or visualise what a new design will look like before committing to it.
+
+---
+
+## Companion Planting
+
+The **Companion Planting** tool shows you which of your plants help (or hinder) each other when grown together — based on a curated database of pairings.
+
+Access: Tools → Companion Planting (or `/companions`).
+
+> 📸 Screenshot: The Companion Planting tab showing a plant card with "Good with…" and "Avoid…" lists below
+
+### What it does
+
+- **For each plant in your Shed**, Rhozly checks known companion pairings and shows:
+  - **Good with** — plants that boost growth, deter pests, or share growing needs
+  - **Avoid** — plants that compete, attract shared pests, or stunt each other
+- **Filter by area** — to see only pairings between plants you actually grow side by side
+- **Add to plan** — tap any suggested companion to start a [Garden Plan](./06-planner.md) that includes the pairing
+
+This is especially helpful for veg patches: tomatoes love basil; brassicas dislike strawberries. Rhozly does the lookup so you don't have to.
 
 ---
 

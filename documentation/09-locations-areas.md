@@ -79,11 +79,27 @@ Tap the **Advanced Settings** (or gear icon) on any area to access additional gr
 - **pH** — fine-tune the soil acidity value
 - **Light intensity** — exact lux value from a sensor reading
 - **Growing medium** — more specific soil type selection
+- **Water movement** — how water drains in this area
+- **Nutrient source** — how plants here are fed
 
 These values are used by:
-- **Plant Doctor** — to suggest plants compatible with your conditions
+- **Plant Lens** — to suggest plants compatible with your conditions
 - **Garden Intelligence** — to adjust watering recommendations based on drainage
 - **AI plan generation** — to tailor plant selections in [Garden Plans](./06-planner.md)
+
+### What these fields mean — plain English
+
+You can leave any of these blank if you're not sure. A handful of plain-English hints:
+
+| Field | What it means | Examples |
+|-------|--------------|----------|
+| **pH** | Soil acidity. Most gardens sit between 6.0 and 7.0. Test with a £10 kit from any garden centre. | `6.5` is fine for most things |
+| **Light (lux)** | How bright the spot is. A rough guide: shaded corner ≈ 500, part-shade ≈ 2,000, full sun ≈ 10,000+. Use the [Light Sensor](./13-tools.md#light-sensor) for an exact reading. | Use `5000` for "bright but not blazing" |
+| **Water movement** | How quickly water drains. Most outdoor beds = Well-drained. Pots without holes = Low-drained. | Pick "Well-drained" if water sinks in within a minute |
+| **Growing medium** | What your plants grow in. Garden soil for outdoor beds; potting mix for pots; sand for cacti. | Match your actual situation |
+| **Nutrient source** | How you feed your plants. A general fertiliser works for most beginners. | "General fertiliser" is the safe default |
+
+The more you fill in, the smarter Rhozly's recommendations get — but a blank area still works fine for basic task tracking.
 
 ---
 

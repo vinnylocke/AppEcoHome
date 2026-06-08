@@ -36,28 +36,29 @@ Each tracked ailment appears as a card.
 
 ## Adding an Ailment
 
-There are three ways to log a new ailment:
+There are three ways to log a new ailment. **If you're not sure what's wrong, lead with AI.**
 
-### Option 1: Manually
+### Option 1: Ask Rhozly AI (Recommended)
 
-Tap **+ Log Ailment** (or use [Global Quick Add](./15-navigation-quick-add.md#global-quick-add) → **Log Ailment**).
+Take a photo and let [Plant Lens](./08-plant-doctor.md) identify the problem. Tap **Save to Watchlist** in the diagnosis result — every field (name, type, severity, prevention + remedy steps, products) is filled in for you. This is the fastest path for beginners and the most reliable for ambiguous symptoms.
+
+### Option 2: Search the Database
+
+Tap **+ Log Ailment** (or use [Global Quick Add](./15-navigation-quick-add.md#global-quick-add) → **Log Ailment**) and then **Search Database**. Type a known pest or disease name — Rhozly looks it up in the Perenual database and pre-fills the ailment details. Best when you already know what you're dealing with.
+
+### Option 3: Add Manually
+
+In the Add Ailment form, ignore the search and fill in fields yourself:
 
 > 📸 Screenshot: The Add Ailment form with fields for name, type, severity, and affected plants
 
-Fill in:
 - **Name** — the ailment name
 - **Type** — Pest, Disease, or Invasive Plant
 - **Severity** — Mild, Moderate, Severe
 - **Affected plants** — select which plants in your Shed are affected
 - **Symptoms** — describe what you're seeing (optional)
 
-### Option 2: From the Plant Database (Perenual)
-
-Tap **Search Database** in the Add Ailment form. Search for a known pest or disease by name — Rhozly looks it up in the Perenual database and pre-fills the ailment details including prevention and remedy steps.
-
-### Option 3: Via Plant Doctor
-
-When the [Plant Doctor AI](./08-plant-doctor.md) diagnoses a disease or pest from a photo, you can add the result directly to the Watchlist. The diagnosis auto-fills all ailment details.
+The detailed symptom and step builders are tucked behind expandable sections so the form stays short until you need them.
 
 ---
 

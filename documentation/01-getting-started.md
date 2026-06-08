@@ -44,6 +44,21 @@ See the full [Profile & Preferences guide](./14-profile-preferences.md) for deta
 
 ---
 
+## Your First Day — Paced Walkthroughs
+
+Rhozly never bombards you with tutorials. The pacing engine spaces out auto-walkthroughs so you see **at most one per day**, and feature-specific tours only fire after you've actually opened the feature. The exceptions are the **Welcome tour** and the **Home setup tour** — both essentials, so they run together on day one.
+
+A typical first-day looks like:
+
+1. **Sign in → Welcome tour** runs automatically.
+2. **Set up your first home → Home setup tour** runs straight after.
+3. **Open the Dashboard** → no new tour fires today; the daily throttle is satisfied.
+4. **Tomorrow** → next time you open a fresh feature (Notes, Weekly Overview, Garden Walk, Nursery, Plant Doctor chat), that surface's mini-tour appears.
+
+You can replay any tour any time from the **Help Center** (the **?** button) → **Walkthroughs** tab.
+
+---
+
 ## Understanding the Layout
 
 Rhozly has three persistent navigation zones:
@@ -81,14 +96,18 @@ The sidebar has four main destinations:
 
 | Icon | Label | What you'll find there |
 |------|-------|------------------------|
-| 🏠 | **Dashboard** | Garden overview, tasks, weather, calendar |
-| 🌿 | **Garden** | Your plant inventory (The Shed) + Ailment Watchlist |
+| 🏠 | **Dashboard** | Garden overview, tasks, weather, Today Focus, Week Ahead preview, Seasonal Picks |
+| 🌿 | **Garden** | Your plant inventory (The Shed), Nursery, Notes, and Ailment Watchlist |
 | 📋 | **Plan** | Garden plans + Shopping lists |
-| 🔧 | **Tools** | Plant Doctor, Visualiser, Light Sensor, Guides, and more |
+| 🔧 | **Tools** | Plant Doctor (with Voice), Visualiser, Sun Tracker AR, Light Sensor, Guides, Companion Planting, Garden Layout, Weekly Overview |
 
 On **mobile** the sidebar collapses and you navigate using the icons only. On **desktop** it can be expanded to show labels, or collapsed to icon-only mode — your preference is remembered.
 
 > 📸 Screenshot: The expanded sidebar on desktop showing all four navigation items with labels
+
+### Quick Access Home (Mobile)
+
+When you visit any `/quick/*` route on mobile (e.g. via a push notification, share extension, or shortcut), Rhozly switches into a **focus-mode shell** — a stripped-down layout designed for one-handed use. The full nav returns the moment you tap back to the main dashboard.
 
 ---
 

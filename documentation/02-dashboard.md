@@ -59,6 +59,18 @@ Tap a location card to open the **Location Detail Page**, which shows:
 - The plants in each area
 - Today's tasks filtered to that location
 
+### Today Focus, Week Ahead, and Seasonal Picks
+
+Below the weather widget the Dashboard shows three personalised cards:
+
+**Today Focus** — Rhozly's answer to *"what should I do today?"*. A single card summarising your priorities for the day, weighted by the AI against the weather, your habit-quiz answers, and what's overdue.
+
+**Week Ahead Preview** — a compact strip showing the next seven days: task counts, weather events (frost, heatwave, heavy rain, strong wind), and any sowings or harvests landing this week. Tap the card to open the full **Weekly Overview** page (see [Weekly Overview](./17-weekly-overview.md)).
+
+**Seasonal Picks** — AI-curated suggestions for what to grow right now based on your hemisphere, climate, and quiz answers. Especially helpful when your Shed is still empty. Sage+ users get richer suggestions; the free tier gets the basics.
+
+> 📸 Screenshot: Today Focus, Week Ahead, and Seasonal Picks cards stacked under the weather widget
+
 ### Right Sidebar (Desktop Only)
 
 On desktop, a panel appears on the right side of the Locations view.

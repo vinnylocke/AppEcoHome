@@ -15,11 +15,17 @@ Shopping Lists is its own page in Rhozly — access it via the **Plan** section 
 
 ## Creating a List
 
-Tap **+ New List** at the top of the page.
+Tap **+ New List** at the top of the page. You'll see three quick options:
 
-> 📸 Screenshot: A new list being created — the list appears with an auto-generated name and an edit icon
+| Option | What you get |
+|--------|--------------|
+| **Starter Toolkit** | Pre-filled with the basics every new gardener needs — gloves, hand fork, watering can, twine, etc. |
+| **Seasonal Veg Patch** | Pre-filled with quick-start veg seeds and basic supplies for the current season |
+| **Blank List** | An empty list ready for your own items |
 
-A new list appears with a default name. **Rename** it via the kebab (⋯) menu on the list card → **Rename** → type a new name → tap away to save.
+> 📸 Screenshot: The new-list menu showing the three template buttons
+
+Pick a template to skip the "what do I need?" cold-start. A new list appears with the chosen items. **Rename** it via the kebab (⋯) menu on the list card → **Rename** → type a new name → tap away to save.
 
 Create as many lists as you need — one for the garden centre, another for seeds, etc.
 
@@ -85,7 +91,7 @@ When you have one or more **checked plant items** (purchased) that aren't alread
 
 > **Add [N] Purchased Plant(s) to Shed**
 
-Tap it to batch-add all eligible checked plants to your Shed inventory in one action. A success toast confirms, and the button disappears once all eligible plants have been added. Shed-sourced plants are automatically excluded from the count — they're already in your inventory.
+Tap it to batch-add all eligible checked plants to your Shed inventory in one action. A confirmation toast appears: **"Added N plants to your Shed — find them under Garden → The Shed"**. The button disappears once all eligible plants have been added. Shed-sourced plants are automatically excluded from the count — they're already in your inventory.
 
 ---
 

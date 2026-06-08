@@ -1,12 +1,12 @@
-# Plant Doctor (AI)
+# Plant Lens (formerly Plant Doctor)
 
-The **Plant Doctor** is Rhozly's AI-powered camera tool. Access it from the **Tools** tab → **Garden AI**, or via the sidebar.
+**Plant Lens** is Rhozly's AI-powered camera tool. Access it from the **Tools** tab → **Plant Lens**, or via the sidebar. (Older parts of the app still call this "Plant Doctor" — they're the same feature.)
 
 It can do two things:
 1. **Identify** an unknown plant from a photo
 2. **Diagnose** a plant problem (disease, pest, nutrient deficiency) from a symptom photo
 
-> 📸 Screenshot: The Plant Doctor home screen showing the two mode buttons (Identify Plant / Diagnose Problem) and the camera upload area
+> 📸 Screenshot: The Plant Lens home screen showing the two mode buttons (Identify Plant / Diagnose Problem) and the camera upload area
 
 ---
 
@@ -36,16 +36,28 @@ For best results:
 - Include the leaves, ideally with some stem
 - Avoid heavy shadows or blur
 
-### Step 2: Review AI Results
+### Step 2: Review the Dual-Tile Results (Wave 21.0010)
 
-The AI analyses the image and returns a list of possible plant names ranked by confidence.
+Plant Lens runs your photo through **two identification engines in parallel** and shows the results as a pair of tiles:
 
-> 📸 Screenshot: AI results showing 3-4 plant suggestions with confidence percentages and small preview images
+| Tile | Source |
+|------|--------|
+| **Pl@ntNet** | A community-curated identification service (CC-BY-SA licensed). Always runs first because it's fast, accurate, and free for every tier. Each match includes the contributor's name in the credit badge. |
+| **Also from Rhozly AI** | Gemini-powered cross-check. Either confirms Pl@ntNet's pick or offers a different read when Pl@ntNet wasn't confident. |
+
+> 📸 Screenshot: The dual-tile identification result — Pl@ntNet tile on the left with a CC-BY-SA badge, Rhozly AI tile on the right with the sparkle badge
+
+When both tiles agree, you'll see a small **"both engines agree"** chip. When they disagree, Rhozly shows the reasoning behind each so you can pick which to trust.
 
 Each suggestion shows:
 - **Plant name** (common and scientific)
 - **Confidence level** (e.g. "Very likely", "Possible")
 - A brief description
+- A **credit badge** — tap it for the source's attribution (see [Image Credits](./19-image-credits.md))
+
+### Step 2a: Enlarge the photo
+
+Tap any preview image to open Rhozly's **in-app lightbox** — pinch, zoom, swipe between angles. No system viewer, no leaving the app. Wave 21.0011 + 22.0005 introduced this; it now works on every image surface in the app.
 
 ### Step 3: Select the Correct Plant
 

@@ -134,6 +134,57 @@ The top of the Profile page shows a summary of your current personalisation stat
 
 ---
 
+## Voice in Chat (Wave 22.0001)
+
+Rhozly's Plant Lens chat supports both **voice in** and **voice out** — tap to talk, tap to listen.
+
+Settings live under **Profile → Voice**:
+
+| Setting | Effect |
+|---------|--------|
+| **Voice replies** | Toggle: when on, every AI reply in chat is read aloud automatically. When off, you tap the speaker icon per message to hear it. |
+| **Voice** | Pick the read-aloud voice — your device's available system voices are listed |
+| **Speed** | Slow / Normal / Fast |
+
+Inside any chat surface (Plant Lens chat, Garden AI overlay):
+- The **microphone** button next to the input field captures your spoken message — tap to start, tap again to stop and send
+- The **speaker** icon on each AI message plays just that one reply aloud
+
+The microphone uses your device's native speech recognition. No audio is uploaded to Rhozly; only the transcribed text is sent.
+
+See the full guide: [Voice in Chat](./18-voice-in-chat.md).
+
+---
+
+## Persona Settings
+
+Under **Profile → Persona**, pick how Rhozly speaks to you across the whole app:
+
+| Persona | Tone |
+|---------|------|
+| **Plain** | Clear, no extras — the default |
+| **Cheerful** | Warmer, encouraging, more emoji |
+| **Expert** | Direct and technical, assumes confidence |
+| **Mentor** | Patient and explanatory, frames every decision |
+
+The persona affects the AI's reply tone in chat, the wording of notifications, and the Today Focus card's framing. It does **not** affect facts — only voice.
+
+---
+
+## Quick Launcher Customisation
+
+The **Quick Launcher** is the round + button in the header (and the home tiles on the [Quick Access Home](./15-navigation-quick-add.md#quick-access-home-mobile)). It opens a sheet of shortcuts — by default the most-used 8.
+
+Under **Profile → Quick Launcher**, pick which tiles appear:
+
+- **Drag-to-reorder** the tile catalogue (Today Focus, Add Plant, Plant Lens, Notes, Weekly Overview, Add Task, Shopping List, Watering, Walk, Nursery, Garden AI, Areas, Plans, Visualiser, Sun Tracker, Guides — 16 total)
+- **Toggle on/off** each tile
+- **Reset to defaults** restores the original eight
+
+Changes apply instantly — no save button needed.
+
+---
+
 ## AI Usage
 
 The **AI Usage** panel (visible on the Account tab of your Profile page) shows your Gemini AI token consumption for the current billing period:

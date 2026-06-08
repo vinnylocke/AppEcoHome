@@ -31,6 +31,10 @@ Each card shows:
 
 ## Creating a Plan
 
+You have two ways to create a plan: a **New Plan** (describe what you want to grow) and an **Overhaul** (photo-grounded redesign of an existing space — Sage+ only).
+
+### New Plan
+
 Tap **+ New Plan** (or use [Global Quick Add](./15-navigation-quick-add.md#global-quick-add) → **Create Plan**).
 
 > 📸 Screenshot: The New Plan form with fields for garden size, climate, skill level, and goal checkboxes
@@ -42,6 +46,29 @@ The wizard has three steps:
 3. **Name and save** — give your plan a name and tap **Create Plan**.
 
 > 📸 Screenshot: The loading screen while the AI generates the plan, with an animated sparkle icon
+
+### Garden Overhaul (Sage+)
+
+Tap the **Overhaul** button next to **+ New Plan** to redesign an existing garden from a photo.
+
+> 📸 Screenshot: The Overhaul modal with a photo upload area, three free-text fields, an aesthetic dropdown, and an image-quality toggle
+
+1. **Upload or capture a photo** of the area you want to redesign.
+2. Describe what you **like**, **dislike**, and **want** in three short fields.
+3. Pick an **aesthetic** (modern / cottage / wildlife / mediterranean / etc.) and an image-quality setting.
+4. Submit — Rhozly's vision AI analyses the photo and Imagen 4 produces three concept "after" images.
+
+Generation takes 30–60 seconds. When it finishes, the **Overhaul result view** shows:
+- Your original photo on the left
+- The three AI concept images on the right (radio-style — pick one)
+- The redesign blueprint underneath (markdown text — plants, layout, prep steps)
+- A feedback row (👍 / 👎 + free text)
+
+The selected concept flows through the same 5-phase Plan Staging as a New Plan.
+
+> 📸 Screenshot: The Overhaul result view showing before/after side-by-side with the AI blueprint below
+
+Free and Botanist tiers see a locked placeholder explaining the feature and inviting an upgrade.
 
 ---
 

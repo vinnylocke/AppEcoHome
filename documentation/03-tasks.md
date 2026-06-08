@@ -69,6 +69,31 @@ When you complete a Harvesting task, Rhozly shows an **Archive Prompt**:
 
 ---
 
+## Harvest Windows (Wave 20)
+
+Harvest tasks no longer fire daily through the whole harvest season. Instead, Rhozly creates **one task per harvest window** — a single card that stays open from the start of the window to the end.
+
+> 📸 Screenshot: A harvest task card showing "Harvest window: 14 Aug → 30 Sep" with days-remaining text
+
+What this changes for you:
+
+- **No overdue spam.** A 90-day tomato window used to mean 90 overdue tasks if you couldn't pick on day one. Now it's a single task that shows "Window open for N more days" until you complete it.
+- **"Not yet" snooze.** Tap **Not yet** on a harvest task and pick a 3 / 5 / 7-day reminder. The task disappears from Today until then, capped at the window's end.
+- **AI ripeness check.** On Sage+ tiers, tap **Check ripeness** to take a photo — Rhozly runs it through the AI and either marks the task complete (it's ready) or sets the snooze automatically (not quite yet).
+- **End-of-window behaviour.** If the window closes before you act, the task switches to **"Log yield anyway / Mark missed"**. Marking missed records the outcome without affecting next year's schedule.
+
+---
+
+## Tombstones — what happens when you delete a single recurring task
+
+Recurring tasks come from a blueprint (see [Schedule](./04-schedule.md)). If you **delete a single date's task** without ticking *"Also delete the recurring schedule"*, Rhozly creates a small **tombstone** marker for that one date.
+
+This stops the same ghost task from re-appearing tomorrow. The blueprint stays alive and the next future occurrence still fires on schedule.
+
+If you change your mind, you can recreate the task manually from Quick Add, or delete the tombstone via the Schedule page.
+
+---
+
 ## Pending and Completed Tabs
 
 The task list has two tabs:

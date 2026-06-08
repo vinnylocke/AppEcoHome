@@ -23,6 +23,12 @@ Welcome to the Rhozly documentation. Use this index to quickly find guidance on 
 | 13 | [Tools](./13-tools.md) | Plant Visualiser, Light Sensor, and Sun Tracker |
 | 14 | [Profile & Preferences](./14-profile-preferences.md) | Habit quiz, plant preference swiping, AI personalisation |
 | 15 | [Navigation & Quick Add](./15-navigation-quick-add.md) | Moving around the app, the global "+" menu, switching homes |
+| 16 | [Notes](./16-notes.md) | Rich-text garden notebook linked to plants, areas, and plans |
+| 17 | [Weekly Overview](./17-weekly-overview.md) | Sunday-morning recap of the week ahead — tasks, weather, sowings |
+| 18 | [Voice in Chat](./18-voice-in-chat.md) | Mic input and read-aloud replies in Plant Lens chat |
+| 19 | [Image Credits](./19-image-credits.md) | Credit badges, contributor attribution, and the /credits page |
+| 20 | [Pl@ntNet Identification](./20-plantnet-identification.md) | How Pl@ntNet powers the first identification tile in Plant Lens |
+| 21 | [Nursery & Sowing](./21-nursery-and-sowing.md) | Seed packets, sowings, germination tracking, plant-out queue |
 
 ---
 
@@ -42,4 +48,9 @@ Welcome to the Rhozly documentation. Use this index to quickly find guidance on 
 | Measure light in an area | [Tools — Light Sensor](./13-tools.md#light-sensor) |
 | See my plants in my garden space | [Tools — Plant Visualiser](./13-tools.md#plant-visualiser) |
 | Write a community guide | [Guides — Writing a Community Guide](./12-guides.md#writing-a-community-guide) |
-| Add multiple items quickly | [Navigation & Quick Add](./15-navigation-quick-add.md#global-quick-add) |
+| Add multiple items quickly | [Navigation & Quick Add](./15-navigation-quick-add.md#quick-launcher-formerly-global-quick-add) |
+| Jot down a quick garden note | [Notes](./16-notes.md) |
+| See the week ahead at a glance | [Weekly Overview](./17-weekly-overview.md) |
+| Talk to (and listen to) the AI | [Voice in Chat](./18-voice-in-chat.md) |
+| Find out who took a plant photo | [Image Credits](./19-image-credits.md) |
+| Track a seed packet from sowing to plant-out | [Nursery & Sowing](./21-nursery-and-sowing.md) |

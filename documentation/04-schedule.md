@@ -129,6 +129,40 @@ When you stage tasks from a Garden Plan, each staged task becomes a blueprint. S
 
 ---
 
+## Harvest Blueprints Use the Window Model
+
+If a Harvesting blueprint has both a **start date** and an **end date**, Rhozly treats the end date as the close of the **harvest window** rather than a stop signal for daily repeats.
+
+What that means in practice:
+
+- One harvest task appears in your task list — it stays open from the start of the window through to the end date.
+- The blueprint won't generate a fresh task every day inside the window. (See [Tasks → Harvest Windows](./03-tasks.md#harvest-windows-wave-20).)
+- If you mark it Skipped, the next year's window still fires normally — only the current window is tombstoned.
+
+Watering, pruning, planting, and maintenance blueprints continue to work the classic way — one task per repeat interval.
+
+---
+
+## Optimise Tab — Tune Your Schedule
+
+The **Optimise** tab on the Schedule page reviews your blueprints and suggests time-saving changes:
+
+| Scenario | What it means |
+|----------|--------------|
+| **Fragmentation** | Several small blueprints could be merged into one |
+| **Redundant** | This blueprint duplicates another in the same area |
+| **Frequency Change** | AI suggests adjusting how often you do this task |
+| **New Blueprint** | AI suggests adding a task that's currently missing |
+| **Retire** | This blueprint may no longer apply to active plants |
+
+> 📸 Screenshot: The Optimise tab showing proposal cards with Apply / Dismiss buttons
+
+Tap **Find Improvements** to run the local optimiser (free for all tiers). Sage+ users also get **AI-Powered Suggestions**, which uses Rhozly AI to pick up subtler improvements like seasonal adjustments.
+
+Every applied change can be undone for up to 90 days from the **History** panel below the proposal list.
+
+---
+
 ## Blueprint Frequency Tips
 
 | Task type | Suggested frequency |
