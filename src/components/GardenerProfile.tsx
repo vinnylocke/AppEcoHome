@@ -20,6 +20,9 @@ interface Props {
   subscriptionTier: TierId | null;
   aiEnabled?: boolean;
   isBeta?: boolean;
+  /** Gates the admin-only "Reset Account Data" testing button in the
+   *  Danger Zone. Defaults to false; only admins should see it. */
+  isAdmin?: boolean;
   onDisplayNameChange?: (name: string) => void;
   onTierChange?: (tier: TierId, aiEnabled: boolean, perenualEnabled: boolean) => void;
 }
@@ -482,12 +485,13 @@ function MyFeedbackSection({ userId }: { userId: string }) {
 
 // ─── Account Tab ────────────────────────────────────────────────────────────
 
-function AccountTab({ userId, homeId, displayName, email, subscriptionTier, onDisplayNameChange, onTierChange }: {
+function AccountTab({ userId, homeId, displayName, email, subscriptionTier, isAdmin, onDisplayNameChange, onTierChange }: {
   userId: string;
   homeId: string;
   displayName: string | null;
   email: string | null;
   subscriptionTier: TierId | null;
+  isAdmin?: boolean;
   onDisplayNameChange?: (name: string) => void;
   onTierChange?: (tier: TierId, aiEnabled: boolean, perenualEnabled: boolean) => void;
 }) {
@@ -505,6 +509,10 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, onDi
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [deleteConfirmText, setDeleteConfirmText] = useState("");
   const [isDeleting, setIsDeleting] = useState(false);
+
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetConfirmText, setResetConfirmText] = useState("");
+  const [isResetting, setIsResetting] = useState(false);
 
   const [pendingTier, setPendingTier] = useState<TierId | null>(subscriptionTier);
   const [showTierConfirmModal, setShowTierConfirmModal] = useState(false);
@@ -619,6 +627,25 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, onDi
       setIsDeleting(false);
       setShowDeleteModal(false);
       toast.error(err.message ?? "Failed to delete account");
+    }
+  }
+
+  async function resetAccountData() {
+    setIsResetting(true);
+    try {
+      const { data, error } = await supabase.rpc("reset_own_account_data");
+      if (error) throw error;
+      const summary = (data ?? {}) as Record<string, number>;
+      toast.success(
+        `Reset complete — ${summary.homes_left ?? 0} homes wiped. Reloading…`,
+      );
+      // Hard reload so every cached store (dashboards, profile, onboarding,
+      // realtime channels) re-initialises against the empty account.
+      setTimeout(() => window.location.assign("/"), 1200);
+    } catch (err: any) {
+      setIsResetting(false);
+      setShowResetModal(false);
+      toast.error(err.message ?? "Failed to reset account data");
     }
   }
 
@@ -848,14 +875,27 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, onDi
         <p className="text-xs text-rhozly-on-surface/60 font-medium leading-relaxed">
           Permanently delete your account and all associated data. This cannot be undone.
         </p>
-        <button
-          data-testid="delete-account-btn"
-          onClick={() => { setShowDeleteModal(true); setDeleteConfirmText(""); }}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-300 text-red-600 text-xs font-black hover:bg-red-50 transition-colors"
-        >
-          <Trash2 size={13} />
-          Delete Account
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {isAdmin && (
+            <button
+              data-testid="reset-account-btn"
+              onClick={() => { setShowResetModal(true); setResetConfirmText(""); }}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-amber-300 text-amber-700 text-xs font-black hover:bg-amber-50 transition-colors"
+              title="Admin-only testing tool — wipes garden data but keeps your login"
+            >
+              <AlertTriangle size={13} />
+              Reset Account Data
+            </button>
+          )}
+          <button
+            data-testid="delete-account-btn"
+            onClick={() => { setShowDeleteModal(true); setDeleteConfirmText(""); }}
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl border border-red-300 text-red-600 text-xs font-black hover:bg-red-50 transition-colors"
+          >
+            <Trash2 size={13} />
+            Delete Account
+          </button>
+        </div>
       </section>
 
       {/* Delete confirmation modal */}
@@ -914,6 +954,68 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, onDi
               >
                 {isDeleting ? <Loader2 size={13} className="animate-spin" /> : <Trash2 size={13} />}
                 {isDeleting ? "Deleting…" : "Delete Account"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reset confirmation modal — admin testing tool */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-3xl shadow-xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-start justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center shrink-0">
+                  <AlertTriangle size={16} className="text-amber-600" />
+                </div>
+                <h2 className="text-sm font-black text-rhozly-on-surface">Reset Account Data</h2>
+              </div>
+              <button
+                onClick={() => setShowResetModal(false)}
+                className="text-rhozly-on-surface/30 hover:text-rhozly-on-surface transition-colors"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <ul className="text-xs text-rhozly-on-surface/70 font-medium space-y-1.5 pl-1">
+              <li className="flex gap-2"><span className="text-amber-500 shrink-0">•</span>Your homes, plants, tasks, plans, notes, and ailments will be deleted</li>
+              <li className="flex gap-2"><span className="text-amber-500 shrink-0">•</span>Onboarding, preferences, and notifications are cleared so the next sign-in is a fresh-account experience</li>
+              <li className="flex gap-2"><span className="text-amber-500 shrink-0">•</span>Your login, email, subscription tier, and avatar are kept</li>
+              <li className="flex gap-2"><span className="text-amber-500 shrink-0">•</span>Community guides you've written stay live as Anonymous</li>
+            </ul>
+
+            <div className="space-y-2">
+              <p className="text-xs font-black text-rhozly-on-surface/60 uppercase tracking-widest">
+                Type RESET to confirm
+              </p>
+              <input
+                data-testid="reset-account-confirm-input"
+                type="text"
+                value={resetConfirmText}
+                onChange={(e) => setResetConfirmText(e.target.value)}
+                placeholder="RESET"
+                className="w-full text-sm font-bold text-rhozly-on-surface bg-rhozly-surface rounded-xl px-3 py-2.5 outline-none focus:ring-2 focus:ring-amber-400"
+              />
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <button
+                onClick={() => setShowResetModal(false)}
+                disabled={isResetting}
+                className="flex-1 py-2.5 rounded-xl border border-rhozly-outline/20 text-xs font-black text-rhozly-on-surface/60 hover:bg-rhozly-surface transition-colors disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                data-testid="reset-account-confirm-btn"
+                onClick={resetAccountData}
+                disabled={resetConfirmText !== "RESET" || isResetting}
+                className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-amber-500 text-white text-xs font-black disabled:opacity-40 transition-opacity"
+              >
+                {isResetting ? <Loader2 size={13} className="animate-spin" /> : <AlertTriangle size={13} />}
+                {isResetting ? "Resetting…" : "Reset Data"}
               </button>
             </div>
           </div>
@@ -1013,7 +1115,7 @@ function StatsTab({ stats }: { stats: NonNullable<ReturnType<typeof useAchieveme
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
-export default function GardenerProfile({ userId, homeId, displayName, email, subscriptionTier, aiEnabled = false, isBeta = false, onDisplayNameChange, onTierChange }: Props) {
+export default function GardenerProfile({ userId, homeId, displayName, email, subscriptionTier, aiEnabled = false, isBeta = false, isAdmin = false, onDisplayNameChange, onTierChange }: Props) {
   const [params, setParams] = useSearchParams();
   const initialTab = (params.get("tab") as Tab) ?? "account";
   const validTab: Tab = ["account", "notifications", "achievements", "stats"].includes(initialTab) ? initialTab : "account";
@@ -1159,6 +1261,7 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
             displayName={displayName}
             email={email}
             subscriptionTier={subscriptionTier}
+            isAdmin={isAdmin}
             onDisplayNameChange={onDisplayNameChange}
             onTierChange={onTierChange}
           />

@@ -1619,6 +1619,7 @@ function AppShell() {
                               subscriptionTier={profile.subscription_tier ?? null}
                               aiEnabled={!!profile.ai_enabled}
                               isBeta={!!profile.is_beta}
+                              isAdmin={!!profile.is_admin}
                               onDisplayNameChange={(name) =>
                                 setProfile((prev: any) => prev ? { ...prev, display_name: name } : prev)
                               }
