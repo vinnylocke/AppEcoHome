@@ -650,7 +650,14 @@ function AppShell() {
               .in("location_id", locationIds)
               .lt("due_date", todayStr)
               .neq("status", "Skipped")
-              .neq("status", "Completed"),
+              .neq("status", "Completed")
+              // Wave 20: a harvest task is NOT overdue while its window
+              // is still open (window_end_date >= today). And a "Not yet"
+              // snooze (next_check_at > today) hides the task entirely
+              // until the snooze expires. Both `or` filters keep the
+              // non-Wave-20 tasks (where the columns are NULL) intact.
+              .or(`window_end_date.is.null,window_end_date.lt.${todayStr}`)
+              .or(`next_check_at.is.null,next_check_at.lte.${todayStr}`),
             supabase
               .from("task_blueprints")
               .select("id, location_id, start_date, created_at, end_date, frequency_days")

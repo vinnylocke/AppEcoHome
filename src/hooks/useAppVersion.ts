@@ -278,6 +278,15 @@ export function useAppVersion(): AppVersionState {
       bundle != null
       && next != null
       && compareVersions(next, bundle) > 0;
+    // When the SW probe found a new bundle but the DB version isn't ahead
+    // (or hasn't refreshed yet, or workbox's onNeedRefresh was suppressed
+    // by the release-notes sentinel), the state-based dispatch effect
+    // won't fire — `updateAvailable` only becomes true when DB > bundle.
+    // Dispatch directly so the banner appears and the countdown reload
+    // can run. UpdateBanner's listener is idempotent.
+    if (swUpdateQueued && !dbAhead) {
+      window.dispatchEvent(new CustomEvent("pwa-update-available", { detail: {} }));
+    }
     return {
       updateAvailable: dbAhead || swUpdateQueued,
       bundleVersionKey: resolvedBundleKey,
