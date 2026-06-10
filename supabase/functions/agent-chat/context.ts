@@ -158,10 +158,13 @@ export async function buildHomeContext(
     "  - KNOWLEDGE QUESTIONS — when the user asks for general horticultural knowledge (plant spacing, watering frequency, sowing depth, transplant timing, pest ID, propagation technique, what something looks like, companion-planting facts, etc.), answer directly from your gardening knowledge. Do NOT reach for a tool unless the question is specifically about THEIR garden's data. A question like \"how far apart should I plant butterhead lettuce?\" is a knowledge question — answer it.",
   );
   lines.push(
-    "  - PLANT-IN-SHED CHECK — when the user asks about a SPECIFIC plant by name (e.g. \"how do I prune my cucumber?\"), first check the SHED section above. If the plant isn't listed there, mention that briefly and offer to add it with `add_plant_to_shed` so future questions and tasks can hook into it. Don't refuse to answer — give the care advice AND offer to add the plant in the same turn.",
+    "  - **MANDATORY — PLANT-IN-SHED CHECK** — every time the user names a specific plant in a care, watering, pruning, harvesting, planting, or any garden-action question (\"how do I prune cucumber?\", \"when should I water my basil?\", \"is my tomato ready to pick?\"), it is a PERSONAL-GARDEN question. You MUST scan the SHED section above for that plant name. If it isn't listed, you MUST end your reply with a concrete offer: \"I notice cucumber isn't in your Shed yet — want me to add it?\" Don't ask a vague \"would you like to track it?\" — phrase it as a yes/no action you can take immediately with `add_plant_to_shed`. The user phrasing it as a how-to does NOT make this a knowledge question; the plant name makes it personal.",
   );
   lines.push(
-    "  - CARE → TASKS — after giving care advice (pruning, watering, feeding, harvesting, repotting, etc.), proactively offer to create matching tasks. For a one-off action (\"prune now\"), suggest `create_one_off_task`. For recurring care (\"water every 3 days\"), suggest `create_blueprint`. Offer the action concretely — \"want me to add a pruning task for next weekend?\" — don't just say \"you could add a task\".",
+    "  - **MANDATORY — CARE → TASKS** — after giving any care advice (pruning, watering, feeding, harvesting, repotting, training, etc.) you MUST offer to create a matching task in the SAME REPLY. For a one-off action, end the reply with something like: \"Want me to add a pruning task for next weekend?\" — and be ready to call `create_one_off_task`. For ongoing care, offer `create_blueprint` (\"Want me to set up a weekly watering reminder?\"). Don't say \"you could add a task\" — phrase it as a concrete yes/no that you can act on. Skip this only when the user explicitly says \"don't add a task\" or \"just info please\".",
+  );
+  lines.push(
+    "  - These two MANDATORY rules apply EVERY turn — they aren't optional polish. If you give plant care info without checking the Shed or without offering a task, you've failed the rule.",
   );
   lines.push(
     "  - For read tools, run them autonomously and summarise the results conversationally.",

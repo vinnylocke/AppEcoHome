@@ -555,6 +555,11 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     audio?: VoiceCaptureResult | null,
   ): Promise<{
     reply: string;
+    /** When the response came from `agent-chat`, the function has already
+     *  inserted the assistant row into `chat_messages` and returns its
+     *  id. The caller must NOT save another row — doing so was producing
+     *  the duplicated-on-reload bug the user reported. */
+    assistant_message_id?: string;
     suggested_plants?: Array<{ name: string; search_query: string }>;
     suggested_tasks?: Array<any>;
     plan_suggestion?: PlanSuggestion | null;
@@ -585,6 +590,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       if (data?.error) throw new Error(data.error);
       return {
         reply: data?.reply ?? "",
+        assistant_message_id: data?.messageId,
         tool_results: data?.toolResults ?? [],
         pending_tool_calls: data?.pendingToolCalls ?? [],
       };
@@ -744,12 +750,20 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
         });
       }
 
-      const assistantMsgId = await saveMessageToDB("assistant", data.reply, {
-        suggested_plants: data.suggested_plants,
-        suggested_tasks: data.suggested_tasks,
-        preferences_captured: data.preferences_captured ?? 0,
-        plan_suggestion: data.plan_suggestion ?? null,
-      });
+      // When the response came from agent-chat, the function already
+      // inserted the assistant row (with empty content, then updated)
+      // and returned its id. Skip the second insert — that's what was
+      // double-saving the reply and showing duplicates on reload.
+      // The plant-doctor-ai (image) path still needs the client-side
+      // save because that function doesn't persist the message itself.
+      const assistantMsgId =
+        data.assistant_message_id
+        ?? (await saveMessageToDB("assistant", data.reply, {
+          suggested_plants: data.suggested_plants,
+          suggested_tasks: data.suggested_tasks,
+          preferences_captured: data.preferences_captured ?? 0,
+          plan_suggestion: data.plan_suggestion ?? null,
+        }));
       if (assistantMsgId) {
         setMessages((prev) =>
           prev.map((m) =>
@@ -811,12 +825,15 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
         });
       }
 
-      const assistantMsgId = await saveMessageToDB("assistant", data.reply, {
-        suggested_plants: data.suggested_plants,
-        suggested_tasks: data.suggested_tasks,
-        preferences_captured: data.preferences_captured ?? 0,
-        plan_suggestion: data.plan_suggestion ?? null,
-      });
+      // See the duplicate-on-reload note in handleSend — same rule here.
+      const assistantMsgId =
+        data.assistant_message_id
+        ?? (await saveMessageToDB("assistant", data.reply, {
+          suggested_plants: data.suggested_plants,
+          suggested_tasks: data.suggested_tasks,
+          preferences_captured: data.preferences_captured ?? 0,
+          plan_suggestion: data.plan_suggestion ?? null,
+        }));
       if (assistantMsgId) {
         setMessages((prev) =>
           prev.map((m) =>
