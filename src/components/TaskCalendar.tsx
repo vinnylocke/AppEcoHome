@@ -973,11 +973,12 @@ export default function TaskCalendar({
               const hasAnyIndicator = cellInd
                 ? cellInd.greenCount > 0 || cellInd.redCheckCount > 0 || cellInd.redXCount > 0 || cellInd.faintCount > 0
                 : false;
-              // Tint the cell green when this date is inside an active
+              // Tint the cell amber when this date is inside an active
               // harvest window AND the user hasn't toggled the highlight
-              // off. Selected / Today states take precedence visually so
-              // we skip the tint for those.
-              const isHarvestWindow = harvestWindowDates.has(dayDateStr) && !isSelected && !isToday;
+              // off. Selected state always takes precedence visually.
+              // For "today" we keep the amber tint but switch its border
+              // to primary so the cell still reads as today.
+              const isHarvestWindow = harvestWindowDates.has(dayDateStr) && !isSelected;
 
               return (
                 <button
@@ -986,8 +987,13 @@ export default function TaskCalendar({
                   data-harvest-window={isHarvestWindow ? "true" : undefined}
                   className={`relative flex flex-col items-center justify-center aspect-square rounded-2xl sm:rounded-3xl transition-all border-2
                     ${dayObj.isCurrentMonth ? "text-rhozly-on-surface hover:border-rhozly-primary/30" : "text-rhozly-on-surface/20 hover:border-rhozly-outline/10"}
-                    ${isSelected ? "bg-rhozly-primary text-white border-rhozly-primary shadow-lg scale-105 z-10" : isHarvestWindow ? "bg-amber-100/70 border-amber-300/60" : "bg-transparent border-transparent"}
-                    ${isToday && !isSelected ? "bg-rhozly-primary/5 border-rhozly-primary/20 text-rhozly-primary" : ""}
+                    ${isSelected
+                      ? "bg-rhozly-primary text-white border-rhozly-primary shadow-lg scale-105 z-10"
+                      : isHarvestWindow
+                        ? (isToday ? "bg-amber-100/70 border-rhozly-primary/40 text-rhozly-primary" : "bg-amber-100/70 border-amber-300/60")
+                        : isToday
+                          ? "bg-rhozly-primary/5 border-rhozly-primary/20 text-rhozly-primary"
+                          : "bg-transparent border-transparent"}
                   `}
                 >
                   {hasPreferredTasks && !isSelected && dayObj.isCurrentMonth && (
