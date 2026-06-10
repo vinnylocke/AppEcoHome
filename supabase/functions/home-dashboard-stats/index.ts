@@ -59,7 +59,7 @@ Deno.serve(async (req) => {
       // 1. Tasks this week — all relevant columns for grouping
       db
         .from("tasks")
-        .select("id, status, type, due_date, completed_by, auto_completed_reason, completed_at")
+        .select("id, status, type, due_date, completed_by, auto_completed_reason, completed_at, window_end_date, next_check_at")
         .eq("home_id", homeId)
         .gte("due_date", weekStart)
         .lte("due_date", weekEnd),
@@ -155,11 +155,28 @@ Deno.serve(async (req) => {
         t.status === "Skipped" &&
         t.auto_completed_reason?.toLowerCase().includes("rain"),
     ).length;
+    // Wave 20 contract:
+    //   - Harvest window task is "active" through `window_end_date`,
+    //     so it is NOT overdue while today <= window_end_date.
+    //   - A "Not yet" snooze sets `next_check_at = today + N`. The task
+    //     is hidden from Today (and from overdue/pending counters) while
+    //     today < next_check_at.
+    const isSnoozed = (t: any) =>
+      t.next_check_at != null && t.next_check_at > today;
+    const isHarvestWindowActive = (t: any) =>
+      t.window_end_date != null && t.window_end_date >= today;
     const taskOverdue = tasks.filter(
-      (t) => t.due_date < today && !["Completed", "Skipped"].includes(t.status),
+      (t) =>
+        t.due_date < today
+        && !["Completed", "Skipped"].includes(t.status)
+        && !isSnoozed(t)
+        && !isHarvestWindowActive(t),
     ).length;
     const taskPending = tasks.filter(
-      (t) => t.due_date >= today && !["Completed", "Skipped"].includes(t.status),
+      (t) =>
+        t.due_date >= today
+        && !["Completed", "Skipped"].includes(t.status)
+        && !isSnoozed(t),
     ).length;
     const completionRate =
       taskTotal > 0 ? Math.round((taskCompleted / taskTotal) * 100) : 0;
@@ -316,10 +333,14 @@ Deno.serve(async (req) => {
         (t) => t.status === "Completed" && (t.completed_at == null || t.completed_at.slice(0, 10) > ds),
       ).length;
       const overdue = dayTasks.filter(
-        (t) => t.status !== "Completed" && ds < today,
+        (t) =>
+          t.status !== "Completed"
+          && ds < today
+          && !isSnoozed(t)
+          && !isHarvestWindowActive(t),
       ).length;
       const pending = dayTasks.filter(
-        (t) => t.status !== "Completed" && ds >= today,
+        (t) => t.status !== "Completed" && ds >= today && !isSnoozed(t),
       ).length;
       dayStrip.push({
         date: ds,

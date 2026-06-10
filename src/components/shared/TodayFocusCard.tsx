@@ -47,6 +47,11 @@ export function decideTodayFocus(args: {
   const streak = args.stats?.tasks.streak ?? 0;
 
   if (overdue > 0 && args.hourOfDay >= 8) {
+    // Route to the Calendar agenda with today selected — that's where
+    // overdue tasks actually surface. The previous /schedule?filter=
+    // route landed users on an unfiltered Routines list because the
+    // Routines page doesn't read the filter param.
+    const todayStr = new Date().toISOString().split("T")[0];
     return {
       variant: "urgent",
       shortMessage:
@@ -55,7 +60,7 @@ export function decideTodayFocus(args: {
         overdue === 1
           ? "1 overdue task — finish it off →"
           : `${overdue} overdue tasks — finish them off →`,
-      route: "/schedule?filter=overdue",
+      route: `/dashboard?view=calendar&date=${todayStr}`,
     };
   }
 
