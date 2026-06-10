@@ -378,12 +378,18 @@ export default function TaskCalendar({
         supabase
           .from("tasks")
           .select(
-            "id, home_id, blueprint_id, title, description, status, due_date, type, location_id, area_id, plan_id, inventory_item_ids, completed_at",
+            "id, home_id, blueprint_id, title, description, status, due_date, type, location_id, area_id, plan_id, inventory_item_ids, completed_at, window_end_date, next_check_at",
           )
           .eq("home_id", homeId)
           .eq("status", "Pending")
           .lt("due_date", todayStr)
-          .gte("due_date", getLocalDateString(ninetyDaysAgo)),
+          .gte("due_date", getLocalDateString(ninetyDaysAgo))
+          // Wave 20: not overdue while the harvest window is still open,
+          // and not overdue while "Not yet" has snoozed the task. Both
+          // `or` filters keep classic (non-Wave-20) tasks intact via the
+          // `.is.null` branch.
+          .or(`window_end_date.is.null,window_end_date.lt.${todayStr}`)
+          .or(`next_check_at.is.null,next_check_at.lte.${todayStr}`),
         // Wave-20.5 — dedicated harvest-window query, independent of the
         // calendar's main fetch range. Captures every Pending harvest
         // task with a window_end_date in the home so the green tint
