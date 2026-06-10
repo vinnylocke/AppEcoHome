@@ -134,13 +134,17 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
             data-testid="dash-stat-tasks-overdue"
             label="Overdue"
             value={tasks.overdue}
-            onClick={tasks.overdue > 0 ? () => navigate("/schedule?filter=overdue") : undefined}
+            // Overdue tasks live on the Calendar agenda for today — the
+            // Routines page (/schedule) doesn't filter by overdue, so
+            // the previous /schedule?filter=overdue route just dropped
+            // the user into the routines list with no filter applied.
+            onClick={tasks.overdue > 0 ? () => navigate(`/dashboard?view=calendar&date=${new Date().toISOString().split("T")[0]}`) : undefined}
           />
           <StatCard
             data-testid="dash-stat-tasks-pending"
             label="Pending"
             value={tasks.pending}
-            onClick={tasks.pending > 0 ? () => navigate("/schedule?filter=pending") : undefined}
+            onClick={tasks.pending > 0 ? () => navigate(`/dashboard?view=calendar&date=${new Date().toISOString().split("T")[0]}`) : undefined}
           />
           <StatCard
             data-testid="dash-stat-tasks-auto"
