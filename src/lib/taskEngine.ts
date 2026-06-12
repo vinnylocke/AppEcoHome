@@ -311,19 +311,18 @@ export const TaskEngine = {
           .map((t: any) => `${t.blueprint_id}:${t.due_date}`),
       );
 
-      // Filter historical completed tasks out of the window, AND hide
-      // window tasks the user (or AI ripeness) snoozed via "Not yet"
-      // when their `next_check_at` is still in the future.
-      const rawTasks = physicalRows.filter((task: any) => {
-        if (
-          task.status === "Pending"
-          && task.next_check_at
-          && task.next_check_at > todayStr
-        ) {
-          return false;
-        }
-        return true;
-      }).filter((task) => {
+      // Filter historical completed tasks out of the window.
+      //
+      // We deliberately do NOT hide snoozed window tasks here anymore.
+      // The previous filter (which dropped Pending tasks where
+      // `next_check_at > today`) made the task disappear from the
+      // calendar entirely — the user lost the harvest dot on its due
+      // date and the row from each day's agenda for the whole window.
+      // Consumers that need to suppress snoozed tasks from a
+      // task-action view (the dashboard's "1 overdue" counter, the
+      // home-nav badge, the today-focus card) filter on next_check_at
+      // themselves so the badge counts stay clean.
+      const rawTasks = physicalRows.filter((task) => {
         if (task.status !== "Completed") return true;
         const isDueInWindow =
           task.due_date >= startDateStr && task.due_date <= endDateStr;
