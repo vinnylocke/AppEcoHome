@@ -565,6 +565,36 @@ async function runAutomation(
         completed_at: new Date().toISOString(),
       });
       await db.from("automations").update({ last_run_date: today }).eq("id", automationId);
+
+      // BUG FIX: previously we only fired the "skipped — rain detected"
+      // notification but left the linked watering tasks untouched. The
+      // user saw the notification, expected the tasks to be skipped,
+      // and was surprised when they showed up as overdue overnight.
+      // Now we also mark every linked Pending/Postponed task for today
+      // as Skipped with a rain reason so the agenda matches the push.
+      try {
+        const { data: abps } = await db
+          .from("automation_blueprints")
+          .select("blueprint_id")
+          .eq("automation_id", automationId);
+        const bpIds = (abps ?? []).map((r: any) => r.blueprint_id as string);
+        if (bpIds.length > 0) {
+          await db
+            .from("tasks")
+            .update({
+              status: "Skipped",
+              auto_completed_reason: `Skipped — ${rainMm.toFixed(1)}mm rain detected`,
+              completed_at: new Date().toISOString(),
+            })
+            .in("blueprint_id", bpIds)
+            .eq("home_id", homeId)
+            .eq("due_date", today)
+            .in("status", ["Pending", "Postponed"]);
+        }
+      } catch (e: any) {
+        warn(FN, "rain_skip_task_update_failed", { error: e.message });
+      }
+
       await sendNotification(db, homeId, automationName, "skipped_weather", automation.duration_seconds as number, automationId, rainMm)
         .catch((e) => warn(FN, "notify_error", { error: e.message }));
       return { status: "skipped_weather" };

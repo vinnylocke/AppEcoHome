@@ -182,14 +182,21 @@ export default function TaskCalendar({
       // which for a backfilled window task is the window start (often in
       // the past) — so the user sees a green tint with nothing under it.
       //
-      // Wave 20 "Not yet" snooze: hide tasks where `next_check_at` is in
-      // the future. User snoozed it deliberately — they don't want to see
-      // it on the agenda for days inside the snooze window. The task
-      // re-surfaces on/after next_check_at automatically.
+      // Wave 20 "Not yet" snooze: hide a task only on dates BEFORE its
+      // next_check_at. On or after the snooze date the task re-surfaces.
+      // (The previous filter compared against today, hiding the task
+      // from every future day too — so the user couldn't see it
+      // re-appear on the calendar at all.)
       const dayTasks = tasks.filter((t) => {
-        if (t.next_check_at && t.next_check_at > todayStr) return false;
+        if (t.next_check_at && t.next_check_at > dateStr) return false;
         if (t.window_end_date && t.due_date) {
-          return t.due_date <= dateStr && dateStr <= t.window_end_date;
+          // The snooze pushes the visible start to next_check_at; the
+          // task still runs through the rest of its window.
+          const effectiveStart =
+            t.next_check_at && t.next_check_at > t.due_date
+              ? t.next_check_at
+              : t.due_date;
+          return effectiveStart <= dateStr && dateStr <= t.window_end_date;
         }
         return t.due_date === dateStr;
       });
