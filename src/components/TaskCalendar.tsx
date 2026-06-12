@@ -182,17 +182,25 @@ export default function TaskCalendar({
       // which for a backfilled window task is the window start (often in
       // the past) — so the user sees a green tint with nothing under it.
       //
-      // Note on Wave 20 snoozes: we deliberately DO NOT hide a snoozed
-      // task from the calendar's day cells or the agenda here. Hiding it
-      // also stripped the harvest dot from its due_date and the row from
-      // the day-agenda, so the user lost all visibility into where the
-      // task had gone — exactly the opposite of "I'd like to see it".
-      // The dashboard / home-icon overdue counters (separate paths)
-      // continue to exclude snoozed tasks, so the badges stay clean.
+      // Wave 20 snooze behaviour:
+      //   - A snoozed task moves to its new effective due date
+      //     `next_check_at`. The original due date and the snooze
+      //     window in between are HIDDEN — the user clicked "Not yet"
+      //     because they didn't want to see it on those days.
+      //   - On `next_check_at` through `window_end_date` the task is
+      //     visible again, treated like a regular window task with the
+      //     new effective due date.
       const dayTasks = tasks.filter((t) => {
         if (t.window_end_date && t.due_date) {
-          return t.due_date <= dateStr && dateStr <= t.window_end_date;
+          const effectiveStart =
+            t.next_check_at && t.next_check_at > t.due_date
+              ? t.next_check_at
+              : t.due_date;
+          return effectiveStart <= dateStr && dateStr <= t.window_end_date;
         }
+        // Non-window task: a future next_check_at means we hide it
+        // until the snooze date arrives.
+        if (t.next_check_at && t.next_check_at > dateStr) return false;
         return t.due_date === dateStr;
       });
 
@@ -955,13 +963,19 @@ export default function TaskCalendar({
               // (after the user taps the day) still includes window
               // tasks via getTasksForDate's expanded match.
               const dayDateStrForDots = getLocalDateString(dayObj.date);
-              const pendingTasks = dayTasks.filter(
-                (t) =>
-                  t.status === "Pending"
-                  && (t.window_end_date
-                    ? t.due_date === dayDateStrForDots
-                    : true),
-              );
+              const pendingTasks = dayTasks.filter((t) => {
+                if (t.status !== "Pending") return false;
+                if (!t.window_end_date) return true;
+                // The dot for a window task lands on its effective due
+                // date — that's next_check_at when the user snoozed it,
+                // otherwise the original due_date. So a "Not yet +3
+                // days" snooze moves the dot from June 9 onto June 13.
+                const effectiveDue =
+                  t.next_check_at && t.next_check_at > t.due_date
+                    ? t.next_check_at
+                    : t.due_date;
+                return effectiveDue === dayDateStrForDots;
+              });
 
               const hasPreferredTasks =
                 preferences.length > 0 &&
