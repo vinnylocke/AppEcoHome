@@ -182,21 +182,16 @@ export default function TaskCalendar({
       // which for a backfilled window task is the window start (often in
       // the past) — so the user sees a green tint with nothing under it.
       //
-      // Wave 20 "Not yet" snooze: hide a task only on dates BEFORE its
-      // next_check_at. On or after the snooze date the task re-surfaces.
-      // (The previous filter compared against today, hiding the task
-      // from every future day too — so the user couldn't see it
-      // re-appear on the calendar at all.)
+      // Note on Wave 20 snoozes: we deliberately DO NOT hide a snoozed
+      // task from the calendar's day cells or the agenda here. Hiding it
+      // also stripped the harvest dot from its due_date and the row from
+      // the day-agenda, so the user lost all visibility into where the
+      // task had gone — exactly the opposite of "I'd like to see it".
+      // The dashboard / home-icon overdue counters (separate paths)
+      // continue to exclude snoozed tasks, so the badges stay clean.
       const dayTasks = tasks.filter((t) => {
-        if (t.next_check_at && t.next_check_at > dateStr) return false;
         if (t.window_end_date && t.due_date) {
-          // The snooze pushes the visible start to next_check_at; the
-          // task still runs through the rest of its window.
-          const effectiveStart =
-            t.next_check_at && t.next_check_at > t.due_date
-              ? t.next_check_at
-              : t.due_date;
-          return effectiveStart <= dateStr && dateStr <= t.window_end_date;
+          return t.due_date <= dateStr && dateStr <= t.window_end_date;
         }
         return t.due_date === dateStr;
       });
