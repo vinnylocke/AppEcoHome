@@ -21,6 +21,7 @@ import {
   fetchWikipediaSummary,
   fetchGbifMatch,
 } from "../_shared/plantLibrarySources.ts";
+import { pickAllowedUpdates } from "./helpers.ts";
 
 const FN = "verify-plant-library";
 
@@ -39,35 +40,27 @@ const BATCH_SIZE = 10;
  */
 const MAX_ATTEMPTS = 3;
 
-/** Fields the verifier must coerce to a finite number before applying. */
-const NUMERIC_FIELDS = new Set([
-  "watering_min_days", "watering_max_days",
-  "days_to_harvest_min", "days_to_harvest_max",
-  "soil_ph_min", "soil_ph_max",
-]);
-
-// Fields the verifier is allowed to amend. We accept partial updates
-// targeted only at the columns that diverged so the AI doesn't rewrite
-// the whole row on every call.
-const VERIFIABLE_FIELDS = [
-  "common_name", "scientific_name", "family", "plant_type", "cycle",
-  "care_level", "watering", "watering_min_days", "watering_max_days",
-  "sunlight", "hardiness_min", "hardiness_max", "growth_rate", "growth_habit",
-  "maintenance", "is_edible", "is_toxic_pets", "is_toxic_humans",
-  "attracts", "description", "drought_tolerant", "salt_tolerant",
-  "flowers", "fruits", "indoor", "invasive", "flowering_season",
-  "harvest_season", "propagation", "pest_susceptibility", "soil",
-  "soil_ph_min", "soil_ph_max", "days_to_harvest_min", "days_to_harvest_max",
-] as const;
-
-type VerifiableField = typeof VERIFIABLE_FIELDS[number];
-
 const VERIFY_SCHEMA = {
   type: "OBJECT",
   properties: {
     verdict: { type: "STRING", enum: ["matched", "amended"] },
-    /** Only present when verdict = 'amended'. Subset of the row's fields. */
-    updates: { type: "OBJECT" },
+    /** Only present when verdict = 'amended'. Subset of the row's fields.
+     *  Season fields are enum-constrained so Gemini can't emit month
+     *  names; everything else stays loose so the AI can amend whatever
+     *  it needs to. */
+    updates: {
+      type: "OBJECT",
+      properties: {
+        flowering_season: {
+          type: "ARRAY",
+          items: { type: "STRING", enum: ["spring", "summer", "autumn", "winter"] },
+        },
+        harvest_season: {
+          type: "ARRAY",
+          items: { type: "STRING", enum: ["spring", "summer", "autumn", "winter"] },
+        },
+      },
+    },
     sources: {
       type: "ARRAY",
       items: {
@@ -146,27 +139,26 @@ RULES FOR CORRECTIONS
 - For \`scientific_name\`, prefer the GBIF \`canonical_name\` when our value differs.
 - If both Wikipedia and GBIF returned nothing useful, return { "verdict": "matched" } — we have nothing to verify against.
 
-No prose, no markdown — JSON only.`;
-}
+OUTPUT VOCABULARY (applies whenever you produce \`updates\`)
+- \`flowering_season\` and \`harvest_season\`: array of season WORDS ONLY.
+  Allowed values: "spring", "summer", "autumn", "winter". NEVER use month
+  names. If Wikipedia says "flowers June–August", that maps to ["summer"];
+  "April–June" → ["spring", "summer"]; "December–February" → ["winter"]; etc.
+  Pick season names that match the northern-hemisphere reading of any cited
+  months — the app converts per home hemisphere downstream.
+- \`propagation\`, \`attracts\`, \`pest_susceptibility\`, \`sunlight\`, \`soil\`:
+  multi-value lists where sources almost NEVER enumerate every legitimate
+  entry. If our row already contains MORE items than the source explicitly
+  mentions, leave the field alone. A shorter cited list is NOT evidence our
+  list is wrong. Wikipedia mentioning bees does not prove butterflies don't
+  visit. Wikipedia mentioning "seed" does not prove "division" is wrong.
+- Only return an amendment for these multi-value array fields when our row
+  contains a value that is FACTUALLY INCORRECT (e.g. \`attracts: ["fish"]\`
+  for a meadow plant). Adding values is OK; removing values is not.
+- \`pruning_month\` legitimately uses month names ("march", "october") —
+  the month-name ban above does NOT apply to this field.
 
-function pickAllowedUpdates(updates: Record<string, unknown>): Record<string, unknown> {
-  const out: Record<string, unknown> = {};
-  for (const key of VERIFIABLE_FIELDS) {
-    if (!(key in updates)) continue;
-    const raw = updates[key as VerifiableField];
-    if (NUMERIC_FIELDS.has(key as string)) {
-      // AI sometimes returns numeric fields as strings like "7" or
-      // "7-10 days" — postgres rejects the update on type mismatch
-      // and we used to silently lose the whole row. Coerce + skip
-      // when we can't get a finite number.
-      const n = typeof raw === "number" ? raw : Number(String(raw).replace(/[^\d.\-]/g, ""));
-      if (!Number.isFinite(n)) continue;
-      out[key as VerifiableField] = n;
-      continue;
-    }
-    out[key as VerifiableField] = raw;
-  }
-  return out;
+No prose, no markdown — JSON only.`;
 }
 
 /**
@@ -342,7 +334,10 @@ async function verifyOneRow(
     }
 
   // verdict === "amended"
-  const updates = pickAllowedUpdates(parsed.updates ?? {});
+  // Pass the current row so pickAllowedUpdates can refuse shrinking
+  // amendments to multi-value array fields (propagation, attracts, etc.)
+  // and merge additive amendments instead of overwriting.
+  const updates = pickAllowedUpdates(parsed.updates ?? {}, row);
 
   // Build the sources array deterministically from whichever external
   // sources actually returned data. We don't rely on the AI to cite

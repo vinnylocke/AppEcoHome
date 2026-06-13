@@ -113,6 +113,17 @@ Highlights:
 - `search-plants-ai`
 - `companion-planting`
 - `visualiser-analyse`
+- `seed-plant-library` / `submit-plant-library-batch` / `verify-plant-library` (admin-triggered + cron — see Plant Library AI contracts below)
+
+### Plant Library AI contracts (seeder + verifier shape rules)
+
+The Plant Library pipeline (`seed-plant-library` → `verify-plant-library`) has the strictest shape rules of any Gemini caller in the app because the output lands directly in `public.plant_library` rows, which then power filtered search and the public plant directory. Two contracts are enforced at multiple layers (prompt + response schema + server-side filter):
+
+**Vocabulary for season fields.** `flowering_season` and `harvest_season` accept ONLY the four season words `{spring, summer, autumn, winter}`. The seeder prompt at `_shared/plantSeedPrompt.ts` enforces this in prose; the verifier prompt at `verify-plant-library/index.ts` enforces the same vocabulary when it produces `amended` updates (with an explicit "Wikipedia mentions months → map to seasons" example). The verifier's response schema enum-constrains both fields. As a final defence, `pickAllowedUpdates` in `verify-plant-library/helpers.ts` filters non-enum values out of the AI's output; if nothing remains, the field is dropped from the update rather than overwriting an existing season list with `[]`. `pruning_month` legitimately stores month names and is exempt from all of this.
+
+**Non-shrinking multi-value arrays.** For `propagation`, `attracts`, `pest_susceptibility`, `sunlight`, and `soil`, the seeder produces multi-element lists from its broader knowledge of the plant; the verifier compares against Wikipedia + GBIF, which almost never enumerate every legitimate entry. A shorter source list is NOT evidence our seed data is wrong — Wikipedia mentioning bees does not prove butterflies don't visit. The verifier prompt explicitly says "Adding values is OK; removing values is not." `pickAllowedUpdates` rejects strict-subset amendments (incoming is a subset of existing with nothing added) and merges additive amendments rather than overwriting. Tested in `supabase/tests/verify-plant-library-amendments.test.ts`. The historical bug this contract closes: the verifier was stripping richer seed values down to whatever Wikipedia mentioned in passing.
+
+If you add a new edge function that writes to `plant_library`, the same two contracts apply — copy the prompt rules and the helper.
 
 ### `_shared/gemini.ts` (typical)
 
