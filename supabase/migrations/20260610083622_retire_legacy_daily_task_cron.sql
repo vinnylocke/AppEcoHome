@@ -77,13 +77,30 @@ $function$;
 --    with the same issue from today's 02:00 run — wipe every harvest
 --    task created today that lacks the window field for a blueprint
 --    that DOES have an end_date.
-DELETE FROM public.tasks t
-WHERE t.type IN ('Harvesting', 'Harvest')
-  AND t.window_end_date IS NULL
-  AND t.status = 'Pending'
-  AND t.created_at >= CURRENT_DATE
-  AND EXISTS (
-    SELECT 1 FROM public.task_blueprints b
-    WHERE b.id = t.blueprint_id
-      AND b.end_date IS NOT NULL
-  );
+--
+-- Guarded against `tasks.window_end_date` not existing yet — the column is
+-- added later in 20260702000000_tasks_window_end_date.sql. On a fresh
+-- chronological reset the column is absent at this point and this cleanup
+-- has no rows to delete anyway (empty tasks table). On databases that ran
+-- this migration in commit order, the column already existed and the
+-- DELETE ran as intended.
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+     WHERE table_schema = 'public'
+       AND table_name   = 'tasks'
+       AND column_name  = 'window_end_date'
+  ) THEN
+    DELETE FROM public.tasks t
+    WHERE t.type IN ('Harvesting', 'Harvest')
+      AND t.window_end_date IS NULL
+      AND t.status = 'Pending'
+      AND t.created_at >= CURRENT_DATE
+      AND EXISTS (
+        SELECT 1 FROM public.task_blueprints b
+        WHERE b.id = t.blueprint_id
+          AND b.end_date IS NOT NULL
+      );
+  END IF;
+END $$;

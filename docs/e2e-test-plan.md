@@ -164,6 +164,77 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | AUTH-008 | Session persistence | ✅ | Reload page after sign-in → still authenticated, dashboard shown | Bootstrap | — | ✅ Passing |
 | AUTH-009 | Auth guard — redirect unauthenticated | ✅ | Navigate to `/dashboard` without session → redirected to `/` | None | — | ✅ Passing |
 | AUTH-010 | Root redirect — authenticated | ✅ | Navigate to `/` while authenticated → URL becomes `/dashboard` | Bootstrap | — | ✅ Passing |
+| AUTH-020 | Sign-up — First Name required | ❌ | Submit sign-up form with blank first name → `#field-error-firstName` visible | None | — | ✅ Passing |
+| AUTH-021 | Sign-up — Last Name required | ❌ | Submit sign-up form with blank last name → `#field-error-lastName` visible | None | — | ✅ Passing |
+| AUTH-022 | Sign-up — password < 8 chars rejected | ❌ | Fill sign-up with `short` password → "at least 8 characters" error | None | — | ✅ Passing |
+| AUTH-023 | Sign-up — valid data fires signup + success banner | ✅ | Mock `**/auth/v1/signup` → submit → POST contains firstName/lastName, banner shows | None | `auth/v1/signup` | ✅ Passing |
+| AUTH-030 | Forgot password — empty email blocked | ❌ | Open forgot-password panel → submit blank → inline email error | None | — | ✅ Passing |
+| AUTH-031 | Forgot password — valid email confirmation | ✅ | Enter `recover@example.com` → mocked `recover` POST → success panel | None | `auth/v1/recover` | ✅ Passing |
+| AUTH-040 | OAuth buttons present | ✅ | Google + Apple buttons visible on sign-in form | None | — | ✅ Passing |
+| AUTH-050 | Session persists across reload | ✅ | Authenticated → `page.reload()` → Sign Out still visible | Bootstrap | — | ✅ Passing |
+
+---
+
+## Section 01b — Home Setup Wizard
+
+**Spec files:** `tests/e2e/specs/home-setup-join.spec.ts` · `tests/e2e/specs/home-setup-create.spec.ts`
+**Page Object:** `tests/e2e/pages/HomeSetupPage.ts`
+**Fixture:** `tests/e2e/fixtures/no-home-yet.ts` — mocks `user_profiles` (home_id null) and `home_members` (empty) so the wizard renders.
+**Seed required:** `00_bootstrap.sql` (for auth user only — wizard data is fully mocked)
+
+### Create New Home
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| R1-001 | Create tile routes to create step | ✅ | Click Create New Home tile → form visible, name field auto-focused | Bootstrap | profile reads | ✅ Passing |
+| R1-002 | Back arrow returns to selection | ✅ | On create step, click ← → tiles visible again | Bootstrap | profile reads | ✅ Passing |
+| R1-003 | Required fields block submit | ❌ | Submit with empty name/postcode → no RPC fires | Bootstrap | RPC capture | ✅ Passing |
+| R1-004 | Hemisphere chip flips on country change | ✅ | Select AU → chip reads "Southern" | Bootstrap | profile reads | ✅ Passing |
+| R1-005 | Postcode is uppercased before RPC | ✅ | Type `cr3 5ed` → RPC body contains `CR3 5ED` | Bootstrap | `create_new_home` RPC | ✅ Passing |
+| R1-006 | Successful create fires sync-weather | ✅ | RPC returns home_id → `sync-weather` invoked with same id | Bootstrap | RPC + `sync-weather` | ✅ Passing |
+| R1-007 | RPC failure surfaces banner | ❌ | Mock RPC 500 → form-error banner visible, still on create step | Bootstrap | RPC error | ✅ Passing |
+| R1-008 | Submit disabled in flight | ✅ | Delay RPC 500ms → button disabled while loading | Bootstrap | delayed RPC | ✅ Passing |
+| R1-009 | sync-weather failure does not block onHomeCreated | ❌ | Mock weather 500 → no error banner | Bootstrap | RPC + weather error | ✅ Passing |
+
+### Join Existing Home (user-flagged gap)
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| R2-001 | Join tile routes to join step | ✅ | Click Join tile → Home ID input visible | Bootstrap | profile reads | ✅ Passing |
+| R2-002 | Back arrow returns to selection | ✅ | On join step, click ← → tiles visible again | Bootstrap | profile reads | ✅ Passing |
+| R2-003 | Empty input blocks submit | ❌ | Click Join Home with empty input → no profile PATCH | Bootstrap | PATCH capture | ✅ Passing |
+| R2-004 | Whitespace-only input rejected | ❌ | Fill `   ` → handler short-circuits, no PATCH | Bootstrap | PATCH capture | ✅ Passing |
+| R2-005 | Invalid UUID format → generic banner | ❌ | Mock POST `home_members` 400 (22P02) → banner visible | Bootstrap | POST error | ✅ Passing |
+| R2-006 | Unknown UUID / no RLS → generic banner | ❌ | Mock POST `home_members` 403 → banner visible (no existence leak) | Bootstrap | POST error | ✅ Passing |
+| R2-007 | Already-a-member duplicate → generic banner | ❌ | Mock POST `home_members` 409 (23505) → banner visible | Bootstrap | POST error | ✅ Passing |
+| R2-008 | Successful join updates user_profiles.home_id | ✅ | Mock POST 201 → PATCH body contains target home_id | Bootstrap | POST success + PATCH capture | ✅ Passing |
+| R2-009 | Whitespace in pasted ID is trimmed | ✅ | Paste `  uuid  ` → PATCH body has trimmed uuid | Bootstrap | POST success + PATCH capture | ✅ Passing |
+| R2-010 | sync-weather NOT fired on join | ✅ | After successful join → no `sync-weather` invoke | Bootstrap | track `sync-weather` | ✅ Passing |
+| R2-011 | Error clears after retry | ✅ | Failed join → switch mock to 201 → resubmit → no banner | Bootstrap | POST error → success | ✅ Passing |
+| R2-012 | Tab order is input → submit | ✅ | Focus input → Tab → submit focused | Bootstrap | — | ✅ Passing |
+| R2-013 | Submit disabled in flight | ✅ | Delay POST 400ms → button disabled while loading | Bootstrap | delayed POST | ✅ Passing |
+| R2-014 | Input state persists when returning to join step | ✅ | Fill → back → re-pick Join → input still has draft (parent-level state) | Bootstrap | — | ✅ Passing |
+
+---
+
+## Section 01c — Welcome Modal
+
+**Spec file:** `tests/e2e/specs/welcome-modal.spec.ts`
+**Page Object:** `tests/e2e/pages/WelcomeModalPage.ts`
+**Fixture:** `tests/e2e/fixtures/welcome-modal-ready.ts` — mocks profile with home_id but no welcome_modal status, and empty locations.
+**Seed required:** `00_bootstrap.sql` (auth user only — modal trigger data is mocked)
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| R3-001 | Modal mounts when trigger conditions hold | ✅ | After dashboard load, modal visible with 5 dots | Bootstrap | profile + locations | ✅ Passing |
+| R3-002 | Step through slides 0 → 4 | ✅ | Next button cycles through all 5 titles; final shows CTA | Bootstrap | profile + locations | ✅ Passing |
+| R3-003 | Back disabled on first slide | ✅ | On slide 0, back button has disabled attribute | Bootstrap | profile + locations | ✅ Passing |
+| R3-004 | Dot indicators jump to slide | ✅ | Click dot(2) → title is "Tasks that run themselves" | Bootstrap | profile + locations | ✅ Passing |
+| R3-005 | Persona slide tracks selection | ✅ | aria-pressed flips between new/experienced cards | Bootstrap | profile + locations | ✅ Passing |
+| R3-006 | Skip issues `dismissed` PATCH and closes | ✅ | Click X → PATCH body contains "dismissed" | Bootstrap | PATCH capture | ✅ Passing |
+| R3-007 | Start Quiz issues `completed` PATCH + navigates | ✅ | Final slide → CTA → URL becomes `/profile` | Bootstrap | PATCH capture | ✅ Passing |
+| R3-008 | Persona is included in PATCH body | ✅ | Pick `experienced` → PATCH body contains it + `welcomed_at` | Bootstrap | PATCH capture | ✅ Passing |
+| R3-009 | Focus trap loops within dialog | ✅ | 10× Tab → activeElement still inside `[role=dialog]` | Bootstrap | profile + locations | ✅ Passing |
 
 ---
 

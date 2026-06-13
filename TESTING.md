@@ -62,6 +62,9 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
 │   └── e2e/
 │       ├── specs/                # Test files — one per feature area
 │       │   ├── auth.spec.ts
+│       │   ├── home-setup-create.spec.ts
+│       │   ├── home-setup-join.spec.ts
+│       │   ├── welcome-modal.spec.ts
 │       │   ├── dashboard.spec.ts
 │       │   ├── plants.spec.ts
 │       │   ├── shed-crud.spec.ts
@@ -774,7 +777,10 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 
 | File | Tests | Coverage |
 |------|-------|----------|
-| `auth.spec.ts` | 7 | Sign-in form, validation, toggle sign-up, wrong credentials, forgot password, sign-out |
+| `auth.spec.ts` | 17 | Sign-in form + validation (AUTH-001–010), sign-up name + 8-char password validation (AUTH-020–023), forgot password + email confirmation (AUTH-030–031), OAuth buttons (AUTH-040), session persists across reload (AUTH-050) |
+| `home-setup-join.spec.ts` | 14 | Join Existing Home flow (R2-001–014): tile routing, empty/whitespace/invalid UUID rejection, RLS-safe generic error banner, successful join PATCH, paste trimming, no sync-weather on join, error clears on retry, focus/disabled states |
+| `home-setup-create.spec.ts` | 9 | Create New Home flow (R1-001–009): tile routing, required-fields, hemisphere chip, postcode uppercase, successful create RPC + sync-weather, RPC failure banner, in-flight disabled, sync-weather resilience |
+| `welcome-modal.spec.ts` | 9 | First-run WelcomeModal (R3-001–009): trigger conditions, 5-slide navigation, back disabled on slide 0, dot jumps, persona aria-pressed, Skip/Start Quiz PATCH bodies, focus trap |
 | `dashboard.spec.ts` | 43 | Dashboard sections, weather card, daily tasks, plant grid, nav links, pull-to-refresh |
 | `plants.spec.ts` | 4 | Shed page load, search input, nav link, plants-or-empty state |
 | `shed-crud.spec.ts` | 30 | Add plant (manual + AI), edit, archive, restore, delete, search/filter, detail drawer |

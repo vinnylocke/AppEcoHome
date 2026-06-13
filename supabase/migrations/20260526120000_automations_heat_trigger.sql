@@ -1,16 +1,19 @@
--- Weather-aware automations: add a heat-trigger toggle alongside the
--- existing rain-skip toggle. The two are surfaced together in the UI
--- under a parent "Weather-aware" toggle, but stored as separate
--- columns so each can be tuned (or off) independently.
+-- Weather-aware automations: add a heat-trigger toggle alongside the existing
+-- rain-skip toggle.
 --
--- Defaults to off so existing automations behave identically.
-
-ALTER TABLE automations
-  ADD COLUMN trigger_if_hot   boolean NOT NULL DEFAULT false,
-  ADD COLUMN heat_threshold_c numeric NOT NULL DEFAULT 28;
-
-COMMENT ON COLUMN automations.trigger_if_hot IS
-  'When true, run-automations fires this automation at its scheduled_time on days where the forecast max temp is >= heat_threshold_c, even when no controlling task is due that day. Rain-skip still wins if both conditions are met.';
-
-COMMENT ON COLUMN automations.heat_threshold_c IS
-  'Forecast max temperature (°C) above which trigger_if_hot fires. Compared against weather_snapshots.data->>daily.temperature_2m_max[today_idx].';
+-- ────────────────────────────────────────────────────────────────────────
+-- ⚠️  ORDERING BUG: deferred to catch-up migration
+-- ────────────────────────────────────────────────────────────────────────
+-- This migration's original body did `ALTER TABLE automations ADD COLUMN
+-- trigger_if_hot, heat_threshold_c`. The `automations` table is not created
+-- until `20260530000000_automations.sql`, so a fresh chronological
+-- `supabase db reset` crashes here with
+-- `ERROR: relation "automations" does not exist`.
+--
+-- The real work has been moved to:
+--   `20260710020000_ordering_bug_fixups_v2.sql`
+--
+-- That catch-up runs after `automations` is created and uses
+-- `ADD COLUMN IF NOT EXISTS`, so it is a no-op on databases where this
+-- migration was historically applied in commit order.
+SELECT 1 WHERE false;

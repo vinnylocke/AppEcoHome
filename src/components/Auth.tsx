@@ -380,6 +380,7 @@ export const Auth: React.FC = () => {
                     <input
                       ref={firstNameRef}
                       type="text"
+                      data-testid="auth-first-name"
                       value={firstName}
                       onChange={(e) => { setFirstName(e.target.value); setFieldErrors((prev) => ({ ...prev, firstName: "" })); }}
                       aria-invalid={!!fieldErrors.firstName ? "true" : "false"}
@@ -430,6 +431,7 @@ export const Auth: React.FC = () => {
                     <input
                       ref={lastNameRef}
                       type="text"
+                      data-testid="auth-last-name"
                       value={lastName}
                       onChange={(e) => { setLastName(e.target.value); setFieldErrors((prev) => ({ ...prev, lastName: "" })); }}
                       aria-invalid={!!fieldErrors.lastName ? "true" : "false"}
@@ -516,6 +518,7 @@ export const Auth: React.FC = () => {
                 {!isSignUp && (
                   <button
                     type="button"
+                    data-testid="auth-forgot-password"
                     onClick={() => { setIsForgotPassword(true); setError(null); setFieldErrors({}); }}
                     className="text-xs font-bold transition-colors hover:opacity-80"
                     style={{ color: theme.colors.primary }}

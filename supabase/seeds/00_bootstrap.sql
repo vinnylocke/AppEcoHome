@@ -116,9 +116,15 @@ VALUES (
 )
 ON CONFLICT (home_id, user_id) DO NOTHING;
 
--- 5. Link profile to home and enable Perenual (for SHED E2E tests)
+-- 5. Link profile to home, enable Perenual (for SHED E2E tests), and set a
+--    subscription tier so the user lands on /dashboard instead of the
+--    tier-selection gate (introduced by the subscription_tier migration —
+--    NULL on a freshly seeded user always sends them through "Choose your
+--    plan"). 'evergreen' matches the migration's backfill rule for users
+--    with ai_enabled + enable_perenual, so tests see the full feature set.
 UPDATE public.user_profiles
 SET
-  home_id         = '00000000-0000-0000-0000-000000000002',
-  enable_perenual = true
+  home_id           = '00000000-0000-0000-0000-000000000002',
+  enable_perenual   = true,
+  subscription_tier = 'evergreen'
 WHERE uid = '00000000-0000-0000-0000-000000000001';

@@ -75,8 +75,10 @@ export const test = base.extend<AuthFixtures>({
       .waitFor({ state: "hidden", timeout: 10000 })
       .catch(() => {});
 
+    // The "you're authenticated" indicator is the profile-dropdown trigger
+    // (Sign Out itself moved inside the dropdown in the Wave 1D nav cleanup).
     await page
-      .getByRole("button", { name: /sign out/i })
+      .getByTestId("user-profile-trigger")
       .waitFor({ state: "visible", timeout: 10000 })
       .catch(() => {});
 

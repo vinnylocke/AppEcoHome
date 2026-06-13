@@ -1,16 +1,18 @@
 -- Make the seed_packets_with_germination VIEW respect the caller's RLS.
 --
--- By default, Postgres views run with the definer's privileges
--- (typically postgres superuser), which bypasses RLS on the underlying
--- tables. Supabase Studio flags such views as "Restricted" because
--- they could expose data across home boundaries.
+-- ────────────────────────────────────────────────────────────────────────
+-- ⚠️  ORDERING BUG: deferred to catch-up migration
+-- ────────────────────────────────────────────────────────────────────────
+-- This migration's original body did `ALTER VIEW
+-- public.seed_packets_with_germination SET (security_invoker = true)`. The
+-- view is not created until `20260624000500_nursery.sql`, so a fresh
+-- chronological `supabase db reset` crashes here with
+-- `ERROR: relation "public.seed_packets_with_germination" does not exist`.
 --
--- The underlying tables (seed_packets, seed_sowings) already have
--- proper home-member RLS policies. Enabling security_invoker on the
--- view makes it evaluate those policies against the caller's user_id
--- instead of the definer's — so the view sees exactly what the user
--- could see via direct table queries.
+-- The real work has been moved to:
+--   `20260710020000_ordering_bug_fixups_v2.sql`
 --
--- Postgres 15+ feature (Supabase runs PG 15/16).
-
-ALTER VIEW public.seed_packets_with_germination SET (security_invoker = true);
+-- That catch-up runs after the view exists and uses an `IF EXISTS` guard,
+-- so it is a no-op on databases where this migration was historically
+-- applied in commit order.
+SELECT 1 WHERE false;

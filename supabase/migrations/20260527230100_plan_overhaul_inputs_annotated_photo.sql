@@ -1,12 +1,18 @@
--- Garden Overhaul — store the user's annotated photo alongside the
--- original, so the result view can show what they highlighted and
--- the AI can use the marked image as its reference.
+-- Garden Overhaul — store the user's annotated photo alongside the original.
 --
--- annotated_photo_url is null when the user skipped the "highlight"
--- step (full-garden redesign — original behaviour).
-
-ALTER TABLE plan_overhaul_inputs
-  ADD COLUMN annotated_photo_url text;
-
-COMMENT ON COLUMN plan_overhaul_inputs.annotated_photo_url IS
-  'Signed URL of the photo with user-drawn highlight strokes baked in. Null when the user did not annotate. When set, this is the image fed to gemini-2.5-flash-image instead of original_photo_url.';
+-- ────────────────────────────────────────────────────────────────────────
+-- ⚠️  ORDERING BUG: deferred to catch-up migration
+-- ────────────────────────────────────────────────────────────────────────
+-- This migration's original body did `ALTER TABLE plan_overhaul_inputs
+-- ADD COLUMN annotated_photo_url text`. The `plan_overhaul_inputs` table is
+-- not created until `20260625000000_planner_garden_overhaul.sql`, so a
+-- fresh chronological `supabase db reset` crashes here with
+-- `ERROR: relation "plan_overhaul_inputs" does not exist`.
+--
+-- The real work has been moved to:
+--   `20260710020000_ordering_bug_fixups_v2.sql`
+--
+-- That catch-up runs after `plan_overhaul_inputs` is created and uses
+-- `ADD COLUMN IF NOT EXISTS`, so it is a no-op on databases where this
+-- migration was historically applied in commit order.
+SELECT 1 WHERE false;

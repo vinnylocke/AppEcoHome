@@ -181,6 +181,7 @@ export const HomeSetup: React.FC<Props> = ({
                   <button
                     onClick={onCancel}
                     aria-label="Cancel home setup"
+                    data-testid="home-setup-cancel-x"
                     className="p-3 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors"
                   >
                     <X className="w-6 h-6" />
@@ -191,6 +192,7 @@ export const HomeSetup: React.FC<Props> = ({
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-6">
                 <button
                   onClick={() => setStep("create")}
+                  data-testid="home-setup-create-tile"
                   className="flex flex-col items-center justify-center p-8 text-center bg-rhozly-surface-low hover:bg-rhozly-primary/5 border-2 border-transparent hover:border-rhozly-primary/20 rounded-3xl transition-all group focus-visible:ring-2 focus-visible:ring-rhozly-primary focus-visible:ring-offset-2"
                   aria-describedby="create-home-desc"
                 >
@@ -210,6 +212,7 @@ export const HomeSetup: React.FC<Props> = ({
 
                 <button
                   onClick={() => setStep("join")}
+                  data-testid="home-setup-join-tile"
                   className="flex flex-col items-center justify-center p-8 text-center bg-rhozly-surface-low hover:bg-rhozly-primary/5 border-2 border-transparent hover:border-rhozly-primary/20 rounded-3xl transition-all group focus-visible:ring-2 focus-visible:ring-rhozly-primary focus-visible:ring-offset-2"
                   aria-describedby="join-home-desc"
                 >
@@ -229,10 +232,12 @@ export const HomeSetup: React.FC<Props> = ({
 
           {/* Create Home Step */}
           {step === "create" && (
-            <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+            <div className="space-y-8 animate-in slide-in-from-right-4 duration-300" data-testid="home-setup-create-step">
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => setStep("selection")}
+                  data-testid="home-setup-back-from-create"
+                  aria-label="Back to selection"
                   className="p-3 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors"
                 >
                   <ArrowLeft className="w-6 h-6" />
@@ -247,9 +252,9 @@ export const HomeSetup: React.FC<Props> = ({
                 </div>
               </div>
 
-              <form onSubmit={handleCreate} className="space-y-6 max-w-md">
+              <form onSubmit={handleCreate} className="space-y-6 max-w-md" data-testid="home-setup-create-form">
                 {formError && (
-                  <div role="alert" className="flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm font-bold text-red-700">
+                  <div role="alert" data-testid="home-setup-form-error" className="flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm font-bold text-red-700">
                     <span className="shrink-0 mt-0.5">!</span>
                     <span>{formError}</span>
                   </div>
@@ -355,6 +360,7 @@ export const HomeSetup: React.FC<Props> = ({
                 <div className="pt-2">
                   <button
                     type="submit"
+                    data-testid="home-setup-create-submit"
                     disabled={loading}
                     className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-rhozly-primary text-white font-bold rounded-xl hover:bg-rhozly-primary/90 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >
@@ -371,10 +377,12 @@ export const HomeSetup: React.FC<Props> = ({
 
           {/* Join Home Step */}
           {step === "join" && (
-            <div className="space-y-8 animate-in slide-in-from-right-4 duration-300">
+            <div className="space-y-8 animate-in slide-in-from-right-4 duration-300" data-testid="home-setup-join-step">
               <div className="flex items-center gap-4">
                 <button
                   onClick={() => setStep("selection")}
+                  data-testid="home-setup-back-from-join"
+                  aria-label="Back to selection"
                   className="p-3 text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low rounded-xl transition-colors"
                 >
                   <ArrowLeft className="w-6 h-6" />
@@ -389,9 +397,9 @@ export const HomeSetup: React.FC<Props> = ({
                 </div>
               </div>
 
-              <form onSubmit={handleJoin} className="space-y-6 max-w-md">
+              <form onSubmit={handleJoin} className="space-y-6 max-w-md" data-testid="home-setup-join-form">
                 {formError && (
-                  <div role="alert" className="flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm font-bold text-red-700">
+                  <div role="alert" data-testid="home-setup-form-error" className="flex items-start gap-3 px-4 py-3 bg-red-50 border border-red-200 rounded-xl text-sm font-bold text-red-700">
                     <span className="shrink-0 mt-0.5">!</span>
                     <span>{formError}</span>
                   </div>
@@ -421,6 +429,7 @@ export const HomeSetup: React.FC<Props> = ({
                 <div className="pt-2">
                   <button
                     type="submit"
+                    data-testid="home-setup-join-submit"
                     disabled={loading}
                     className="w-full flex items-center justify-center gap-2 py-3 px-4 bg-rhozly-primary text-white font-bold rounded-xl hover:bg-rhozly-primary/90 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   >

@@ -13,6 +13,13 @@
 --   watering   text[] → watering matches any (case-insensitive)
 --   sunlight   text[] → sunlight jsonb array overlaps any (?|)
 
+-- The function body uses `%` (trigram similarity) from pg_trgm. The
+-- extension was historically created by 20260525120000_plant_library_search_extensions
+-- but that migration's body has since been deferred to the v2 catch-up,
+-- which runs LATER chronologically — so on a fresh `supabase db reset`
+-- pg_trgm wouldn't exist at this point. Create it inline here (idempotent).
+CREATE EXTENSION IF NOT EXISTS pg_trgm;
+
 CREATE OR REPLACE FUNCTION public.search_plant_library_relevance_filtered(
   p_query     TEXT,
   p_page_size INT  DEFAULT 12,
