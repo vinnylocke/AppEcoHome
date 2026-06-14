@@ -552,10 +552,11 @@ export default function InstanceCareRoutine({
           </button>
         </div>
       ) : (
-        <div className="space-y-3">
+        <div data-testid="instance-care-routine-list" className="space-y-3">
           {blueprints.map((bp) => (
             <div
               key={bp.id}
+              data-testid={`instance-care-routine-row-${bp.id}`}
               className="p-4 bg-white rounded-2xl border border-rhozly-outline/10 shadow-sm flex flex-col group hover:border-rhozly-primary/30 transition-colors"
             >
               <div className="flex items-start justify-between w-full">

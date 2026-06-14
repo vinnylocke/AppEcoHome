@@ -429,6 +429,7 @@ export default function InstanceEditModal({
 
         <div className="flex bg-rhozly-surface-low p-1 rounded-2xl mb-8 flex-wrap gap-1">
           <button
+            data-testid="instance-modal-tab-details"
             onClick={() => setActiveTab("details")}
             className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "details" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
@@ -436,6 +437,7 @@ export default function InstanceEditModal({
           </button>
 
           <button
+            data-testid="instance-modal-tab-care-guide"
             onClick={() => setActiveTab("care_guide")}
             className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "care_guide" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >
@@ -443,6 +445,7 @@ export default function InstanceEditModal({
           </button>
 
           <button
+            data-testid="instance-modal-tab-routine"
             onClick={() => setActiveTab("routine")}
             className={`flex-1 min-w-[80px] py-3 rounded-xl font-black text-xs flex items-center justify-center gap-1.5 transition-all ${activeTab === "routine" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"}`}
           >

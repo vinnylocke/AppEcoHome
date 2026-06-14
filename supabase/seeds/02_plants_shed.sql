@@ -24,13 +24,14 @@
 -- ---- Plants ----
 
 INSERT INTO public.plants (
-  id, common_name, source, home_id, is_archived,
+  id, common_name, scientific_name, source, home_id, is_archived,
   watering, care_level, cycle, description, sunlight
 )
 VALUES
   (
     1000001,
     'Tomato',
+    '["Solanum lycopersicum"]'::jsonb,
     'manual',
     '00000000-0000-0000-0000-000000000002',
     false,
@@ -43,6 +44,7 @@ VALUES
   (
     1000002,
     'Basil',
+    '["Ocimum basilicum"]'::jsonb,
     'manual',
     '00000000-0000-0000-0000-000000000002',
     false,
@@ -55,6 +57,7 @@ VALUES
   (
     1000003,
     'Rose',
+    '["Rosa rugosa"]'::jsonb,
     'manual',
     '00000000-0000-0000-0000-000000000002',
     false,
@@ -67,6 +70,7 @@ VALUES
   (
     1000004,
     'Boston Fern',
+    '["Nephrolepis exaltata"]'::jsonb,
     'manual',
     '00000000-0000-0000-0000-000000000002',
     false,
@@ -79,6 +83,7 @@ VALUES
   (
     1000005,
     'Mint',
+    '["Mentha spicata"]'::jsonb,
     'manual',
     '00000000-0000-0000-0000-000000000002',
     true,   -- archived
@@ -91,6 +96,7 @@ VALUES
   (
     1000006,
     'Lavender',
+    '["Lavandula angustifolia"]'::jsonb,
     'api',
     '00000000-0000-0000-0000-000000000002',
     false,
@@ -101,12 +107,13 @@ VALUES
     '["Full sun"]'::jsonb
   )
 ON CONFLICT (id) DO UPDATE SET
-  common_name  = EXCLUDED.common_name,
-  home_id      = EXCLUDED.home_id,
-  is_archived  = EXCLUDED.is_archived,
-  watering     = EXCLUDED.watering,
-  care_level   = EXCLUDED.care_level,
-  sunlight     = EXCLUDED.sunlight;
+  common_name     = EXCLUDED.common_name,
+  scientific_name = EXCLUDED.scientific_name,
+  home_id         = EXCLUDED.home_id,
+  is_archived     = EXCLUDED.is_archived,
+  watering        = EXCLUDED.watering,
+  care_level      = EXCLUDED.care_level,
+  sunlight        = EXCLUDED.sunlight;
 
 -- ---- Inventory Items ----
 

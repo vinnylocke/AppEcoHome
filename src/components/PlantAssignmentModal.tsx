@@ -359,6 +359,7 @@ export default function PlantAssignmentModal({
                   <MapPin size={14} /> 1. Location
                 </label>
                 <select
+                  data-testid="plant-assign-location"
                   value={selectedLoc}
                   onChange={(e) => {
                     setSelectedLoc(e.target.value);
@@ -380,6 +381,7 @@ export default function PlantAssignmentModal({
                   <Navigation size={14} /> 2. Area *
                 </label>
                 <select
+                  data-testid="plant-assign-area"
                   value={formData.areaId}
                   onChange={(e) =>
                     setFormData({ ...formData, areaId: e.target.value })
@@ -405,6 +407,8 @@ export default function PlantAssignmentModal({
               </label>
               <div className="flex items-center justify-between bg-rhozly-surface-low p-2 rounded-2xl">
                 <button
+                  data-testid="plant-assign-quantity-decrement"
+                  aria-label="Decrease quantity"
                   onClick={() =>
                     setFormData((p) => ({
                       ...p,
@@ -415,10 +419,15 @@ export default function PlantAssignmentModal({
                 >
                   -
                 </button>
-                <span className="text-3xl font-black font-display">
+                <span
+                  data-testid="plant-assign-quantity-value"
+                  className="text-3xl font-black font-display"
+                >
                   {formData.quantity}
                 </span>
                 <button
+                  data-testid="plant-assign-quantity-increment"
+                  aria-label="Increase quantity"
                   onClick={() =>
                     setFormData((p) => ({ ...p, quantity: p.quantity + 1 }))
                   }
@@ -430,6 +439,7 @@ export default function PlantAssignmentModal({
             </div>
 
             <button
+              data-testid="plant-assign-next"
               onClick={handleNext}
               disabled={!formData.areaId || isStepTransitioning}
               aria-label="Proceed to planting details"
@@ -736,6 +746,7 @@ export default function PlantAssignmentModal({
                 Back
               </button>
               <button
+                data-testid="plant-assign-confirm"
                 onClick={handleSubmit}
                 disabled={
                   isAssigning ||

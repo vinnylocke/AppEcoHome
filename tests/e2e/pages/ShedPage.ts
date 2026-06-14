@@ -46,6 +46,21 @@ export class ShedPage {
   readonly bulkAssignNoArea: Locator;
   readonly bulkAssignConfirm: Locator;
 
+  // Hub-level tabs + the view toggle local to TheShed
+  readonly hubTabShed: Locator;
+  readonly hubTabWatchlist: Locator;
+  readonly hubTabSenescence: Locator;
+  readonly viewToggle: Locator;
+  readonly viewPlantsBtn: Locator;
+  readonly viewNurseryBtn: Locator;
+
+  // Sort dropdown (aria-label only — no testid in source)
+  readonly sortSelect: Locator;
+
+  // Credit badge (any plant on the page)
+  readonly anyCreditBadge: Locator;
+  readonly creditPopover: Locator;
+
   constructor(page: Page) {
     this.page = page;
     this.heading = page.getByRole("heading", { name: "Plants" });
@@ -86,6 +101,29 @@ export class ShedPage {
     this.bulkAssignModal = page.locator('[data-testid="bulk-assign-modal"]');
     this.bulkAssignNoArea = page.locator('[data-testid="bulk-assign-no-area"]');
     this.bulkAssignConfirm = page.locator('[data-testid="bulk-assign-confirm"]');
+
+    this.hubTabShed = page.locator('[data-testid="garden-hub-tab-shed"]');
+    this.hubTabWatchlist = page.locator('[data-testid="garden-hub-tab-watchlist"]');
+    this.hubTabSenescence = page.locator('[data-testid="garden-hub-tab-senescence"]');
+    this.viewToggle = page.locator('[data-testid="shed-view-toggle"]');
+    this.viewPlantsBtn = page.locator('[data-testid="shed-view-plants"]');
+    this.viewNurseryBtn = page.locator('[data-testid="shed-view-nursery"]');
+
+    this.sortSelect = page.getByLabel("Sort plants");
+
+    this.anyCreditBadge = page.locator('[data-testid="image-credit-badge"]').first();
+    this.creditPopover = page.locator('[data-testid="image-credit-popover"]');
+  }
+
+  /** Bulk-assign quantity stepper input for a specific plant id. */
+  bulkAssignQty(plantId: string | number): Locator {
+    return this.page.locator(`[data-testid="bulk-assign-qty-${plantId}"]`);
+  }
+
+  /** Multi-select checkbox area on the plant card (the card itself is clickable
+   *  when select mode is on; the click toggles selection). */
+  selectPlantCard(name: string): Locator {
+    return this.plantCard(name);
   }
 
   /** The light-needs icon on a plant tile (opens the edit modal's Light tab). */
@@ -106,7 +144,14 @@ export class ShedPage {
   }
 
   plantCard(name: string): Locator {
-    return this.page.locator("[data-plant-card]").filter({ hasText: name });
+    // Match the plant card whose primary heading is `name`, not just any card
+    // containing the word — otherwise descriptions or related fields cause
+    // strict-mode violations when other plants mention the same word.
+    return this.page
+      .locator("[data-plant-card]")
+      .filter({
+        has: this.page.locator("h2, h3").filter({ hasText: new RegExp(`^\\s*${name}\\s*$`) }),
+      });
   }
 
   archiveButtonFor(name: string): Locator {

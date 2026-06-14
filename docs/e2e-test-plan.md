@@ -414,6 +414,38 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | SHED-032 | Assign plant — cancel | ✅ | Open modal, click cancel → Tomato status unchanged | Plants + Locations | — | ✅ Passing |
 | SHED-033 | Assign plant — no locations | ❌ | No locations mocked → location dropdown has only placeholder option | Plants only | Supabase route | ✅ Passing |
 
+### Shed Discovery (`tests/e2e/specs/shed-discovery.spec.ts`)
+
+Catalogue PR 2 — gaps the existing `shed-crud.spec.ts` didn't cover. Uses the `authenticatedPage` fixture; reuses the seeded test1 home (added `scientific_name` arrays on every seeded plant for the search tests).
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| SHED-DSC-001 | Hub tab routing — `/shed?tab=watchlist` | ✅ | URL switches GardenHub to Watchlist; Plants grid hidden | Plants | — | ✅ Passing |
+| SHED-DSC-002 | Shed view toggle — Nursery hides plant grid | ✅ | Click `shed-view-nursery` → search bar + plant cards hidden | Plants | — | ✅ Passing |
+| SHED-DSC-003 | Scientific-name search matches Tomato | ✅ | Type "Solanum" → only Tomato card visible (seeded `["Solanum lycopersicum"]`) | Plants | — | ✅ Passing |
+| SHED-DSC-004 | Sort A-Z is the default and renders alphabetically | ✅ | `sortSelect` value = `alphabetical`; first card text < last card text | Plants | — | ✅ Passing |
+| SHED-DSC-005 | Source filter — Plant Database narrows to api-source | ✅ | Lavender (api) visible; Tomato / Basil (manual) hidden | Plants | — | ✅ Passing |
+| SHED-DSC-006 | Source filter — All Sources restores | ✅ | Narrow → reset → manual plants reappear | Plants | — | ✅ Passing |
+| SHED-DSC-007 | Credit badge popover shows source + licence | ✅ | Click `image-credit-badge` → popover with "Source:"/"Licence:" | Plants | — | ⏭ Skipped (no api image credits in current seed) |
+
+### Plant Edit + Assignment (`tests/e2e/specs/plant-edit-assignment.spec.ts`)
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| PE-001 | Plant edit — empty name surfaces validation | ❌ | Clear `plant-common-name-input` → click save → "Mandatory Field" error visible | Plants | — | ✅ Passing |
+| PA-001 | Assignment — quantity stepper clamps min at 1 | ✅ | Decrement at 1 keeps the value at 1 | Plants | — | ✅ Passing |
+| PA-002 | Assignment — increment ticks +1 each press | ✅ | Three increments → quantity = 4 | Plants | — | ✅ Passing |
+| PA-003 | Assignment — Add to garden CTA advances to Step 2 | ✅ | Skip area picker → Confirm Assignment button visible | Plants | — | ✅ Passing |
+| BA-001 | Bulk assign — modal lists per-plant qty inputs | ✅ | Select 2 plants → Bulk Assign → 2 `bulk-assign-qty-*` inputs + confirm visible | Plants | — | ✅ Passing |
+
+### Instance Edit Modal tabs (`tests/e2e/specs/instance-edit-tabs.spec.ts`)
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| IE-001 | Journal tab — add entry persists | ✅ | Open InstanceEditModal → Journal → Save Entry → entry row visible | Plants + Locations | — | ✅ Passing |
+| IE-002 | Routine tab — seeded blueprints render as rows | ✅ | Routine tab → at least one `instance-care-routine-row-*` row | Plants + Blueprints | — | ⏭ Skipped (no blueprints linked to seeded Basil) |
+| IE-003 | Yield tab — log harvest stores amount | ✅ | Yield tab → log 250 → history list shows record with "250" | Plants | — | ✅ Passing |
+
 ---
 
 ## Section 06 — Task Management (/schedule — BlueprintManager)

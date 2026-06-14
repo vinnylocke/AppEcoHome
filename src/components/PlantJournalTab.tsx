@@ -217,7 +217,7 @@ export default function PlantJournalTab({
   }
 
   return (
-    <div className="space-y-6 animate-in fade-in">
+    <div data-testid="plant-journal-tab" className="space-y-6 animate-in fade-in">
       <div className="flex justify-between items-center">
         <div>
           <h3 className="font-black text-xl">Plant Journal</h3>
@@ -227,6 +227,7 @@ export default function PlantJournalTab({
         </div>
         {!isAdding && (
           <button
+            data-testid="plant-journal-new-entry"
             onClick={() => setIsAdding(true)}
             className="flex items-center gap-1 bg-rhozly-primary text-white px-4 py-2 rounded-2xl text-xs font-black hover:scale-105 transition-transform shadow-sm"
           >
@@ -251,6 +252,7 @@ export default function PlantJournalTab({
 
           <div>
             <input
+              data-testid="plant-journal-subject-input"
               type="text"
               placeholder="Subject (e.g., First Bloom!)"
               value={form.subject}
@@ -299,6 +301,7 @@ export default function PlantJournalTab({
           )}
 
           <textarea
+            data-testid="plant-journal-description-input"
             rows={3}
             placeholder="Add some details..."
             value={form.description}
@@ -320,6 +323,7 @@ export default function PlantJournalTab({
           />
 
           <button
+            data-testid="plant-journal-save-entry"
             onClick={handleSave}
             disabled={saving || uploading}
             className="w-full py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:scale-[1.02] transition-transform disabled:opacity-50 flex justify-center items-center gap-2"
@@ -345,6 +349,7 @@ export default function PlantJournalTab({
           entries.map((entry) => (
             <div
               key={entry.id}
+              data-testid={`plant-journal-entry-${entry.id}`}
               className="bg-white p-5 rounded-2xl border border-rhozly-outline/10 shadow-sm flex flex-col gap-3 transition-transform hover:-translate-y-1 hover:shadow-md"
             >
               <div className="flex justify-between items-start">
