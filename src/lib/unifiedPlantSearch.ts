@@ -145,6 +145,40 @@ export async function didYouMean(query: string, limit = 3): Promise<string[]> {
   return out;
 }
 
+/** Semantic "did you mean" via Gemini. Fires when the trigram
+ *  `didYouMean` and external providers both come up empty — typical for
+ *  cultivar / variety names ("Sungold Tomato") that the catalogue hasn't
+ *  seen yet. Returns up to 3 likely-real plant names + a one-line reason
+ *  per item. Silently returns [] on failure so the UI stays usable. */
+export async function aiSuggestPlantNames(
+  query: string,
+): Promise<Array<{ name: string; reason: string }>> {
+  const trimmed = query.trim();
+  if (trimmed.length < 2) return [];
+  try {
+    const { data, error } = await supabase.functions.invoke(
+      "suggest-plant-names",
+      { body: { query: trimmed } },
+    );
+    if (error || !data) return [];
+    if (Array.isArray(data?.suggestions)) {
+      return data.suggestions
+        .filter(
+          (s: unknown): s is { name: string; reason?: string } =>
+            !!s && typeof (s as { name: unknown }).name === "string",
+        )
+        .slice(0, 3)
+        .map((s: { name: string; reason?: string }) => ({
+          name: s.name,
+          reason: typeof s.reason === "string" ? s.reason : "",
+        }));
+    }
+    return [];
+  } catch {
+    return [];
+  }
+}
+
 /**
  * Opt-in wider search — Perenual + Verdantly (+ AI when requested).
  * `searchAllProviders` respects which providers are enabled for the user.

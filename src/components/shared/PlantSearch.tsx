@@ -3,6 +3,7 @@ import { Search, Loader2, Sparkles, Database, Plus, Pencil, Lock, SlidersHorizon
 import {
   searchLibrary,
   didYouMean,
+  aiSuggestPlantNames,
   searchExternal,
   createWithAI,
   libraryRowToSelection,
@@ -104,6 +105,11 @@ export default function PlantSearch({
   const [libraryRows, setLibraryRows] = useState<PlantLibraryRow[]>([]);
   const [searching, setSearching] = useState(false);
   const [suggestions, setSuggestions] = useState<string[]>([]);
+  /** Semantic AI suggestions — fired when the library + trigram both
+   *  return nothing AND the user is AI-tier-eligible. Surfaces likely
+   *  cultivar / variety matches the catalogue hasn't seen yet. */
+  const [aiSuggestions, setAiSuggestions] = useState<Array<{ name: string; reason: string }>>([]);
+  const [aiSuggestLoading, setAiSuggestLoading] = useState(false);
   const [externalRows, setExternalRows] = useState<ProviderSearchResult[]>([]);
   const [externalLoading, setExternalLoading] = useState(false);
   const [externalDone, setExternalDone] = useState(false);
@@ -124,6 +130,10 @@ export default function PlantSearch({
   // used without runLibrary needing to be re-created on every filter change.
   const filtersRef = useRef<PlantFilters>(filters);
   filtersRef.current = filters;
+  // Keep gates in a ref so the stable `runLibrary` callback can read the
+  // current AI-tier flag without restarting on every prop change.
+  const gatesRef = useRef<PlantSearchGates>(gates);
+  gatesRef.current = gates;
 
   const runLibrary = useCallback(async (q: string) => {
     const trimmed = q.trim();
@@ -133,6 +143,7 @@ export default function PlantSearch({
     setExternalRows([]);
     setExternalDone(false);
     setAiError(null);
+    setAiSuggestions([]);
     // Need either a 2+ char query OR at least one active filter (browse-by-filter).
     if (trimmed.length < 2 && filterCount === 0) {
       setLibraryRows([]);
@@ -152,6 +163,23 @@ export default function PlantSearch({
         if (seq === seqRef.current) setSuggestions(sugg);
       } else {
         setSuggestions([]);
+      }
+      // Semantic AI suggestions when library AND trigram both come up
+      // empty AND the user is AI-tier-eligible. This catches the
+      // cultivar / variety case ("Sungold Tomato") where the user knows
+      // exactly what they want but the catalogue hasn't indexed it.
+      if (
+        gatesRef.current.canCreateWithAI &&
+        trimmed.length >= 3 &&
+        rows.length === 0
+      ) {
+        setAiSuggestLoading(true);
+        try {
+          const ai = await aiSuggestPlantNames(trimmed);
+          if (seq === seqRef.current) setAiSuggestions(ai);
+        } finally {
+          if (seq === seqRef.current) setAiSuggestLoading(false);
+        }
       }
     } catch (err) {
       Logger.error("PlantSearch library search failed", err, { q: trimmed });
@@ -382,6 +410,36 @@ export default function PlantSearch({
             </button>
           ))}
           <span className="text-[11px] font-bold text-rhozly-on-surface/50">?</span>
+        </div>
+      )}
+
+      {/* AI semantic suggestions — only when the library + trigram came
+          up empty. Each chip shows the suggested name and a brief reason
+          on hover. */}
+      {(aiSuggestLoading || aiSuggestions.length > 0) && (
+        <div
+          data-testid="plant-search-ai-suggestions"
+          className="flex items-center gap-2 flex-wrap px-1"
+        >
+          <span className="text-[11px] font-bold text-amber-600/70 flex items-center gap-1">
+            <Sparkles size={11} /> Try
+          </span>
+          {aiSuggestLoading && aiSuggestions.length === 0 && (
+            <span className="text-[11px] font-bold text-rhozly-on-surface/40 flex items-center gap-1">
+              <Loader2 size={10} className="animate-spin" /> thinking…
+            </span>
+          )}
+          {aiSuggestions.map((s) => (
+            <button
+              key={s.name}
+              type="button"
+              title={s.reason || undefined}
+              onClick={() => { setQuery(s.name); runLibrary(s.name); }}
+              className="text-[11px] font-black text-amber-700 bg-amber-50 border border-amber-200 px-2.5 py-1 rounded-full hover:bg-amber-100 transition-colors"
+            >
+              {s.name}
+            </button>
+          ))}
         </div>
       )}
 
