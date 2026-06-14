@@ -1601,7 +1601,12 @@ export default function PlantDoctor({
                             // it gives the most precise library match;
                             // fall back to the common name otherwise.
                             const seed = selectedPlantScientific?.trim() || selectedPlantName || "";
-                            navigate(`/shed/add/search?query=${encodeURIComponent(seed)}`, {
+                            // Route via the query-param form that TheShed
+                            // handles (see TheShed.tsx — searchParams.get("open")
+                            // === "add-plant"). The path-form
+                            // `/shed/add/search` is not registered in App.tsx
+                            // and falls through to the dashboard redirect.
+                            navigate(`/shed?open=add-plant&query=${encodeURIComponent(seed)}`, {
                               state: { returnTo: location.pathname + location.search },
                             });
                           }}

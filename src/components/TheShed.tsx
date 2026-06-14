@@ -653,8 +653,18 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       setShowBulkSearch(true);
     } else if (searchParams.get("open") === "add-plant") {
       handledDeepLink.current = currentUrl;
+      // Optional `?query=` pre-fills the BulkSearchModal — Plant Doctor's
+      // "Add to Shed" passes the identified plant name so the user lands
+      // directly on the relevant search results.
+      const query = searchParams.get("query") || "";
+      if (query) setInitialSearchTerm(query);
       setShowBulkSearch(true);
-      setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("open"); return n; }, { replace: true });
+      setSearchParams((p) => {
+        const n = new URLSearchParams(p);
+        n.delete("open");
+        n.delete("query");
+        return n;
+      }, { replace: true });
     }
   }, [location.pathname, location.search, searchParams, setSearchParams]);
 
