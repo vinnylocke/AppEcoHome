@@ -511,7 +511,10 @@ export default function OptimiseTab({ homeId, aiEnabled }: Props) {
       {hasAnyResults && (
         <div className="space-y-3">
           {totalCount === 0 ? (
-            <div className="rounded-2xl border border-rhozly-outline/20 bg-white p-6 text-center">
+            <div
+              data-testid="optimise-all-good"
+              className="rounded-2xl border border-rhozly-outline/20 bg-white p-6 text-center"
+            >
               <Sparkles size={28} className="mx-auto text-emerald-500 mb-2" />
               <p className="text-sm font-semibold text-rhozly-on-surface">All good!</p>
               <p className="text-xs text-rhozly-on-surface-variant mt-1">
@@ -522,10 +525,16 @@ export default function OptimiseTab({ homeId, aiEnabled }: Props) {
           ) : (
             <>
               <div className="flex items-center justify-between">
-                <p className="text-sm font-bold text-rhozly-on-surface">
+                <p
+                  data-testid="optimise-suggestions-found"
+                  className="text-sm font-bold text-rhozly-on-surface"
+                >
                   {totalCount} suggestion{totalCount > 1 ? "s" : ""} found
                 </p>
-                <p className="text-xs text-rhozly-on-surface-variant">
+                <p
+                  data-testid="optimise-selected-count"
+                  className="text-xs text-rhozly-on-surface-variant"
+                >
                   {includedProposals.length} selected
                 </p>
               </div>

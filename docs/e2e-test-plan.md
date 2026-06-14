@@ -522,21 +522,25 @@ Catalogue PR 2 — gaps the existing `shed-crud.spec.ts` didn't cover. Uses the 
 | SCH-027 | Filter by task type — Pest Control | ✅ | Select Pest Control → ailment blueprint shown | Blueprints | — | ✅ Passing |
 | SCH-028 | Clear all filters | ✅ | With filters active, click "Clear All" → all blueprints reappear | Blueprints | — | ✅ Passing |
 
-### Optimise Tab
+### Optimise Tab (Section 06c)
+
+**Spec file:** `tests/e2e/specs/schedule-optimise.spec.ts`
+**Page Object:** `tests/e2e/pages/SchedulePage.ts` (Optimise locators added in PR 7)
+**Seed required:** `03_tasks_blueprints.sql` — adds a Greenhouse fragmentation pair (Cucumber + Pepper Watering BPs, freqs 7 vs 3) so SCH-032 → SCH-039 are deterministic.
 
 | ID | Test Name | Type | Description | Seed | Mock | Status |
 |---|---|---|---|---|---|---|
-| SCH-029 | Tab bar renders | 🔲 | `/schedule` → "Blueprints" and "Optimise" tabs visible | Blueprints | — | 🔲 Planned |
-| SCH-030 | Switch to Optimise tab | 🔲 | Click "Optimise" tab → area selector and Analyse button visible | Any | — | 🔲 Planned |
-| SCH-031 | Analyse with no issues | 🔲 | Select area with single or no blueprints → "All good!" message | Blueprints | — | 🔲 Planned |
-| SCH-032 | Analyse produces proposals | 🔲 | Select area with fragmented blueprints → proposal cards appear | Blueprints | — | 🔲 Planned |
-| SCH-033 | Toggle proposal include/exclude | 🔲 | Uncheck a proposal → "Apply X changes" count decrements | Blueprints | — | 🔲 Planned |
-| SCH-034 | Apply optimisation | 🔲 | Click Apply, confirm → toast "Applied 1 optimisation", history entry appears | Blueprints | — | 🔲 Planned |
-| SCH-035 | Undo session | 🔲 | After apply, click Undo → session reversed, original blueprints visible on Blueprints tab | Blueprints | — | 🔲 Planned |
-| SCH-036 | AI Analyse button hidden without ai_enabled | 🔲 | User without ai_enabled → "AI Analyse" button not visible on Optimise tab | Blueprints | — | 🔲 Planned |
-| SCH-037 | AI Analyse returns proposals | 🔲 | ai_enabled user clicks "AI Analyse" → AI-badged proposal cards appear | Blueprints | Edge fn mock | 🔲 Planned |
-| SCH-038 | AI proposal feedback thumbs | 🔲 | Click thumbs up on an AI proposal → buttons disable; feedback stored | Blueprints | Edge fn mock | 🔲 Planned |
-| SCH-039 | Regenerate modal opens | 🔲 | After AI results appear, click "Regenerate AI results" → modal with textarea shows | Blueprints | Edge fn mock | 🔲 Planned |
+| SCH-029 | Tab bar renders both Routines + Suggestions tabs | ✅ | `/schedule` → `tab-blueprints` and `tab-optimise` both visible | Blueprints | — | ✅ Passing |
+| SCH-030 | Switch to Optimise tab | ✅ | Click `tab-optimise` → scope toggle + Analyse button visible (disabled without area) | Blueprints | — | ✅ Passing |
+| SCH-031 | Analyse with no issues shows "All good!" | ✅ | South Border (only 1 Pruning BP) → `optimise-all-good` empty state | Blueprints | — | ✅ Passing |
+| SCH-032 | Analyse on fragmented area produces proposal cards | ✅ | Greenhouse pair → at least one `proposal-card-*` visible | Blueprints + Greenhouse pair | — | ✅ Passing |
+| SCH-033 | Toggling include/exclude updates the selected count | ✅ | Uncheck a `proposal-toggle-*` → `optimise-selected-count` decrements | Blueprints + Greenhouse pair | — | ✅ Passing |
+| SCH-034 | Apply optimisation shows confirmation, toast, and history row | ✅ | Apply → `confirm-modal-confirm` → "Applied N optimisation" toast → new `session-row-*` | Blueprints + Greenhouse pair | — | ✅ Passing |
+| SCH-035 | Undo reverses the most recent session | ✅ | Click `undo-session-*` → "Optimisation reversed" toast | Blueprints + Greenhouse pair | — | ✅ Passing |
+| SCH-036 | AI Analyse hidden when ai_enabled is false | ❌ | Mock `user_profiles` GET to return `ai_enabled: false` → `optimise-ai-analyse-btn` not rendered | Blueprints | `user_profiles` GET | ✅ Passing |
+| SCH-037 | AI Analyse populates proposals (mocked) | ✅ | Mock `optimise-area-ai` → AI-badged card with mocked id visible | Blueprints | `optimise-area-ai` edge fn | ✅ Passing |
+| SCH-038 | Thumbs-up disables feedback buttons | ✅ | Click `proposal-thumbs-up-*` on mocked AI card → button becomes disabled | Blueprints | edge fn + `optimiser_proposal_feedback` | ✅ Passing |
+| SCH-039 | Regenerate AI results opens reason modal | ✅ | Click `optimise-regenerate-btn` after AI run → `regenerate-reason-input` visible | Blueprints | `optimise-area-ai` edge fn | ✅ Passing |
 
 ### Section 06b — Schedule edge cases + filter cascade + pause UI
 
@@ -988,10 +992,10 @@ Tests that Supabase Realtime subscriptions keep the UI in sync when rows are mut
 
 | ID | Type | Test | Mechanism | Status |
 |---|---|---|---|---|
-| RT-001 | ✅ | Delete area via API → dashboard location tile area count decrements from 3→2 | REST DELETE on `areas`, wait for Realtime `areas` event → `fetchDashboardData()` | 🔲 Planned |
-| RT-002 | ✅ | Complete task via API → task disappears from today's pending list | REST PATCH on `tasks`, wait for Realtime `tasks` event → `fetchTasksAndGhostsSilent()` | 🔲 Planned |
-| RT-003 | ✅ | New blueprint inserted via API → BlueprintManager shows it | REST POST on `task_blueprints`, wait for Realtime `task_blueprints` event → `fetchBlueprints()` | 🔲 Planned |
-| RT-004 | ✅ | Weather snapshot upserted via API → weather tile shows new temperature (99°C) | REST POST on `weather_snapshots`, wait for Realtime `weather_snapshots` event → weather state update | 🔲 Planned |
+| RT-001 | ✅ | Delete area via API → dashboard location tile area count decrements from 3→2 | REST DELETE on `areas`, wait for Realtime `areas` event → `fetchDashboardData()` | ✅ Passing |
+| RT-002 | ✅ | Complete task via API → task disappears from today's pending list | REST PATCH on `tasks`, wait for Realtime `tasks` event → `fetchTasksAndGhostsSilent()` | ✅ Passing |
+| RT-003 | ✅ | New blueprint inserted via API → BlueprintManager shows it | REST POST on `task_blueprints`, wait for Realtime `task_blueprints` event → `fetchBlueprints()` | ✅ Passing |
+| RT-004 | ✅ | Weather snapshot upserted via API → weather tile shows new temperature (99°C) | REST POST on `weather_snapshots`, wait for Realtime `weather_snapshots` event → weather state update | ✅ Passing |
 
 **Notes:**
 - RT-001 uses `data-testid="location-{id}-areas-count"` on the area count span in `LocationTile.tsx`
@@ -1355,51 +1359,51 @@ All Page Objects are implemented. Current files in `tests/e2e/pages/`:
 
 | ID | ✅/❌ | Description | Assertions | Status |
 |----|------|-------------|------------|--------|
-| SHP-001 | ✅ | Page loads with heading | "Shopping Lists" heading visible | 🔲 Planned |
-| SHP-002 | ✅ | Seeded active list appears | "Weekly Garden Shop" card visible | 🔲 Planned |
-| SHP-003 | ✅ | Completed section collapsed by default | `shopping-completed-section-toggle` visible; completed card hidden | 🔲 Planned |
-| SHP-004 | ✅ | Expanding completed section shows completed list | click toggle → "Last Week's Shop" card visible | 🔲 Planned |
-| SHP-005 | ✅ | New List button creates a list | click `shopping-new-list-btn` → new card in grid, toast | 🔲 Planned |
+| SHP-001 | ✅ | Page loads with heading | "Shopping Lists" heading visible | ✅ Passing |
+| SHP-002 | ✅ | Seeded active list appears | "Weekly Garden Shop" card visible | ✅ Passing |
+| SHP-003 | ✅ | Completed section collapsed by default | `shopping-completed-section-toggle` visible; completed card hidden | ✅ Passing |
+| SHP-004 | ✅ | Expanding completed section shows completed list | click toggle → "Last Week's Shop" card visible | ✅ Passing |
+| SHP-005 | ✅ | New List button creates a list | click `shopping-new-list-btn` → new card in grid, toast | ✅ Passing |
 
 ### Stage 2 — Card interactions (SHP-006 – SHP-011)
 
 | ID | ✅/❌ | Description | Assertions | Status |
 |----|------|-------------|------------|--------|
-| SHP-006 | ✅ | Expanding a card shows its items | click expand toggle → item rows visible | 🔲 Planned |
-| SHP-007 | ✅ | Checking an item updates progress badge | check unchecked item → x/y count increments | 🔲 Planned |
-| SHP-008 | ✅ | Rename list via kebab menu | open menu → Rename → type → blur → name updated | 🔲 Planned |
-| SHP-009 | ✅ | Mark Complete moves list to completed section | click `shopping-mark-complete-{id}` → toast; card in completed section | 🔲 Planned |
-| SHP-010 | ✅ | Reopen completed list returns it to active | `shopping-reopen-{id}` → card back in active | 🔲 Planned |
-| SHP-011 | ❌ | Delete requires double-tap confirmation | first click → "Tap again to delete"; second → card gone | 🔲 Planned |
+| SHP-006 | ✅ | Expanding a card shows its items | click expand toggle → item rows visible | ✅ Passing |
+| SHP-007 | ✅ | Checking an item updates progress badge | check unchecked item → x/y count increments | ✅ Passing |
+| SHP-008 | ✅ | Rename list via kebab menu | open menu → Rename → type → blur → name updated | ✅ Passing |
+| SHP-009 | ✅ | Mark Complete moves list to completed section | click `shopping-mark-complete-{id}` → toast; card in completed section | ✅ Passing |
+| SHP-010 | ✅ | Reopen completed list returns it to active | `shopping-reopen-{id}` → card back in active | ✅ Passing |
+| SHP-011 | ❌ | Delete requires double-tap confirmation | first click → "Tap again to delete"; second → card gone | ✅ Passing |
 
 ### Stage 3 — Add Item (plant/shed search) (SHP-012 – SHP-017)
 
 | ID | ✅/❌ | Description | Assertions | Status |
 |----|------|-------------|------------|--------|
-| SHP-012 | ✅ | Add Item button opens sheet | `shopping-add-item-btn-{id}` → `shopping-add-item-sheet` visible | 🔲 Planned |
-| SHP-013 | ✅ | Plant tab is default | `shopping-tab-plant` active styling | 🔲 Planned |
-| SHP-014 | ✅ | Typing name shows shed search results | type "Tomato" → shed results section appears | 🔲 Planned |
-| SHP-015 | ✅ | Selecting shed result shows preview | click `shopping-plant-result-0` → `shopping-add-plant-confirm` visible | 🔲 Planned |
-| SHP-016 | ✅ | Confirming shed result adds item to list | confirm → item with plant name visible in list | 🔲 Planned |
-| SHP-017 | ✅ | "Search All Sources" button appears after shed results | `shopping-fallback-search-all` visible | 🔲 Planned |
+| SHP-012 | ✅ | Add Item button opens sheet | `shopping-add-item-btn-{id}` → `shopping-add-item-sheet` visible | ✅ Passing |
+| SHP-013 | ✅ | Plant tab is default | `shopping-tab-plant` active styling | ✅ Passing |
+| SHP-014 | ✅ | Typing name shows shed search results | type "Tomato" → shed results section appears | ✅ Passing |
+| SHP-015 | ✅ | Selecting shed result shows preview | click `shopping-plant-result-0` → `shopping-add-plant-confirm` visible | ✅ Passing |
+| SHP-016 | ✅ | Confirming shed result adds item to list | confirm → item with plant name visible in list | ✅ Passing |
+| SHP-017 | ✅ | "Search All Sources" button appears after shed results | `shopping-fallback-search-all` visible | ✅ Passing |
 
 ### Stage 4 — Unified search (AI + Verdantly + Perenual) (SHP-018 – SHP-023)
 
 | ID | ✅/❌ | Description | Assertions | Status |
 |----|------|-------------|------------|--------|
-| SHP-018 | ✅ | Search All Sources shows AI / Verdantly / Perenual result sections | click → result section headings visible | 🔲 Planned |
-| SHP-019 | ✅ | Info button on AI result expands Wikipedia accordion | click ℹ on `shopping-ai-result-0` → accordion text visible | 🔲 Planned |
-| SHP-020 | ✅ | Clicking Perenual result opens preview | click `shopping-perenual-result-0` → `shopping-add-plant-confirm` visible | 🔲 Planned |
-| SHP-021 | ✅ | Confirming Perenual result adds item to list | confirm → item in list | 🔲 Planned |
-| SHP-022 | ✅ | Shed offer appears after adding plant | `shopping-add-to-shed-skip` + `shopping-add-to-shed-yes` visible | 🔲 Planned |
-| SHP-023 | ✅ | Skipping shed offer closes sheet | click skip → sheet not visible | 🔲 Planned |
+| SHP-018 | ✅ | Search All Sources shows AI / Verdantly / Perenual result sections | click → result section headings visible | ✅ Passing |
+| SHP-019 | ✅ | Info button on AI result expands Wikipedia accordion | click ℹ on `shopping-ai-result-0` → accordion text visible | ✅ Passing |
+| SHP-020 | ✅ | Clicking Perenual result opens preview | click `shopping-perenual-result-0` → `shopping-add-plant-confirm` visible | ✅ Passing |
+| SHP-021 | ✅ | Confirming Perenual result adds item to list | confirm → item in list | ✅ Passing |
+| SHP-022 | ✅ | Shed offer appears after adding plant | `shopping-add-to-shed-skip` + `shopping-add-to-shed-yes` visible | ✅ Passing |
+| SHP-023 | ✅ | Skipping shed offer closes sheet | click skip → sheet not visible | ✅ Passing |
 
 ### Stage 5 — Product tab (SHP-024 – SHP-025)
 
 | ID | ✅/❌ | Description | Assertions | Status |
 |----|------|-------------|------------|--------|
-| SHP-024 | ✅ | Product tab adds a product item | product tab → fill name + select category → confirm → product row visible | 🔲 Planned |
-| SHP-025 | ❌ | Product — category required | confirm without category → validation visible, item not added | 🔲 Planned |
+| SHP-024 | ✅ | Product tab adds a product item | product tab → fill name + select category → confirm → product row visible | ✅ Passing |
+| SHP-025 | ❌ | Product — category required | confirm without category → validation visible, item not added | ✅ Passing |
 
 ### Stage 6 — Add Purchased Plants to Shed (SHP-026 – SHP-028)
 
@@ -1407,9 +1411,9 @@ Seed state: "Weekly Garden Shop" has "Tomato Seedlings" (checked, `source=null`)
 
 | ID | ✅/❌ | Description | Assertions | Status |
 |----|------|-------------|------------|--------|
-| SHP-026 | ✅ | Button visible for eligible checked plant items | `shopping-add-to-shed-btn-{id}` visible in expanded active list | 🔲 Planned |
-| SHP-027 | ❌ | Shed-sourced plant excluded from button count | button shows "Add 1 Purchased Plant" not "Add 2" (Mint excluded) | 🔲 Planned |
-| SHP-028 | ✅ | Clicking Add to Shed adds inventory and hides button | click → success toast → `shopping-add-to-shed-btn` not visible | 🔲 Planned |
+| SHP-026 | ✅ | Button visible for eligible checked plant items | `shopping-add-to-shed-btn-{id}` visible in expanded active list | ✅ Passing |
+| SHP-027 | ❌ | Shed-sourced plant excluded from button count | button shows "Add 1 Purchased Plant" not "Add 2" (Mint excluded) | ✅ Passing |
+| SHP-028 | ✅ | Clicking Add to Shed adds inventory and hides button | click → success toast → `shopping-add-to-shed-btn` not visible | ✅ Passing |
 
 ### Section 21b — Shopping edge cases (PR 6)
 

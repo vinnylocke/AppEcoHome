@@ -780,7 +780,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `refreshStaleAiPlants.test.ts` | 5 | Wave 4 of AI Plant Overhaul — changed/unchanged paths, empty batch, mid-batch crash isolation, batch-size cap |
 | `sceneJson.test.ts` | 6 | Multi-ID — `parseSceneJson` tolerant parse (clean JSON, code fence, prose preamble, truncated-array salvage, unrecoverable → empty, null/empty input) |
 
-### E2E tests — 422 tests across 26 files (+ 13 isolation tests)
+### E2E tests — 433 tests across 27 files (+ 13 isolation tests)
 
 Tests run across up to 4 parallel workers (`fullyParallel: false` — spec files run in parallel, tests within a file run sequentially).
 
@@ -801,6 +801,7 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `members-permissions.spec.ts` | 4 | Members tab — owner-only home (MEM-001/002/005/006): self-row visible with "(you)", copy join code writes home UUID to clipboard, owner role select absent for self, remove/configure buttons absent for self |
 | `rls-isolation-db.spec.ts` | 6 | DB-level cross-home RLS sweep (RLS-001..006): SELECT tasks/plants/chat denied; INSERT task / UPDATE plant / DELETE blueprint cross-home denied. **Caught a critical RLS bypass on `plants`** — see migration `20260614000000_drop_plants_public_access_bypass.sql` |
 | `schedule-validation.spec.ts` | 5 | BlueprintManager gaps (SCH-V-001..005): frequency min=1 UI guard, filter location/area cascade (enabled real-loc, disabled when location=none), pause toggle visible + reveals 7d/14d/30d options |
+| `schedule-optimise.spec.ts` | 11 | Optimise / Suggestions tab (SCH-029..039): tab render, area selector, "All good!" empty state, fragmentation proposals on the Greenhouse seed pair, include/exclude toggle, Apply + history row, Undo, AI button gate via `ai_enabled`, mocked AI proposals + thumbs feedback + Regenerate modal |
 | `shopping-edge-cases.spec.ts` | 4 | Shopping gaps (SHOP-E-001..004): Add Item sheet renders Plant + Product tabs, Product tab fields render, completed section toggle renders (seed completed list), Add-to-Shed surfaces on the seeded checked-plants list |
 | `planner-restore.spec.ts` | 3 | Planner Archive/Restore (PLN-R-001..003): seeded archived plan visible on Archived tab, options menu shows Restore + Delete, Restore moves plan from Archived → Pending (Active) |
 | `dashboard.spec.ts` | 43 | Dashboard sections, weather card, daily tasks, plant grid, nav links, pull-to-refresh |

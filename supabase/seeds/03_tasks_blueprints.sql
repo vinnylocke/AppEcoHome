@@ -234,6 +234,119 @@ ON CONFLICT (id) DO UPDATE SET
   scope            = EXCLUDED.scope,
   created_by       = EXCLUDED.created_by;
 
+-- ---- Optimise tab fixtures — Greenhouse fragmentation pair ----
+-- Two instance-level Watering blueprints in the (otherwise empty) Greenhouse area
+-- with different frequencies → triggers the optimiser's fragmentation scenario.
+-- Used by SCH-032 → SCH-039 in schedule-optimise.spec.ts. The Greenhouse area is
+-- isolated — no other spec touches it — so adding fixtures here is safe.
+
+-- Cleanup: remove any optimiser-created blueprints from previous Apply runs that
+-- weren't undone. Targets the consolidated title pattern the optimiser uses.
+DELETE FROM public.task_blueprints
+WHERE home_id = '00000000-0000-0000-0000-000000000002'
+  AND area_id = '00000000-0000-0000-0002-000000000003'
+  AND id NOT IN (
+    '00000000-0000-0000-0005-00000000000a',
+    '00000000-0000-0000-0005-00000000000b'
+  );
+
+INSERT INTO public.inventory_items (
+  id, home_id, plant_id, plant_name, status,
+  location_id, location_name, area_id, area_name, identifier
+)
+VALUES
+  -- Cucumber — Greenhouse
+  (
+    '00000000-0000-0000-0004-000000000010',
+    '00000000-0000-0000-0000-000000000002',
+    1000006,
+    'Cucumber (Optimise Seed)',
+    'Planted',
+    '00000000-0000-0000-0001-000000000001',
+    'Outside Garden',
+    '00000000-0000-0000-0002-000000000003',
+    'Greenhouse',
+    'OPT-CUC-001'
+  ),
+  -- Pepper — Greenhouse
+  (
+    '00000000-0000-0000-0004-000000000011',
+    '00000000-0000-0000-0000-000000000002',
+    1000006,
+    'Pepper (Optimise Seed)',
+    'Planted',
+    '00000000-0000-0000-0001-000000000001',
+    'Outside Garden',
+    '00000000-0000-0000-0002-000000000003',
+    'Greenhouse',
+    'OPT-PEP-001'
+  )
+ON CONFLICT (id) DO UPDATE SET
+  plant_name    = EXCLUDED.plant_name,
+  status        = EXCLUDED.status,
+  location_id   = EXCLUDED.location_id,
+  location_name = EXCLUDED.location_name,
+  area_id       = EXCLUDED.area_id,
+  area_name     = EXCLUDED.area_name;
+
+INSERT INTO public.task_blueprints (
+  id, home_id, title, task_type, frequency_days,
+  start_date, end_date, is_recurring, priority,
+  location_id, area_id, inventory_item_ids,
+  blueprint_type, scope, created_by
+)
+VALUES
+  -- Greenhouse Cucumber Watering — every 7 days
+  (
+    '00000000-0000-0000-0005-00000000000a',
+    '00000000-0000-0000-0000-000000000002',
+    'Greenhouse Cucumber Watering',
+    'Watering',
+    7,
+    CURRENT_DATE - INTERVAL '14 days',
+    NULL,
+    true,
+    'Medium',
+    '00000000-0000-0000-0001-000000000001',
+    NULL,
+    ARRAY['00000000-0000-0000-0004-000000000010']::uuid[],
+    'plant',
+    'home',
+    '00000000-0000-0000-0000-000000000001'
+  ),
+  -- Greenhouse Pepper Watering — every 3 days (different freq → fragmentation)
+  (
+    '00000000-0000-0000-0005-00000000000b',
+    '00000000-0000-0000-0000-000000000002',
+    'Greenhouse Pepper Watering',
+    'Watering',
+    3,
+    CURRENT_DATE - INTERVAL '11 days',
+    NULL,
+    true,
+    'Medium',
+    '00000000-0000-0000-0001-000000000001',
+    NULL,
+    ARRAY['00000000-0000-0000-0004-000000000011']::uuid[],
+    'plant',
+    'home',
+    '00000000-0000-0000-0000-000000000001'
+  )
+ON CONFLICT (id) DO UPDATE SET
+  title             = EXCLUDED.title,
+  task_type         = EXCLUDED.task_type,
+  frequency_days    = EXCLUDED.frequency_days,
+  start_date        = EXCLUDED.start_date,
+  inventory_item_ids = EXCLUDED.inventory_item_ids,
+  is_recurring      = true,
+  is_archived       = false;
+
+-- Reset any optimisation sessions accumulated from previous runs so the
+-- "Past Changes" history starts empty each suite run (SCH-034 needs to assert
+-- the first row appears; SCH-035 needs that same row to be the only one).
+DELETE FROM public.optimisation_sessions
+WHERE home_id = '00000000-0000-0000-0000-000000000002';
+
 -- ---- Standalone Physical Tasks ----
 -- Note: tasks uses inventory_item_ids uuid[] (plural array, added in migration 20260424)
 -- These are NOT linked to blueprints so they don't hit the unique_blueprint_date constraint.

@@ -90,6 +90,8 @@ ON CONFLICT (provider_id, provider) DO NOTHING;
 
 -- 2. User profile
 -- Insert directly in case the trigger already fired (idempotent).
+-- IMPORTANT: tier flags (ai_enabled, enable_perenual) get RESET on every reseed
+-- so suites that toggle them mid-run can't leak state between runs.
 INSERT INTO public.user_profiles (uid, email, ai_enabled, is_admin)
 VALUES (
   '00000000-0000-0000-0000-000000000001',
@@ -97,7 +99,9 @@ VALUES (
   true,
   false
 )
-ON CONFLICT (uid) DO NOTHING;
+ON CONFLICT (uid) DO UPDATE SET
+  ai_enabled = EXCLUDED.ai_enabled,
+  is_admin   = EXCLUDED.is_admin;
 
 -- 3. Home
 INSERT INTO public.homes (id, name)

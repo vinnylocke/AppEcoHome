@@ -20,6 +20,26 @@ export class SchedulePage {
   readonly taskTypeSelect: Locator;
   readonly titleError: Locator;
 
+  // Tab bar
+  readonly tabBlueprints: Locator;
+  readonly tabOptimise: Locator;
+
+  // Optimise tab locators
+  readonly optimiseScopeSingle: Locator;
+  readonly optimiseScopeWhole: Locator;
+  readonly optimiseLocationSelect: Locator;
+  readonly optimiseAreaSelect: Locator;
+  readonly optimiseAnalyseBtn: Locator;
+  readonly optimiseAiAnalyseBtn: Locator;
+  readonly optimiseRegenerateBtn: Locator;
+  readonly optimiseApplyBtn: Locator;
+  readonly optimiseAllGood: Locator;
+  readonly optimiseSuggestionsFound: Locator;
+  readonly optimiseSelectedCount: Locator;
+  readonly optimisationHistory: Locator;
+  readonly regenerateReasonInput: Locator;
+  readonly confirmModalConfirm: Locator;
+
   constructor(page: Page) {
     this.page = page;
     this.heading = page.getByRole("heading", { name: /Automations|Routines|Schedules/i });
@@ -40,6 +60,52 @@ export class SchedulePage {
     this.saveButton = page.getByRole("button", { name: /^Save$/i });
     this.taskTypeSelect = page.locator("select").first();
     this.titleError = page.getByText("Task name is required.");
+
+    this.tabBlueprints = page.getByTestId("tab-blueprints");
+    this.tabOptimise = page.getByTestId("tab-optimise");
+
+    this.optimiseScopeSingle = page.getByTestId("optimise-scope-single");
+    this.optimiseScopeWhole = page.getByTestId("optimise-scope-whole");
+    this.optimiseLocationSelect = page.getByTestId("optimise-location-select");
+    this.optimiseAreaSelect = page.getByTestId("optimise-area-select");
+    this.optimiseAnalyseBtn = page.getByTestId("optimise-analyse-btn");
+    this.optimiseAiAnalyseBtn = page.getByTestId("optimise-ai-analyse-btn");
+    this.optimiseRegenerateBtn = page.getByTestId("optimise-regenerate-btn");
+    this.optimiseApplyBtn = page.getByTestId("optimise-apply-btn");
+    this.optimiseAllGood = page.getByTestId("optimise-all-good");
+    this.optimiseSuggestionsFound = page.getByTestId("optimise-suggestions-found");
+    this.optimiseSelectedCount = page.getByTestId("optimise-selected-count");
+    this.optimisationHistory = page.getByTestId("optimisation-history");
+    this.regenerateReasonInput = page.getByTestId("regenerate-reason-input");
+    this.confirmModalConfirm = page.getByTestId("confirm-modal-confirm");
+  }
+
+  proposalCard(id: string): Locator {
+    return this.page.getByTestId(`proposal-card-${id}`);
+  }
+
+  proposalToggle(id: string): Locator {
+    return this.page.getByTestId(`proposal-toggle-${id}`);
+  }
+
+  proposalThumbsUp(id: string): Locator {
+    return this.page.getByTestId(`proposal-thumbs-up-${id}`);
+  }
+
+  anyProposalCard(): Locator {
+    return this.page.locator("[data-testid^='proposal-card-']");
+  }
+
+  anyProposalToggle(): Locator {
+    return this.page.locator("[data-testid^='proposal-toggle-']");
+  }
+
+  anySessionRow(): Locator {
+    return this.page.locator("[data-testid^='session-row-']");
+  }
+
+  anyUndoSessionBtn(): Locator {
+    return this.page.locator("[data-testid^='undo-session-']");
   }
 
   async goto() {

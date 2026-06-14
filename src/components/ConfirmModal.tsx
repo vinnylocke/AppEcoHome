@@ -139,6 +139,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             ref={cancelButtonRef}
             onClick={onClose}
             disabled={busy}
+            data-testid="confirm-modal-cancel"
             className="px-5 py-3 rounded-xl font-bold text-sm text-rhozly-on-surface/70 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors disabled:opacity-50"
           >
             {cancelText}
@@ -147,6 +148,7 @@ export const ConfirmModal: React.FC<ConfirmModalProps> = ({
             ref={confirmButtonRef}
             onClick={handleConfirm}
             disabled={busy}
+            data-testid="confirm-modal-confirm"
             className={`flex items-center justify-center gap-2 px-5 py-3 rounded-xl font-bold text-sm text-white transition-colors shadow-sm disabled:opacity-50 min-w-[100px]
               ${
                 isDestructive
