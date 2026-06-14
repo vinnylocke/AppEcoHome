@@ -20,10 +20,12 @@ import {
   MessageSquarePlus,
   Trash2,
   Plus,
+  Maximize2,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { ConfirmModal } from "./ConfirmModal";
+import { Lightbox } from "./DiagnosisImageGallery";
 import { saveMemoryEvent } from "../lib/plannerMemory";
 import { logEvent, EVENT } from "../events/registry";
 import WikiPlantCard from "./WikiPlantCard";
@@ -73,6 +75,7 @@ export default function PlanStaging({
 
   const [localBlueprint, setLocalBlueprint] = useState(initialBlueprint);
   const [localCoverImage, setLocalCoverImage] = useState(plan.cover_image_url);
+  const [coverLightboxOpen, setCoverLightboxOpen] = useState(false);
   // Tracks whether the user has picked an overhaul concept yet. Used
   // to gate the "Accept & Start Staging" button in Phase 0.
   const [hasSelectedConcept, setHasSelectedConcept] = useState(false);
@@ -982,15 +985,23 @@ export default function PlanStaging({
       {/* Header */}
       <div className="relative h-64 shrink-0 overflow-hidden rounded-b-[3rem] shadow-lg">
         {localCoverImage ? (
-          <img
-            src={optimizedCoverUrl}
-            alt="Cover"
-            className="absolute inset-0 w-full h-full object-cover"
-          />
+          <button
+            type="button"
+            onClick={() => setCoverLightboxOpen(true)}
+            aria-label="Enlarge cover image"
+            data-testid="plan-cover-enlarge"
+            className="absolute inset-0 w-full h-full block focus:outline-none focus-visible:ring-4 focus-visible:ring-white/60"
+          >
+            <img
+              src={optimizedCoverUrl}
+              alt="Cover"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+          </button>
         ) : (
           <div className="absolute inset-0 bg-rhozly-primary" />
         )}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-transparent pointer-events-none" />
         <button
           onClick={onBack}
           aria-label="Go back to plans list"
@@ -998,6 +1009,14 @@ export default function PlanStaging({
         >
           <ArrowLeft size={20} />
         </button>
+        {localCoverImage && (
+          <div
+            className="absolute top-6 right-6 w-10 h-10 bg-white/20 backdrop-blur-md rounded-full flex items-center justify-center text-white z-10 pointer-events-none"
+            aria-hidden="true"
+          >
+            <Maximize2 size={18} />
+          </div>
+        )}
         <div className="absolute bottom-6 left-6 right-6 text-white z-10 flex items-end justify-between gap-4">
           <h1 className="text-3xl sm:text-4xl font-black font-display leading-tight">
             {localBlueprint.project_overview.title}
@@ -1908,6 +1927,21 @@ export default function PlanStaging({
           </div>,
           document.body,
         )}
+      {coverLightboxOpen && localCoverImage && (
+        <Lightbox
+          images={[
+            {
+              id: `plan-cover-${plan.id}`,
+              thumb_url: optimizedCoverUrl || localCoverImage,
+              full_url: localCoverImage,
+              alt: `${localBlueprint.project_overview.title} — cover image`,
+              source: "stored",
+            },
+          ]}
+          startIndex={0}
+          onClose={() => setCoverLightboxOpen(false)}
+        />
+      )}
     </div>
   );
 }
