@@ -135,7 +135,17 @@ Deno.serve(async (req) => {
       .single();
 
     // 4. Insert the row.
-    const row = seedRowToColumnShape(aiPlant, { seeded_by_run_id: runRow?.id });
+    // Preserve the user's exact input as `common_name` — Gemini may
+    // canonicalise "Sungold Tomato" → "Tomato", losing the cultivar the
+    // user actually wanted to track. The scientific_name + care data
+    // from Gemini are still authoritative; only the user-facing label is
+    // pinned to what they typed.
+    const userInputName = name.trim();
+    const aiPlantWithUserName = {
+      ...aiPlant,
+      common_name: userInputName || aiPlant.common_name,
+    };
+    const row = seedRowToColumnShape(aiPlantWithUserName, { seeded_by_run_id: runRow?.id });
     if (!row) {
       if (runRow) {
         await db.from("plant_library_runs").update({ status: "failed", count_failed: 1, error_message: "row shape invalid" }).eq("id", runRow.id);
