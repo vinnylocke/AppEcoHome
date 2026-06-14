@@ -71,6 +71,8 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
 │       │   ├── harvest-window.spec.ts
 │       │   ├── calendar-window.spec.ts
 │       │   ├── plant-doctor-chat.spec.ts
+│       │   ├── members-permissions.spec.ts
+│       │   ├── rls-isolation-db.spec.ts
 │       │   ├── dashboard.spec.ts
 │       │   ├── plants.spec.ts
 │       │   ├── shed-crud.spec.ts
@@ -793,6 +795,8 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `harvest-window.spec.ts` | 9 | Wave 20 TaskModal harvest contract (HRV-001–009): in-window 4-button footer + green pill, Harvested → status flip, Not yet 3/5/7 popover, snooze flow completes, Picked some enabled when linked, window-closed footer + amber pill, Mark missed transitions out of Pending |
 | `calendar-window.spec.ts` | 5 | Calendar visualisations of the harvest contract (CAL-001–005): today's amber highlight when in window, snoozed task hidden from original due_date, dot moves to next_check_at, agenda hides snoozed on today, agenda reveals snoozed on next_check_at |
 | `plant-doctor-chat.spec.ts` | 6 | Garden AI chat regression net (CHAT-001/002/003/006/009/010): FAB opens panel, send + AI reply via mocked agent-chat, no-duplicate-on-reload (22.0023), add_plant_to_shed tool-confirm card on cucumber prompt (22.0023 mandatory rule), context chip hidden on dashboard, cold-open history loads from chat_messages |
+| `members-permissions.spec.ts` | 4 | Members tab — owner-only home (MEM-001/002/005/006): self-row visible with "(you)", copy join code writes home UUID to clipboard, owner role select absent for self, remove/configure buttons absent for self |
+| `rls-isolation-db.spec.ts` | 6 | DB-level cross-home RLS sweep (RLS-001..006): SELECT tasks/plants/chat denied; INSERT task / UPDATE plant / DELETE blueprint cross-home denied. **Caught a critical RLS bypass on `plants`** — see migration `20260614000000_drop_plants_public_access_bypass.sql` |
 | `dashboard.spec.ts` | 43 | Dashboard sections, weather card, daily tasks, plant grid, nav links, pull-to-refresh |
 | `plants.spec.ts` | 4 | Shed page load, search input, nav link, plants-or-empty state |
 | `shed-crud.spec.ts` | 30 | Add plant (manual + AI), edit, archive, restore, delete, search/filter, detail drawer |

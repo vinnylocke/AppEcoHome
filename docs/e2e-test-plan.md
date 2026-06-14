@@ -794,6 +794,34 @@ Catalogue PR 2 — gaps the existing `shed-crud.spec.ts` didn't cover. Uses the 
 | MGMT-020 | Save advanced settings | ✅ | Set pH to 6.5, save → success toast, panel closes | Locations | — | ✅ Passing |
 | MGMT-021 | pH validation — out of range | ❌ | Enter pH = 15 → validation error (range 0–14) | Locations | — | ✅ Passing |
 
+### Section 12b — Members & Permissions (owner-only home)
+
+**Spec file:** `tests/e2e/specs/members-permissions.spec.ts`
+**Page Object:** `tests/e2e/pages/HomeManagementPage.ts`
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| MEM-001 | Members tab shows the owner row with "(you)" suffix | ✅ | `/home-management` → expand seeded home → Members tab → self-row visible | Bootstrap | — | ✅ Passing |
+| MEM-002 | Copy join code writes home UUID to clipboard | ✅ | `home-mgmt-copy-{id}` button writes home_id; clipboard read confirms | Bootstrap | — | ✅ Passing |
+| MEM-005 | Owner cannot demote self — role select absent on own row | ✅ | `canManage && !isMe` gate hides the select; explicit zero-count assertion | Bootstrap | — | ✅ Passing |
+| MEM-006 | Owner's own row has no Remove + no Configure buttons | ✅ | Same gating hides both UserX trash + Settings2 expand on self-row | Bootstrap | — | ✅ Passing |
+
+### Section 12c — DB-level RLS isolation sweep
+
+**Spec file:** `tests/e2e/specs/rls-isolation-db.spec.ts`
+**Utility:** `tests/e2e/utils/rlsAssertions.ts` (`signInAs(workerIndex)` returns a PUBLISHABLE-key supabase-js client signed in as `test{n+1}@rhozly.com`)
+
+These tests run without a browser — they import `@supabase/supabase-js` directly and verify the RLS net at the policy level. Complements the UI-level `data-isolation.spec.ts` (the "isolation" Playwright project).
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| RLS-001 | SELECT tasks for another home returns zero rows | ❌ | Worker 1 → `tasks` `eq("home_id", workerHomeId(1))` → 0 rows | All workers seeded | — | ✅ Passing |
+| RLS-002 | SELECT plants for another home returns zero rows | ❌ | Same pattern on `plants`. **Caught a critical RLS bypass** — a permissive `Public Access` policy was overriding the home-members RLS. Fixed in migration `20260614000000_drop_plants_public_access_bypass.sql` | All workers seeded | — | ✅ Passing |
+| RLS-003 | SELECT chat_messages where user_id != self returns zero rows | ❌ | Per-user RLS — worker 1 can't read worker 2's chat | All workers seeded | — | ✅ Passing |
+| RLS-004 | INSERT a task for another home is rejected | ❌ | WITH CHECK denies; `42501` error or empty data | All workers seeded | — | ✅ Passing |
+| RLS-005 | UPDATE another home's plant affects zero rows | ❌ | After the bypass fix, RLS hides the row → eq() matches 0 | All workers seeded | — | ✅ Passing |
+| RLS-006 | DELETE another home's blueprint affects zero rows | ❌ | Cross-confirm via worker 2's session shows the row still exists | All workers seeded | — | ✅ Passing |
+
 ---
 
 ## Section 13 — Guides (/guides)
