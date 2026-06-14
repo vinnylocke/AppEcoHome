@@ -174,9 +174,23 @@ export default function PlantDetailModal({
                     homeId={homeId}
                   />
                 )
-              ) : (
+              ) : ensuring ? (
                 <div className="rounded-3xl bg-white border border-rhozly-outline/15 p-6 text-center text-sm font-bold text-rhozly-on-surface/55 flex items-center justify-center gap-2">
                   <Loader2 size={16} className="animate-spin text-rhozly-primary" /> Preparing the plant…
+                </div>
+              ) : (
+                // The "ensure into catalogue" call finished but didn't
+                // land a real plantId (typical when the result is from an
+                // external provider that hasn't been cloned in yet, or
+                // when the Gemini round-trip failed). Show a clear next
+                // step rather than an indefinite spinner.
+                <div className="rounded-3xl bg-white border border-rhozly-outline/15 p-8 text-center space-y-3">
+                  <p className="text-sm font-bold text-rhozly-on-surface/70 leading-relaxed">
+                    {error ? `We couldn't pull this plant into your catalogue yet — ${error}` : "We haven't added this plant to your catalogue yet."}
+                  </p>
+                  <p className="text-xs font-medium text-rhozly-on-surface/45 leading-relaxed">
+                    Use the "Add to Shed" action on the search result to unlock the full Grow Guide, Companion suggestions, and Light planning for this plant.
+                  </p>
                 </div>
               )}
             </div>
