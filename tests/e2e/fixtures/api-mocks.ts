@@ -96,6 +96,76 @@ export const MOCK_WEATHER_SNAPSHOT = {
   fetchedAt: "2026-05-01T08:00:00.000Z",
 };
 
+// ---- Canned `agent-chat` chat responses (PR 4) ----
+// Edge-function payload contract per src/components/PlantDoctorChat.tsx
+// — the text path uses `agent-chat` and returns `reply`. When the function
+// doesn't return `messageId`, the client persists the assistant row itself
+// (the duplicate-on-reload guard, Wave 22.0023). Leaving `messageId` unset
+// in test mocks is intentional so the row goes into chat_messages — that
+// means the close-and-reopen reload assertion (CHAT-003) works.
+
+/** Simple text reply — no suggested plants/tasks/actions. */
+export const MOCK_PLANT_DOCTOR_AI_TEXT = {
+  reply:
+    "Tomatoes love full sun and consistent watering — water about 2-3 times per week.",
+};
+
+/** Reply that includes suggested plants → renders ChatPlantCards + PlantActionButtons. */
+export const MOCK_PLANT_DOCTOR_AI_SUGGESTED_PLANTS = {
+  reply: "Here are a few options that grow well together:",
+  suggested_plants: [
+    { name: "Tomato", search_query: "Solanum lycopersicum" },
+    { name: "Basil", search_query: "Ocimum basilicum" },
+  ],
+};
+
+/** Reply that includes suggested tasks → renders TaskActionButtons. */
+export const MOCK_PLANT_DOCTOR_AI_SUGGESTED_TASKS = {
+  reply: "Weekly watering and a fortnightly feed should do it.",
+  suggested_tasks: [
+    {
+      title: "Water tomato",
+      description: "Deep watering twice a week.",
+      task_type: "Watering" as const,
+      due_in_days: 0,
+      is_recurring: true,
+      frequency_days: 3,
+    },
+  ],
+};
+
+/** Cucumber-not-in-Shed regression case (Wave 22.0023) — agent-chat
+ *  surfaces this via a `pendingToolCalls` entry for the `add_plant_to_shed`
+ *  tool, which renders as an inline ToolConfirmCard. */
+export const MOCK_PLANT_DOCTOR_AI_ADD_TO_SHED = {
+  reply:
+    "Cucumbers love a sunny spot. I don't see one in your Shed — want to add it?",
+  pendingToolCalls: [
+    {
+      id: "test-call-cucumber-001",
+      tool: "add_plant_to_shed",
+      args: {
+        common_name: "Cucumber",
+        scientific_name: "Cucumis sativus",
+      },
+      risk_level: "confirm",
+      preview: "Add Cucumber (Cucumis sativus) to your Shed.",
+    },
+  ],
+};
+
+/** Plan-suggestion case — renders PlanSuggestionCard with "Create this Plan". */
+export const MOCK_PLANT_DOCTOR_AI_PLAN_SUGGESTION = {
+  reply: "Looks like you're planning a salad bed. Want to formalise that?",
+  plan_suggestion: {
+    headline: "Salad bed for summer",
+    plan_name: "Summer Salad Bed",
+    description:
+      "Tomato + Cucumber + Basil + Lettuce in one shared raised bed.",
+    plants_of_interest: ["Tomato", "Cucumber", "Basil", "Lettuce"],
+  },
+};
+
 export const MOCK_PREDICT_YIELD = {
   estimated_value: 2.4,
   unit: "kg",

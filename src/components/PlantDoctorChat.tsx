@@ -922,7 +922,10 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
 
       {/* Chat Window */}
       {isOpen && (
-        <div className="fixed bottom-24 right-6 w-[350px] md:w-[450px] max-w-[calc(100vw-3rem)] h-[500px] bg-white rounded-2xl shadow-2xl border border-rhozly-outline/10 flex flex-col z-50 animate-in slide-in-from-bottom-10 overflow-hidden">
+        <div
+          data-testid="plant-doctor-chat-panel"
+          className="fixed bottom-24 right-6 w-[350px] md:w-[450px] max-w-[calc(100vw-3rem)] h-[500px] bg-white rounded-2xl shadow-2xl border border-rhozly-outline/10 flex flex-col z-50 animate-in slide-in-from-bottom-10 overflow-hidden"
+        >
           {/* Header */}
           <div className="bg-rhozly-primary text-white p-4 flex items-center justify-between shrink-0">
             <div className="flex items-center gap-2">
@@ -946,6 +949,8 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                 <Trash2 size={16} />
               </button>
               <button
+                data-testid="plant-doctor-chat-close"
+                aria-label="Close Garden AI chat"
                 onClick={() => setIsOpen(false)}
                 className="hover:bg-white/20 p-2 rounded-full transition-colors"
               >
@@ -999,6 +1004,8 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                   return (
                     <div
                       key={msgKey}
+                      data-testid={`chat-message-${msg.role}`}
+                      data-message-role={msg.role}
                       ref={idx === lastAssistantIdx && msg.role === "assistant" ? lastAssistantRef : undefined}
                       className={`flex gap-3 ${msg.role === "user" ? "flex-row-reverse" : ""}`}
                     >
@@ -1261,6 +1268,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
             />
 
             <input
+              data-testid="chat-input"
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
@@ -1269,6 +1277,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
               disabled={isLoading || isLoadingHistory}
             />
             <button
+              data-testid="chat-send"
               type="submit"
               disabled={isLoading || isLoadingHistory || (!input.trim() && !pendingImage && !pendingAudio)}
               className="bg-rhozly-primary text-white p-3 rounded-xl disabled:opacity-50 hover:bg-rhozly-primary/90 transition-colors shrink-0"

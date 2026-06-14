@@ -263,7 +263,10 @@ export const TaskActionButtons = ({
   if (!tasks || tasks.length === 0) return null;
 
   return (
-    <div className="mt-3 p-4 bg-white/80 backdrop-blur-md rounded-2xl border border-rhozly-surface shadow-sm max-w-2xl">
+    <div
+      data-testid="chat-task-actions"
+      className="mt-3 p-4 bg-white/80 backdrop-blur-md rounded-2xl border border-rhozly-surface shadow-sm max-w-2xl"
+    >
       <div className="flex items-center gap-2 mb-3 text-rhozly-primary">
         <CalendarPlus size={16} />
         <p className="text-xs font-bold uppercase tracking-widest">

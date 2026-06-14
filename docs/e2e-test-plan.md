@@ -631,6 +631,23 @@ Catalogue PR 2 — gaps the existing `shed-crud.spec.ts` didn't cover. Uses the 
 | DOC-018 | Multi-ID — info + See full care | ⬜ | Click `scene-map-info-0-0` → info pills/description shown → `scene-map-see-care-0-0` → `PlantDetailModal` opens (care/grow/companions/light) | Bootstrap | `plant-doctor` (identify_scene + resolve) | ⬜ Planned |
 | DOC-019 | Multi-ID — check + add to Shed | ⬜ | Click `scene-map-check-0` → `scene-map-add-to-shed` ("Add 1 to Shed") visible → click → confirmed plant inserted into `plants`; toast shown | Bootstrap | `plant-doctor` + resolve/save mocks | ⬜ Planned |
 
+### Section 08b — Garden AI Chat (regression net)
+
+**Spec file:** `tests/e2e/specs/plant-doctor-chat.spec.ts`
+**Page Object:** `tests/e2e/pages/PlantDoctorChatPage.ts`
+**Mock helper:** `mockEdgeFunction()` in `tests/e2e/fixtures/api-mocks.ts` + `MOCK_PLANT_DOCTOR_AI_*` constants
+**Per-test reset:** `tests/e2e/utils/chatSeedReset.ts` (uses `SUPABASE_SECRET_KEY` to bypass RLS — no DELETE policy on `chat_messages`)
+**Env requirement:** `SUPABASE_SECRET_KEY` in `.env.test` (local-only service-role)
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| CHAT-001 | FAB opens the chat panel | ✅ | Click `plant-doctor-chat-fab` → panel mounts | Bootstrap (ai_enabled = true) | — | ✅ Passing |
+| CHAT-002 | Send text + mocked AI reply renders | ✅ | Mocked `agent-chat` returns `{reply}` → 1 user bubble + 2 assistant bubbles (welcome + reply) | Bootstrap | `agent-chat` | ✅ Passing |
+| CHAT-003 | Page reload after send → reply renders exactly once (22.0023) | ✅ | After persist + reload, cold-open fetch shows 1 user + 1 assistant (welcome suppressed). Two would be the pre-22.0023 dup. | Bootstrap | `agent-chat` | ✅ Passing |
+| CHAT-006 | Cucumber-not-in-Shed surfaces ToolConfirmCard for `add_plant_to_shed` (22.0023 mandatory rule) | ✅ | Mocked `agent-chat` returns `pendingToolCalls: [{tool: "add_plant_to_shed", ...}]` → inline `tool-confirm-*` + Confirm/Cancel buttons | Bootstrap | `agent-chat` | ✅ Passing |
+| CHAT-009 | Page-context chip hidden on dashboard (no plant context) | ✅ | Dashboard sets `pageContext = { page: "dashboard" }` → chip NOT rendered | Bootstrap | — | ✅ Passing |
+| CHAT-010 | Cold open loads pre-seeded turns from `chat_messages` | ✅ | Insert 2 turns via service-role → reload → both bubbles render in order | Bootstrap + manual seed | — | ✅ Passing |
+
 ---
 
 ## Section 09 — Planner (/planner)

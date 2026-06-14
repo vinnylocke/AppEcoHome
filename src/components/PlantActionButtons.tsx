@@ -42,7 +42,10 @@ export const PlantActionButtons = ({
   if (plantList.length === 0) return null;
 
   return (
-    <div className="mt-3 p-4 bg-white/80 backdrop-blur-md rounded-2xl border border-rhozly-outline shadow-sm max-w-sm mx-auto w-full">
+    <div
+      data-testid="chat-plant-actions"
+      className="mt-3 p-4 bg-white/80 backdrop-blur-md rounded-2xl border border-rhozly-outline shadow-sm max-w-sm mx-auto w-full"
+    >
       <p className="text-xs text-rhozly-primary font-bold uppercase tracking-widest mb-3">
         Add to your Shed
       </p>
@@ -82,6 +85,7 @@ export const PlantActionButtons = ({
 
       {selectedRecs.length > 0 && (
         <button
+          data-testid="chat-plant-actions-add-to-shed"
           onClick={handleAddToShed}
           className="w-full py-3 bg-rhozly-primary hover:bg-rhozly-primary-container text-white rounded-2xl font-black text-xs flex items-center justify-center gap-2 transition-transform active:scale-95"
         >
