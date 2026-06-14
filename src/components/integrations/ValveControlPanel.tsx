@@ -39,6 +39,28 @@ export default function ValveControlPanel({ deviceId, homeId, defaultDurationSec
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [deviceId]);
 
+  /** supabase.functions.invoke surfaces non-2xx as a FunctionsHttpError
+   *  whose `message` is the generic "Edge Function returned a non-2xx
+   *  status code". The actual JSON body — which contains the real reason
+   *  like "Failed to reach eWeLink API" or "eWeLink error: ..." — lives
+   *  on `error.context`. Extract it so the user sees what actually
+   *  happened. */
+  const extractEdgeError = async (err: unknown, fallback: string): Promise<string> => {
+    if (!err) return fallback;
+    const ctx = (err as { context?: { json?: () => Promise<unknown> } }).context;
+    if (ctx?.json) {
+      try {
+        const body = await ctx.json();
+        if (body && typeof body === "object" && "error" in body) {
+          const e = (body as { error?: unknown }).error;
+          if (typeof e === "string" && e.length > 0) return e;
+        }
+      } catch { /* keep fallback */ }
+    }
+    if (err instanceof Error && err.message) return err.message;
+    return fallback;
+  };
+
   const fetchState = async () => {
     setLoading("state");
     setError(null);
@@ -48,7 +70,10 @@ export default function ValveControlPanel({ deviceId, homeId, defaultDurationSec
         body: { deviceId },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) {
+        const real = await extractEdgeError(res.error, "Failed to fetch state");
+        throw new Error(real);
+      }
       setState(res.data.state as ValveState);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to fetch state");
@@ -66,7 +91,10 @@ export default function ValveControlPanel({ deviceId, homeId, defaultDurationSec
         body: { deviceId, command, durationSeconds: defaultDurationSeconds },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (res.error) throw new Error(res.error.message);
+      if (res.error) {
+        const real = await extractEdgeError(res.error, "Command failed");
+        throw new Error(real);
+      }
       setState(command === "turn_on" ? "on" : "off");
       if (command === "turn_on" && res.data?.autoOffAt) {
         setAutoOffAt(new Date(res.data.autoOffAt));
