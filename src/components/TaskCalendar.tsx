@@ -1000,7 +1000,10 @@ export default function TaskCalendar({
                 <button
                   key={index}
                   onClick={() => setSelectedDate(dayObj.date)}
+                  data-testid={`calendar-day-${dayDateStr}`}
                   data-harvest-window={isHarvestWindow ? "true" : undefined}
+                  data-pending-task-count={pendingTasks.length || undefined}
+                  data-today={isToday ? "true" : undefined}
                   className={`relative flex flex-col items-center justify-center aspect-square rounded-2xl sm:rounded-3xl transition-all border-2
                     ${dayObj.isCurrentMonth ? "text-rhozly-on-surface hover:border-rhozly-primary/30" : "text-rhozly-on-surface/20 hover:border-rhozly-outline/10"}
                     ${isSelected
@@ -1110,7 +1113,11 @@ export default function TaskCalendar({
           </div>
         </div>
 
-        <div className="flex-1 bg-rhozly-surface-lowest rounded-[3rem] p-4 sm:p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col lg:min-h-[500px]">
+        <div
+          data-testid="calendar-agenda-panel"
+          data-agenda-date={getLocalDateString(selectedDate)}
+          className="flex-1 bg-rhozly-surface-lowest rounded-[3rem] p-4 sm:p-8 shadow-2xl border border-rhozly-outline/10 flex flex-col lg:min-h-[500px]"
+        >
           <div className="flex justify-between items-center mb-4 sm:mb-8">
             <div>
               <h3 className="text-2xl font-black">Agenda</h3>

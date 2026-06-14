@@ -1115,6 +1115,8 @@ export default function TaskList({
             return (
               <div
                 key={task.id}
+                data-testid={`task-row-${task.id}`}
+                data-task-type={task.type}
                 data-ghost={task.isGhost ? "true" : undefined}
                 onClick={() => {
                   if (isBulkEditing) {

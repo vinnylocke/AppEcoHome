@@ -393,9 +393,12 @@ VALUES (
 )
 ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE + INTERVAL '5 days', status = 'Pending', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
 
--- Harvesting — due today (keeps badge visible even when ghost is suppressed)
+-- Harvesting — due today, inside window (Wave 20 contract)
+-- window_end_date = today + 7d, so the in-window 4-button footer renders.
+-- Used by harvest-window.spec.ts HRV-001/002/003/004/009 and calendar tests.
 INSERT INTO public.tasks (
   id, home_id, title, type, status, due_date,
+  window_end_date,
   location_id, area_id, inventory_item_ids, scope, created_by
 )
 VALUES (
@@ -405,13 +408,82 @@ VALUES (
   'Harvesting',
   'Pending',
   CURRENT_DATE,
+  CURRENT_DATE + INTERVAL '7 days',
   '00000000-0000-0000-0001-000000000001',
   '00000000-0000-0000-0002-000000000001',
   ARRAY['00000000-0000-0000-0004-000000000001']::uuid[],
   'home',
   '00000000-0000-0000-0000-000000000001'
 )
-ON CONFLICT (id) DO UPDATE SET due_date = CURRENT_DATE, status = 'Pending', scope = 'home', created_by = '00000000-0000-0000-0000-000000000001';
+ON CONFLICT (id) DO UPDATE SET
+  due_date         = CURRENT_DATE,
+  window_end_date  = CURRENT_DATE + INTERVAL '7 days',
+  next_check_at    = NULL,
+  status           = 'Pending',
+  scope            = 'home',
+  created_by       = '00000000-0000-0000-0000-000000000001';
+
+-- Harvesting — window closed (window_end_date 2 days ago) — exercises
+-- the HarvestWindowClosedFooter (Log yield anyway / Mark missed).
+-- Powers HRV-007 + HRV-008.
+INSERT INTO public.tasks (
+  id, home_id, title, type, status, due_date,
+  window_end_date,
+  location_id, area_id, inventory_item_ids, scope, created_by
+)
+VALUES (
+  '00000000-0000-0000-0006-000000000020',
+  '00000000-0000-0000-0000-000000000002',
+  'Pumpkin Final Harvest',
+  'Harvesting',
+  'Pending',
+  CURRENT_DATE - INTERVAL '9 days',
+  CURRENT_DATE - INTERVAL '2 days',
+  '00000000-0000-0000-0001-000000000001',
+  '00000000-0000-0000-0002-000000000001',
+  ARRAY['00000000-0000-0000-0004-000000000001']::uuid[],
+  'home',
+  '00000000-0000-0000-0000-000000000001'
+)
+ON CONFLICT (id) DO UPDATE SET
+  due_date         = CURRENT_DATE - INTERVAL '9 days',
+  window_end_date  = CURRENT_DATE - INTERVAL '2 days',
+  next_check_at    = NULL,
+  status           = 'Pending',
+  scope            = 'home',
+  created_by       = '00000000-0000-0000-0000-000000000001';
+
+-- Harvesting — already snoozed via "Not yet 2 days" (Wave 22.0027 contract).
+-- next_check_at = today + 2; due_date original = today; window_end = today + 4.
+-- Used by HRV-005 (reappears on next_check_at) and the calendar-window spec
+-- (snoozed dot moves to next_check_at, agenda hides/reveals correctly).
+INSERT INTO public.tasks (
+  id, home_id, title, type, status, due_date,
+  window_end_date, next_check_at,
+  location_id, area_id, inventory_item_ids, scope, created_by
+)
+VALUES (
+  '00000000-0000-0000-0006-000000000021',
+  '00000000-0000-0000-0000-000000000002',
+  'Strawberry Snooze Test',
+  'Harvesting',
+  'Pending',
+  CURRENT_DATE,
+  CURRENT_DATE + INTERVAL '4 days',
+  CURRENT_DATE + INTERVAL '2 days',
+  '00000000-0000-0000-0001-000000000001',
+  '00000000-0000-0000-0002-000000000001',
+  ARRAY['00000000-0000-0000-0004-000000000001']::uuid[],
+  'home',
+  '00000000-0000-0000-0000-000000000001'
+)
+ON CONFLICT (id) DO UPDATE SET
+  due_date         = CURRENT_DATE,
+  window_end_date  = CURRENT_DATE + INTERVAL '4 days',
+  next_check_at    = CURRENT_DATE + INTERVAL '2 days',
+  status           = 'Pending',
+  scope            = 'home',
+  created_by       = '00000000-0000-0000-0000-000000000001';
 
 -- Inspection — due today
 INSERT INTO public.tasks (

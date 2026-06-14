@@ -346,6 +346,21 @@ All seed files are idempotent (`ON CONFLICT DO UPDATE`) — re-running is always
 | CAL-013 | My To-Do Lists modal — render | ✅ | `?open=todo-lists` → list renders with status pill; tick a row → derived status flips when all rows Completed | Bootstrap + freshly created list | — | ⏳ Not yet written |
 | CAL-014 | TaskModal From-list pill | ✅ | Open a task linked to a list → "From: …" pill visible → click opens Manage modal scrolled to that list | Bootstrap + freshly created list | — | ⏳ Not yet written |
 
+### Section 04b — Calendar harvest-window visualisations (Wave 20+)
+
+**Spec file:** `tests/e2e/specs/calendar-window.spec.ts`
+**Page Object:** `tests/e2e/pages/CalendarPage.ts`
+**Seed required:** `03_tasks_blueprints.sql` (the three Wave-20 harvest tasks — "Harvest Tomatoes", "Pumpkin Final Harvest", "Strawberry Snooze Test")
+**Per-test reset:** `tests/e2e/utils/harvestSeedReset.ts` (UPDATEs the three tasks back to known-good state so mutating tests stay order-independent)
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| CAL-W20-001 | Today's amber harvest highlight (22.0022) | ✅ | While a harvest window is active, today's cell has `data-harvest-window="true"` after deselect | Harvest tasks (03) | — | ✅ Passing |
+| CAL-W20-002 | Snoozed task NOT in today's agenda | ✅ | Strawberry (next_check_at=+2d) is hidden from today's agenda; cell may still light from other tasks | Harvest tasks (03) | — | ✅ Passing |
+| CAL-W20-003 | Snoozed dot lands on next_check_at day (22.0027) | ✅ | Day at `next_check_at` has ≥1 pending dot (the snoozed Strawberry) | Harvest tasks (03) | — | ✅ Passing |
+| CAL-W20-004 | Agenda hides snoozed on today | ✅ | Click today → snoozed Strawberry absent from agenda task list | Harvest tasks (03) | — | ✅ Passing |
+| CAL-W20-005 | Agenda reveals snoozed on next_check_at | ✅ | Click next_check_at day → Strawberry visible in that day's agenda | Harvest tasks (03) | — | ✅ Passing |
+
 ---
 
 ## Section 05 — The Shed (Plant Inventory)
@@ -565,6 +580,25 @@ Catalogue PR 2 — gaps the existing `shed-crud.spec.ts` didn't cover. Uses the 
 | TASK-023 | Task with plant link | ✅ | Task linked to INV_BASIL shows "Basil" plant reference | Tasks + Plants | — | ✅ Passing |
 | TASK-024 | Task with location | ✅ | Task with location shows location name badge | Tasks + Locations | — | ✅ Passing |
 | TASK-025 | Postpone ghost task — shift blueprint | ✅ | Postpone ghost task with "shift all future tasks" toggle → blueprint start_date updated, tombstone created, future ghosts move by same offset | Blueprints | — | ✅ Passing |
+
+### Section 07b — Task Modal — Harvest Window contract (Wave 20+)
+
+**Spec file:** `tests/e2e/specs/harvest-window.spec.ts`
+**Page Object:** `tests/e2e/pages/TaskModalPage.ts`
+**Seed required:** `03_tasks_blueprints.sql` (three harvest tasks — see Section 04b)
+**Per-test reset:** `tests/e2e/utils/harvestSeedReset.ts`
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| HRV-001 | In-window task renders 4-button footer + green pill | ✅ | Tomato (window_end=+7d) → 4 harvest actions + open pill visible | Harvest tasks | — | ✅ Passing |
+| HRV-002 | "Harvested" transitions footer away from harvest grid | ✅ | After click, the 4 harvest buttons go away (footer flips to standard) | Harvest tasks | — | ✅ Passing |
+| HRV-003 | "Not yet" opens 3 / 5 / 7-day popover | ✅ | Click → popover with three day options | Harvest tasks | — | ✅ Passing |
+| HRV-004 | "Not yet 3 days" snooze flow completes (modal closes) | ✅ | Wave 22 contract — snoozeFor() calls onClose | Harvest tasks | — | ✅ Passing |
+| HRV-005 | Pre-snoozed Strawberry NOT in today's calendar agenda (22.0024) | ✅ | Wave 22 — daily list still shows snoozed tasks; calendar agenda hides them via effective_due_date | Harvest tasks | — | ✅ Passing |
+| HRV-006 | "Picked some" enabled for task with linked instance | ✅ | Inverse coverage for the disabled-when-no-instances contract | Harvest tasks | — | ✅ Passing |
+| HRV-007 | Window-closed footer + amber pill on Pumpkin | ✅ | window_end=-2d → closed footer (Log yield / Mark missed) + closed pill; in-window buttons hidden | Harvest tasks | — | ✅ Passing |
+| HRV-008 | "Mark missed" removes task from Pending | ✅ | status='Skipped' → row leaves Pending list | Harvest tasks | — | ✅ Passing |
+| HRV-009 | "Not yet 7 days" smoke (modal closes) | ✅ | Snooze-7 button completes the flow; cap-to-window logic asserted at DB level elsewhere | Harvest tasks | — | ✅ Passing |
 
 ---
 

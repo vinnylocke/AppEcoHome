@@ -467,6 +467,8 @@ export default function TaskModal({
     >
       <div
         ref={trapRef}
+        data-testid="task-modal"
+        data-task-id={task.id}
         role="dialog"
         aria-modal="true"
         aria-label="Task details"

@@ -68,6 +68,8 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
 │       │   ├── shed-discovery.spec.ts
 │       │   ├── plant-edit-assignment.spec.ts
 │       │   ├── instance-edit-tabs.spec.ts
+│       │   ├── harvest-window.spec.ts
+│       │   ├── calendar-window.spec.ts
 │       │   ├── dashboard.spec.ts
 │       │   ├── plants.spec.ts
 │       │   ├── shed-crud.spec.ts
@@ -787,6 +789,8 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `shed-discovery.spec.ts` | 7 | Shed discovery (SHED-DSC-001–007): tab routing (`/shed?tab=watchlist`), nursery view toggle, scientific-name search, default A-Z sort, source filter narrows/restores, credit badge popover |
 | `plant-edit-assignment.spec.ts` | 5 | Plant Edit save validation (PE-001), Plant Assignment quantity stepper min-clamp + free increment + add-to-garden CTA (PA-001/002/003), Bulk Assign modal lists per-plant qty inputs (BA-001) |
 | `instance-edit-tabs.spec.ts` | 3 | InstanceEditModal tab content: Journal add+persist (IE-001), Routine list renders blueprints (IE-002), Yield log records new harvest (IE-003) |
+| `harvest-window.spec.ts` | 9 | Wave 20 TaskModal harvest contract (HRV-001–009): in-window 4-button footer + green pill, Harvested → status flip, Not yet 3/5/7 popover, snooze flow completes, Picked some enabled when linked, window-closed footer + amber pill, Mark missed transitions out of Pending |
+| `calendar-window.spec.ts` | 5 | Calendar visualisations of the harvest contract (CAL-001–005): today's amber highlight when in window, snoozed task hidden from original due_date, dot moves to next_check_at, agenda hides snoozed on today, agenda reveals snoozed on next_check_at |
 | `dashboard.spec.ts` | 43 | Dashboard sections, weather card, daily tasks, plant grid, nav links, pull-to-refresh |
 | `plants.spec.ts` | 4 | Shed page load, search input, nav link, plants-or-empty state |
 | `shed-crud.spec.ts` | 30 | Add plant (manual + AI), edit, archive, restore, delete, search/filter, detail drawer |
