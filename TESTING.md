@@ -73,6 +73,9 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
 │       │   ├── plant-doctor-chat.spec.ts
 │       │   ├── members-permissions.spec.ts
 │       │   ├── rls-isolation-db.spec.ts
+│       │   ├── schedule-validation.spec.ts
+│       │   ├── shopping-edge-cases.spec.ts
+│       │   ├── planner-restore.spec.ts
 │       │   ├── dashboard.spec.ts
 │       │   ├── plants.spec.ts
 │       │   ├── shed-crud.spec.ts
@@ -797,6 +800,9 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `plant-doctor-chat.spec.ts` | 6 | Garden AI chat regression net (CHAT-001/002/003/006/009/010): FAB opens panel, send + AI reply via mocked agent-chat, no-duplicate-on-reload (22.0023), add_plant_to_shed tool-confirm card on cucumber prompt (22.0023 mandatory rule), context chip hidden on dashboard, cold-open history loads from chat_messages |
 | `members-permissions.spec.ts` | 4 | Members tab — owner-only home (MEM-001/002/005/006): self-row visible with "(you)", copy join code writes home UUID to clipboard, owner role select absent for self, remove/configure buttons absent for self |
 | `rls-isolation-db.spec.ts` | 6 | DB-level cross-home RLS sweep (RLS-001..006): SELECT tasks/plants/chat denied; INSERT task / UPDATE plant / DELETE blueprint cross-home denied. **Caught a critical RLS bypass on `plants`** — see migration `20260614000000_drop_plants_public_access_bypass.sql` |
+| `schedule-validation.spec.ts` | 5 | BlueprintManager gaps (SCH-V-001..005): frequency min=1 UI guard, filter location/area cascade (enabled real-loc, disabled when location=none), pause toggle visible + reveals 7d/14d/30d options |
+| `shopping-edge-cases.spec.ts` | 4 | Shopping gaps (SHOP-E-001..004): Add Item sheet renders Plant + Product tabs, Product tab fields render, completed section toggle renders (seed completed list), Add-to-Shed surfaces on the seeded checked-plants list |
+| `planner-restore.spec.ts` | 3 | Planner Archive/Restore (PLN-R-001..003): seeded archived plan visible on Archived tab, options menu shows Restore + Delete, Restore moves plan from Archived → Pending (Active) |
 | `dashboard.spec.ts` | 43 | Dashboard sections, weather card, daily tasks, plant grid, nav links, pull-to-refresh |
 | `plants.spec.ts` | 4 | Shed page load, search input, nav link, plants-or-empty state |
 | `shed-crud.spec.ts` | 30 | Add plant (manual + AI), edit, archive, restore, delete, search/filter, detail drawer |

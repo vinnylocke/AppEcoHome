@@ -504,6 +504,7 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
                     Location
                   </label>
                   <select
+                    data-testid="schedule-filter-location"
                     value={filterLocation}
                     onChange={(e) => setFilterLocation(e.target.value)}
                     className="w-full p-3 bg-rhozly-surface-lowest rounded-xl font-bold text-sm border border-transparent focus:border-rhozly-primary outline-none"
@@ -522,6 +523,7 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
                     Area
                   </label>
                   <select
+                    data-testid="schedule-filter-area"
                     value={filterArea}
                     onChange={(e) => setFilterArea(e.target.value)}
                     disabled={filterLocation === "none"}

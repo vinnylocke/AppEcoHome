@@ -22,7 +22,10 @@ export class PlannerPage {
     this.page = page;
     this.heading = page.getByRole("heading", { name: /Planner/i });
     this.newPlanButton = page.getByRole("button", { name: /New Plan/i });
-    this.pendingTab = page.getByRole("tab", { name: /Pending/i });
+    // Tab labels read "Active (N)", "Completed (N)", "Archived (N)" in
+    // the live UI (the underlying state value for Active is still
+    // "Pending"). Match the user-visible label.
+    this.pendingTab = page.getByRole("tab", { name: /Active/i });
     this.completedTab = page.getByRole("tab", { name: /Completed/i });
     this.archivedTab = page.getByRole("tab", { name: /Archived/i });
     this.emptyState = page.getByText(/New Plan.*let the AI design|no plans/i).first();

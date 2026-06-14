@@ -22,8 +22,11 @@ export class SchedulePage {
 
   constructor(page: Page) {
     this.page = page;
-    this.heading = page.getByRole("heading", { name: /Automations/i });
-    this.newAutomationButton = page.getByRole("button", { name: /New Automation/i });
+    this.heading = page.getByRole("heading", { name: /Automations|Routines|Schedules/i });
+    // Source uses the testid `blueprint-new-btn` and the visible label
+    // shifted from "New Automation" → "New Routine" — testid is the stable
+    // selector.
+    this.newAutomationButton = page.getByTestId("blueprint-new-btn");
     this.filtersButton = page.getByRole("button", { name: /Filters/i });
     this.searchInput = page.getByPlaceholder("Search automations...");
     this.emptyState = page.getByText("No Automations Running");

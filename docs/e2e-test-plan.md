@@ -538,6 +538,19 @@ Catalogue PR 2 — gaps the existing `shed-crud.spec.ts` didn't cover. Uses the 
 | SCH-038 | AI proposal feedback thumbs | 🔲 | Click thumbs up on an AI proposal → buttons disable; feedback stored | Blueprints | Edge fn mock | 🔲 Planned |
 | SCH-039 | Regenerate modal opens | 🔲 | After AI results appear, click "Regenerate AI results" → modal with textarea shows | Blueprints | Edge fn mock | 🔲 Planned |
 
+### Section 06b — Schedule edge cases + filter cascade + pause UI
+
+**Spec file:** `tests/e2e/specs/schedule-validation.spec.ts`
+**Page Object:** `tests/e2e/pages/SchedulePage.ts` (updated to use the `blueprint-new-btn` testid)
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| SCH-V-001 | Frequency input has `min="1"` (UI guard against 0) | ❌ | Open New Routine modal → number input has min=1 | Bootstrap | — | ✅ Passing |
+| SCH-V-002 | Filter Location → Area cascade — Area ENABLED on real location | ✅ | Pick a real location → area select enabled | Locations + Blueprints | — | ✅ Passing |
+| SCH-V-003 | Filter Location → Area cascade — Area DISABLED on "Unassigned (None)" | ✅ | Pick "none" → area disabled | Locations + Blueprints | — | ✅ Passing |
+| SCH-V-004 | Pause toggle visible on a seeded blueprint card | ✅ | `[data-testid$="-pause-toggle"]` visible | Blueprints | — | ✅ Passing |
+| SCH-V-005 | Pause toggle opens 7d / 14d / 30d options | ✅ | Click → three options render | Blueprints | — | ✅ Passing |
+
 ---
 
 ## Section 07 — Task Lifecycle (Task List)
@@ -679,6 +692,18 @@ Catalogue PR 2 — gaps the existing `shed-crud.spec.ts` didn't cover. Uses the 
 | PLAN-019 | Unarchive plan | ✅ | Archived tab → Restore on "Winter Prep" → returns to Pending | Plans | — | ✅ Passing |
 | PLAN-020 | Click plan card → staging view | ✅ | Click "Summer Veg Plan" → PlanStaging renders with plan title | Plans | — | ✅ Passing |
 | PLAN-021 | Back from staging | ✅ | Click back in staging → plan list shown | Plans | — | ✅ Passing |
+
+### Section 09b — Planner archive + restore (additional regression net)
+
+**Spec file:** `tests/e2e/specs/planner-restore.spec.ts`
+**Page Object:** `tests/e2e/pages/PlannerPage.ts` (updated `pendingTab` regex from `/Pending/i` → `/Active/i` to match the actual UI label "Active (N)")
+**Per-test reset:** inline `resetWinterPrepArchived()` — sets the seeded "Winter Prep" plan back to `status='Archived'`, so PLN-R-003's restore mutation doesn't break sibling tests.
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| PLN-R-001 | Seeded archived plan visible on Archived tab | ✅ | Click Archived → "Winter Prep" card visible | Plans | — | ✅ Passing |
+| PLN-R-002 | Archived plan's options menu shows Restore Plan + Delete Plan | ✅ | Open three-dot menu on archived card → both options visible | Plans | — | ✅ Passing |
+| PLN-R-003 | Restore Plan moves card from Archived → Active tab | ✅ | Click Restore → confirm → card gone from Archived, visible on Active | Plans | — | ✅ Passing |
 
 ---
 
@@ -1385,6 +1410,17 @@ Seed state: "Weekly Garden Shop" has "Tomato Seedlings" (checked, `source=null`)
 | SHP-026 | ✅ | Button visible for eligible checked plant items | `shopping-add-to-shed-btn-{id}` visible in expanded active list | 🔲 Planned |
 | SHP-027 | ❌ | Shed-sourced plant excluded from button count | button shows "Add 1 Purchased Plant" not "Add 2" (Mint excluded) | 🔲 Planned |
 | SHP-028 | ✅ | Clicking Add to Shed adds inventory and hides button | click → success toast → `shopping-add-to-shed-btn` not visible | 🔲 Planned |
+
+### Section 21b — Shopping edge cases (PR 6)
+
+**Spec file:** `tests/e2e/specs/shopping-edge-cases.spec.ts`
+
+| ID | Test Name | Type | Description | Seed | Mock | Status |
+|---|---|---|---|---|---|---|
+| SHOP-E-001 | Add Item sheet renders both Plant + Product tabs | ✅ | Expand list → Add Item → both tabs visible | Shopping | — | ✅ Passing |
+| SHOP-E-002 | Product tab — name input + category select + confirm button render | ✅ | Switch to Product tab → all three controls visible | Shopping | — | ✅ Passing |
+| SHOP-E-003 | Completed section toggle renders when seed has ≥1 completed list | ✅ | `shopping-completed-section-toggle` visible on load | Shopping | — | ✅ Passing |
+| SHOP-E-004 | Add-to-Shed button surfaces on the list with seeded pre-checked plants | ✅ | Expand all lists → `shopping-add-to-shed-btn-*` visible | Shopping | — | ✅ Passing |
 
 ---
 
