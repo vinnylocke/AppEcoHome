@@ -393,6 +393,19 @@ async function completeTasks(
   return results;
 }
 
+/** Format a duration in seconds as a human-readable phrase that doesn't
+ *  round sub-minute runs up to "1 min" (a 30s run used to display as
+ *  "1 min" because Math.round(0.5) === 1). Singular/plural is also
+ *  handled so the body never reads "1 minutes". */
+function formatDuration(seconds: number): string {
+  const s = Math.max(0, Math.round(seconds));
+  if (s < 60) return `${s} ${s === 1 ? "second" : "seconds"}`;
+  const mins = Math.floor(s / 60);
+  const rem = s - mins * 60;
+  if (rem === 0) return `${mins} ${mins === 1 ? "minute" : "minutes"}`;
+  return `${mins} ${mins === 1 ? "minute" : "minutes"} ${rem} ${rem === 1 ? "second" : "seconds"}`;
+}
+
 async function sendNotification(
   db: ReturnType<typeof createClient>,
   homeId: string,
@@ -403,7 +416,7 @@ async function sendNotification(
   rainMm = 0,
   heatMaxTempC?: number,
 ): Promise<void> {
-  const durationMins = Math.round(durationSeconds / 60);
+  const durationText = formatDuration(durationSeconds);
 
   let title: string;
   let body: string;
@@ -414,10 +427,10 @@ async function sendNotification(
   } else if (status === "success" || status === "partial") {
     if (heatMaxTempC !== undefined) {
       title = `${automationName} watered (hot weather)`;
-      body = `Hot day forecast — ${Math.round(heatMaxTempC)}°C. Valves ran for ${durationMins} min${status === "partial" ? " (some devices failed)" : "."}`;
+      body = `Hot day forecast — ${Math.round(heatMaxTempC)}°C. Valves ran for ${durationText}${status === "partial" ? " (some devices failed)" : "."}`;
     } else {
       title = `${automationName} watered your garden`;
-      body = `Valves ran for ${durationMins} min${status === "partial" ? " (some devices failed)" : " successfully"}.`;
+      body = `Valves ran for ${durationText}${status === "partial" ? " (some devices failed)" : " successfully"}.`;
     }
   } else {
     title = `${automationName} failed to water`;
