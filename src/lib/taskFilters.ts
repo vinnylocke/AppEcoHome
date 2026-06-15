@@ -24,13 +24,23 @@ export interface SnoozeableTask {
   window_end_date?: string | null;
 }
 
+/**
+ * The "effective" due date — the date the task operationally needs doing.
+ * For a snooze-forward task that's the new `next_check_at`; otherwise it's
+ * the original `due_date`. (A `next_check_at` earlier than `due_date` is
+ * effectively a no-op and gets ignored.)
+ */
+function effectiveDueDate(task: SnoozeableTask): string | null {
+  const due = task.due_date ?? null;
+  const snooze = task.next_check_at ?? null;
+  if (snooze && due && snooze > due) return snooze;
+  return due;
+}
+
 /** True if `today` falls inside this task's effective harvest window. */
 function isInHarvestWindow(task: SnoozeableTask, today: string): boolean {
   if (!task.window_end_date || !task.due_date) return false;
-  const effectiveStart =
-    task.next_check_at && task.next_check_at > task.due_date
-      ? task.next_check_at
-      : task.due_date;
+  const effectiveStart = effectiveDueDate(task) ?? task.due_date;
   return effectiveStart <= today && today <= task.window_end_date;
 }
 
@@ -40,6 +50,12 @@ function isInHarvestWindow(task: SnoozeableTask, today: string): boolean {
  * Matches TaskCalendar's dot-rendering logic so every list-style consumer
  * (Dashboard Today, Calendar agenda, Location page, mobile shell) shows
  * the same picture for a given day.
+ *
+ * Snooze contract: a "Not yet → N days" snooze shifts the task's
+ * effective due date forward. The task is hidden between the original
+ * due date and the new snooze date, then reappears on the snooze date
+ * itself — that's why we use the effective due date rather than the raw
+ * `due_date` column.
  */
 export function isTaskVisibleOnDate(
   task: SnoozeableTask,
@@ -52,13 +68,10 @@ export function isTaskVisibleOnDate(
   if (task.window_end_date && task.due_date) {
     return isInHarvestWindow(task, dateStr);
   }
-  // Non-window: snooze pushes the task off until next_check_at.
-  if (task.next_check_at && task.next_check_at > dateStr) return false;
-  // Standard: due exactly on this date, or earlier if we want overdue carry-in.
-  if (opts.includeOverdue) {
-    return (task.due_date ?? "") <= dateStr;
-  }
-  return task.due_date === dateStr;
+  const effective = effectiveDueDate(task);
+  if (!effective) return false;
+  if (opts.includeOverdue) return effective <= dateStr;
+  return effective === dateStr;
 }
 
 /**
@@ -68,8 +81,8 @@ export function isTaskVisibleOnDate(
  * Definitions:
  * - Completed / Skipped → never overdue.
  * - Harvest still in window → not overdue (it's "ready", not "missed").
- * - Snoozed forward (next_check_at ≥ today) → not overdue.
- * - Otherwise → overdue if due_date < today.
+ * - Effective due date (snooze-aware) in the future or today → not overdue.
+ * - Otherwise → overdue.
  */
 export function isTaskOverdueToday(
   task: SnoozeableTask,
@@ -81,7 +94,6 @@ export function isTaskOverdueToday(
     if (isInHarvestWindow(task, todayStr)) return false;
     // Past the window — fall through to the standard "missed" check below.
   }
-  // Snoozed forward — the effective due date hasn't arrived yet.
-  if (task.next_check_at && task.next_check_at >= todayStr) return false;
-  return !!task.due_date && task.due_date < todayStr;
+  const effective = effectiveDueDate(task);
+  return !!effective && effective < todayStr;
 }

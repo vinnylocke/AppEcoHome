@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../lib/supabase";
+import { isTaskOverdueToday, isTaskVisibleOnDate } from "../lib/taskFilters";
 import {
   getFrequencyDays,
   getHemisphere,
@@ -1327,10 +1328,14 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
           .limit(2000),
         supabase
           .from("tasks")
-          .select("inventory_item_ids, due_date, type, status")
+          .select("inventory_item_ids, due_date, type, status, next_check_at, window_end_date")
           .eq("home_id", homeId)
           .neq("status", "Completed")
           .neq("status", "Skipped")
+          // We need anything whose ORIGINAL due_date is today-or-past so the
+          // snooze/window classification below can pick the right bucket.
+          // (An in-window harvest can have due_date in the past and still be
+          // "ready, not overdue".)
           .lte("due_date", todayStr)
           .limit(2000),
         supabase
@@ -1372,15 +1377,23 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       (openTasksRes.data ?? []).forEach((row: any) => {
         const ids = row.inventory_item_ids as string[] | null;
         if (!ids?.length) return;
+        // Wave 20+ snooze / harvest-window aware. Mirrors PlantEditModal's
+        // glance strip + TaskCalendar's dot rendering so the plant tile's
+        // chip set lines up with what the user sees everywhere else.
+        const overdue = isTaskOverdueToday(row, todayStr);
+        const dueToday = !overdue && isTaskVisibleOnDate(row, todayStr);
+        const harvestReady =
+          row.type === "Harvesting" &&
+          isTaskVisibleOnDate(row, todayStr, { includeOverdue: true });
         const seenPlantsForRow = new Set<number>();
         for (const itemId of ids) {
           const pid = itemToPlant.get(String(itemId));
           if (pid == null || seenPlantsForRow.has(pid)) continue;
           seenPlantsForRow.add(pid);
           const entry = ensure(pid);
-          if (row.due_date < todayStr) entry.overdueCount++;
-          else if (row.due_date === todayStr) entry.dueTodayCount++;
-          if (row.type === "Harvesting" && row.due_date <= todayStr) entry.harvestDue = true;
+          if (overdue) entry.overdueCount++;
+          else if (dueToday) entry.dueTodayCount++;
+          if (harvestReady) entry.harvestDue = true;
         }
       });
       (ailmentsRes.data ?? []).forEach((row: any) => {

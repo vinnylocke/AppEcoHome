@@ -43,6 +43,17 @@ describe("isTaskVisibleOnDate — non-window tasks", () => {
     ).toBe(true);
   });
 
+  it("counts a snoozed-to-today task as 'due today' (effective due = next_check_at)", () => {
+    // User snoozed yesterday's task forward by 1 day → it should resurface
+    // on today's strict "due today" list, not just the overdue carry-in.
+    expect(
+      isTaskVisibleOnDate(
+        { status: "Pending", due_date: YESTERDAY, next_check_at: TODAY },
+        TODAY,
+      ),
+    ).toBe(true);
+  });
+
   it("never shows a Skipped task", () => {
     expect(
       isTaskVisibleOnDate({ status: "Skipped", due_date: TODAY }, TODAY, { includeOverdue: true }),

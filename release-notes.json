@@ -2,9 +2,7 @@
   {
     "label": "Bug fixes",
     "items": [
-      "Water valve — the integration now silently refreshes its eWeLink session when the access token expires, instead of showing 'access token expired' on every tap. You only need to reconnect manually when the refresh itself fails.",
-      "Dashboard 'Today's Tasks' now respects 'Not yet → N days' snoozes on harvest tasks. Snoozed harvests are hidden until their new check-in date arrives — matching what the calendar and agenda already showed.",
-      "Plant detail at-a-glance strip no longer counts snoozed or in-window harvest tasks as 'overdue'. The Shed plant counter now agrees with the calendar."
+      "Shed plant tile — the 'X overdue' chip now respects 'Not yet' snoozes and harvest windows, matching what the plant detail and calendar already showed. No more stale overdue badge on the tile after you've already snoozed a task forward."
     ]
   }
 ]
