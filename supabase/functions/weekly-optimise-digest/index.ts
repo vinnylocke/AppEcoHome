@@ -13,6 +13,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
+import { shouldNotify, type NotificationPrefs } from "../_shared/notificationPrefs.ts";
 
 const FN = "weekly-optimise-digest";
 
@@ -63,10 +64,16 @@ serve(async (req) => {
 
     const homesQuery = supabase.from("homes").select("id, name");
     if (bodyHomeId) homesQuery.eq("id", bodyHomeId);
-    const [{ data: homes }, { data: homeMembers }] = await Promise.all([
+    const [{ data: homes }, { data: homeMembers }, { data: profileRows }] = await Promise.all([
       homesQuery,
       supabase.from("home_members").select("home_id, user_id"),
+      // Wave 22.0044 — server-side respect for the Optimise digest mute.
+      supabase.from("user_profiles").select("uid, notification_prefs"),
     ]);
+    const prefsByUser: Record<string, NotificationPrefs> = {};
+    for (const row of (profileRows ?? []) as Array<{ uid: string; notification_prefs: NotificationPrefs | null }>) {
+      prefsByUser[row.uid] = row.notification_prefs ?? {};
+    }
     if (!homes || homes.length === 0) {
       return new Response(JSON.stringify({ message: "No homes." }), { status: 200, headers: jsonHeaders });
     }
@@ -134,7 +141,12 @@ serve(async (req) => {
       }
 
       if (notify) {
-        const notifications = membersByHome[home.id].map((user_id) => ({
+        // Drop users who muted the Optimise digest.
+        const eligibleUsers = membersByHome[home.id].filter(
+          (uid) => shouldNotify(prefsByUser[uid], "optimiseDigest"),
+        );
+        if (eligibleUsers.length === 0) continue;
+        const notifications = eligibleUsers.map((user_id) => ({
           user_id,
           home_id: home.id,
           title,

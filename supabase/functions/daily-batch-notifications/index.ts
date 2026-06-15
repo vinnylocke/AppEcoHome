@@ -3,6 +3,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { sunsetUtc, formatSunsetLocal } from "../_shared/sunsetTime.ts";
+import { isTaskActionableToday } from "../_shared/taskFilters.ts";
+import {
+  categoryForTaskType,
+  shouldNotify,
+  type NotificationPrefs,
+} from "../_shared/notificationPrefs.ts";
 
 const FN = "daily-batch-notifications";
 
@@ -24,21 +30,46 @@ serve(async (req) => {
       { data: allHomes, error: homesError },
       { data: pendingTasks, error: taskError },
       { data: userPlantPrefs },
+      { data: profileRows },
     ] = await Promise.all([
       supabase.from("home_members").select("user_id, home_id"),
       supabase.from("homes").select("id, lat, lng, timezone"),
-      supabase.from("tasks").select("id, home_id, title").eq("status", "Pending").lte("due_date", today),
+      // Wave 22.0044 — include `next_check_at`, `window_end_date`, `type`
+      // so the in-memory filter can drop snoozed-forward tasks and
+      // window-closed harvests. Without this filter, "Not yet → 3 days"
+      // on a harvest task still kept firing the push notification on
+      // day 0 + every day after.
+      supabase
+        .from("tasks")
+        .select("id, home_id, title, type, due_date, next_check_at, window_end_date, status")
+        .eq("status", "Pending")
+        .lte("due_date", today),
       supabase.from("planner_preferences").select("user_id, entity_name").eq("entity_type", "plant").eq("sentiment", "positive"),
+      // Server-side notification prefs (Wave 22.0044). Sparse jsonb; an
+      // empty object means "send everything" so legacy users aren't muted.
+      supabase.from("user_profiles").select("uid, notification_prefs"),
     ]);
 
     if (memberError) throw memberError;
     if (homesError) throw homesError;
     if (taskError) throw taskError;
 
+    // Build a quick lookup: userId → NotificationPrefs (defaults to {}).
+    const prefsByUser: Record<string, NotificationPrefs> = {};
+    for (const row of (profileRows ?? []) as Array<{ uid: string; notification_prefs: NotificationPrefs | null }>) {
+      prefsByUser[row.uid] = row.notification_prefs ?? {};
+    }
+
+    // Drop snoozed-forward tasks + closed-window harvests before grouping.
+    const actionableTasks = (pendingTasks ?? []).filter(
+      (t: any) => isTaskActionableToday(t, today),
+    );
+
     log(FN, "loaded", {
       members: allMembers?.length ?? 0,
       homes: allHomes?.length ?? 0,
-      pendingTasks: pendingTasks?.length ?? 0,
+      pendingTasksRaw: pendingTasks?.length ?? 0,
+      actionableTasks: actionableTasks.length,
     });
 
     // Keep `homeMembers` as the variable the rest of the function uses —
@@ -49,7 +80,7 @@ serve(async (req) => {
     // 2. Group pending tasks by home. Empty groups are fine; the
     //    daily_batch loop below short-circuits per-member when the
     //    home has no tasks.
-    const tasksByHome: Record<string, any[]> = (pendingTasks ?? []).reduce(
+    const tasksByHome: Record<string, any[]> = actionableTasks.reduce(
       (acc: Record<string, any[]>, task: any) => {
         if (task.home_id) {
           if (!acc[task.home_id]) acc[task.home_id] = [];
@@ -62,11 +93,11 @@ serve(async (req) => {
     const homeIds = Object.keys(tasksByHome);
 
     // Build a quick lookup: userId → Set of preferred plant names (lowercase)
-    const prefsByUser: Record<string, Set<string>> = {};
+    const prefsByPlannerUser: Record<string, Set<string>> = {};
     for (const pref of userPlantPrefs ?? []) {
       if (!pref.user_id) continue;
-      if (!prefsByUser[pref.user_id]) prefsByUser[pref.user_id] = new Set();
-      prefsByUser[pref.user_id].add(pref.entity_name.toLowerCase());
+      if (!prefsByPlannerUser[pref.user_id]) prefsByPlannerUser[pref.user_id] = new Set();
+      prefsByPlannerUser[pref.user_id].add(pref.entity_name.toLowerCase());
     }
 
     // 4. Create a notification for EVERY person in the home
@@ -85,13 +116,27 @@ serve(async (req) => {
       const homeTasks = tasksByHome[member.home_id];
       if (!homeTasks || homeTasks.length === 0) continue;
 
-      // Check if any task title mentions one of this user's preferred plants
-      const userPrefs = prefsByUser[member.user_id];
+      // Wave 22.0044 — per-user category mute respect. If the user has
+      // turned off `master`, skip entirely. Otherwise drop tasks whose
+      // category (Watering / Harvesting / Pruning) is muted. Tasks
+      // outside those three categories (Fertilizing, Inspection, etc.)
+      // fall through and are always counted.
+      const prefs = prefsByUser[member.user_id];
+      if (prefs && prefs.master === false) continue;
+      const relevantTasks = (homeTasks as any[]).filter((task) => {
+        const category = categoryForTaskType(task.type);
+        if (!category) return true;
+        return shouldNotify(prefs, category);
+      });
+      if (relevantTasks.length === 0) continue;
+
+      // Featured-plant pick walks the surviving (un-muted) tasks.
+      const planterPrefs = prefsByPlannerUser[member.user_id];
       let featuredPlant: string | null = null;
-      if (userPrefs && userPrefs.size > 0) {
-        for (const task of homeTasks) {
+      if (planterPrefs && planterPrefs.size > 0) {
+        for (const task of relevantTasks) {
           const taskTitleLower = task.title.toLowerCase();
-          for (const plantName of userPrefs) {
+          for (const plantName of planterPrefs) {
             if (taskTitleLower.includes(plantName)) {
               featuredPlant = task.title;
               break;
@@ -104,9 +149,9 @@ serve(async (req) => {
       const title = "🌿 Good Morning!";
       const body = featuredPlant
         ? `Your ${featuredPlant} needs attention today!`
-        : homeTasks.length === 1
-          ? `Your home has a pending task: ${homeTasks[0].title}.`
-          : `Your home has ${homeTasks.length} plant care tasks waiting for you today!`;
+        : relevantTasks.length === 1
+          ? `Your home has a pending task: ${relevantTasks[0].title}.`
+          : `Your home has ${relevantTasks.length} plant care tasks waiting for you today!`;
 
       notificationsToInsert.push({
         user_id: member.user_id,
@@ -155,6 +200,8 @@ serve(async (req) => {
           for (const member of homeMembers) {
             if (member.home_id !== home.id) continue;
             if (goldenAlreadySent.has(member.user_id)) continue;
+            // Wave 22.0044 — server-side respect for the Golden Hour mute.
+            if (!shouldNotify(prefsByUser[member.user_id], "goldenHour")) continue;
             goldenHourNotifs.push({
               user_id: member.user_id,
               home_id: home.id,

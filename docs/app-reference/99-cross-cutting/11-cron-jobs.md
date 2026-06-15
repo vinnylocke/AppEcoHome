@@ -15,8 +15,8 @@
 | Pattern Scan | every 8h (`0 */8 * * *`) | `pattern-scan` | Run pattern detectors → `pattern_hits`. Cadence reduced from 6h → 8h to cut IO. |
 | Pattern Evaluate | every 8h, +30 min (`30 */8 * * *`) | `pattern-evaluate` | Score + dedupe → `user_insights`. Stays paired with pattern-scan. |
 | Refresh Behaviour Summary | weekly | `refresh-behaviour-summary` | Build per-user AI context |
-| Daily Batch Notifications | daily | `daily-batch-notifications` | Send push / email digests |
-| Weekly Digest | weekly | `weekly-digest` | Weekly summary email |
+| Daily Batch Notifications | daily 08:00 UTC | `daily-batch-notifications` | Send push digest. Wave 22.0044: honours `user_profiles.notification_prefs` (master + per-category mutes for Watering / Harvesting / Pruning / Golden hour). Filters pending tasks through the Wave 20+ snooze + harvest-window contract — "Not yet → N days" tasks and post-window harvests no longer fire. |
+| Weekly Digest | Mondays 08:00 UTC | `weekly-digest` | Weekly summary email (Resend). Wave 22.0044: dedups recipients across multi-home members (one combined email per address; `digestStyle: per_home` opts back into the legacy fan-out). Honours `weeklyOverview` mute. Vertical weather strip (mobile-readable) + clickable task rows linking to `/dashboard?view=calendar&date=YYYY-MM-DD`. |
 | Purge Stale Species Cache | weekly | `purge-stale-species-cache` | Clear old provider caches |
 | Refresh Stale AI Plants | daily (03:00 UTC) | `refresh-stale-ai-plants` | Re-check global AI care guides every ~90 days; diff-based version bump |
 | Refresh Stale Grow Guides | daily (03:30 UTC) | `refresh-stale-grow-guides` | Re-check `plant_grow_guides` every ~90 days; diff-based `freshness_version` bump. Batch capped at 25/run. System-attributed AI usage. See [Grow Guide Tab](../08-modals-and-overlays/36-grow-guide-tab.md). |

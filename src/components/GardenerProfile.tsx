@@ -30,12 +30,14 @@ interface Props {
 type Tab = "account" | "notifications" | "achievements" | "stats";
 
 // ─── Notification preferences ────────────────────────────────────────────────
-// Persisted in localStorage as a forward-looking UI surface. Wave 8 will wire
-// these to backend filtering — until then, toggles affect in-app toast routing
-// only (the "active" categories below). Toggles marked "wired" actually do
-// something today; the rest persist but don't yet influence delivery.
+// Wave 22.0044 — synced to `user_profiles.notification_prefs` so the
+// server (daily-batch + weekly-digest + weekly-optimise-digest) honours
+// the same mutes the in-app UI shows. localStorage is kept as a fallback
+// for instant first paint while the DB read is in flight.
 
 const LS_NOTIF_PREFS = "rhozly_notif_prefs";
+
+type DigestStyle = "combined" | "per_home";
 
 interface NotificationPrefs {
   master:         boolean;
@@ -47,6 +49,9 @@ interface NotificationPrefs {
   optimiseDigest: boolean;
   weeklyOverview: boolean;
   betaPrompts:    boolean;
+  /** Weekly email: one combined email per recipient with sections per home,
+   *  or the legacy fan-out (one email per home). */
+  digestStyle:    DigestStyle;
 }
 
 const DEFAULT_NOTIF_PREFS: NotificationPrefs = {
@@ -59,6 +64,7 @@ const DEFAULT_NOTIF_PREFS: NotificationPrefs = {
   optimiseDigest: true,   // Wave 21.C — wired
   weeklyOverview: true,   // Wave 21.A — new
   betaPrompts:    true,
+  digestStyle:    "combined", // Wave 22.0044
 };
 
 function loadNotifPrefs(): NotificationPrefs {
@@ -76,16 +82,60 @@ function saveNotifPrefs(prefs: NotificationPrefs) {
   try { localStorage.setItem(LS_NOTIF_PREFS, JSON.stringify(prefs)); } catch { /* ignore */ }
 }
 
-function NotificationsTab() {
+/** Push the user's current prefs to `user_profiles.notification_prefs`.
+ *  Fire-and-forget — failure is non-fatal (the localStorage value is the
+ *  source of truth for the UI; the server falls back to "send everything"
+ *  when the column is empty). */
+async function syncNotifPrefsToServer(uid: string, prefs: NotificationPrefs): Promise<void> {
+  try {
+    await supabase
+      .from("user_profiles")
+      .update({ notification_prefs: prefs })
+      .eq("uid", uid);
+  } catch {
+    // ignore — see comment above
+  }
+}
+
+function NotificationsTab({ userId }: { userId: string }) {
   const [prefs, setPrefs] = useState<NotificationPrefs>(() => loadNotifPrefs());
   const [permission, setPermission] = useState<NotificationPermission | "unsupported">(
     typeof window !== "undefined" && "Notification" in window ? Notification.permission : "unsupported",
   );
 
+  // Wave 22.0044 — pull server prefs on mount so the toggles reflect what
+  // the cron functions will actually honour. localStorage is the fallback
+  // for offline / first-paint; server wins when present + non-empty.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await supabase
+          .from("user_profiles")
+          .select("notification_prefs")
+          .eq("uid", userId)
+          .single();
+        const remote = data?.notification_prefs;
+        if (!cancelled && remote && typeof remote === "object" && Object.keys(remote).length > 0) {
+          const merged = { ...DEFAULT_NOTIF_PREFS, ...remote };
+          setPrefs(merged);
+          saveNotifPrefs(merged);
+        }
+      } catch {
+        // ignore — localStorage prefs already loaded
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [userId]);
+
   const update = (patch: Partial<NotificationPrefs>) => {
     const next = { ...prefs, ...patch };
     setPrefs(next);
     saveNotifPrefs(next);
+    // Fire-and-forget sync to server. Failure is silent — UI state already
+    // updated, localStorage already saved, server-fallback semantics mean
+    // a sync failure just means the server temporarily falls back to "send".
+    void syncNotifPrefsToServer(userId, next);
   };
 
   const requestBrowserPerm = async () => {
@@ -94,8 +144,10 @@ function NotificationsTab() {
     setPermission(result);
   };
 
+  // Boolean categories only — `digestStyle` is rendered separately below as
+  // a 2-option radio.
   const categories: Array<{
-    key: keyof NotificationPrefs;
+    key: Exclude<keyof NotificationPrefs, "digestStyle">;
     label: string;
     sub: string;
     icon: React.ReactNode;
@@ -207,11 +259,53 @@ function NotificationsTab() {
         ))}
       </section>
 
+      {/* Weekly email layout — only meaningful when the weekly overview is on */}
+      <section className={`bg-white rounded-2xl border border-rhozly-outline/10 p-4 space-y-3 transition-opacity ${prefs.master && prefs.weeklyOverview ? "" : "opacity-50 pointer-events-none"}`}>
+        <div>
+          <h3 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">Weekly email layout</h3>
+          <p className="text-[11px] font-medium text-rhozly-on-surface/55 leading-snug mt-1">
+            If you're a member of more than one home, choose how the Monday digest is split.
+          </p>
+        </div>
+        <label className="flex items-start gap-3 cursor-pointer py-1">
+          <input
+            data-testid="notifications-digest-style-combined"
+            type="radio"
+            name="digestStyle"
+            value="combined"
+            checked={prefs.digestStyle === "combined"}
+            onChange={() => update({ digestStyle: "combined" })}
+            disabled={!prefs.master || !prefs.weeklyOverview}
+            className="mt-1 accent-rhozly-primary"
+          />
+          <div className="min-w-0">
+            <p className="text-xs font-black text-rhozly-on-surface">One combined email</p>
+            <p className="text-[11px] font-medium text-rhozly-on-surface/55 leading-snug">All your homes in a single Monday email, each with its own section.</p>
+          </div>
+        </label>
+        <label className="flex items-start gap-3 cursor-pointer py-1">
+          <input
+            data-testid="notifications-digest-style-per-home"
+            type="radio"
+            name="digestStyle"
+            value="per_home"
+            checked={prefs.digestStyle === "per_home"}
+            onChange={() => update({ digestStyle: "per_home" })}
+            disabled={!prefs.master || !prefs.weeklyOverview}
+            className="mt-1 accent-rhozly-primary"
+          />
+          <div className="min-w-0">
+            <p className="text-xs font-black text-rhozly-on-surface">One email per home</p>
+            <p className="text-[11px] font-medium text-rhozly-on-surface/55 leading-snug">The legacy behaviour — separate Monday email for each home.</p>
+          </div>
+        </label>
+      </section>
+
       {/* Wave 22.0001-A — Voice */}
       <VoiceSection />
 
       <p className="text-[10px] font-bold text-rhozly-on-surface/40 px-1 leading-snug">
-        Preferences are saved on this device.
+        Preferences sync to your account so the email + push reminders honour them on every device.
       </p>
     </div>
   );
@@ -1285,7 +1379,7 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
       )}
 
       {tab === "notifications" && (
-        <NotificationsTab />
+        <NotificationsTab userId={userId} />
       )}
 
       {tab === "achievements" && (

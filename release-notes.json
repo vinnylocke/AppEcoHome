@@ -2,7 +2,15 @@
   {
     "label": "Bug fixes",
     "items": [
-      "Shed plant tile — the 'X overdue' chip now respects 'Not yet' snoozes and harvest windows, matching what the plant detail and calendar already showed. No more stale overdue badge on the tile after you've already snoozed a task forward."
+      "Push notifications now respect 'Not yet → N days' snoozes — a snoozed harvest task no longer triggers a reminder until its new check-in date arrives.",
+      "Weekly Monday email no longer arrives twice for members of multiple homes. By default you'll get one combined email with a section per home; switch to 'one email per home' in Account → Alerts if you preferred the old behaviour."
+    ]
+  },
+  {
+    "label": "Improvements",
+    "items": [
+      "Weekly email redesigned: weather strip now shows every day at a glance (vertical layout fits on mobile), each task is a tappable link to the right day on the Calendar.",
+      "Notification preferences now sync to your account — toggling Watering / Harvest / Pruning / Golden hour / Weekly overview / Optimise digest now silences the matching push or email on the server side, not just in the app."
     ]
   }
 ]

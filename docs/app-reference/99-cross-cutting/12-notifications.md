@@ -40,15 +40,32 @@ Tokens stored in `user_devices`:
 
 ### `daily-batch-notifications` cron
 
-Pseudocode:
+Pseudocode (Wave 22.0044 — snooze + window + per-user mute aware):
 
 ```ts
+// Pull tasks with the Wave 20+ snooze + window columns.
+pendingTasks = tasks where status='Pending' AND due_date <= today
+            (selecting type, next_check_at, window_end_date, status)
+prefsByUser = user_profiles.notification_prefs  // sparse jsonb
+
+actionableTasks = pendingTasks.filter(isTaskActionableToday)
+//   - hides "Not yet → N days" snoozes (effective_due > today)
+//   - hides harvest tasks past their window_end_date
+
 for each user:
-  due_tasks = fetch today's pending tasks
-  weather_alerts = fetch active alerts
-  pattern_insights = fetch fresh user_insights
-  if (any) push notification with grouped payload
+  if prefs.master === false: skip
+  relevantTasks = actionableTasks.filter(t =>
+    shouldNotify(prefs, categoryForTaskType(t.type))
+  )
+  // Untyped tasks (Fertilizing/Inspection/Maintenance/etc) always pass.
+  // Watering / Harvesting / Pruning respect their per-category toggle.
+  if (relevantTasks.length === 0) continue
+  push notification with grouped payload
+
+// Golden Hour pass is gated by prefs.goldenHour the same way.
 ```
+
+The shared helper `_shared/taskFilters.ts` is the SERVER-SIDE MIRROR of `src/lib/taskFilters.ts`. Both must agree — if the client says a task is hidden today, the server agrees and skips the push. Covered by `supabase/tests/notificationFilters.test.ts`.
 
 ### Notification categories (from [Notifications Tab](../06-account/02-notifications-tab.md))
 
@@ -70,8 +87,8 @@ for each user:
 
 | Cron | Effect |
 |------|--------|
-| `daily-batch-notifications` | Daily push delivery (Wave 21.B added Golden Hour wiring per home) |
-| `weekly-digest` | Weekly summary EMAIL (Resend) — separate from in-app `weekly_overview` |
+| `daily-batch-notifications` | Daily push delivery (Wave 21.B added Golden Hour wiring per home; Wave 22.0044 added snooze + window filtering + per-user category mute respect) |
+| `weekly-digest` | Weekly summary EMAIL (Resend) — separate from in-app `weekly_overview`. Wave 22.0044: dedups recipients across multi-home members (one combined email by default; `digestStyle: per_home` opts back into the legacy fan-out). Vertical weather strip (mobile-readable) + clickable task rows linking to the Calendar agenda for that day. |
 | `generate-weekly-overviews` | **Wave 21.A** — Sunday 06:00 UTC. Builds the jsonb payload on `weekly_overviews` per home + writes `weekly_overview` notification |
 | `weekly-optimise-digest` | **Wave 21.C** — Sunday 07:00 UTC. Activity-aware digest pointing at Optimise tab |
 | `fetch-pollen-daily` | **Wave 21.E** — daily 02:00 UTC. Pulls Open-Meteo pollen data into `pollen_snapshots` |

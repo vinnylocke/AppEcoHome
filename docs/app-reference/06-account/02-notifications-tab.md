@@ -1,21 +1,22 @@
 # Notifications (Alerts) Tab
 
-> Per-category notification preferences plus a browser-permission status panel. localStorage-backed today; backend filtering wires up in a future wave.
+> Per-category notification preferences plus a browser-permission status panel. Wave 22.0044 wired the toggles to the server — `user_profiles.notification_prefs` is the source of truth, with `localStorage` as a fast-paint fallback.
 
 **Route:** Account Settings, `?tab=notifications` (label: "Alerts").
-**Source file:** `src/components/GardenerProfile.tsx` — `NotificationsTab()` function (~lines 69–204)
+**Source file:** `src/components/GardenerProfile.tsx` — `NotificationsTab()` function (~lines 100–290)
 
 ---
 
 ## Quick Summary
 
-Three stacked sections:
+Four stacked sections:
 
 1. **Browser permission** — status pill (Granted / Denied / Default / Unsupported) + "Enable" button.
 2. **Master switch** — turn everything off in one tap.
-3. **Per-category toggles** — Watering, Harvest, Pruning, Weather alerts, Golden hour, Optimise digest, Beta feedback prompts. Each has a "wired" status (some toggles persist but don't yet influence delivery — coming-soon badge).
+3. **Per-category toggles** — Watering, Harvest, Pruning, Weather alerts, Golden hour, Optimise digest, Weekly garden overview, Beta feedback prompts. **All wired** — both the in-app delivery (browser notifications) and the server-side push + email pipelines honour these.
+4. **Weekly email layout** — when Weekly garden overview is on, choose between "one combined email" (default) and "one email per home" (legacy fan-out for users who explicitly want separate emails per home).
 
-All prefs stored in `localStorage` key `rhozly_notif_prefs`.
+Prefs are stored on `user_profiles.notification_prefs` (sparse jsonb) and mirrored to `localStorage` (key `rhozly_notif_prefs`) for instant first paint. The server reads the column when sending pushes / emails so the user's preferences apply on every device.
 
 ---
 
