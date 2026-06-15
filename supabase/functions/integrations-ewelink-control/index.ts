@@ -13,18 +13,17 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { decryptCredentials } from "../_shared/integrations/encrypt.ts";
+import { decryptCredentials, encryptCredentials } from "../_shared/integrations/encrypt.ts";
 import { insertReading } from "../_shared/integrations/readings.ts";
 import type { ValveReading } from "../_shared/integrations/providerTypes.ts";
 import { buildControlPayload, resolveEffectiveDuration } from "../_shared/integrations/ewelinkDevice.ts";
+import { regionToApiBase, withTokenRefresh } from "../_shared/integrations/ewelinkAuth.ts";
 import { captureException } from "../_shared/sentry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const EWELINK_BASE = "https://eu-apia.coolkit.cc";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -99,14 +98,15 @@ Deno.serve(async (req) => {
 
     const { data: integration } = await db
       .from("integrations")
-      .select("credentials_encrypted")
+      .select("id, credentials_encrypted, region")
       .eq("id", device.integration_id)
       .single();
 
     if (!integration) throw new Error("Integration not found");
 
-    const { accessToken } = await decryptCredentials(integration.credentials_encrypted);
     const appId = Deno.env.get("EWELINK_APP_ID") ?? "";
+    const appSecret = Deno.env.get("EWELINK_APP_SECRET") ?? "";
+    const apiBase = regionToApiBase(integration.region as string | undefined);
 
     const meta = device.metadata as Record<string, unknown>;
     const duration = resolveEffectiveDuration(durationSeconds, meta);
@@ -114,17 +114,38 @@ Deno.serve(async (req) => {
     // ── Build eWeLink API call ──────────────────────────────────────────────
     const { apiPath, payload } = buildControlPayload(meta, command, duration, device.external_device_id ?? undefined);
 
-    const controlRes = await fetch(`${EWELINK_BASE}${apiPath}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        "X-CK-Appid": appId,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const controlJson = await controlRes.json();
+    let controlJson: { error?: number; msg?: string };
+    try {
+      controlJson = await withTokenRefresh(
+        {
+          db,
+          integrationId: integration.id as string,
+          appId,
+          appSecret,
+          apiBase,
+          decryptCredentials,
+          encryptCredentials,
+          currentEncrypted: integration.credentials_encrypted,
+        },
+        async (accessToken) => {
+          const res = await fetch(`${apiBase}${apiPath}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+              "X-CK-Appid": appId,
+            },
+            body: JSON.stringify(payload),
+          });
+          return await res.json();
+        },
+      );
+    } catch (refreshErr) {
+      const errMsg = refreshErr instanceof Error ? refreshErr.message : "eWeLink session expired.";
+      return new Response(JSON.stringify({ error: errMsg, reconnectRequired: true }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const success = controlJson.error === 0;
 
     // ── Persist command + reading ───────────────────────────────────────────

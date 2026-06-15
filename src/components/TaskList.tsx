@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 import { supabase } from "../lib/supabase";
+import { isTaskVisibleOnDate } from "../lib/taskFilters";
 import { maybeCreateAutoEntry } from "../services/journalAutoUpdateService";
 import { shouldPromptForSowing } from "../services/sowingAutoCreateService";
 import LogSowingFromTaskModal from "./nursery/LogSowingFromTaskModal";
@@ -166,6 +167,19 @@ export default function TaskList({
       // inventory yet) and the final resolution (full enrichment).
       const filterAndSort = (rawTasks: any[]): any[] => {
         let next = rawTasks;
+        // Wave 20+ snooze / harvest-window gate. The engine deliberately
+        // returns snoozed tasks; every list consumer that renders a single
+        // day has to drop them itself. Without this filter the Dashboard
+        // "Today's Tasks" panel kept showing a "Not yet → 3 days" harvest
+        // on day 0 (and every day after). Completed tasks bypass the
+        // visibility check so the user still sees what they ticked off
+        // today on the calendar agenda.
+        next = next.filter((t) => {
+          if (t.status === "Completed") return true;
+          return isTaskVisibleOnDate(t, dateStr, {
+            includeOverdue: showOverdue || dateStr <= todayStr,
+          });
+        });
         if (areaId) next = next.filter((t) => t.area_id === areaId);
         if (planId) next = next.filter((t) => t.plan_id === planId);
         if (locationId && locationId !== "all") {

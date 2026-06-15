@@ -60,3 +60,101 @@ const REGION_BASES: Record<string, string> = {
 export function regionToApiBase(region?: string): string {
   return REGION_BASES[region ?? ""] ?? "https://eu-apia.coolkit.cc";
 }
+
+// ── Token refresh ──────────────────────────────────────────────────────────
+//
+// eWeLink access tokens expire after ~30 days; refresh tokens last ~60.
+// Without this helper the valve-control + valve-state edge functions would
+// surface "access token expired" until the user re-OAuthed by hand.
+
+export interface RefreshedTokens {
+  accessToken: string;
+  refreshToken: string;
+}
+
+/**
+ * Calls eWeLink's `/v2/user/refresh` with the stored refresh token and
+ * returns the fresh access + refresh token pair. The caller is responsible
+ * for persisting them back to the `integrations` row.
+ *
+ * Throws an Error with a user-actionable message when the refresh itself
+ * fails (e.g. the refresh token has also expired — the user must re-OAuth).
+ */
+export async function refreshAccessToken(
+  appId: string,
+  appSecret: string,
+  refreshToken: string,
+  apiBase: string,
+): Promise<RefreshedTokens> {
+  const body = JSON.stringify({ rt: refreshToken });
+  const res = await fetch(`${apiBase}/v2/user/refresh`, {
+    method: "POST",
+    headers: await ewelinkHeaders(appId, appSecret, body),
+    body,
+    signal: AbortSignal.timeout(12_000),
+  });
+  const json = await res.json().catch(() => ({}));
+  if (json?.error !== 0 || !json?.data?.at) {
+    throw new Error("eWeLink session expired — please reconnect this integration.");
+  }
+  return {
+    accessToken: String(json.data.at),
+    refreshToken: String(json.data.rt ?? refreshToken),
+  };
+}
+
+/** Token-expiry hints we see in the wild. eWeLink uses code `401` plus
+ *  msg variants like "access token expired" / "token expired" / "401: ..." */
+export function isTokenExpiredResponse(json: { error?: number; msg?: string }): boolean {
+  if (json?.error === 401 || json?.error === 402) return true;
+  const msg = (json?.msg ?? "").toLowerCase();
+  return msg.includes("token") && msg.includes("expir");
+}
+
+/**
+ * Run an eWeLink API call with automatic access-token refresh on expiry.
+ *
+ * - First attempt uses the access token currently in the encrypted blob.
+ * - If the response looks like a token-expiry error, the refresh token is
+ *   used to mint a new access token, the new pair is re-encrypted +
+ *   persisted, and the original call is retried ONCE.
+ * - If the refresh itself fails (refresh token also expired), throws a
+ *   user-actionable Error — the caller should map this to a "please
+ *   reconnect" response so the user knows to re-OAuth.
+ *
+ * Generic over the parsed response shape; the caller's `fn` is responsible
+ * for parsing the raw fetch into JSON.
+ */
+// deno-lint-ignore no-explicit-any
+type SupabaseLike = { from: (table: string) => any };
+
+export async function withTokenRefresh<T extends { error?: number; msg?: string }>(
+  ctx: {
+    db: SupabaseLike;
+    integrationId: string;
+    appId: string;
+    appSecret: string;
+    apiBase: string;
+    decryptCredentials: (blob: string) => Promise<{ accessToken: string; refreshToken: string }>;
+    encryptCredentials: (payload: { accessToken: string; refreshToken: string }) => Promise<string>;
+    currentEncrypted: string;
+  },
+  fn: (accessToken: string) => Promise<T>,
+): Promise<T> {
+  const creds = await ctx.decryptCredentials(ctx.currentEncrypted);
+  const first = await fn(creds.accessToken);
+  if (!isTokenExpiredResponse(first)) return first;
+
+  // Expired — refresh, persist, retry once.
+  const fresh = await refreshAccessToken(ctx.appId, ctx.appSecret, creds.refreshToken, ctx.apiBase);
+  const reEncrypted = await ctx.encryptCredentials({
+    accessToken: fresh.accessToken,
+    refreshToken: fresh.refreshToken,
+  });
+  await ctx.db
+    .from("integrations")
+    .update({ credentials_encrypted: reEncrypted })
+    .eq("id", ctx.integrationId);
+
+  return fn(fresh.accessToken);
+}

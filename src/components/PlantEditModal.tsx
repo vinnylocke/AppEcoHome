@@ -13,6 +13,7 @@ import PlantInstancesTab from "./plant/PlantInstancesTab";
 import { getProviderPlantDetails } from "../lib/plantProvider";
 import { getProviderLabel } from "../lib/verdantlyUtils";
 import { supabase } from "../lib/supabase";
+import { isTaskOverdueToday } from "../lib/taskFilters";
 import toast from "react-hot-toast";
 import { useAiPlantFreshness } from "../hooks/useAiPlantFreshness";
 import CareUpdateCallout from "./aiPlants/CareUpdateCallout";
@@ -388,7 +389,7 @@ export default function PlantEditModal({
           ? Promise.resolve({ data: [] })
           : supabase
               .from("tasks")
-              .select("id, due_date")
+              .select("id, due_date, next_check_at, window_end_date, status")
               .overlaps("inventory_item_ids", instanceIds)
               .neq("status", "Completed")
               .neq("status", "Skipped"),
@@ -412,7 +413,13 @@ export default function PlantEditModal({
       if (cancelled) return;
 
       const tasks = (tasksRes as any).data ?? [];
-      const overdueTasks = tasks.filter((t: any) => t.due_date < todayStr).length;
+      // Wave 20+ snooze / window aware — a harvest still inside its window
+      // is "ready", not "overdue"; a "Not yet → 3 days" task is "snoozed",
+      // not "overdue". Mirrors TaskCalendar so the at-a-glance strip lines
+      // up with what the user sees on the calendar agenda.
+      const overdueTasks = tasks.filter((t: any) =>
+        isTaskOverdueToday(t, todayStr),
+      ).length;
       const luxRow = ((luxRes as any).data ?? [])[0];
 
       setGlance({

@@ -11,18 +11,17 @@
  */
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { decryptCredentials } from "../_shared/integrations/encrypt.ts";
+import { decryptCredentials, encryptCredentials } from "../_shared/integrations/encrypt.ts";
 import { insertReading } from "../_shared/integrations/readings.ts";
 import type { ValveReading } from "../_shared/integrations/providerTypes.ts";
 import { parseDeviceState } from "../_shared/integrations/ewelinkDevice.ts";
+import { regionToApiBase, withTokenRefresh } from "../_shared/integrations/ewelinkAuth.ts";
 import { captureException } from "../_shared/sentry.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-const EWELINK_BASE = "https://eu-apia.coolkit.cc";
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -90,39 +89,55 @@ Deno.serve(async (req) => {
 
     const { data: integration } = await db
       .from("integrations")
-      .select("credentials_encrypted")
+      .select("id, credentials_encrypted, region")
       .eq("id", device.integration_id)
       .single();
 
     if (!integration) throw new Error("Integration not found");
 
-    const { accessToken } = await decryptCredentials(integration.credentials_encrypted);
     const appId = Deno.env.get("EWELINK_APP_ID") ?? "";
+    const appSecret = Deno.env.get("EWELINK_APP_SECRET") ?? "";
+    const apiBase = regionToApiBase(integration.region as string | undefined);
     const meta = device.metadata as Record<string, unknown>;
-
     const targetId = meta.use_sub_device ? meta.parent_device_id : meta.direct_device_id;
 
-    const stateRes = await fetch(`${EWELINK_BASE}/v2/device/thing/status?id=${targetId}&type=1`, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-        "X-CK-Appid": appId,
-      },
-    });
-
-    if (!stateRes.ok) {
-      return new Response(JSON.stringify({ error: "Failed to reach eWeLink API" }), {
-        status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
+    let stateJson: { error?: number; msg?: string; data?: unknown };
+    try {
+      stateJson = await withTokenRefresh(
+        {
+          db,
+          integrationId: integration.id as string,
+          appId,
+          appSecret,
+          apiBase,
+          decryptCredentials,
+          encryptCredentials,
+          currentEncrypted: integration.credentials_encrypted,
+        },
+        async (accessToken) => {
+          const res = await fetch(`${apiBase}/v2/device/thing/status?id=${targetId}&type=1`, {
+            headers: { Authorization: `Bearer ${accessToken}`, "X-CK-Appid": appId },
+          });
+          if (!res.ok) {
+            return { error: -1, msg: `eWeLink HTTP ${res.status}` };
+          }
+          return await res.json();
+        },
+      );
+    } catch (refreshErr) {
+      const msg = refreshErr instanceof Error ? refreshErr.message : "eWeLink session expired.";
+      return new Response(JSON.stringify({ error: msg, reconnectRequired: true }), {
+        status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const stateJson = await stateRes.json();
     if (stateJson.error !== 0) {
-      return new Response(JSON.stringify({ error: `eWeLink error: ${stateJson.msg}` }), {
+      return new Response(JSON.stringify({ error: `eWeLink error: ${stateJson.msg ?? "unknown"}` }), {
         status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const state = parseDeviceState(stateJson.data ?? {});
+    const state = parseDeviceState((stateJson.data as Record<string, unknown>) ?? {});
     const now = new Date();
 
     // Store as a reading so it appears in history
