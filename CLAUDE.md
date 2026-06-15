@@ -19,7 +19,7 @@ The app is called **Rhozly** — use this name in all user-facing text and commi
 | Document | Purpose |
 |----------|---------|
 | [TESTING.md](TESTING.md) | Complete guide to the three-tier testing framework (Vitest / Deno / Playwright) |
-| [docs/e2e-test-plan.md](docs/e2e-test-plan.md) | Living E2E test plan — all routes, positive/negative cases, seed references, status tracking |
+| [docs/e2e-test-plan.md](docs/e2e-test-plan.md) | Living E2E test plan — index. Per-surface test rows live in [docs/e2e-test-plan/](docs/e2e-test-plan/); canonical seed UUID + plant-ID tables in [docs/e2e-test-plan/01-seeded-fixtures.md](docs/e2e-test-plan/01-seeded-fixtures.md). |
 | [docs/ai-personal-assistant-plan.md](docs/ai-personal-assistant-plan.md) | Build plan for the AI assistant — event logging, pattern engine, notification surface |
 | [docs/plant-visualiser-plan.md](docs/plant-visualiser-plan.md) | Build plan for the AR/2D plant visualiser feature |
 | [docs/area-scan-plan.md](docs/area-scan-plan.md) | Build plan for the AI-powered area scan feature |
@@ -177,9 +177,10 @@ See [TESTING.md](TESTING.md) for the full framework guide, fixture patterns, and
 ### Test documentation is mandatory for all code changes
 Every new feature or amendment **must** also update the test documentation:
 
-- **Any feature or flow change** → update the relevant section of [docs/e2e-test-plan.md](docs/e2e-test-plan.md): add new test rows, update Status to ✅ Passing / ❌ Failing, and note any seed or mock dependencies
-- **New spec file or Page Object** → add the file to [TESTING.md § Current Test Inventory](TESTING.md#12-current-test-inventory) and update the test counts
-- **Changed route, heading, or button label** → update any affected test rows in [docs/e2e-test-plan.md](docs/e2e-test-plan.md)
+- **Any feature or flow change** → update the matching per-surface file in [docs/e2e-test-plan/](docs/e2e-test-plan/): add new test rows, update Status to ✅ Passing / ❌ Failing, and note any seed or mock dependencies. The top-level [docs/e2e-test-plan.md](docs/e2e-test-plan.md) is the index — only edit it when adding a new section
+- **New spec file or Page Object** → add the file to [TESTING.md § Current Test Inventory](TESTING.md#12-current-test-inventory) and update the test counts; update the relevant `docs/e2e-test-plan/<NN>-<surface>.md`
+- **Changed route, heading, or button label** → update any affected test rows in the matching `docs/e2e-test-plan/<NN>-<surface>.md`
+- **New or changed seed UUID / plant ID** → update [docs/e2e-test-plan/01-seeded-fixtures.md](docs/e2e-test-plan/01-seeded-fixtures.md) (it's the single source of truth)
 
 ### App-reference documentation is mandatory for all code changes
 
@@ -317,7 +318,7 @@ npm run test:e2e
 
 **Maintenance rules:**
 - When a new feature adds a table or column that E2E tests depend on, update the relevant seed file.
-- When a new route or page is added, add test cases to `docs/e2e-test-plan.md` AND seed any required data.
+- When a new route or page is added, add a new section file under `docs/e2e-test-plan/` AND seed any required data.
 - Task due dates in seeds use `CURRENT_DATE`-relative expressions so they stay valid on any run date.
 - Physical tasks in seeds always have `blueprint_id = NULL` to avoid the `unique_blueprint_date` constraint on re-run.
 - Seeds are the canonical source of E2E test state — never rely on data created by a previous test run.
