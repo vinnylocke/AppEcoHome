@@ -6,8 +6,16 @@
     ]
   },
   {
+    "label": "Free Plant Doctor",
+    "items": [
+      "Identify any plant for free — 5 free identifications per rolling 7-day window for every gardener, no upgrade needed. Take a photo, tap Identify, get the species. Diagnosis and Multi-ID stay on Sage for now.",
+      "Free identifications show a counter so you always know how many you've got left this week. Once they're gone, you'll see when they reset back to 5."
+    ]
+  },
+  {
     "label": "Onboarding & polish",
     "items": [
+      "New users go straight from Home Setup to the dashboard — no more upfront tier picker. Pick a plan when you're ready: tap \"Upgrade Rhozly\" in the user menu.",
       "Experienced gardener? The Welcome tour now has an \"I'm experienced — skip the tour\" express lane on the first slide. Sets your persona to experienced so future copy is terser, no more coach marks.",
       "Today's Tasks empty state now nudges you toward setting up your first watering / pruning / harvesting schedule rather than just saying \"No tasks!\".",
       "The Shed empty state has a clear \"Add your first plant\" CTA when your library is brand-new.",

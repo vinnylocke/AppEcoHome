@@ -58,6 +58,7 @@ import {
   type SceneMapResult,
   type PhotoInput,
   type PlantOrgan,
+  type IdentifyQuota,
 } from "../services/plantDoctorService";
 
 // Wave-19 — Plant Lens accepts up to 5 photos per single-plant action
@@ -139,6 +140,14 @@ export default function PlantDoctor({
   const [aiResult, setAiResult] = useState<VisionResult | null>(null);
   const [analyseResult, setAnalyseResult] = useState<AnalyseResult | null>(null);
   const [sceneResult, setSceneResult] = useState<SceneMapResult | null>(null);
+  // Sprint 3 (UX review 2026-06-15 item 3.1) — free-tier identify quota.
+  // Populated from the edge function response on every identify_vision call.
+  // Null = unlimited (Sage+) or quota not yet known.
+  const [identifyQuota, setIdentifyQuota] = useState<IdentifyQuota | null>(null);
+  const [quotaExhaustedModal, setQuotaExhaustedModal] = useState<{
+    quota: IdentifyQuota;
+    message: string;
+  } | null>(null);
   // The "Group ID" history session for the current Multi-ID run + the
   // accumulating confirmed map (regionIndex → name) used to update it.
   const sceneSessionIdRef = useRef<string | null>(null);
@@ -557,7 +566,10 @@ export default function PlantDoctor({
   };
 
   const handleAiAction = async (action: "identify" | "diagnose" | "pest") => {
-    if (!aiEnabled) return toast.error("AI features are disabled.");
+    // Sprint 3 — Identify is free with quota; Diagnose + Pest stay Sage+.
+    if (action !== "identify" && !aiEnabled) {
+      return toast.error("AI features are disabled.");
+    }
     if (photos.length === 0) return toast.error("Upload an image first.");
 
     setIsProcessing(true);
@@ -595,7 +607,23 @@ export default function PlantDoctor({
         deviceLng: deviceLocation?.lng,
       });
 
+      // Sprint 3 — server returns 200 with a `quota_exhausted` marker when
+      // a free user has used all 5 IDs in the past 7 days. Surface as
+      // upgrade modal instead of treating it as a successful identify.
+      if ((data as any)?.quota_exhausted === true) {
+        const exhausted = data as unknown as { quota: IdentifyQuota; message: string };
+        setQuotaExhaustedModal({ quota: exhausted.quota, message: exhausted.message });
+        setIdentifyQuota(exhausted.quota);
+        logEvent(EVENT.AI_QUOTA_EXCEEDED, { action: "identify_vision" });
+        return;
+      }
+
       setAiResult(data);
+      // Sprint 3 — update the free-tier quota badge optimistically from
+      // the response payload. Null for Sage+ (unlimited).
+      if (data?.quota !== undefined) {
+        setIdentifyQuota(data.quota ?? null);
+      }
       saveSession(action, data, compressed); // fire-and-forget; all photos persisted
       if (action === "identify") {
         logEvent(EVENT.AI_IDENTIFY, { plant_name: data?.possible_names?.[0]?.name ?? null });
@@ -1181,14 +1209,75 @@ export default function PlantDoctor({
               <div className="space-y-6">
 
               {!aiEnabled ? (
-                <div data-testid="plant-doctor-ai-gate" className="bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 p-6 text-center">
-                  <div className="w-10 h-10 bg-rhozly-on-surface/5 rounded-2xl flex items-center justify-center mx-auto mb-3">
-                    <Lock size={18} className="text-rhozly-on-surface/30" />
+                /* Sprint 3 (UX review 2026-06-15 item 3.1) — free tier gets
+                   Identify (with sliding-window quota); Diagnose / Analyse /
+                   Multi-ID stay Sage+ gated below. */
+                <div data-testid="plant-doctor-ai-gate" className="space-y-3">
+                  <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-5">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700 mb-1">
+                      Free for everyone
+                    </p>
+                    <p className="font-black text-emerald-900 text-sm mb-1">
+                      Identify a plant
+                    </p>
+                    <p className="text-xs font-bold text-emerald-900/70 leading-snug mb-3">
+                      Snap a photo, tap Identify. {identifyQuota
+                        ? `${identifyQuota.remaining} of ${identifyQuota.limit} free IDs remaining this week.`
+                        : "5 free identifications per rolling 7-day window."}
+                    </p>
+                    <button
+                      data-testid="doctor-btn-identify-free"
+                      onClick={() => handleAiAction("identify")}
+                      disabled={isUIBusy || photos.length === 0}
+                      className={`w-full flex items-center justify-center gap-2 px-5 py-3 min-h-[48px] rounded-2xl text-sm font-black transition-all ${
+                        activeAction === "identify"
+                          ? "bg-emerald-700 text-white shadow-md"
+                          : "bg-emerald-600 text-white shadow-sm hover:bg-emerald-700 disabled:opacity-50"
+                      }`}
+                    >
+                      {isProcessing && activeAction === "identify" ? (
+                        <><Loader2 size={16} className="animate-spin" /> Identifying…</>
+                      ) : (
+                        <><Search size={16} /> Identify plant</>
+                      )}
+                    </button>
+                    {identifyQuota && (
+                      <div
+                        data-testid="doctor-quota-badge"
+                        className="mt-3 flex items-center justify-between gap-2 text-[10px] font-black uppercase tracking-widest text-emerald-700"
+                      >
+                        <span>{identifyQuota.used} / {identifyQuota.limit} used</span>
+                        {identifyQuota.resetsAt && identifyQuota.remaining === 0 && (
+                          <span className="text-emerald-700/60">
+                            Resets {new Date(identifyQuota.resetsAt).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                          </span>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  <p className="font-black text-rhozly-on-surface text-sm mb-1">AI Tier Required</p>
-                  <p className="text-xs font-bold text-rhozly-on-surface/50 leading-relaxed">
-                    Upgrade to AI tier to unlock plant identification and diagnosis.
-                  </p>
+
+                  <div className="bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 p-5">
+                    <div className="flex items-start gap-3">
+                      <div className="shrink-0 w-9 h-9 rounded-2xl bg-rhozly-on-surface/5 flex items-center justify-center">
+                        <Lock size={16} className="text-rhozly-on-surface/40" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-black text-rhozly-on-surface text-sm mb-1">
+                          AI Diagnosis, Analyse & Multi-ID
+                        </p>
+                        <p className="text-xs font-bold text-rhozly-on-surface/55 leading-snug mb-3">
+                          Upgrade to Sage for unlimited identifications plus pest, disease, and full plant analysis.
+                        </p>
+                        <button
+                          data-testid="doctor-upgrade-link"
+                          onClick={() => navigate("/gardener")}
+                          className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[40px] rounded-2xl bg-rhozly-primary text-white text-xs font-black hover:opacity-90 transition"
+                        >
+                          See plans →
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               ) : (
               <div>
@@ -2361,6 +2450,65 @@ export default function PlantDoctor({
           onConfirm={handleAddToListConfirm}
           onCreateAndConfirm={handleCreateAndAddToList}
         />
+      )}
+      {quotaExhaustedModal && (
+        <div
+          data-testid="doctor-quota-exhausted-modal"
+          className="fixed inset-0 z-[120] bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setQuotaExhaustedModal(null)}
+        >
+          <div
+            className="bg-rhozly-bg rounded-3xl w-full max-w-md shadow-2xl border border-rhozly-outline/10 overflow-hidden animate-in zoom-in-95 duration-200"
+            onClick={(e) => e.stopPropagation()}
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="quota-exhausted-title"
+          >
+            <div className="p-6">
+              <div className="w-12 h-12 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center mb-4">
+                <Lock size={20} />
+              </div>
+              <h3 id="quota-exhausted-title" className="font-display font-black text-xl text-rhozly-on-surface mb-2">
+                You've used your free IDs this week
+              </h3>
+              <p className="text-sm text-rhozly-on-surface/65 leading-relaxed mb-4">
+                {quotaExhaustedModal.message}
+              </p>
+              {quotaExhaustedModal.quota.resetsAt && (
+                <p className="text-xs font-bold text-rhozly-on-surface/45 mb-5">
+                  Your free identifications reset on{" "}
+                  <span className="text-rhozly-on-surface/75">
+                    {new Date(quotaExhaustedModal.quota.resetsAt).toLocaleDateString("en-GB", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                    })}
+                  </span>
+                  .
+                </p>
+              )}
+              <div className="flex flex-col gap-2">
+                <button
+                  data-testid="quota-exhausted-upgrade"
+                  onClick={() => {
+                    setQuotaExhaustedModal(null);
+                    navigate("/gardener");
+                  }}
+                  className="bg-rhozly-primary text-white px-5 py-3 min-h-[48px] rounded-2xl text-sm font-black hover:opacity-90 transition shadow-sm"
+                >
+                  Upgrade to Sage — unlimited IDs + diagnosis
+                </button>
+                <button
+                  data-testid="quota-exhausted-dismiss"
+                  onClick={() => setQuotaExhaustedModal(null)}
+                  className="text-rhozly-on-surface/55 hover:text-rhozly-on-surface px-5 py-2.5 min-h-[44px] rounded-2xl text-sm font-bold transition"
+                >
+                  Maybe later
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       )}
     </>
   );

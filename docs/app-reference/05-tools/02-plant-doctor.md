@@ -11,6 +11,8 @@
 
 ## Quick Summary
 
+**Tier gating (Sprint 3, 2026-06-15):** `identify_vision` is **open to every tier with a sliding-window quota** — Sprout / Botanist users get 5 free identifications per rolling 7-day window. Sage+ users get unlimited everything. Diagnose, Pest, Analyse, and Multi-ID remain Sage+ only. When a free user exhausts their quota, the server returns a `quota_exhausted` marker (still status 200 — easier for the client to inspect than 429) which surfaces an upgrade modal that links to `/gardener`. Quota state rides on every successful identify response so the badge updates without a second request. Quota helper: [`supabase/functions/_shared/identifyQuota.ts`](../../../supabase/functions/_shared/identifyQuota.ts).
+
 Four actions powered by Gemini Vision via `PlantDoctorService`:
 
 | Action | API action | What you get |

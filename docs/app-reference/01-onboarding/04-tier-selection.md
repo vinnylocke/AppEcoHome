@@ -2,9 +2,11 @@
 
 > One-time selection of the user's subscription tier — Sprout (free), Botanist, Sage, or Evergreen. Drives feature gating across the entire app.
 
-**Trigger:** Shown after Home Setup if `profile.subscription_tier` is null.
+**Status (Sprint 3, 2026-06-15) — RETIRED FROM ONBOARDING:** new users no longer hit this screen on signup. `App.tsx` now auto-assigns `sprout` + `ai_enabled = false` + `enable_perenual = false` when a profile lands with `subscription_tier IS NULL`. The dedicated `TierSelection.tsx` component has been deleted; the tier picker now lives inline inside the **Account tab of `/gardener`** (see [`src/components/GardenerProfile.tsx`](../../../src/components/GardenerProfile.tsx)). Upgrade is reachable via the "Upgrade Rhozly" entry in the user dropdown.
+
+**Trigger:** No longer auto-triggers. User reaches the picker by tapping "Upgrade Rhozly" in the user dropdown, or any "See plans →" upsell across the app.
 **Source files:**
-- `src/components/TierSelection.tsx` — the selector UI
+- `src/components/GardenerProfile.tsx` — inline tier picker (the modern path)
 - `src/constants/tiers.ts` — tier definitions
 
 ---

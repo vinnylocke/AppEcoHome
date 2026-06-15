@@ -233,6 +233,26 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
               {profileItems.map((item) => (
                 <DropdownLink key={item.path} item={item} onNavigate={go} />
               ))}
+              {/* Sprint 3 (UX review 2026-06-15 item 1.1) — visible upgrade
+                  entry for free / non-AI tier users. Now that Tier Selection
+                  is deferred at signup, this becomes the canonical upsell
+                  surface. Sage+ users don't need it (they already have what
+                  the picker is selling). */}
+              {(!subscriptionTier || subscriptionTier === "sprout" || subscriptionTier === "botanist") && (
+                <button
+                  data-testid="user-profile-upgrade"
+                  onClick={(e) => { e.stopPropagation(); go("/gardener"); }}
+                  className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-black text-emerald-900 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 transition-colors group mt-0.5"
+                >
+                  <span className="text-emerald-600 group-hover:text-emerald-700 transition-colors">
+                    <Sparkles size={15} />
+                  </span>
+                  <span className="flex-1 text-left">Upgrade Rhozly</span>
+                  <span className="text-[9px] font-black uppercase tracking-widest text-emerald-700 bg-emerald-200 px-1.5 py-0.5 rounded-full">
+                    AI
+                  </span>
+                </button>
+              )}
             </div>
 
             {/* Management section */}

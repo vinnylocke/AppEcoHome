@@ -113,7 +113,6 @@ const GardenerProfile     = lazy(() => import("./components/GardenerProfile"));
 const LocationManager     = lazy(() => import("./components/LocationManager").then(m => ({ default: m.LocationManager })));
 const AssistantCard       = lazy(() => import("./components/AssistantCard"));
 const AuditPage           = lazy(() => import("./components/AuditPage"));
-const TierSelection       = lazy(() => import("./components/TierSelection"));
 import { extractCurrentWeather } from "./lib/clientCache";
 import { getLocalDateString } from "./lib/taskEngine";
 
@@ -338,6 +337,39 @@ function AppShell() {
     if (locations.length > 0) return;
     setShowWelcomeModal(true);
   }, [profile?.home_id, dashboardLoaded, locations.length, onboardingState]);
+
+  // UX review 2026-06-15 item 1.1 — Defer tier selection.
+  //
+  // When a user lands with a home but no subscription_tier, auto-assign
+  // 'sprout' (free) so they go straight to the dashboard. They upgrade
+  // later via /gardener?tab=subscription. Fire-and-forget — local state
+  // updates optimistically.
+  const defaultTierAppliedRef = useRef(false);
+  useEffect(() => {
+    if (defaultTierAppliedRef.current) return;
+    if (!profile?.home_id) return;
+    if (profile.subscription_tier) return;
+    if (!session?.user?.id) return;
+    defaultTierAppliedRef.current = true;
+    const uid = session.user.id;
+    void (async () => {
+      try {
+        await supabase
+          .from("user_profiles")
+          .update({
+            subscription_tier: "sprout",
+            ai_enabled: false,
+            enable_perenual: false,
+          })
+          .eq("uid", uid);
+      } catch (err) {
+        Logger.error("Failed to default new user to sprout tier", err);
+      }
+      setProfile((prev: any) => prev
+        ? { ...prev, subscription_tier: "sprout", ai_enabled: false, enable_perenual: false }
+        : prev);
+    })();
+  }, [profile?.home_id, profile?.subscription_tier, session?.user?.id]);
 
   useEffect(() => {
     const handleDeepLink = async () => {
@@ -1062,21 +1094,23 @@ function AppShell() {
       />
     );
 
-  // New users who have a home but haven't picked a plan yet
-  if (profile && profile.home_id && !profile.subscription_tier)
+  // UX review 2026-06-15 item 1.1 — Defer tier selection.
+  //
+  // Previously: users hit a hard TierSelection wall between Home Setup and
+  // the Dashboard. Now we silently default new users to 'sprout' (free) and
+  // let them upgrade later via /gardener?tab=subscription. The free Plant
+  // Doctor identify quota (item 3.1) makes the deferred upsell viable.
+  //
+  // The effect lives below outside the early-return so it fires when the
+  // profile loads. While the write is in flight we show a brief loader to
+  // avoid flashing the dashboard before the local state catches up.
+  if (profile && profile.home_id && !profile.subscription_tier) {
     return (
-      <Suspense fallback={<div className="flex items-center justify-center h-screen"><Loader2 className="animate-spin text-rhozly-primary" /></div>}>
-        <TierSelection
-          userId={session.user.id}
-          onComplete={(tier: TierId, aiEnabled: boolean, perenualEnabled: boolean) => {
-            setProfile((prev: any) => prev
-              ? { ...prev, subscription_tier: tier, ai_enabled: aiEnabled, enable_perenual: perenualEnabled }
-              : prev
-            );
-          }}
-        />
-      </Suspense>
+      <div className="flex items-center justify-center h-screen">
+        <Loader2 className="animate-spin text-rhozly-primary" />
+      </div>
     );
+  }
 
   const navLinks: Array<{
     id: string;

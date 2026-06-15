@@ -21,6 +21,25 @@ export interface IdentificationCandidate {
   confidence: number;
 }
 
+/** UX review 2026-06-15 item 3.1 — free Plant Doctor identify-only quota.
+ *  Returned by the edge function on every `identify_vision` response when
+ *  the caller is on a free tier. Null / absent for Sage+ (unlimited). */
+export interface IdentifyQuota {
+  used: number;
+  limit: number;
+  remaining: number;
+  /** ISO timestamp the oldest in-window call drops off, when remaining = 0. */
+  resetsAt: string | null;
+}
+
+/** Discriminated `identify_vision` response: either the normal result, or
+ *  a "quota_exhausted" marker the client uses to open the upgrade modal. */
+export interface QuotaExhaustedResponse {
+  quota_exhausted: true;
+  quota: IdentifyQuota;
+  message: string;
+}
+
 export interface VisionResult {
   notes?: string;
   possible_names?: IdentificationCandidate[];
@@ -42,6 +61,8 @@ export interface VisionResult {
   environmental_factors?: string[] | null;
   immediate_actions?: string[] | null;
   plantnet?: PlantNetIdentificationBlock | null;
+  /** Sprint 3 — free-tier quota state after this call. Null for Sage+. */
+  quota?: IdentifyQuota | null;
 }
 
 /** Plant organ tag passed to Pl@ntNet alongside each image. `auto` lets

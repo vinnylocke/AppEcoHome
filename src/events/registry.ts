@@ -41,6 +41,9 @@ export const EVENT = {
   // Plant Doctor AI
   AI_IDENTIFY:               "ai_identify",
   AI_DIAGNOSE:               "ai_diagnose",
+  // Sprint 3 (UX review 2026-06-15 item 3.1) — fires when a free-tier user
+  // tries to identify after exhausting their 5-per-rolling-7-day quota.
+  AI_QUOTA_EXCEEDED:         "ai_quota_exceeded",
   PLANT_DOCTOR_CHAT_MESSAGE: "plant_doctor_chat_message",
   PLANT_DOCTOR_CHAT_PLAN_SUGGESTION_SHOWN:     "plant_doctor_chat_plan_suggestion_shown",
   PLANT_DOCTOR_CHAT_PLAN_SUGGESTION_ACCEPTED:  "plant_doctor_chat_plan_suggestion_accepted",

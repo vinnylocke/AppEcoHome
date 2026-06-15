@@ -6,6 +6,7 @@ import { callGeminiCascade, toMessages, VISION_DIAGNOSIS_MODELS } from "../_shar
 import { loadPreferences, formatPreferencesBlock } from "../_shared/preferences.ts";
 import { guardAiByHome, guardPerenualByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
+import { getIdentifyQuota, type IdentifyQuota } from "../_shared/identifyQuota.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
@@ -645,11 +646,52 @@ serve(async (req) => {
     // `seasonal_picks` is also open to all tiers — Sprout/Botanist get the
     // deterministic fallback path, Sage+ get the Gemini path; the action
     // handler checks the AI gate itself before the Gemini call.
-    const skipAiGate = action === "lookup_frost_dates" || action === "seasonal_picks";
+    // `identify_vision` is open to all tiers with a sliding-window quota
+    // for free users (UX review 2026-06-15 item 3.1). The action handler
+    // does the quota check itself a few hundred lines below; the broad
+    // home-AI gate would 403 free users before we get a chance.
+    const skipAiGate = action === "lookup_frost_dates"
+      || action === "seasonal_picks"
+      || action === "identify_vision";
 
     if (homeId && !skipAiGate) {
       const guardErr = await guardAiByHome(supabase, homeId);
       if (guardErr) return guardErr;
+    }
+
+    // Quota for free-tier identify_vision. Captured up here so the action
+    // handler can stamp it into its success payload without re-querying.
+    // Sage+ users (ai_enabled = true) get null — unlimited.
+    //
+    // We return 200 (not 429) with a `quota_exhausted` flag so supabase-js
+    // delivers the quota payload as `data` — `error` only fires on
+    // non-2xx and the client would have to await error.context.json() to
+    // read the quota, which is awkward. The HTTP-purity of 429 isn't
+    // worth the client-side ceremony.
+    let freeIdentifyQuota: IdentifyQuota | null = null;
+    if (action === "identify_vision" && callerUserId) {
+      const { data: profile } = await supabase
+        .from("user_profiles")
+        .select("ai_enabled")
+        .eq("uid", callerUserId)
+        .single();
+      if (!profile?.ai_enabled) {
+        freeIdentifyQuota = await getIdentifyQuota(supabase, callerUserId);
+        if (freeIdentifyQuota.remaining === 0) {
+          return new Response(
+            JSON.stringify({
+              quota_exhausted: true,
+              quota: freeIdentifyQuota,
+              message:
+                "You've used your free identifications for this week. Upgrade to Sage for unlimited IDs and AI diagnosis.",
+            }),
+            {
+              status: 200,
+              headers: { ...corsHeaders, "Content-Type": "application/json" },
+            },
+          );
+        }
+      }
     }
 
     // Load user preferences — prefer userId for cross-home consistency.
@@ -1266,6 +1308,17 @@ Also return a brief observation in notes.`;
         }
       }
 
+      // UX review 2026-06-15 item 3.1 — surface the post-call quota state so
+      // the client can update the badge without a second round-trip. Null
+      // when the caller is Sage+ (unlimited).
+      const quotaForResponse = freeIdentifyQuota
+        ? {
+            ...freeIdentifyQuota,
+            used: freeIdentifyQuota.used + 1,
+            remaining: Math.max(0, freeIdentifyQuota.remaining - 1),
+          }
+        : null;
+
       const responseBody = {
         ...parsed,
         // Wave 21.0010 — Gemini's top 3 candidates as a secondary tile group
@@ -1291,6 +1344,7 @@ Also return a brief observation in notes.`;
                 error: pnRoutingError,
               }
             : null,
+        quota: quotaForResponse,
       };
 
       log(FN, "result", {
