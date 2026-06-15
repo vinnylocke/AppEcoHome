@@ -103,6 +103,10 @@ describe("QuickAccessHome", () => {
   });
 
   test("escape-hatch link navigates to /dashboard", () => {
+    // The escape-hatch lives inside the desktop preview banner, so it only
+    // renders when `useIsMobile()` is false (mobile users get the full
+    // QuickAccessHome flow and the hero card is the natural exit).
+    isMobileMock.mockReturnValue(false);
     renderHome();
     fireEvent.click(screen.getByTestId("quick-access-open-dashboard"));
     expect(navigateMock).toHaveBeenCalledWith("/dashboard");

@@ -174,12 +174,18 @@ describe("TaskEngine.fetchTasksWithGhosts — ghost generation", () => {
     ).toHaveLength(1);
   });
 
-  test("snoozed physical task (next_check_at > today) STILL suppresses the matching ghost", async () => {
-    // Regression — Wave 20.3. The next_check_at visibility filter used
-    // to hide the snoozed task from rawTasks, which was ALSO the source
-    // for ghost suppression. The ghost regenerated at the same
-    // (blueprint_id, due_date) key, and snoozing again tripped the
-    // unique_blueprint_date constraint on materialisation.
+  test("snoozed physical task is RETURNED by the engine AND suppresses the matching ghost", async () => {
+    // Engine contract (Wave 20.3+, see taskEngine.ts:316-324):
+    //   - The engine deliberately keeps snoozed tasks in `result.tasks` so
+    //     the calendar can still render their dot on the original due date
+    //     (then move it visually based on `next_check_at`). It does NOT
+    //     filter them out — list-consumers handle that themselves via
+    //     `lib/taskFilters.ts`.
+    //   - The ghost generation loop still uses the suppression index
+    //     keyed on `(blueprint_id, due_date)`, so a snoozed physical task
+    //     must prevent the engine from re-emitting a duplicate ghost on
+    //     that same date (otherwise re-materialisation would trip the
+    //     `unique_blueprint_date` constraint).
     const snoozed = makeTask({
       due_date: "2026-05-01",
       next_check_at: "2099-01-01", // far future — definitely > today
@@ -190,15 +196,15 @@ describe("TaskEngine.fetchTasksWithGhosts — ghost generation", () => {
 
     const result = await TaskEngine.fetchTasksWithGhosts(PARAMS);
 
-    // No ghost re-generated at the snoozed date.
+    // Ghost suppression still works — no duplicate ghost on the snoozed date.
     expect(
       result.tasks.filter((t: any) => t.isGhost && t.due_date === "2026-05-01"),
     ).toHaveLength(0);
 
-    // The snoozed physical task is also hidden from the visible list.
+    // Engine keeps the snoozed physical task — visibility is the consumer's call.
     expect(
       result.tasks.filter((t: any) => t.id === snoozed.id),
-    ).toHaveLength(0);
+    ).toHaveLength(1);
 
     // Other dates in the window still ghost normally.
     expect(

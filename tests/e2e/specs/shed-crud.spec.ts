@@ -1,4 +1,5 @@
 import { expect } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
 import { test } from "../fixtures/auth";
 import { ShedPage } from "../pages/ShedPage";
 
@@ -6,6 +7,34 @@ import { ShedPage } from "../pages/ShedPage";
 // Seeded plants (active): Tomato, Basil, Rose, Boston Fern, Lavender
 // Seeded plants (archived): Mint
 // Source breakdown: Manual = Tomato, Basil, Rose, Boston Fern, Mint | API = Lavender
+
+// One-shot cleanup of leftover AI-source plants from prior `plant-doctor`
+// and "Create with AI" runs. These accumulate at sub-1M plant IDs and end
+// up duplicating seeded common names (e.g. a second "Lavender" makes
+// `getByLabel("Archive Lavender")` resolve to two elements and trips strict
+// mode). The seed reset doesn't touch them — they live in the catalogue
+// table, not the home — so we scrub them here before the spec runs.
+test.beforeAll(async () => {
+  const url = process.env.VITE_SUPABASE_URL;
+  const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const password = process.env.TEST_USER_PASSWORD ?? "TestPassword123!";
+  if (!url || !key) return;
+  const workerIndex = parseInt(process.env.PLAYWRIGHT_WORKER_INDEX ?? "0", 10);
+  const email = `test${workerIndex + 1}@rhozly.com`;
+  const c = createClient(url, key);
+  const { error: signInErr } = await c.auth.signInWithPassword({ email, password });
+  if (signInErr) return;
+  const { data: dups } = await c
+    .from("plants")
+    .select("id")
+    .lt("id", 1_000_000)
+    .eq("source", "ai");
+  for (const p of (dups ?? []) as Array<{ id: number }>) {
+    // Drop inventory references first so the plant delete can land.
+    await c.from("inventory_items").delete().eq("plant_id", String(p.id));
+    await c.from("plants").delete().eq("id", p.id);
+  }
+});
 
 test.describe("Shed — Tabs and view filters", () => {
   test("SHED-005: Active tab is default and shows non-archived plants", async ({ authenticatedPage }) => {
@@ -591,10 +620,16 @@ test.describe("Shed — Plant card actions", () => {
     await shed.waitForLoad();
 
     await shed.deleteButtonFor("Rose").click();
-    const deleteConfirm = authenticatedPage.getByRole("button", { name: /^Delete$/i });
-    await expect(deleteConfirm).toBeVisible({ timeout: 5000 });
+    // Rose has 1 seeded inventory item, so the bulk-delete choice dialog
+    // appears instead of the simple Delete/Cancel modal. Verify the dialog
+    // opened, then Cancel — Rose should remain on the list.
+    const dialog = authenticatedPage.getByRole("dialog");
+    await expect(dialog).toBeVisible({ timeout: 5000 });
+    await expect(
+      dialog.getByRole("button", { name: /Delete everything|^Delete$/i }),
+    ).toBeVisible({ timeout: 5000 });
 
-    await authenticatedPage.getByRole("button", { name: /Cancel/i }).click();
+    await dialog.getByRole("button", { name: /Cancel/i }).click();
 
     await expect(shed.plantCard("Rose")).toBeVisible({ timeout: 5000 });
   });
@@ -607,16 +642,18 @@ test.describe("Shed — Plant card actions", () => {
     // "Boston Fern" has 1 seeded inventory item (FRN-001, Planted → Kitchen Windowsill)
     await shed.deleteButtonFor("Boston Fern").click();
 
-    // The delete confirm dialog should mention inventory items
+    // The delete confirm dialog should warn about the plant being in the
+    // garden. The bulk-delete dialog says "Boston Fern has 1 plant in your
+    // garden"; the legacy simple-confirm dialog said "1 inventory item".
     const dialog = authenticatedPage.getByRole("dialog");
     await expect(dialog).toBeVisible({ timeout: 8000 });
 
     await expect(
-      dialog.getByText(/inventory item/i),
+      dialog.getByText(/plant in your garden|inventory item/i),
     ).toBeVisible({ timeout: 5000 });
 
     // Cancel so we don't mutate seed state
-    await authenticatedPage.getByRole("button", { name: /Cancel/i }).click();
+    await dialog.getByRole("button", { name: /Cancel/i }).click();
     await expect(shed.plantCard("Boston Fern")).toBeVisible({ timeout: 5000 });
   });
 

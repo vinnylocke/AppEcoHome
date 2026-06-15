@@ -45,7 +45,10 @@ describe("decideTodayFocus — priority order", () => {
     });
     expect(d.variant).toBe("urgent");
     expect(d.fullMessage).toContain("3 overdue");
-    expect(d.route).toBe("/schedule?filter=overdue");
+    // TodayFocusCard now routes to the Calendar agenda view (where overdue
+    // tasks actually surface) instead of the old /schedule?filter=overdue
+    // path — see TodayFocusCard.tsx:49-65 for the rationale.
+    expect(d.route).toMatch(/^\/dashboard\?view=calendar&date=\d{4}-\d{2}-\d{2}$/);
   });
 
   test("urgent does NOT fire before 8am even with overdue tasks", () => {

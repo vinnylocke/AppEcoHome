@@ -124,6 +124,7 @@ export default function QuickAccessHome({
             This is the mobile shortcut screen. Your full dashboard is at{" "}
             <button
               type="button"
+              data-testid="quick-access-open-dashboard"
               onClick={() => navigate("/dashboard")}
               className="underline font-black hover:text-amber-700"
             >
