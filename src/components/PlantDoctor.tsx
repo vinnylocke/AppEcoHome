@@ -1214,8 +1214,13 @@ export default function PlantDoctor({
                    Multi-ID stay Sage+ gated below. */
                 <div data-testid="plant-doctor-ai-gate" className="space-y-3">
                   <div className="bg-emerald-50 border border-emerald-200 rounded-3xl p-5">
-                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700 mb-1">
+                    <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700 mb-1 inline-flex items-center gap-1.5">
                       Free for everyone
+                      <InfoTooltip
+                        size={11}
+                        data-testid="info-tooltip-free-identify"
+                        content="5 free identifications per rolling 7-day window. Every ID drops off 7 days later, so you keep earning new slots. Upgrade to Sage for unlimited IDs + AI diagnosis, pest scan, and Multi-ID."
+                      />
                     </p>
                     <p className="font-black text-emerald-900 text-sm mb-1">
                       Identify a plant

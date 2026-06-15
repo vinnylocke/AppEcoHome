@@ -9,7 +9,9 @@
 
 ## Quick Summary
 
-A grid of plant cards. Each card represents one `plants` row (a species/type, not an individual instance). Cards show common name, scientific name, source badge (Perenual / Verdantly / AI / Manual), planted count chip, and a row of action buttons (View on Layout, Light needs, Ask AI, Archive, Delete). At the top: a sticky search bar, multi-select toggle, smart filter chips (unassigned / in-plan / harvest-ready), and Add Plant button.
+A grid of plant cards. Each card represents one `plants` row (a species/type, not an individual instance). Cards show common name, scientific name, source badge (Perenual / Verdantly / AI / Manual), planted count chip, and a row of action buttons (View on Layout, Light needs, Ask AI, Archive, Delete). At the top: a sticky search bar, multi-select toggle, smart filter chips (unassigned / in-plan / harvest-ready), "Find a plant" button (opens BulkSearchModal), and a "Bulk paste" entry (opens BulkPastePlantsModal, Sprint 4a 2026-06-15).
+
+**Bulk paste (Sprint 4a, 2026-06-15):** the new [`BulkPastePlantsModal`](../../../src/components/BulkPastePlantsModal.tsx) accepts a multi-line text paste — one plant per line. Sage+ users get a Gemini-backed fuzzy parser ([`parse-plant-list`](../../../supabase/functions/parse-plant-list/index.ts)); free / Botanist users get the regex fallback in [`src/lib/parsePlantList.ts`](../../../src/lib/parsePlantList.ts). Both return the same `ParsedPlant` shape so the review step is identical. Each row is saved via the standard `saveToShed` path as `source: "manual"`.
 
 A **Plants / Nursery** toggle pill under the page title swaps the body to [The Nursery](./10-nursery.md) — seed packets + sowings + the plant-out lifecycle. Nursery mode hides the plant search bar and grid; seedlings graduate from the Nursery back into the Shed via the Plant Out flow.
 

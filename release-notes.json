@@ -6,6 +6,13 @@
     ]
   },
   {
+    "label": "Bulk paste plants",
+    "items": [
+      "Got a list of 20 plants you want to add at once? Tap \"Bulk paste\" next to Find a plant. Paste your list — one plant per line — and Rhozly will split out the name + variety + quantity for you. Edit the review step, then add the whole batch to your Shed in one tap.",
+      "Sage tier gets a fuzzy AI parser that handles messier lists (typos, weird spacing, mixed punctuation). Free + Botanist users get a fast regex parser that handles the common shapes."
+    ]
+  },
+  {
     "label": "Free Plant Doctor",
     "items": [
       "Identify any plant for free — 5 free identifications per rolling 7-day window for every gardener, no upgrade needed. Take a photo, tap Identify, get the species. Diagnosis and Multi-ID stay on Sage for now.",
@@ -23,7 +30,8 @@
       "Frequency hint under the \"Repeat every (days)\" input now adapts to the task type — different ranges for watering vs pruning vs harvesting.",
       "Yield Predictor shows a progress bar towards 3 logged harvests so you can see why early predictions feel fuzzy.",
       "Desktop dashboard now surfaces a \"Start a Garden Walk\" card once you have 5+ plants — same morning ritual already on mobile.",
-      "Search shortcut chip now shows ⌘K on Mac, Ctrl+K on Windows / Linux."
+      "Search shortcut chip now shows ⌘K on Mac, Ctrl+K on Windows / Linux.",
+      "Smart Planting, Garden Intelligence, and the free identify counter all gained \"what does this mean?\" tooltips. Tap the small ? to read the explanation."
     ]
   },
   {

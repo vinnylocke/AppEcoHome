@@ -11,6 +11,7 @@ import {
 import { Logger } from "../lib/errorHandler";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { supabase } from "../lib/supabase";
+import InfoTooltip from "./InfoTooltip";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -720,8 +721,12 @@ export default function WeatherForecast({ weatherData, alerts, homeId, onRefresh
           className="w-full flex items-center justify-between p-6 hover:bg-black/[0.02] transition-colors"
         >
           <div>
-            <h3 className="font-black text-xl font-display text-rhozly-on-surface tracking-tight text-left">
+            <h3 className="font-black text-xl font-display text-rhozly-on-surface tracking-tight text-left inline-flex items-center gap-2">
               Garden Intelligence
+              <InfoTooltip
+                data-testid="info-tooltip-garden-intelligence"
+                content="Rhozly checks the 7-day forecast against gardening rules (frost, heatwave, drought, waterlogging, high wind, hailstorm) and tells you which ones are currently active. Each active rule has its own auto-action — frost might delay a sow task, drought might add a watering reminder, and so on."
+              />
             </h3>
             <p className="text-xs font-bold text-rhozly-on-surface/40 uppercase tracking-widest mt-0.5 text-left">
               Every rule evaluated for this week

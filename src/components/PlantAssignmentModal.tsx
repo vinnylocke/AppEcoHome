@@ -536,9 +536,14 @@ export default function PlantAssignmentModal({
                       className="mx-auto text-rhozly-primary mb-3"
                       size={32}
                     />
-                    <h4 className="text-sm font-black text-rhozly-on-surface uppercase tracking-widest mb-1">
+                    <h4 className="text-sm font-black text-rhozly-on-surface uppercase tracking-widest mb-1 inline-flex items-center justify-center gap-1.5">
                       Smart Planting
-                      <span className="ml-2 normal-case tracking-normal text-[10px] font-medium text-rhozly-on-surface/30">(Optional)</span>
+                      <span className="normal-case tracking-normal text-[10px] font-medium text-rhozly-on-surface/30">(Optional)</span>
+                      <InfoTooltip
+                        size={12}
+                        data-testid="info-tooltip-smart-planting"
+                        content="Rhozly checks how this plant is propagated (seed, cutting, division), looks at the next 14 days of weather, and recommends the best method + day to plant. Uses your Sage AI quota."
+                      />
                     </h4>
                     <p className="text-xs font-bold text-rhozly-on-surface/60 mb-6 leading-relaxed">
                       Rhozly AI looks at how this plant can be propagated (seed, cutting, division) and your live 14-day weather forecast to recommend the best planting method and day for{" "}

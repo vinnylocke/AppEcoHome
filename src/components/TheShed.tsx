@@ -28,6 +28,7 @@ import {
   LayoutGrid,
   Sun,
   Square as SquareIcon,
+  FileText,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -36,6 +37,7 @@ import PlantEditModal from "./PlantEditModal";
 import PlantAssignmentModal from "./PlantAssignmentModal";
 import BulkAssignModal from "./BulkAssignModal";
 import BulkSearchModal from "./BulkSearchModal";
+import BulkPastePlantsModal from "./BulkPastePlantsModal";
 import PlantSourcePicker from "./PlantSourcePicker";
 import { PerenualService } from "../lib/perenualService";
 import { VerdantlyService } from "../lib/verdantlyService";
@@ -142,6 +144,9 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
   const [bulkDeleteState, setBulkDeleteState] = useState<{ open: boolean; instanceCount: number }>({ open: false, instanceCount: 0 });
   const [showBulkAssign, setShowBulkAssign] = useState(false);
   const [showBulkSearch, setShowBulkSearch] = useState(false);
+  // UX review 2026-06-15 item 4.1 — bulk paste a plant list. Different from
+  // showBulkSearch (which opens the per-row library/AI search modal).
+  const [showBulkPaste, setShowBulkPaste] = useState(false);
   const [planMembership, setPlanMembership] = useState<Set<number>>(new Set());
   const [unassignedPlantIds, setUnassignedPlantIds] = useState<Set<number>>(new Set());
   // Contextual badges per plant — built from active task data + ailments
@@ -1533,14 +1538,28 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                   <LayoutGrid size={16} /> <span className="hidden sm:inline">Layout</span>
                 </button>
                 {can("shed.add") && (
-                  <button
-                    data-testid="shed-add-plant-btn"
-                    onClick={() => setShowBulkSearch(true)}
-                    aria-label="Find a plant"
-                    className="flex items-center gap-2 px-4 sm:px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
-                  >
-                    <Plus size={18} /> Find a plant
-                  </button>
+                  <>
+                    <button
+                      data-testid="shed-add-plant-btn"
+                      onClick={() => setShowBulkSearch(true)}
+                      aria-label="Find a plant"
+                      className="flex items-center gap-2 px-4 sm:px-5 py-3 bg-rhozly-primary text-white rounded-2xl font-black text-sm shadow-lg hover:scale-[1.02] transition-transform"
+                    >
+                      <Plus size={18} /> Find a plant
+                    </button>
+                    {/* UX review 2026-06-15 item 4.1 — bulk-paste entry next
+                        to the primary CTA. Subtle styling so it doesn't
+                        compete with "Find a plant" but is discoverable for
+                        Sam's "I have a list of 30 plants" persona. */}
+                    <button
+                      data-testid="shed-bulk-paste-btn"
+                      onClick={() => setShowBulkPaste(true)}
+                      title="Paste a list of plants to add all at once"
+                      className="hidden sm:flex items-center gap-2 px-4 py-3 bg-white border border-rhozly-outline/20 text-rhozly-primary rounded-2xl font-black text-sm hover:border-rhozly-primary/30 hover:bg-rhozly-primary/5 transition-colors"
+                    >
+                      <FileText size={16} /> Bulk paste
+                    </button>
+                  </>
                 )}
               </div>
             </div>
@@ -2281,6 +2300,18 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 onClose={handleCloseModals}
                 onProceedToBulkAdd={handleProceedToBulkAdd}
                 onManualSave={handleManualSave}
+              />
+            )}
+            {showBulkPaste && (
+              <BulkPastePlantsModal
+                homeId={homeId}
+                aiEnabled={aiEnabled}
+                onClose={() => setShowBulkPaste(false)}
+                onCreated={() => {
+                  setShowBulkPaste(false);
+                  // The parent listens to realtime changes on `plants`;
+                  // no explicit refresh needed.
+                }}
               />
             )}
             {editingPlant && (
