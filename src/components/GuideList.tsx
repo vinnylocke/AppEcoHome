@@ -51,6 +51,11 @@ export default function GuideList() {
   // Filtering & Search
   const [searchQuery, setSearchQuery] = useState(() => searchParams.get("q") ?? "");
   const [selectedLabel, setSelectedLabel] = useState<string>("All");
+  // UX review 2026-06-15 item 6.1 — explicit "show only saved" filter.
+  // Bookmarks already exist + sort to the top; the chip lets the gardener
+  // narrow down to *just* their saved guides when they're returning for
+  // something specific.
+  const [savedOnly, setSavedOnly] = useState(false);
 
   // 🚀 NEW: Dropdown States
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -213,8 +218,9 @@ export default function GuideList() {
       const matchesSearch = !query || title.includes(query) || subtitle.includes(query) || bodyMatches;
       const matchesLabel =
         selectedLabel === "All" || g.labels?.includes(selectedLabel);
+      const matchesSaved = !savedOnly || bookmarkedIds.has(g.id);
 
-      return matchesSearch && matchesLabel;
+      return matchesSearch && matchesLabel && matchesSaved;
     });
     // Sort: Getting Started always first; then bookmarked guides; then the rest.
     return results.sort((a, b) => {
@@ -224,7 +230,7 @@ export default function GuideList() {
       const bBookmark = bookmarkedIds.has(b.id) ? -1 : 0;
       return (aStarter + aBookmark) - (bStarter + bBookmark);
     });
-  }, [guides, searchQuery, selectedLabel, bookmarkedIds]);
+  }, [guides, searchQuery, selectedLabel, bookmarkedIds, savedOnly]);
 
   const getCoverImage = (guideData: any) => {
     const imgSection = guideData.sections?.find((s: any) => s.type === "image");
@@ -610,6 +616,40 @@ export default function GuideList() {
           )}
         </div>
       </div>
+
+      {/* UX review 2026-06-15 item 6.1 — "Saved" filter chip. Only renders
+          when the user has at least one bookmark; otherwise it would
+          confuse new users. */}
+      {bookmarkedIds.size > 0 && (
+        <div className="flex items-center gap-2 mb-6 flex-wrap">
+          <button
+            type="button"
+            data-testid="guides-saved-filter-toggle"
+            onClick={() => setSavedOnly((v) => !v)}
+            aria-pressed={savedOnly}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 min-h-[36px] rounded-full text-xs font-black uppercase tracking-widest transition-colors border ${
+              savedOnly
+                ? "bg-amber-500 text-white border-amber-500 shadow-sm"
+                : "bg-white text-rhozly-on-surface/60 border-rhozly-outline/15 hover:border-amber-300 hover:text-amber-700"
+            }`}
+          >
+            <Star
+              size={12}
+              className={savedOnly ? "fill-white text-white" : "text-amber-500"}
+            />
+            {savedOnly ? `Saved (${bookmarkedIds.size})` : "Show saved only"}
+          </button>
+          {savedOnly && (
+            <button
+              type="button"
+              onClick={() => setSavedOnly(false)}
+              className="text-[11px] font-bold text-rhozly-on-surface/45 hover:text-rhozly-on-surface transition-colors"
+            >
+              Clear
+            </button>
+          )}
+        </div>
+      )}
 
       {/* First-visit banner */}
       {showGuideBanner && activeTab === "rhozly" && !isLoading && !fetchError && (

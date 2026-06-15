@@ -17,7 +17,9 @@
 
 ## Quick Summary
 
-A three-tab guide center. Rhozly tab pulls from `guides` table, supports label filtering, search, an in-place reader with scroll progress, and a "first visit" banner ("New to gardening apps? Start here →"). Community tab uses `useCommunityGuides` hook, supports sort by latest / starred, label filter, and stars / comments. App Help is a static-content search over docs that ship with the app.
+A three-tab guide center. Rhozly tab pulls from `guides` table, supports label filtering, search, an in-place reader with scroll progress, and a "first visit" banner ("New to gardening apps? Start here →"). Community tab uses `useCommunityGuides` hook, supports sort by latest / starred, label filter, and stars / comments. App Help is a static-content search over docs that ship with the app — also reachable via the top-level `/help` route (Sprint 2, 2026-06-15) which redirects to `?tab=help`.
+
+**Saved-only filter (Sprint 2, 2026-06-15):** when the user has at least one bookmarked Rhozly guide, a "Show saved only" chip appears above the guide grid. Toggling it filters to bookmarks; bookmarks are persisted in the existing `guide_bookmarks` table.
 
 ---
 

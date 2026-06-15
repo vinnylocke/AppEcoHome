@@ -17,6 +17,7 @@ import {
   Sparkles,
   RefreshCw,
   Loader2,
+  HelpCircle,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
@@ -287,6 +288,19 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
                   <Rocket size={15} />
                 </span>
                 <span className="flex-1 text-left">Getting Started</span>
+                <ChevronRight size={12} className="text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50 transition-colors" />
+              </button>
+              {/* UX review 2026-06-15 item 6.8 — first-class entry into
+                  App Help. Lands on the GuideList help tab via /help → redirect. */}
+              <button
+                data-testid="user-profile-help"
+                onClick={(e) => { e.stopPropagation(); go("/help"); }}
+                className="flex items-center gap-2.5 w-full px-3 py-2.5 rounded-xl text-sm font-bold text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors group"
+              >
+                <span className="text-rhozly-on-surface/40 group-hover:text-rhozly-primary transition-colors">
+                  <HelpCircle size={15} />
+                </span>
+                <span className="flex-1 text-left">Help & FAQ</span>
                 <ChevronRight size={12} className="text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50 transition-colors" />
               </button>
               <button

@@ -13,6 +13,8 @@
 
 A side-by-side card grid (or stacked list on mobile) of all four tiers. Each card shows the icon, name, one-line vibe ("Best for: weekend gardeners with a few pots"), feature list, and a `goodFor` audience label. The user picks one, hits Continue, and `subscription_tier` plus `ai_enabled` plus `enable_perenual` flags get written to their profile.
 
+**Responsive layout (Sprint 2, 2026-06-15):** mobile keeps the single-column stack; `md` and above switch to a 2×2 grid inside a `max-w-3xl` container so desktop users see all four options without scrolling.
+
 ---
 
 ## Role 1 — Technical Reference

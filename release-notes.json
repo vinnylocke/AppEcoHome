@@ -17,5 +17,16 @@
       "Desktop dashboard now surfaces a \"Start a Garden Walk\" card once you have 5+ plants — same morning ritual already on mobile.",
       "Search shortcut chip now shows ⌘K on Mac, Ctrl+K on Windows / Linux."
     ]
+  },
+  {
+    "label": "Rookie-power batch",
+    "items": [
+      "Plant page → Care Schedules now has a one-tap \"Quick Water\" button. Sets up a recurring watering reminder for every instance of this plant using its preferred interval — no form to fill in.",
+      "Dismissing the Garden Quiz reminder no longer hides it forever. The default is a 2-week snooze; a separate \"Don't ask again\" option is there for users who genuinely don't want it.",
+      "Saved a guide? A new \"Show saved only\" chip filters the Rhozly Guides list down to just your bookmarks.",
+      "Tier Selection + Welcome tour now have a proper desktop layout (2×2 grid for tiers, wider modal) instead of a phone-sized card lost in the middle of the screen.",
+      "Help & FAQ now has a first-class entry: type rhozly.app/help or pick \"Help & FAQ\" in the user dropdown to land on App Help.",
+      "Mobile users get a second user dropdown at bottom-right of the Quick Access screen so the menu sits inside the thumb zone."
+    ]
   }
 ]

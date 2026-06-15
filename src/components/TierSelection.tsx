@@ -153,19 +153,23 @@ export default function TierSelection({ userId, onComplete }: Props) {
         </span>
       </div>
 
-      {/* Tier cards */}
-      <div className="flex-1 px-4 py-4 space-y-3 max-w-lg mx-auto w-full">
-        {TIERS.map((tier) => (
-          <TierCard
-            key={tier.id}
-            tier={tier}
-            selected={selected === tier.id}
-            onSelect={() => setSelected(tier.id)}
-          />
-        ))}
+      {/* Tier cards — UX review 2026-06-15 item 6.5: stacked on mobile,
+          2-column grid on md+ so desktop users don't see a narrow column
+          of cards in a sea of whitespace. */}
+      <div className="flex-1 px-4 py-4 max-w-lg md:max-w-3xl mx-auto w-full">
+        <div className="space-y-3 md:space-y-0 md:grid md:grid-cols-2 md:gap-3">
+          {TIERS.map((tier) => (
+            <TierCard
+              key={tier.id}
+              tier={tier}
+              selected={selected === tier.id}
+              onSelect={() => setSelected(tier.id)}
+            />
+          ))}
+        </div>
 
         {/* Comparison table — collapsed by default */}
-        <div className="pt-2">
+        <div className="pt-4">
           <button
             data-testid="tier-compare-toggle"
             onClick={() => setShowCompare((v) => !v)}
@@ -205,7 +209,7 @@ export default function TierSelection({ userId, onComplete }: Props) {
       </div>
 
       {/* Footer */}
-      <div className="px-4 pb-8 max-w-lg mx-auto w-full space-y-3">
+      <div className="px-4 pb-8 max-w-lg md:max-w-3xl mx-auto w-full space-y-3">
         {error && (
           <p className="text-xs text-red-500 font-bold text-center">{error}</p>
         )}

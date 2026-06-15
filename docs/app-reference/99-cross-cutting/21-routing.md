@@ -34,6 +34,7 @@ BrowserRouter
     ├── /lightsensor       ← Sun Tracker family
     ├── /sun-trajectory    ← SunTrajectoryAR
     ├── /guides            ← GuideList (?tab=rhozly|community|help)
+    ├── /help              ← Redirect → /guides?tab=help (Sprint 2 — top-level shortcut to App Help)
     ├── /shopping          ← ShoppingLists (alias to /planner?tab=shopping)
     ├── /gardener          ← GardenerProfile (Account Settings)
     ├── /home-management   ← HomeManagement

@@ -11,6 +11,7 @@ import {
   Edit3,
   Trash2,
   CalendarPlus,
+  Droplets,
 } from "lucide-react";
 import PlantScheduleGenerateTasksModal from "./PlantScheduleGenerateTasksModal";
 import { supabase } from "../lib/supabase";
@@ -706,6 +707,68 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     }
   };
 
+  // UX review 2026-06-15 item 4.2 — One-tap "Quick watering reminder".
+  // Pre-fills task_blueprints with type=Watering, frequency=plant.watering_min_days
+  // (defaults to 4), linked to all active instances of this plant in this home.
+  // Skips the multi-step form so a beginner can stand up the reminder in a
+  // single tap. Power users still get the full Custom/Auto-Generate paths.
+  const handleQuickWateringReminder = async () => {
+    if (saving) return;
+    setSaving(true);
+    const freq = Number(plant.watering_min_days) > 0
+      ? Number(plant.watering_min_days)
+      : 4;
+    try {
+      const { data: instances, error: instErr } = await supabase
+        .from("inventory_items")
+        .select("id, location_id, area_id")
+        .eq("home_id", homeId)
+        .eq("plant_id", plant.id)
+        .eq("status", "Planted");
+      if (instErr) throw instErr;
+      if (!instances || instances.length === 0) {
+        toast.error(
+          `Add ${plant.common_name || "this plant"} to an area first, then we can remind you to water it.`,
+        );
+        return;
+      }
+
+      const today = new Date().toISOString().split("T")[0];
+      const firstLocation = instances[0].location_id;
+      const firstArea = instances[0].area_id;
+      const { error: bpErr } = await supabase
+        .from("task_blueprints")
+        .insert([{
+          home_id: homeId,
+          title: `Water ${plant.common_name || "plant"}`,
+          task_type: "Watering",
+          location_id: firstLocation,
+          area_id: firstArea,
+          inventory_item_ids: instances.map((i: any) => i.id),
+          frequency_days: freq,
+          is_recurring: true,
+          is_auto_generated: false,
+          start_date: today,
+        }])
+        .select("id")
+        .single();
+      if (bpErr) throw bpErr;
+
+      toast.success(
+        `Done — we'll remind you to water ${plant.common_name || "this plant"} every ${freq} day${freq === 1 ? "" : "s"}.`,
+      );
+    } catch (err: any) {
+      Logger.error(
+        "Quick watering reminder failed",
+        err,
+        { plant_id: plant.id },
+        `Could not save reminder: ${err.message ?? "unknown error"}`,
+      );
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const deleteSchedule = async (id: string) => {
     setSaving(true);
     try {
@@ -1099,7 +1162,16 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
             Automate care tasks when this plant changes status.
           </p>
         </div>
-        <div className="flex gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap gap-2 w-full md:w-auto">
+          <button
+            data-testid="schedule-quick-water"
+            onClick={handleQuickWateringReminder}
+            disabled={saving}
+            title={`Set up a recurring watering reminder every ${plant.watering_min_days || 4} days for every instance of this plant`}
+            className="flex-1 md:flex-none flex items-center justify-center gap-2 bg-sky-50 text-sky-700 border border-sky-200 px-4 py-2 rounded-2xl text-xs font-black hover:bg-sky-600 hover:text-white hover:border-sky-600 transition-all disabled:opacity-50 focus:ring-2 focus:ring-sky-500/40 focus:ring-offset-2 focus:outline-none"
+          >
+            <Droplets size={16} /> Quick Water
+          </button>
           <button
             onClick={handleAutoGenerate}
             disabled={saving}

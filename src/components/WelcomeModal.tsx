@@ -162,7 +162,7 @@ export default function WelcomeModal({ userId, onboardingState, onStateChange, o
     >
       <div
         ref={trapRef}
-        className="bg-rhozly-bg rounded-3xl w-full max-w-md shadow-2xl border border-rhozly-outline/10 overflow-hidden animate-in zoom-in-95 duration-300"
+        className="bg-rhozly-bg rounded-3xl w-full max-w-md md:max-w-lg lg:max-w-xl shadow-2xl border border-rhozly-outline/10 overflow-hidden animate-in zoom-in-95 duration-300"
         role="dialog"
         aria-modal="true"
         aria-labelledby="welcome-modal-title"

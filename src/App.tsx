@@ -459,6 +459,38 @@ function AppShell() {
   const [quizPromptFading, setQuizPromptFading] = useState(false);
   const [quizPromptConfirmDismiss, setQuizPromptConfirmDismiss] = useState(false);
 
+  // UX review 2026-06-15 item 1.4 — quiz re-prompt mechanic.
+  // Previously a permanent in-memory dismiss; now a server-persisted snooze
+  // date inside onboarding_state. "Hide for now" snoozes 14 days; "Don't ask
+  // again" sets ~100 years out. Re-prompt eligibility = no snooze OR snooze
+  // date <= today.
+  const QUIZ_PROMPT_SNOOZE_KEY = "quiz_prompt_snoozed_until";
+  const quizPromptSnoozedUntil = onboardingState[QUIZ_PROMPT_SNOOZE_KEY] as
+    | string
+    | undefined;
+  const quizPromptIsSnoozed =
+    typeof quizPromptSnoozedUntil === "string" &&
+    quizPromptSnoozedUntil > new Date().toISOString().split("T")[0];
+  const persistQuizPromptSnooze = async (days: number) => {
+    if (!session?.user?.id) return;
+    const target = new Date();
+    target.setDate(target.getDate() + days);
+    const isoDate = target.toISOString().split("T")[0];
+    const nextState: OnboardingState = {
+      ...onboardingState,
+      [QUIZ_PROMPT_SNOOZE_KEY]: isoDate,
+    };
+    setOnboardingState(nextState);
+    try {
+      await supabase
+        .from("user_profiles")
+        .update({ onboarding_state: nextState })
+        .eq("uid", session.user.id);
+    } catch (err) {
+      Logger.error("Failed to persist quiz prompt snooze", err);
+    }
+  };
+
   useEffect(() => {
     if (!profile?.home_id || !session?.user?.id) return;
     let cancelled = false;
@@ -1365,16 +1397,34 @@ function AppShell() {
                                       hardinessZone={hardinessZone}
                                     />
                                     {/* Complete Home Profile quiz prompt */}
-                                    {quizCompleted === false && !quizPromptDismissed && (
+                                    {quizCompleted === false && !quizPromptDismissed && !quizPromptIsSnoozed && (
                                       <div className={`bg-gradient-to-br from-emerald-500 to-teal-600 text-white rounded-3xl p-5 shadow-md relative overflow-hidden transition-all duration-300 ${quizPromptFading ? "opacity-0 scale-95 pointer-events-none" : "opacity-100 scale-100"}`}>
                                         {quizPromptConfirmDismiss ? (
-                                          <div className="flex items-center gap-3">
-                                            <p className="text-sm font-bold text-white/90 flex-1">Hide this reminder?</p>
+                                          <div className="flex flex-wrap items-center gap-2">
+                                            <p className="text-sm font-bold text-white/90 flex-1 min-w-full sm:min-w-0">Hide this reminder?</p>
                                             <button
-                                              onClick={() => { setQuizPromptFading(true); setTimeout(() => { setQuizPromptDismissed(true); setQuizPromptFading(false); setQuizPromptConfirmDismiss(false); }, 300); toast.success("Reminder hidden — find it any time in Garden Quiz & Preferences.", { duration: 2500 }); }}
+                                              data-testid="quiz-prompt-snooze-14d"
+                                              onClick={() => {
+                                                setQuizPromptFading(true);
+                                                void persistQuizPromptSnooze(14);
+                                                setTimeout(() => { setQuizPromptDismissed(true); setQuizPromptFading(false); setQuizPromptConfirmDismiss(false); }, 300);
+                                                toast.success("Reminder hidden for 2 weeks — find it any time in Garden Quiz & Preferences.", { duration: 2500 });
+                                              }}
                                               className="text-xs font-black bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-xl transition"
                                             >
-                                              Yes, hide it
+                                              Snooze 2 weeks
+                                            </button>
+                                            <button
+                                              data-testid="quiz-prompt-dont-ask-again"
+                                              onClick={() => {
+                                                setQuizPromptFading(true);
+                                                void persistQuizPromptSnooze(365 * 100);
+                                                setTimeout(() => { setQuizPromptDismissed(true); setQuizPromptFading(false); setQuizPromptConfirmDismiss(false); }, 300);
+                                                toast.success("Done — we won't ask again. Find the quiz in Garden Quiz & Preferences.", { duration: 2500 });
+                                              }}
+                                              className="text-xs font-black bg-white/20 hover:bg-white/30 px-3 py-1.5 rounded-xl transition"
+                                            >
+                                              Don't ask again
                                             </button>
                                             <button
                                               onClick={() => setQuizPromptConfirmDismiss(false)}
@@ -1666,6 +1716,15 @@ function AppShell() {
                         </div>
                       } />
 
+                      {/* UX review 2026-06-15 item 6.8 — first-class
+                          /help URL that lands the user on the App Help
+                          tab of GuideList. Keeps the existing tab UI as
+                          the single source of help truth while making
+                          "type rhozly.app/help" actually work. */}
+                      <Route path="/help" element={
+                        <Navigate to="/guides?tab=help" replace />
+                      } />
+
                       <Route path="/management" element={
                         <div className="h-full animate-in fade-in duration-500">
                           {profile?.home_id ? (
@@ -1785,6 +1844,34 @@ function AppShell() {
                   onCheckForUpdate={versionState.refresh}
                 />
               </div>
+              {/* UX review 2026-06-15 item 7.1 — bottom thumb-zone mirror
+                  of the user dropdown on the mobile QuickAccessHome shell.
+                  Top-right copy stays for users who already learned it;
+                  this second instance shaves an awkward stretch out of the
+                  Sam persona's day. Scoped to /quick to avoid clashing
+                  with the BetaFeedbackBanner or sheet UIs on other routes. */}
+              {routerLocation.pathname === "/quick" && (
+                <div
+                  data-testid="quick-access-bottom-user-menu"
+                  className="fixed bottom-3 right-3 z-[105]"
+                  style={{
+                    bottom: `calc(0.75rem + env(safe-area-inset-bottom, 0px))`,
+                    right: `calc(0.75rem + env(safe-area-inset-right, 0px))`,
+                  }}
+                >
+                  <UserProfileDropdown
+                    displayName={profile?.display_name ?? null}
+                    firstName={profile?.first_name ?? null}
+                    email={session?.user?.email ?? null}
+                    subscriptionTier={profile?.subscription_tier ?? null}
+                    isAdmin={profile?.is_admin ?? false}
+                    canViewAudit={profile?.can_view_audit ?? false}
+                    appVersion={appVersion ?? undefined}
+                    onVersionClick={() => setReleaseNotesMode("history")}
+                    onCheckForUpdate={versionState.refresh}
+                  />
+                </div>
+              )}
               <MobileNavDrawer
                 open={quickDrawerOpen}
                 navLinks={navLinks}

@@ -59,6 +59,7 @@ supabase.from("user_profiles")
 | Surface | Key |
 |---------|-----|
 | [Welcome Modal](../01-onboarding/02-welcome-modal.md) | `welcome_modal` |
+| Garden Quiz prompt (dashboard) | `quiz_prompt_snoozed_until` — ISO `YYYY-MM-DD` date. When set + greater than today the prompt is hidden. "Snooze 2 weeks" writes today + 14d; "Don't ask again" writes today + ~100y. Sprint 2 (2026-06-15) — replaced the in-memory-only `quizPromptDismissed` flag so the dismissal survives page reload. |
 | [Getting Started Checklist](../01-onboarding/06-getting-started-checklist.md) | `getting_started.*` |
 | [Notification Opt-In](../01-onboarding/07-notification-opt-in.md) | `notification_opt_in` |
 | [PWA Install](../01-onboarding/08-pwa-install.md) | `pwa_install` (paired with localStorage) |

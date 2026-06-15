@@ -9,7 +9,11 @@
 
 ## Quick Summary
 
-A modal with 4 slides shown once per user. Slide 1 welcomes them; slide 2 explains the data hierarchy (Location → Area → Plant) with a small inline diagram; slide 3 explains recurring task schedules; slide 4 offers two paths — "Take the Garden Quiz" (recommended) or "Skip for now". Completion / dismissal is persisted to `user_profiles.onboarding_state.welcome_modal = "completed" | "dismissed"`.
+A modal with 5 slides shown once per user. Slide 1 welcomes them; slide 2 explains the data hierarchy (Location → Area → Plant) with a small inline diagram; slide 3 explains recurring task schedules; slide 4 captures the user's persona (`new` / `experienced`) so downstream surfaces can shorten copy + skip coach marks; slide 5 offers two paths — "Take the Garden Quiz" (recommended) or "Skip for now". Completion / dismissal is persisted to `user_profiles.onboarding_state.welcome_modal = "completed" | "dismissed"`.
+
+**Express lane (Sprint 1, 2026-06-15):** slide 1 also shows a small "I'm experienced — skip the tour" link below the Next button. Tapping it sets `persona = "experienced"`, marks the modal as completed, and closes without stepping through the carousel.
+
+**Desktop sizing (Sprint 2, 2026-06-15):** the modal width grows to `max-w-lg` on `md` and `max-w-xl` on `lg` so desktop users don't see a phone-sized card in the middle of a wide screen.
 
 ---
 

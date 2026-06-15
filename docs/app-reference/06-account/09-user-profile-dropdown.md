@@ -15,7 +15,7 @@ A multi-section dropdown:
 - **Account** — Account Settings, Garden Quiz & Preferences
 - **Management** — Location Management, Members & Permissions, Task Manager, Audit Log (if `canViewAudit`)
 - **Admin** — Guide Studio (if `isAdmin`)
-- **Help** — What's New (if recent version), Getting Started, Contact Support
+- **Help** — What's New (if recent version), Getting Started, Help & FAQ (deep-links to `/help` → `/guides?tab=help`), Contact Support, Image credits
 - **Sign Out** — `supabase.auth.signOut()`
 - **Footer** — app version label (tap to open release notes)
 
@@ -36,7 +36,7 @@ UserProfileDropdown
     ├── Account section
     ├── Management section
     ├── Admin section (conditional)
-    ├── Help section (What's New / Getting Started / Contact Support)
+    ├── Help section (What's New / Getting Started / Help & FAQ / Contact Support / Image credits)
     ├── Sign Out
     └── App version label
 └── ContactSupportModal (when supportOpen)
