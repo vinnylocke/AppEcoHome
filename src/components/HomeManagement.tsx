@@ -16,7 +16,10 @@ import {
   X,
   ChevronDown,
   Settings2,
+  Mail,
+  AlertCircle,
 } from "lucide-react";
+import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import { ConfirmModal } from "./ConfirmModal";
@@ -24,6 +27,7 @@ import { COUNTRIES } from "../constants/countries";
 import { resolvePermissions, ROLE_DEFAULTS, type Role, type PermissionKey } from "../lib/permissions";
 import { fetchUsdaZone } from "../lib/hardinessZone";
 import HomeLocationInsights from "./HomeLocationInsights";
+import { logEvent, EVENT } from "../events/registry";
 
 const ALL_TIMEZONES: string[] = (() => {
   try { return (Intl as any).supportedValuesOf("timeZone") as string[]; }
@@ -1117,6 +1121,15 @@ export default function HomeManagement({
                   </div>
                 )}
 
+                {/* UX review 2026-06-15 item 5.1 — Invite by email
+                    (owners only, inside the Members tab). Replaces the
+                    old copy-paste-the-UUID flow. The Join Home card
+                    below the home list is still available as a fallback
+                    for legacy invites. */}
+                {getTab(home.id) === "members" && home.role === "owner" && (
+                  <InviteByEmailForm homeId={home.id} homeName={home.name} />
+                )}
+
                 {/* Danger zone */}
                 <div className="flex items-center gap-2 pt-1 border-t border-rhozly-outline/10">
                   <button
@@ -1192,6 +1205,186 @@ export default function HomeManagement({
         confirmText={modal.open && modal.type === "remove_member" ? "Remove Member" : modal.open && modal.type === "delete" ? "Delete Home" : "Leave Home"}
         isDestructive
       />
+    </div>
+  );
+}
+
+// UX review 2026-06-15 item 5.1 — Owner-only invite-by-email form.
+// Lives at the bottom of the Members tab. Calls create-home-invite
+// edge function; the function inserts a row in home_invite_tokens and
+// sends the email via Resend.
+type InviteState =
+  | { kind: "idle" }
+  | { kind: "sending" }
+  | {
+      kind: "sent";
+      invitee: string;
+      inviteUrl: string;
+      expiresAt: string;
+      resentExisting: boolean;
+    }
+  | { kind: "error"; message: string };
+
+const INVITE_ERROR_COPY: Record<string, string> = {
+  invalid_email: "That doesn't look like a valid email.",
+  invalid_role: "We can't send an invite with that role.",
+  not_owner: "Only the home owner can send invites.",
+  already_member: "That person is already a member of this garden.",
+  rate_limited: "Too many invites today — try again tomorrow.",
+};
+
+function InviteByEmailForm({ homeId, homeName }: { homeId: string; homeName: string }) {
+  const [email, setEmail] = useState("");
+  const [role, setRole] = useState<"editor" | "viewer">("editor");
+  const [state, setState] = useState<InviteState>({ kind: "idle" });
+  const [copied, setCopied] = useState(false);
+
+  const send = async () => {
+    const trimmed = email.trim().toLowerCase();
+    if (!trimmed) return;
+    setState({ kind: "sending" });
+    try {
+      const appOrigin = typeof window !== "undefined"
+        ? `${window.location.protocol}//${window.location.host}`
+        : null;
+      const { data, error } = await supabase.functions.invoke("create-home-invite", {
+        body: { homeId, email: trimmed, role, appOrigin },
+      });
+      if (error) {
+        // supabase-js wraps non-2xx in `error`; the JSON body is in
+        // error.context.json() but harder to read consistently. Fall
+        // back to a generic copy.
+        setState({ kind: "error", message: error.message ?? "Something went wrong sending the invite." });
+        return;
+      }
+      if (data?.error) {
+        const friendly = INVITE_ERROR_COPY[data.error] ?? data.message ?? data.error;
+        setState({ kind: "error", message: friendly });
+        return;
+      }
+      setState({
+        kind: "sent",
+        invitee: data.invitee,
+        inviteUrl: data.inviteUrl,
+        expiresAt: data.expiresAt,
+        resentExisting: !!data.resentExisting,
+      });
+      logEvent(EVENT.INVITE_SENT, { home_id: homeId, role, resentExisting: !!data.resentExisting });
+      setEmail("");
+    } catch (err: any) {
+      Logger.error("create-home-invite failed", err, { homeId, email: trimmed });
+      setState({ kind: "error", message: err?.message ?? "Network error — try again." });
+    }
+  };
+
+  const copyInviteUrl = async (url: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopied(true);
+      toast.success("Link copied");
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      toast.error("Couldn't copy automatically — long-press the link to copy.");
+    }
+  };
+
+  return (
+    <div
+      data-testid={`invite-by-email-${homeId}`}
+      className="bg-emerald-50/50 border border-emerald-200/60 rounded-2xl p-4 mt-3"
+    >
+      <div className="flex items-center gap-2 mb-3">
+        <div className="w-7 h-7 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+          <Mail size={13} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-black text-rhozly-on-surface">Invite by email</p>
+          <p className="text-[11px] font-bold text-rhozly-on-surface/55 leading-snug">
+            Send a one-tap join link to a co-gardener. Expires after 7 days.
+          </p>
+        </div>
+      </div>
+
+      <div className="flex flex-col sm:flex-row gap-2">
+        <input
+          data-testid={`invite-email-input-${homeId}`}
+          type="email"
+          value={email}
+          onChange={(e) => {
+            setEmail(e.target.value);
+            if (state.kind === "error" || state.kind === "sent") setState({ kind: "idle" });
+          }}
+          placeholder="cogardener@example.com"
+          autoComplete="email"
+          disabled={state.kind === "sending"}
+          className="flex-1 px-4 py-2.5 min-h-[44px] bg-white rounded-xl border border-rhozly-outline/20 text-sm font-bold text-rhozly-on-surface outline-none focus:border-emerald-500 transition-colors disabled:opacity-50"
+        />
+        <select
+          data-testid={`invite-role-select-${homeId}`}
+          value={role}
+          onChange={(e) => setRole(e.target.value as "editor" | "viewer")}
+          disabled={state.kind === "sending"}
+          className="px-3 py-2.5 min-h-[44px] bg-white rounded-xl border border-rhozly-outline/20 text-xs font-black uppercase tracking-widest text-rhozly-on-surface outline-none focus:border-emerald-500 transition-colors disabled:opacity-50"
+        >
+          <option value="editor">Editor</option>
+          <option value="viewer">Viewer</option>
+        </select>
+        <button
+          data-testid={`invite-send-${homeId}`}
+          type="button"
+          onClick={send}
+          disabled={state.kind === "sending" || !email.trim()}
+          className="inline-flex items-center justify-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-xl bg-emerald-600 text-white text-xs font-black uppercase tracking-widest hover:bg-emerald-700 disabled:opacity-40 transition-colors"
+        >
+          {state.kind === "sending" ? (
+            <><Loader2 size={13} className="animate-spin" /> Sending</>
+          ) : (
+            <>Send</>
+          )}
+        </button>
+      </div>
+
+      {state.kind === "sent" && (
+        <div
+          data-testid={`invite-sent-${homeId}`}
+          className="mt-3 bg-white border border-emerald-200 rounded-xl p-3 flex flex-col gap-2"
+        >
+          <p className="text-xs font-bold text-emerald-900 leading-snug">
+            <Check size={12} className="inline mr-1" />
+            {state.resentExisting
+              ? `Resent the existing pending invite to ${state.invitee}.`
+              : `Invite sent to ${state.invitee} — they'll receive an email shortly.`}
+          </p>
+          <div className="flex items-center gap-2">
+            <code className="flex-1 text-[10px] font-mono font-bold text-rhozly-on-surface/65 bg-rhozly-surface-low rounded-lg px-2 py-1 truncate">
+              {state.inviteUrl}
+            </code>
+            <button
+              data-testid={`invite-copy-${homeId}`}
+              onClick={() => copyInviteUrl(state.inviteUrl)}
+              className="shrink-0 inline-flex items-center gap-1 px-2.5 py-1 min-h-[32px] rounded-lg bg-rhozly-primary text-white text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition"
+            >
+              {copied ? <Check size={11} /> : <Copy size={11} />}
+              {copied ? "Copied" : "Copy"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {state.kind === "error" && (
+        <div
+          data-testid={`invite-error-${homeId}`}
+          className="mt-3 flex items-start gap-2 bg-red-50 border border-red-200 rounded-xl px-3 py-2 text-xs font-bold text-red-700"
+        >
+          <AlertCircle size={13} className="shrink-0 mt-0.5" />
+          <p className="leading-snug">{state.message}</p>
+        </div>
+      )}
+
+      <p className="text-[10px] font-bold text-rhozly-on-surface/35 mt-2 leading-snug">
+        Editors can add and change plants, tasks, and notes; viewers can read but not edit.
+        Garden: <span className="text-rhozly-on-surface/55">{homeName}</span>.
+      </p>
     </div>
   );
 }

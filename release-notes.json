@@ -6,6 +6,14 @@
     ]
   },
   {
+    "label": "Invite a co-gardener by email",
+    "items": [
+      "Garden with a partner, family member, or friend? Owners can now send a one-tap invite link from Home Management → Members tab → Invite by email. No more copying a Home ID into WhatsApp — the invitee gets a Rhozly-branded email with an Accept button.",
+      "Pick a role (Editor or Viewer) before sending. Editors can add and change plants, tasks, and notes; viewers can read but not edit.",
+      "Invites expire after 7 days and are pinned to the email address you entered — only the invitee can redeem them. If you re-invite the same person within 7 days, we reuse the existing pending invite instead of spamming their inbox."
+    ]
+  },
+  {
     "label": "Bulk paste plants",
     "items": [
       "Got a list of 20 plants you want to add at once? Tap \"Bulk paste\" next to Find a plant. Paste your list — one plant per line — and Rhozly will split out the name + variety + quantity for you. Edit the review step, then add the whole batch to your Shed in one tap.",

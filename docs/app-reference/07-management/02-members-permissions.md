@@ -13,7 +13,7 @@
 
 Per home, a list of members with role chip + display name + email. Tap a member → permission editor expands inline, organised by 10 functional groups (Shed, Areas & Locations, Tasks, Ailments, Plans, Garden Layout, Shopping, Integrations, Automations, Audit & Usage). Each permission is a checkbox. Change a role → permissions reset to that role's defaults from `ROLE_DEFAULTS`.
 
-Plus invite (copy join code) and remove member actions.
+**Invite by email (Sprint 4b, 2026-06-15):** owners see an "Invite by email" form at the bottom of the Members tab. Enter an email + pick a role (editor / viewer) → the [`create-home-invite`](../../../supabase/functions/create-home-invite/index.ts) edge function inserts a row in `home_invite_tokens` and emails the invitee via Resend. The email links to `/join/<token>`, which is handled by [`JoinHomeViaToken`](../../../src/components/JoinHomeViaToken.tsx) and redeemed by [`redeem-home-invite`](../../../supabase/functions/redeem-home-invite/index.ts). Tokens are single-use, time-limited (7 days), and pinned to the invitee email — the redemption path requires the signed-in user's auth email to match (case-insensitive). The legacy "Join Home" UUID-paste card stays available below the home list for backwards compatibility.
 
 ---
 

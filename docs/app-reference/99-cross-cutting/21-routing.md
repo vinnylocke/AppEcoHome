@@ -35,6 +35,7 @@ BrowserRouter
     ├── /sun-trajectory    ← SunTrajectoryAR
     ├── /guides            ← GuideList (?tab=rhozly|community|help)
     ├── /help              ← Redirect → /guides?tab=help (Sprint 2 — top-level shortcut to App Help)
+    ├── /join/:token       ← JoinHomeViaToken (Sprint 4b — invite redemption landing page; lives OUTSIDE AppShell so signed-out invitees can land on it before signing in)
     ├── /shopping          ← ShoppingLists (alias to /planner?tab=shopping)
     ├── /gardener          ← GardenerProfile (Account Settings)
     ├── /home-management   ← HomeManagement

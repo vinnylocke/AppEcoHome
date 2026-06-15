@@ -103,6 +103,7 @@ const PlantVisualiser     = lazy(() => import("./components/PlantVisualiser"));
 const GardenLayoutList    = lazy(() => import("./components/GardenLayoutList"));
 const GardenLayoutEditor  = lazy(() => import("./components/GardenLayoutEditor"));
 const SharedGardenLayout  = lazy(() => import("./components/garden/SharedGardenLayout"));
+const JoinHomeViaToken    = lazy(() => import("./components/JoinHomeViaToken"));
 const HomeManagement      = lazy(() => import("./components/HomeManagement"));
 const GardenHub           = lazy(() => import("./components/GardenHub"));
 const PlannerHub          = lazy(() => import("./components/PlannerHub"));
@@ -170,6 +171,15 @@ export default function App() {
         <Route path="/share/garden-layout/:token" element={
           <Suspense fallback={null}>
             <SharedGardenLayout />
+          </Suspense>
+        } />
+        {/* UX review 2026-06-15 item 5.1 — invite redemption.
+            Rendered outside AppShell so an invitee can land on the page
+            before signing in (the component itself stashes the token +
+            bounces to /auth via navigate("/") when no session is present). */}
+        <Route path="/join/:token" element={
+          <Suspense fallback={null}>
+            <JoinHomeViaToken />
           </Suspense>
         } />
         <Route path="*" element={<AppShell />} />
@@ -1027,10 +1037,26 @@ function AppShell() {
       });
 
     // Handle subsequent auth events (sign in, sign out, token refresh)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setSession(session);
-      if (session) loadProfile(session.user.id).catch(() => {});
-      else {
+      if (session) {
+        loadProfile(session.user.id).catch(() => {});
+        // UX review 2026-06-15 item 5.1 — pick up a stashed invite token
+        // saved by JoinHomeViaToken when the user landed on /join/:token
+        // while signed out. Only fire on the actual sign-in transition
+        // (not on every token refresh) — INITIAL_SESSION + SIGNED_IN
+        // cover the cold-start + post-auth cases.
+        if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
+          try {
+            const stashed = localStorage.getItem("rhozly_pending_invite_token");
+            if (stashed) {
+              // Defer to next tick so the auth state has settled before
+              // the router re-renders the redemption page.
+              setTimeout(() => navigate(`/join/${stashed}`, { replace: true }), 0);
+            }
+          } catch { /* private mode — ignore */ }
+        }
+      } else {
         setProfile(null);
         // Sign-out: nuke every cached dashboard snapshot + per-device
         // launcher pins so a different account opening the app on the

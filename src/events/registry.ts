@@ -47,6 +47,10 @@ export const EVENT = {
   // Sprint 4a (UX review 2026-06-15 item 4.1) — bulk paste plant import.
   // Payload: { attempted, succeeded, failed, source: "ai" | "local" }.
   BULK_PLANT_IMPORT_COMPLETED: "bulk_plant_import_completed",
+  // Sprint 4b (UX review 2026-06-15 item 5.1) — tokenised email invites.
+  INVITE_SENT:               "invite_sent",
+  INVITE_REDEEMED:           "invite_redeemed",
+  INVITE_EXPIRED:            "invite_expired",
   PLANT_DOCTOR_CHAT_MESSAGE: "plant_doctor_chat_message",
   PLANT_DOCTOR_CHAT_PLAN_SUGGESTION_SHOWN:     "plant_doctor_chat_plan_suggestion_shown",
   PLANT_DOCTOR_CHAT_PLAN_SUGGESTION_ACCEPTED:  "plant_doctor_chat_plan_suggestion_accepted",
