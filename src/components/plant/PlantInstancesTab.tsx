@@ -106,7 +106,7 @@ export default function PlantInstancesTab({
         supabase
           .from("inventory_items")
           .select(
-            "id, plant_id, plant_name, nickname, identifier, status, area_id, area_name, location_id, location_name, planted_at, is_established, growth_state, environment",
+            "id, plant_id, plant_name, nickname, identifier, status, area_id, area_name, location_id, location_name, planted_at, is_established, growth_state, environment, from_sowing_id",
           )
           .eq("home_id", homeId)
           .eq("plant_id", String(plantId))

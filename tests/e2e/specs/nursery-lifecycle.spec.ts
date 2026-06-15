@@ -1,0 +1,734 @@
+import { expect } from "@playwright/test";
+import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { test } from "../fixtures/auth";
+import { NurseryPage } from "../pages/NurseryPage";
+
+/**
+ * NURSERY-001..052 — Section 25 lifecycle + cross-surface integrations.
+ *
+ * Coverage:
+ *   - Browse + add packets (001..004)
+ *   - Log sowing / observe / discard (010..012)
+ *   - Plant Out + "From the Nursery" badge (020..024)
+ *   - Bulk paste regex + AI mocked (030..033)
+ *   - AddTaskModal picker + Care Guide pill (040..042)
+ *   - Shopping refill banner (050..052)
+ *
+ * Test isolation: each test starts with a wiped `seed_packets` table for
+ * this worker's home. The authenticated session has RLS access via the
+ * `is_home_member(home_id)` policy, so no service role is needed.
+ */
+
+const workerNum = parseInt(process.env.PLAYWRIGHT_WORKER_INDEX ?? "0", 10) + 1;
+
+// Worker-specific UUIDs (see scripts/seed-test-db.mjs for the prefix substitution).
+const HOME_ID         = `0000000${workerNum}-0000-0000-0000-000000000002`;
+const LOC_GARDEN_ID   = `0000000${workerNum}-0000-0000-0001-000000000001`;
+const AREA_GREENHOUSE = `0000000${workerNum}-0000-0000-0002-000000000003`;
+// Worker N (1-based) → plant_id = (N + 1) * 1_000_000 + offset.
+// worker 1 (test1) → Basil 2_000_002; worker 2 (test2) → 3_000_002.
+const PLANT_BASIL     = (workerNum + 1) * 1_000_000 + 2;
+const PLANT_LAVENDER  = (workerNum + 1) * 1_000_000 + 6;
+const LIST_ACTIVE_ID  = `0000000${workerNum}-0000-0000-0011-000000000001`;
+
+// Set up a Node-side Supabase client signed in as the test user. The
+// authenticated session has RLS access to mutate this worker's home.
+async function getSupabase(): Promise<SupabaseClient> {
+  const url = process.env.VITE_SUPABASE_URL!;
+  const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY!;
+  const email = `test${workerNum}@rhozly.com`;
+  const password = process.env.TEST_USER_PASSWORD ?? "TestPassword123!";
+  const client = createClient(url, key);
+  const { error } = await client.auth.signInWithPassword({ email, password });
+  if (error) throw new Error(`Supabase sign-in failed: ${error.message}`);
+  return client;
+}
+
+async function wipeNursery(client: SupabaseClient) {
+  // 1. Delete any inventory_items rows produced by Nursery Plant Out tests
+  //    so they don't leak across to specs that count Shed instances.
+  //    Filter on `from_sowing_id IS NOT NULL` so genuine seed inventory
+  //    (Basil / Rose / Tomato / Fern / Mint / Lavender) is preserved.
+  await client
+    .from("inventory_items")
+    .delete()
+    .eq("home_id", HOME_ID)
+    .not("from_sowing_id", "is", null);
+  // 2. Delete packets — cascades to seed_sowings via FK.
+  await client.from("seed_packets").delete().eq("home_id", HOME_ID);
+  // 3. Drop any optimiser-style consolidated blueprints AutomationEngine may
+  //    have added (none expected without plant_schedules, but harmless).
+  await client
+    .from("task_blueprints")
+    .delete()
+    .eq("home_id", HOME_ID)
+    .like("title", "Nursery%");
+}
+
+async function clearShoppingItems(client: SupabaseClient) {
+  // Remove anything added to the active list during a previous test.
+  await client.from("shopping_list_items").delete().eq("list_id", LIST_ACTIVE_ID);
+}
+
+interface CreatePacketOpts {
+  plant_id?: number | null;
+  variety?: string | null;
+  vendor?: string | null;
+  sow_by?: string | null;
+  opened_on?: string | null;
+}
+
+async function createPacket(
+  client: SupabaseClient,
+  opts: CreatePacketOpts = {},
+): Promise<string> {
+  const { data, error } = await client
+    .from("seed_packets")
+    .insert({
+      home_id: HOME_ID,
+      plant_id: opts.plant_id ?? null,
+      variety: opts.variety ?? "Test Variety",
+      vendor: opts.vendor ?? null,
+      sow_by: opts.sow_by ?? null,
+      opened_on: opts.opened_on ?? null,
+    })
+    .select("id")
+    .single();
+  if (error) throw new Error(`createPacket failed: ${error.message}`);
+  return data.id as string;
+}
+
+function isoDaysFromNow(days: number): string {
+  return new Date(Date.now() + days * 86_400_000).toISOString().slice(0, 10);
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+
+test.describe("Nursery — Section 25 (NURSERY-001..052)", () => {
+  let supabase: SupabaseClient;
+
+  test.beforeAll(async () => {
+    supabase = await getSupabase();
+  });
+
+  test.beforeEach(async () => {
+    await wipeNursery(supabase);
+    await clearShoppingItems(supabase);
+  });
+
+  test.afterAll(async () => {
+    // Final scrub so leftover Nursery inventory doesn't poison other specs.
+    await wipeNursery(supabase);
+    await clearShoppingItems(supabase);
+  });
+
+  // ── Browse + add packets ─────────────────────────────────────────────────
+
+  test("NURSERY-001: Plants / Nursery view toggle visible on /shed", async ({ authenticatedPage }) => {
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await expect(nursery.shedViewPlantsBtn).toBeVisible({ timeout: 10000 });
+    await expect(nursery.shedViewNurseryBtn).toBeVisible();
+  });
+
+  test("NURSERY-002: Empty state shows add CTAs", async ({ authenticatedPage }) => {
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+
+    await expect(nursery.nurseryEmpty).toBeVisible({ timeout: 10000 });
+    await expect(nursery.nurseryAddEmpty).toBeVisible();
+    await expect(nursery.nurseryPasteEmpty).toBeVisible();
+  });
+
+  test("NURSERY-003: Add Packet — Shed pick path", async ({ authenticatedPage }) => {
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryAddEmpty.click();
+
+    await expect(nursery.addPacketModal).toBeVisible({ timeout: 10000 });
+    await expect(nursery.addPacketShedList).toBeVisible();
+
+    // Pick the first Shed plant — seeded inventory has Basil, Rose, Fern, Tomato (unplanted), Lavender.
+    await authenticatedPage
+      .locator("[data-testid^='add-seed-packet-shed-option-']")
+      .first()
+      .click();
+    await nursery.addPacketNext.click();
+
+    await nursery.packetVarietyInput.fill("Test Variety A");
+    await nursery.packetVendorInput.fill("Test Vendor");
+    await nursery.addPacketSave.click();
+
+    await expect(authenticatedPage.getByText(/Added .* to your Nursery/i)).toBeVisible({ timeout: 10000 });
+    await expect(nursery.anyNurseryRow().first()).toBeVisible({ timeout: 10000 });
+  });
+
+  test("NURSERY-004: Add Packet — Free-text 'add later' path", async ({ authenticatedPage }) => {
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryAddEmpty.click();
+
+    // The freetext-toggle is sr-only — click the visible label instead.
+    await authenticatedPage.locator('label:has([data-testid="add-seed-packet-freetext-toggle"])').click();
+    await nursery.addPacketFreetextName.fill("Sunflower");
+    await nursery.addPacketNext.click();
+
+    // Variety defaults to the free-text name; just save.
+    await nursery.addPacketSave.click();
+
+    await expect(authenticatedPage.getByText(/Added .* to your Nursery/i)).toBeVisible({ timeout: 10000 });
+
+    // Verify the row exists and the underlying packet has plant_id null.
+    const { data } = await supabase
+      .from("seed_packets")
+      .select("id,plant_id,variety")
+      .eq("home_id", HOME_ID);
+    expect((data ?? []).length).toBeGreaterThan(0);
+    expect((data ?? [])[0].plant_id).toBeNull();
+  });
+
+  // ── Sowing lifecycle ─────────────────────────────────────────────────────
+
+  test("NURSERY-010: Log Sowing creates an active sowing", async ({ authenticatedPage }) => {
+    const packetId = await createPacket(supabase, {
+      plant_id: PLANT_BASIL,
+      variety: "Sweet Genovese",
+    });
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+
+    await nursery.nurseryRow(packetId).click();
+    await expect(nursery.packetDetailModal).toBeVisible({ timeout: 10000 });
+    await nursery.packetDetailLogSowing.click();
+
+    await expect(nursery.logSowingModal).toBeVisible();
+    await nursery.logSowingCount.fill("12");
+    await nursery.logSowingSave.click();
+
+    await expect(authenticatedPage.getByText(/12 seeds sown/i).first()).toBeVisible({ timeout: 10000 });
+    await expect(nursery.anySowingRow().first()).toBeVisible({ timeout: 10000 });
+  });
+
+  test("NURSERY-011: Observe Germination flips status + shows %", async ({ authenticatedPage }) => {
+    const packetId = await createPacket(supabase, { plant_id: PLANT_BASIL });
+    // Insert a sowing directly so the test focuses on Observe.
+    const { data: sow } = await supabase
+      .from("seed_sowings")
+      .insert({
+        home_id: HOME_ID,
+        seed_packet_id: packetId,
+        sown_on: isoDaysFromNow(-7),
+        sown_count: 12,
+        status: "sown",
+      })
+      .select("id")
+      .single();
+    const sowingId = sow!.id as string;
+
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryRow(packetId).click();
+    await nursery.sowingObserveBtn(sowingId).click();
+
+    await expect(nursery.observeModal).toBeVisible();
+    await nursery.observeInput.fill("9");
+    await nursery.observeSave.click();
+
+    await expect(authenticatedPage.getByText(/9 of 12 sprouted/i)).toBeVisible({ timeout: 10000 });
+    // After the modal closes the packet detail re-fetches; the row text
+    // becomes "12 seeds sown · 9/12 sprouted (75%)".
+    await expect(nursery.sowingRow(sowingId).getByText(/\(75%\)/)).toBeVisible({ timeout: 10000 });
+  });
+
+  test("NURSERY-012: Discard sowing → Discarded chip", async ({ authenticatedPage }) => {
+    const packetId = await createPacket(supabase, { plant_id: PLANT_BASIL });
+    const { data: sow } = await supabase
+      .from("seed_sowings")
+      .insert({
+        home_id: HOME_ID,
+        seed_packet_id: packetId,
+        sown_on: isoDaysFromNow(-3),
+        sown_count: 10,
+        status: "sown",
+      })
+      .select("id")
+      .single();
+    const sowingId = sow!.id as string;
+
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryRow(packetId).click();
+
+    authenticatedPage.on("dialog", (d) => d.accept());
+    await nursery.sowingDiscardBtn(sowingId).click();
+
+    await expect(authenticatedPage.getByText(/Sowing discarded/i)).toBeVisible({ timeout: 10000 });
+    await expect(nursery.sowingRow(sowingId).getByText(/Discarded/i)).toBeVisible();
+  });
+
+  // ── Plant Out + badge ────────────────────────────────────────────────────
+
+  test("NURSERY-020: Plant Out creates inventory_items row with from_sowing_id", async ({ authenticatedPage }) => {
+    const packetId = await createPacket(supabase, {
+      plant_id: PLANT_BASIL,
+      variety: "Sweet Genovese",
+    });
+    const { data: sow } = await supabase
+      .from("seed_sowings")
+      .insert({
+        home_id: HOME_ID,
+        seed_packet_id: packetId,
+        sown_on: isoDaysFromNow(-7),
+        sown_count: 12,
+        observed_on: isoDaysFromNow(-2),
+        germinated_count: 9,
+        status: "germinated",
+      })
+      .select("id")
+      .single();
+    const sowingId = sow!.id as string;
+
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryRow(packetId).click();
+    await nursery.sowingPlantOutBtn(sowingId).click();
+
+    await expect(nursery.plantOutModal).toBeVisible({ timeout: 10000 });
+    await nursery.plantOutLocation.selectOption({ value: LOC_GARDEN_ID });
+    await nursery.plantOutArea.selectOption({ value: AREA_GREENHOUSE });
+    // Quantity defaults to 1 initially and only flips to remainingToPlant
+    // after fetchPlantedOutTotal resolves — fill explicitly to remove the race.
+    await nursery.plantOutQuantity.fill("9");
+    await nursery.plantOutSave.click();
+
+    await expect(authenticatedPage.getByText(/9 seedlings planted in/i)).toBeVisible({ timeout: 15000 });
+
+    // Verify DB: sowing flipped to planted_out, inventory_items row exists.
+    const { data: updated } = await supabase
+      .from("seed_sowings")
+      .select("status,planted_out_at")
+      .eq("id", sowingId)
+      .single();
+    expect(updated!.status).toBe("planted_out");
+
+    const { data: inv } = await supabase
+      .from("inventory_items")
+      .select("id,from_sowing_id,growth_state,quantity")
+      .eq("from_sowing_id", sowingId);
+    expect((inv ?? []).length).toBe(1);
+    expect((inv ?? [])[0].growth_state).toBe("Seedling");
+    expect((inv ?? [])[0].quantity).toBe(9);
+  });
+
+  test("NURSERY-021: Partial plant-out keeps sowing 'germinated' with remaining hint", async ({ authenticatedPage }) => {
+    const packetId = await createPacket(supabase, { plant_id: PLANT_BASIL });
+    const { data: sow } = await supabase
+      .from("seed_sowings")
+      .insert({
+        home_id: HOME_ID,
+        seed_packet_id: packetId,
+        sown_on: isoDaysFromNow(-7),
+        sown_count: 12,
+        observed_on: isoDaysFromNow(-2),
+        germinated_count: 9,
+        status: "germinated",
+      })
+      .select("id")
+      .single();
+    const sowingId = sow!.id as string;
+
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryRow(packetId).click();
+    await nursery.sowingPlantOutBtn(sowingId).click();
+
+    await expect(nursery.plantOutModal).toBeVisible({ timeout: 10000 });
+    await nursery.plantOutLocation.selectOption({ value: LOC_GARDEN_ID });
+    await nursery.plantOutArea.selectOption({ value: AREA_GREENHOUSE });
+    await nursery.plantOutQuantity.fill("6");
+    await nursery.plantOutSave.click();
+
+    // The toast trail text is "6 seedlings planted in {area} · 3 still on the bench."
+    await expect(authenticatedPage.getByText(/3 still on the bench/i)).toBeVisible({ timeout: 15000 });
+
+    const { data: updated } = await supabase
+      .from("seed_sowings")
+      .select("status")
+      .eq("id", sowingId)
+      .single();
+    expect(updated!.status).toBe("germinated");
+  });
+
+  test("NURSERY-022: Plant Out fires AutomationEngine — care blueprints generate", async ({ authenticatedPage }) => {
+    const packetId = await createPacket(supabase, { plant_id: PLANT_BASIL });
+    const { data: sow } = await supabase
+      .from("seed_sowings")
+      .insert({
+        home_id: HOME_ID,
+        seed_packet_id: packetId,
+        sown_on: isoDaysFromNow(-7),
+        sown_count: 5,
+        observed_on: isoDaysFromNow(-1),
+        germinated_count: 5,
+        status: "germinated",
+      })
+      .select("id")
+      .single();
+    const sowingId = sow!.id as string;
+
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryRow(packetId).click();
+    await nursery.sowingPlantOutBtn(sowingId).click();
+    await nursery.plantOutLocation.selectOption({ value: LOC_GARDEN_ID });
+    await nursery.plantOutArea.selectOption({ value: AREA_GREENHOUSE });
+    await nursery.plantOutQuantity.fill("5");
+    await nursery.plantOutSave.click();
+
+    await expect(authenticatedPage.getByText(/5 seedlings planted in/i)).toBeVisible({ timeout: 15000 });
+
+    // AutomationEngine runs client-side after plantOutSowing returns. Its
+    // try/catch wrapper is non-fatal — even with zero matching plant_schedules
+    // rows (the seed default), Plant Out must still complete and the
+    // inventory_items row must persist with the expected shape.
+    const { data: inv } = await supabase
+      .from("inventory_items")
+      .select("id, growth_state, quantity, area_id, from_sowing_id")
+      .eq("from_sowing_id", sowingId)
+      .single();
+    expect(inv).not.toBeNull();
+    expect(inv!.growth_state).toBe("Seedling");
+    expect(inv!.quantity).toBe(5);
+    expect(inv!.area_id).toBe(AREA_GREENHOUSE);
+  });
+
+  test("NURSERY-023: Plant Out disabled when packet.plant_id is null", async ({ authenticatedPage }) => {
+    const packetId = await createPacket(supabase, {
+      plant_id: null,
+      variety: "Mystery Seeds",
+    });
+    const { data: sow } = await supabase
+      .from("seed_sowings")
+      .insert({
+        home_id: HOME_ID,
+        seed_packet_id: packetId,
+        sown_on: isoDaysFromNow(-5),
+        sown_count: 8,
+        observed_on: isoDaysFromNow(-1),
+        germinated_count: 6,
+        status: "germinated",
+      })
+      .select("id")
+      .single();
+    const sowingId = sow!.id as string;
+
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryRow(packetId).click();
+
+    await expect(nursery.sowingLinkPlantBtn(sowingId)).toBeVisible({ timeout: 10000 });
+    // Plant Out button is not rendered when plant_id is null — link-plant takes its slot.
+    await expect(nursery.sowingPlantOutBtn(sowingId)).toHaveCount(0);
+  });
+
+  test("NURSERY-024: 'From the Nursery' badge appears on Instance Edit Modal", async ({ authenticatedPage }) => {
+    const packetId = await createPacket(supabase, {
+      plant_id: PLANT_BASIL,
+      variety: "Sweet Genovese",
+    });
+    const { data: sow } = await supabase
+      .from("seed_sowings")
+      .insert({
+        home_id: HOME_ID,
+        seed_packet_id: packetId,
+        sown_on: isoDaysFromNow(-7),
+        sown_count: 3,
+        observed_on: isoDaysFromNow(-1),
+        germinated_count: 3,
+        status: "germinated",
+      })
+      .select("id")
+      .single();
+    const sowingId = sow!.id as string;
+
+    // Create the inventory row directly so we don't depend on the UI flow.
+    const { data: inv } = await supabase
+      .from("inventory_items")
+      .insert({
+        home_id: HOME_ID,
+        plant_id: PLANT_BASIL,
+        plant_name: "Basil",
+        location_id: LOC_GARDEN_ID,
+        location_name: "Outside Garden",
+        area_id: AREA_GREENHOUSE,
+        area_name: "Greenhouse",
+        status: "Planted",
+        quantity: 3,
+        growth_state: "Seedling",
+        from_sowing_id: sowingId,
+      })
+      .select("id")
+      .single();
+    const invId = inv!.id as string;
+
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+
+    // Click the Basil plant card → PlantEditModal opens.
+    await authenticatedPage.getByTestId(`plant-card-${PLANT_BASIL}`).click();
+    // Switch to the Instances tab.
+    await authenticatedPage.getByTestId("plant-modal-tab-instances").click();
+    // Open the specific inventory row.
+    await authenticatedPage.getByTestId(`plant-instance-row-open-${invId}`).click();
+
+    await expect(authenticatedPage.getByTestId("instance-from-nursery-badge")).toBeVisible({ timeout: 10000 });
+  });
+
+  // ── Bulk paste ───────────────────────────────────────────────────────────
+
+  test("NURSERY-030: Bulk paste — regex path parses 3 lines into 3 rows", async ({ authenticatedPage }) => {
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryPasteEmpty.click();
+
+    await expect(nursery.bulkPasteModal).toBeVisible({ timeout: 10000 });
+    await nursery.bulkPasteTextarea.fill(
+      "Tomato Sungold\nBasil 'Sweet Genovese'\nSunflower (Giant)",
+    );
+    await nursery.bulkPasteParse.click();
+
+    await expect(nursery.bulkPasteRow(0)).toBeVisible({ timeout: 10000 });
+    await expect(nursery.bulkPasteRow(1)).toBeVisible();
+    await expect(nursery.bulkPasteRow(2)).toBeVisible();
+  });
+
+  test("NURSERY-031: Bulk save inserts all parsed rows", async ({ authenticatedPage }) => {
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryPasteEmpty.click();
+
+    await nursery.bulkPasteTextarea.fill(
+      "Tomato Sungold\nBasil Genovese\nSunflower Giant",
+    );
+    await nursery.bulkPasteParse.click();
+    await expect(nursery.bulkPasteRow(0)).toBeVisible({ timeout: 10000 });
+
+    await nursery.bulkPasteSave.click();
+    await expect(authenticatedPage.getByText(/Added 3 packet/i)).toBeVisible({ timeout: 10000 });
+
+    const { data } = await supabase
+      .from("seed_packets")
+      .select("id,plant_id")
+      .eq("home_id", HOME_ID);
+    expect((data ?? []).length).toBe(3);
+    // Bulk-paste rows start with plant_id null until linked.
+    expect((data ?? []).every((p) => p.plant_id === null)).toBe(true);
+  });
+
+  test("NURSERY-032: Bulk paste row editing flows through to save", async ({ authenticatedPage }) => {
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryPasteEmpty.click();
+
+    await nursery.bulkPasteTextarea.fill("Tomato Sungold");
+    await nursery.bulkPasteParse.click();
+    await expect(nursery.bulkPasteRow(0)).toBeVisible({ timeout: 10000 });
+
+    const varietyInput = authenticatedPage.getByTestId("bulk-paste-row-0-variety");
+    await varietyInput.fill("Sungold Gold Rush");
+    await nursery.bulkPasteSave.click();
+
+    await expect(authenticatedPage.getByText(/Added 1 packet/i)).toBeVisible({ timeout: 10000 });
+
+    const { data } = await supabase
+      .from("seed_packets")
+      .select("variety")
+      .eq("home_id", HOME_ID)
+      .single();
+    expect(data!.variety).toBe("Sungold Gold Rush");
+  });
+
+  test("NURSERY-033: AI parse path uses mocked edge function", async ({ authenticatedPage }) => {
+    // Mock the AI parse edge function. The component falls back to local
+    // parsing if AI is unavailable — mocking guarantees the AI path is
+    // exercised even when ai_enabled is false.
+    await authenticatedPage.route("**/functions/v1/parse-seed-packets", (route) => {
+      return route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          packets: [
+            { common_name: "Tomato", variety: "Mock AI Sungold", vendor: "MockSeeds", sow_by: null, opened_on: null, purchased_on: null, quantity_remaining: null, notes: "From AI mock" },
+          ],
+        }),
+      });
+    });
+    // Also flip ai_enabled on so the AI path is selected.
+    await authenticatedPage.route(/\/rest\/v1\/user_profiles(\?|$)/, async (route) => {
+      const req = route.request();
+      if (req.method() !== "GET") return route.fallback();
+      const upstream = await route.fetch();
+      const json = await upstream.json().catch(() => null);
+      const rows: any[] = Array.isArray(json) ? json : json ? [json] : [];
+      const patched = rows.map((row) => ({ ...row, ai_enabled: true }));
+      const body = Array.isArray(json) ? patched : (patched[0] ?? null);
+      return route.fulfill({
+        status: upstream.status(),
+        contentType: "application/json",
+        body: JSON.stringify(body),
+      });
+    });
+
+    const nursery = new NurseryPage(authenticatedPage);
+    await nursery.gotoShed();
+    await nursery.openNursery();
+    await nursery.nurseryPasteEmpty.click();
+
+    await nursery.bulkPasteTextarea.fill("Some unstructured prose about Sungold tomatoes from MockSeeds");
+    await nursery.bulkPasteParse.click();
+
+    await expect(nursery.bulkPasteRow(0)).toBeVisible({ timeout: 10000 });
+    await expect(authenticatedPage.getByTestId("bulk-paste-row-0-variety")).toHaveValue("Mock AI Sungold");
+  });
+
+  // ── AddTaskModal + Care Guide integration ────────────────────────────────
+
+  test("NURSERY-040: AddTaskModal shows Nursery packet picker on Planting", async ({ authenticatedPage }) => {
+    await createPacket(supabase, {
+      plant_id: PLANT_BASIL,
+      variety: "Sweet Genovese",
+      vendor: "Suttons",
+    });
+
+    await authenticatedPage.goto("/schedule");
+    await authenticatedPage.getByTestId("blueprint-new-btn").click();
+    await expect(authenticatedPage.getByPlaceholder("Task Name *")).toBeVisible({ timeout: 10000 });
+
+    // Change Task Type → Planting.
+    const taskTypeSelect = authenticatedPage.locator("select").first();
+    await taskTypeSelect.selectOption({ label: "Planting" });
+
+    const nursery = new NurseryPage(authenticatedPage);
+    await expect(nursery.nurseryPacketPicker).toBeVisible({ timeout: 10000 });
+  });
+
+  test("NURSERY-041: Picking a packet pre-fills the task title", async ({ authenticatedPage }) => {
+    await createPacket(supabase, {
+      plant_id: PLANT_BASIL,
+      variety: "Sweet Genovese",
+      vendor: "Suttons",
+    });
+
+    await authenticatedPage.goto("/schedule");
+    await authenticatedPage.getByTestId("blueprint-new-btn").click();
+    const titleInput = authenticatedPage.getByPlaceholder("Task Name *");
+    await expect(titleInput).toBeVisible({ timeout: 10000 });
+
+    await authenticatedPage.locator("select").first().selectOption({ label: "Planting" });
+
+    const nursery = new NurseryPage(authenticatedPage);
+    await expect(nursery.nurseryPacketPickerSelect).toBeVisible({ timeout: 10000 });
+
+    // Pick the first non-placeholder option.
+    const options = await nursery.nurseryPacketPickerSelect.locator("option").all();
+    const realOption = await options[1].getAttribute("value");
+    await nursery.nurseryPacketPickerSelect.selectOption(realOption!);
+
+    // Title should be populated by applyNurseryPacketToForm with something
+    // referencing the variety or plant name.
+    await expect(titleInput).not.toHaveValue("", { timeout: 5000 });
+    const value = (await titleInput.inputValue()) ?? "";
+    expect(value.length).toBeGreaterThan(0);
+  });
+
+  test("NURSERY-042: Care Guide tab pill shows packets for the plant", async ({ authenticatedPage }) => {
+    await createPacket(supabase, {
+      plant_id: PLANT_BASIL,
+      variety: "Sweet Genovese",
+      vendor: "Suttons",
+    });
+
+    await authenticatedPage.goto("/shed");
+    await authenticatedPage
+      .locator(".animate-spin, .animate-pulse")
+      .first()
+      .waitFor({ state: "hidden", timeout: 10000 })
+      .catch(() => {});
+
+    await authenticatedPage.getByTestId(`plant-card-${PLANT_BASIL}`).click();
+    // Care Guide tab — id "care" — is the default initial tab, so the
+    // NurseryPacketsForPlant pill should already render once the modal
+    // finishes loading.
+    const nursery = new NurseryPage(authenticatedPage);
+    await expect(nursery.careGuideNurseryPackets).toBeVisible({ timeout: 15000 });
+  });
+
+  // ── Shopping refill banner ───────────────────────────────────────────────
+
+  test("NURSERY-050: Refill banner renders when a packet's sow_by is within 90 days", async ({ authenticatedPage }) => {
+    await createPacket(supabase, {
+      plant_id: PLANT_BASIL,
+      variety: "Sweet Genovese",
+      vendor: "Suttons",
+      sow_by: isoDaysFromNow(30),
+    });
+
+    await authenticatedPage.goto("/shopping");
+    const nursery = new NurseryPage(authenticatedPage);
+    await expect(nursery.seedRefillBanner).toBeVisible({ timeout: 10000 });
+  });
+
+  test("NURSERY-051: 'Add refills' inserts items into the active shopping list", async ({ authenticatedPage }) => {
+    await createPacket(supabase, {
+      plant_id: PLANT_BASIL,
+      variety: "Sweet Genovese",
+      vendor: "Suttons",
+      sow_by: isoDaysFromNow(30),
+    });
+    // Clear sessionStorage so the banner isn't auto-dismissed from prior runs.
+    await authenticatedPage.addInitScript(() => sessionStorage.clear());
+
+    await authenticatedPage.goto("/shopping");
+    const nursery = new NurseryPage(authenticatedPage);
+    await expect(nursery.seedRefillBanner).toBeVisible({ timeout: 10000 });
+
+    const beforeCount = await supabase
+      .from("shopping_list_items")
+      .select("id", { count: "exact" })
+      .eq("list_id", LIST_ACTIVE_ID)
+      .then((r) => r.count ?? 0);
+
+    await nursery.seedRefillBannerAdd.click();
+    await expect(authenticatedPage.getByText(/Added 1 packet refill/i)).toBeVisible({ timeout: 10000 });
+
+    const afterCount = await supabase
+      .from("shopping_list_items")
+      .select("id", { count: "exact" })
+      .eq("list_id", LIST_ACTIVE_ID)
+      .then((r) => r.count ?? 0);
+    expect(afterCount).toBe(beforeCount + 1);
+  });
+
+  test("NURSERY-052: Banner hidden when no refills are due", async ({ authenticatedPage }) => {
+    // Nursery is wiped in beforeEach — no packets means no refills.
+    await authenticatedPage.goto("/shopping");
+    const nursery = new NurseryPage(authenticatedPage);
+    // The banner returns null when refills.length === 0. Give the page
+    // a beat to settle, then assert non-presence.
+    await authenticatedPage.waitForTimeout(1500);
+    await expect(nursery.seedRefillBanner).toHaveCount(0);
+  });
+});

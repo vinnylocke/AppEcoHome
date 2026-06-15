@@ -1,0 +1,202 @@
+import type { Page, Locator } from "@playwright/test";
+
+/**
+ * Page Object for the Nursery surface — mounts inside `TheShed` when
+ * the user flips the Plants / Nursery view toggle. Exposes the tab,
+ * add/scan/paste modals, packet detail, log-sowing / observe / plant-out
+ * flows + the bulk-paste modal.
+ *
+ * Used by `nursery-lifecycle.spec.ts` (NURSERY-001..052).
+ */
+export class NurseryPage {
+  readonly page: Page;
+
+  // Shed view toggle (shared with ShedPage but duplicated here for spec ergonomics).
+  readonly shedViewPlantsBtn: Locator;
+  readonly shedViewNurseryBtn: Locator;
+
+  // Nursery tab
+  readonly nurseryTab: Locator;
+  readonly nurseryList: Locator;
+  readonly nurseryEmpty: Locator;
+  readonly nurseryAddEmpty: Locator;
+  readonly nurseryAddPackets: Locator;
+  readonly nurseryPasteEmpty: Locator;
+  readonly nurseryPastePackets: Locator;
+
+  // Add Seed Packet modal
+  readonly addPacketModal: Locator;
+  readonly addPacketShedSearch: Locator;
+  readonly addPacketShedList: Locator;
+  readonly addPacketFreetextToggle: Locator;
+  readonly addPacketFreetextName: Locator;
+  readonly addPacketNext: Locator;
+  readonly addPacketSave: Locator;
+  readonly packetVarietyInput: Locator;
+  readonly packetVendorInput: Locator;
+  readonly packetSowByInput: Locator;
+
+  // Seed Packet Detail modal
+  readonly packetDetailModal: Locator;
+  readonly packetDetailTitle: Locator;
+  readonly packetDetailLogSowing: Locator;
+  readonly packetDetailSowings: Locator;
+  readonly packetDetailEdit: Locator;
+  readonly packetDetailArchive: Locator;
+
+  // Log Sowing modal
+  readonly logSowingModal: Locator;
+  readonly logSowingDate: Locator;
+  readonly logSowingCount: Locator;
+  readonly logSowingNotes: Locator;
+  readonly logSowingSave: Locator;
+
+  // Observe Germination modal
+  readonly observeModal: Locator;
+  readonly observeInput: Locator;
+  readonly observeSave: Locator;
+
+  // Plant Out modal
+  readonly plantOutModal: Locator;
+  readonly plantOutLocation: Locator;
+  readonly plantOutArea: Locator;
+  readonly plantOutQuantity: Locator;
+  readonly plantOutPlantedAt: Locator;
+  readonly plantOutSave: Locator;
+
+  // Bulk Paste modal
+  readonly bulkPasteModal: Locator;
+  readonly bulkPasteTextarea: Locator;
+  readonly bulkPasteParse: Locator;
+  readonly bulkPasteSave: Locator;
+
+  // Nursery packet picker (in AddTaskModal)
+  readonly nurseryPacketPicker: Locator;
+  readonly nurseryPacketPickerSelect: Locator;
+
+  // Care Guide tab pill
+  readonly careGuideNurseryPackets: Locator;
+
+  // Shopping refill banner
+  readonly seedRefillBanner: Locator;
+  readonly seedRefillBannerAdd: Locator;
+
+  constructor(page: Page) {
+    this.page = page;
+
+    this.shedViewPlantsBtn = page.getByTestId("shed-view-plants");
+    this.shedViewNurseryBtn = page.getByTestId("shed-view-nursery");
+
+    this.nurseryTab = page.getByTestId("nursery-tab");
+    this.nurseryList = page.getByTestId("nursery-list");
+    this.nurseryEmpty = page.getByTestId("nursery-empty");
+    this.nurseryAddEmpty = page.getByTestId("nursery-add-empty");
+    this.nurseryAddPackets = page.getByTestId("nursery-add-packets");
+    this.nurseryPasteEmpty = page.getByTestId("nursery-paste-empty");
+    this.nurseryPastePackets = page.getByTestId("nursery-paste-packets");
+
+    this.addPacketModal = page.getByTestId("add-seed-packet-modal");
+    this.addPacketShedSearch = page.getByTestId("add-seed-packet-shed-search");
+    this.addPacketShedList = page.getByTestId("add-seed-packet-shed-list");
+    this.addPacketFreetextToggle = page.getByTestId("add-seed-packet-freetext-toggle");
+    this.addPacketFreetextName = page.getByTestId("add-seed-packet-freetext-name");
+    this.addPacketNext = page.getByTestId("add-seed-packet-next");
+    this.addPacketSave = page.getByTestId("add-seed-packet-save");
+    // Inputs live inside the testid-wrapper rows from _packetForm.tsx.
+    this.packetVarietyInput = page.getByTestId("packet-variety").locator("input");
+    this.packetVendorInput = page.getByTestId("packet-vendor").locator("input");
+    this.packetSowByInput = page.getByTestId("packet-sow-by").locator("input");
+
+    this.packetDetailModal = page.getByTestId("seed-packet-detail-modal");
+    this.packetDetailTitle = page.getByTestId("packet-detail-title");
+    this.packetDetailLogSowing = page.getByTestId("packet-detail-log-sowing");
+    this.packetDetailSowings = page.getByTestId("packet-detail-sowings");
+    this.packetDetailEdit = page.getByTestId("packet-detail-edit");
+    this.packetDetailArchive = page.getByTestId("packet-detail-archive");
+
+    this.logSowingModal = page.getByTestId("log-sowing-modal");
+    this.logSowingDate = page.getByTestId("log-sowing-date").locator("input");
+    this.logSowingCount = page.getByTestId("log-sowing-count").locator("input");
+    this.logSowingNotes = page.getByTestId("log-sowing-notes").locator("textarea");
+    this.logSowingSave = page.getByTestId("log-sowing-save");
+
+    this.observeModal = page.getByTestId("observe-germination-modal");
+    this.observeInput = page.getByTestId("observe-input");
+    this.observeSave = page.getByTestId("observe-save");
+
+    this.plantOutModal = page.getByTestId("plant-out-sowing-modal");
+    this.plantOutLocation = page.getByTestId("plant-out-location");
+    this.plantOutArea = page.getByTestId("plant-out-area");
+    this.plantOutQuantity = page.getByTestId("plant-out-quantity");
+    this.plantOutPlantedAt = page.getByTestId("plant-out-planted-at");
+    this.plantOutSave = page.getByTestId("plant-out-save");
+
+    this.bulkPasteModal = page.getByTestId("bulk-paste-seed-packets-modal");
+    this.bulkPasteTextarea = page.getByTestId("bulk-paste-textarea");
+    this.bulkPasteParse = page.getByTestId("bulk-paste-parse");
+    this.bulkPasteSave = page.getByTestId("bulk-paste-save");
+
+    this.nurseryPacketPicker = page.getByTestId("nursery-packet-picker");
+    this.nurseryPacketPickerSelect = page.getByTestId("nursery-packet-picker-select");
+
+    this.careGuideNurseryPackets = page.getByTestId("care-guide-nursery-packets");
+
+    this.seedRefillBanner = page.getByTestId("seed-refill-banner");
+    this.seedRefillBannerAdd = page.getByTestId("seed-refill-banner-add");
+  }
+
+  async gotoShed() {
+    await this.page.goto("/shed");
+    await this.page
+      .locator(".animate-spin, .animate-pulse")
+      .first()
+      .waitFor({ state: "hidden", timeout: 10000 })
+      .catch(() => {});
+  }
+
+  async openNursery() {
+    await this.shedViewNurseryBtn.click();
+  }
+
+  bulkPasteRow(i: number): Locator {
+    return this.page.getByTestId(`bulk-paste-row-${i}`);
+  }
+
+  nurseryRow(packetId: string): Locator {
+    return this.page.getByTestId(`nursery-row-${packetId}`);
+  }
+
+  sowingRow(sowingId: string): Locator {
+    return this.page.getByTestId(`sowing-row-${sowingId}`);
+  }
+
+  sowingObserveBtn(sowingId: string): Locator {
+    return this.page.getByTestId(`sowing-${sowingId}-observe`);
+  }
+
+  sowingPlantOutBtn(sowingId: string): Locator {
+    return this.page.getByTestId(`sowing-${sowingId}-plant-out`);
+  }
+
+  sowingDiscardBtn(sowingId: string): Locator {
+    return this.page.getByTestId(`sowing-${sowingId}-discard`);
+  }
+
+  sowingLinkPlantBtn(sowingId: string): Locator {
+    return this.page.getByTestId(`sowing-${sowingId}-link-plant`);
+  }
+
+  anyNurseryRow(): Locator {
+    return this.page.locator("[data-testid^='nursery-row-']");
+  }
+
+  anySowingRow(): Locator {
+    return this.page.locator("[data-testid^='sowing-row-']");
+  }
+
+  anyBulkPasteRow(): Locator {
+    return this.page.locator("[data-testid^='bulk-paste-row-']").filter({
+      hasNot: this.page.locator("[data-testid$='-remove']"),
+    });
+  }
+}
