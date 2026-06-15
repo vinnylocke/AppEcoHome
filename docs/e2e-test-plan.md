@@ -1465,9 +1465,9 @@ Edge function mock via `mockEdgeFunction(page, "companion-planting", ...)`.
 
 | ID | ✅/❌ | Description | Assertions | Status |
 |----|------|-------------|------------|--------|
-| AI-FRESH-001 | ✅ | Shed card shows the Updated chip on the Cherry Tomato | `plant-card` containing "Cherry Tomato" → `ai-updated-chip` visible and contains "fields updated" | ⏳ Not yet verified — blocked by seed orchestration bug |
-| AI-FRESH-002 | ✅ | Opening the plant shows the yellow callout | Click card → `ai-care-update-callout` visible; contains "Sunlight" + "watering" labels | ⏳ Not yet verified — blocked by seed orchestration bug |
-| AI-FRESH-003 | ✅ | Mark as reviewed dismisses the callout | Click `ai-care-mark-reviewed` → callout no longer visible (optimistic local clear) | ⏳ Not yet verified — blocked by seed orchestration bug |
+| AI-FRESH-001 | ✅ | Shed card shows the Updated chip on the Cherry Tomato | `plant-card` containing "Cherry Tomato" → `ai-updated-chip` visible and contains "fields updated" | ✅ Passing |
+| AI-FRESH-002 | ✅ | Opening the plant shows the yellow callout | Click card → `ai-care-update-callout` visible; contains "Sunlight" + "watering" labels | ✅ Passing |
+| AI-FRESH-003 | ✅ | Mark as reviewed dismisses the callout | Click `ai-care-mark-reviewed` → callout no longer visible (optimistic local clear) | ✅ Passing |
 
 **Wave 7 (D7) fixed** the seed orchestration bug that blocked these tests. `npm run test:seed` now succeeds against a fresh DB with any worker count.
 
@@ -1480,10 +1480,10 @@ Edge function mock via `mockEdgeFunction(page, "companion-planting", ...)`.
 
 | ID | ✅/❌ | Description | Assertions | Status |
 |----|------|-------------|------------|--------|
-| AI-OVERRIDE-001 | ✅ | Catalogue-tracking plant shows 'Auto-updating' chip in modal | Open Cherry Tomato → `ai-source-chip-catalogue` visible; `ai-source-chip-custom` not visible | ⏳ Not yet verified — blocked by seed orchestration bug |
-| AI-OVERRIDE-002 | ✅ | Custom fork shows 'Custom' chip + Reset button | Open Lavender → `ai-source-chip-custom` visible + `ai-care-reset` visible; Refresh-now hidden | ⏳ Not yet verified — blocked by seed orchestration bug |
-| AI-OVERRIDE-003 | ✅ | Reset opens confirm modal; cancel keeps fork custom | Click Reset → modal opens → Cancel → modal closes, chip still 'Custom' | ⏳ Not yet verified — needs fresh seeded DB |
-| AI-OVERRIDE-004 | ✅ | Custom fork's overridden field renders 'Custom' badge inside the form | Open Lavender → form-field-overridden-watering badge visible with "Custom" text | ⏳ Not yet verified — needs fresh seeded DB |
+| AI-OVERRIDE-001 | ✅ | Catalogue-tracking plant shows 'Auto-updating' chip in modal | Open Cherry Tomato → `ai-source-chip-catalogue` visible; `ai-source-chip-custom` not visible | ✅ Passing |
+| AI-OVERRIDE-002 | ✅ | Custom fork shows 'Custom' chip + Reset button | Open Lavender → `ai-source-chip-custom` visible + `ai-care-reset` visible; Refresh-now hidden | ✅ Passing |
+| AI-OVERRIDE-003 | ✅ | Reset opens confirm modal; cancel keeps fork custom | Click Reset → modal opens → Cancel → modal closes, chip still 'Custom' | ✅ Passing |
+| AI-OVERRIDE-004 | ✅ | Custom fork's overridden field renders 'Custom' badge inside the form | Open Lavender → form-field-overridden-watering badge visible with "Custom" text | ✅ Passing |
 
 **Wave 7 (D7) fixed** the seed orchestration bug that previously blocked all AI E2E tests. `npm run test:seed` now succeeds against a fresh DB with 1 or 4 workers.
 

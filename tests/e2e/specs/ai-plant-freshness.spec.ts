@@ -1,4 +1,5 @@
 import { expect } from "@playwright/test";
+import { createClient } from "@supabase/supabase-js";
 import { test } from "../fixtures/auth";
 import { ShedPage } from "../pages/ShedPage";
 
@@ -6,8 +7,41 @@ import { ShedPage } from "../pages/ShedPage";
 //
 // Seeded data (supabase/seeds/13_ai_freshness.sql):
 //   - Global AI plant "Cherry Tomato" (id 1000010, freshness_version=2)
-//   - Per-home shallow fork "Cherry Tomato" (id 1000011 → forked_from 1000010)
+//   - Per-home shallow fork "Cherry Tomato" (200011 for worker 1; substituted
+//     per worker by scripts/seed-test-db.mjs)
 //   - user_plant_ack at version 1 → chip should fire on the home fork card
+
+const workerNum = parseInt(process.env.PLAYWRIGHT_WORKER_INDEX ?? "0", 10) + 1;
+const USER_ID = `0000000${workerNum}-0000-0000-0000-000000000001`;
+const CHERRY_TOMATO_GLOBAL_ID = 1000010;
+
+// AI-FRESH-003 acknowledges the chip, which bumps `seen_freshness_version`
+// to match the global. That makes AI-FRESH-001 + AI-FRESH-002 fail on a
+// subsequent run because the chip / callout don't fire anymore. Reset the
+// ack to the seed state before each test so the spec is order-independent
+// and re-runnable without `npm run test:seed` between runs.
+test.beforeEach(async () => {
+  const url = process.env.VITE_SUPABASE_URL;
+  const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+  const password = process.env.TEST_USER_PASSWORD ?? "TestPassword123!";
+  if (!url || !key) return;
+  const c = createClient(url, key);
+  const { error: signInErr } = await c.auth.signInWithPassword({
+    email: `test${workerNum}@rhozly.com`,
+    password,
+  });
+  if (signInErr) return;
+  await c
+    .from("user_plant_ack")
+    .upsert(
+      {
+        user_id: USER_ID,
+        plant_id: CHERRY_TOMATO_GLOBAL_ID,
+        seen_freshness_version: 1,
+      },
+      { onConflict: "user_id,plant_id" },
+    );
+});
 
 test.describe("AI Plant Freshness — chip + acknowledge", () => {
   test("AI-FRESH-001: Shed card shows the Updated chip on the catalogue plant", async ({

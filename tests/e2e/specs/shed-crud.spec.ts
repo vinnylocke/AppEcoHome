@@ -1,5 +1,4 @@
 import { expect } from "@playwright/test";
-import { createClient } from "@supabase/supabase-js";
 import { test } from "../fixtures/auth";
 import { ShedPage } from "../pages/ShedPage";
 
@@ -7,34 +6,14 @@ import { ShedPage } from "../pages/ShedPage";
 // Seeded plants (active): Tomato, Basil, Rose, Boston Fern, Lavender
 // Seeded plants (archived): Mint
 // Source breakdown: Manual = Tomato, Basil, Rose, Boston Fern, Mint | API = Lavender
-
-// One-shot cleanup of leftover AI-source plants from prior `plant-doctor`
-// and "Create with AI" runs. These accumulate at sub-1M plant IDs and end
-// up duplicating seeded common names (e.g. a second "Lavender" makes
-// `getByLabel("Archive Lavender")` resolve to two elements and trips strict
-// mode). The seed reset doesn't touch them — they live in the catalogue
-// table, not the home — so we scrub them here before the spec runs.
-test.beforeAll(async () => {
-  const url = process.env.VITE_SUPABASE_URL;
-  const key = process.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-  const password = process.env.TEST_USER_PASSWORD ?? "TestPassword123!";
-  if (!url || !key) return;
-  const workerIndex = parseInt(process.env.PLAYWRIGHT_WORKER_INDEX ?? "0", 10);
-  const email = `test${workerIndex + 1}@rhozly.com`;
-  const c = createClient(url, key);
-  const { error: signInErr } = await c.auth.signInWithPassword({ email, password });
-  if (signInErr) return;
-  const { data: dups } = await c
-    .from("plants")
-    .select("id")
-    .lt("id", 1_000_000)
-    .eq("source", "ai");
-  for (const p of (dups ?? []) as Array<{ id: number }>) {
-    // Drop inventory references first so the plant delete can land.
-    await c.from("inventory_items").delete().eq("plant_id", String(p.id));
-    await c.from("plants").delete().eq("id", p.id);
-  }
-});
+//
+// IMPORTANT — DO NOT add a `beforeAll` that deletes "leftover" AI plants
+// at sub-1M IDs. The Wave 5/6 AI freshness seed (13_ai_freshness.sql)
+// inserts per-worker home forks at IDs like 200011 / 200013 / 300011 /
+// 300013 / ... (see scripts/seed-test-db.mjs:63-64 for the substitution).
+// Those rows look like leftovers but they're load-bearing fixtures for
+// ai-plant-freshness.spec.ts + ai-plant-override.spec.ts. Killing them
+// silently breaks 7 E2E tests across two specs.
 
 test.describe("Shed — Tabs and view filters", () => {
   test("SHED-005: Active tab is default and shows non-archived plants", async ({ authenticatedPage }) => {
@@ -574,15 +553,18 @@ test.describe("Shed — Plant card actions", () => {
     await shed.goto();
     await shed.waitForLoad();
 
-    // Use a seeded plant for this read-only destructive test — cancel means no change
-    await shed.archiveButtonFor("Lavender").click();
+    // Use Tomato — the only seeded plant with no AI-freshness fork (the
+    // forks at id 200013 / 200011 collide with Lavender / Cherry Tomato
+    // by common name in the Shed list, which would trip strict-mode
+    // matching on getByLabel("Archive Lavender")).
+    await shed.archiveButtonFor("Tomato").click();
     const archiveConfirm = authenticatedPage.getByRole("button", { name: /^Archive$/i });
     await expect(archiveConfirm).toBeVisible({ timeout: 5000 });
 
     await authenticatedPage.getByRole("button", { name: /Cancel/i }).click();
 
-    // Lavender should still be visible in Active
-    await expect(shed.plantCard("Lavender")).toBeVisible({ timeout: 5000 });
+    // Tomato should still be visible in Active
+    await expect(shed.plantCard("Tomato")).toBeVisible({ timeout: 5000 });
   });
 
   test("SHED-027: Delete a test plant — happy path", async ({ authenticatedPage }) => {
