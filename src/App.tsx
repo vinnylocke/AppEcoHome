@@ -1905,33 +1905,15 @@ function AppShell() {
                 />
               </div>
               {/* UX review 2026-06-15 item 7.1 — bottom thumb-zone mirror
-                  of the user dropdown on the mobile QuickAccessHome shell.
-                  Top-right copy stays for users who already learned it;
-                  this second instance shaves an awkward stretch out of the
-                  Sam persona's day. Scoped to /quick to avoid clashing
-                  with the BetaFeedbackBanner or sheet UIs on other routes. */}
-              {routerLocation.pathname === "/quick" && (
-                <div
-                  data-testid="quick-access-bottom-user-menu"
-                  className="fixed bottom-3 right-3 z-[105]"
-                  style={{
-                    bottom: `calc(0.75rem + env(safe-area-inset-bottom, 0px))`,
-                    right: `calc(0.75rem + env(safe-area-inset-right, 0px))`,
-                  }}
-                >
-                  <UserProfileDropdown
-                    displayName={profile?.display_name ?? null}
-                    firstName={profile?.first_name ?? null}
-                    email={session?.user?.email ?? null}
-                    subscriptionTier={profile?.subscription_tier ?? null}
-                    isAdmin={profile?.is_admin ?? false}
-                    canViewAudit={profile?.can_view_audit ?? false}
-                    appVersion={appVersion ?? undefined}
-                    onVersionClick={() => setReleaseNotesMode("history")}
-                    onCheckForUpdate={versionState.refresh}
-                  />
-                </div>
-              )}
+                  was tried as a SECOND floating UserProfileDropdown on
+                  /quick (in addition to the existing top-right one). User
+                  feedback flagged two problems: (1) two user icons on the
+                  same screen is confusing, (2) the bottom-right placement
+                  clashed with the PlantDoctorChat floating button at
+                  bottom-6 right-6. Reverted — the top-right copy is the
+                  single source of truth for the user menu again. Future
+                  thumb-zone work would need to MOVE the dropdown, not add
+                  a second instance. */}
               <MobileNavDrawer
                 open={quickDrawerOpen}
                 navLinks={navLinks}
