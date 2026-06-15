@@ -1,8 +1,9 @@
 [
   {
-    "label": "Improvements",
+    "label": "Bug fixes",
     "items": [
-      "Plan cover image is now tappable — open the AI render fullscreen to see the detail."
+      "Nursery — Plant Out now works end-to-end. The flow was silently erroring on every save because the underlying inventory record was missing a column it needed.",
+      "Nursery — 'From the Nursery' badge now appears on a planted seedling's detail screen so you can see the parent packet + germination history at a glance."
     ]
   }
 ]
