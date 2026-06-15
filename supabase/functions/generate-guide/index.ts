@@ -25,11 +25,12 @@ serve(async (req) => {
     const { topic, difficulty = "Intermediate", target_audience = "Home Gardeners" } = await req.json();
     log(FN, "request_received", { topic, difficulty, target_audience });
 
-    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
+    // Defence in depth — authenticate BEFORE the env-var checks. The catch
+    // block below returns the 200 "Temporarily Unavailable" fallback on any
+    // throw; if env checks threw first an anonymous caller would silently get
+    // the fallback, bypassing the auth check entirely.
     const supabaseUrl = Deno.env.get("SUPABASE_URL");
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
-
-    if (!geminiApiKey) throw new Error("Missing Gemini API Key");
     if (!supabaseUrl || !supabaseServiceKey)
       throw new Error("Missing Supabase Variables");
 
@@ -37,6 +38,9 @@ serve(async (req) => {
 
     const authResult = await requireAuth(req, supabase);
     if (authResult instanceof Response) return authResult;
+
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
+    if (!geminiApiKey) throw new Error("Missing Gemini API Key");
 
     const rateLimitErr = await enforceRateLimit(supabase, authResult.user.id, FN);
     if (rateLimitErr) return rateLimitErr;

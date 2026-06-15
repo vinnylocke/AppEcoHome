@@ -229,6 +229,14 @@ Deno.test("buildControlPayload — direct turn_off: countdown is absent", () => 
 
 // ─────────────────────────────────────────────────────────────────────────────
 // buildControlPayload — sub-device
+//
+// The sub-device path mirrors the direct-device path: same apiPath, same flat
+// `switch` + `countdown` in `params`. The eWeLink cloud routes through the
+// bridge transparently when we address the valve by its sub-device id. This
+// is what the live valve responds to in production (verified by the user's
+// 22.0040 valve-control trace). If eWeLink ever changes the shape, the impl
+// in `_shared/integrations/ewelinkDevice.ts:buildControlPayload` has to change
+// too and these assertions will move with it.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const subMeta = {
@@ -237,55 +245,50 @@ const subMeta = {
   sub_device_id: "sub-001",
 };
 
-Deno.test("buildControlPayload — sub-device turn_on: correct apiPath", () => {
+Deno.test("buildControlPayload — sub-device turn_on: apiPath is the standard /v2/device/thing/status", () => {
   const { apiPath } = buildControlPayload(subMeta, "turn_on", 600);
-  assertEquals(apiPath, "/v2/device/thing/sub/status");
+  assertEquals(apiPath, "/v2/device/thing/status");
 });
 
-Deno.test("buildControlPayload — sub-device turn_on: payload id is parent_device_id", () => {
+Deno.test("buildControlPayload — sub-device turn_on: payload id is sub_device_id (eWeLink routes via bridge transparently)", () => {
   const { payload } = buildControlPayload(subMeta, "turn_on", 600);
-  assertEquals(payload.id, "bridge-xyz");
+  assertEquals(payload.id, "sub-001");
 });
 
-Deno.test("buildControlPayload — sub-device turn_on: switches[0].switch is 'on'", () => {
-  const { payload } = buildControlPayload(subMeta, "turn_on", 600);
-  const params = payload.params as Record<string, unknown>;
-  const switches = params.switches as Array<Record<string, unknown>>;
-  assertEquals(switches[0].switch, "on");
+Deno.test("buildControlPayload — sub-device turn_on: externalDeviceId arg wins over sub_device_id when supplied", () => {
+  const { payload } = buildControlPayload(subMeta, "turn_on", 600, "explicit-id");
+  assertEquals(payload.id, "explicit-id");
 });
 
-Deno.test("buildControlPayload — sub-device turn_on: switches[0].outlet is 0", () => {
+Deno.test("buildControlPayload — sub-device turn_on: params.switch is 'on' (flat, not a switches[] array)", () => {
   const { payload } = buildControlPayload(subMeta, "turn_on", 600);
   const params = payload.params as Record<string, unknown>;
-  const switches = params.switches as Array<Record<string, unknown>>;
-  assertEquals(switches[0].outlet, 0);
+  assertEquals(params.switch, "on");
+  assertEquals("switches" in params, false);
 });
 
-Deno.test("buildControlPayload — sub-device turn_on: countdown in switches[0]", () => {
+Deno.test("buildControlPayload — sub-device turn_on: countdown is set in params", () => {
   const { payload } = buildControlPayload(subMeta, "turn_on", 600);
   const params = payload.params as Record<string, unknown>;
-  const switches = params.switches as Array<Record<string, unknown>>;
-  assertEquals(switches[0].countdown, 600);
+  assertEquals(params.countdown, 600);
 });
 
-Deno.test("buildControlPayload — sub-device turn_on: subDevId in params", () => {
+Deno.test("buildControlPayload — sub-device turn_on: no subDevId disambiguation needed", () => {
   const { payload } = buildControlPayload(subMeta, "turn_on", 600);
   const params = payload.params as Record<string, unknown>;
-  assertEquals(params.subDevId, "sub-001");
+  assertEquals("subDevId" in params, false);
 });
 
-Deno.test("buildControlPayload — sub-device turn_off: switches[0].switch is 'off'", () => {
+Deno.test("buildControlPayload — sub-device turn_off: params.switch is 'off'", () => {
   const { payload } = buildControlPayload(subMeta, "turn_off", 600);
   const params = payload.params as Record<string, unknown>;
-  const switches = params.switches as Array<Record<string, unknown>>;
-  assertEquals(switches[0].switch, "off");
+  assertEquals(params.switch, "off");
 });
 
-Deno.test("buildControlPayload — sub-device turn_off: countdown absent from switches[0]", () => {
+Deno.test("buildControlPayload — sub-device turn_off: countdown absent from params", () => {
   const { payload } = buildControlPayload(subMeta, "turn_off", 600);
   const params = payload.params as Record<string, unknown>;
-  const switches = params.switches as Array<Record<string, unknown>>;
-  assertEquals("countdown" in switches[0], false);
+  assertEquals("countdown" in params, false);
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

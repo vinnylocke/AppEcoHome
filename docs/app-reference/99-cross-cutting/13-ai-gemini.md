@@ -2,6 +2,24 @@
 
 > All AI in Rhozly routes through Google Gemini via Supabase Edge Functions. The browser never calls Gemini directly — security + key isolation. Usage logged to `ai_calls` for the Audit Log + per-user quotas.
 
+## Defence-in-depth: auth check before env-var validation
+
+**Every Gemini-calling edge function MUST call `requireAuth(req, supabase)` before reading `GEMINI_API_KEY` or any other env-var that throws on `undefined`.** Prior to 22.0048, `plant-doctor` and `generate-guide` threw their env-var errors first, which on a misconfigured deploy either:
+
+- Leaked the internal error message (`"GEMINI_API_KEY is not set."`) to anonymous callers (info-leak), OR
+- Fell through to a generic 200 "fallback" response, bypassing the auth check entirely (auth bypass).
+
+The order in every edge function that calls Gemini should now be:
+
+```ts
+const supabase = createClient(...);
+const authResult = await requireAuth(req, supabase);
+if (authResult instanceof Response) return authResult;
+// ...only then read GEMINI_API_KEY / PERENUAL_API_KEY / etc.
+```
+
+Covered by `supabase/tests/edge_function_auth.test.ts` — every Gemini-calling function should have an EF-* row asserting that an unauthenticated request returns 401, even when the env vars are missing.
+
 ---
 
 ## Quick Summary

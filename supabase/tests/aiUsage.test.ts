@@ -22,6 +22,8 @@ function makeUsage(overrides: Partial<GeminiUsage> = {}): GeminiUsage {
   return {
     promptTokenCount: 100,
     candidatesTokenCount: 50,
+    cachedContentTokenCount: 0,
+    thoughtsTokenCount: 0,
     totalTokenCount: 150,
     model: "gemini-3.1-flash-lite",
     ...overrides,

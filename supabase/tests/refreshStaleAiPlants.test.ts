@@ -100,6 +100,8 @@ function makeMock(opts: {
 const fakeUsage: GeminiUsage = {
   promptTokenCount: 100,
   candidatesTokenCount: 50,
+  cachedContentTokenCount: 0,
+  thoughtsTokenCount: 0,
   totalTokenCount: 150,
   model: "gemini-3.1-flash-lite",
 };

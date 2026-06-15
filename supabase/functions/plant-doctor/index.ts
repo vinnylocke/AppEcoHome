@@ -553,18 +553,22 @@ serve(async (req) => {
 
   let action: string | undefined;
   try {
-    const apiKey = Deno.env.get("GEMINI_API_KEY");
-    const perenualKey = Deno.env.get("PERENUAL_API_KEY");
+    // Defence in depth — authenticate BEFORE touching env vars. A
+    // misconfigured deploy (missing GEMINI_API_KEY) used to leak
+    // `"GEMINI_API_KEY is not set."` to anonymous callers. Auth-first
+    // means env-error messages only reach authenticated users.
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    if (!apiKey) throw new Error("GEMINI_API_KEY is not set.");
-
     const authResult = await requireAuth(req, supabase);
     if (authResult instanceof Response) return authResult;
     const callerUserId = authResult.user.id;
+
+    const apiKey = Deno.env.get("GEMINI_API_KEY");
+    const perenualKey = Deno.env.get("PERENUAL_API_KEY");
+    if (!apiKey) throw new Error("GEMINI_API_KEY is not set.");
 
     const body = await req.json();
     const {
