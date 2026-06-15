@@ -1044,8 +1044,28 @@ export default function TaskList({
       )}
 
       {filteredTasks.length === 0 ? (
-        <div className="bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-[2rem] p-8 text-center opacity-50 animate-in fade-in">
-          No tasks!
+        <div
+          data-testid="task-list-empty"
+          className="bg-rhozly-surface-lowest border-2 border-dashed border-rhozly-outline/10 rounded-[2rem] p-8 text-center animate-in fade-in flex flex-col items-center gap-3"
+        >
+          <div className="w-12 h-12 rounded-2xl bg-rhozly-primary/10 text-rhozly-primary flex items-center justify-center">
+            <CheckSquare size={24} />
+          </div>
+          <p className="text-sm font-black text-rhozly-on-surface">
+            No tasks here yet
+          </p>
+          <p className="text-xs text-rhozly-on-surface/55 max-w-xs leading-relaxed">
+            Set up a watering, pruning, or harvesting schedule and tasks will
+            appear here automatically.
+          </p>
+          <button
+            type="button"
+            data-testid="task-list-empty-cta"
+            onClick={() => navigate("/schedule")}
+            className="mt-1 inline-flex items-center gap-2 bg-rhozly-primary text-white text-xs font-black px-5 py-2.5 min-h-[44px] rounded-2xl hover:opacity-90 transition shadow-sm"
+          >
+            Set up a task schedule →
+          </button>
         </div>
       ) : (
         <div data-testid="task-list-container" className={`space-y-3 relative ${isBulkEditing ? "pb-24" : ""}`}>

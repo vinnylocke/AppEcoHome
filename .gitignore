@@ -44,3 +44,7 @@ test-results/
 
 # Beta invite list — keep emails out of version control
 beta-invites.txt
+
+# Stray dev-tool output files that have been seen at repo root. Add
+# names here when you spot a new one so it stops getting re-created.
+/due_date

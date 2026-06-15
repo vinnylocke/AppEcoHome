@@ -364,7 +364,7 @@ export const flowRegistry: FlowDef[] = [
         attachTo: { element: "[data-testid='identify-ai-alternative-0']", on: "top" },
       },
       {
-        title: "Add to your Shed",
+        title: "Add to Shed",
         body: "Confirming a plant routes through the same library-first search you use elsewhere — so credits, care data, and source badge all travel with the new entry.",
         attachTo: { element: "[data-testid='doctor-add-to-shed']", on: "top" },
       },

@@ -115,7 +115,11 @@ export default function WelcomeModal({ userId, onboardingState, onStateChange, o
   const isPersonaSlide = slideIdx === 3;
   const trapRef = useFocusTrap<HTMLDivElement>(true);
 
-  const recordCompletion = async (status: "completed" | "dismissed") => {
+  const recordCompletion = async (
+    status: "completed" | "dismissed",
+    personaOverride?: UserProfile["persona"],
+  ) => {
+    const finalPersona = personaOverride ?? persona;
     const next: OnboardingState = { ...onboardingState, [WELCOME_KEY]: status };
     onStateChange(next);
     // Persist alongside the persona + welcomed_at timestamp in a
@@ -125,10 +129,10 @@ export default function WelcomeModal({ userId, onboardingState, onStateChange, o
       .update({
         onboarding_state: next,
         welcomed_at: new Date().toISOString(),
-        persona,
+        persona: finalPersona,
       })
       .eq("uid", userId);
-    onPersonaSaved?.(persona);
+    onPersonaSaved?.(finalPersona);
   };
 
   const handleStartQuiz = async () => {
@@ -139,6 +143,15 @@ export default function WelcomeModal({ userId, onboardingState, onStateChange, o
 
   const handleSkip = async () => {
     await recordCompletion("dismissed");
+    onClose();
+  };
+
+  // Express lane (item 1.2 — UX review 2026-06-15). Lets a returning /
+  // experienced gardener bypass the 5-slide tour. Persists persona =
+  // "experienced" so downstream surfaces can show terser copy.
+  const handleExpressLane = async () => {
+    setPersona("experienced");
+    await recordCompletion("completed", "experienced");
     onClose();
   };
 
@@ -226,24 +239,35 @@ export default function WelcomeModal({ userId, onboardingState, onStateChange, o
           </div>
 
           {!isLast ? (
-            <div className="flex items-center justify-between gap-2">
-              <button
-                data-testid="welcome-prev"
-                onClick={() => setSlideIdx((i) => Math.max(0, i - 1))}
-                disabled={slideIdx === 0}
-                className="flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-2xl text-sm font-bold text-rhozly-on-surface/60 hover:text-rhozly-primary hover:bg-rhozly-surface-low disabled:opacity-0 disabled:pointer-events-none transition"
-              >
-                <ChevronLeft size={16} />
-                Back
-              </button>
-              <button
-                data-testid="welcome-next"
-                onClick={() => setSlideIdx((i) => Math.min(SLIDES.length - 1, i + 1))}
-                className="flex items-center gap-1.5 bg-rhozly-primary text-white px-5 py-2.5 min-h-[44px] rounded-2xl text-sm font-black hover:opacity-90 transition shadow-sm"
-              >
-                Next
-                <ChevronRight size={16} />
-              </button>
+            <div className="flex flex-col gap-2">
+              <div className="flex items-center justify-between gap-2">
+                <button
+                  data-testid="welcome-prev"
+                  onClick={() => setSlideIdx((i) => Math.max(0, i - 1))}
+                  disabled={slideIdx === 0}
+                  className="flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-2xl text-sm font-bold text-rhozly-on-surface/60 hover:text-rhozly-primary hover:bg-rhozly-surface-low disabled:opacity-0 disabled:pointer-events-none transition"
+                >
+                  <ChevronLeft size={16} />
+                  Back
+                </button>
+                <button
+                  data-testid="welcome-next"
+                  onClick={() => setSlideIdx((i) => Math.min(SLIDES.length - 1, i + 1))}
+                  className="flex items-center gap-1.5 bg-rhozly-primary text-white px-5 py-2.5 min-h-[44px] rounded-2xl text-sm font-black hover:opacity-90 transition shadow-sm"
+                >
+                  Next
+                  <ChevronRight size={16} />
+                </button>
+              </div>
+              {slideIdx === 0 && (
+                <button
+                  data-testid="welcome-express-lane"
+                  onClick={handleExpressLane}
+                  className="text-rhozly-on-surface/55 hover:text-rhozly-primary text-xs font-bold px-3 py-2 min-h-[36px] rounded-xl transition self-center"
+                >
+                  I'm experienced — skip the tour
+                </button>
+              )}
             </div>
           ) : (
             <div className="flex flex-col gap-2">

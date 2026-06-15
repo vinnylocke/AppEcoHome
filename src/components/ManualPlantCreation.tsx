@@ -108,7 +108,7 @@ export default function ManualPlantCreation({
   onSave,
   onCancel,
   isSaving,
-  submitLabel = "Save to Shed",
+  submitLabel = "Add to Shed",
   isReadOnly = false,
   highlightedFields,
   overriddenFields,

@@ -9,6 +9,12 @@ interface Props {
   homeId: string | null;
 }
 
+// UX review 2026-06-15, item 2.3. Show the right modifier symbol per platform
+// so Windows / Linux users don't see ⌘K and assume the shortcut is Mac-only.
+const IS_MAC = typeof navigator !== "undefined" && /mac/i.test(navigator.platform);
+const MOD_SYMBOL = IS_MAC ? "⌘" : "Ctrl";
+const SHORTCUT_LABEL = `${MOD_SYMBOL}${IS_MAC ? "K" : "+K"}`;
+
 interface ResultRow {
   id: string;
   label: string;
@@ -320,13 +326,15 @@ export default function GlobalSearch({ homeId }: Props) {
       <button
         data-testid="global-search-open"
         onClick={() => setOpen(true)}
-        aria-label="Search Rhozly (Ctrl+K or /)"
-        title="Search (Ctrl+K)"
+        aria-label={`Search Rhozly (${SHORTCUT_LABEL} or /)`}
+        title={`Search (${SHORTCUT_LABEL})`}
         className="flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-xl bg-white/15 hover:bg-white/25 text-white text-xs font-bold transition-colors"
       >
         <Search size={14} />
         <span className="hidden md:inline">Search</span>
-        <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 rounded-md bg-white/20 text-[10px] font-bold tracking-widest border border-white/15">⌘K</kbd>
+        <kbd className="hidden md:inline-flex items-center px-1.5 py-0.5 rounded-md bg-white/20 text-[10px] font-bold tracking-widest border border-white/15">
+          {SHORTCUT_LABEL}
+        </kbd>
       </button>
 
       {open && createPortal(
@@ -425,7 +433,7 @@ export default function GlobalSearch({ homeId }: Props) {
                   </div>
                   <div className="text-[11px] font-bold text-rhozly-on-surface/45 leading-relaxed pt-1 border-t border-rhozly-outline/10">
                     <p className="text-rhozly-on-surface/30 mb-1">
-                      Shortcuts: <kbd className="px-1 py-0.5 rounded bg-rhozly-surface-low border border-rhozly-outline/15 font-mono">⌘K</kbd> open · <kbd className="px-1 py-0.5 rounded bg-rhozly-surface-low border border-rhozly-outline/15 font-mono">/</kbd> open · <kbd className="px-1 py-0.5 rounded bg-rhozly-surface-low border border-rhozly-outline/15 font-mono">↑↓</kbd> navigate · <kbd className="px-1 py-0.5 rounded bg-rhozly-surface-low border border-rhozly-outline/15 font-mono">⏎</kbd> open
+                      Shortcuts: <kbd className="px-1 py-0.5 rounded bg-rhozly-surface-low border border-rhozly-outline/15 font-mono">{SHORTCUT_LABEL}</kbd> open · <kbd className="px-1 py-0.5 rounded bg-rhozly-surface-low border border-rhozly-outline/15 font-mono">/</kbd> open · <kbd className="px-1 py-0.5 rounded bg-rhozly-surface-low border border-rhozly-outline/15 font-mono">↑↓</kbd> navigate · <kbd className="px-1 py-0.5 rounded bg-rhozly-surface-low border border-rhozly-outline/15 font-mono">⏎</kbd> open
                     </p>
                     <p className="text-rhozly-on-surface/30">
                       Power: type <code className="font-mono text-rhozly-primary/60">type:plant tomato</code> to filter scope.

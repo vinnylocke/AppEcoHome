@@ -4,5 +4,18 @@
     "items": [
       "Plant Doctor and Generate Guide edge functions now authenticate every request before reading server config. Closes an info-leak / auth-bypass corner that could surface on misconfigured deploys."
     ]
+  },
+  {
+    "label": "Onboarding & polish",
+    "items": [
+      "Experienced gardener? The Welcome tour now has an \"I'm experienced — skip the tour\" express lane on the first slide. Sets your persona to experienced so future copy is terser, no more coach marks.",
+      "Today's Tasks empty state now nudges you toward setting up your first watering / pruning / harvesting schedule rather than just saying \"No tasks!\".",
+      "The Shed empty state has a clear \"Add your first plant\" CTA when your library is brand-new.",
+      "\"Add to Shed\" wording is now consistent across every entry point (search, Plant Doctor, Plan staging, shopping list, manual creation).",
+      "Frequency hint under the \"Repeat every (days)\" input now adapts to the task type — different ranges for watering vs pruning vs harvesting.",
+      "Yield Predictor shows a progress bar towards 3 logged harvests so you can see why early predictions feel fuzzy.",
+      "Desktop dashboard now surfaces a \"Start a Garden Walk\" card once you have 5+ plants — same morning ritual already on mobile.",
+      "Search shortcut chip now shows ⌘K on Mac, Ctrl+K on Windows / Linux."
+    ]
   }
 ]

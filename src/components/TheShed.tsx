@@ -1725,16 +1725,20 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                 size="lg"
                 chrome="none"
                 icon={<Search size={32} />}
-                title={searchQuery ? "No matches found" : "No plants here"}
+                title={searchQuery ? "No matches found" : "No plants here yet"}
                 body={
                   searchQuery
                     ? "Try adjusting your search term or filters."
-                    : "Add plants to your Shed to get started — use the buttons at the top of the page."
+                    : "Your Shed is where every plant lives — add your first one and Rhozly starts tailoring reminders to it."
                 }
                 primaryCta={
                   searchQuery
                     ? { label: "Clear search", onClick: () => setSearchQuery("") }
-                    : undefined
+                    : {
+                        label: "Add your first plant",
+                        onClick: () => setShowBulkSearch(true),
+                        "data-testid": "shed-empty-add-cta",
+                      }
                 }
               />
             </div>

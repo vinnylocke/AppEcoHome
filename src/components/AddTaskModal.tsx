@@ -45,6 +45,18 @@ const TASK_TYPE_DEFAULT_FREQUENCY: Record<string, number> = {
   Maintenance: 14,
   Planting:    30,
 };
+
+// Per-type plain-English frequency hint shown under the "Repeat Every (Days)"
+// input. Pulled from the same TASK_TYPE_DEFAULT_FREQUENCY map but expressed as
+// a range a beginner can recognise. Falls back to a generic line for unknown
+// types.
+const TASK_TYPE_FREQUENCY_HINT: Record<string, string> = {
+  Watering:    "Vegetables usually need watering every 2–4 days; established shrubs every 7–14 days.",
+  Pruning:     "Most pruning runs every 21–90 days depending on the plant. Light tidying is more frequent than hard cuts.",
+  Harvesting:  "Quick croppers (lettuce, herbs) every 3–7 days; tomatoes, beans, courgettes every 5–10 days.",
+  Maintenance: "General upkeep (weeding, tying in, mulching) runs every 7–21 days for an active bed.",
+  Planting:    "Successional sowing (lettuce, radish) every 14–28 days; one-off plantings can sit on a longer cycle.",
+};
 export { TASK_CATEGORIES } from "../constants/taskCategories";
 
 interface Props {
@@ -1271,8 +1283,11 @@ export default function AddTaskModal({
                     }}
                     className="w-full p-4 bg-white rounded-2xl font-bold outline-none border border-rhozly-outline/10"
                   />
-                  <p className="text-[10px] text-rhozly-on-surface/40 font-medium ml-1 mt-1 leading-snug">
-                    Tip: vegetables usually need watering every 2–4 days; established shrubs every 7–14 days; pruning every 21–90 days.
+                  <p
+                    data-testid="frequency-hint"
+                    className="text-[10px] text-rhozly-on-surface/40 font-medium ml-1 mt-1 leading-snug"
+                  >
+                    Tip: {TASK_TYPE_FREQUENCY_HINT[form.type] ?? "Pick a rhythm that matches how often this plant needs attention."}
                   </p>
                 </div>
                 <div>

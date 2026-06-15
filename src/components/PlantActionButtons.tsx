@@ -47,7 +47,7 @@ export const PlantActionButtons = ({
       className="mt-3 p-4 bg-white/80 backdrop-blur-md rounded-2xl border border-rhozly-outline shadow-sm max-w-sm mx-auto w-full"
     >
       <p className="text-xs text-rhozly-primary font-bold uppercase tracking-widest mb-3">
-        Add to your Shed
+        Add to Shed
       </p>
 
       <div className="space-y-2 mb-4">

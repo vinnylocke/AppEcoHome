@@ -305,6 +305,40 @@ export default function YieldTab({
             </div>
           ) : (
             <div className="space-y-4">
+              {/* Accuracy-progress nudge (UX review 2026-06-15, item 6.4).
+                  Replaces the silent "no data" path with an explicit
+                  "log N more harvests to sharpen predictions" progress bar.
+                  Only renders while the user has fewer than 3 records — the
+                  predictor still works on less data, but accuracy improves
+                  steeply across the first three. */}
+              {records.length < 3 && (
+                <div
+                  data-testid="yield-predictor-accuracy-progress"
+                  className="bg-rhozly-surface rounded-3xl border border-rhozly-outline/20 p-5"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <p className="text-xs font-black text-rhozly-on-surface">
+                      {records.length === 0
+                        ? "Log 3 harvests to unlock accurate predictions"
+                        : `${3 - records.length} more harvest${3 - records.length === 1 ? "" : "s"} for accurate predictions`}
+                    </p>
+                    <span className="text-[10px] font-black text-rhozly-on-surface/40 uppercase tracking-widest">
+                      {records.length} / 3
+                    </span>
+                  </div>
+                  <div className="h-2 rounded-full bg-rhozly-surface-low overflow-hidden">
+                    <div
+                      className="h-full bg-rhozly-primary transition-all"
+                      style={{ width: `${Math.min(100, (records.length / 3) * 100)}%` }}
+                    />
+                  </div>
+                  <p className="text-[11px] font-bold text-rhozly-on-surface/50 mt-2 leading-snug">
+                    The more harvests Rhozly has seen, the tighter the
+                    weather-aware predictions get.
+                  </p>
+                </div>
+              )}
+
               {/* Expected harvest date */}
               <div>
                 <label className="text-xs font-black text-rhozly-on-surface/60 uppercase tracking-widest block mb-1.5 flex items-center gap-1.5">
