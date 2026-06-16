@@ -44,6 +44,24 @@ export default function Step5Confirm({ homeId, state, onComplete }: Props) {
         );
         if (insertErr) throw new Error(insertErr.message);
       }
+
+      // 2026-06-16 — fire an immediate poll so the user sees the first
+      // reading without waiting for the gateway's next webhook (the
+      // Ecowitt gateway only pushes every ~16 min by default, and the
+      // webhook may not even be wired up if the user has to configure
+      // it manually in WSView Plus). Fire-and-forget — failure here
+      // doesn't block the "All set!" confirmation; the user can hit
+      // Refresh on the Integrations page if needed.
+      if (state.brand === "ecowitt") {
+        const { data: { session } } = await supabase.auth.getSession();
+        void supabase.functions
+          .invoke("integrations-ecowitt-poll", {
+            body: { homeId },
+            headers: { Authorization: `Bearer ${session?.access_token}` },
+          })
+          .catch(() => { /* ignore — refresh button will retry */ });
+      }
+
       setDone(true);
       setTimeout(onComplete, 1200);
     } catch (err: unknown) {

@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Fixes",
+    "items": [
+      "Soil sensors no longer sit forever on \"Offline / No readings yet\". The Connect wizard now triggers an immediate sync as soon as you save your devices, so the first readings show up within a second of finishing the wizard.",
+      "Refresh button on the Integrations page now actually pulls fresh readings from your Ecowitt gateway (not just a stale device-list reload). Tap it any time you want to force a sync.",
+      "Soil sensor card now says \"Awaiting first reading — tap Refresh to sync now\" when there are no readings yet, instead of the cryptic \"No readings yet\"."
+    ]
+  }
+]

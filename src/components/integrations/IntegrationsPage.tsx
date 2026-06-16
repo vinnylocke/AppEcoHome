@@ -133,6 +133,29 @@ export default function IntegrationsPage({ homeId }: Props) {
     setLoading(false);
   }, [homeId]);
 
+  // 2026-06-16 — "Refresh" now actually pulls fresh readings from
+  // Ecowitt (via the poll edge function) before re-loading the device
+  // list. Without this the button only re-fetched the cached `devices`
+  // table and gave the misleading impression that nothing was updating
+  // — webhooks only fire every ~16 min and may not even be configured
+  // on the gateway.
+  const refresh = useCallback(async () => {
+    const hasEcowitt = devices.some((d) => d.provider === "ecowitt");
+    if (hasEcowitt) {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        await supabase.functions.invoke("integrations-ecowitt-poll", {
+          body: { homeId },
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        });
+      } catch {
+        // Best-effort — fall through to the device-list reload so the
+        // user still sees their last-known state.
+      }
+    }
+    await load();
+  }, [devices, homeId, load]);
+
   useEffect(() => { load(); }, [load]);
 
   const closeWizard = () => {
@@ -197,11 +220,13 @@ export default function IntegrationsPage({ homeId }: Props) {
           {activeTab === "devices" && (
             <div className="flex gap-2 shrink-0">
               <button
-                onClick={load}
+                onClick={refresh}
+                disabled={loading}
                 data-testid="integrations-refresh"
-                className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-rhozly-surface text-rhozly-on-surface-variant hover:bg-rhozly-surface-low transition-colors"
+                title="Sync now — fetch the latest readings from connected gateways"
+                className="p-2 sm:p-2.5 rounded-xl sm:rounded-2xl bg-rhozly-surface text-rhozly-on-surface-variant hover:bg-rhozly-surface-low disabled:opacity-50 transition-colors"
               >
-                <RefreshCw size={16} className="sm:w-[18px] sm:h-[18px]" />
+                <RefreshCw size={16} className={`sm:w-[18px] sm:h-[18px] ${loading ? "animate-spin" : ""}`} />
               </button>
               {canManageIntegrations && (
                 <button

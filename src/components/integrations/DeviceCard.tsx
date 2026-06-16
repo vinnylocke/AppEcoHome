@@ -55,7 +55,12 @@ export default function DeviceCard({ device, onClick }: Props) {
             Last reading {timeAgo(device.last_seen_at)}
           </p>
         ) : (
-          <p className="text-xs text-rhozly-on-surface-variant/60">No readings yet</p>
+          // 2026-06-16 — clearer copy when the device is new. Ecowitt
+          // gateways push every ~16 min and may not have done so yet —
+          // tapping Refresh on the Integrations page polls immediately.
+          <p className="text-xs text-rhozly-on-surface-variant/60">
+            Awaiting first reading — tap Refresh to sync now
+          </p>
         )
       ) : (
         <p className="text-xs text-rhozly-on-surface-variant/60">
