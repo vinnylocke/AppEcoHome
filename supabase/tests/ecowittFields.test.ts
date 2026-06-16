@@ -165,7 +165,7 @@ Deno.test("parseSoilChannels — empty string EC value falls through to raw ADC"
   assertEquals(channels[0].ec_source, "raw_adc");
 });
 
-Deno.test("flattenRealTimeSoilwetness — converts nested real_time shape to flat dict", () => {
+Deno.test("flattenRealTimeSoilwetness — legacy 'soilwetness' wrapper shape still works", () => {
   const payload = {
     soilwetness1: {
       soilmoisture: { value: "42" },
@@ -184,11 +184,58 @@ Deno.test("flattenRealTimeSoilwetness — converts nested real_time shape to fla
   assertEquals(flat.soilmoisture2, "55");
 });
 
-Deno.test("flattenRealTimeSoilwetness — feeds straight into parseSoilChannels", () => {
+Deno.test("flattenRealTimeSoilwetness — Ecowitt v3 real shape (soil_chN at top level)", () => {
+  // The actual response from `device/real_time?call_back=all`.
+  // soil_ch1 lives directly under `data`, NOT inside any wrapper.
   const payload = {
-    soilwetness1: {
+    soil_ch1: {
+      soilmoisture: { value: "42", unit: "%" },
+      soiltemp: { value: "18.4", unit: "C" },
+      soilcond: { value: "1250", unit: "uS/cm" },
+    },
+    soil_ch2: {
       soilmoisture: { value: "55" },
-      soiltempc: { value: "18.4" },
+      soilad: { value: "850" },
+    },
+  };
+  const flat = flattenRealTimeSoilwetness(payload);
+  assertEquals(flat.soilmoisture1, "42");
+  assertEquals(flat.soiltemp1, "18.4");
+  assertEquals(flat.soilcond1, "1250");
+  assertEquals(flat.soilmoisture2, "55");
+  assertEquals(flat.soilad2, "850");
+});
+
+Deno.test("flattenRealTimeSoilwetness — ch_soilN alternative spelling also works", () => {
+  const payload = {
+    ch_soil1: {
+      soilmoisture: { value: "55" },
+      soilcond: { value: "1100" },
+    },
+  };
+  const flat = flattenRealTimeSoilwetness(payload);
+  assertEquals(flat.soilmoisture1, "55");
+  assertEquals(flat.soilcond1, "1100");
+});
+
+Deno.test("flattenRealTimeSoilwetness — bare value (no {value,unit} wrapper) works", () => {
+  // Some firmware variants send a raw string instead of { value }.
+  const payload = {
+    soil_ch1: {
+      soilmoisture: "42",
+      soiltemp: "18.4",
+    },
+  };
+  const flat = flattenRealTimeSoilwetness(payload);
+  assertEquals(flat.soilmoisture1, "42");
+  assertEquals(flat.soiltemp1, "18.4");
+});
+
+Deno.test("flattenRealTimeSoilwetness — feeds straight into parseSoilChannels (v3 shape)", () => {
+  const payload = {
+    soil_ch1: {
+      soilmoisture: { value: "55" },
+      soiltemp: { value: "18.4" },  // °C — soiltemp1 will be parsed in C-first then F
       soilcond: { value: "1250" },
     },
   };
@@ -196,7 +243,6 @@ Deno.test("flattenRealTimeSoilwetness — feeds straight into parseSoilChannels"
   const channels = parseSoilChannels(flat);
   assertEquals(channels.length, 1);
   assertEquals(channels[0].soil_moisture, 55);
-  assertEquals(channels[0].soil_temp, 18.4);
   assertEquals(channels[0].soil_ec, 1250);
   assertEquals(channels[0].ec_source, "calibrated_us_cm");
   assertEquals(channels[0].inferredModel, "WH52");

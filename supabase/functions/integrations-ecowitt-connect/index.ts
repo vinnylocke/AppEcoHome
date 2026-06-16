@@ -41,6 +41,27 @@ interface DiscoveredDevice {
   model: EcowittSoilModel;
 }
 
+/**
+ * Normalise the gateway MAC address.
+ *
+ * The Ecowitt mobile app shows the MAC with colons (`AA:BB:CC:DD:EE:FF`).
+ * Their API accepts the colon form, the hyphen form, AND the bare hex
+ * form — but it's case-sensitive and won't tolerate trailing whitespace.
+ * We canonicalise to upper-case with colons so the API is happy and the
+ * stored value is consistent.
+ *
+ * Falls back to the upper-cased raw input if the value doesn't look
+ * like a MAC at all (don't reject — surface a clearer error from the
+ * downstream API call).
+ */
+function normaliseMac(raw: string): string {
+  const stripped = raw.trim().replace(/[^0-9A-Fa-f]/g, "").toUpperCase();
+  if (stripped.length !== 12) {
+    return raw.trim().toUpperCase();
+  }
+  return stripped.match(/.{2}/g)!.join(":");
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -99,7 +120,7 @@ Deno.serve(async (req) => {
     const deviceListUrl = new URL(`${ECOWITT_API_BASE}/device/list`);
     deviceListUrl.searchParams.set("application_key", applicationKey);
     deviceListUrl.searchParams.set("api_key", apiKey);
-    deviceListUrl.searchParams.set("mac", gatewayMac.toUpperCase());
+    deviceListUrl.searchParams.set("mac", normaliseMac(gatewayMac));
 
     const deviceListRes = await fetch(deviceListUrl.toString());
     if (!deviceListRes.ok) {
@@ -125,7 +146,7 @@ Deno.serve(async (req) => {
       body: JSON.stringify({
         application_key: applicationKey,
         api_key: apiKey,
-        mac: gatewayMac.toUpperCase(),
+        mac: normaliseMac(gatewayMac),
         call_back: webhookUrl,
         token: webhookPassphrase,
         unit: 1,   // Metric
@@ -165,32 +186,35 @@ Deno.serve(async (req) => {
       throw new Error(`Failed to save integration: ${upsertError?.message}`);
     }
 
-    // ── Discover WH51 soil sensors ──────────────────────────────────────────
-    // Ecowitt exposes soil sensors as channel-based sub-sensors on the gateway.
-    // We query real-time data to see which channels have readings.
+    // ── Discover soil sensors via device/real_time ─────────────────────────
+    // 2026-06-16 (post-WH52-fix) — Ecowitt API v3 puts soil channels at
+    // top-level of `data` as `soil_chN`, NOT inside a `soilwetness`
+    // wrapper. The original guess returned 0 devices for every user. We
+    // now use `call_back=all` (gets everything) and let the permissive
+    // flattener walk for any of: `soil_chN`, `ch_soilN`, `soilwetnessN`
+    // — at top level or inside a wrapper. See `flattenRealTimeSoilwetness`
+    // for the contract, exercised by `ecowittFields.test.ts`.
+    const macForApi = normaliseMac(gatewayMac);
     const realTimeUrl = new URL(`${ECOWITT_API_BASE}/device/real_time`);
     realTimeUrl.searchParams.set("application_key", applicationKey);
     realTimeUrl.searchParams.set("api_key", apiKey);
-    realTimeUrl.searchParams.set("mac", gatewayMac.toUpperCase());
-    realTimeUrl.searchParams.set("call_back", "soilwetness");
+    realTimeUrl.searchParams.set("mac", macForApi);
+    realTimeUrl.searchParams.set("call_back", "all");
 
     const rtRes = await fetch(realTimeUrl.toString());
     const rtJson = rtRes.ok ? await rtRes.json() : null;
 
     const discovered: DiscoveredDevice[] = [];
+    let dataKeysSample: string[] = [];
 
-    if (rtJson?.code === 0 && rtJson.data?.soilwetness) {
-      // 2026-06-16 — WH52 support. Instead of guessing the model from
-      // the response shape directly, we flatten the real_time payload
-      // and let the shared parser infer the model from the fields
-      // present on each channel (calibrated EC or non-zero temperature
-      // → WH52; otherwise WH51). Single source of truth, exercised by
-      // ecowittFields.test.ts.
-      const flat = flattenRealTimeSoilwetness(rtJson.data.soilwetness);
+    if (rtJson?.code === 0 && rtJson.data && typeof rtJson.data === "object") {
+      const data = rtJson.data as Record<string, unknown>;
+      dataKeysSample = Object.keys(data).slice(0, 40);
+      const flat = flattenRealTimeSoilwetness(data);
       const parsed = parseSoilChannels(flat);
 
       for (const ch of parsed) {
-        const externalId = `${gatewayMac.toUpperCase()}-soil-${ch.channel}`;
+        const externalId = `${macForApi}-soil-${ch.channel}`;
         discovered.push({
           externalDeviceId: externalId,
           name: `Soil Sensor CH${ch.channel}`,
@@ -200,9 +224,45 @@ Deno.serve(async (req) => {
       }
     }
 
-    return new Response(JSON.stringify({ integrationId: integration.id, devices: discovered }), {
-      headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+    // ── Diagnostic logging — surface the actual response shape ──────────────
+    // If discovery returns 0 channels but the real_time call succeeded,
+    // log the top-level keys so we can confirm field names in production.
+    // Surface those keys in the response too — the UI can show them in
+    // an "advanced details" expander if the user reports nothing found.
+    if (discovered.length === 0) {
+      console.info("Ecowitt connect — no soil channels parsed", {
+        rt_code: rtJson?.code,
+        rt_msg: rtJson?.msg,
+        data_keys_sample: dataKeysSample,
+        device_list_count: Array.isArray(deviceListJson?.data?.list)
+          ? deviceListJson.data.list.length
+          : null,
+      });
+    } else {
+      console.info("Ecowitt connect — discovered soil channels", {
+        count: discovered.length,
+        models: discovered.map((d) => d.model),
+      });
+    }
+
+    return new Response(
+      JSON.stringify({
+        integrationId: integration.id,
+        devices: discovered,
+        // Sprint diagnostics — frontend can show this in a "no devices
+        // found" expander so the user can paste it back to us if the
+        // discovery still misses something.
+        diagnostics: {
+          api_code: rtJson?.code ?? null,
+          api_msg: rtJson?.msg ?? null,
+          data_keys: dataKeysSample,
+          gateway_listed: Array.isArray(deviceListJson?.data?.list)
+            ? deviceListJson.data.list.length > 0
+            : null,
+        },
+      }),
+      { headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
   } catch (err) {
     console.error("integrations-ecowitt-connect error:", err);
     await captureException("integrations-ecowitt-connect", err);

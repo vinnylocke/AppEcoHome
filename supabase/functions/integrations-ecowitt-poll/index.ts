@@ -125,19 +125,20 @@ Deno.serve(async (req) => {
       url.searchParams.set("application_key", applicationKey);
       url.searchParams.set("api_key", apiKey);
       url.searchParams.set("mac", mac.toUpperCase());
-      url.searchParams.set("call_back", "soilwetness");
+      // 2026-06-16 (post-WH52-fix) — call_back=all so we get every
+      // channel without depending on guesswork about category names.
+      // The flattener walks for soil_chN / ch_soilN / soilwetnessN.
+      url.searchParams.set("call_back", "all");
 
       const res = await fetch(url.toString());
       if (!res.ok) continue;
 
       const json = await res.json();
-      if (json.code !== 0 || !json.data?.soilwetness) continue;
+      if (json.code !== 0 || !json.data || typeof json.data !== "object") continue;
 
-      // 2026-06-16 — WH52 support. Flatten the nested real_time shape
-      // into the same flat dict the webhook handler sees, then run it
-      // through the shared parser. Single source of truth for field
-      // priority + EC calibration detection.
-      const flat = flattenRealTimeSoilwetness(json.data.soilwetness);
+      // Flatten the top-level data object directly — Ecowitt v3 exposes
+      // soil_chN keys at the top of `data`, not under a wrapper.
+      const flat = flattenRealTimeSoilwetness(json.data as Record<string, unknown>);
       const channels = parseSoilChannels(flat);
       const byChannel = new Map(channels.map((c) => [c.channel, c]));
 

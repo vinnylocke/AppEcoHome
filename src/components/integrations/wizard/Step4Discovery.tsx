@@ -47,8 +47,66 @@ export default function Step4Discovery({ state, update, onNext }: Props) {
       )}
 
       {discoveredDevices.length === 0 ? (
-        <div className="py-8 text-center text-rhozly-on-surface-variant text-sm">
-          No devices found on this account.
+        <div className="py-6 text-rhozly-on-surface-variant text-sm">
+          <p className="text-center mb-4">No devices found on this account.</p>
+          {/* 2026-06-16 — Diagnostic expander. Surfaces the raw shape of
+              the Ecowitt response so the user can quickly tell whether:
+              (a) the gateway was found at all on the account, and
+              (b) what categories of data it's reporting. Helps us
+              correct the parser if a firmware variant uses different
+              field names. */}
+          {state.discoveryDiagnostics && (
+            <details className="mx-auto max-w-md bg-rhozly-surface rounded-2xl border border-rhozly-outline/20 p-4 text-xs">
+              <summary className="cursor-pointer font-semibold text-rhozly-on-surface">
+                Why nothing showed up?
+              </summary>
+              <div className="mt-3 space-y-2 text-rhozly-on-surface-variant">
+                <p>
+                  Ecowitt API code:{" "}
+                  <span className="font-mono">
+                    {state.discoveryDiagnostics.api_code ?? "—"}
+                  </span>
+                  {state.discoveryDiagnostics.api_msg && (
+                    <> ({state.discoveryDiagnostics.api_msg})</>
+                  )}
+                </p>
+                <p>
+                  Gateway found on account:{" "}
+                  <span className="font-mono">
+                    {state.discoveryDiagnostics.gateway_listed === null
+                      ? "unknown"
+                      : state.discoveryDiagnostics.gateway_listed
+                        ? "yes"
+                        : "no"}
+                  </span>
+                </p>
+                {state.discoveryDiagnostics.data_keys && state.discoveryDiagnostics.data_keys.length > 0 ? (
+                  <>
+                    <p className="font-semibold text-rhozly-on-surface mt-2">
+                      Data categories returned:
+                    </p>
+                    <ul className="font-mono text-[11px] bg-white rounded-xl border border-rhozly-outline/15 p-2 max-h-40 overflow-auto">
+                      {state.discoveryDiagnostics.data_keys.map((k) => (
+                        <li key={k}>{k}</li>
+                      ))}
+                    </ul>
+                    <p className="mt-2 text-[11px] leading-relaxed">
+                      Rhozly is looking for any of: <span className="font-mono">soil_chN</span>,{" "}
+                      <span className="font-mono">ch_soilN</span>, or{" "}
+                      <span className="font-mono">soilwetnessN</span>. If a soil category is
+                      listed above with a different name, share this list and we'll add it.
+                    </p>
+                  </>
+                ) : (
+                  <p className="text-[11px] mt-1">
+                    The Ecowitt API returned no data categories. Check that the gateway
+                    MAC matches the one shown in the Ecowitt app and that the API key is
+                    enabled for this gateway.
+                  </p>
+                )}
+              </div>
+            </details>
+          )}
         </div>
       ) : (
         <div className="space-y-2 mb-6">

@@ -189,8 +189,21 @@ export default function Step3Credentials({ homeId, state, update, onNext }: Prop
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (res.error) throw new Error(res.error.message);
-      const { integrationId, devices } = res.data as { integrationId: string; devices: DiscoveredDevice[] };
-      update({ credentials: fields, integrationId, discoveredDevices: devices });
+      // 2026-06-16 — capture discovery diagnostics so Step4 can surface
+      // the actual API response shape when nothing is found. Helps the
+      // user (and us) confirm whether the gateway returned any
+      // soil-shaped data at all.
+      const { integrationId, devices, diagnostics } = res.data as {
+        integrationId: string;
+        devices: DiscoveredDevice[];
+        diagnostics?: WizardState["discoveryDiagnostics"];
+      };
+      update({
+        credentials: fields,
+        integrationId,
+        discoveredDevices: devices,
+        discoveryDiagnostics: diagnostics ?? null,
+      });
       onNext();
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to connect");

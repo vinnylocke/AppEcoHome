@@ -23,6 +23,15 @@ export interface WizardState {
   integrationId: string | null;
   discoveredDevices: DiscoveredDevice[];
   selectedDeviceIds: string[];
+  /** Returned by the connect edge function when discovery runs. Lets
+   *  the discovery step show the raw response shape if nothing was
+   *  found, so the user can paste it back when filing an issue. */
+  discoveryDiagnostics?: {
+    api_code?: number | null;
+    api_msg?: string | null;
+    data_keys?: string[];
+    gateway_listed?: boolean | null;
+  } | null;
 }
 
 export interface DiscoveredDevice {

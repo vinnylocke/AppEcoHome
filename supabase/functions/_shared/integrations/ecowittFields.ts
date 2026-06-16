@@ -179,14 +179,27 @@ export function parseSoilChannels(
  * Flatten the `device/real_time` JSON shape into the flat field dict
  * `parseSoilChannels` expects.
  *
- * The endpoint returns:
- *   { soilwetness: { soilwetness1: { soilmoisture: { value: "42" }, ... } } }
+ * 2026-06-16 (fix-up) — Ecowitt API v3 actually exposes soil sensors as
+ * top-level `soil_chN` (or `ch_soilN`) keys directly under `data`, NOT
+ * under a wrapper key called `soilwetness`. The original guess
+ * (`data.soilwetness.soilwetness1`) was wrong — connect always returned
+ * 0 devices because that wrapper never existed in the response.
  *
- * We turn that into:
- *   { soilmoisture1: "42", soiltempc1: "18.4", soilcond1: "850", ... }
+ * Real response shape (`call_back=all` against a gateway with WH51 on
+ * channel 1):
+ *   { code: 0, data: { soil_ch1: { soilmoisture: { value: "42", unit: "%" },
+ *                                  soiltemp: { value: "18.4", unit: "C" },
+ *                                  soilad: { value: "850" } } } }
  *
- * Unknown nested fields are preserved so a future firmware revealing a
- * new EC spelling doesn't require any flattening change.
+ * This permissive flattener accepts BOTH the actual shape and the
+ * legacy `soilwetness` wrapper (in case some firmware variant uses it).
+ * It walks every key matching `(soil_ch|ch_soil|soilwetness)(\d+)`
+ * inside any container — at the top level of the payload, or one level
+ * deep inside a `soilwetness` / `ch_soil` wrapper.
+ *
+ * Output shape mirrors the webhook flat form (`soilmoisture1`,
+ * `soiltempc1`, `soilad1`, etc.) so `parseSoilChannels` works
+ * identically for both transports.
  */
 export function flattenRealTimeSoilwetness(
   payload: Record<string, unknown>,
@@ -194,20 +207,41 @@ export function flattenRealTimeSoilwetness(
   const out: Record<string, string> = {};
   if (!payload || typeof payload !== "object") return out;
 
-  for (const [chKey, chDataRaw] of Object.entries(payload)) {
-    // chKey looks like "soilwetness1" — extract the channel number.
-    const m = chKey.match(/^soilwetness(\d+)$/i);
-    if (!m) continue;
-    const ch = m[1];
-    if (!chDataRaw || typeof chDataRaw !== "object") continue;
-    for (const [fieldName, valueObj] of Object.entries(chDataRaw)) {
-      if (!valueObj || typeof valueObj !== "object") continue;
-      const v = (valueObj as { value?: unknown }).value;
-      if (v === undefined || v === null) continue;
-      // Field name pattern: "soilmoisture", "soiltempc", "soilad", etc.
-      // We append the channel to make it look like the webhook flat shape.
-      out[`${fieldName.toLowerCase()}${ch}`] = String(v);
+  // Match all known channel-key spellings: soil_ch1, ch_soil1, soilwetness1.
+  const channelKeyRe = /^(?:soil_ch|ch_soil|soilwetness)(\d+)$/i;
+
+  // Walk a container (an object whose values are per-channel objects)
+  // and flatten every channel we find.
+  const walkContainer = (container: Record<string, unknown>) => {
+    for (const [chKey, chDataRaw] of Object.entries(container)) {
+      const m = chKey.match(channelKeyRe);
+      if (!m) continue;
+      const ch = m[1];
+      if (!chDataRaw || typeof chDataRaw !== "object") continue;
+      for (const [fieldName, valueObj] of Object.entries(chDataRaw)) {
+        if (valueObj === null || valueObj === undefined) continue;
+        // Ecowitt sometimes wraps values as { value, unit }, sometimes
+        // sends a bare string/number. Accept both.
+        const v = typeof valueObj === "object"
+          ? (valueObj as { value?: unknown }).value
+          : valueObj;
+        if (v === undefined || v === null) continue;
+        out[`${fieldName.toLowerCase()}${ch}`] = String(v);
+      }
     }
+  };
+
+  // Try the top level first — modern Ecowitt v3 puts soil_chN directly
+  // under data.
+  walkContainer(payload);
+
+  // Then look one level deep inside any wrapper key (legacy fallback).
+  for (const [key, value] of Object.entries(payload)) {
+    if (!value || typeof value !== "object") continue;
+    // Skip keys that already looked like channel keys (already walked).
+    if (channelKeyRe.test(key)) continue;
+    walkContainer(value as Record<string, unknown>);
   }
+
   return out;
 }
