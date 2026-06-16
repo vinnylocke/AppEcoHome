@@ -1,10 +1,1 @@
-[
-  {
-    "label": "Battery — broader parsing + raw inspection tool",
-    "items": [
-      "Ecowitt parser now looks for battery in more places: per-channel battery/voltage fields inside soil_ch1 wrappers, the top-level data.battery block keyed by soilmoisture_sensor_chN, and the existing soilbattN flat key. Whichever your gateway sends, it gets picked up.",
-      "eWeLink parser expanded: in addition to battery / battPercentage / batteryPercentage, it now checks batteryLevel / batt / voltage, and falls back to scanning any params key whose name contains 'batt' as a last resort. Should catch any firmware variant.",
-      "New 'Inspect raw provider response' button in Device Settings (Ecowitt + eWeLink only). Calls the same API the sync path uses and shows the literal JSON the provider returned, with a copy button. If battery still isn't showing, paste that JSON to support and we'll target the exact field name your hardware uses."
-    ]
-  }
-]
+[]
