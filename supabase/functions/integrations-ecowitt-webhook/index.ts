@@ -113,6 +113,7 @@ Deno.serve(async (req) => {
         soil_moisture: ch.soil_moisture,
         soil_ec: ch.soil_ec,
         ec_source: ch.ec_source,
+        ...(ch.battery_percent !== null ? { battery_percent: ch.battery_percent } : {}),
       };
 
       await insertReading({

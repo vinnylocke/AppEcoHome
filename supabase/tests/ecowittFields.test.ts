@@ -1,6 +1,7 @@
 import { assertEquals } from "@std/assert";
 import {
   flattenRealTimeSoilwetness,
+  parseEcowittBattery,
   parseSoilChannels,
 } from "@shared/integrations/ecowittFields.ts";
 
@@ -379,4 +380,56 @@ Deno.test("flattenRealTimeSoilwetness — empty / non-object input returns empty
   assertEquals(flattenRealTimeSoilwetness({}), {});
   // @ts-expect-error: testing runtime guard against bad input
   assertEquals(flattenRealTimeSoilwetness(null), {});
+});
+
+// ── battery_percent ────────────────────────────────────────────────────────
+//
+// Ecowitt's soilbatt{N} field is inconsistent across firmwares: some
+// report a 0-5 level, some a 0-100 percent, some millivolts. The auto-
+// detect uses non-overlapping ranges (≤5 → level, 5-100 → percent,
+// >100 → ignored) so callers don't have to know the firmware.
+
+Deno.test("parseEcowittBattery — 0-5 level scale", () => {
+  assertEquals(parseEcowittBattery("5"), 100);
+  assertEquals(parseEcowittBattery("4"), 80);
+  assertEquals(parseEcowittBattery("3"), 60);
+  assertEquals(parseEcowittBattery("1"), 20);
+  assertEquals(parseEcowittBattery("0"), 0);
+});
+
+Deno.test("parseEcowittBattery — 0-100 percent passes through (rounded)", () => {
+  assertEquals(parseEcowittBattery("87"), 87);
+  assertEquals(parseEcowittBattery("87.4"), 87);
+  assertEquals(parseEcowittBattery("87.6"), 88);
+  assertEquals(parseEcowittBattery("100"), 100);
+});
+
+Deno.test("parseEcowittBattery — out of range / non-numeric returns null", () => {
+  assertEquals(parseEcowittBattery("1500"), null); // mV territory → unsafe to guess
+  assertEquals(parseEcowittBattery("-1"), null);
+  assertEquals(parseEcowittBattery("abc"), null);
+  assertEquals(parseEcowittBattery(undefined), null);
+  assertEquals(parseEcowittBattery(null), null);
+});
+
+Deno.test("parseSoilChannels — battery threaded through (level)", () => {
+  const channels = parseSoilChannels({
+    soilmoisture1: "42",
+    soilbatt1: "4",  // level 4/5 → 80%
+  });
+  assertEquals(channels.length, 1);
+  assertEquals(channels[0].battery_percent, 80);
+});
+
+Deno.test("parseSoilChannels — battery threaded through (percent)", () => {
+  const channels = parseSoilChannels({
+    soilmoisture1: "42",
+    soilbatt1: "65",
+  });
+  assertEquals(channels[0].battery_percent, 65);
+});
+
+Deno.test("parseSoilChannels — missing battery yields null (pip stays hidden)", () => {
+  const channels = parseSoilChannels({ soilmoisture1: "42" });
+  assertEquals(channels[0].battery_percent, null);
 });

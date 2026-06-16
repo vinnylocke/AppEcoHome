@@ -145,22 +145,6 @@ serve(async (req: Request) => {
         data: r.data,
         recordedAt: new Date(r.recordedAt),
       });
-
-      // Refresh devices.battery_percent + battery_reported_at if the
-      // reading carried a battery_percent. Read history lives inside
-      // device_readings.data (no separate table); these columns are
-      // just a fast "latest known" cache for DeviceCard rendering.
-      const battery = (r.data as { battery_percent?: unknown }).battery_percent;
-      if (typeof battery === "number" && Number.isFinite(battery) && battery >= 0 && battery <= 100) {
-        await db
-          .from("devices")
-          .update({
-            battery_percent: Math.round(battery),
-            battery_reported_at: r.recordedAt,
-          })
-          .eq("id", (device as { id: string }).id);
-      }
-
       written += 1;
     }
 

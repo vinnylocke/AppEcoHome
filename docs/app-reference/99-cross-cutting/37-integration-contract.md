@@ -83,6 +83,17 @@ When the user manually swaps a battery, they record it via the **"Battery change
 
 Ecowitt and eWeLink predate this contract. They ship as direct per-provider edge functions (`integrations-ecowitt-*`, `integrations-ewelink-*`) and are NOT registered with `getAdapter()` today. They will be migrated to the contract in a follow-up — the existing code conceptually already does what the contract describes (connect / poll / webhook / control), so the migration is a lift-and-shift.
 
+**Battery is wired through these legacy providers as of 2026-06-16** even though they haven't migrated to the contract yet. Both their parsers now extract battery and put it inside the `data` jsonb on the reading row; the centralised `insertReading` helper does the dual-write to `devices.battery_*` once. See [Battery dual-write](#battery-dual-write) below.
+
+### Battery dual-write
+
+`_shared/integrations/readings.ts` → `insertReading` is the single place battery information leaves the function and lands in the DB. Behaviour:
+
+1. The full reading (including `battery_percent` when the adapter / sync function added one to the `data` object) is INSERTed into `device_readings`. This is what `DeviceBatteryPanel` reads to draw the sparkline + run the days-remaining regression.
+2. If `data.battery_percent` is a finite 0-100 number (or the caller passed an explicit `batteryPercent` override), the helper UPDATEs `devices.battery_percent` + `devices.battery_reported_at` in a single round-trip — same batch as the existing `last_seen_at` refresh. Best-effort: a failure on this UPDATE does not fail the webhook / sync.
+
+Adapters and provider sync code never write directly to `devices.battery_*`. They just put `battery_percent` in the reading and the dual-write happens for them. This keeps the contract one-sided: providers report; the shared layer persists.
+
 ### Edge functions
 
 | Function | Role |

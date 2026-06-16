@@ -295,30 +295,36 @@ Deno.test("buildControlPayload — sub-device turn_off: countdown absent from pa
 // parseDeviceState
 // ─────────────────────────────────────────────────────────────────────────────
 
+// 2026-06-16 (battery follow-up) — parseDeviceState now returns
+// { state, battery_percent } so callers can update devices.battery_*
+// in the same path that writes the reading row. These tests assert
+// the state-discriminator behaviour; battery-extraction is covered
+// separately in supabase/tests/ewelinkDevice.test.ts.
+
 Deno.test("parseDeviceState — direct device 'on'", () => {
-  assertEquals(parseDeviceState({ params: { switch: "on" } }), "on");
+  assertEquals(parseDeviceState({ params: { switch: "on" } }).state, "on");
 });
 
 Deno.test("parseDeviceState — direct device 'off'", () => {
-  assertEquals(parseDeviceState({ params: { switch: "off" } }), "off");
+  assertEquals(parseDeviceState({ params: { switch: "off" } }).state, "off");
 });
 
 Deno.test("parseDeviceState — sub-device switches array 'on'", () => {
-  assertEquals(parseDeviceState({ params: { switches: [{ switch: "on" }] } }), "on");
+  assertEquals(parseDeviceState({ params: { switches: [{ switch: "on" }] } }).state, "on");
 });
 
 Deno.test("parseDeviceState — sub-device switches array 'off'", () => {
-  assertEquals(parseDeviceState({ params: { switches: [{ switch: "off" }] } }), "off");
+  assertEquals(parseDeviceState({ params: { switches: [{ switch: "off" }] } }).state, "off");
 });
 
 Deno.test("parseDeviceState — missing switch field defaults to 'off'", () => {
-  assertEquals(parseDeviceState({ params: {} }), "off");
+  assertEquals(parseDeviceState({ params: {} }).state, "off");
 });
 
 Deno.test("parseDeviceState — empty data defaults to 'off'", () => {
-  assertEquals(parseDeviceState({}), "off");
+  assertEquals(parseDeviceState({}).state, "off");
 });
 
 Deno.test("parseDeviceState — unrecognised switch value defaults to 'off'", () => {
-  assertEquals(parseDeviceState({ params: { switch: "unknown" } }), "off");
+  assertEquals(parseDeviceState({ params: { switch: "unknown" } }).state, "off");
 });

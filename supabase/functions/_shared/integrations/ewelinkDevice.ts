@@ -47,11 +47,40 @@ export function buildControlPayload(
   };
 }
 
+export interface ParsedEwelinkState {
+  state: "on" | "off";
+  /** 0-100 integer, or null when the device's state payload didn't
+   *  include any recognised battery field. Sonoff Zigbee valves
+   *  report battery directly as a percent in one of several param
+   *  spellings — we accept any of the three I've seen across firmwares.
+   *  If a fourth turns up, add it to BATTERY_PARAM_CANDIDATES. */
+  battery_percent: number | null;
+}
+
+const BATTERY_PARAM_CANDIDATES = [
+  "battery",
+  "battPercentage",
+  "batteryPercentage",
+] as const;
+
+export function parseEwelinkBattery(params: Record<string, unknown>): number | null {
+  for (const key of BATTERY_PARAM_CANDIDATES) {
+    const raw = params[key];
+    if (raw === undefined || raw === null) continue;
+    const v = typeof raw === "number" ? raw : parseFloat(String(raw));
+    if (!Number.isFinite(v)) continue;
+    if (v < 0 || v > 100) continue;
+    return Math.round(v);
+  }
+  return null;
+}
+
 export function parseDeviceState(
   stateJsonData: Record<string, unknown>,
-): "on" | "off" {
+): ParsedEwelinkState {
   const params = (stateJsonData?.params ?? {}) as Record<string, unknown>;
   const switches = params.switches as Array<Record<string, unknown>> | undefined;
   const raw: string = (params.switch as string) ?? (switches?.[0]?.switch as string) ?? "off";
-  return raw === "on" ? "on" : "off";
+  const state: "on" | "off" = raw === "on" ? "on" : "off";
+  return { state, battery_percent: parseEwelinkBattery(params) };
 }

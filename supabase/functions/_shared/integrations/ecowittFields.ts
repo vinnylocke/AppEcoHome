@@ -105,6 +105,30 @@ export interface ParsedSoilChannel {
   soil_ec: number;
   ec_source: EcSource;
   inferredModel: EcowittSoilModel;
+  /** Parsed from `soilbatt{N}`. Null when the gateway didn't send a
+   *  battery field for this channel, when the value is non-numeric,
+   *  or when the value is too high to safely auto-classify (likely
+   *  millivolts — we'd rather show no pip than a wrong one). */
+  battery_percent: number | null;
+}
+
+/**
+ * Parse Ecowitt's `soilbatt{N}` field with auto-detect.
+ *
+ * Ecowitt firmware reports battery differently across models:
+ *   - 0-5 "level" scale (WH51 most firmwares) → 5 means full
+ *   - 0-100 percent (some newer firmwares)
+ *   - millivolts (rare, e.g. 1500 = 1.5V) — IGNORED today because
+ *     mapping mV to a percentage needs a calibration curve we don't
+ *     have. Better to leave the pip dark than guess wrong.
+ */
+export function parseEcowittBattery(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  const v = parseFloat(typeof value === "string" ? value : String(value));
+  if (!Number.isFinite(v) || v < 0) return null;
+  if (v <= 5) return Math.round((v / 5) * 100);
+  if (v <= 100) return Math.round(v);
+  return null;
 }
 
 /**
@@ -206,6 +230,8 @@ export function parseSoilChannels(
     const inferredModel: EcowittSoilModel =
       ecSource === "calibrated_us_cm" || hasTempReading ? "WH52" : "WH51";
 
+    const battery_percent = parseEcowittBattery(fields[`soilbatt${ch}`]);
+
     out.push({
       channel: ch,
       soil_moisture: moisture,
@@ -213,6 +239,7 @@ export function parseSoilChannels(
       soil_ec: ec,
       ec_source: ecSource,
       inferredModel,
+      battery_percent,
     });
   }
 

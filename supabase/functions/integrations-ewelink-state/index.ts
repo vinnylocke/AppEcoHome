@@ -137,14 +137,19 @@ Deno.serve(async (req) => {
       });
     }
 
-    const state = parseDeviceState((stateJson.data as Record<string, unknown>) ?? {});
+    const parsed = parseDeviceState((stateJson.data as Record<string, unknown>) ?? {});
     const now = new Date();
 
-    // Store as a reading so it appears in history
-    const reading: ValveReading = { state };
+    // Store as a reading so it appears in history. Battery rides
+    // inside the reading row when present — the insertReading helper
+    // also refreshes the devices.battery_* columns for the pip.
+    const reading: ValveReading = {
+      state: parsed.state,
+      ...(parsed.battery_percent !== null ? { battery_percent: parsed.battery_percent } : {}),
+    };
     await insertReading({ db, deviceId, homeId: device.home_id, data: reading, recordedAt: now });
 
-    return new Response(JSON.stringify({ state, updatedAt: now.toISOString() }), {
+    return new Response(JSON.stringify({ state: parsed.state, battery_percent: parsed.battery_percent, updatedAt: now.toISOString() }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
