@@ -1,9 +1,1 @@
-[
-  {
-    "label": "Soil sensor — WH52 support",
-    "items": [
-      "Ecowitt WH52 multi-parameter soil sensors are now supported alongside the WH51. Connect picks them up automatically — channels with calibrated EC or a soil temperature reading register as WH52.",
-      "Conductivity tile now renders in µS/cm for WH52 (calibrated) and as a raw ADC integer for WH51 (unitless, relative only) — tap the small ? to see what each value means."
-    ]
-  }
-]
+[]
