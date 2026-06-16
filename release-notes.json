@@ -1,9 +1,1 @@
-[
-  {
-    "label": "Battery health for Ecowitt + eWeLink devices",
-    "items": [
-      "The battery pip + decay sparkline + days-remaining estimate now work on Ecowitt soil sensors and eWeLink water valves — not just Custom HTTP. Ecowitt's soilbattN field is auto-detected (0-5 level scale vs 0-100 percent). eWeLink reads params.battery / battPercentage / batteryPercentage from the state response. Pip lights up from the next sync; the sparkline populates as new readings arrive.",
-      "Refactor under the hood: the shared insertReading helper now does the battery dual-write to devices.battery_percent + devices.battery_reported_at in one place, so any future provider just needs to put battery in the reading data and the rest happens for free."
-    ]
-  }
-]
+[]
