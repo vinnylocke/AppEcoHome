@@ -1,9 +1,1 @@
-[
-  {
-    "label": "Log area readings manually",
-    "items": [
-      "New \"Log\" button on every area's sensor panel (top of the area-edit modal). Opens a single form covering moisture / temperature / EC — fill in only the metrics you have (USB probe, calibrated meter, eyeballed estimate) and pick when the reading was taken. Empty fields are skipped.",
-      "Sensor readings now also fan out to the area's metric history automatically. Every reading from a linked sensor mirrors into the area's moisture / temp / EC timeline, so the same chart shows both sources side-by-side."
-    ]
-  }
-]
+[]
