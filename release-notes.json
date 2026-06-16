@@ -1,12 +1,1 @@
-[
-  {
-    "label": "Phase 3 follow-up — fixes + tooling for Custom HTTP integrations",
-    "items": [
-      "Fixed two bugs in the just-shipped Custom HTTP framework: the integrations.provider check constraint was still 'ecowitt' or 'ewelink' only (custom_http inserts would have been rejected), and the adapter-connect dispatcher never inserted devices rows (the webhook router would always fail to find a device). Both fixed — the stack now works end-to-end.",
-      "New Test Webhook simulator on every Custom HTTP device. Single mode pre-fills a payload, lets you tweak the JSON, sends it to the live webhook URL, then re-queries the newest reading so you can see your test become real data. Stream mode fires fake readings at a configurable interval (min 30s, capped at 120 requests) with optional random-walk drift on numeric fields and battery decay — perfect for watching the history chart populate or testing sensor-driven automations.",
-      "Battery level on the contract: optional battery_percent (0–100) field on both soil sensor and water valve payloads. A colour-graded pip appears on every device card and detail header — green ≥50%, amber 20–49%, red <20%. Hidden when no battery has ever been reported.",
-      "New Battery health panel in Device Detail with a 30-day decay sparkline and an 'estimated days remaining' line from a linear regression on the last 14 days of readings. Tap 'Battery changed?' after a swap so the estimate doesn't treat the recharge as a recharge.",
-      "New Webhook details panel in Device Settings: shows the URL (masked by default, reveal-toggle), copy to clipboard, regenerate the secret with one click, and a collapsible sample payload — solves the 'I closed the wizard and lost my URL' problem."
-    ]
-  }
-]
+[]
