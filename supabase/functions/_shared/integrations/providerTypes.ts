@@ -6,10 +6,26 @@ export type DeviceType = "soil_sensor" | "water_valve";
 
 // ─── Reading shapes ────────────────────────────────────────────────────────────
 
+/**
+ * Discriminator for the EC value's calibration state.
+ *
+ * 2026-06-16 — WH52 support landed here. The WH51 (moisture-only firmware
+ * branch we shipped against first) only exposes the raw ADC reading on
+ * the EC pin — Ecowitt doesn't publish a conversion, so we stored that
+ * raw integer in `soil_ec` and the UI rendered it as "raw ADC". The
+ * WH52 multi-parameter sensor reports a calibrated EC value in µS/cm
+ * directly. The discriminator lets the UI pick the right unit + tooltip
+ * without guessing per device.
+ */
+export type EcSource = "calibrated_us_cm" | "raw_adc";
+
 export interface SoilReading {
   soil_temp: number;      // °C
   soil_moisture: number;  // %
-  soil_ec: number;        // µS/cm
+  soil_ec: number;        // µS/cm when ec_source = "calibrated_us_cm", raw ADC integer when "raw_adc"
+  /** Optional discriminator — older readings written before WH52 support
+   *  may lack this; treat absent as "raw_adc" for back-compat. */
+  ec_source?: EcSource;
 }
 
 export interface ValveReading {
@@ -41,10 +57,15 @@ export interface EwelinkDeviceMeta {
   default_duration_seconds: number;
 }
 
+/** Ecowitt soil sensor model — drives EC unit + UI copy. */
+export type EcowittSoilModel = "WH51" | "WH52";
+
 /** Ecowitt soil sensor metadata. */
 export interface EcowittDeviceMeta {
-  model: string;
-  channel: number;       // Sensor channel on the gateway (1–8 for WH51)
+  /** Sensor hardware model. WH51 = soil moisture only (EC is raw ADC).
+   *  WH52 = multi-parameter (moisture + soil temp + calibrated EC). */
+  model: EcowittSoilModel;
+  channel: number;       // Sensor channel on the gateway (1–8)
   gateway_mac: string;   // MAC address of the Ecowitt gateway
 }
 

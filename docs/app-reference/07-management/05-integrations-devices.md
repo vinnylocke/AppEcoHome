@@ -18,10 +18,17 @@
 
 Hardware integration hub. Two device types currently:
 
-- **Soil sensors** — read pH, moisture, temperature, lux per area.
+- **Soil sensors** — read moisture, temperature, electrical conductivity per area.
 - **Smart valves** — controlled remotely; can be wired into automations.
 
-Adding a device opens the Connect Device Wizard which walks through provider selection (eWeLink today; more planned), OAuth, device discovery, and per-device area binding. Once connected, each device's readings stream into `soil_readings` (sensors) or `valve_events` (valves). The Detail modal shows live state + history chart.
+**Supported providers (2026-06-16):**
+
+| Provider | Devices | EC unit |
+|---|---|---|
+| **Ecowitt** | WH51 (soil moisture + temp + raw ADC EC), WH52 (multi-parameter: moisture + temp + calibrated µS/cm EC) | WH51 = raw ADC integer (relative only); WH52 = calibrated µS/cm |
+| **eWeLink** | Sonoff / generic Zigbee water valves with on/off control | n/a (valve) |
+
+Adding a device opens the Connect Device Wizard which walks through provider selection, OAuth (eWeLink) or API key entry (Ecowitt), device discovery, and per-device area binding. The Connect wizard auto-detects WH51 vs WH52 at discovery time by inspecting the gateway's real-time payload — channels with calibrated EC or a non-zero soil temperature reading are classified WH52; the rest stay WH51. Once connected, each device's readings stream into `soil_readings` (sensors, with `ec_source` discriminator) or `valve_events` (valves). The Detail modal shows live state + history chart.
 
 ---
 

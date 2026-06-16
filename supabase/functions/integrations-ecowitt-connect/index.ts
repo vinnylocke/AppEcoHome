@@ -20,6 +20,11 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { encryptCredentials } from "../_shared/integrations/encrypt.ts";
+import {
+  flattenRealTimeSoilwetness,
+  parseSoilChannels,
+} from "../_shared/integrations/ecowittFields.ts";
+import type { EcowittSoilModel } from "../_shared/integrations/providerTypes.ts";
 import { captureException } from "../_shared/sentry.ts";
 
 const corsHeaders = {
@@ -33,7 +38,7 @@ interface DiscoveredDevice {
   externalDeviceId: string;
   name: string;
   channel: number;
-  model: string;
+  model: EcowittSoilModel;
 }
 
 Deno.serve(async (req) => {
@@ -175,20 +180,22 @@ Deno.serve(async (req) => {
     const discovered: DiscoveredDevice[] = [];
 
     if (rtJson?.code === 0 && rtJson.data?.soilwetness) {
-      const channels = Object.keys(rtJson.data.soilwetness).filter((k) =>
-        rtJson.data.soilwetness[k]?.soilmoisture !== undefined
-      );
+      // 2026-06-16 — WH52 support. Instead of guessing the model from
+      // the response shape directly, we flatten the real_time payload
+      // and let the shared parser infer the model from the fields
+      // present on each channel (calibrated EC or non-zero temperature
+      // → WH52; otherwise WH51). Single source of truth, exercised by
+      // ecowittFields.test.ts.
+      const flat = flattenRealTimeSoilwetness(rtJson.data.soilwetness);
+      const parsed = parseSoilChannels(flat);
 
-      for (const ch of channels) {
-        const channelNum = parseInt(ch.replace("soilwetness", ""), 10);
-        if (isNaN(channelNum)) continue;
-
-        const externalId = `${gatewayMac.toUpperCase()}-soil-${channelNum}`;
+      for (const ch of parsed) {
+        const externalId = `${gatewayMac.toUpperCase()}-soil-${ch.channel}`;
         discovered.push({
           externalDeviceId: externalId,
-          name: `Soil Sensor CH${channelNum}`,
-          channel: channelNum,
-          model: "WH51",
+          name: `Soil Sensor CH${ch.channel}`,
+          channel: ch.channel,
+          model: ch.inferredModel,
         });
       }
     }

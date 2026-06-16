@@ -23,6 +23,7 @@ integration_devices
 soil_readings
 ├── device_id, recorded_at
 ├── soil_temp, soil_moisture, soil_ec
+├── ec_source: "calibrated_us_cm" | "raw_adc"  (2026-06-16 — WH52 vs WH51)
 └── raw_payload: jsonb
 
 valve_events
@@ -56,7 +57,16 @@ automation_runs
 
 ### Soil readings
 
-Populated by `integrations-ewelink-sync` cron. Each row stores normalised values + the raw provider payload for debugging.
+Populated by the Ecowitt webhook (`integrations-ecowitt-webhook`) and the on-demand poll (`integrations-ecowitt-poll`). Each row stores normalised values + the raw provider payload for debugging.
+
+**EC calibration (2026-06-16, Phase 1 of integration framework, see [plan](../../plans/soil-sensor-integration-2026-06-16.md)):** `soil_ec` is a single number column but its meaning depends on the sensor model. The new `ec_source` discriminator records which interpretation applies:
+
+| Value | Meaning | Sensor | Unit |
+|---|---|---|---|
+| `calibrated_us_cm` | Calibrated electrical conductivity | WH52 multi-parameter | µS/cm |
+| `raw_adc` | Raw ADC integer from the EC pin | WH51 moisture-only | unitless (relative indicator only) |
+
+Old rows written before the discriminator landed are treated as `raw_adc` for back-compat (the WH51 was the only Ecowitt sensor supported at the time). UI surfaces (`SoilReadingsPanel`) render the right unit + tooltip based on this flag. Field-name detection logic lives in [`_shared/integrations/ecowittFields.ts`](../../../supabase/functions/_shared/integrations/ecowittFields.ts) — adding a new EC field-name spelling is a one-line append to `CALIBRATED_EC_FIELDS`.
 
 ### Valve events
 

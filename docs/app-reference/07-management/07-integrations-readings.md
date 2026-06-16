@@ -6,7 +6,8 @@
 **Source files:**
 - `src/components/integrations/SoilReadingsPanel.tsx` — 3-tile grid
 - `src/components/integrations/HistoryChart.tsx` — line chart
-- `supabase/functions/integrations-ewelink-sync/index.ts` — cron that populates readings
+- `supabase/functions/integrations-ecowitt-webhook/index.ts` — public POST that the Ecowitt gateway hits every ~16 min
+- `supabase/functions/integrations-ecowitt-poll/index.ts` — on-demand "Sync now" fallback (also usable as a cron)
 
 ---
 
@@ -16,9 +17,16 @@ Three tiles per reading:
 
 - **Soil Temp** — °C, with delta trend chip
 - **Moisture** — %, with delta trend chip
-- **Conductivity** — µS (electrical conductivity, a proxy for nutrient content), with delta trend chip
+- **Conductivity** — unit depends on the sensor model (see EC calibration note below), with delta trend chip + an InfoTooltip explaining the unit.
 
-Below the tiles, a line chart shows the last 100 readings over time. Sync happens via cron from the provider (eWeLink etc.).
+Below the tiles, a line chart shows the last 100 readings over time. The Ecowitt gateway pushes readings via webhook every ~16 minutes; the "Sync now" button calls the poll endpoint for an immediate refresh.
+
+**EC calibration (2026-06-16):** The Conductivity tile renders differently depending on which sensor produced the reading:
+
+- **WH52** (multi-parameter sensor): label = `Conductivity`, value = `1250 µS/cm`. Tooltip: "Soil electrical conductivity in microsiemens per centimetre. Reported by your WH52 multi-parameter sensor."
+- **WH51** (moisture-only sensor): label = `Conductivity (raw)`, value = `850` (no unit). Tooltip explains that this is a raw ADC integer Ecowitt doesn't publish a conversion for, so it should be read as a relative indicator only (higher = more dissolved salts).
+
+The discriminator lives in the `ec_source` field on each `soil_readings` row (`"calibrated_us_cm"` vs `"raw_adc"`). Rows written before this discriminator landed default to `raw_adc` for back-compat. See [Data Model — Integrations](../99-cross-cutting/09-data-model-integrations.md).
 
 ---
 

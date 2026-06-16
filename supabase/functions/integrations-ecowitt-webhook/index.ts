@@ -14,6 +14,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { insertReading } from "../_shared/integrations/readings.ts";
 import type { SoilReading } from "../_shared/integrations/providerTypes.ts";
+import { parseSoilChannels } from "../_shared/integrations/ecowittFields.ts";
 import { captureException } from "../_shared/sentry.ts";
 
 Deno.serve(async (req) => {
@@ -63,41 +64,35 @@ Deno.serve(async (req) => {
     // Fall back to looking up by PASSKEY as the integration lookup key.
     const macAddr = fields["STATIONTYPE"] ?? fields["mac"] ?? fields["MAC"] ?? fields["PASSKEY"] ?? "";
 
-    // ── Parse soil sensor channels ──────────────────────────────────────────
-    // WH51 fields pattern: soilbatt{N}, soilmoisture{N}, soiltemp{N}F|C, soilad{N}
-    // EC is derived from soilad (raw ADC) — or may come as soilad{N} directly.
-    // Channel numbers are 1-based.
+    // ── Parse soil sensor channels via shared field parser ─────────────────
+    // 2026-06-16 — WH52 support. The parser handles both WH51 (raw ADC
+    // EC) and WH52 (calibrated µS/cm EC) field shapes + multiple
+    // candidate field-name spellings. See ecowittFields.test.ts.
+    const channels = parseSoilChannels(fields);
 
-    const channelPattern = /^soilmoisture(\d+)$/i;
-    const channelNums: number[] = [];
-    for (const key of Object.keys(fields)) {
-      const m = key.match(channelPattern);
-      if (m) channelNums.push(parseInt(m[1], 10));
-    }
-
-    if (channelNums.length === 0) {
-      // Not a soil sensor payload — ignore silently
+    if (channels.length === 0) {
+      // 2026-06-16 — Log unknown payloads at info level so when the
+      // user's WH52 first calls in, we can grab the raw field names
+      // from Supabase function logs and confirm / extend the parser's
+      // CALIBRATED_EC_FIELDS list if needed.
+      const knownPasskeys = new Set(["PASSKEY", "passkey", "token", "stationtype", "STATIONTYPE", "mac", "MAC"]);
+      const unknownKeys = Object.keys(fields).filter((k) => !knownPasskeys.has(k));
+      if (unknownKeys.length > 0) {
+        console.info("Ecowitt webhook: no soil channels parsed — unknown payload shape", {
+          field_count: unknownKeys.length,
+          sample_keys: unknownKeys.slice(0, 30),
+        });
+      }
       return new Response("ok", { status: 200 });
     }
 
     // ── For each channel, find the device and insert a reading ──────────────
     const recordedAt = new Date();
 
-    for (const ch of channelNums) {
-      const moisture = parseFloat(fields[`soilmoisture${ch}`] ?? "");
-      const tempF = parseFloat(fields[`soiltemp${ch}f`] ?? fields[`soiltemp${ch}F`] ?? "");
-      // EC from soilad is raw ADC; Ecowitt doesn't publish conversion.
-      // Store raw value — firmware v3+ gateways may send soilad directly.
-      const rawAd = parseFloat(fields[`soilad${ch}`] ?? "0");
-
-      if (isNaN(moisture)) continue;
-
-      // Convert Fahrenheit → Celsius if needed
-      const tempC = isNaN(tempF) ? 0 : Math.round(((tempF - 32) * 5) / 9 * 10) / 10;
-
-      // Look up the device by external ID pattern: {MAC}-soil-{channel}
-      // We don't know the exact MAC format from the body, so search by integration provider.
-      // Find devices with channel matching in metadata.
+    for (const ch of channels) {
+      // Look up the device by channel in metadata. Single query per
+      // payload — could be cached, but webhooks fire every ~16 min so
+      // optimisation isn't worth the complexity yet.
       const { data: deviceRows } = await db
         .from("devices")
         .select("id, home_id, metadata")
@@ -105,18 +100,19 @@ Deno.serve(async (req) => {
         .eq("provider", "ecowitt");
 
       const device = (deviceRows ?? []).find(
-        (d) => d.metadata?.channel === ch,
+        (d) => d.metadata?.channel === ch.channel,
       );
 
       if (!device) {
-        console.warn(`Ecowitt webhook: no device found for soil channel ${ch}`);
+        console.warn(`Ecowitt webhook: no device found for soil channel ${ch.channel}`);
         continue;
       }
 
       const reading: SoilReading = {
-        soil_temp: tempC,
-        soil_moisture: moisture,
-        soil_ec: rawAd,
+        soil_temp: ch.soil_temp,
+        soil_moisture: ch.soil_moisture,
+        soil_ec: ch.soil_ec,
+        ec_source: ch.ec_source,
       };
 
       await insertReading({

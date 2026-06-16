@@ -14,6 +14,10 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decryptCredentials } from "../_shared/integrations/encrypt.ts";
 import { insertReading } from "../_shared/integrations/readings.ts";
 import type { SoilReading } from "../_shared/integrations/providerTypes.ts";
+import {
+  flattenRealTimeSoilwetness,
+  parseSoilChannels,
+} from "../_shared/integrations/ecowittFields.ts";
 import { captureException } from "../_shared/sentry.ts";
 
 const corsHeaders = {
@@ -129,22 +133,24 @@ Deno.serve(async (req) => {
       const json = await res.json();
       if (json.code !== 0 || !json.data?.soilwetness) continue;
 
+      // 2026-06-16 — WH52 support. Flatten the nested real_time shape
+      // into the same flat dict the webhook handler sees, then run it
+      // through the shared parser. Single source of truth for field
+      // priority + EC calibration detection.
+      const flat = flattenRealTimeSoilwetness(json.data.soilwetness);
+      const channels = parseSoilChannels(flat);
+      const byChannel = new Map(channels.map((c) => [c.channel, c]));
+
       for (const device of macDevices) {
-        const ch: number = device.metadata?.channel ?? 0;
-        const chKey = `soilwetness${ch}`;
-        const chData = json.data.soilwetness[chKey];
-        if (!chData) continue;
-
-        const moisture = parseFloat(chData.soilmoisture?.value ?? "");
-        const tempC = parseFloat(chData.soiltempc?.value ?? "0");
-        const rawAd = parseFloat(chData.soilad?.value ?? "0");
-
-        if (isNaN(moisture)) continue;
+        const channelNum: number = device.metadata?.channel ?? 0;
+        const ch = byChannel.get(channelNum);
+        if (!ch) continue;
 
         const reading: SoilReading = {
-          soil_temp: tempC,
-          soil_moisture: moisture,
-          soil_ec: rawAd,
+          soil_temp: ch.soil_temp,
+          soil_moisture: ch.soil_moisture,
+          soil_ec: ch.soil_ec,
+          ec_source: ch.ec_source,
         };
 
         await insertReading({ db, deviceId: device.id, homeId: device.home_id, data: reading, recordedAt });
