@@ -465,6 +465,15 @@ verify_jwt = false
 [functions.poll-plant-library-batches]
 verify_jwt = false
 
+# 2026-06-16 — background poll for every active Ecowitt integration so
+# soil sensor readings refresh without the user tapping Sync now. Every
+# 15 min via pg_cron, matches the Ecowitt gateway's default upload
+# cadence. verify_jwt off so the cron's net.http_post call (no JWT) can
+# reach the function; the handler uses the service role internally to
+# walk integrations across all homes.
+[functions.integrations-ecowitt-cron-poll]
+verify_jwt = false
+
 [functions.plant-doctor]
 enabled = true
 verify_jwt = true

@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Soil sensors update automatically",
+    "items": [
+      "Background poll now runs every 15 minutes for every Ecowitt integration — you no longer have to tap Refresh to see the latest soil readings. The cadence matches the gateway's own upload interval to its cloud, so we're never staler than the source data.",
+      "Refresh button still works on demand if you want a sync right now."
+    ]
+  }
+]

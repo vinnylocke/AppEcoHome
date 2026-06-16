@@ -30,7 +30,8 @@
 | Prune System Logs | daily 04:45 UTC | (none — inline SQL) | Trims `net._http_response` to 3 days + `cron.job_run_details` to 7 days. Keeps pg_net + pg_cron log bloat from inflating disk IO. |
 | Prune App Logs | daily 04:50 UTC | (none — inline SQL) | Retention sweep across the unbounded log-shaped tables: `user_events` (30d), `ai_usage_log` (90d), `notifications` (60d read-only), `chat_messages` (365d), `rate_limit_log` + `ip_rate_limit_log` (7d), `device_readings` (30d), `automation_runs` (180d), `plant_library_runs` (90d), `plant_library_batches` (30d, terminal-only). First run catches the backlog; subsequent runs trivial. |
 | Integrations eWeLink Sync | periodic | `integrations-ewelink-sync` | Refresh device readings |
-| Integrations Ecowitt Poll | periodic | `integrations-ecowitt-poll` | Poll Ecowitt weather stations |
+| Integrations Ecowitt Poll (manual) | on user tap | `integrations-ecowitt-poll` | "Sync now" trigger from the Integrations page Refresh button. Returns immediately with the count of channels updated. Same handler as below but auth-gated to the calling user. |
+| Integrations Ecowitt Poll (cron) | **every 15 min** (`*/15 * * * *`) | `integrations-ecowitt-cron-poll` | **Added 2026-06-16.** Background poll of every `provider='ecowitt' AND status='active'` integration so soil sensor readings update without the user tapping Sync now. Walks integrations across all homes via service role, fetches `device/real_time?call_back=all` per gateway, runs the shared parser + writes one `device_readings` row per channel. Per-integration try/catch — one broken gateway logs to Sentry, the rest of the batch still runs. `verify_jwt = false`. Cadence matches the Ecowitt gateway's default ~16 min upload cadence to its own cloud, so we're never staler than the source. Migration: `20260719000000_integrations_ecowitt_cron_poll.sql`. |
 | Integrations Dead Man's Switch | hourly | `integrations-dead-mans-switch` | Re-arm fail-safes |
 
 ---
