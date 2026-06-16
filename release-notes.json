@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Soil sensor temperature unit",
+    "items": [
+      "Soil temperature is now read correctly from the WH52. Previously the gateway was sending °F without a unit label, and Rhozly was storing 70°F as 70°C. The parser now uses the unit info from the Ecowitt response (or, if missing, assumes anything above 50 is °F since soil temperatures in °C don't reach that).",
+      "New per-sensor display unit preference. Open Device Settings on a soil sensor and pick Celsius or Fahrenheit. Default is Celsius. Storage is always Celsius, so switching the display later doesn't touch historical data — both the live tile and the history chart re-render in your chosen unit."
+    ]
+  }
+]

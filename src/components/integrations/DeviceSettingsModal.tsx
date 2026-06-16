@@ -23,6 +23,12 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
   const [isHomeShutoff, setIsHomeShutoff] = useState<boolean>(
     !!(device.metadata?.is_home_shutoff)
   );
+  // 2026-06-16 — per-device temperature display unit. Storage is
+  // always Celsius; this only affects the SoilReadingsPanel +
+  // HistoryChart rendering. Default Celsius when absent.
+  const [tempUnit, setTempUnit] = useState<"celsius" | "fahrenheit">(
+    (device.metadata?.display_temp_unit as "celsius" | "fahrenheit" | undefined) ?? "celsius",
+  );
   const [locationId, setLocationId] = useState<string>(device.location_id ?? "");
   const [areaId, setAreaId] = useState<string>(device.area_id ?? "");
   const [locations, setLocations] = useState<Location[]>([]);
@@ -71,6 +77,12 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
         ...device.metadata,
         default_duration_seconds: duration,
         is_home_shutoff: isHomeShutoff,
+      };
+    }
+    if (device.device_type === "soil_sensor") {
+      updates.metadata = {
+        ...device.metadata,
+        display_temp_unit: tempUnit,
       };
     }
     const { error: err } = await supabase.from("devices").update(updates).eq("id", device.id);
@@ -142,6 +154,49 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
                   <option key={a.id} value={a.id}>{a.name}</option>
                 ))}
               </select>
+            </div>
+          )}
+
+          {/* Soil sensor options */}
+          {device.device_type === "soil_sensor" && (
+            <div>
+              <label className="block text-sm font-semibold text-rhozly-on-surface mb-1.5">
+                Temperature unit
+              </label>
+              <div className="flex gap-2" role="radiogroup" aria-label="Temperature display unit">
+                <button
+                  type="button"
+                  data-testid="settings-temp-unit-celsius"
+                  role="radio"
+                  aria-checked={tempUnit === "celsius"}
+                  onClick={() => setTempUnit("celsius")}
+                  className={`flex-1 py-2.5 rounded-2xl border-2 text-sm font-bold transition-all ${
+                    tempUnit === "celsius"
+                      ? "border-rhozly-primary bg-rhozly-primary/5 text-rhozly-primary"
+                      : "border-rhozly-outline/20 text-rhozly-on-surface-variant hover:border-rhozly-primary/30"
+                  }`}
+                >
+                  Celsius (°C)
+                </button>
+                <button
+                  type="button"
+                  data-testid="settings-temp-unit-fahrenheit"
+                  role="radio"
+                  aria-checked={tempUnit === "fahrenheit"}
+                  onClick={() => setTempUnit("fahrenheit")}
+                  className={`flex-1 py-2.5 rounded-2xl border-2 text-sm font-bold transition-all ${
+                    tempUnit === "fahrenheit"
+                      ? "border-rhozly-primary bg-rhozly-primary/5 text-rhozly-primary"
+                      : "border-rhozly-outline/20 text-rhozly-on-surface-variant hover:border-rhozly-primary/30"
+                  }`}
+                >
+                  Fahrenheit (°F)
+                </button>
+              </div>
+              <p className="text-xs text-rhozly-on-surface-variant mt-1">
+                Affects display only. Readings are stored in Celsius — switching the unit
+                later doesn't change historical data.
+              </p>
             </div>
           )}
 

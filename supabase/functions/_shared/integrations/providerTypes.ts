@@ -60,6 +60,11 @@ export interface EwelinkDeviceMeta {
 /** Ecowitt soil sensor model — drives EC unit + UI copy. */
 export type EcowittSoilModel = "WH51" | "WH52";
 
+/** Display preference for soil temperature on the device tile + chart.
+ *  Storage is always Celsius; this only affects rendering. Default
+ *  Celsius (matches the rest of the app + UK / European norm). */
+export type TempDisplayUnit = "celsius" | "fahrenheit";
+
 /** Ecowitt soil sensor metadata. */
 export interface EcowittDeviceMeta {
   /** Sensor hardware model. WH51 = soil moisture only (EC is raw ADC).
@@ -67,6 +72,10 @@ export interface EcowittDeviceMeta {
   model: EcowittSoilModel;
   channel: number;       // Sensor channel on the gateway (1–8)
   gateway_mac: string;   // MAC address of the Ecowitt gateway
+  /** Per-device temperature display unit. Optional — absent means
+   *  "celsius" (the default). User can flip it in the Device Settings
+   *  modal; readings are always stored in Celsius regardless. */
+  display_temp_unit?: TempDisplayUnit;
 }
 
 export type DeviceMeta = EwelinkDeviceMeta | EcowittDeviceMeta;

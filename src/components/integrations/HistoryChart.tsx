@@ -10,6 +10,9 @@ import ValveTimeline from "./ValveTimeline";
 interface Props {
   deviceId: string;
   deviceType: "soil_sensor" | "water_valve";
+  /** Optional — defaults to "celsius". Storage is always Celsius; this
+   *  only flips the axis label + value conversion at render time. */
+  tempDisplayUnit?: "celsius" | "fahrenheit";
 }
 
 const PERIODS: { id: AggregatePeriod; label: string }[] = [
@@ -19,7 +22,7 @@ const PERIODS: { id: AggregatePeriod; label: string }[] = [
   { id: "12m", label: "12m" },
 ];
 
-export default function HistoryChart({ deviceId, deviceType }: Props) {
+export default function HistoryChart({ deviceId, deviceType, tempDisplayUnit = "celsius" }: Props) {
   const [period, setPeriod] = useState<AggregatePeriod>("24h");
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
@@ -87,13 +90,21 @@ export default function HistoryChart({ deviceId, deviceType }: Props) {
       ) : data.length === 0 ? (
         <p className="text-sm text-rhozly-on-surface-variant text-center py-6">No data for this period.</p>
       ) : (
-        <SoilChart data={data} period={period} />
+        <SoilChart data={data} period={period} tempDisplayUnit={tempDisplayUnit} />
       )}
     </div>
   );
 }
 
-function SoilChart({ data, period }: { data: Record<string, unknown>[]; period: AggregatePeriod }) {
+function SoilChart({
+  data,
+  period,
+  tempDisplayUnit,
+}: {
+  data: Record<string, unknown>[];
+  period: AggregatePeriod;
+  tempDisplayUnit: "celsius" | "fahrenheit";
+}) {
   const fmt = (bucket: string) => {
     const d = new Date(bucket);
     if (period === "24h") return d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
@@ -101,12 +112,26 @@ function SoilChart({ data, period }: { data: Record<string, unknown>[]; period: 
     return d.toLocaleDateString([], { month: "short", day: "numeric" });
   };
 
+  // 2026-06-16 — temperature stored as Celsius; convert each bucket to
+  // Fahrenheit at render time when the user picked that unit. Done as a
+  // shallow row-by-row map so the chart's tooltip + axis use the
+  // displayed unit consistently.
+  const isFahrenheit = tempDisplayUnit === "fahrenheit";
+  const tempData = isFahrenheit
+    ? data.map((row) => {
+        const c = row.soil_temp;
+        if (typeof c !== "number") return row;
+        return { ...row, soil_temp: c * 9 / 5 + 32 };
+      })
+    : data;
+  const tempTitle = isFahrenheit ? "Soil Temp (°F)" : "Soil Temp (°C)";
+
   return (
     <div className="space-y-5">
       {/* Moisture */}
       <ChartBlock title="Moisture (%)" data={data} dataKey="soil_moisture" color="#3b82f6" fmt={fmt} domain={[0, 100]} />
       {/* Temperature */}
-      <ChartBlock title="Soil Temp (°C)" data={data} dataKey="soil_temp" color="#f97316" fmt={fmt} />
+      <ChartBlock title={tempTitle} data={tempData} dataKey="soil_temp" color="#f97316" fmt={fmt} />
     </div>
   );
 }

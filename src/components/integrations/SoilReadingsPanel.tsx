@@ -7,6 +7,10 @@ import InfoTooltip from "../InfoTooltip";
  *  server-side `EcSource` in `_shared/integrations/providerTypes.ts`. */
 export type EcSource = "calibrated_us_cm" | "raw_adc";
 
+/** Per-device temperature display preference. Storage is always Celsius;
+ *  this only affects rendering. */
+export type TempDisplayUnit = "celsius" | "fahrenheit";
+
 export interface SoilReading {
   soil_temp: number;
   soil_moisture: number;
@@ -19,9 +23,19 @@ export interface SoilReading {
 interface Props {
   current: SoilReading | null;
   previous: SoilReading | null;
+  /** Optional — defaults to "celsius". Threaded through from
+   *  device.metadata.display_temp_unit by DeviceDetailModal. */
+  tempDisplayUnit?: TempDisplayUnit;
 }
 
-export default function SoilReadingsPanel({ current, previous }: Props) {
+/** Storage is always Celsius. Convert at render time when the user
+ *  picked Fahrenheit. Pure helper — used by the live tiles + the
+ *  delta-trend computation so both stay consistent. */
+function celsiusToFahrenheit(c: number): number {
+  return c * 9 / 5 + 32;
+}
+
+export default function SoilReadingsPanel({ current, previous, tempDisplayUnit = "celsius" }: Props) {
   if (!current) {
     return (
       <div className="text-center text-sm text-rhozly-on-surface-variant py-6">
@@ -45,14 +59,28 @@ export default function SoilReadingsPanel({ current, previous }: Props) {
     : `${current.soil_ec.toFixed(0)}`;
   const ecLabel = ecCalibrated ? "Conductivity" : "Conductivity (raw)";
 
+  // 2026-06-16 — per-device temperature display unit. Storage is
+  // canonical Celsius; if the user picked Fahrenheit on this device,
+  // we convert at render time for both the live tile and the delta.
+  const isFahrenheit = tempDisplayUnit === "fahrenheit";
+  const displayTemp = isFahrenheit
+    ? celsiusToFahrenheit(current.soil_temp)
+    : current.soil_temp;
+  const tempUnitSymbol = isFahrenheit ? "°F" : "°C";
+  const tempDelta = previous
+    ? (isFahrenheit
+        ? celsiusToFahrenheit(current.soil_temp) - celsiusToFahrenheit(previous.soil_temp)
+        : current.soil_temp - previous.soil_temp)
+    : null;
+
   const tiles = [
     {
       label: "Soil Temp",
-      value: `${current.soil_temp.toFixed(1)}°C`,
+      value: `${displayTemp.toFixed(1)}${tempUnitSymbol}`,
       icon: IconTemperature,
       iconClass: "text-orange-500",
       bgClass: "bg-orange-50",
-      delta: previous ? current.soil_temp - previous.soil_temp : null,
+      delta: tempDelta,
       tooltip: null as React.ReactNode,
     },
     {

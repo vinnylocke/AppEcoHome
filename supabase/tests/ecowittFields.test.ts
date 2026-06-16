@@ -103,25 +103,56 @@ Deno.test("parseSoilChannels — Celsius temperature field (real_time format)", 
   assertEquals(channels[0].soil_temp, 18.4);
 });
 
-Deno.test("parseSoilChannels — plain soiltemp{N} (no F/C suffix) treated as Celsius", () => {
-  // Observed 2026-06-16 — the WH52 `soil_moisture_ec_chN` container
-  // emits the temperature as just `soiltemp` (no F/C suffix). The flat
-  // dict ends up with `soiltemp1 = "20.4"`. The parser must treat this
-  // as °C by default — defaulting to F would clamp a typical 20°C soil
-  // reading to -6.4°C which is clearly wrong.
+Deno.test("parseSoilChannels — plain soiltemp{N} with unit sidecar = F → converts to C", () => {
+  // 2026-06-16 — WH52 reports plain `soiltemp` with a unit sidecar
+  // captured by the flattener. When the sidecar says "F", the parser
+  // converts to Celsius before storing.
+  const fields = {
+    soilmoisture1: "55",
+    soiltemp1: "70.0",        // 70°F
+    soiltemp1_unit: "F",
+    soilcond1: "1100",
+  };
+  const channels = parseSoilChannels(fields);
+  // 70°F = 21.1°C
+  assertEquals(channels[0].soil_temp, 21.1);
+});
+
+Deno.test("parseSoilChannels — plain soiltemp{N} with unit sidecar = C → kept as-is", () => {
   const fields = {
     soilmoisture1: "55",
     soiltemp1: "20.4",
-    soilcond1: "1100",
+    soiltemp1_unit: "C",
   };
   const channels = parseSoilChannels(fields);
   assertEquals(channels[0].soil_temp, 20.4);
 });
 
-Deno.test("parseSoilChannels — explicit suffixed temp wins over plain spelling", () => {
-  // If both `soiltempc1` (explicit C) and `soiltemp1` (unsuffixed) are
-  // present, the explicit one MUST take priority — otherwise a
-  // misaliased duplicate could clobber the canonical reading.
+Deno.test("parseSoilChannels — plain soiltemp{N} with no unit + value > 50 → assume F", () => {
+  // Heuristic fallback: soil temperatures in Celsius never exceed 50,
+  // so anything higher must be Fahrenheit. This is what was burning the
+  // user — 70 stored as 70°C when the gateway was actually sending °F.
+  const fields = {
+    soilmoisture1: "55",
+    soiltemp1: "70.0",
+  };
+  const channels = parseSoilChannels(fields);
+  // 70°F → 21.1°C
+  assertEquals(channels[0].soil_temp, 21.1);
+});
+
+Deno.test("parseSoilChannels — plain soiltemp{N} with no unit + value <= 50 → keep as C", () => {
+  const fields = {
+    soilmoisture1: "55",
+    soiltemp1: "20.4",
+  };
+  const channels = parseSoilChannels(fields);
+  assertEquals(channels[0].soil_temp, 20.4);
+});
+
+Deno.test("parseSoilChannels — explicit Celsius candidate wins over ambiguous plain field", () => {
+  // If both `soiltempc1` (explicit C) and `soiltemp1` (ambiguous) are
+  // present, the explicit-C one MUST take priority.
   const fields = {
     soilmoisture1: "55",
     soiltempc1: "18.0",
@@ -129,6 +160,18 @@ Deno.test("parseSoilChannels — explicit suffixed temp wins over plain spelling
   };
   const channels = parseSoilChannels(fields);
   assertEquals(channels[0].soil_temp, 18.0);
+});
+
+Deno.test("parseSoilChannels — explicit Fahrenheit candidate wins over ambiguous plain field", () => {
+  // Same precedence guarantee on the F side — webhook form-data sends
+  // `soiltemp1f`, which is explicit and must beat any plain alias.
+  const fields = {
+    soilmoisture1: "55",
+    soiltemp1f: "68.0",  // → 20°C
+    soiltemp1: "99",      // garbage that must NOT win
+  };
+  const channels = parseSoilChannels(fields);
+  assertEquals(channels[0].soil_temp, 20);
 });
 
 Deno.test("parseSoilChannels — alternative temp F spelling 'tf_ch'", () => {

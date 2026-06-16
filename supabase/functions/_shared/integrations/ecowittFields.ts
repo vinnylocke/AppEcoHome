@@ -56,18 +56,25 @@ const TEMP_F_FIELDS = (ch: number): string[] => [
 
 /**
  * Field name candidates for soil temperature in Celsius. Order matters
- * — explicit C-suffixed names are tried first; then `soiltemp${ch}`
- * (no suffix) as the default. The plain spelling shows up on the
- * WH52 `soil_moisture_ec_chN` category whose inner field is called
- * just `soiltemp` (the unit lives on a sibling field that the flat
- * dict drops); defaulting to Celsius matches every Ecowitt setup
- * we've seen and matches the user-configured unit preference for
- * European accounts. Fahrenheit users will see a too-low number and
- * we can revisit then.
+ * — explicit C-suffixed names are tried first. Plain `soiltemp${ch}`
+ * is intentionally NOT in this list because the WH52's
+ * `soil_moisture_ec_chN` container sends it in Fahrenheit even though
+ * the field name carries no suffix; the parser routes it through the
+ * AMBIGUOUS path below where the unit sidecar field + a value
+ * heuristic decide F vs C correctly.
  */
 const TEMP_C_FIELDS = (ch: number): string[] => [
   `soiltempc${ch}`,
   `soiltemp${ch}c`,
+];
+
+/**
+ * Plain (no-suffix) temperature field — Ecowitt's WH52 reports its
+ * temperature here. The unit lives on the sibling `${field}${ch}_unit`
+ * sidecar field captured by `flattenRealTimeSoilwetness`. When the
+ * sidecar is absent we use a value heuristic (>50 → assume F).
+ */
+const TEMP_AMBIGUOUS_FIELDS = (ch: number): string[] => [
   `soiltemp${ch}`,
 ];
 
@@ -131,7 +138,16 @@ export function parseSoilChannels(
     const moisture = parseFloat(String(moistureRaw));
     if (!Number.isFinite(moisture)) continue;
 
-    // Temperature — try Celsius first (real_time), then Fahrenheit (webhook).
+    // Temperature — three-way decision:
+    //   1. Explicit Celsius field (real_time, suffixed C).
+    //   2. Explicit Fahrenheit field (webhook flat form, suffixed F).
+    //   3. Ambiguous `soiltemp{ch}` (WH52 soil_moisture_ec_chN
+    //      container): use the unit sidecar emitted by the flattener,
+    //      then fall back to a value heuristic (>50 → assume F since
+    //      typical soil temperatures in °C never exceed 50).
+    //
+    // Storage is always Celsius — the display unit preference lives on
+    // the client per-device (EcowittDeviceMeta.display_temp_unit).
     let tempC = 0;
     const tempCField = pickField(fields, TEMP_C_FIELDS(ch));
     if (tempCField) {
@@ -142,6 +158,26 @@ export function parseSoilChannels(
       if (tempFField) {
         const parsedF = parseFloat(tempFField.value);
         if (Number.isFinite(parsedF)) tempC = fahrenheitToCelsius(parsedF);
+      } else {
+        const ambiguous = pickField(fields, TEMP_AMBIGUOUS_FIELDS(ch));
+        if (ambiguous) {
+          const parsed = parseFloat(ambiguous.value);
+          if (Number.isFinite(parsed)) {
+            const sidecarUnitRaw = fields[`${ambiguous.key}_unit`];
+            const sidecarUnit = typeof sidecarUnitRaw === "string"
+              ? sidecarUnitRaw.trim().toUpperCase()
+              : "";
+            const isFahrenheit = sidecarUnit === "F" || sidecarUnit === "°F"
+              ? true
+              : sidecarUnit === "C" || sidecarUnit === "°C"
+                ? false
+                // Fall back to a value heuristic — soil temperatures in
+                // °C above 50 are impossible (deserts cap soil at ~45°C);
+                // anything higher is almost certainly Fahrenheit.
+                : parsed > 50;
+            tempC = isFahrenheit ? fahrenheitToCelsius(parsed) : parsed;
+          }
+        }
       }
     }
 
@@ -270,12 +306,27 @@ export function flattenRealTimeSoilwetness(
         if (valueObj === null || valueObj === undefined) continue;
         // Ecowitt sometimes wraps values as { value, unit }, sometimes
         // sends a bare string/number. Accept both.
-        const v = typeof valueObj === "object"
-          ? (valueObj as { value?: unknown }).value
-          : valueObj;
+        let v: unknown;
+        let unit: string | null = null;
+        if (typeof valueObj === "object") {
+          v = (valueObj as { value?: unknown }).value;
+          // 2026-06-16 — preserve the unit info as a sidecar field so
+          // parseSoilChannels can pick F vs C correctly even when the
+          // field name itself doesn't carry the suffix. The WH52's
+          // `soil_moisture_ec_chN` container reports `{ soiltemp:
+          // { value: "70.4", unit: "F" } }` — without the unit we'd
+          // store 70°F as 70°C.
+          const u = (valueObj as { unit?: unknown }).unit;
+          if (typeof u === "string" && u.length > 0) unit = u;
+        } else {
+          v = valueObj;
+        }
         if (v === undefined || v === null) continue;
         const canonical = aliasFieldName(fieldName);
         out[`${canonical}${ch}`] = String(v);
+        if (unit !== null) {
+          out[`${canonical}${ch}_unit`] = unit;
+        }
       }
     }
   };

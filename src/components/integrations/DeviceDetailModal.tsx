@@ -90,7 +90,13 @@ export default function DeviceDetailModal({ device, onClose, onRefresh, canManag
                     <Loader2 className="animate-spin text-rhozly-primary" size={22} />
                   </div>
                 ) : (
-                  <SoilReadingsPanel current={current} previous={previous} />
+                  <SoilReadingsPanel
+                    current={current}
+                    previous={previous}
+                    tempDisplayUnit={
+                      (device.metadata?.display_temp_unit as "celsius" | "fahrenheit" | undefined) ?? "celsius"
+                    }
+                  />
                 )}
               </section>
             )}
@@ -109,7 +115,13 @@ export default function DeviceDetailModal({ device, onClose, onRefresh, canManag
             {/* History chart */}
             <section>
               <h3 className="text-sm font-bold text-rhozly-on-surface mb-3">History</h3>
-              <HistoryChart deviceId={device.id} deviceType={device.device_type} />
+              <HistoryChart
+                deviceId={device.id}
+                deviceType={device.device_type}
+                tempDisplayUnit={
+                  (device.metadata?.display_temp_unit as "celsius" | "fahrenheit" | undefined) ?? "celsius"
+                }
+              />
             </section>
 
             {/* Last seen */}
