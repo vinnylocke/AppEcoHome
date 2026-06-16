@@ -9,7 +9,9 @@ import {
   Thermometer,
   Droplets,
   Zap,
+  Pencil,
 } from "lucide-react";
+import LogReadingModal from "./LogReadingModal";
 import {
   LineChart,
   Line,
@@ -31,6 +33,9 @@ import {
 interface Props {
   areaId: string;
   areaName: string;
+  /** Required for manual reading writes — fan-out trigger needs the
+   *  same home_id as the area for RLS. */
+  homeId: string;
 }
 
 const HISTORY_WINDOWS: { id: HistoryWindow; label: string }[] = [
@@ -58,13 +63,18 @@ const SENSOR_LINE_COLOURS = [
  *  - Empty-state CTA when no sensors are linked, deep-linking to the
  *    Integrations devices tab where the user can assign one.
  */
-export default function AreaSensorsPanel({ areaId, areaName }: Props) {
+export default function AreaSensorsPanel({ areaId, areaName, homeId }: Props) {
   const navigate = useNavigate();
   const [sensors, setSensors] = useState<LinkedSensor[]>([]);
   const [loading, setLoading] = useState(true);
   const [historyWindow, setHistoryWindow] = useState<HistoryWindow>("24h");
   const [history, setHistory] = useState<Record<string, HistoryPoint[]>>({});
   const [historyLoading, setHistoryLoading] = useState(false);
+  // 2026-06-16 Phase 2 — manual reading entry. Bump tick to re-fetch
+  // sensors + history after a successful manual log so the new entry
+  // appears immediately in the charts.
+  const [showLogModal, setShowLogModal] = useState(false);
+  const [refetchTick, setRefetchTick] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -80,7 +90,7 @@ export default function AreaSensorsPanel({ areaId, areaName }: Props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [areaId]);
+  }, [areaId, refetchTick]);
 
   useEffect(() => {
     if (sensors.length === 0) return;
@@ -97,7 +107,7 @@ export default function AreaSensorsPanel({ areaId, areaName }: Props) {
       }
     })();
     return () => { cancelled = true; };
-  }, [areaId, historyWindow, sensors.length]);
+  }, [areaId, historyWindow, sensors.length, refetchTick]);
 
   const summary = useMemo(() => computeAreaMetricSummary(sensors), [sensors]);
 
@@ -111,33 +121,55 @@ export default function AreaSensorsPanel({ areaId, areaName }: Props) {
 
   if (sensors.length === 0) {
     return (
-      <div
-        data-testid="area-sensors-empty"
-        className="bg-emerald-50/60 border border-emerald-200/60 rounded-3xl p-5"
-      >
-        <div className="flex items-start gap-3">
-          <div className="shrink-0 w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
-            <Cpu size={18} />
-          </div>
-          <div className="flex-1 min-w-0">
-            <p className="font-black text-rhozly-on-surface text-sm">
-              Link a soil sensor to {areaName || "this area"}
-            </p>
-            <p className="text-xs font-bold text-rhozly-on-surface/55 leading-snug mt-1 mb-3">
-              Once a sensor is linked, this area starts tracking moisture, temperature and
-              EC — and AI care guides can reason about whether plants here are happy.
-            </p>
-            <button
-              type="button"
-              data-testid="area-sensors-link-cta"
-              onClick={() => navigate("/integrations")}
-              className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[40px] rounded-2xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-700 transition-colors"
-            >
-              <Plug size={14} /> Open Integrations
-            </button>
+      <>
+        <div
+          data-testid="area-sensors-empty"
+          className="bg-emerald-50/60 border border-emerald-200/60 rounded-3xl p-5"
+        >
+          <div className="flex items-start gap-3">
+            <div className="shrink-0 w-10 h-10 rounded-2xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+              <Cpu size={18} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-black text-rhozly-on-surface text-sm">
+                Link a soil sensor to {areaName || "this area"}
+              </p>
+              <p className="text-xs font-bold text-rhozly-on-surface/55 leading-snug mt-1 mb-3">
+                Once a sensor is linked, this area starts tracking moisture, temperature and
+                EC — and AI care guides can reason about whether plants here are happy.
+                You can also log readings manually from a USB probe or calibrated meter.
+              </p>
+              <div className="flex flex-wrap items-center gap-2">
+                <button
+                  type="button"
+                  data-testid="area-sensors-link-cta"
+                  onClick={() => navigate("/integrations")}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[40px] rounded-2xl bg-emerald-600 text-white text-xs font-black hover:bg-emerald-700 transition-colors"
+                >
+                  <Plug size={14} /> Open Integrations
+                </button>
+                <button
+                  type="button"
+                  data-testid="area-sensors-log-empty"
+                  onClick={() => setShowLogModal(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 min-h-[40px] rounded-2xl bg-white border border-emerald-300 text-emerald-700 text-xs font-black hover:bg-emerald-50 transition-colors"
+                >
+                  <Pencil size={14} /> Log a reading manually
+                </button>
+              </div>
+            </div>
           </div>
         </div>
-      </div>
+        {showLogModal && (
+          <LogReadingModal
+            homeId={homeId}
+            areaId={areaId}
+            areaName={areaName}
+            onClose={() => setShowLogModal(false)}
+            onLogged={() => setRefetchTick((t) => t + 1)}
+          />
+        )}
+      </>
     );
   }
 
@@ -160,7 +192,16 @@ export default function AreaSensorsPanel({ areaId, areaName }: Props) {
             )}
           </p>
         </div>
-        <div className="flex gap-1" role="tablist" aria-label="History window">
+        <div className="flex items-center gap-1" role="tablist" aria-label="History window">
+          <button
+            type="button"
+            data-testid="area-sensors-log-button"
+            onClick={() => setShowLogModal(true)}
+            title="Log a manual reading"
+            className="mr-1 inline-flex items-center gap-1 px-2.5 py-1.5 rounded-xl bg-rhozly-surface border border-rhozly-outline/15 text-[11px] font-black uppercase tracking-widest text-rhozly-on-surface/55 hover:text-rhozly-primary hover:border-rhozly-primary/30 transition-colors"
+          >
+            <Pencil size={11} /> Log
+          </button>
           {HISTORY_WINDOWS.map((w) => (
             <button
               key={w.id}
@@ -295,6 +336,16 @@ export default function AreaSensorsPanel({ areaId, areaName }: Props) {
             </>
           )}
         </div>
+      )}
+
+      {showLogModal && (
+        <LogReadingModal
+          homeId={homeId}
+          areaId={areaId}
+          areaName={areaName}
+          onClose={() => setShowLogModal(false)}
+          onLogged={() => setRefetchTick((t) => t + 1)}
+        />
       )}
     </div>
   );

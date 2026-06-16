@@ -714,15 +714,17 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                     </button>
                   </div>
 
-                  {/* 2026-06-16 — Area ↔ Sensor linkage Phase 1.
-                      Lives at the top because the live metrics are the
-                      most actionable piece of information for users who
-                      have hardware. Falls back to a "Link a sensor" CTA
-                      when no sensors are linked. */}
+                  {/* 2026-06-16 — Area ↔ Sensor linkage.
+                      Phase 1: live readings + history charts when
+                      sensors are linked. Phase 2 (also 2026-06-16):
+                      "Log a reading" button opens the manual entry
+                      modal. Falls back to a "Link a sensor" CTA when
+                      nothing is linked. */}
                   <div className="mb-8">
                     <AreaSensorsPanel
                       areaId={editingArea.id}
                       areaName={editingArea.name}
+                      homeId={homeId}
                     />
                   </div>
 

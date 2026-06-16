@@ -12,7 +12,12 @@ homes (1)
     └── areas (N)
         ├── linked to → garden_shapes (in a garden_layouts row)
         ├── area_lux_readings (history)
-        └── (used by) inventory_items.area_id, tasks.area_id, ...
+        ├── area_moisture_readings (Phase 2, 2026-06-16)
+        ├── area_temp_readings (Phase 2, 2026-06-16)
+        ├── area_ec_readings (Phase 2, 2026-06-16)
+        ├── latest_soil_{moisture_pct,temp_c,ec,ec_source}_{recorded_at}
+        │   (denormalised hot-path read columns, kept in sync by triggers)
+        └── (used by) inventory_items.area_id, tasks.area_id, devices.area_id, ...
 
 garden_layouts (N per home)
 └── garden_shapes (N)
