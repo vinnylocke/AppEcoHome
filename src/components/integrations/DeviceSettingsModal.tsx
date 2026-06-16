@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../../lib/supabase";
-import { X, Loader2, Trash2, AlertTriangle } from "lucide-react";
+import { X, Loader2, Trash2, AlertTriangle, Battery, BatteryWarning } from "lucide-react";
 import type { Device } from "./IntegrationsPage";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 import WebhookDetailsPanel from "./WebhookDetailsPanel";
@@ -245,6 +245,9 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
             </>
           )}
 
+          {/* Battery diagnostic — proves the wiring is alive */}
+          <BatteryDiagnostic device={device} />
+
           {/* Webhook details — only for custom_http integrations */}
           {device.provider === "custom_http" && (
             <WebhookDetailsPanel
@@ -313,4 +316,58 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
     </div>,
     document.body,
   );
+}
+
+/**
+ * Small diagnostic row — confirms the battery wiring is alive even
+ * when the device has never reported one. Lets users tell the
+ * difference between "wired but waiting for the next sync" and "this
+ * device doesn't report battery" without having to wonder why the
+ * pip is missing on the card.
+ */
+function BatteryDiagnostic({ device }: { device: Device }) {
+  if (device.battery_percent !== null && device.battery_reported_at) {
+    const ago = timeAgo(device.battery_reported_at);
+    const tone = device.battery_percent < 20
+      ? "bg-red-50 border-red-200 text-red-800"
+      : device.battery_percent < 50
+        ? "bg-amber-50 border-amber-200 text-amber-800"
+        : "bg-green-50 border-green-200 text-green-800";
+    return (
+      <div className={`rounded-2xl border px-4 py-3 text-sm flex items-center gap-2 ${tone}`} data-testid="battery-diagnostic">
+        <Battery size={16} />
+        <span className="font-semibold">Battery: {device.battery_percent}%</span>
+        <span className="text-xs opacity-80">reported {ago}</span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="rounded-2xl border border-rhozly-outline/20 bg-rhozly-surface-low/40 px-4 py-3 text-sm" data-testid="battery-diagnostic">
+      <div className="flex items-center gap-2 font-semibold text-rhozly-on-surface">
+        <BatteryWarning size={16} className="text-rhozly-on-surface-variant" />
+        Battery: no reading received yet
+      </div>
+      <p className="text-xs text-rhozly-on-surface-variant mt-1">
+        {device.provider === "ecowitt" &&
+          "Hit Refresh on the Integrations page to pull a fresh reading from the gateway. If your sensor doesn't expose a soilbattN field this line won't update."}
+        {device.provider === "ewelink" &&
+          "Open this device once or wait for the next state poll. If your valve is mains-powered it won't report a battery."}
+        {device.provider === "custom_http" &&
+          "Include battery_percent: 0–100 in your next webhook payload (or use the Test Webhook simulator above)."}
+        {device.provider !== "ecowitt" && device.provider !== "ewelink" && device.provider !== "custom_http" &&
+          "Battery readings appear here once your device reports them via a sync."}
+      </p>
+    </div>
+  );
+}
+
+function timeAgo(ts: string): string {
+  const ms = Date.now() - new Date(ts).getTime();
+  const m = Math.floor(ms / 60000);
+  if (m < 1) return "just now";
+  if (m < 60) return `${m} min ago`;
+  const h = Math.floor(m / 60);
+  if (h < 24) return `${h} h ago`;
+  return `${Math.floor(h / 24)} d ago`;
 }

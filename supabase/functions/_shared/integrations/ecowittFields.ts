@@ -113,21 +113,41 @@ export interface ParsedSoilChannel {
 }
 
 /**
- * Parse Ecowitt's `soilbatt{N}` field with auto-detect.
+ * Parse Ecowitt's `soilbatt{N}` field.
  *
- * Ecowitt firmware reports battery differently across models:
- *   - 0-5 "level" scale (WH51 most firmwares) → 5 means full
- *   - 0-100 percent (some newer firmwares)
- *   - millivolts (rare, e.g. 1500 = 1.5V) — IGNORED today because
- *     mapping mV to a percentage needs a calibration curve we don't
- *     have. Better to leave the pip dark than guess wrong.
+ * 2026-06-16 (hot-fix) — the field is documented as **voltage**, not a
+ * 0-5 level scale. The previous auto-detect (≤5 → level/5*100) was
+ * wrong: an AA Lithium reads ~1.6V when full and the broken code
+ * reported that as 30%, draining-soon-amber. Confirmed by the
+ * pre-existing comment at the top of this file: "soilbatt{N} → battery
+ * voltage" for both WH51 and WH52.
+ *
+ * Three accepted shapes:
+ *   - Volts in range 0.8 – 2.0V (AA Lithium curve)
+ *   - Millivolts in range 800 – 2000 (some firmware variants)
+ *   - Out of range / non-numeric → null (no pip, diagnostic line
+ *     surfaces "no reading received" so the user can tell why)
+ *
+ * AA Lithium nominal: 1.5V. Empty: ~1.0V (sensor cuts out below this).
+ * Fresh: 1.65V+. We linearly map [1.0V – 1.65V] → [0% – 100%], clamped.
+ * A slightly-over-fresh battery (~1.7V) is clamped to 100% rather than
+ * reporting "108%".
  */
+const ECOWITT_BATTERY_EMPTY_V = 1.0;
+const ECOWITT_BATTERY_FULL_V = 1.65;
+
+function voltsToPercent(volts: number): number {
+  const range = ECOWITT_BATTERY_FULL_V - ECOWITT_BATTERY_EMPTY_V;
+  const raw = ((volts - ECOWITT_BATTERY_EMPTY_V) / range) * 100;
+  return Math.max(0, Math.min(100, Math.round(raw)));
+}
+
 export function parseEcowittBattery(value: unknown): number | null {
   if (value === undefined || value === null) return null;
   const v = parseFloat(typeof value === "string" ? value : String(value));
   if (!Number.isFinite(v) || v < 0) return null;
-  if (v <= 5) return Math.round((v / 5) * 100);
-  if (v <= 100) return Math.round(v);
+  if (v >= 0.8 && v <= 2.0) return voltsToPercent(v);
+  if (v >= 800 && v <= 2000) return voltsToPercent(v / 1000);
   return null;
 }
 

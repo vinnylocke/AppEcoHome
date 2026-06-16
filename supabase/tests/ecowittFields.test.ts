@@ -382,51 +382,68 @@ Deno.test("flattenRealTimeSoilwetness — empty / non-object input returns empty
   assertEquals(flattenRealTimeSoilwetness(null), {});
 });
 
-// ── battery_percent ────────────────────────────────────────────────────────
+// ── battery_percent (voltage-based) ─────────────────────────────────────────
 //
-// Ecowitt's soilbatt{N} field is inconsistent across firmwares: some
-// report a 0-5 level, some a 0-100 percent, some millivolts. The auto-
-// detect uses non-overlapping ranges (≤5 → level, 5-100 → percent,
-// >100 → ignored) so callers don't have to know the firmware.
+// 2026-06-16 hot-fix: soilbatt{N} is voltage in volts (or millivolts on
+// some firmware variants), NOT a 0-5 level scale. AA Lithium curve:
+// 1.0V = empty, 1.65V = full. The previous level-scale interpretation
+// reported a fresh 1.6V battery as 30% (level 1.6 / 5).
 
-Deno.test("parseEcowittBattery — 0-5 level scale", () => {
-  assertEquals(parseEcowittBattery("5"), 100);
-  assertEquals(parseEcowittBattery("4"), 80);
-  assertEquals(parseEcowittBattery("3"), 60);
-  assertEquals(parseEcowittBattery("1"), 20);
-  assertEquals(parseEcowittBattery("0"), 0);
+Deno.test("parseEcowittBattery — fresh AA Lithium at 1.65V is 100%", () => {
+  assertEquals(parseEcowittBattery("1.65"), 100);
 });
 
-Deno.test("parseEcowittBattery — 0-100 percent passes through (rounded)", () => {
-  assertEquals(parseEcowittBattery("87"), 87);
-  assertEquals(parseEcowittBattery("87.4"), 87);
-  assertEquals(parseEcowittBattery("87.6"), 88);
-  assertEquals(parseEcowittBattery("100"), 100);
+Deno.test("parseEcowittBattery — slightly over-fresh (1.7V) clamps at 100%", () => {
+  assertEquals(parseEcowittBattery("1.7"), 100);
 });
 
-Deno.test("parseEcowittBattery — out of range / non-numeric returns null", () => {
-  assertEquals(parseEcowittBattery("1500"), null); // mV territory → unsafe to guess
-  assertEquals(parseEcowittBattery("-1"), null);
+Deno.test("parseEcowittBattery — empty (1.0V) is 0%", () => {
+  assertEquals(parseEcowittBattery("1.0"), 0);
+});
+
+Deno.test("parseEcowittBattery — mid-range curve", () => {
+  // 1.325V is halfway between 1.0 and 1.65 → 50%
+  assertEquals(parseEcowittBattery("1.325"), 50);
+  // 1.5V (AA nominal) → ~77%
+  assertEquals(parseEcowittBattery("1.5"), 77);
+  // 1.2V (low) → ~31%
+  assertEquals(parseEcowittBattery("1.2"), 31);
+});
+
+Deno.test("parseEcowittBattery — millivolts variant", () => {
+  assertEquals(parseEcowittBattery("1650"), 100);
+  assertEquals(parseEcowittBattery("1500"), 77);
+  assertEquals(parseEcowittBattery("1000"), 0);
+});
+
+Deno.test("parseEcowittBattery — out of range returns null", () => {
+  assertEquals(parseEcowittBattery("0"), null); // below 0.8V floor → null, not 0%
+  assertEquals(parseEcowittBattery("5"), null); // above 2.0V ceiling, below mV floor
+  assertEquals(parseEcowittBattery("50"), null); // dead zone between V and mV
+  assertEquals(parseEcowittBattery("3000"), null); // above mV ceiling
+});
+
+Deno.test("parseEcowittBattery — non-numeric / missing returns null", () => {
   assertEquals(parseEcowittBattery("abc"), null);
   assertEquals(parseEcowittBattery(undefined), null);
   assertEquals(parseEcowittBattery(null), null);
 });
 
-Deno.test("parseSoilChannels — battery threaded through (level)", () => {
+Deno.test("parseSoilChannels — battery threaded through (volts)", () => {
   const channels = parseSoilChannels({
     soilmoisture1: "42",
-    soilbatt1: "4",  // level 4/5 → 80%
+    soilbatt1: "1.6", // fresh → 92%
   });
   assertEquals(channels.length, 1);
-  assertEquals(channels[0].battery_percent, 80);
+  assertEquals(channels[0].battery_percent, 92);
 });
 
-Deno.test("parseSoilChannels — battery threaded through (percent)", () => {
+Deno.test("parseSoilChannels — battery threaded through (millivolts)", () => {
   const channels = parseSoilChannels({
     soilmoisture1: "42",
-    soilbatt1: "65",
+    soilbatt1: "1600", // same as 1.6V → 92%
   });
-  assertEquals(channels[0].battery_percent, 65);
+  assertEquals(channels[0].battery_percent, 92);
 });
 
 Deno.test("parseSoilChannels — missing battery yields null (pip stays hidden)", () => {

@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Battery hot-fix — Ecowitt voltage curve + diagnostic line",
+    "items": [
+      "Fixed the Ecowitt battery scale. The previous code treated soilbattN as a 0-5 level (so a fresh 1.6V AA Lithium read as 30%). It's actually voltage — now mapped on the real AA Lithium curve (1.0V = 0%, 1.65V = 100%, clamped). Millivolt variants (e.g. 1650) auto-detected and handled.",
+      "New battery diagnostic line on every Device Settings modal. If a reading exists you see 'Battery: 87% reported 2 min ago' colour-graded. If no reading yet you see 'Battery: no reading received yet' with provider-specific guidance — so you can tell whether the wiring is alive but waiting vs the device simply doesn't report battery.",
+      "Tap Refresh on the Integrations page to immediately trigger a fresh Ecowitt poll, or open an eWeLink valve's detail modal to fetch its current state — both now extract battery on the corrected scale."
+    ]
+  }
+]
