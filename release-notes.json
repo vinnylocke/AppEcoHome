@@ -1,10 +1,1 @@
-[
-  {
-    "label": "Fixes",
-    "items": [
-      "Fixed Ecowitt soil sensor discovery returning zero devices. The Connect wizard was asking the Ecowitt API for the wrong data category (\"soilwetness\") and reading the response from the wrong key. Now uses call_back=all and looks for soil_chN / ch_soilN / soilwetnessN at the top level — the actual Ecowitt API v3 shape.",
-      "Gateway MAC address is now normalised on entry: colon, hyphen, or bare hex all work and get canonicalised to AA:BB:CC:DD:EE:FF.",
-      "When discovery still finds nothing, the Devices step now shows a \"Why nothing showed up?\" expander with the Ecowitt API response code, whether the gateway was found on the account, and the list of data categories the gateway returned. Share that with us if the parser misses a firmware variant."
-    ]
-  }
-]
+[]
