@@ -11,6 +11,8 @@
 
 Shows every Location for the active home as expandable rows. Each row contains the location's areas as cards with metric chips (plant count, recent lux, "on layout" flag). The owner can create / rename / delete locations and areas. Per-area metric editing is via an "Advanced Settings" accordion containing pH, lux, water movement, growing medium, nutrient source, etc. — each with an InfoTooltip explaining the field for beginners.
 
+**Area ↔ Sensor linkage Phase 1 (2026-06-16):** the area-edit modal now mounts an [`AreaSensorsPanel`](../../../src/components/area/AreaSensorsPanel.tsx) at the top showing every soil sensor linked to the area via `devices.area_id`. The panel shows: latest moisture / temp / EC per sensor, an averaged tile across all sensors (or just the single-sensor reading), a per-sensor list with last-seen timestamps, and a 24h / 7d / 30d history chart drawing one line per sensor plus a dashed average line. When no sensors are linked, a "Link a soil sensor" CTA deep-links to `/integrations` where the user can assign a sensor via Device Settings. The aggregation math lives in [`computeAreaMetricSummary`](../../../src/services/areaSensorsService.ts) and is unit-tested separately.
+
 ---
 
 ## Role 1 — Technical Reference

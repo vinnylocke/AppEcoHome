@@ -22,6 +22,7 @@ import { ConfirmModal } from "./ConfirmModal";
 import InfoTooltip from "./InfoTooltip";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
+import AreaSensorsPanel from "./area/AreaSensorsPanel";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -711,6 +712,18 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                     >
                       <X size={24} />
                     </button>
+                  </div>
+
+                  {/* 2026-06-16 — Area ↔ Sensor linkage Phase 1.
+                      Lives at the top because the live metrics are the
+                      most actionable piece of information for users who
+                      have hardware. Falls back to a "Link a sensor" CTA
+                      when no sensors are linked. */}
+                  <div className="mb-8">
+                    <AreaSensorsPanel
+                      areaId={editingArea.id}
+                      areaName={editingArea.name}
+                    />
                   </div>
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

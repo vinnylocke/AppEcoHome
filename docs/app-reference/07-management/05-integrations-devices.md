@@ -30,6 +30,8 @@ Hardware integration hub. Two device types currently:
 
 Adding a device opens the Connect Device Wizard which walks through provider selection, OAuth (eWeLink) or API key entry (Ecowitt), device discovery, and per-device area binding. The Connect wizard auto-detects WH51 vs WH52 at discovery time by inspecting the gateway's real-time payload — channels with calibrated EC or a non-zero soil temperature reading are classified WH52; the rest stay WH51. Once connected, each device's readings stream into `soil_readings` (sensors, with `ec_source` discriminator) or `valve_events` (valves). The Detail modal shows live state + history chart.
 
+**Area linkage flow (2026-06-16):** every device has an optional `area_id` field. After discovery, open Device Settings on the device card and pick a Location + Area. The linkage drives two surfaces: (1) Location Manager's area-edit modal mounts an [`AreaSensorsPanel`](../03-garden-hub/03-location-manager.md) showing latest readings + history for every sensor linked to the area; (2) future automations (Phase 3) will filter sensor + valve pickers to the chosen area. Multiple sensors can be linked to the same area — the panel shows each individually plus an averaged tile.
+
 ---
 
 ## Role 1 — Technical Reference
