@@ -120,6 +120,31 @@ serve(async (req: Request) => {
     }
     const integrationId = (integration as { id: string }).id;
 
+    // Persist devices discovered by the adapter. The original Phase 3
+    // dispatcher returned them in the response but never INSERTed —
+    // the webhook router's (integration_id, external_device_id) lookup
+    // would then always fail with device_not_found. Upsert by
+    // (integration_id, external_device_id) so re-running connect
+    // doesn't duplicate rows.
+    if (connectResult.devices.length > 0) {
+      const deviceRows = connectResult.devices.map((d) => ({
+        integration_id: integrationId,
+        home_id: homeId,
+        external_device_id: d.externalDeviceId,
+        name: d.name,
+        device_type: d.family,
+        provider,
+        metadata: d.metadata,
+        is_active: true,
+      }));
+      const { error: devicesErr } = await db
+        .from("devices")
+        .upsert(deviceRows, { onConflict: "integration_id,external_device_id" });
+      if (devicesErr) {
+        throw new Error(`failed_to_save_devices: ${devicesErr.message}`);
+      }
+    }
+
     // Stamp the webhook URL with the actual host (the adapter returns a
     // placeholder host because it can't read environment vars cleanly).
     const appOrigin = (appOriginIn && /^https?:\/\//.test(appOriginIn))

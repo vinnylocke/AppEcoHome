@@ -110,6 +110,9 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 | `integrations-ewelink-sync` | Cron | Periodic state + readings. |
 | `integrations-ecowitt-connect` | Wizard | Ecowitt setup. |
 | `integrations-ecowitt-webhook` | External POST | Webhook receiver. |
+| `integrations-adapter-connect` | Wizard (custom_http) | ProviderAdapter dispatcher — calls the adapter's `connect()`, persists integration + devices, returns post-connect block. |
+| `integrations-webhook-router` | External POST | Public webhook endpoint for adapter-based providers. Three auth styles (path / query / `X-Rhozly-Token`). Writes `device_readings` + refreshes `devices.battery_*` columns. `verify_jwt = false`. |
+| `integrations-rotate-webhook-secret` | DeviceSettings → Webhook details panel | Regenerates the 256-bit webhook secret for a `custom_http` integration. JWT-verified, home-member gated. |
 | `integrations-readings-query` | Browser | Generic readings query API. |
 | `push-webhook` | Provider POST | Push notification webhook. |
 

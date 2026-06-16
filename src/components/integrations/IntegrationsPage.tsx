@@ -28,6 +28,8 @@ export interface Device {
   metadata: Record<string, unknown>;
   is_active: boolean;
   last_seen_at: string | null;
+  battery_percent: number | null;
+  battery_reported_at: string | null;
 }
 
 export default function IntegrationsPage({ homeId }: Props) {

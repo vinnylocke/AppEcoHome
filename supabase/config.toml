@@ -492,6 +492,12 @@ verify_jwt = false
 [functions.integrations-webhook-router]
 verify_jwt = false
 
+# Rotates the webhook secret for a custom_http integration. JWT-verified
+# (the default) — the caller must be authenticated AND a member of the
+# home that owns the integration.
+[functions.integrations-rotate-webhook-secret]
+verify_jwt = true
+
 [functions.plant-doctor]
 enabled = true
 verify_jwt = true

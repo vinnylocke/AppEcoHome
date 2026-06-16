@@ -31,6 +31,8 @@ import type {
 import type {
   EcSource,
   DeviceReadingData,
+  SoilReading,
+  ValveReading,
 } from "../providerTypes.ts";
 
 export const CUSTOM_HTTP_PROVIDER = "custom_http";
@@ -46,6 +48,7 @@ export const SOIL_PAYLOAD_EXAMPLE = {
   soil_moisture: 42.1,
   soil_ec: 1250,
   ec_source: "calibrated_us_cm",
+  battery_percent: 87,
 } as const;
 
 export const VALVE_PAYLOAD_EXAMPLE = {
@@ -53,6 +56,7 @@ export const VALVE_PAYLOAD_EXAMPLE = {
   device_external_id: "garage-tap-valve",
   recorded_at: "2026-06-16T18:00:00Z",
   state: "on",
+  battery_percent: 87,
 } as const;
 
 interface CustomHttpIntegrationMeta {
@@ -86,6 +90,21 @@ export function slugifyDeviceId(input: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
   return base || `device-${Date.now().toString(36)}`;
+}
+
+/** Shared 0-100 integer validator for the optional `battery_percent`
+ *  field. Returns the validated value, or a string error code, or
+ *  `undefined` when the field isn't present. */
+function parseBatteryPercent(value: unknown): number | undefined | { error: string } {
+  if (value === undefined || value === null) return undefined;
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    return { error: "invalid_battery_percent" };
+  }
+  if (value < 0 || value > 100) {
+    return { error: "battery_percent_out_of_range" };
+  }
+  // Snap to an integer to keep the column type honest (SMALLINT).
+  return Math.round(value);
 }
 
 /**
@@ -155,15 +174,21 @@ export function parseSoilPayload(
     recordedAt = d.toISOString();
   }
 
+  const battery = parseBatteryPercent(b.battery_percent);
+  if (battery && typeof battery === "object" && "error" in battery) return battery;
+
+  const data: SoilReading = {
+    soil_moisture: b.soil_moisture,
+    soil_temp: soilTemp,
+    soil_ec: soilEc,
+    ec_source: ecSource,
+  };
+  if (typeof battery === "number") data.battery_percent = battery;
+
   return {
     externalDeviceId: b.device_external_id.trim(),
     recordedAt,
-    data: {
-      soil_moisture: b.soil_moisture,
-      soil_temp: soilTemp,
-      soil_ec: soilEc,
-      ec_source: ecSource,
-    },
+    data,
   };
 }
 
@@ -192,10 +217,16 @@ export function parseValvePayload(
     recordedAt = d.toISOString();
   }
 
+  const battery = parseBatteryPercent(b.battery_percent);
+  if (battery && typeof battery === "object" && "error" in battery) return battery;
+
+  const data: ValveReading = { state: b.state };
+  if (typeof battery === "number") data.battery_percent = battery;
+
   return {
     externalDeviceId: b.device_external_id.trim(),
     recordedAt,
-    data: { state: b.state },
+    data,
   };
 }
 

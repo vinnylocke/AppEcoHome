@@ -1,6 +1,7 @@
 import React from "react";
 import { Zap, Wifi, WifiOff } from "lucide-react";
 import { IconWatering, IconTemperature } from "../../constants/icons";
+import BatteryPip from "./BatteryPip";
 import type { Device } from "./IntegrationsPage";
 
 interface Props {
@@ -34,9 +35,12 @@ export default function DeviceCard({ device, onClick }: Props) {
             <IconWatering className="text-blue-600" size={20} />
           )}
         </div>
-        <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl ${isOnline ? "bg-green-100 text-green-700" : "bg-rhozly-surface-low text-rhozly-on-surface-variant"}`}>
-          {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
-          {isOnline ? "Online" : "Offline"}
+        <div className="flex items-center gap-1.5">
+          <BatteryPip percent={device.battery_percent} reportedAt={device.battery_reported_at} />
+          <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl ${isOnline ? "bg-green-100 text-green-700" : "bg-rhozly-surface-low text-rhozly-on-surface-variant"}`}>
+            {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
+            {isOnline ? "Online" : "Offline"}
+          </div>
         </div>
       </div>
 

@@ -1,5 +1,5 @@
 /** All supported integration providers. Extend this union to add new providers. */
-export type Provider = "ecowitt" | "ewelink";
+export type Provider = "ecowitt" | "ewelink" | "custom_http";
 
 /** All supported device types. Extend to add new hardware categories. */
 export type DeviceType = "soil_sensor" | "water_valve";
@@ -26,10 +26,20 @@ export interface SoilReading {
   /** Optional discriminator — older readings written before WH52 support
    *  may lack this; treat absent as "raw_adc" for back-compat. */
   ec_source?: EcSource;
+  /** Optional battery percentage (0–100) reported alongside the reading.
+   *  Lets the sparkline + days-remaining helper read battery history
+   *  directly out of device_readings without a separate table. Absent
+   *  on readings written before 2026-06-16 or by providers without a
+   *  battery signal (e.g. mains-powered devices). */
+  battery_percent?: number;
 }
 
 export interface ValveReading {
   state: "on" | "off";
+  /** Optional battery percentage (0–100). Same rationale as
+   *  SoilReading.battery_percent — battery-powered Zigbee valves
+   *  expose this. */
+  battery_percent?: number;
 }
 
 export type DeviceReadingData = SoilReading | ValveReading;

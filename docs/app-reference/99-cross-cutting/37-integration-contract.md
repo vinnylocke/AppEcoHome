@@ -66,6 +66,19 @@ Three accepted styles — the router tries them in this order, header wins when 
 
 The secret is stored on `integrations.metadata.webhook_secret`, indexed by the partial expression index `idx_integrations_webhook_secret` for O(log N) lookup on every inbound webhook.
 
+Secret rotation — `integrations-rotate-webhook-secret` (added 2026-06-16) generates a new 256-bit secret and writes it back to the metadata in one round-trip. Invoked from the Webhook details panel in `DeviceSettingsModal`. The old secret stops working immediately; firmware that hasn't been updated will start getting 401s until the operator rebakes the URL.
+
+### Payload — `battery_percent` (added 2026-06-16)
+
+Both `soil_sensor` and `water_valve` payloads accept an optional `battery_percent: 0–100` integer. The router writes battery into two places at once:
+
+1. **`device_readings.data.battery_percent`** — joins the existing family-typed jsonb shape. Powers the sparkline + days-remaining regression in `DeviceBatteryPanel`. No schema change needed.
+2. **`devices.battery_percent` + `devices.battery_reported_at`** — fast "latest known" columns updated on every webhook. Powers the colour-graded pip on `DeviceCard` without per-card history queries.
+
+The adapter parsers (`parseSoilPayload`, `parseValvePayload`) snap fractional values to the nearest integer so the SMALLINT column stays honest. Out-of-range / non-numeric / negative values are rejected with `battery_percent_out_of_range` or `invalid_battery_percent`. `0` is a real reading (red pip), not a sentinel for "unknown" — firmware that doesn't have a battery signal should omit the field entirely.
+
+When the user manually swaps a battery, they record it via the **"Battery changed?"** button in `DeviceBatteryPanel` → writes a row to `device_battery_resets (device_id, occurred_at)`. The days-remaining regression bounds its sliding window at the most recent reset, so a battery swap doesn't look like a recharge in the trendline.
+
 ### Legacy providers
 
 Ecowitt and eWeLink predate this contract. They ship as direct per-provider edge functions (`integrations-ecowitt-*`, `integrations-ewelink-*`) and are NOT registered with `getAdapter()` today. They will be migrated to the contract in a follow-up — the existing code conceptually already does what the contract describes (connect / poll / webhook / control), so the migration is a lift-and-shift.
@@ -74,8 +87,9 @@ Ecowitt and eWeLink predate this contract. They ship as direct per-provider edge
 
 | Function | Role |
 |---|---|
-| `integrations-adapter-connect` | Dispatcher. Looks up adapter, validates home membership, calls `adapter.connect()`, persists the integration row + returns discovered devices + optional post-connect block. Used by `Step3Credentials` when `brand === "custom_http"`. |
-| `integrations-webhook-router` | Public endpoint. Authenticates via three secret-discovery paths, looks up the integration, dispatches to the adapter's `parseWebhook()`, writes one `device_readings` row per normalised reading. `verify_jwt = false` — secret IS the auth. |
+| `integrations-adapter-connect` | Dispatcher. Looks up adapter, validates home membership, calls `adapter.connect()`, persists the integration row AND upserts a `devices` row per discovered device (the original Phase 3 dispatcher forgot the device upsert — fixed 2026-06-16), then returns the discovered devices + optional post-connect block. Used by `Step3Credentials` when `brand === "custom_http"`. |
+| `integrations-webhook-router` | Public endpoint. Authenticates via three secret-discovery paths, looks up the integration, dispatches to the adapter's `parseWebhook()`, writes one `device_readings` row per normalised reading, and refreshes `devices.battery_percent` + `devices.battery_reported_at` when the payload carries one. `verify_jwt = false` — secret IS the auth. |
+| `integrations-rotate-webhook-secret` | Generates a new 256-bit secret for a custom_http integration. JWT-verified. Membership-gated against `home_members`. Returns the new full webhook URL so the caller can show it to the user immediately. |
 | `integrations-ecowitt-*` (existing) | Legacy direct edge fns — to be migrated. |
 | `integrations-ewelink-*` (existing) | Legacy direct edge fns — to be migrated. |
 
@@ -117,5 +131,14 @@ You get all of that for free because the area linkage and the automations engine
 - `supabase/functions/_shared/integrations/webhookAuth.ts`
 - `supabase/functions/integrations-adapter-connect/index.ts`
 - `supabase/functions/integrations-webhook-router/index.ts`
+- `supabase/functions/integrations-rotate-webhook-secret/index.ts`
+- `src/components/integrations/TestWebhookModal.tsx`
+- `src/components/integrations/WebhookDetailsPanel.tsx`
+- `src/components/integrations/DeviceBatteryPanel.tsx`
+- `src/components/integrations/BatteryPip.tsx`
+- `src/lib/batteryEstimate.ts`
 - `supabase/migrations/20260722000000_custom_http_webhook_index.sql`
+- `supabase/migrations/20260723000000_devices_battery_level.sql`
+- `supabase/migrations/20260723000001_device_battery_resets.sql`
 - `supabase/tests/customHttpAdapter.test.ts`
+- `tests/unit/lib/batteryEstimate.test.ts`

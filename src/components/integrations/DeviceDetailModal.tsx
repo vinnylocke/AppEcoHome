@@ -6,6 +6,9 @@ import SoilReadingsPanel from "./SoilReadingsPanel";
 import HistoryChart from "./HistoryChart";
 import ValveControlPanel from "./ValveControlPanel";
 import DeviceSettingsModal from "./DeviceSettingsModal";
+import BatteryPip from "./BatteryPip";
+import DeviceBatteryPanel from "./DeviceBatteryPanel";
+import TestWebhookModal from "./TestWebhookModal";
 import type { Device } from "./IntegrationsPage";
 import type { SoilReading } from "./SoilReadingsPanel";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
@@ -24,6 +27,8 @@ export default function DeviceDetailModal({ device, onClose, onRefresh, canManag
   const [previous, setPrevious] = useState<SoilReading | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSettings, setShowSettings] = useState(false);
+  const [showTestWebhook, setShowTestWebhook] = useState(false);
+  const isCustomHttp = device.provider === "custom_http";
 
   useEffect(() => {
     if (device.device_type !== "soil_sensor") { setLoading(false); return; }
@@ -57,9 +62,12 @@ export default function DeviceDetailModal({ device, onClose, onRefresh, canManag
           <div className="sticky top-0 bg-white border-b border-rhozly-outline/10 px-6 py-4 flex items-center gap-3 rounded-t-3xl">
             <div className="flex-1 min-w-0">
               <h2 className="font-black text-rhozly-on-surface text-lg truncate">{device.name}</h2>
-              <p className="text-xs text-rhozly-on-surface-variant capitalize">
-                {device.provider} · {device.device_type === "soil_sensor" ? "Soil Sensor" : "Water Valve"}
-              </p>
+              <div className="flex items-center gap-2 mt-0.5">
+                <p className="text-xs text-rhozly-on-surface-variant capitalize">
+                  {device.provider} · {device.device_type === "soil_sensor" ? "Soil Sensor" : "Water Valve"}
+                </p>
+                <BatteryPip percent={device.battery_percent} reportedAt={device.battery_reported_at} size="md" />
+              </div>
             </div>
             {canManage && (
               <button
@@ -124,6 +132,28 @@ export default function DeviceDetailModal({ device, onClose, onRefresh, canManag
               />
             </section>
 
+            {/* Battery history sparkline + days remaining */}
+            <DeviceBatteryPanel device={device} onResetRecorded={onRefresh} canManage={canManage} />
+
+            {/* Test webhook button — only for custom_http devices */}
+            {isCustomHttp && canManage && (
+              <section className="rounded-2xl bg-rhozly-surface-low/50 border border-rhozly-outline/10 p-4">
+                <h3 className="text-sm font-bold text-rhozly-on-surface mb-1">Test this webhook</h3>
+                <p className="text-xs text-rhozly-on-surface-variant mb-3">
+                  Send a fake reading to your webhook URL — useful for validating your firmware's JSON shape or
+                  checking the integration is wired correctly.
+                </p>
+                <button
+                  type="button"
+                  onClick={() => setShowTestWebhook(true)}
+                  data-testid="open-test-webhook"
+                  className="w-full py-2.5 rounded-xl bg-rhozly-primary/10 text-rhozly-primary font-semibold text-sm hover:bg-rhozly-primary/15 transition-colors"
+                >
+                  Send a test reading
+                </button>
+              </section>
+            )}
+
             {/* Last seen */}
             {device.last_seen_at && (
               <p className="text-xs text-rhozly-on-surface-variant text-center">
@@ -139,6 +169,14 @@ export default function DeviceDetailModal({ device, onClose, onRefresh, canManag
           device={device}
           onClose={() => setShowSettings(false)}
           onUpdated={() => { setShowSettings(false); onRefresh(); onClose(); }}
+        />
+      )}
+
+      {showTestWebhook && (
+        <TestWebhookModal
+          device={device}
+          onClose={() => setShowTestWebhook(false)}
+          onReadingWritten={onRefresh}
         />
       )}
     </>,

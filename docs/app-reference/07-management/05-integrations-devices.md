@@ -11,6 +11,10 @@
 - `src/components/integrations/ConnectDeviceWizard.tsx`
 - `src/components/integrations/SoilReadingsPanel.tsx`
 - `src/components/integrations/ValveControlPanel.tsx`
+- `src/components/integrations/BatteryPip.tsx` — battery health chip on cards + Detail header
+- `src/components/integrations/DeviceBatteryPanel.tsx` — sparkline + days-remaining + reset
+- `src/components/integrations/WebhookDetailsPanel.tsx` — URL + reveal + regenerate for custom_http
+- `src/components/integrations/TestWebhookModal.tsx` — Single + Stream payload simulator
 
 ---
 
@@ -30,6 +34,14 @@ Hardware integration hub. Two device types currently:
 | **Custom (HTTP webhook)** — *added 2026-06-16 Custom integrations Phase 3* | Any DIY device or third-party hub that can POST JSON. Soil sensors emit `{schema_version, device_external_id, soil_moisture, soil_temp?, soil_ec?, ec_source?, recorded_at?}`; valves emit `{schema_version, device_external_id, state: "on"\|"off", recorded_at?}`. | Whatever the device reports — `ec_source` in the payload picks `calibrated_us_cm` vs `raw_adc`. | **`ProviderAdapter` contract** via `integrations-adapter-connect` dispatcher. The first formal adapter — `_shared/integrations/adapters/customHttp.ts`. Webhook auth via path-token, query-token, or `X-Rhozly-Token` header — all three accepted. |
 
 Adding a device opens the Connect Device Wizard which walks through provider selection, OAuth (eWeLink) or API key entry (Ecowitt), device discovery, and per-device area binding. The Connect wizard auto-detects WH51 vs WH52 at discovery time by inspecting the gateway's real-time payload — channels with calibrated EC or a non-zero soil temperature reading are classified WH52; the rest stay WH51. Once connected, each device's readings stream into `soil_readings` (sensors, with `ec_source` discriminator) or `valve_events` (valves). The Detail modal shows live state + history chart.
+
+**Battery health (2026-06-16):** providers that include `battery_percent: 0–100` in their payload light up an inline pip on `DeviceCard` and in the `DeviceDetailModal` header — green ≥50, amber 20–49, red <20. The pip is hidden when no battery has ever been reported (most providers don't have a battery signal; the device might even be mains-powered). Detail modal also mounts `DeviceBatteryPanel` — a 30-day sparkline plus an "estimated days remaining" line from a linear regression on the last 14 days of battery readings. The estimate is hidden until there are ≥10 data points + a negative slope, so freshly-connected devices don't show garbage like "9,999 days remaining". A **"Battery changed?"** button under the panel writes a row to `device_battery_resets` so the regression window resets after a manual swap (otherwise the swap looks like a recharge in the trendline).
+
+**Test Webhook simulator (2026-06-16):** `DeviceDetailModal` mounts a "Send a test reading" button for `custom_http` devices (gated by `integrations.manage`). Opens `TestWebhookModal` with two tabs:
+- **Single** — pre-filled payload editor, Send → POSTs directly from the browser to the public webhook router via `X-Rhozly-Token`, response panel re-queries `device_readings` for the newest row so you can see your test become real data.
+- **Stream** — configurable interval (min 30s) + duration (max 1h, capped at 120 requests). Optional random-walk drift on numeric fields (so history charts wiggle realistically) + optional battery decay (~1% per 5 readings). Pure client-side `setInterval` — closing the tab stops it. Live log shows the most recent 20 requests with status + drifted values.
+
+**Webhook details panel (2026-06-16):** `DeviceSettingsModal` mounts `WebhookDetailsPanel` for `custom_http` integrations. Shows the webhook URL (masked by default, reveal-toggle), copy-to-clipboard, regenerate button (confirmation modal — old secret stops working immediately), and a collapsible "Sample payload" block matching the device family. Solves the "I closed the wizard and lost my URL" problem.
 
 **Area linkage flow (2026-06-16):** every device has an optional `area_id` field. After discovery, open Device Settings on the device card and pick a Location + Area. The linkage drives two surfaces: (1) Location Manager's area-edit modal mounts an [`AreaSensorsPanel`](../03-garden-hub/03-location-manager.md) showing latest readings + history for every sensor linked to the area; (2) future automations (Phase 3) will filter sensor + valve pickers to the chosen area. Multiple sensors can be linked to the same area — the panel shows each individually plus an averaged tile.
 
@@ -71,10 +83,12 @@ IntegrationsPage
   id, integration_id, home_id, location_id, area_id,
   external_device_id, name,
   device_type: "soil_sensor" | "water_valve",
-  provider: "ewelink" | ...,
+  provider: "ewelink" | "ecowitt" | "custom_http",
   metadata: Record<string, unknown>,
   is_active: boolean,
   last_seen_at: string | null,
+  battery_percent: number | null,        // 0-100, most recent reported (added 2026-06-16)
+  battery_reported_at: string | null,    // when battery_percent was last updated
 }
 ```
 

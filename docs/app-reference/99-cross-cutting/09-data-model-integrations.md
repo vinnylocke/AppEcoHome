@@ -72,6 +72,25 @@ Old rows written before the discriminator landed are treated as `raw_adc` for ba
 
 Open/close events with `triggered_by` indicating user, automation, or external.
 
+### Device battery state (added 2026-06-16)
+
+Two complementary stores for "what's the battery doing":
+
+| Where | Column / field | Why |
+|---|---|---|
+| `devices.battery_percent` (SMALLINT, 0–100, NULL) | Fast "latest known" — powers the `BatteryPip` on `DeviceCard` without a per-card history query. |
+| `devices.battery_reported_at` (TIMESTAMPTZ, NULL) | When `battery_percent` was last updated. Used by the pip's hover tooltip + freshness logic. |
+| `device_readings.data.battery_percent` (jsonb integer) | Per-reading battery, lives inside the existing family-typed `data` jsonb so no new column is required on the time-series table. Powers `DeviceBatteryPanel`'s sparkline + the days-remaining regression in [`src/lib/batteryEstimate.ts`](../../../src/lib/batteryEstimate.ts). |
+| `device_battery_resets` (one row per manual battery swap) | Bounds the regression window so a battery change does NOT look like a recharge. `device_id`, `home_id`, `occurred_at`, `recorded_by`. RLS: home members can read; only the recorder can insert. |
+
+The `integrations-webhook-router` updates the two `devices.battery_*` columns AND writes battery into `device_readings.data` in the same webhook handler. Adapters only need to extract + validate the value; the router does the dual-write.
+
+### Custom integrations (added 2026-06-16)
+
+`integrations.provider` now accepts `'custom_http'` (constraint widened in [`20260723000000_devices_battery_level.sql`](../../../supabase/migrations/20260723000000_devices_battery_level.sql)). The `integrations.metadata` jsonb (added Phase 3) stores `{ webhook_secret, family, friendly_name, external_device_id }` for these integrations. The expression index `idx_integrations_webhook_secret` makes the router's secret-match lookup O(log N).
+
+**Note on column drift in this doc:** entries above mention `integration_devices` and `soil_readings` — those names are historical. The actual tables are `devices` and `device_readings` (single time-series table for both sensor + valve readings, family-discriminated by the `data` jsonb shape). Flagging here rather than rewriting the whole doc in this task; cleanup is a follow-up.
+
 ### Automations join tables
 
 ```

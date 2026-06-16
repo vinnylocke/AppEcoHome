@@ -4,6 +4,7 @@ import { supabase } from "../../lib/supabase";
 import { X, Loader2, Trash2, AlertTriangle } from "lucide-react";
 import type { Device } from "./IntegrationsPage";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
+import WebhookDetailsPanel from "./WebhookDetailsPanel";
 
 interface Location { id: string; name: string; }
 interface Area { id: string; name: string; location_id: string; }
@@ -242,6 +243,15 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
                 </div>
               </label>
             </>
+          )}
+
+          {/* Webhook details — only for custom_http integrations */}
+          {device.provider === "custom_http" && (
+            <WebhookDetailsPanel
+              integrationId={device.integration_id}
+              deviceExternalId={device.external_device_id}
+              family={device.device_type}
+            />
           )}
 
           {error && (

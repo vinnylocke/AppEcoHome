@@ -128,6 +128,70 @@ Deno.test("parseValvePayload — invalid state rejected", () => {
   assert("error" in out);
 });
 
+// ── battery_percent ─────────────────────────────────────────────────────────
+
+Deno.test("parseSoilPayload — battery_percent accepted (integer)", () => {
+  const out = parseSoilPayload({ ...BASE_SOIL, battery_percent: 87 });
+  assert(!("error" in out));
+  if ("error" in out) return;
+  const data = out.data as { battery_percent?: number };
+  assertEquals(data.battery_percent, 87);
+});
+
+Deno.test("parseSoilPayload — battery_percent fractional snapped to integer", () => {
+  const out = parseSoilPayload({ ...BASE_SOIL, battery_percent: 73.6 });
+  assert(!("error" in out));
+  if ("error" in out) return;
+  const data = out.data as { battery_percent?: number };
+  assertEquals(data.battery_percent, 74);
+});
+
+Deno.test("parseSoilPayload — battery_percent boundary 0 + 100 accepted", () => {
+  const low = parseSoilPayload({ ...BASE_SOIL, battery_percent: 0 });
+  const high = parseSoilPayload({ ...BASE_SOIL, battery_percent: 100 });
+  assert(!("error" in low));
+  assert(!("error" in high));
+});
+
+Deno.test("parseSoilPayload — battery_percent above 100 rejected", () => {
+  const out = parseSoilPayload({ ...BASE_SOIL, battery_percent: 150 });
+  assert("error" in out);
+  if ("error" in out) assertEquals(out.error, "battery_percent_out_of_range");
+});
+
+Deno.test("parseSoilPayload — battery_percent negative rejected", () => {
+  const out = parseSoilPayload({ ...BASE_SOIL, battery_percent: -1 });
+  assert("error" in out);
+  if ("error" in out) assertEquals(out.error, "battery_percent_out_of_range");
+});
+
+Deno.test("parseSoilPayload — battery_percent non-numeric rejected", () => {
+  const out = parseSoilPayload({ ...BASE_SOIL, battery_percent: "full" });
+  assert("error" in out);
+  if ("error" in out) assertEquals(out.error, "invalid_battery_percent");
+});
+
+Deno.test("parseSoilPayload — missing battery_percent is fine (optional)", () => {
+  const out = parseSoilPayload(BASE_SOIL);
+  assert(!("error" in out));
+  if ("error" in out) return;
+  const data = out.data as { battery_percent?: number };
+  assertEquals(data.battery_percent, undefined);
+});
+
+Deno.test("parseValvePayload — battery_percent accepted", () => {
+  const out = parseValvePayload({ device_external_id: "valve-1", state: "on", battery_percent: 62 });
+  assert(!("error" in out));
+  if ("error" in out) return;
+  const data = out.data as { battery_percent?: number };
+  assertEquals(data.battery_percent, 62);
+});
+
+Deno.test("parseValvePayload — battery_percent out of range rejected", () => {
+  const out = parseValvePayload({ device_external_id: "valve-1", state: "on", battery_percent: 250 });
+  assert("error" in out);
+});
+
 // ── extractAuth (webhook router) ─────────────────────────────────────────────
 
 function makeReq(url: string, headers: Record<string, string> = {}): Request {
