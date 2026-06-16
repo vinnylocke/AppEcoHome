@@ -207,8 +207,47 @@ export function flattenRealTimeSoilwetness(
   const out: Record<string, string> = {};
   if (!payload || typeof payload !== "object") return out;
 
-  // Match all known channel-key spellings: soil_ch1, ch_soil1, soilwetness1.
-  const channelKeyRe = /^(?:soil_ch|ch_soil|soilwetness)(\d+)$/i;
+  // Match all known channel-key spellings. The set has grown as users have
+  // surfaced new firmware-specific names via the connect diagnostics:
+  //   - soil_ch1 / ch_soil1 — Ecowitt API v3 standard names
+  //   - soilwetness1        — legacy / some firmware variants
+  //   - soil_moisture_ec_ch1 — WH52 multi-parameter sensor category
+  //                            (observed 2026-06-16 via diagnostic expander)
+  const channelKeyRe = /^(?:soil_ch|ch_soil|soilwetness|soil_moisture_ec_ch)(\d+)$/i;
+
+  /**
+   * Alias inner-field names to the canonical webhook spelling so
+   * `parseSoilChannels` recognises them no matter which firmware
+   * category emitted them. The WH52's `soil_moisture_ec_chN` category
+   * (observed 2026-06-16) may use plain `humidity` for moisture and
+   * `ec` / `conductivity` for EC instead of the WH51's `soilmoisture`
+   * and `soilcond`. Aliases are applied case-insensitively.
+   *
+   * Pass-through is permissive — any unknown field name flows through
+   * with its original lowercase spelling so future EC field names
+   * already handled by `parseSoilChannels` (soilcond, soil_ec,
+   * soilec, soileC) keep working.
+   */
+  const aliasFieldName = (raw: string): string => {
+    const key = raw.toLowerCase();
+    // Moisture aliases — collapse to the canonical "soilmoisture".
+    if (key === "humidity" || key === "moisture" || key === "vwc") {
+      return "soilmoisture";
+    }
+    // EC aliases — collapse to the canonical "soilcond" (recognised as
+    // calibrated µS/cm by parseSoilChannels).
+    if (key === "ec" || key === "conductivity") {
+      return "soilcond";
+    }
+    // Temperature aliases — Ecowitt uses both `soiltemp` (some firmwares
+    // include a unit, some don't) and `temp` inside category containers
+    // like `soil_moisture_ec_ch`. Don't normalise the F/C distinction
+    // here — parseSoilChannels handles both temperature units.
+    if (key === "temp" || key === "temperature") {
+      return "soiltemp";
+    }
+    return key;
+  };
 
   // Walk a container (an object whose values are per-channel objects)
   // and flatten every channel we find.
@@ -226,7 +265,8 @@ export function flattenRealTimeSoilwetness(
           ? (valueObj as { value?: unknown }).value
           : valueObj;
         if (v === undefined || v === null) continue;
-        out[`${fieldName.toLowerCase()}${ch}`] = String(v);
+        const canonical = aliasFieldName(fieldName);
+        out[`${canonical}${ch}`] = String(v);
       }
     }
   };

@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Fixes",
+    "items": [
+      "Soil sensor discovery now picks up the WH52 multi-parameter sensor's new Ecowitt category name (soil_moisture_ec_chN). Previous build only recognised soil_chN / ch_soilN / soilwetnessN.",
+      "The flattener also aliases the inner field names — if a firmware variant uses humidity / ec / conductivity instead of soilmoisture / soilcond, both shapes now work."
+    ]
+  }
+]

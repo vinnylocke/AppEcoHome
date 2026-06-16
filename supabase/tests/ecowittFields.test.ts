@@ -248,6 +248,62 @@ Deno.test("flattenRealTimeSoilwetness — feeds straight into parseSoilChannels 
   assertEquals(channels[0].inferredModel, "WH52");
 });
 
+Deno.test("flattenRealTimeSoilwetness — WH52 soil_moisture_ec_ch (canonical inner field names)", () => {
+  // Observed via diagnostics 2026-06-16. The WH52 reports under a new
+  // category name `soil_moisture_ec_ch{N}`. We don't know yet whether
+  // the inner fields use the canonical Ecowitt names (`soilmoisture`,
+  // `soilcond`) or aliases (`humidity`, `ec`). Test both shapes to
+  // belt-and-braces the support.
+  const payload = {
+    soil_moisture_ec_ch1: {
+      soilmoisture: { value: "42", unit: "%" },
+      soiltemp: { value: "18.4", unit: "C" },
+      soilcond: { value: "1250", unit: "uS/cm" },
+    },
+  };
+  const flat = flattenRealTimeSoilwetness(payload);
+  assertEquals(flat.soilmoisture1, "42");
+  assertEquals(flat.soiltemp1, "18.4");
+  assertEquals(flat.soilcond1, "1250");
+});
+
+Deno.test("flattenRealTimeSoilwetness — WH52 soil_moisture_ec_ch (alias inner fields humidity/ec)", () => {
+  // Defensive — if the WH52 firmware uses humidity/ec instead of
+  // soilmoisture/soilcond, the flattener aliases them to the canonical
+  // names so parseSoilChannels still works.
+  const payload = {
+    soil_moisture_ec_ch1: {
+      humidity: { value: "42" },
+      temp: { value: "18.4" },
+      ec: { value: "1250" },
+    },
+  };
+  const flat = flattenRealTimeSoilwetness(payload);
+  assertEquals(flat.soilmoisture1, "42");
+  assertEquals(flat.soiltemp1, "18.4");
+  assertEquals(flat.soilcond1, "1250");
+
+  // And it should round-trip cleanly through parseSoilChannels.
+  const channels = parseSoilChannels(flat);
+  assertEquals(channels.length, 1);
+  assertEquals(channels[0].soil_moisture, 42);
+  assertEquals(channels[0].soil_ec, 1250);
+  assertEquals(channels[0].ec_source, "calibrated_us_cm");
+  assertEquals(channels[0].inferredModel, "WH52");
+});
+
+Deno.test("flattenRealTimeSoilwetness — soil_moisture_ec_ch with conductivity alias", () => {
+  const payload = {
+    soil_moisture_ec_ch1: {
+      moisture: "55",          // bare value, not { value }
+      conductivity: "900",     // alternative EC alias
+    },
+  };
+  const flat = flattenRealTimeSoilwetness(payload);
+  assertEquals(flat.soilmoisture1, "55");
+  assertEquals(flat.soilcond1, "900");
+});
+
 Deno.test("flattenRealTimeSoilwetness — empty / non-object input returns empty dict", () => {
   assertEquals(flattenRealTimeSoilwetness({}), {});
   // @ts-expect-error: testing runtime guard against bad input
