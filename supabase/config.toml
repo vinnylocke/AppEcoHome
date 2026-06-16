@@ -483,6 +483,15 @@ verify_jwt = false
 [functions.evaluate-sensor-automations]
 verify_jwt = false
 
+# 2026-06-16 Custom integrations Phase 3 — public webhook router for
+# every adapter that implements parseWebhook(). The user's device hits
+# this endpoint with the per-integration webhook secret in the path,
+# query, or X-Rhozly-Token header. The router looks up the integration
+# by secret, dispatches to the right adapter, and writes one row per
+# normalised reading. verify_jwt = false because the secret IS the auth.
+[functions.integrations-webhook-router]
+verify_jwt = false
+
 [functions.plant-doctor]
 enabled = true
 verify_jwt = true

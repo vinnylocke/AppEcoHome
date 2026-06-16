@@ -23,10 +23,11 @@ Hardware integration hub. Two device types currently:
 
 **Supported providers (2026-06-16):**
 
-| Provider | Devices | EC unit |
-|---|---|---|
-| **Ecowitt** | WH51 (soil moisture + temp + raw ADC EC), WH52 (multi-parameter: moisture + temp + calibrated µS/cm EC) | WH51 = raw ADC integer (relative only); WH52 = calibrated µS/cm |
-| **eWeLink** | Sonoff / generic Zigbee water valves with on/off control | n/a (valve) |
+| Provider | Devices | EC unit | Connect path |
+|---|---|---|---|
+| **Ecowitt** | WH51 (soil moisture + temp + raw ADC EC), WH52 (multi-parameter: moisture + temp + calibrated µS/cm EC) | WH51 = raw ADC integer (relative only); WH52 = calibrated µS/cm | Legacy direct edge fn (`integrations-ecowitt-connect`) |
+| **eWeLink** | Sonoff / generic Zigbee water valves with on/off control | n/a (valve) | Legacy direct edge fn (`integrations-ewelink-connect`) |
+| **Custom (HTTP webhook)** — *added 2026-06-16 Custom integrations Phase 3* | Any DIY device or third-party hub that can POST JSON. Soil sensors emit `{schema_version, device_external_id, soil_moisture, soil_temp?, soil_ec?, ec_source?, recorded_at?}`; valves emit `{schema_version, device_external_id, state: "on"\|"off", recorded_at?}`. | Whatever the device reports — `ec_source` in the payload picks `calibrated_us_cm` vs `raw_adc`. | **`ProviderAdapter` contract** via `integrations-adapter-connect` dispatcher. The first formal adapter — `_shared/integrations/adapters/customHttp.ts`. Webhook auth via path-token, query-token, or `X-Rhozly-Token` header — all three accepted. |
 
 Adding a device opens the Connect Device Wizard which walks through provider selection, OAuth (eWeLink) or API key entry (Ecowitt), device discovery, and per-device area binding. The Connect wizard auto-detects WH51 vs WH52 at discovery time by inspecting the gateway's real-time payload — channels with calibrated EC or a non-zero soil temperature reading are classified WH52; the rest stay WH51. Once connected, each device's readings stream into `soil_readings` (sensors, with `ec_source` discriminator) or `valve_events` (valves). The Detail modal shows live state + history chart.
 

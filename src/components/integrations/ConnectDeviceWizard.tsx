@@ -18,7 +18,11 @@ interface Props {
 
 export interface WizardState {
   deviceType: "soil_sensor" | "water_valve" | null;
-  brand: "ecowitt" | "ewelink" | null;
+  /** 2026-06-16 Custom integrations Phase 3 — `custom_http` joins
+   *  the brand union. Adapter-aware providers go through the
+   *  integrations-adapter-connect dispatcher; legacy providers
+   *  (ecowitt, ewelink) still hit their own edge functions. */
+  brand: "ecowitt" | "ewelink" | "custom_http" | null;
   credentials: Record<string, string>;
   integrationId: string | null;
   discoveredDevices: DiscoveredDevice[];
@@ -31,6 +35,16 @@ export interface WizardState {
     api_msg?: string | null;
     data_keys?: string[];
     gateway_listed?: boolean | null;
+  } | null;
+  /** 2026-06-16 Custom integrations Phase 3 — set when the adapter
+   *  returns setup instructions after `connect()` (e.g. custom_http
+   *  surfaces the user's webhook URL + JSON contract). Rendered by a
+   *  new pre-discovery wizard step. */
+  postConnect?: {
+    title: string;
+    instructions: string;
+    webhookUrl?: string;
+    samplePayload?: string;
   } | null;
 }
 

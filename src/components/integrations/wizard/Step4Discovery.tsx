@@ -1,5 +1,6 @@
-import React from "react";
-import { CheckSquare, Square } from "lucide-react";
+import React, { useState } from "react";
+import { CheckSquare, Square, Copy, Check } from "lucide-react";
+import toast from "react-hot-toast";
 import { IconTemperature, IconWatering } from "../../../constants/icons";
 import type { WizardState } from "../ConnectDeviceWizard";
 
@@ -29,6 +30,14 @@ export default function Step4Discovery({ state, update, onNext }: Props) {
 
   return (
     <div>
+      {/* 2026-06-16 Custom integrations Phase 3 — adapter-supplied
+          post-connect block. Rendered above the device list because
+          for custom_http the user needs to point their device at the
+          webhook URL BEFORE devices will actually start reporting. */}
+      {state.postConnect && (
+        <PostConnectBlock postConnect={state.postConnect} />
+      )}
+
       <h2 className="text-xl font-black text-rhozly-on-surface mb-1">Discovered devices</h2>
       <p className="text-sm text-rhozly-on-surface-variant mb-6">
         {discoveredDevices.length === 0
@@ -149,6 +158,103 @@ export default function Step4Discovery({ state, update, onNext }: Props) {
       >
         {discoveredDevices.length === 0 ? "Skip" : `Add ${selectedDeviceIds.length} device${selectedDeviceIds.length !== 1 ? "s" : ""}`}
       </button>
+    </div>
+  );
+}
+
+/**
+ * 2026-06-16 Custom integrations Phase 3 — renders the adapter's
+ * post-connect block. For the custom_http adapter this is the webhook
+ * URL + the documented JSON payload shape, with copy-to-clipboard for
+ * each. Generic enough to handle other adapters that want to surface
+ * setup instructions in the future.
+ */
+function PostConnectBlock({
+  postConnect,
+}: {
+  postConnect: NonNullable<WizardState["postConnect"]>;
+}) {
+  const [copiedUrl, setCopiedUrl] = useState(false);
+  const [copiedPayload, setCopiedPayload] = useState(false);
+
+  const copy = async (text: string, which: "url" | "payload") => {
+    try {
+      await navigator.clipboard.writeText(text);
+      if (which === "url") setCopiedUrl(true);
+      else setCopiedPayload(true);
+      toast.success("Copied");
+      setTimeout(() => {
+        if (which === "url") setCopiedUrl(false);
+        else setCopiedPayload(false);
+      }, 1500);
+    } catch {
+      toast.error("Couldn't copy — long-press to copy manually.");
+    }
+  };
+
+  return (
+    <div
+      data-testid="wizard-post-connect"
+      className="mb-6 bg-emerald-50/60 border border-emerald-200 rounded-2xl p-4"
+    >
+      <p className="text-[10px] font-black uppercase tracking-widest text-emerald-700 mb-1">
+        Setup
+      </p>
+      <p className="font-black text-rhozly-on-surface text-sm mb-1">{postConnect.title}</p>
+      <p className="text-xs text-rhozly-on-surface-variant mb-3 leading-snug">
+        {postConnect.instructions}
+      </p>
+
+      {postConnect.webhookUrl && (
+        <div className="mb-3">
+          <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/45 mb-1">
+            Webhook URL
+          </p>
+          <div className="flex items-center gap-2">
+            <code
+              data-testid="post-connect-url"
+              className="flex-1 text-[10px] font-mono font-bold text-rhozly-on-surface/75 bg-white rounded-lg px-2 py-1.5 border border-rhozly-outline/15 truncate"
+            >
+              {postConnect.webhookUrl}
+            </code>
+            <button
+              type="button"
+              data-testid="post-connect-copy-url"
+              onClick={() => copy(postConnect.webhookUrl!, "url")}
+              className="shrink-0 inline-flex items-center gap-1 px-2 py-1.5 min-h-[32px] rounded-lg bg-rhozly-primary text-white text-[10px] font-black uppercase tracking-widest hover:opacity-90 transition"
+            >
+              {copiedUrl ? <Check size={11} /> : <Copy size={11} />}
+              {copiedUrl ? "Copied" : "Copy"}
+            </button>
+          </div>
+          <p className="text-[10px] text-rhozly-on-surface/45 mt-1">
+            Or pass the token via the <code className="font-mono">X-Rhozly-Token</code> header.
+          </p>
+        </div>
+      )}
+
+      {postConnect.samplePayload && (
+        <div>
+          <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/45 mb-1">
+            Sample payload (JSON)
+          </p>
+          <pre
+            data-testid="post-connect-payload"
+            className="text-[10px] font-mono text-rhozly-on-surface/75 bg-white rounded-lg p-2 border border-rhozly-outline/15 overflow-x-auto whitespace-pre"
+          >
+            {postConnect.samplePayload}
+          </pre>
+          <button
+            type="button"
+            data-testid="post-connect-copy-payload"
+            onClick={() => copy(postConnect.samplePayload!, "payload")}
+            className="mt-1.5 inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-rhozly-surface text-rhozly-on-surface/65 text-[10px] font-black uppercase tracking-widest hover:bg-rhozly-surface-low transition"
+          >
+            {copiedPayload ? <Check size={11} /> : <Copy size={11} />}
+            {copiedPayload ? "Copied" : "Copy payload"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

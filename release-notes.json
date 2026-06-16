@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "label": "Bring your own device — Custom HTTP webhook integration",
+    "items": [
+      "Pick \"Custom (HTTP webhook)\" as the brand in the Connect Device wizard and Rhozly generates a unique webhook URL plus a 256-bit secret. Point your DIY Arduino / Home Assistant / ESP32 / anything that can POST JSON at that URL and the readings start flowing.",
+      "Both soil sensors and water valves are supported. The wizard shows the documented JSON shape with a sample payload + copy-to-clipboard.",
+      "Three webhook auth styles accepted: path segment, query string, or X-Rhozly-Token header — header wins when present. Pick whichever your firmware can do.",
+      "Custom devices plug into everything else for free: link the device to an area, the area's sensor panel shows the readings; the sensor-driven automations (Phase 3) can trigger off your data; AI care guides read it via the area's latest metrics."
+    ]
+  }
+]

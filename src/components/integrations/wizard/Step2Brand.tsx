@@ -7,15 +7,20 @@ interface Props {
   onNext: () => void;
 }
 
-const BRANDS: Record<"soil_sensor" | "water_valve", { id: "ecowitt" | "ewelink"; label: string; subtitle: string }[]> = {
+const BRANDS: Record<"soil_sensor" | "water_valve", { id: "ecowitt" | "ewelink" | "custom_http"; label: string; subtitle: string }[]> = {
   soil_sensor: [
     // 2026-06-16 — WH52 support (Phase 1). The connect handler auto-detects
     // WH51 vs WH52 from the gateway's real-time payload at discovery time
     // — the user only picks the brand here, not the specific model.
     { id: "ecowitt", label: "Ecowitt", subtitle: "WH51 (moisture only) or WH52 (moisture + temp + calibrated EC) via Ecowitt gateway — model auto-detected" },
+    // 2026-06-16 Custom integrations Phase 3 — the first formal
+    // ProviderAdapter implementation. DIY ESP32, Home Assistant
+    // bridges, anything that can POST JSON.
+    { id: "custom_http", label: "Custom (HTTP webhook)", subtitle: "Bring your own device — DIY ESP32, Home Assistant, or any source that can POST JSON readings." },
   ],
   water_valve: [
     { id: "ewelink", label: "SONOFF eWeLink", subtitle: "Zigbee valve via eWeLink cloud + Zigbee Bridge Pro" },
+    { id: "custom_http", label: "Custom (HTTP webhook)", subtitle: "Bring your own valve — anything controllable via a documented POST endpoint." },
   ],
 };
 

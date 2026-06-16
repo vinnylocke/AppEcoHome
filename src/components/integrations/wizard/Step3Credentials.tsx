@@ -212,16 +212,101 @@ export default function Step3Credentials({ homeId, state, update, onNext }: Prop
     }
   };
 
+  const submitCustomHttp = async () => {
+    setError(null);
+    setLoading(true);
+    try {
+      const friendlyName = (fields.friendly_name ?? "").trim();
+      if (!friendlyName) throw new Error("Give your device a name.");
+      const family = state.deviceType ?? "soil_sensor";
+      const appOrigin = typeof window !== "undefined"
+        ? `${window.location.protocol}//${window.location.host}`
+        : null;
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await supabase.functions.invoke("integrations-adapter-connect", {
+        body: {
+          provider: "custom_http",
+          homeId,
+          fields: { friendly_name: friendlyName, family },
+          appOrigin,
+        },
+        headers: { Authorization: `Bearer ${session?.access_token}` },
+      });
+      if (res.error) throw new Error(res.error.message);
+      if ((res.data as { error?: string })?.error) {
+        throw new Error((res.data as { message?: string; error: string }).message ?? (res.data as { error: string }).error);
+      }
+      const { integrationId, devices, postConnect } = res.data as {
+        integrationId: string;
+        devices: Array<{ externalDeviceId: string; name: string; family: string; metadata: Record<string, unknown> }>;
+        postConnect: WizardState["postConnect"];
+      };
+      update({
+        credentials: fields,
+        integrationId,
+        // The custom_http adapter returns the auto-created device(s)
+        // already with their final external ids. The discovery step
+        // renders them, but we also keep the postConnect block so the
+        // wizard can show the webhook URL + payload contract first.
+        discoveredDevices: (devices ?? []).map((d) => ({
+          externalDeviceId: d.externalDeviceId,
+          name: d.name,
+          model: "Custom HTTP",
+        })),
+        postConnect: postConnect ?? null,
+      });
+      onNext();
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Failed to connect");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div>
       <h2 className="text-xl font-black text-rhozly-on-surface mb-1">
-        {state.brand === "ewelink" ? "Connect eWeLink" : "Enter credentials"}
+        {state.brand === "ewelink"
+          ? "Connect eWeLink"
+          : state.brand === "custom_http"
+            ? "Custom device details"
+            : "Enter credentials"}
       </h2>
       <p className="text-sm text-rhozly-on-surface-variant mb-6">
         {state.brand === "ecowitt"
           ? "Find these in your Ecowitt developer account at pro.ecowitt.net."
-          : "You'll be taken to eWeLink to securely authorise access. No passwords are stored."}
+          : state.brand === "custom_http"
+            ? "Name your device — we'll generate a unique webhook URL you can point it at."
+            : "You'll be taken to eWeLink to securely authorise access. No passwords are stored."}
       </p>
+
+      {state.brand === "custom_http" && (
+        <>
+          <div className="space-y-4">
+            <Field
+              label="Device name"
+              value={fields.friendly_name ?? ""}
+              onChange={(v) => set("friendly_name", v)}
+              placeholder="Greenhouse soil probe"
+              testId="cred-friendlyName"
+            />
+            <div className="rounded-2xl bg-rhozly-surface px-4 py-3 text-xs text-rhozly-on-surface-variant leading-relaxed">
+              Family is set from your earlier choice ({state.deviceType === "water_valve" ? "water valve" : "soil sensor"}).
+              After connect we'll show you the webhook URL + the JSON shape your device should POST.
+            </div>
+          </div>
+          {error && <p className="mt-4 text-sm text-red-600 bg-red-50 rounded-2xl px-4 py-3">{error}</p>}
+          <button
+            onClick={submitCustomHttp}
+            disabled={loading}
+            data-testid="cred-submit-customhttp"
+            className="mt-6 w-full flex items-center justify-center gap-2 py-3.5 rounded-2xl bg-rhozly-primary text-white font-bold hover:bg-rhozly-primary/90 disabled:opacity-60 transition-colors"
+          >
+            {loading && <Loader2 size={18} className="animate-spin" />}
+            {loading ? "Setting up…" : "Generate webhook URL"}
+          </button>
+        </>
+      )}
 
       {state.brand === "ecowitt" && (
         <>
