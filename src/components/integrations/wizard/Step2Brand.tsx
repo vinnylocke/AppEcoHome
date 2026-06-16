@@ -9,7 +9,10 @@ interface Props {
 
 const BRANDS: Record<"soil_sensor" | "water_valve", { id: "ecowitt" | "ewelink"; label: string; subtitle: string }[]> = {
   soil_sensor: [
-    { id: "ecowitt", label: "Ecowitt", subtitle: "WH51 wireless soil sensor via Ecowitt gateway" },
+    // 2026-06-16 — WH52 support (Phase 1). The connect handler auto-detects
+    // WH51 vs WH52 from the gateway's real-time payload at discovery time
+    // — the user only picks the brand here, not the specific model.
+    { id: "ecowitt", label: "Ecowitt", subtitle: "WH51 (moisture only) or WH52 (moisture + temp + calibrated EC) via Ecowitt gateway — model auto-detected" },
   ],
   water_valve: [
     { id: "ewelink", label: "SONOFF eWeLink", subtitle: "Zigbee valve via eWeLink cloud + Zigbee Bridge Pro" },
