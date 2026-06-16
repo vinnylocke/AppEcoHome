@@ -45,6 +45,39 @@ Deno.test("parseEwelinkBattery — missing returns null", () => {
   assertEquals(parseEwelinkBattery({ switch: "on" }), null);
 });
 
+// ── broadened candidate list + regex fallback ───────────────────────────
+
+Deno.test("parseEwelinkBattery — batteryLevel candidate", () => {
+  assertEquals(parseEwelinkBattery({ batteryLevel: 73 }), 73);
+});
+
+Deno.test("parseEwelinkBattery — batt candidate (short form)", () => {
+  assertEquals(parseEwelinkBattery({ batt: 28 }), 28);
+});
+
+Deno.test("parseEwelinkBattery — voltage candidate accepted when in 0-100 range", () => {
+  assertEquals(parseEwelinkBattery({ voltage: 88 }), 88);
+});
+
+Deno.test("parseEwelinkBattery — regex fallback catches unknown spellings", () => {
+  // device_battery / sensor_batt_pct / batt_percent — anything containing
+  // "batt" gets a look as long as it's a 0-100 numeric.
+  assertEquals(parseEwelinkBattery({ device_battery: 64 }), 64);
+  assertEquals(parseEwelinkBattery({ sensor_batt_pct: 31 }), 31);
+  assertEquals(parseEwelinkBattery({ batt_percent: "12" }), 12);
+});
+
+Deno.test("parseEwelinkBattery — regex fallback rejects non-numeric / out-of-range", () => {
+  assertEquals(parseEwelinkBattery({ batt_percent: "wat" }), null);
+  assertEquals(parseEwelinkBattery({ batt_percent: 150 }), null);
+});
+
+Deno.test("parseEwelinkBattery — well-known candidate beats regex fallback", () => {
+  // `battery` is in the candidate list and is checked first; the
+  // fallback should not flip the value.
+  assertEquals(parseEwelinkBattery({ battery: 80, device_battery: 20 }), 80);
+});
+
 // ── parseDeviceState ───────────────────────────────────────────────────────
 
 Deno.test("parseDeviceState — state + battery together", () => {

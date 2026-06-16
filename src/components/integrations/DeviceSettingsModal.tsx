@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../../lib/supabase";
-import { X, Loader2, Trash2, AlertTriangle, Battery, BatteryWarning } from "lucide-react";
+import { X, Loader2, Trash2, AlertTriangle, Battery, BatteryWarning, Search } from "lucide-react";
 import type { Device } from "./IntegrationsPage";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 import WebhookDetailsPanel from "./WebhookDetailsPanel";
+import InspectDeviceModal from "./InspectDeviceModal";
 
 interface Location { id: string; name: string; }
 interface Area { id: string; name: string; location_id: string; }
@@ -38,6 +39,8 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
   const [confirmRemove, setConfirmRemove] = useState(false);
   const [removing, setRemoving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showInspect, setShowInspect] = useState(false);
+  const inspectSupported = device.provider === "ecowitt" || device.provider === "ewelink";
 
   // Fetch locations for the home
   useEffect(() => {
@@ -248,6 +251,19 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
           {/* Battery diagnostic — proves the wiring is alive */}
           <BatteryDiagnostic device={device} />
 
+          {/* Diagnostic: inspect raw provider response */}
+          {inspectSupported && (
+            <button
+              type="button"
+              onClick={() => setShowInspect(true)}
+              data-testid="open-inspect-device"
+              className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-rhozly-outline/20 bg-rhozly-surface-low/50 text-sm font-semibold text-rhozly-on-surface-variant hover:bg-rhozly-surface hover:text-rhozly-on-surface transition-colors"
+            >
+              <Search size={14} />
+              Inspect raw provider response
+            </button>
+          )}
+
           {/* Webhook details — only for custom_http integrations */}
           {device.provider === "custom_http" && (
             <WebhookDetailsPanel
@@ -313,6 +329,13 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
           </div>
         </div>
       </div>
+      {showInspect && (
+        <InspectDeviceModal
+          deviceId={device.id}
+          deviceName={device.name}
+          onClose={() => setShowInspect(false)}
+        />
+      )}
     </div>,
     document.body,
   );

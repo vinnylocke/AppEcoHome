@@ -471,3 +471,81 @@ Deno.test("parseSoilChannels — out-of-range battery surfaces in diagnostic", (
   assertEquals(channels[0].batteryDiagnostic.soilbattRawValue, "9999");
   assertEquals(channels[0].batteryDiagnostic.outOfRangeValue, 9999);
 });
+
+// ── broadened battery search in the cloud-API flattener ──────────────────
+
+Deno.test("flattenRealTimeSoilwetness — channel-nested 'battery' field aliased to soilbattN", () => {
+  // Some firmware reports per-channel battery inside the channel wrapper
+  // alongside moisture/temp readings. The aliaser collapses it.
+  const payload = {
+    soil_ch1: {
+      soilmoisture: { value: "42", unit: "%" },
+      battery: { value: "1.6", unit: "V" },
+    },
+  };
+  const flat = flattenRealTimeSoilwetness(payload);
+  assertEquals(flat.soilbatt1, "1.6");
+});
+
+Deno.test("flattenRealTimeSoilwetness — channel-nested 'voltage' field aliased to soilbattN", () => {
+  const payload = {
+    soil_ch2: {
+      soilmoisture: "55",
+      voltage: "1.5",
+    },
+  };
+  const flat = flattenRealTimeSoilwetness(payload);
+  assertEquals(flat.soilbatt2, "1.5");
+});
+
+Deno.test("flattenRealTimeSoilwetness — top-level battery block with soilmoisture_sensor_chN", () => {
+  // Common Ecowitt v3 cloud convention: a sibling `battery` object next
+  // to the per-channel wrappers, with sensor-type prefixed keys.
+  const payload = {
+    soil_ch1: { soilmoisture: "42" },
+    battery: {
+      soilmoisture_sensor_ch1: "1.55",
+    },
+  };
+  const flat = flattenRealTimeSoilwetness(payload);
+  assertEquals(flat.soilbatt1, "1.55");
+});
+
+Deno.test("flattenRealTimeSoilwetness — top-level battery block: nested {value} shape", () => {
+  const payload = {
+    soil_ch1: { soilmoisture: "42" },
+    battery: {
+      soil_ch1: { value: "1.6", unit: "V" },
+    },
+  };
+  const flat = flattenRealTimeSoilwetness(payload);
+  assertEquals(flat.soilbatt1, "1.6");
+});
+
+Deno.test("flattenRealTimeSoilwetness — channel-nested battery wins over top-level block", () => {
+  const payload = {
+    soil_ch1: {
+      soilmoisture: "42",
+      battery: "1.7",
+    },
+    battery: {
+      soilmoisture_sensor_ch1: "1.0",
+    },
+  };
+  const flat = flattenRealTimeSoilwetness(payload);
+  // Per-channel takes precedence — the top-level block is a fallback
+  // for when the channel wrapper doesn't carry battery itself.
+  assertEquals(flat.soilbatt1, "1.7");
+});
+
+Deno.test("parseSoilChannels — channel-nested battery surfaces as battery_percent", () => {
+  const payload = {
+    soil_ch1: {
+      soilmoisture: { value: "42", unit: "%" },
+      battery: { value: "1.6", unit: "V" },
+    },
+  };
+  const flat = flattenRealTimeSoilwetness(payload);
+  const channels = parseSoilChannels(flat);
+  assertEquals(channels[0].battery_percent, 92); // 1.6V on the AA Lithium curve
+});

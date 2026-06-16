@@ -498,6 +498,13 @@ verify_jwt = false
 [functions.integrations-rotate-webhook-secret]
 verify_jwt = true
 
+# Returns the raw JSON the provider's real-time API sent for a given
+# device. Used by the Inspect Raw Provider Response affordance in
+# DeviceSettingsModal so we can diagnose battery / reading shape
+# without guessing.
+[functions.integrations-inspect-device]
+verify_jwt = true
+
 [functions.plant-doctor]
 enabled = true
 verify_jwt = true

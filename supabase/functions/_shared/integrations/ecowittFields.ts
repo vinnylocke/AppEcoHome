@@ -373,6 +373,12 @@ export function flattenRealTimeSoilwetness(
     if (key === "temp" || key === "temperature") {
       return "soiltemp";
     }
+    // Battery / voltage aliases — collapse to the canonical "soilbatt"
+    // so parseSoilChannels picks them up via the existing soilbatt{N}
+    // key regardless of which transport / firmware emitted them.
+    if (key === "battery" || key === "batt" || key === "voltage" || key === "battery_voltage") {
+      return "soilbatt";
+    }
     return key;
   };
 
@@ -423,6 +429,36 @@ export function flattenRealTimeSoilwetness(
     // Skip keys that already looked like channel keys (already walked).
     if (channelKeyRe.test(key)) continue;
     walkContainer(value as Record<string, unknown>);
+  }
+
+  // 2026-06-16 (battery diagnostic) — Ecowitt v3 cloud API commonly
+  // exposes a top-level `battery` block under `data` that maps sensor-
+  // type + channel to the battery value, separately from the per-
+  // channel reading wrappers. Walk it here so battery rides through
+  // even when it's not nested inside `soil_chN`.
+  //
+  // Observed key spellings (all map to the canonical `soilbatt{N}`):
+  //   soilmoisture_sensor_ch1, soil_ch1, soilbatt1, soilbatt_ch1
+  // The match is permissive — anything ending in a channel number with
+  // "soil" somewhere in the prefix is treated as a soil battery field.
+  const batteryBlock = payload.battery as Record<string, unknown> | undefined;
+  if (batteryBlock && typeof batteryBlock === "object") {
+    for (const [key, valueRaw] of Object.entries(batteryBlock)) {
+      const m = /^.*soil.*?(\d+)$/i.exec(key);
+      if (!m) continue;
+      const ch = m[1];
+      let v: unknown = valueRaw;
+      if (valueRaw && typeof valueRaw === "object") {
+        v = (valueRaw as { value?: unknown }).value;
+      }
+      if (v === undefined || v === null) continue;
+      // Only write if there isn't already a soilbatt for this channel —
+      // the per-channel wrapper (handled above) takes precedence so an
+      // explicit nested value isn't overwritten by the top-level block.
+      if (out[`soilbatt${ch}`] === undefined) {
+        out[`soilbatt${ch}`] = String(v);
+      }
+    }
   }
 
   return out;

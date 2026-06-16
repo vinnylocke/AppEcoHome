@@ -57,21 +57,50 @@ export interface ParsedEwelinkState {
   battery_percent: number | null;
 }
 
+/**
+ * eWeLink Zigbee devices (e.g. Sonoff SWV water valve) report battery
+ * percentage in their `thing/status` response under `params`. The exact
+ * field name varies by firmware revision — we check the well-known
+ * spellings first, then fall back to scanning any `params` key whose
+ * lowercase form contains "batt".
+ *
+ * `getDevicePowerUsage` is a separate API for mains-powered Sonoff POW
+ * devices (current consumption in kWh). It does NOT report battery and
+ * is not used here.
+ */
 const BATTERY_PARAM_CANDIDATES = [
   "battery",
   "battPercentage",
   "batteryPercentage",
+  "batteryLevel",
+  "batt",
+  "voltage",
 ] as const;
 
+function pickNumeric0to100(value: unknown): number | null {
+  if (value === undefined || value === null) return null;
+  const v = typeof value === "number" ? value : parseFloat(String(value));
+  if (!Number.isFinite(v)) return null;
+  if (v < 0 || v > 100) return null;
+  return Math.round(v);
+}
+
 export function parseEwelinkBattery(params: Record<string, unknown>): number | null {
+  // 1. Try the well-known candidates in priority order.
   for (const key of BATTERY_PARAM_CANDIDATES) {
-    const raw = params[key];
-    if (raw === undefined || raw === null) continue;
-    const v = typeof raw === "number" ? raw : parseFloat(String(raw));
-    if (!Number.isFinite(v)) continue;
-    if (v < 0 || v > 100) continue;
-    return Math.round(v);
+    const picked = pickNumeric0to100(params[key]);
+    if (picked !== null) return picked;
   }
+
+  // 2. Fallback — scan all keys for anything containing "batt" with a
+  //    numeric 0-100 value. Catches firmware variants we haven't seen
+  //    yet (e.g. `device_battery`, `sensor_batt_pct`).
+  for (const [key, value] of Object.entries(params)) {
+    if (!/batt/i.test(key)) continue;
+    const picked = pickNumeric0to100(value);
+    if (picked !== null) return picked;
+  }
+
   return null;
 }
 
