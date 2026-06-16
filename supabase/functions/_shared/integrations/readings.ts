@@ -72,9 +72,17 @@ export async function insertReading({
     updates.battery_reported_at = ts;
   }
 
-  // Best-effort — don't throw if this fails
-  await db
+  // Best-effort — don't throw if this fails, but DO log the error so
+  // silent failures (e.g. battery columns missing on prod after a
+  // partial migration) are visible in the log stream rather than
+  // making the pip stay stubbornly null with no breadcrumb.
+  const { error: updateErr } = await db
     .from("devices")
     .update(updates)
     .eq("id", deviceId);
+  if (updateErr) {
+    console.warn(
+      `insertReading: devices update failed for device=${deviceId} battery=${battery} columns=${JSON.stringify(Object.keys(updates))} :: ${updateErr.message}`,
+    );
+  }
 }

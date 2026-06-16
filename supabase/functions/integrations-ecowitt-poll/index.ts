@@ -19,6 +19,7 @@ import {
   parseSoilChannels,
 } from "../_shared/integrations/ecowittFields.ts";
 import { captureException } from "../_shared/sentry.ts";
+import { log } from "../_shared/logger.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -154,6 +155,14 @@ Deno.serve(async (req) => {
           ec_source: ch.ec_source,
           ...(ch.battery_percent !== null ? { battery_percent: ch.battery_percent } : {}),
         };
+
+        log("integrations-ecowitt-poll", "battery_diagnostic", {
+          device_id: device.id,
+          channel: ch.channel,
+          battery_percent: ch.battery_percent,
+          raw_value: ch.batteryDiagnostic.soilbattRawValue,
+          out_of_range_value: ch.batteryDiagnostic.outOfRangeValue,
+        });
 
         await insertReading({ db, deviceId: device.id, homeId: device.home_id, data: reading, recordedAt });
         synced++;

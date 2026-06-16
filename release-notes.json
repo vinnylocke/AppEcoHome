@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "label": "Battery visibility fix",
+    "items": [
+      "Refresh button now refreshes everything. Previously it only polled Ecowitt — eWeLink valves never updated unless you opened each one individually. Now one tap asks every Ecowitt sensor AND every eWeLink valve for fresh state in parallel, including battery.",
+      "Battery is now always shown on device cards. When known, the colour-graded pip shows the actual percentage. When the device hasn't reported one yet, a muted 'Battery —' placeholder appears with a tooltip explaining why — so you can tell wired-but-waiting from never-wired at a glance.",
+      "Loosened the Ecowitt voltage range from 0.8–2.0V to 0.5–3.5V (and 500–3500 mV) — covers AAA, alkaline, and gateway-firmware edge cases that were previously rejected as out-of-range.",
+      "Server-side: insertReading now logs any failure to update the devices.battery_* columns instead of swallowing it, and every Ecowitt poll cycle emits a battery_diagnostic log line showing the raw soilbattN value. If battery still doesn't show after this release, the log stream tells us why.",
+      "New schema-missing banner on the Integrations page — if the battery columns somehow aren't on this Supabase project, you'll see a clear warning rather than guessing why the pip is dark."
+    ]
+  }
+]

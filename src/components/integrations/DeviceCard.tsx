@@ -36,7 +36,7 @@ export default function DeviceCard({ device, onClick }: Props) {
           )}
         </div>
         <div className="flex items-center gap-1.5">
-          <BatteryPip percent={device.battery_percent} reportedAt={device.battery_reported_at} />
+          <BatteryPip percent={device.battery_percent} reportedAt={device.battery_reported_at} showUnknown />
           <div className={`flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-xl ${isOnline ? "bg-green-100 text-green-700" : "bg-rhozly-surface-low text-rhozly-on-surface-variant"}`}>
             {isOnline ? <Wifi size={12} /> : <WifiOff size={12} />}
             {isOnline ? "Online" : "Offline"}

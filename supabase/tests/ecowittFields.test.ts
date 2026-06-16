@@ -417,10 +417,17 @@ Deno.test("parseEcowittBattery — millivolts variant", () => {
 });
 
 Deno.test("parseEcowittBattery — out of range returns null", () => {
-  assertEquals(parseEcowittBattery("0"), null); // below 0.8V floor → null, not 0%
-  assertEquals(parseEcowittBattery("5"), null); // above 2.0V ceiling, below mV floor
+  assertEquals(parseEcowittBattery("0"), null); // below 0.5V floor → null
+  assertEquals(parseEcowittBattery("4"), null); // above 3.5V ceiling, below mV floor
   assertEquals(parseEcowittBattery("50"), null); // dead zone between V and mV
-  assertEquals(parseEcowittBattery("3000"), null); // above mV ceiling
+  assertEquals(parseEcowittBattery("4000"), null); // above mV ceiling
+});
+
+Deno.test("parseEcowittBattery — widened range accepts AAA + alkaline edge cases", () => {
+  // 0.5V is the new floor — empty AAA, still classified as 0% rather than null
+  assertEquals(parseEcowittBattery("0.5"), 0);
+  // 3.0V (2x alkaline) → clamped to 100% by voltsToPercent
+  assertEquals(parseEcowittBattery("3.0"), 100);
 });
 
 Deno.test("parseEcowittBattery — non-numeric / missing returns null", () => {
@@ -449,4 +456,18 @@ Deno.test("parseSoilChannels — battery threaded through (millivolts)", () => {
 Deno.test("parseSoilChannels — missing battery yields null (pip stays hidden)", () => {
   const channels = parseSoilChannels({ soilmoisture1: "42" });
   assertEquals(channels[0].battery_percent, null);
+  // Diagnostic surfaces "field was absent" (raw value null) so callers
+  // can tell missing-field apart from out-of-range.
+  assertEquals(channels[0].batteryDiagnostic.soilbattRawValue, null);
+  assertEquals(channels[0].batteryDiagnostic.outOfRangeValue, null);
+});
+
+Deno.test("parseSoilChannels — out-of-range battery surfaces in diagnostic", () => {
+  const channels = parseSoilChannels({
+    soilmoisture1: "42",
+    soilbatt1: "9999", // wildly out of any accepted scale
+  });
+  assertEquals(channels[0].battery_percent, null);
+  assertEquals(channels[0].batteryDiagnostic.soilbattRawValue, "9999");
+  assertEquals(channels[0].batteryDiagnostic.outOfRangeValue, 9999);
 });

@@ -66,7 +66,7 @@ export default function DeviceDetailModal({ device, onClose, onRefresh, canManag
                 <p className="text-xs text-rhozly-on-surface-variant capitalize">
                   {device.provider} · {device.device_type === "soil_sensor" ? "Soil Sensor" : "Water Valve"}
                 </p>
-                <BatteryPip percent={device.battery_percent} reportedAt={device.battery_reported_at} size="md" />
+                <BatteryPip percent={device.battery_percent} reportedAt={device.battery_reported_at} size="md" showUnknown />
               </div>
             </div>
             {canManage && (

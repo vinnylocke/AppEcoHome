@@ -110,6 +110,14 @@ export interface ParsedSoilChannel {
    *  or when the value is too high to safely auto-classify (likely
    *  millivolts — we'd rather show no pip than a wrong one). */
   battery_percent: number | null;
+  /** Diagnostic carried through to the caller so it can structured-log
+   *  what soilbattN actually contained. Surfaces "field missing" vs
+   *  "field present but out of range" vs "field parsed successfully"
+   *  without users having to read raw Supabase logs. */
+  batteryDiagnostic: {
+    soilbattRawValue: unknown;
+    outOfRangeValue: number | null;
+  };
 }
 
 /**
@@ -142,13 +150,36 @@ function voltsToPercent(volts: number): number {
   return Math.max(0, Math.min(100, Math.round(raw)));
 }
 
-export function parseEcowittBattery(value: unknown): number | null {
-  if (value === undefined || value === null) return null;
+/**
+ * Result of parsing one `soilbatt{N}` field. When the field was present
+ * but out of every acceptable range we return `{ percent: null,
+ * outOfRangeValue }` so the caller can log it for triage — better than
+ * silently dropping a value the gateway clearly sent.
+ */
+export interface EcowittBatteryParseResult {
+  percent: number | null;
+  outOfRangeValue: number | null;
+}
+
+export function parseEcowittBatteryDetailed(value: unknown): EcowittBatteryParseResult {
+  if (value === undefined || value === null) return { percent: null, outOfRangeValue: null };
   const v = parseFloat(typeof value === "string" ? value : String(value));
-  if (!Number.isFinite(v) || v < 0) return null;
-  if (v >= 0.8 && v <= 2.0) return voltsToPercent(v);
-  if (v >= 800 && v <= 2000) return voltsToPercent(v / 1000);
-  return null;
+  if (!Number.isFinite(v) || v < 0) return { percent: null, outOfRangeValue: null };
+
+  // Volts: widened from 0.8-2.0 to 0.5-3.5 to cover AAA cells, alkaline
+  // variants, and gateways that fudge the reading slightly above
+  // nominal-fresh. Falls back to mV for the 500-3500 range.
+  if (v >= 0.5 && v <= 3.5) return { percent: voltsToPercent(v), outOfRangeValue: null };
+  if (v >= 500 && v <= 3500) return { percent: voltsToPercent(v / 1000), outOfRangeValue: null };
+
+  // The field WAS present but we don't know what scale it's on. Caller
+  // logs this so we can spot whatever exotic firmware variant emitted it
+  // and widen the range or add a per-device override.
+  return { percent: null, outOfRangeValue: v };
+}
+
+export function parseEcowittBattery(value: unknown): number | null {
+  return parseEcowittBatteryDetailed(value).percent;
 }
 
 /**
@@ -250,7 +281,7 @@ export function parseSoilChannels(
     const inferredModel: EcowittSoilModel =
       ecSource === "calibrated_us_cm" || hasTempReading ? "WH52" : "WH51";
 
-    const battery_percent = parseEcowittBattery(fields[`soilbatt${ch}`]);
+    const batteryParsed = parseEcowittBatteryDetailed(fields[`soilbatt${ch}`]);
 
     out.push({
       channel: ch,
@@ -259,7 +290,11 @@ export function parseSoilChannels(
       soil_ec: ec,
       ec_source: ecSource,
       inferredModel,
-      battery_percent,
+      battery_percent: batteryParsed.percent,
+      batteryDiagnostic: {
+        soilbattRawValue: fields[`soilbatt${ch}`] ?? null,
+        outOfRangeValue: batteryParsed.outOfRangeValue,
+      },
     });
   }
 

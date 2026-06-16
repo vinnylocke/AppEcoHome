@@ -142,19 +142,36 @@ export default function IntegrationsPage({ homeId }: Props) {
   // — webhooks only fire every ~16 min and may not even be configured
   // on the gateway.
   const refresh = useCallback(async () => {
+    const { data: { session } } = await supabase.auth.getSession();
+    const auth = { Authorization: `Bearer ${session?.access_token}` };
+
     const hasEcowitt = devices.some((d) => d.provider === "ecowitt");
+    const ewelinkValves = devices.filter((d) => d.provider === "ewelink" && d.device_type === "water_valve");
+
+    // Fire all provider syncs in parallel. Each is best-effort — a
+    // single device's failure does NOT block the others or the final
+    // device-list reload. Battery extraction happens inside each
+    // provider sync; the final load() picks up the refreshed
+    // devices.battery_percent column.
+    const tasks: Promise<unknown>[] = [];
     if (hasEcowitt) {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        await supabase.functions.invoke("integrations-ecowitt-poll", {
+      tasks.push(
+        supabase.functions.invoke("integrations-ecowitt-poll", {
           body: { homeId },
-          headers: { Authorization: `Bearer ${session?.access_token}` },
-        });
-      } catch {
-        // Best-effort — fall through to the device-list reload so the
-        // user still sees their last-known state.
-      }
+          headers: auth,
+        }).catch(() => null),
+      );
     }
+    for (const valve of ewelinkValves) {
+      tasks.push(
+        supabase.functions.invoke("integrations-ewelink-state", {
+          body: { deviceId: valve.id },
+          headers: auth,
+        }).catch(() => null),
+      );
+    }
+    if (tasks.length > 0) await Promise.all(tasks);
+
     await load();
   }, [devices, homeId, load]);
 
@@ -276,6 +293,22 @@ export default function IntegrationsPage({ homeId }: Props) {
       <div className="flex-1 overflow-auto px-4 md:px-8 py-6">
         {activeTab === "devices" && (
           <>
+            {/* Schema-missing detector — if the devices we just fetched
+                don't carry battery_percent at all, the migration didn't
+                land on this Supabase project. Tells users instantly
+                why the pip is dark vs leaving them guessing. */}
+            {!loading && devices.length > 0 && !Object.prototype.hasOwnProperty.call(devices[0], "battery_percent") && (
+              <div className="mb-4 flex items-start gap-3 p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900" data-testid="battery-schema-missing-banner">
+                <AlertCircle size={18} className="mt-0.5 shrink-0" />
+                <div className="text-sm">
+                  <p className="font-semibold">Battery columns missing on this database</p>
+                  <p className="text-xs mt-0.5 text-amber-800">
+                    The battery feature needs the latest migration to land on this Supabase project. Until then the
+                    pip stays dark even when devices report battery. Contact support if you see this.
+                  </p>
+                </div>
+              </div>
+            )}
             {loading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                 {[...Array(3)].map((_, i) => (

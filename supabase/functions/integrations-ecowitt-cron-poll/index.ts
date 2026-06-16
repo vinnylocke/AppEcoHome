@@ -110,6 +110,17 @@ async function pollIntegration(
         ...(ch.battery_percent !== null ? { battery_percent: ch.battery_percent } : {}),
       };
 
+      // Diagnostic so we can spot gateways that send unusual soilbattN
+      // values (e.g. a centivolt scale we haven't seen yet). Info level
+      // so it doesn't drown the logs.
+      log("integrations-ecowitt-cron-poll", "battery_diagnostic", {
+        device_id: device.id,
+        channel: ch.channel,
+        battery_percent: ch.battery_percent,
+        raw_value: ch.batteryDiagnostic.soilbattRawValue,
+        out_of_range_value: ch.batteryDiagnostic.outOfRangeValue,
+      });
+
       await insertReading({
         db,
         deviceId: device.id,

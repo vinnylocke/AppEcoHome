@@ -116,6 +116,8 @@ Deno.serve(async (req) => {
         ...(ch.battery_percent !== null ? { battery_percent: ch.battery_percent } : {}),
       };
 
+      console.info(`integrations-ecowitt-webhook battery_diagnostic device=${device.id} ch=${ch.channel} percent=${ch.battery_percent} raw=${JSON.stringify(ch.batteryDiagnostic.soilbattRawValue)} oor=${ch.batteryDiagnostic.outOfRangeValue}`);
+
       await insertReading({
         db,
         deviceId: device.id,
