@@ -474,6 +474,15 @@ verify_jwt = false
 [functions.integrations-ecowitt-cron-poll]
 verify_jwt = false
 
+# 2026-06-16 Phase 3 — sensor-driven automation evaluator. Every 5 min
+# via pg_cron. Walks each is_active + trigger_kind='sensor_threshold'
+# automation, decides whether to fire via the pure evaluator in
+# _shared/automationEvaluator.ts, then fans out actions (notifications
+# → notifications table; valve commands → automation_valve_queue which
+# the existing drainValveQueue step in run-automations handles).
+[functions.evaluate-sensor-automations]
+verify_jwt = false
+
 [functions.plant-doctor]
 enabled = true
 verify_jwt = true

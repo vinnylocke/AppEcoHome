@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "label": "Sensor-driven automations",
+    "items": [
+      "Tap \"+ New automation\" on the Integrations Automations tab and you now pick between Time-scheduled (the existing kind) and Sensor-triggered (the new one).",
+      "Sensor-triggered automations fire when a soil sensor reading crosses your threshold — e.g. \"greenhouse temp ≥ 30°C\" or \"bed A moisture ≤ 20%\". Pick an area to filter the sensor + valve pickers to that area, then choose your sensors, build the rule, and add one or more actions: send notification, open a valve (with safety duration), close a valve.",
+      "Multiple sensors in one rule? You pick the aggregation mode: Any (fire when any sensor crosses), All (fire only when every sensor crosses), or Average (fire when the average crosses).",
+      "Hysteresis adds a margin past the threshold before firing — useful for sensors that wobble around the boundary. Cooldown (default 60 min) prevents repeated firing when a value sits near the threshold.",
+      "The threshold engine runs every 5 minutes server-side — you don't need the app open. Worst-case latency from sensor reading → valve firing is about 10 minutes."
+    ]
+  }
+]

@@ -1,8 +1,10 @@
 import React, { useCallback, useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { supabase } from "../../lib/supabase";
-import { Plus, Loader2, Zap } from "lucide-react";
+import { Plus, Loader2, Zap, Clock, Cpu, X } from "lucide-react";
 import AutomationCard from "./AutomationCard";
 import AutomationModal from "./AutomationModal";
+import SensorAutomationModal, { type SensorAutomation } from "./SensorAutomationModal";
 
 export interface AutomationFull {
   id: string;
@@ -32,11 +34,19 @@ interface Props {
   canRun: boolean;
 }
 
+type ModalKind = "time" | "sensor";
+
 export default function AutomationsSection({ homeId, canManage, canRun }: Props) {
   const [automations, setAutomations] = useState<AutomationFull[]>([]);
   const [loading, setLoading] = useState(true);
   const [showModal, setShowModal] = useState(false);
+  const [modalKind, setModalKind] = useState<ModalKind>("time");
   const [editingAutomation, setEditingAutomation] = useState<AutomationFull | null>(null);
+  const [editingSensorAutomation, setEditingSensorAutomation] = useState<SensorAutomation | null>(null);
+  // 2026-06-16 Phase 3 — when the user taps "+ New automation" we open
+  // a small mode picker first (time-scheduled vs sensor-triggered).
+  // Editing skips the picker since the kind is already known.
+  const [showModePicker, setShowModePicker] = useState(false);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -111,17 +121,67 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
 
   const openNew = () => {
     setEditingAutomation(null);
+    setEditingSensorAutomation(null);
+    setShowModePicker(true);
+  };
+
+  const startNewWithKind = async (kind: ModalKind) => {
+    setShowModePicker(false);
+    setModalKind(kind);
     setShowModal(true);
   };
 
-  const openEdit = (automation: AutomationFull) => {
+  const openEdit = async (automation: AutomationFull) => {
+    // 2026-06-16 — figure out whether this is a time or sensor automation
+    // and route to the right modal. Time-scheduled is the default for the
+    // existing rows; sensor-threshold needs an extra fetch for the rule
+    // + sensors + actions that AutomationFull doesn't currently carry.
+    const { data: row } = await supabase
+      .from("automations")
+      .select(
+        "id, name, is_active, trigger_kind, area_id, sensor_metric, sensor_comparator, sensor_threshold_value, sensor_hysteresis, sensor_cooldown_minutes, sensor_agg_mode",
+      )
+      .eq("id", automation.id)
+      .single();
+    if (row && (row as any).trigger_kind === "sensor_threshold") {
+      const [{ data: sensors }, { data: actions }] = await Promise.all([
+        supabase
+          .from("automation_sensors")
+          .select("sensor_device_id")
+          .eq("automation_id", automation.id),
+        supabase
+          .from("automation_actions")
+          .select("id, action_kind, notification_title, notification_body, target_device_id, valve_duration_seconds, ord")
+          .eq("automation_id", automation.id)
+          .order("ord", { ascending: true }),
+      ]);
+      setEditingSensorAutomation({
+        id: (row as any).id,
+        name: (row as any).name,
+        is_active: (row as any).is_active,
+        area_id: (row as any).area_id ?? null,
+        sensor_metric: (row as any).sensor_metric ?? null,
+        sensor_comparator: (row as any).sensor_comparator ?? null,
+        sensor_threshold_value: (row as any).sensor_threshold_value ?? null,
+        sensor_hysteresis: (row as any).sensor_hysteresis ?? 0,
+        sensor_cooldown_minutes: (row as any).sensor_cooldown_minutes ?? 60,
+        sensor_agg_mode: (row as any).sensor_agg_mode ?? "any",
+        sensors: (sensors ?? []) as any,
+        actions: (actions ?? []) as any,
+      });
+      setModalKind("sensor");
+      setShowModal(true);
+      return;
+    }
     setEditingAutomation(automation);
+    setModalKind("time");
     setShowModal(true);
   };
 
   const closeModal = () => {
     setShowModal(false);
     setEditingAutomation(null);
+    setEditingSensorAutomation(null);
   };
 
   const handleSaved = () => {
@@ -179,7 +239,7 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
         </div>
       )}
 
-      {showModal && (
+      {showModal && modalKind === "time" && (
         <AutomationModal
           homeId={homeId}
           automation={editingAutomation}
@@ -187,7 +247,100 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
           onClose={closeModal}
         />
       )}
+      {showModal && modalKind === "sensor" && (
+        <SensorAutomationModal
+          homeId={homeId}
+          automation={editingSensorAutomation}
+          onSaved={handleSaved}
+          onClose={closeModal}
+        />
+      )}
+      {showModePicker && (
+        <ModePickerModal
+          onPick={(k) => startNewWithKind(k)}
+          onClose={() => setShowModePicker(false)}
+        />
+      )}
     </div>
+  );
+}
+
+/**
+ * Tiny chooser shown on "+ New automation". Lets the user decide
+ * upfront whether they're building a time-scheduled automation (e.g.
+ * "07:00 water valves daily") or a sensor-triggered one ("greenhouse
+ * temp >= 30°C → notify me"). Routes to the matching modal.
+ */
+function ModePickerModal({
+  onPick,
+  onClose,
+}: {
+  onPick: (kind: ModalKind) => void;
+  onClose: () => void;
+}) {
+  return createPortal(
+    <div
+      data-testid="automation-mode-picker"
+      className="fixed inset-0 z-[120] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
+      onClick={onClose}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-rhozly-outline/10 overflow-hidden animate-in zoom-in-95 duration-200"
+      >
+        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-rhozly-outline/10">
+          <div className="min-w-0">
+            <h2 className="font-display font-black text-lg text-rhozly-on-surface">New automation</h2>
+            <p className="text-[11px] font-bold text-rhozly-on-surface/45 leading-snug">
+              Pick how this one should fire.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Close"
+            className="shrink-0 p-2 rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors"
+          >
+            <X size={18} />
+          </button>
+        </div>
+        <div className="p-5 space-y-3">
+          <button
+            type="button"
+            data-testid="mode-picker-time"
+            onClick={() => onPick("time")}
+            className="w-full flex items-start gap-3 p-4 rounded-2xl border-2 border-rhozly-outline/20 hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-left"
+          >
+            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
+              <Clock size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-black text-rhozly-on-surface">Time-scheduled</p>
+              <p className="text-xs font-bold text-rhozly-on-surface/55 mt-0.5 leading-snug">
+                Fires at a daily time. Optionally skip on rain. Best for routine watering.
+              </p>
+            </div>
+          </button>
+          <button
+            type="button"
+            data-testid="mode-picker-sensor"
+            onClick={() => onPick("sensor")}
+            className="w-full flex items-start gap-3 p-4 rounded-2xl border-2 border-rhozly-outline/20 hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-left"
+          >
+            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+              <Cpu size={18} />
+            </div>
+            <div>
+              <p className="text-sm font-black text-rhozly-on-surface">Sensor-triggered</p>
+              <p className="text-xs font-bold text-rhozly-on-surface/55 mt-0.5 leading-snug">
+                Fires when a soil sensor reading crosses your threshold. Notification + valves.
+              </p>
+            </div>
+          </button>
+        </div>
+      </div>
+    </div>,
+    document.body,
   );
 }
 

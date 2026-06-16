@@ -1,20 +1,25 @@
 # Integrations — Automations Tab
 
-> The Automations sub-tab inside Integrations. Watering automations that fire at a scheduled time, control one or more valves, and optionally tie to task blueprints. Skip-if-rained, retry-on-failure, sequential vs parallel valve firing.
+> The Automations sub-tab inside Integrations. Two flavours: **time-scheduled** (fire daily at a clock time, control valves, optionally tied to task blueprints) and **sensor-triggered** (fire when a soil sensor reading crosses a threshold, fan out to notifications + valves). Tapping "+ New automation" opens a mode picker; editing routes to the matching builder.
 
 **Route:** `/integrations?tab=automations`
 **Source files:**
-- `src/components/integrations/AutomationsSection.tsx` — list
+- `src/components/integrations/AutomationsSection.tsx` — list + mode picker
 - `src/components/integrations/AutomationCard.tsx` — per-automation card
-- `src/components/integrations/AutomationModal.tsx` — builder (~700 lines)
+- `src/components/integrations/AutomationModal.tsx` — time-scheduled builder (~700 lines)
+- `src/components/integrations/SensorAutomationModal.tsx` — **Phase 3 (2026-06-16)** sensor-triggered builder
 - `src/components/integrations/AutomationRunHistory.tsx` — run history
-- `supabase/functions/run-automations/index.ts` — cron runner
+- `supabase/functions/run-automations/index.ts` — time-scheduled cron runner (hourly)
+- `supabase/functions/evaluate-sensor-automations/index.ts` — **Phase 3** sensor-threshold evaluator (every 5 min)
+- `supabase/functions/_shared/automationEvaluator.ts` — **Phase 3** pure rule + cooldown logic, exercised by `supabase/tests/automationEvaluator.test.ts`
 
 ---
 
 ## Quick Summary
 
-Each automation:
+Each automation has a **trigger_kind**:
+
+### `time_scheduled` (existing)
 
 - Fires daily at a `scheduled_time`.
 - Opens one or more valves for `duration_seconds`.
@@ -25,7 +30,18 @@ Each automation:
   - **Controlling**: completing this blueprint task triggers the automation immediately.
   - **Driven**: when the automation runs, it auto-completes the linked blueprint task.
 
-Each run writes a `automation_runs` row; the card shows last-run status pill.
+### `sensor_threshold` (Phase 3, 2026-06-16)
+
+- Picks an optional **area** — when set, the sensor + valve pickers filter to devices linked to that area.
+- Picks **one or more sensors** via the `automation_sensors` join.
+- Builds a **rule**: `sensor_metric` ∈ `{soil_moisture, soil_temp_c, soil_ec}` · `sensor_comparator` ∈ `{>, >=, <, <=}` · `sensor_threshold_value` · `sensor_hysteresis` (margin past threshold before firing, default 0) · `sensor_cooldown_minutes` (gap between successive fires, default 60).
+- For multi-sensor automations, `sensor_agg_mode` ∈ `{any, all, average}` decides whether the rule needs ANY linked sensor to satisfy, ALL to satisfy, or the AVERAGE across sensors to satisfy.
+- **Actions** — an ordered `automation_actions` list. Three kinds:
+  - `notification` — push to every `home_member` via the existing `notifications` table (custom title + body or fall back to the automation's name).
+  - `valve_open` — enqueue a `turn_on` command on `automation_valve_queue` with a `valve_duration_seconds` failsafe; the existing `drainValveQueue` step in `run-automations` cron actually talks to eWeLink.
+  - `valve_close` — same pattern with `turn_off`.
+
+Each run writes an `automation_runs` row; the card shows the last-run status pill.
 
 ---
 
