@@ -103,6 +103,34 @@ Deno.test("parseSoilChannels — Celsius temperature field (real_time format)", 
   assertEquals(channels[0].soil_temp, 18.4);
 });
 
+Deno.test("parseSoilChannels — plain soiltemp{N} (no F/C suffix) treated as Celsius", () => {
+  // Observed 2026-06-16 — the WH52 `soil_moisture_ec_chN` container
+  // emits the temperature as just `soiltemp` (no F/C suffix). The flat
+  // dict ends up with `soiltemp1 = "20.4"`. The parser must treat this
+  // as °C by default — defaulting to F would clamp a typical 20°C soil
+  // reading to -6.4°C which is clearly wrong.
+  const fields = {
+    soilmoisture1: "55",
+    soiltemp1: "20.4",
+    soilcond1: "1100",
+  };
+  const channels = parseSoilChannels(fields);
+  assertEquals(channels[0].soil_temp, 20.4);
+});
+
+Deno.test("parseSoilChannels — explicit suffixed temp wins over plain spelling", () => {
+  // If both `soiltempc1` (explicit C) and `soiltemp1` (unsuffixed) are
+  // present, the explicit one MUST take priority — otherwise a
+  // misaliased duplicate could clobber the canonical reading.
+  const fields = {
+    soilmoisture1: "55",
+    soiltempc1: "18.0",
+    soiltemp1: "99",  // garbage that must NOT win
+  };
+  const channels = parseSoilChannels(fields);
+  assertEquals(channels[0].soil_temp, 18.0);
+});
+
 Deno.test("parseSoilChannels — alternative temp F spelling 'tf_ch'", () => {
   const fields = {
     soilmoisture1: "55",

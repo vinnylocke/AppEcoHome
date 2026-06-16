@@ -44,8 +44,9 @@ const CALIBRATED_EC_FIELDS = (ch: number): string[] => [
 ];
 
 /**
- * Field name candidates for soil temperature in Fahrenheit (most common
- * Ecowitt output unit).
+ * Field name candidates for soil temperature in Fahrenheit. The webhook
+ * form-data shape carries the F suffix explicitly; the real_time JSON
+ * shape sometimes uses `tf_ch{N}` for WH52 firmware variants.
  */
 const TEMP_F_FIELDS = (ch: number): string[] => [
   `soiltemp${ch}f`,
@@ -54,12 +55,20 @@ const TEMP_F_FIELDS = (ch: number): string[] => [
 ];
 
 /**
- * Field name for soil temperature in Celsius (real-time endpoint format
- * — the form-data webhook usually sends F).
+ * Field name candidates for soil temperature in Celsius. Order matters
+ * — explicit C-suffixed names are tried first; then `soiltemp${ch}`
+ * (no suffix) as the default. The plain spelling shows up on the
+ * WH52 `soil_moisture_ec_chN` category whose inner field is called
+ * just `soiltemp` (the unit lives on a sibling field that the flat
+ * dict drops); defaulting to Celsius matches every Ecowitt setup
+ * we've seen and matches the user-configured unit preference for
+ * European accounts. Fahrenheit users will see a too-low number and
+ * we can revisit then.
  */
 const TEMP_C_FIELDS = (ch: number): string[] => [
   `soiltempc${ch}`,
   `soiltemp${ch}c`,
+  `soiltemp${ch}`,
 ];
 
 const RAW_ADC_FIELD = (ch: number) => `soilad${ch}`;
