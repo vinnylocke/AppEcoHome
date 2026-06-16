@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Fixes",
-    "items": [
-      "Connect Device wizard now clearly mentions WH52 alongside WH51. The model has always been auto-detected at discovery time — the old subtitle just made it look like Ecowitt was WH51-only."
-    ]
-  }
-]
+[]
