@@ -1,10 +1,1 @@
-[
-  {
-    "label": "Areas now show your soil sensors",
-    "items": [
-      "Link a soil sensor to an area (via Device Settings on the Integrations page) and the area starts tracking moisture, temperature and EC. Open the area on the Location Management page to see the live readings at the top.",
-      "Multiple sensors in the same area? You'll see a tile per sensor plus an averaged tile, and the history chart (24h / 7d / 30d) draws one line per sensor with a dashed average line over the top.",
-      "Areas with no sensors get a \"Link a soil sensor\" CTA that takes you straight to the Integrations page."
-    ]
-  }
-]
+[]
