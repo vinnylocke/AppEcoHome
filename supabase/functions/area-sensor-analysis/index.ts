@@ -78,7 +78,7 @@ serve(async (req) => {
         .eq("id", areaId).maybeSingle(),
       db.from("homes").select("id, hardiness_zone").eq("id", homeId).maybeSingle(),
       db.from("inventory_items")
-        .select("id, plant_name, health_status, plant_id")
+        .select("id, plant_name, plant_id")
         .eq("home_id", homeId).eq("area_id", areaId),
       db.from("devices")
         .select("id, name, provider")
@@ -232,11 +232,11 @@ serve(async (req) => {
             ec: stat(histEc),
           }
         : null,
-      plants: (inventory ?? []).map((i: { plant_name: string; health_status: string | null; plant_id: number | null }) => {
+      plants: (inventory ?? []).map((i: { plant_name: string; plant_id: number | null }) => {
         const care = i.plant_id != null ? careById.get(i.plant_id) : undefined;
         return {
           name: i.plant_name,
-          health: i.health_status ?? null,
+          health: null,
           soilPhMin: care?.soil_ph_min ?? null,
           soilPhMax: care?.soil_ph_max ?? null,
         };

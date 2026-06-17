@@ -103,10 +103,12 @@ export default function AreaAiAnalysisPanel({ areaId, homeId, aiEnabled }: Props
           You've reached today's analysis limit. Your last insight is still shown below — try again later.
         </div>
       )}
-      {err === "analysis_failed" && (
-        <div className="flex items-start gap-2 rounded-lg bg-rose-50 p-4 text-sm text-rose-800">
+      {(err === "analysis_failed" || err === "unknown" || err === "ai_disabled") && (
+        <div data-testid="area-ai-error" className="flex items-start gap-2 rounded-lg bg-rose-50 p-4 text-sm text-rose-800">
           <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
-          The analysis couldn't be generated this time. Tap Re-analyse to retry.
+          {err === "ai_disabled"
+            ? "AI features aren't enabled on your plan."
+            : "The analysis couldn't be generated this time. Tap Re-analyse to retry."}
         </div>
       )}
 
