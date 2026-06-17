@@ -74,7 +74,7 @@ serve(async (req) => {
       { data: profile },
     ] = await Promise.all([
       db.from("areas")
-        .select("id, name, is_outside, growing_medium, medium_ph")
+        .select("id, name, growing_medium, medium_ph, locations(is_outside)")
         .eq("id", areaId).maybeSingle(),
       db.from("homes").select("id, hardiness_zone, climate_zone").eq("id", homeId).maybeSingle(),
       db.from("inventory_items")
@@ -161,33 +161,22 @@ serve(async (req) => {
       for (const c of care ?? []) careById.set(c.id as number, { soil_ph_min: c.soil_ph_min, soil_ph_max: c.soil_ph_max });
     }
 
-    // ── Automations on this area's sensors ──────────────────────────────────
+    // ── Automations for this area ───────────────────────────────────────────
+    // Automations are scoped directly by area_id; a moisture-triggered one has
+    // sensor_metric='soil_moisture' with a sensor_threshold_value + comparator.
     const automations: AreaAnalysisInput["automations"] = [];
-    if (deviceIds.length > 0) {
-      const { data: autoSensors } = await db.from("automation_sensors")
-        .select("automation_id, moisture_threshold_pct").in("sensor_device_id", deviceIds);
-      const autoIds = [...new Set((autoSensors ?? []).map((a: { automation_id: string }) => a.automation_id))];
-      const thresholdById = new Map<string, number | null>();
-      for (const a of autoSensors ?? []) thresholdById.set(a.automation_id as string, a.moisture_threshold_pct as number | null);
-      if (autoIds.length > 0) {
-        const [{ data: autoRows }, { data: actions }] = await Promise.all([
-          db.from("automations").select("id, name, is_active").in("id", autoIds),
-          db.from("automation_actions").select("automation_id, valve_duration_seconds, action_kind").in("automation_id", autoIds),
-        ]);
-        const durById = new Map<string, number | null>();
-        for (const ac of actions ?? []) {
-          if ((ac.action_kind as string) === "valve" || ac.valve_duration_seconds != null) {
-            durById.set(ac.automation_id as string, ac.valve_duration_seconds as number | null);
-          }
-        }
-        for (const r of autoRows ?? []) {
-          automations.push({
-            name: r.name as string,
-            isActive: !!r.is_active,
-            moistureThresholdPct: thresholdById.get(r.id as string) ?? null,
-            valveDurationSeconds: durById.get(r.id as string) ?? null,
-          });
-        }
+    {
+      const { data: autoRows } = await db.from("automations")
+        .select("id, name, is_active, sensor_metric, sensor_comparator, sensor_threshold_value, duration_seconds")
+        .eq("home_id", homeId).eq("area_id", areaId);
+      for (const r of autoRows ?? []) {
+        const isMoisture = (r.sensor_metric as string | null) === "soil_moisture";
+        automations.push({
+          name: r.name as string,
+          isActive: !!r.is_active,
+          moistureThresholdPct: isMoisture ? (r.sensor_threshold_value as number | null) : null,
+          valveDurationSeconds: (r.duration_seconds as number | null) ?? null,
+        });
       }
     }
 
@@ -196,7 +185,7 @@ serve(async (req) => {
       persona: (profile?.persona as "new" | "experienced" | null) ?? null,
       area: {
         name: (areaRow as { name: string }).name,
-        isOutside: !!(areaRow as { is_outside?: boolean }).is_outside,
+        isOutside: !!(areaRow as { locations?: { is_outside?: boolean } }).locations?.is_outside,
         growingMedium: (areaRow as { growing_medium?: string | null }).growing_medium ?? null,
         mediumPh: (areaRow as { medium_ph?: number | null }).medium_ph ?? null,
         climateZone: (homeRow as { climate_zone?: string | null })?.climate_zone ?? null,
