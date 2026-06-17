@@ -74,9 +74,9 @@ serve(async (req) => {
       { data: profile },
     ] = await Promise.all([
       db.from("areas")
-        .select("id, name, is_outside, growing_medium, medium_ph, locations(name, climate_zone)")
+        .select("id, name, is_outside, growing_medium, medium_ph")
         .eq("id", areaId).maybeSingle(),
-      db.from("homes").select("id, hardiness_zone").eq("id", homeId).maybeSingle(),
+      db.from("homes").select("id, hardiness_zone, climate_zone").eq("id", homeId).maybeSingle(),
       db.from("inventory_items")
         .select("id, plant_name, plant_id")
         .eq("home_id", homeId).eq("area_id", areaId),
@@ -192,7 +192,6 @@ serve(async (req) => {
     }
 
     // ── Build input + prompt ────────────────────────────────────────────────
-    const location = (areaRow as { locations?: { climate_zone?: string } }).locations;
     const input: AreaAnalysisInput = {
       persona: (profile?.persona as "new" | "experienced" | null) ?? null,
       area: {
@@ -200,7 +199,7 @@ serve(async (req) => {
         isOutside: !!(areaRow as { is_outside?: boolean }).is_outside,
         growingMedium: (areaRow as { growing_medium?: string | null }).growing_medium ?? null,
         mediumPh: (areaRow as { medium_ph?: number | null }).medium_ph ?? null,
-        climateZone: location?.climate_zone ?? null,
+        climateZone: (homeRow as { climate_zone?: string | null })?.climate_zone ?? null,
       },
       home: { hardinessZone: (homeRow as { hardiness_zone?: number | null })?.hardiness_zone ?? null },
       summary: {
