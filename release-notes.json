@@ -1,13 +1,1 @@
-[
-  {
-    "label": "New: Smart watering (weather-aware automations)",
-    "items": [
-      "Every watering automation can now choose how it reacts to rain — Off, Skip if rain, or Smart.",
-      "Smart waits for forecast rain instead of watering, then rechecks your soil sensor and waters only if the rain didn't actually deliver — so plants never get skipped on a forecast that fizzles.",
-      "A critically-dry safety net waters straight away regardless of the forecast, so plants are never left parched while waiting for rain.",
-      "You decide what happens in a heatwave: water anyway, or keep waiting for rain.",
-      "Multiple forecast showers in a day are handled as a single sensible wait — no conflicting triggers.",
-      "Automations show a 'Waiting for rain' badge while they're holding, and the AI Area Coach now suggests the best rain setting for your plants."
-    ]
-  }
-]
+[]
