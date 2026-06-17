@@ -788,6 +788,8 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `customHttpControl.test.ts` | 13 | `customHttpAdapter.control()` (no-url / http / non-2xx / template error; renders body+headers; stubbed `fetch`) + `connect()` control-config storage + validation; `parseHeaderBlock` / `isJsonContentType` |
 | `areaAnalysisPrompt.test.ts` | 12 | AI Area Coach — `buildAreaAnalysisPrompt` (area/readings/plants/automations, scheduled-vs-moisture trigger + linked tasks, raw-ADC label, persona branch, empties), `parseAreaInsight` (valid/fenced/garbage), `shouldRegenerate` (force / no-readings / cache-empty / newer-reading) |
 | `hybridWeatherEvaluator.test.ts` | 12 | Hybrid weather watering — `computeRainWindow` (hourly mm sum + window end, daily fallback, out-of-window), `evaluateHybrid` (off/skip/defer, critical-low, heat override, hold while deferred, forecast-underdelivered, max-defers cap, **five showers → one deferral**) |
+| `conditionTree.test.ts` | 11 | Unified automations engine — `evaluateTree` (AND/OR/NOT, nesting, empty groups), `isWithinSchedule` (weekday/time window, timezone shift, overnight wrap, all-day/empty), `evalSensorLeaf` (agg modes), `evalWeatherLeaf` (rain/heat), `shouldFire` (rising edge + cooldown) |
+| `conditionConvert.test.ts` | 8 | Legacy→tree auto-convert — sensor (plain / skip / defer→OR+critical), time_scheduled (UTC hour window, task_due, skip-if-rained, trigger_if_hot→OR heatwave, 23:00 end 24:00) |
 
 ### E2E tests — 460 tests across 29 files (+ 13 isolation tests)
 

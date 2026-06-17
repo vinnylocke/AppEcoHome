@@ -811,45 +811,17 @@ Deno.serve(async (req) => {
 
     log(FN, "cron_start", { today, currentHour });
 
-    // Drain any queued sequential valves first
+    // Drain any queued sequential valves first.
     await drainValveQueue(db).catch((e) =>
       warn(FN, "queue_drain_error", { error: e.message })
     );
 
-    // Load all active tier-1 automations not yet run today
-    const { data: allAutomations, error: autoErr } = await db
-      .from("automations")
-      .select("*")
-      .eq("is_active", true)
-      .eq("tier", 1);
-
-    if (autoErr) {
-      logError(FN, "load_automations_failed", { error: autoErr.message });
-      return json({ error: autoErr.message }, 500);
-    }
-
-    // Filter: scheduled in current UTC hour, not yet run today
-    const due = ((allAutomations ?? []) as Array<Record<string, unknown>>).filter((a) => {
-      if (a.last_run_date === today) return false;
-      const [h] = (a.scheduled_time as string).split(":").map(Number);
-      return h === currentHour;
-    });
-
-    log(FN, "automations_due", { count: due.length });
-
-    const results = [];
-    for (const automation of due) {
-      try {
-        const result = await runAutomation(db, automation, "schedule");
-        results.push({ automationId: automation.id, ...result });
-      } catch (err: unknown) {
-        const msg = err instanceof Error ? err.message : String(err);
-        logError(FN, "run_error", { automationId: automation.id, error: msg });
-        results.push({ automationId: automation.id, status: "failed", error: msg });
-      }
-    }
-
-    return json({ success: true, ran: results.length, results });
+    // NOTE (2026-06-17, Phase 1 unified automations): scheduled firing is
+    // retired. The unified condition engine (`evaluate-sensor-automations`,
+    // every 5 min) now owns ALL triggers — including time-scheduled — via each
+    // automation's `trigger_logic` tree. This cron keeps only the valve-queue
+    // drain (above) and the manual "run now" path (handled earlier).
+    return json({ success: true, drained: true });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : String(err);
     logError(FN, "fatal_error", { error: msg });

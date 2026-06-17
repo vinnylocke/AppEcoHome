@@ -105,6 +105,10 @@ automation_blueprints ─ blueprint_id, automation_id, role: "controlling" | "dr
 
 Audit trail of every fire. `status`: `ran` / `skipped_rain` / `failed` / `retried`.
 
+### Unified condition tree on `automations` (added 2026-06-17, Phase 1)
+
+`automations.trigger_logic jsonb` holds a **free boolean condition tree** (leaves: sensor / time / task_due / weather, combined with AND/OR groups + per-node `negate`). It supersedes `trigger_kind` dispatch + the weather/heat modifier columns — those are kept read-only through the transition and dropped in Phase 3. Rising-edge bookkeeping: `condition_was_true boolean`, `last_fired_at timestamptz` (generalises `sensor_last_fired_at`). The 5-min `evaluate-sensor-automations` loop lazily converts legacy rows (`convertLegacyToTree`) then evaluates the tree. See [docs/plans/unified-condition-automations.md], [Cron Jobs](./11-cron-jobs.md), `_shared/conditionTree.ts`.
+
 ### Weather-defer columns on `automations` (added 2026-06-17)
 
 `automations` gains a per-row weather-handling selector + single-pending deferral state (hybrid weather + sensor watering): `weather_mode text default 'off'` (CHECK `off|skip|defer`, back-filled from `skip_if_rained`), `weather_min_probability`, `weather_defer_window_hours`, `critical_threshold_value`, `max_defers`, `defer_skip_in_heat`, and the deferral state `defer_until` / `defer_count` / `defer_started_at` (indexed where `defer_until IS NOT NULL`). The 5-min `evaluate-sensor-automations` loop reads these to defer-and-recheck; `run-automations` honours `weather_mode` on scheduled runs. See [Edge Functions Catalogue](./10-edge-functions-catalogue.md), [Weather](./27-weather.md).
