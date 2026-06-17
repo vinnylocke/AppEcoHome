@@ -31,6 +31,9 @@
 | MGMT-019 | ✅ | Advanced area settings opens (pH, growing medium, lux fields) | — | ✅ Passing |
 | MGMT-020 | ✅ | Save advanced settings — pH=6.5 → toast | — | ✅ Passing |
 | MGMT-021 | ❌ | pH=15 → out-of-range validation | — | ✅ Passing |
+| MGMT-022 | ✅ | Area Metrics modal shows Readings / AI Area Coach tab strip (`area-tab-readings`, `area-tab-ai`) | — | ⬜ Planned |
+| MGMT-023 | ✅ | AI Area Coach tab on non-AI tier → upgrade card (`area-ai-analysis-upgrade`), no fn call | — | ⬜ Planned |
+| MGMT-024 | ✅ | AI tier → auto-run renders panel (`area-ai-analysis-panel`) with metric cards; mock `area-sensor-analysis` | `area-sensor-analysis` | ⬜ Planned |
 
 ## Members & Permissions (owner-only home)
 

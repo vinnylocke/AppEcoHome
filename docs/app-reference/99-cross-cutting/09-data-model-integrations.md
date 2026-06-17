@@ -105,6 +105,10 @@ automation_blueprints ─ blueprint_id, automation_id, role: "controlling" | "dr
 
 Audit trail of every fire. `status`: `ran` / `skipped_rain` / `failed` / `retried`.
 
+### `area_ai_insights` (AI Area Coach cache, added 2026-06-17)
+
+One row per area (`area_id` PK, `home_id` FK), home-scoped RLS SELECT, service-role writes only. Caches the AI Area Coach analysis as `insight` jsonb. `based_on_reading_at` records the latest `device_reading.recorded_at` the insight reflects — the `area-sensor-analysis` fn regenerates only when a newer reading (live or manual) arrives. Also stores `persona`, `model`, `generated_at`. See [Edge Functions Catalogue](./10-edge-functions-catalogue.md) and [Caching](./14-caching.md).
+
 ### Cron
 
 | Cron | Cadence | Effect |

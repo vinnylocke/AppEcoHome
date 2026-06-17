@@ -23,6 +23,7 @@ import InfoTooltip from "./InfoTooltip";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
 import AreaSensorsPanel from "./area/AreaSensorsPanel";
+import AreaAiAnalysisPanel from "./area/AreaAiAnalysisPanel";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
@@ -33,6 +34,8 @@ import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 interface Props {
   homeId: string;
   onDataChanged?: () => void;
+  /** Whether the user's tier includes AI (drives the AI Area Coach tab). */
+  aiEnabled?: boolean;
 }
 
 type DeleteTarget = {
@@ -41,7 +44,7 @@ type DeleteTarget = {
   locationId?: string;
 };
 
-export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
+export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged, aiEnabled = false }) => {
   // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
   const { can } = usePermissions();
@@ -61,6 +64,8 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
   // Advanced Area Settings State
   const [editingArea, setEditingArea] = useState<any | null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
+  // Which tab the Area Metrics modal is showing. Reset to "readings" on open.
+  const [areaTab, setAreaTab] = useState<"readings" | "ai">("readings");
 
   // Custom Modal Delete State
   const [itemToDelete, setItemToDelete] = useState<DeleteTarget | null>(null);
@@ -615,7 +620,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                         <div className="flex gap-1 shrink-0 self-start transition-opacity">
                           {can("areas.edit") && (
                             <button
-                              onClick={() => setEditingArea(area)}
+                              onClick={() => { setAreaTab("readings"); setEditingArea(area); }}
                               className="flex items-center gap-1 min-h-[44px] px-2 text-rhozly-primary hover:bg-rhozly-primary/5 rounded-xl"
                               aria-label="Advanced Metrics"
                               title="Advanced Metrics"
@@ -720,6 +725,34 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                       "Log a reading" button opens the manual entry
                       modal. Falls back to a "Link a sensor" CTA when
                       nothing is linked. */}
+                  {/* Tab strip — Readings vs AI Area Coach */}
+                  <div className="flex gap-2 mb-6 border-b border-rhozly-outline/10">
+                    {([["readings", "Readings"], ["ai", "AI Area Coach"]] as const).map(([key, label]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        data-testid={`area-tab-${key}`}
+                        onClick={() => setAreaTab(key)}
+                        className={`px-4 py-2 text-sm font-black transition-colors border-b-2 -mb-px ${
+                          areaTab === key
+                            ? "border-rhozly-primary text-rhozly-primary"
+                            : "border-transparent text-rhozly-on-surface/40 hover:text-rhozly-on-surface/70"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+
+                  {areaTab === "ai" && (
+                    <AreaAiAnalysisPanel
+                      areaId={editingArea.id}
+                      homeId={homeId}
+                      aiEnabled={aiEnabled}
+                    />
+                  )}
+
+                  {areaTab === "readings" && (<>
                   <div className="mb-8">
                     <AreaSensorsPanel
                       areaId={editingArea.id}
@@ -897,6 +930,7 @@ export const LocationManager: React.FC<Props> = ({ homeId, onDataChanged }) => {
                       </>
                     )}
                   </div>
+                  </>)}
 
                   <div className="mt-10 flex gap-4">
                     <button

@@ -1,1 +1,13 @@
-[]
+[
+  {
+    "label": "New: AI Area Coach",
+    "items": [
+      "Every garden area now has an AI Area Coach tab in its metrics view — open Location Management, pick a location and area, then tap the settings icon.",
+      "It reads your linked soil sensors (current readings plus 30-day history), the plants growing in that area and their needs, and your watering automations.",
+      "You get ideal target ranges for soil moisture, EC/nutrients and soil temperature — with a clear on-target / low / high status, what each metric means, and what to do about it.",
+      "It checks your watering automations and suggests sensible ones when you don't have any set up.",
+      "The coaching adapts to you — plain, reassuring guidance for newer gardeners and concise, technical detail for experts.",
+      "Analysis is cached and only refreshes when new sensor data arrives, so it stays fast and never repeats work."
+    ]
+  }
+]

@@ -67,6 +67,7 @@ Then `onTierChange()` lifts flags into App state so the rest of the app re-rende
 | Regenerate plan | `ai_enabled` |
 | Photo-to-task in AddTaskModal | `ai_enabled` |
 | Optimise tab AI proposals | `ai_enabled` |
+| AI Area Coach tab (Area Metrics modal) | `ai_enabled` |
 | Plant Visualiser AI sprite gen | `ai_enabled` |
 | Plant Camera AI analysis | `ai_enabled` |
 | Area Scan Modal | `ai_enabled` |

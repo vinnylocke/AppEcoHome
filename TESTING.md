@@ -735,7 +735,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 340 tests across 24 files
+### Unit tests — 345 tests across 25 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -760,6 +760,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `SourceChip.test.ts` | 5 | Wave 6 — renders nothing for non-AI, catalogue variant when overrides empty/null, custom variant when overrides non-empty |
 | `valveControl.test.ts` | 4 | `valveControlMode` — eWeLink → live, custom_http+controllable → custom, otherwise read-only |
 | `payloadTemplate.test.ts` | 6 | Custom valve control preview — `{{var}}` render (+ unknown-var throw, parity with Deno), `buildControlPreview` ok / template-error / non-JSON-body cases |
+| `areaInsight.test.ts` | 5 | AI Area Coach presentation helpers — `metricLabel`, `statusMeta` (good/low/high/unknown styling), `formatAnalysedLabel` (just-now/m/h/d/date windows) |
 
 ### Edge function tests — Deno
 
@@ -784,6 +785,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `sceneJson.test.ts` | 6 | Multi-ID — `parseSceneJson` tolerant parse (clean JSON, code fence, prose preamble, truncated-array salvage, unrecoverable → empty, null/empty input) |
 | `controlTemplate.test.ts` | 12 | Custom valve control — `renderTemplate` ({{var}} subst, unknown-var throw, no eval), `templateVarsUsed`, `checkControlUrl` (https + private/loopback/metadata host block) |
 | `customHttpControl.test.ts` | 13 | `customHttpAdapter.control()` (no-url / http / non-2xx / template error; renders body+headers; stubbed `fetch`) + `connect()` control-config storage + validation; `parseHeaderBlock` / `isJsonContentType` |
+| `areaAnalysisPrompt.test.ts` | 11 | AI Area Coach — `buildAreaAnalysisPrompt` (area/readings/plants/automations, raw-ADC label, persona branch, empties), `parseAreaInsight` (valid/fenced/garbage), `shouldRegenerate` (force / no-readings / cache-empty / newer-reading) |
 
 ### E2E tests — 460 tests across 29 files (+ 13 isolation tests)
 

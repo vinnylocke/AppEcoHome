@@ -138,6 +138,103 @@ export async function fetchAreaSensors(areaId: string): Promise<LinkedSensor[]> 
   return out;
 }
 
+// ── AI Area Coach ──────────────────────────────────────────────────────────
+
+export type MetricKey = "moisture" | "ec" | "temperature";
+export type MetricStatus = "good" | "low" | "high" | "unknown";
+
+export interface InsightMetric {
+  metric: MetricKey;
+  current?: number;
+  unit: string;
+  ideal_min: number;
+  ideal_max: number;
+  status: MetricStatus;
+  meaning: string;
+  why_for_these_plants: string;
+  recommendation: string;
+}
+
+export interface AreaInsight {
+  headline: string;
+  summary: string;
+  metrics: InsightMetric[];
+  automation_review?: { ok: boolean; notes: string } | null;
+  automation_suggestions?: Array<{
+    title: string;
+    description: string;
+    suggested_moisture_threshold_pct?: number;
+  }>;
+  confidence_note?: string;
+}
+
+/** Result envelope returned by the `area-sensor-analysis` edge function. */
+export interface AreaInsightResult {
+  insight: AreaInsight | null;
+  cached?: boolean;
+  empty?: boolean;
+  basedOnReadingAt?: string | null;
+  generatedAt?: string | null;
+  persona?: "new" | "experienced" | null;
+  /** Set when the call was rejected (rate limit, no AI tier, failure). */
+  error?: "rate_limit" | "analysis_failed" | "ai_disabled" | "unknown";
+  retryAfterSeconds?: number;
+}
+
+/**
+ * Read the cached insight row directly (instant first paint). Returns null when
+ * none exists yet. RLS scopes this to the user's homes.
+ */
+export async function fetchAreaInsight(areaId: string): Promise<AreaInsightResult | null> {
+  const { data } = await supabase
+    .from("area_ai_insights")
+    .select("insight, based_on_reading_at, generated_at, persona")
+    .eq("area_id", areaId)
+    .maybeSingle();
+  if (!data) return null;
+  return {
+    insight: data.insight as AreaInsight,
+    cached: true,
+    basedOnReadingAt: data.based_on_reading_at as string | null,
+    generatedAt: data.generated_at as string | null,
+    persona: data.persona as "new" | "experienced" | null,
+  };
+}
+
+/**
+ * Invoke the cache-aware edge function. Returns the cached insight instantly
+ * when fresh; regenerates (Gemini) when readings are newer or `force` is set.
+ */
+export async function generateAreaInsight(
+  homeId: string,
+  areaId: string,
+  force = false,
+): Promise<AreaInsightResult> {
+  const { data, error } = await supabase.functions.invoke("area-sensor-analysis", {
+    body: { homeId, areaId, force },
+  });
+
+  if (error) {
+    // FunctionsHttpError carries the non-2xx body in error.context.
+    const ctx = (error as { context?: Response }).context;
+    if (ctx && typeof ctx.json === "function") {
+      try {
+        const body = await ctx.json();
+        if (ctx.status === 429) {
+          return { insight: null, error: "rate_limit", retryAfterSeconds: body?.retryAfterSeconds };
+        }
+        if (ctx.status === 403) return { insight: null, error: "ai_disabled" };
+        if (body?.error === "analysis_failed") return { insight: null, error: "analysis_failed" };
+      } catch {
+        /* fall through */
+      }
+    }
+    return { insight: null, error: "unknown" };
+  }
+
+  return data as AreaInsightResult;
+}
+
 export type HistoryWindow = "24h" | "7d" | "30d";
 
 export interface HistoryPoint {

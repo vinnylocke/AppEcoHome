@@ -95,6 +95,7 @@ Owned by `src/lib/dashboardCache.ts` and read/written by `src/App.tsx`'s `fetchD
 - `plants.data` — provider full payload (Perenual / Verdantly), avoids re-fetch.
 - `plants.care_guide_data` (Wave 2+ of AI Plant Overhaul) — AI-generated structured care guide. Lives on the global AI catalogue row (`home_id IS NULL, source = 'ai'`). Replaces the legacy 30-day TTL string-keyed cache. Invalidation is freshness-version-based: `refresh-stale-ai-plants` cron (every 90 days) and `manual-refresh-ai-plant` edge fn re-check and bump `freshness_version` if content changed.
 - `user_behaviour_summary` — weekly summary for AI grounding.
+- `area_ai_insights` — one row per area caching the **AI Area Coach** analysis (`insight` jsonb). Invalidation is **reading-driven, not TTL**: the `area-sensor-analysis` fn stores `based_on_reading_at` (the latest `device_reading` the insight reflects) and only re-calls Gemini when a newer reading (live or manual) arrives or the user forces a re-analyse. Means opening the tab repeatedly with unchanged sensor data costs nothing.
 
 ### Legacy `aiCache` string-keyed table (transitional)
 

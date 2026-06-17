@@ -127,6 +127,7 @@ Highlights:
 - `generate-task-from-photo`
 - `scan-area`
 - `optimise-area-ai`
+- `area-sensor-analysis` (AI Area Coach — persona-aware JSON-mode call grounded in an area's soil-sensor readings + plants + automations; cached in `area_ai_insights`, reading-driven invalidation)
 - `generate-guide`
 - `search-plants-ai`
 - `companion-planting`

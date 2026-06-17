@@ -68,7 +68,14 @@ LocationManager
 
 ### Edge functions invoked
 
-None directly.
+`area-sensor-analysis` — invoked by the **AI Area Coach** tab inside the Area Metrics modal (see below). Cache-aware: returns the cached `area_ai_insights` row instantly and only re-calls Gemini when a `device_reading` newer than the cached one arrives, or the user taps **Re-analyse** (`force`). Rate-limited per user.
+
+### Area Metrics modal — tabs (2026-06-17)
+
+The area-edit ("Area Metrics") modal body is split into two tabs (state `areaTab`, reset to `readings` on open):
+
+- **Readings** — the existing [`AreaSensorsPanel`](../../../src/components/area/AreaSensorsPanel.tsx) + growing-medium / texture / pH / lux / water / nutrient fields.
+- **AI Area Coach** — [`AreaAiAnalysisPanel`](../../../src/components/area/AreaAiAnalysisPanel.tsx). Tier-gated via the `aiEnabled` prop (threaded from `App.tsx` as `!!profile.ai_enabled`). Non-AI tiers see a compact upgrade card and **no** AI call is made. On AI tiers the panel auto-runs on open (cache-aware): it paints the last cached insight from `area_ai_insights` immediately, then calls `area-sensor-analysis` to refresh if readings are newer. Renders per-metric target ranges (moisture/EC/soil-temp) with status badges + meaning + recommendation, an automation review/suggestions block, and a confidence line. Persona-tuned voice (rookie vs expert) is decided server-side from `user_profiles.persona`. Pure presentation helpers live in [`src/lib/areaInsight.ts`](../../../src/lib/areaInsight.ts).
 
 ### Cron / scheduled jobs that affect this surface
 
@@ -80,7 +87,7 @@ None.
 
 ### Tier gating
 
-None.
+The **AI Area Coach** tab is gated by `profile.ai_enabled` (passed as `aiEnabled`). Non-AI tiers see an upgrade card; no `area-sensor-analysis` call is made. The rest of the surface is ungated.
 
 ### Beta gating
 
@@ -209,5 +216,12 @@ No difference.
 ## Code references for ongoing maintenance
 
 - `src/components/LocationManager.tsx` — entire component
+- `src/components/area/AreaSensorsPanel.tsx` — Readings tab
+- `src/components/area/AreaAiAnalysisPanel.tsx` — AI Area Coach tab
+- `src/lib/areaInsight.ts` — pure status/label helpers for the AI panel
+- `src/services/areaSensorsService.ts` — `fetchAreaInsight` / `generateAreaInsight`
+- `supabase/functions/area-sensor-analysis/index.ts` — the coaching edge function
+- `supabase/functions/_shared/areaAnalysisPrompt.ts` — persona prompt builder + cache staleness helper
+- `supabase/migrations/20260724000000_area_ai_insights.sql` — insight cache table
 - `src/components/InfoTooltip.tsx` — reusable plain-English help
 - `supabase/migrations/*areas*` — areas schema
