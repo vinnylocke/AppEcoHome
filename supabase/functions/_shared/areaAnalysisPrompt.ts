@@ -46,8 +46,12 @@ export interface AreaAnalysisInput {
   automations: Array<{
     name: string;
     isActive: boolean;
+    /** "time_scheduled" | "sensor_threshold" | "weather" | ... */
+    triggerKind: string | null;
     moistureThresholdPct: number | null;
     valveDurationSeconds: number | null;
+    /** How many recurring care tasks (blueprints) this automation drives. */
+    linkedTaskCount: number;
   }>;
 }
 
@@ -192,7 +196,20 @@ export function buildAreaAnalysisPrompt(input: AreaAnalysisInput): string {
     : "  (no plants recorded in this area)";
 
   const automationLines = automations.length > 0
-    ? automations.map((a) => `  - ${a.name}${a.isActive ? "" : " (inactive)"}: opens valve when moisture < ${a.moistureThresholdPct ?? "?"}%${a.valveDurationSeconds ? ` for ${Math.round(a.valveDurationSeconds / 60)} min` : ""}`).join("\n")
+    ? automations.map((a) => {
+        const dur = a.valveDurationSeconds
+          ? ` for ${a.valveDurationSeconds >= 60 ? `${Math.round(a.valveDurationSeconds / 60)} min` : `${a.valveDurationSeconds} s`}`
+          : "";
+        const trig = a.moistureThresholdPct != null
+          ? `waters when soil moisture < ${a.moistureThresholdPct}%`
+          : a.triggerKind === "time_scheduled"
+          ? "waters on a fixed schedule"
+          : a.triggerKind
+          ? `trigger: ${a.triggerKind}`
+          : "waters the area";
+        const tasks = a.linkedTaskCount > 0 ? ` · drives ${a.linkedTaskCount} care task${a.linkedTaskCount === 1 ? "" : "s"}` : "";
+        return `  - ${a.name}${a.isActive ? "" : " (inactive)"}: ${trig}${dur}${tasks}`;
+      }).join("\n")
     : "  (none configured)";
 
   return `${personaInstruction(input.persona)}
@@ -216,7 +233,7 @@ ${historyLines}
 == PLANTS IN THIS AREA ==
 ${plantLines}
 
-== EXISTING AUTOMATIONS (moisture-triggered watering) ==
+== EXISTING AUTOMATIONS (watering) ==
 ${automationLines}
 
 == YOUR TASK ==
@@ -225,9 +242,10 @@ For THIS area and THESE plants:
    the current value if known, a status (good/low/high; "unknown" if no reading), a plain "meaning" of the
    metric, "why_for_these_plants" (relate it to the specific plants above), and a "recommendation".
    - If EC is raw ADC (uncalibrated), say ranges are relative and recommend a calibrated sensor for absolutes.
-2. automation_review: if automations exist, judge whether the moisture threshold(s) suit these plants
-   (set ok + notes). If NONE exist, set automation_review.ok=false with a short note and populate
-   automation_suggestions with 1-3 concrete moisture-triggered watering automations to add
+2. automation_review: if automations exist, judge whether they suit these plants and the current
+   readings — e.g. is the schedule frequent enough, or the moisture threshold appropriate, given the
+   moisture trend? (set ok + notes). If NONE exist, set automation_review.ok=false with a short note and
+   populate automation_suggestions with 1-3 concrete moisture-triggered watering automations to add
    (title, description, suggested_moisture_threshold_pct).
 3. confidence_note: one line on how much data this is based on (e.g. "based on N readings over X days").
 Be specific to the plants and the numbers above. Do not invent sensor values not provided.`;

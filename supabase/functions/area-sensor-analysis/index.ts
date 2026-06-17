@@ -162,20 +162,63 @@ serve(async (req) => {
     }
 
     // ── Automations for this area ───────────────────────────────────────────
-    // Automations are scoped directly by area_id; a moisture-triggered one has
-    // sensor_metric='soil_moisture' with a sensor_threshold_value + comparator.
+    // An automation is "in" this area if EITHER it's scoped directly by area_id
+    // (sensor-threshold automations) OR it controls a device (valve/sensor) that
+    // lives in this area (time-scheduled valve automations link via
+    // automation_devices, leaving automations.area_id NULL).
     const automations: AreaAnalysisInput["automations"] = [];
     {
-      const { data: autoRows } = await db.from("automations")
-        .select("id, name, is_active, sensor_metric, sensor_comparator, sensor_threshold_value, duration_seconds")
-        .eq("home_id", homeId).eq("area_id", areaId);
-      for (const r of autoRows ?? []) {
-        const isMoisture = (r.sensor_metric as string | null) === "soil_moisture";
+      // All devices physically in this area (valves + sensors).
+      const { data: areaDevices } = await db.from("devices")
+        .select("id").eq("home_id", homeId).eq("area_id", areaId);
+      const areaDeviceIds = (areaDevices ?? []).map((d: { id: string }) => d.id);
+
+      let deviceLinkedIds: string[] = [];
+      if (areaDeviceIds.length > 0) {
+        const { data: ad } = await db.from("automation_devices")
+          .select("automation_id").in("device_id", areaDeviceIds);
+        deviceLinkedIds = (ad ?? []).map((r: { automation_id: string }) => r.automation_id);
+      }
+
+      const [{ data: byArea }, byDeviceRes] = await Promise.all([
+        db.from("automations")
+          .select("id, name, is_active, trigger_kind, sensor_metric, sensor_threshold_value, duration_seconds")
+          .eq("home_id", homeId).eq("area_id", areaId),
+        deviceLinkedIds.length > 0
+          ? db.from("automations")
+              .select("id, name, is_active, trigger_kind, sensor_metric, sensor_threshold_value, duration_seconds")
+              .in("id", deviceLinkedIds)
+          : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+      ]);
+
+      const merged = [...(byArea ?? []), ...((byDeviceRes.data ?? []))] as Array<{
+        id: string; name: string; is_active: boolean; trigger_kind: string | null;
+        sensor_metric: string | null; sensor_threshold_value: number | null; duration_seconds: number | null;
+      }>;
+      const dedup = new Map<string, typeof merged[number]>();
+      for (const r of merged) if (!dedup.has(r.id)) dedup.set(r.id, r);
+
+      // Count the recurring care tasks (blueprints) each automation drives.
+      const autoIds = [...dedup.keys()];
+      const taskCountById = new Map<string, number>();
+      if (autoIds.length > 0) {
+        const { data: ab } = await db.from("automation_blueprints")
+          .select("automation_id").in("automation_id", autoIds);
+        for (const r of ab ?? []) {
+          const id = r.automation_id as string;
+          taskCountById.set(id, (taskCountById.get(id) ?? 0) + 1);
+        }
+      }
+
+      for (const r of dedup.values()) {
+        const isMoisture = r.sensor_metric === "soil_moisture";
         automations.push({
-          name: r.name as string,
+          name: r.name,
           isActive: !!r.is_active,
-          moistureThresholdPct: isMoisture ? (r.sensor_threshold_value as number | null) : null,
-          valveDurationSeconds: (r.duration_seconds as number | null) ?? null,
+          triggerKind: r.trigger_kind ?? null,
+          moistureThresholdPct: isMoisture ? r.sensor_threshold_value : null,
+          valveDurationSeconds: r.duration_seconds ?? null,
+          linkedTaskCount: taskCountById.get(r.id) ?? 0,
         });
       }
     }

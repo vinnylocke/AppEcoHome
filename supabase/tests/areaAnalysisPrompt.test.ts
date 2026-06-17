@@ -22,7 +22,7 @@ function baseInput(overrides: Partial<AreaAnalysisInput> = {}): AreaAnalysisInpu
       { name: "Basil", health: null, soilPhMin: null, soilPhMax: null },
     ],
     automations: [
-      { name: "Morning Water", isActive: true, moistureThresholdPct: 25, valveDurationSeconds: 600 },
+      { name: "Morning Water", isActive: true, triggerKind: "sensor_threshold", moistureThresholdPct: 25, valveDurationSeconds: 600, linkedTaskCount: 0 },
     ],
     ...overrides,
   };
@@ -37,7 +37,19 @@ Deno.test("prompt includes area, current readings, plants and automations", () =
   assert(p.includes("Tomato"));
   assert(p.includes("preferred soil pH 6-6.8"));
   assert(p.includes("Morning Water"));
-  assert(p.includes("moisture < 25%"));
+  assert(p.includes("soil moisture < 25%"));
+});
+
+Deno.test("prompt describes a time-scheduled automation + linked tasks", () => {
+  const p = buildAreaAnalysisPrompt(baseInput({
+    automations: [
+      { name: "Strawberry watering", isActive: true, triggerKind: "time_scheduled", moistureThresholdPct: null, valveDurationSeconds: 30, linkedTaskCount: 4 },
+    ],
+  }));
+  assert(p.includes("Strawberry watering"));
+  assert(p.includes("waters on a fixed schedule"));
+  assert(p.includes("for 30 s"));
+  assert(p.includes("drives 4 care tasks"));
 });
 
 Deno.test("prompt labels raw ADC EC as uncalibrated", () => {
