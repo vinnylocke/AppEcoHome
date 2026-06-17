@@ -6,7 +6,7 @@ If you only check Rhozly once a week, this is the page to bookmark.
 
 Access it from the **Tools** tab → **Weekly Overview**, from the Dashboard's Week Ahead card (tap to expand), or directly at `/weekly`.
 
-> 📸 Screenshot: The Weekly Overview page showing the date-range header at top, then sections for tasks, weather events, harvests, AI tips, and pollen below
+![The Weekly Overview page — a Sunday-morning recap that regenerates each week](/doc-images/17-weekly-overview-01-overview.webp)
 
 ---
 

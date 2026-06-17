@@ -6,7 +6,7 @@ It can do two things:
 1. **Identify** an unknown plant from a photo
 2. **Diagnose** a plant problem (disease, pest, nutrient deficiency) from a symptom photo
 
-> 📸 Screenshot: The Plant Lens home screen showing the two mode buttons (Identify Plant / Diagnose Problem) and the camera upload area
+![The Plant Lens home screen — the Upload → Analyse → Results flow with the photo upload area](/doc-images/08-plant-doctor-01-overview.webp)
 
 ---
 

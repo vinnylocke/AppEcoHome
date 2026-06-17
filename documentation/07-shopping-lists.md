@@ -1,8 +1,8 @@
 # Shopping Lists
 
-Shopping Lists is its own page in Rhozly — access it via the **Plan** section of the sidebar → **Shopping Lists**, or directly at `/shopping`. Use them to track what you need to buy for your garden — plants sourced from Perenual, Verdantly, or AI suggestions, as well as products like fertilisers, tools, and supplies.
+Shopping Lists live under the **Planner** tab — open the **Shopping** sub-tab at the top of the page (or go to `/shopping`, which lands on the same place). Use them to track what you need to buy for your garden — plants sourced from a plant database or AI suggestions, as well as products like fertilisers, tools, and supplies.
 
-> 📸 Screenshot: The Shopping Lists page showing two active lists (one expanded with items) and a collapsed Completed section at the bottom
+![The Shopping Lists page — track plants, tools, and supplies to buy](/doc-images/07-shopping-lists-01-overview.webp)
 
 ---
 

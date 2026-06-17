@@ -10,7 +10,7 @@ It has three tabs:
 | **Community Guides** | Guides written and shared by Rhozly users |
 | **App Help** | AI-powered Q&A for navigating and using Rhozly |
 
-> 📸 Screenshot: The Guides page with the two tabs visible, a search bar, and a grid of guide cards below
+![The Guides library — the Rhozly Guides / Community Guides / App Help tabs, tag filter, and a grid of guide cards](/doc-images/12-guides-01-library.webp)
 
 ---
 
@@ -53,7 +53,7 @@ Tap a card to open the guide in **Reading view**.
 
 ## Reading a Guide
 
-> 📸 Screenshot: The guide reading view showing the title, author info, table of contents, and the first section with text and an inline image
+![The guide reading view showing the title, author info, and the guide's sections](/doc-images/12-guides-04-reading.webp)
 
 The reading view shows:
 - **Back button** to return to the guide list
@@ -148,7 +148,7 @@ The **Rhozly Guides** tab contains curated guides written by the Rhozly team. Th
 
 The **App Help** tab provides an AI-powered Q&A assistant that answers questions about how to use Rhozly.
 
-> 📸 Screenshot: The App Help tab showing a search/ask input field with example question chips below it
+![The App Help tab — search-as-you-type Q&A for using Rhozly](/doc-images/12-guides-08-app-help.webp)
 
 Type any question about the app (e.g. "How do I add a plant to my shed?" or "What does the Planner do?") and tap **Ask**. The AI reads the feature documentation and provides a contextual answer with references to the relevant sections.
 

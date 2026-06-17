@@ -1,4 +1,5 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useLocation } from "react-router-dom";
 import {
   CheckCircle2, Clock, Circle, X, Search, ChevronRight,
@@ -48,6 +49,15 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
   const [query, setQuery] = useState("");
   const [activeTab, setActiveTab] = useState<ActiveTab>("guides");
   const [activeDoc, setActiveDoc] = useState<DocEntry | null>(null);
+  // Click-to-expand lightbox for embedded doc screenshots.
+  const [lightbox, setLightbox] = useState<{ src: string; alt: string } | null>(null);
+
+  useEffect(() => {
+    if (!lightbox) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setLightbox(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightbox]);
 
   const filtered = useMemo(() => {
     const q = query.toLowerCase();
@@ -146,6 +156,7 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
           <div className="flex bg-rhozly-surface-low p-1 rounded-xl gap-1">
             <button
               onClick={() => setActiveTab("guides")}
+              data-testid="help-tab-guides"
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-black transition-all ${activeTab === "guides" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/50 hover:text-rhozly-on-surface"}`}
             >
               <GraduationCap size={13} />
@@ -153,6 +164,7 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
             </button>
             <button
               onClick={() => { setActiveTab("docs"); setActiveDoc(null); }}
+              data-testid="help-tab-docs"
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 px-3 rounded-lg text-xs font-black transition-all ${activeTab === "docs" ? "bg-white text-rhozly-primary shadow-sm" : "text-rhozly-on-surface/50 hover:text-rhozly-on-surface"}`}
             >
               <BookOpen size={13} />
@@ -238,6 +250,7 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
             <button
               key={doc.id}
               onClick={() => setActiveDoc(doc)}
+              data-testid={`help-doc-row-${doc.id}`}
               className="w-full flex items-start gap-3 py-3 px-4 hover:bg-rhozly-surface-low/60 active:bg-rhozly-primary/10 transition-colors rounded-2xl text-left"
             >
               <BookOpen size={16} className="text-rhozly-primary/50 shrink-0 mt-0.5" />
@@ -286,6 +299,32 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
                   {children}
                 </blockquote>
               ),
+              img: ({ src, alt }) => {
+                const url = typeof src === "string" ? src : undefined;
+                return (
+                  <figure className="my-4" data-testid="doc-image">
+                    <button
+                      type="button"
+                      onClick={() => url && setLightbox({ src: url, alt: alt ?? "" })}
+                      className="block w-full cursor-zoom-in rounded-2xl overflow-hidden focus:outline-none focus-visible:ring-2 focus-visible:ring-rhozly-primary/40"
+                      aria-label={alt ? `Expand screenshot: ${alt}` : "Expand screenshot"}
+                      data-testid="doc-image-trigger"
+                    >
+                      <img
+                        src={url}
+                        alt={alt ?? ""}
+                        loading="lazy"
+                        className="w-full rounded-2xl border border-rhozly-outline/15 shadow-sm bg-rhozly-surface-low transition-transform duration-200 hover:scale-[1.01]"
+                      />
+                    </button>
+                    {alt && (
+                      <figcaption className="mt-1.5 text-[11px] font-medium text-rhozly-on-surface/45 text-center italic">
+                        {alt} <span className="not-italic text-rhozly-on-surface/30">· tap to expand</span>
+                      </figcaption>
+                    )}
+                  </figure>
+                );
+              },
               code: ({ children }) => (
                 <code className="text-[11px] font-mono bg-rhozly-surface-low px-1.5 py-0.5 rounded-md text-rhozly-primary">{children}</code>
               ),
@@ -335,6 +374,45 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
             {activeDoc.content.replace(/^> 📸 Screenshot:.*$/gm, "").replace(/\n{3,}/g, "\n\n")}
           </ReactMarkdown>
         </div>
+      )}
+
+      {/* Lightbox — click a doc screenshot to expand it full-screen.
+          Portaled to <body> so it escapes the drawer's transformed ancestor
+          (a `transform` ancestor would otherwise trap `position: fixed`). */}
+      {lightbox && createPortal(
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in duration-150"
+          onClick={() => setLightbox(null)}
+          role="dialog"
+          aria-modal="true"
+          aria-label="Expanded screenshot"
+          data-testid="doc-image-lightbox"
+        >
+          <button
+            onClick={() => setLightbox(null)}
+            className="absolute top-4 right-4 p-2.5 min-w-[44px] min-h-[44px] flex items-center justify-center rounded-xl bg-white/10 hover:bg-white/20 text-white transition-colors"
+            aria-label="Close expanded image"
+            data-testid="doc-image-lightbox-close"
+          >
+            <X size={20} />
+          </button>
+          <figure
+            className="flex flex-col items-center max-w-full max-h-full"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <img
+              src={lightbox.src}
+              alt={lightbox.alt}
+              className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl"
+            />
+            {lightbox.alt && (
+              <figcaption className="mt-3 text-xs font-medium text-white/70 text-center max-w-2xl px-4">
+                {lightbox.alt}
+              </figcaption>
+            )}
+          </figure>
+        </div>,
+        document.body,
       )}
     </div>
   );

@@ -13,7 +13,7 @@ Tasks appear in three places:
 
 Every task is displayed as a card.
 
-> 📸 Screenshot: Two task cards — one pending (white) and one completed (greyed out with strikethrough title)
+![Task cards showing the type badge, plant and area chips, and action buttons — including a harvest-window card and an overdue (red) card](/doc-images/03-tasks-01-task-cards.webp)
 
 ### Card Elements
 
@@ -122,7 +122,7 @@ Below the tabs are **scope filter** buttons that let you control whose tasks you
 
 Tap anywhere on a task card (other than the action buttons) to open the full **Task Detail Modal**.
 
-> 📸 Screenshot: The Task Detail Modal showing all task details, linked plants, and dependency section
+![The Task Detail modal showing the task's details, linked plants, and harvest window](/doc-images/03-tasks-05-task-detail.webp)
 
 ### What You Can Do in the Modal
 
@@ -165,7 +165,7 @@ There are three ways to create a task:
 2. **Calendar** → select a date → tap **Add Task** in the agenda
 3. **Blueprint Manager** → creates a recurring task (see [Schedule](./04-schedule.md))
 
-> 📸 Screenshot: The Add Task modal open with fields for title, type, location, plant assignment, and recurrence
+![The Add Task modal with fields for title, type, start date, plant assignment, and recurrence](/doc-images/03-tasks-07-add-task.webp)
 
 ### Add Task Form
 
@@ -226,7 +226,7 @@ A confirmation modal appears:
 
 When you have many tasks to manage at once, use **Bulk Edit** mode.
 
-> 📸 Screenshot: Bulk Edit mode active — tasks showing selection checkboxes, with the bulk action toolbar at the bottom
+![Bulk Edit mode — task cards showing selection checkboxes with the bulk action toolbar](/doc-images/03-tasks-10-bulk-edit.webp)
 
 Tap the **Bulk Edit** button (top right of the Pending tab, only shown when there are pending tasks).
 

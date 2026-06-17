@@ -41,6 +41,7 @@ This file is the **index**. Each section's test rows + seed dependencies + page-
 | 24 | The Nursery | `nursery-lifecycle.spec.ts` | [24-nursery.md](e2e-test-plan/24-nursery.md) |
 | 25 | Security (auth + XSS + storage) | `security-{auth,xss,storage}.spec.ts` | [25-security.md](e2e-test-plan/25-security.md) |
 | 26 | Cross-home Data Isolation | `data-isolation.spec.ts` (isolation project) | [26-data-isolation.md](e2e-test-plan/26-data-isolation.md) |
+| 27 | Help Center — Documentation drawer | `help-center-docs.spec.ts` | [27-help-center-docs.md](e2e-test-plan/27-help-center-docs.md) |
 
 ## Workflow
 

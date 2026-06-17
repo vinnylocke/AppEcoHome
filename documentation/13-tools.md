@@ -2,7 +2,7 @@
 
 The **Tools** hub (sidebar → Tools, or `/tools`) is the gateway to Rhozly's advanced features. It shows a grid of tool cards — tap any to open that feature.
 
-> 📸 Screenshot: The Tools hub showing six tool cards in a grid with icons and descriptions
+![The Tools hub — tool cards grouped by Plan & Design, Measure & Track, and more](/doc-images/13-tools-01-hub.webp)
 
 ---
 
@@ -177,7 +177,7 @@ The **Garden Layout Builder** lets you create a top-down 2D map of your garden a
 
 Access: Tools → Garden Layout (or `/layout`).
 
-> 📸 Screenshot: The Garden Layout Builder showing a grid-based area with plant icons placed on it
+![The Garden Layouts screen — create a layout to start mapping your garden spaces](/doc-images/13-tools-11-garden-layout.webp)
 
 ### How to Use It
 

@@ -1,8 +1,8 @@
 # Ailment Watchlist
 
-The **Ailment Watchlist** helps you track and manage pests, diseases, and invasive plants in your garden. Access it from the **Garden** tab → **Watchlist** sub-tab.
+The **Ailment Watchlist** helps you track and manage pests, diseases, and invasive plants in your garden. Access it from the **Plants** tab → **Watchlist** sub-tab.
 
-> 📸 Screenshot: The Ailment Watchlist page showing cards for three ailments — a pest (aphids), a disease (powdery mildew), and an invasive plant (bindweed)
+![The Ailment Watchlist showing ailment cards across pests, diseases, and invasive plants](/doc-images/11-ailment-watchlist-01-overview.webp)
 
 ---
 
@@ -66,7 +66,7 @@ The detailed symptom and step builders are tucked behind expandable sections so 
 
 Each ailment has its own structured **prevention** and **remedy** workflow.
 
-> 📸 Screenshot: An expanded ailment showing the prevention steps and remedy steps as numbered sequences
+![An expanded ailment showing its description, symptoms, prevention, and remedy steps](/doc-images/11-ailment-watchlist-04-expanded.webp)
 
 **Prevention steps** — things you do to stop the ailment taking hold or spreading.
 

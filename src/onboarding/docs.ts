@@ -37,7 +37,7 @@ export const DOCS: DocEntry[] = [
   {
     id: "dashboard",
     title: "Dashboard",
-    description: "Locations view, Calendar view, Weather view, and the daily task sidebar.",
+    description: "Dashboard, Locations, Calendar, and Weather views, plus today's task list.",
     content: dashboard,
   },
   {

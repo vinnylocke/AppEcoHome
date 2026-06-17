@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Help & Documentation",
+    "items": [
+      "The in-app documentation is now illustrated — guides in the Help Center show real screenshots of each screen.",
+      "Tap any screenshot in a doc to expand it full-screen, then tap away or press Esc to close.",
+      "Refreshed several help articles to match the current app (Dashboard views, navigation, Routines, the Shed, and more)."
+    ]
+  }
+]

@@ -8,7 +8,7 @@ Rhozly is a garden management app that helps you track plants, schedule care tas
 
 When you open Rhozly for the first time you will land on the **Sign In** screen.
 
-> 📸 Screenshot: The Rhozly sign-in screen showing email/password fields and the Rhozly logo
+![The Rhozly sign-in screen with email and password fields and the Rhozly logo](/doc-images/01-getting-started-01-sign-in.webp)
 
 1. Enter your **email address** and **password**.
 2. Tap **Sign In**.
@@ -21,7 +21,7 @@ When you open Rhozly for the first time you will land on the **Sign In** screen.
 
 Rhozly organises everything around a **Home** — a property or garden space. Every plant, task, location, and plan belongs to a home.
 
-> 📸 Screenshot: The Home Setup screen prompting the user to name their first home
+![The Add a Home screen — create a new home or join an existing one](/doc-images/01-getting-started-02-home-setup.webp)
 
 On first login, if you have no home yet, Rhozly shows the **Home Setup** screen. Give your home a name (e.g. "My Garden", "Allotment", "Back Yard") and tap **Create Home**.
 
@@ -33,7 +33,7 @@ You can add more homes later — see [Switching and Adding Homes](./15-navigatio
 
 After your home is created, the Dashboard will show a **"Set up your Home Profile"** card. Completing the Habit Quiz unlocks AI plant recommendations and personalised task ordering.
 
-> 📸 Screenshot: Dashboard showing the "Set up your Home Profile" card in the right sidebar
+![The Garden Profile page, where the Habit Quiz personalises your plant recommendations](/doc-images/01-getting-started-03-quiz.webp)
 
 - Tap **Get started** on the card (or go to **Profile** → **Habit Quiz**).
 - Answer a short set of questions about your experience level, available time, and growing preferences.
@@ -71,10 +71,12 @@ Rhozly has three persistent navigation zones:
 │ SIDEBAR  │                  MAIN CONTENT                         │
 │          │                                                       │
 │ Dashboard│                                                       │
-│ Garden   │                                                       │
-│ Plan     │                                                       │
+│ Plants   │                                                       │
+│ Planner  │                                                       │
+│ Journal  │                                                       │
+│ Notes    │                                                       │
 │ Tools    │                                                       │
-│          │                                                       │
+│ Integr.  │                                                       │
 └──────────┴──────────────────────────────────────────────────────┘
 ```
 
@@ -92,18 +94,21 @@ The header is always visible at the top of the screen.
 
 ### Sidebar Navigation
 
-The sidebar has four main destinations:
+The sidebar has these destinations:
 
 | Icon | Label | What you'll find there |
 |------|-------|------------------------|
 | 🏠 | **Dashboard** | Garden overview, tasks, weather, Today Focus, Week Ahead preview, Seasonal Picks |
-| 🌿 | **Garden** | Your plant inventory (The Shed), Nursery, Notes, and Ailment Watchlist |
-| 📋 | **Plan** | Garden plans + Shopping lists |
-| 🔧 | **Tools** | Plant Doctor (with Voice), Visualiser, Sun Tracker AR, Light Sensor, Guides, Companion Planting, Garden Layout, Weekly Overview |
+| 🌿 | **Plants** | Your plant inventory (The Shed) and the Ailment Watchlist |
+| 📋 | **Planner** | Garden plans and Shopping lists |
+| 📖 | **Journal** | Your garden journal — a timeline of photos and entries |
+| 📝 | **Notes** | A rich-text garden notebook |
+| 🔧 | **Tools** | Plant Doctor (with Voice), Visualiser, Sun Tracker, Light Sensor, Guides, Companion Planting, Garden Layout, Weekly Overview |
+| 🔌 | **Integrations** | Smart-home devices and automations |
 
-On **mobile** the sidebar collapses and you navigate using the icons only. On **desktop** it can be expanded to show labels, or collapsed to icon-only mode — your preference is remembered.
+On **mobile** a **Quick** shortcut also appears for fast one-handed access, and the sidebar collapses to icons only. On **desktop** it can be expanded to show labels, or collapsed to icon-only mode — your preference is remembered.
 
-> 📸 Screenshot: The expanded sidebar on desktop showing all four navigation items with labels
+![The expanded desktop sidebar showing the navigation items with labels](/doc-images/01-getting-started-04-sidebar.webp)
 
 ### Quick Access Home (Mobile)
 

@@ -2,8 +2,39 @@
 
 > The App Help tab inside the Guides screen. Search-as-you-type over a bundled JSON of help articles about *using Rhozly*. Distinct from gardening guides — answers "how do I add a plant?", "where do I export data?", etc.
 
+> ⚠️ **Drift note (partial):** the Role 1/Role 2 detail below documents `AppHelpSearch`. The
+> **Help Center drawer** (`src/onboarding/HelpCenterDrawer.tsx`), opened from the left-nav **Help
+> Center** item, is a *separate* surface with two tabs — **Guides** (onboarding flows) and
+> **Documentation** (the bundled `documentation/*.md` reference). It has no full reference file yet;
+> the doc-viewer behaviour is summarised under "Documentation drawer" immediately below. A full
+> rewrite of this file to cover both surfaces is outstanding.
+
+## Documentation drawer (`HelpCenterDrawer.tsx`)
+
+The **Documentation** tab renders each `documentation/NN-*.md` file via `react-markdown` (custom
+component map for headings, tables, links between docs, and **images**). Docs are imported as raw
+strings (`?raw`) through `src/onboarding/docs.ts`.
+
+- **Embedded screenshots:** docs may embed images as standard markdown (`![alt](/doc-images/x.webp)`).
+  The `img` renderer wraps them in a rounded/bordered `<figure data-testid="doc-image">` with the alt
+  text shown as a caption. Images are **WebP** served statically from `public/doc-images/` (referenced
+  by absolute `/doc-images/...` URLs because `?raw` markdown bypasses Vite's asset pipeline). Naming:
+  `{docNumber}-{docSlug}-{NN}-{shortdesc}.webp`. Captured with `node scripts/docshots-to-webp.mjs`
+  (PNG → WebP via bundled Playwright Chromium; no extra dependency).
+- **Click-to-expand lightbox:** each image is wrapped in a `doc-image-trigger` button; clicking opens
+  a full-screen overlay (`doc-image-lightbox`) **portaled to `document.body`** — required because the
+  drawer's animated ancestor has a `transform`, which would otherwise trap a `position: fixed`
+  overlay inside the 420 px drawer. Closes via backdrop click, the close button, or **Esc**.
+- **Screenshot placeholders:** lines of the form `> 📸 Screenshot: <description>` mark slots not yet
+  illustrated. They are **stripped at render time** so they never reach the reader. As a doc is
+  illustrated, each callout is replaced with its `![alt](/doc-images/…webp)` image.
+- **Tab/row selectors:** `help-tab-guides`, `help-tab-docs`, `help-doc-row-<docId>`.
+- E2E coverage: `tests/e2e/specs/help-center-docs.spec.ts` (HCD-001–003).
+
 **Source files:**
-- `src/components/AppHelpSearch.tsx` — search UI
+- `src/components/AppHelpSearch.tsx` — App Help search UI (this file's Role 1/2 below)
+- `src/onboarding/HelpCenterDrawer.tsx` — the Guides + Documentation drawer (markdown doc viewer)
+- `src/onboarding/docs.ts` — registry of the bundled `documentation/*.md` files
 - Bundled help articles JSON (likely `src/constants/helpArticles.ts` or similar)
 
 ---

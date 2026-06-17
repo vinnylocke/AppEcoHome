@@ -8,7 +8,7 @@ This guide covers the persistent navigation elements that are available everywhe
 
 The header is pinned to the top of the screen on every page.
 
-> 📸 Screenshot: The full header bar showing the menu toggle, logo, home dropdown, plus button, and profile dropdown
+![The header bar — menu toggle, logo, home dropdown, search, quick-add (+), and profile](/doc-images/15-navigation-quick-add-11-header.webp)
 
 ```
 [ ≡ Menu ] [ Logo ] [ 🏡 Home Name ▾ ]  ──────────  [ + ] [ 👤 Name ▾ ]
@@ -28,7 +28,7 @@ The header is pinned to the top of the screen on every page.
 
 The sidebar provides the main navigation between sections.
 
-> 📸 Screenshot: The expanded sidebar with four navigation items labelled and the help/privacy buttons at the bottom
+![The expanded sidebar with the navigation items labelled and the Help Center / privacy buttons at the bottom](/doc-images/01-getting-started-04-sidebar.webp)
 
 ### Main Navigation Items
 
@@ -58,7 +58,7 @@ At the bottom of the sidebar:
 
 If you belong to more than one home (your own garden plus a family member's, or a community allotment), the **Home Switcher** lets you move between them.
 
-> 📸 Screenshot: The home switcher dropdown showing two homes listed with a checkmark on the active one, and an "Add new home" button at the bottom
+![The home switcher dropdown with the active home and a "Create New Home" option](/doc-images/15-navigation-quick-add-61-home-switcher.webp)
 
 Tap the **Home Name ▾** button in the header to open the switcher.
 
@@ -82,7 +82,7 @@ Each home has its own permissions system. The home owner can control what other 
 
 The **+** button in the header opens the **Quick Launcher** — a customisable sheet of shortcuts that lets you create or jump to anything without leaving the current page.
 
-> 📸 Screenshot: The Quick Launcher sheet with sixteen tiles in a grid, each labelled with an icon
+![The Quick Add menu — create a task, plant, plan, location, ailment, and more from anywhere](/doc-images/15-navigation-quick-add-01-menu.webp)
 
 ### The Tile Catalogue (16 destinations)
 

@@ -4,7 +4,7 @@
 
 Access via the **Garden** tab → **Notes**, or directly at `/notes`.
 
-> 📸 Screenshot: The Notes page showing the search bar at top, a row of pinned notes, and a grid of "All notes" below
+![The Notes page — your garden notebook, ready for your first note](/doc-images/16-notes-01-overview.webp)
 
 ---
 

@@ -4,7 +4,7 @@
 
 Access via **Tools** → **Location Manager** (or directly at `/management`).
 
-> 📸 Screenshot: The Location Manager showing two location cards (one expanded with its areas listed below)
+![The Location Manager showing location cards with their areas and metrics (plant counts, light levels)](/doc-images/09-locations-areas-01-overview.webp)
 
 ---
 
@@ -28,7 +28,7 @@ Home
 
 Tap **+ Add Location**.
 
-> 📸 Screenshot: The Add Location form with a name field and an indoors/outdoors toggle
+![The Add Location form with a name field and an indoors / outdoors toggle](/doc-images/09-locations-areas-02-add-location.webp)
 
 | Field | Description |
 |-------|-------------|

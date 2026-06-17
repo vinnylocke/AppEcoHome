@@ -20,7 +20,8 @@
     "test:e2e:fresh": "npm run test:seed && playwright test --pass-with-no-tests",
     "deploy": "node scripts/deploy.mjs",
     "maintenance:off": "node scripts/clear-maintenance.mjs",
-    "invite:beta": "node scripts/invite-beta-users.mjs"
+    "invite:beta": "node scripts/invite-beta-users.mjs",
+    "docshots:webp": "node scripts/docshots-to-webp.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.3.0",

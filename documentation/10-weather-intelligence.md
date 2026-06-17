@@ -15,20 +15,19 @@ Rhozly fetches live weather data and uses it to give you real-time gardening adv
 
 ---
 
-## Weather Widget
+## Current Conditions
 
-The weather widget sits at the top of the Dashboard Locations view.
+Current weather is summarised in the **Daily Brief** card at the top of the Dashboard, and shown in full on the **Weather** view.
 
-> 📸 Screenshot: The weather widget with a gradient background, temperature prominently displayed, and icons for humidity, wind, and description
+![The Daily Brief card summarising the current temperature and conditions](/doc-images/02-dashboard-02-daily-brief.webp)
 
-It shows:
-- **Temperature** (°C) — large, prominent
-- **Conditions** — text description (e.g. "Heavy Rain", "Partly Cloudy", "Sunny")
-- **Humidity** — percentage
-- **Wind speed** — km/h
-- **Background gradient** — changes colour to reflect the current conditions (blue for rain, orange for clear, grey for overcast)
+The Daily Brief shows:
+- **Temperature** (°C) — in the "Now" chip
+- **Conditions** — a short description (e.g. "light rain", "partly cloudy")
+- A **weather icon** reflecting the current conditions
+- A count of any active **weather alerts**
 
-Tap **"View Full Forecast"** to open the Weather view.
+Open the **Weather** view (Dashboard → Weather tab) for humidity, wind, the hourly breakdown, and the full forecast.
 
 ---
 
@@ -36,7 +35,7 @@ Tap **"View Full Forecast"** to open the Weather view.
 
 If a weather alert is active for any of your outdoor locations (e.g. frost risk, storm, high wind), a **coloured alert banner** appears below the weather widget.
 
-> 📸 Screenshot: A frost alert banner in light blue, showing "Frost Risk — Tonight from 11pm to 6am — Protect sensitive plants"
+![A weather alert banner — here a high-wind alert with its time window and recommended action](/doc-images/02-dashboard-03-weather-alert.webp)
 
 The banner shows:
 - **Alert type** (e.g. Frost Risk, Storm Warning, Heat Advisory)
@@ -52,7 +51,7 @@ Alerts are fetched alongside the weather forecast and update automatically. **Al
 
 The full forecast is available in the **Weather** view (Dashboard → Weather tab).
 
-> 📸 Screenshot: The 7-day forecast grid — each day shows an icon, high/low temperatures, condition text, and rain probability
+![The Weather view forecast — day cards with icons and high / low temperatures](/doc-images/10-weather-intelligence-01-forecast.webp)
 
 Each day card shows:
 - **Day name and date**
@@ -68,7 +67,7 @@ Each day card shows:
 
 The **Garden Intelligence** panel appears below the 7-day forecast. It analyses forecast data against a set of gardening rules and shows you actionable advice.
 
-> 📸 Screenshot: Garden Intelligence panel with three rule cards — one green (good condition), one amber (caution), one red (action required)
+![The Garden Intelligence panel — rule cards (Auto-Watering, Frost, Heatwave, High Winds, Overwatering) each marked Clear or Warning](/doc-images/10-weather-intelligence-04-garden-intel.webp)
 
 ### How Rules Work
 

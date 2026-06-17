@@ -88,6 +88,7 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
 │       │   ├── garden-profile.spec.ts
 │       │   ├── guides.spec.ts
 │       │   ├── community-guides.spec.ts
+│       │   ├── help-center-docs.spec.ts
 │       │   ├── watchlist.spec.ts
 │       │   ├── layout.spec.ts
 │       │   ├── lightsensor.spec.ts
@@ -780,7 +781,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `refreshStaleAiPlants.test.ts` | 5 | Wave 4 of AI Plant Overhaul — changed/unchanged paths, empty batch, mid-batch crash isolation, batch-size cap |
 | `sceneJson.test.ts` | 6 | Multi-ID — `parseSceneJson` tolerant parse (clean JSON, code fence, prose preamble, truncated-array salvage, unrecoverable → empty, null/empty input) |
 
-### E2E tests — 455 tests across 28 files (+ 13 isolation tests)
+### E2E tests — 460 tests across 29 files (+ 13 isolation tests)
 
 Tests run across up to 4 parallel workers (`fullyParallel: false` — spec files run in parallel, tests within a file run sequentially).
 
@@ -826,6 +827,7 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `statstab.spec.ts` | 7 | Stats tab (STT-001–007): tab visible, plant info shows planted date, yield count ≥ 1, pruning count ≥ 1, ailment row visible, task total visible, Tomato empty states |
 | `data-isolation.spec.ts` | 13 | **Isolation project only** — cross-home data isolation for plants, ailments, plans, blueprints, locations, tasks, inventory items |
 | `community-guides.spec.ts` | 17 | Tab visibility, guide display, reader view, star toggle, comment, publish guide, draft isolation |
+| `help-center-docs.spec.ts` | 5 | Help Center → Documentation drawer (HCD-001–005): Dashboard doc reader opens, embedded `/doc-images/*.webp` screenshots load (not broken), raw `📸 Screenshot:` callouts stripped, click-to-expand lightbox opens + closes via Esc / close button |
 | `security-auth.spec.ts` | 8 | AUTH-001–008: unauthenticated routes redirect to /auth, sign-out invalidates session, post-logout DB query returns 0 rows |
 | `security-xss.spec.ts` | 7 | XSS-001–007: XSS payloads in task title, guide title, guide comment, guide body, location name, plan name — `window.__xss` stays undefined |
 | `security-storage.spec.ts` | 6 | STG-001–006: cross-home area-scan read blocked, alien community-guides upload blocked, alien file delete, SVG MIME rejected, oversized upload rejected, area-scans bucket is private |

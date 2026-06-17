@@ -1,10 +1,10 @@
 # Garden Planner
 
-The **Planner** lives under the **Plan** tab in the sidebar (or directly at `/planner`). Use it to create AI-generated garden plans and work through a guided workflow to bring them to life.
+The **Planner** lives under the **Planner** tab in the sidebar (or directly at `/planner`). Use it to create AI-generated garden plans and work through a guided workflow to bring them to life.
 
-**Shopping Lists** are their own separate page — see [Shopping Lists](./07-shopping-lists.md).
+**Shopping Lists** share this area via the **Shopping** tab at the top of the page — see [Shopping Lists](./07-shopping-lists.md).
 
-> 📸 Screenshot: The Planner hub showing the Plans tab active, with three plan cards in the grid (In Progress, Completed, Archived)
+![The Planner hub with the Active / Completed / Archived tabs and plan cards](/doc-images/06-planner-01-hub.webp)
 
 ---
 
@@ -76,7 +76,7 @@ Free and Botanist tiers see a locked placeholder explaining the feature and invi
 
 Opening a plan card enters the **Plan Staging** view — a guided 5-phase workflow to take the AI blueprint into reality.
 
-> 📸 Screenshot: The Plan Staging view — AI blueprint on the left (markdown text), staged task list on the right
+![An open plan showing its reference photos, AI blueprint, and staged tasks](/doc-images/06-planner-07-staging.webp)
 
 ### Phase 1 — Infrastructure
 

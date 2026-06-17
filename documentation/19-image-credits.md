@@ -62,7 +62,7 @@ If two sources offer the same plant, you can compare the badges before picking o
 
 For the full register of who supplied what across your plants, visit `/credits` from any plant detail page → tap **All image credits**.
 
-> 📸 Screenshot: The /credits page showing a paginated list of every credited image in the user's home with thumbnail, contributor, licence, and link
+![The Image Credits page — where every image in Rhozly comes from](/doc-images/19-image-credits-01-register.webp)
 
 The page lists every credited image in your home with a thumbnail, contributor name, licence, and a link to the original. Filter by source or contributor to find a specific photographer's work.
 

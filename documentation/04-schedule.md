@@ -1,10 +1,10 @@
-# Schedule — Recurring Task Blueprints
+# Routines — Recurring Task Automation
 
-The **Schedule** section (accessed via the sidebar under Plan, or directly at `/schedule`) is where you manage your recurring task automation rules — called **blueprints**.
+The **Routines** page (at `/schedule`) is where you manage your recurring task automation rules. In the app these are labelled **Routines** (or "automations"); internally each one is a **blueprint** — the two terms mean the same thing, and this guide uses "blueprint" when describing how they work under the hood.
 
-A blueprint is a template that automatically generates tasks on a repeating schedule. For example, a "Water tomatoes" blueprint set to every 3 days will create a watering task every 3 days without you having to do anything.
+A routine is a template that automatically generates tasks on a repeating schedule. For example, a "Water tomatoes" routine set to every 3 days will create a watering task every 3 days without you having to do anything.
 
-> 📸 Screenshot: The Schedule page showing a list of blueprint cards with task type badges, frequency pills, and edit/delete buttons
+![The Routines page showing a list of routine cards with task type badges, frequency pills, and next-due dates](/doc-images/04-schedule-01-overview.webp)
 
 ---
 
@@ -24,7 +24,7 @@ Blueprints keep your schedule clean — rather than creating 52 "water my basil"
 
 The Schedule page shows all active blueprints for your home.
 
-> 📸 Screenshot: Blueprint cards showing type badge, plant name, frequency, location, and area chips
+![A routine card showing its task type badge, frequency, and next-due dates](/doc-images/04-schedule-02-routine-card.webp)
 
 Each blueprint card shows:
 - **Task type badge** (Watering, Maintenance, Pruning, Harvesting, Planting)
@@ -40,7 +40,7 @@ Each blueprint card shows:
 
 Use the **search bar** and **Filter** panel to find specific blueprints:
 
-> 📸 Screenshot: The filter panel open on the Schedule page
+![The filter panel open on the Routines page](/doc-images/04-schedule-03-filters.webp)
 
 **Search:** Type any part of the task title, description, or plant name.
 
@@ -63,11 +63,11 @@ Tap **Clear All** to reset filters.
 
 There are two ways to create a blueprint:
 
-1. **From the Schedule page** — tap the **+ New Blueprint** button
+1. **From the Routines page** — tap the **New Routine** button
 2. **From the Add Task form** — toggle "Make this recurring" when creating any task (see [Tasks — Creating a Task](./03-tasks.md#creating-a-task))
 3. **Global Quick Add** → **Create Task** → toggle recurring
 
-> 📸 Screenshot: The Add Task modal in recurring mode, showing the start date, interval, and end date fields
+![The New Routine modal, where you set the task details, start date, repeat interval, and optional end date](/doc-images/04-schedule-04-new-routine.webp)
 
 ### Blueprint Fields
 
@@ -143,9 +143,9 @@ Watering, pruning, planting, and maintenance blueprints continue to work the cla
 
 ---
 
-## Optimise Tab — Tune Your Schedule
+## Suggestions Tab — Tune Your Routines
 
-The **Optimise** tab on the Schedule page reviews your blueprints and suggests time-saving changes:
+The **Suggestions** tab on the Routines page (the optimiser) reviews your routines and suggests time-saving changes:
 
 | Scenario | What it means |
 |----------|--------------|
@@ -155,7 +155,7 @@ The **Optimise** tab on the Schedule page reviews your blueprints and suggests t
 | **New Blueprint** | AI suggests adding a task that's currently missing |
 | **Retire** | This blueprint may no longer apply to active plants |
 
-> 📸 Screenshot: The Optimise tab showing proposal cards with Apply / Dismiss buttons
+![The Suggestions tab — the optimiser that reviews your routines and proposes time-saving changes](/doc-images/04-schedule-07-suggestions.webp)
 
 Tap **Find Improvements** to run the local optimiser (free for all tiers). Sage+ users also get **AI-Powered Suggestions**, which uses Rhozly AI to pick up subtler improvements like seasonal adjustments.
 

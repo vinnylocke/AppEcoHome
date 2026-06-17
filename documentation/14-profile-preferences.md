@@ -4,7 +4,7 @@ The **Profile** section is where you train Rhozly's AI to understand your garden
 
 Access: sidebar → **Profile** (or `/profile`).
 
-> 📸 Screenshot: The Profile page showing two tabs — Habit Quiz and Plant Preferences — with the quiz progress shown
+![The Garden Preferences page with the Garden Quiz / Discover Plants tabs and the quiz-complete status](/doc-images/14-profile-preferences-01-overview.webp)
 
 ---
 
@@ -55,7 +55,7 @@ Tap **Retake Quiz** at the bottom of the Profile page to go through it again. Yo
 
 The **Plant Preferences** tab shows you a deck of plant cards. Swipe to tell Rhozly which plants you like and which you don't.
 
-> 📸 Screenshot: The swipe deck showing a plant card centred on screen with ✓ and ✗ icons on either side, and a stack of cards behind it
+![The Discover Plants swipe deck — like or pass on plant cards to train your preferences](/doc-images/14-profile-preferences-04-discover.webp)
 
 ### How to Swipe
 
@@ -74,7 +74,7 @@ Every swipe records a **preference** with the plant name and a sentiment (positi
 
 ## Viewing and Managing Your Preferences
 
-> 📸 Screenshot: The preferences panel showing positive preferences as green badges and negative as red badges, with source labels
+![Your garden preferences — likes and dislikes with their source (quiz or swipe)](/doc-images/14-profile-preferences-05-prefs.webp)
 
 Tap **"Show all preferences"** (or scroll down) to see every preference Rhozly has learned:
 
