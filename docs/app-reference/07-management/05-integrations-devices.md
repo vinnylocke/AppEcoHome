@@ -63,7 +63,8 @@ IntegrationsPage
 ├── Automations tab → AutomationsSection
 ├── ConnectDeviceWizard (modal)
 ├── DeviceDetailModal (modal)
-│   ├── ValveControlPanel (if water_valve)
+│   ├── ValveControlPanel (if water_valve — provider-aware: eWeLink live control,
+│   │     custom_http control via integrations-adapter-control, or read-only state)
 │   ├── SoilReadingsPanel (if soil_sensor)
 │   ├── ValveTimeline (if water_valve)
 │   └── HistoryChart
@@ -108,10 +109,20 @@ supabase.from("valve_events").select("*").eq("device_id", id).order("created_at"
 
 | Action | DB / Function |
 |--------|---------------|
-| Connect new device | `integrations-ewelink-connect` edge function (OAuth + discovery) |
+| Connect new device | `integrations-ewelink-connect` (eWeLink) / `integrations-adapter-connect` (custom_http) |
 | Rename / re-bind to location/area | `integration_devices.update({...})` |
 | Disconnect | `integration_devices.delete().eq("id", id)` |
-| Open/close valve | `integrations-ewelink-control` edge function |
+| Open/close valve (eWeLink) | `integrations-ewelink-control` |
+| Open/close valve (custom_http + others) | `integrations-adapter-control` → `adapter.control()` |
+
+**Valve control is provider-aware (2026-06-17).** `ValveControlPanel` picks the path via
+`valveControlMode(provider, controllable)` (`src/lib/valveControl.ts`): eWeLink valves use the live
+eWeLink state/control functions; **custom_http** valves with a configured control URL POST a templated
+request through `integrations-adapter-control`; a custom valve with no control URL (or a user without
+`integrations.control`) shows reported state read-only. Custom valve control is set up in the Connect
+wizard (control URL + override-able method/headers/body with `{{variable}}` placeholders + a live
+preview); the endpoint must be publicly reachable over HTTPS. See
+[Integration Contract → Valve control](../99-cross-cutting/37-integration-contract.md).
 
 ### OAuth callback (eWeLink)
 

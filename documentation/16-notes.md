@@ -26,7 +26,7 @@ Anything you would have written on the back of an envelope.
 
 Tap **+ New Note** at the top of the page.
 
-> 📸 Screenshot: The Note Editor with a title field and the rich-text body area showing the formatting toolbar
+![The Note Editor — a title field and a rich-text body area with the formatting toolbar](/doc-images/16-notes-02-editor.webp)
 
 The editor opens. Type a title (optional) and start writing. The toolbar lets you:
 

@@ -37,8 +37,12 @@ export interface ConnectFormField {
   label: string;
   placeholder?: string;
   helper?: string;
-  kind: "text" | "password" | "mac";
+  kind: "text" | "password" | "mac" | "textarea";
   required: boolean;
+  /** Optional default value the Connect wizard pre-fills. Used by the
+   *  custom_http valve control template fields so casual users get a
+   *  working request without touching it. */
+  defaultValue?: string;
 }
 
 /** Free-form credentials map keyed by `ConnectFormField.id`. */
@@ -84,6 +88,9 @@ export interface ConnectResult {
 export interface DeviceRow {
   id: string;
   external_device_id: string;
+  /** User-facing device name — exposed to control templates as
+   *  `{{device_name}}`. */
+  name: string;
   device_type: DeviceFamily;
   metadata: Record<string, unknown>;
   /** Foreign key — the area this device feeds, if linked. */

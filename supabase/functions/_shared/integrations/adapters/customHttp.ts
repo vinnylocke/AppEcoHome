@@ -25,6 +25,9 @@ import type {
   ConnectFormField,
   ConnectInput,
   ConnectResult,
+  ControlCommand,
+  Creds,
+  DeviceRow,
   NormalisedReading,
   ProviderAdapter,
 } from "../contract.ts";
@@ -34,9 +37,60 @@ import type {
   SoilReading,
   ValveReading,
 } from "../providerTypes.ts";
+import { renderTemplate, type TemplateVars } from "../template.ts";
+import { checkControlUrl } from "../urlSafety.ts";
 
 export const CUSTOM_HTTP_PROVIDER = "custom_http";
 export const CUSTOM_HTTP_SCHEMA_VERSION = 1;
+
+// ─── Outbound valve control defaults (industry-standard templated request) ──────
+export const DEFAULT_CONTROL_METHOD = "POST";
+export const DEFAULT_CONTROL_HEADERS = "Content-Type: application/json";
+export const DEFAULT_CONTROL_BODY =
+  '{"schema_version":1,"command":"{{command}}","duration_seconds":{{duration_seconds}}}';
+const ALLOWED_CONTROL_METHODS = ["POST", "PUT", "PATCH", "GET"];
+const CONTROL_TIMEOUT_MS = 8000;
+
+/** Parse a `Key: Value` (one per line) header block. Pure + tested.
+ *  Rejects CRLF / control chars in the value (header-injection guard). */
+export function parseHeaderBlock(
+  raw: string,
+): { headers: Record<string, string> } | { error: string } {
+  const headers: Record<string, string> = {};
+  for (const line of (raw ?? "").split("\n")) {
+    const trimmed = line.replace(/\r$/, "");
+    if (trimmed.trim() === "") continue;
+    const idx = trimmed.indexOf(":");
+    if (idx <= 0) return { error: "invalid_header_line" };
+    const key = trimmed.slice(0, idx).trim();
+    const value = trimmed.slice(idx + 1).trim();
+    if (!key) return { error: "invalid_header_line" };
+    // Value may still contain {{template}} tokens — those are fine; only
+    // raw control characters are rejected (the rendered value is
+    // re-checked at send time too).
+    if (/[\r\n]/.test(value)) return { error: "invalid_header_value" };
+    headers[key] = value;
+  }
+  return { headers };
+}
+
+/** True when the header block declares a JSON content type. */
+export function isJsonContentType(headers: Record<string, string>): boolean {
+  const ct = Object.entries(headers).find(([k]) => k.toLowerCase() === "content-type")?.[1] ?? "";
+  return ct.toLowerCase().includes("application/json");
+}
+
+/** Sample variable map used to validate templates at connect time. */
+function sampleVars(externalDeviceId: string, friendlyName: string): TemplateVars {
+  return {
+    command: "turn_on",
+    state: "on",
+    duration_seconds: 1800,
+    duration_minutes: 30,
+    device_external_id: externalDeviceId,
+    device_name: friendlyName,
+  };
+}
 
 /** Documented JSON payload shapes. Exported so the post-connect step
  *  can show the user a worked example. */
@@ -254,6 +308,40 @@ export const customHttpAdapter: ProviderAdapter = {
         kind: "text",
         required: true,
       },
+      // ── Water-valve control (optional) — the wizard only shows these
+      //    for the water_valve family. A valve with no control_url stays
+      //    read-only. ──────────────────────────────────────────────────
+      {
+        id: "control_url",
+        label: "Control URL (water valves only)",
+        placeholder: "https://your-device.example.com/valve",
+        helper: "Public HTTPS endpoint Rhozly POSTs on/off commands to (your device or a vendor/relay API). Leave blank for a read-only valve. Rhozly runs in the cloud, so a LAN address won't be reachable.",
+        kind: "text",
+        required: false,
+      },
+      {
+        id: "control_method",
+        label: "HTTP method",
+        kind: "text",
+        required: false,
+        defaultValue: DEFAULT_CONTROL_METHOD,
+      },
+      {
+        id: "control_headers",
+        label: "Request headers",
+        helper: "One `Key: Value` per line. Add auth here, e.g. `Authorization: Bearer …` or `X-API-Key: …`.",
+        kind: "textarea",
+        required: false,
+        defaultValue: DEFAULT_CONTROL_HEADERS,
+      },
+      {
+        id: "control_body",
+        label: "Request body template",
+        helper: "Variables: {{command}} (turn_on/turn_off), {{state}} (on/off), {{duration_seconds}}, {{duration_minutes}}, {{device_external_id}}, {{device_name}}.",
+        kind: "textarea",
+        required: false,
+        defaultValue: DEFAULT_CONTROL_BODY,
+      },
     ];
   },
 
@@ -268,6 +356,44 @@ export const customHttpAdapter: ProviderAdapter = {
 
     const webhookSecret = generateWebhookSecret();
     const externalDeviceId = slugifyDeviceId(friendlyName);
+
+    // ── Optional outbound control config (water valves) ──────────────────────
+    const controlCreds: Creds = {};
+    let controllable = false;
+    const controlUrl = (input.fields.control_url ?? "").trim();
+    if (family === "water_valve" && controlUrl) {
+      const urlCheck = checkControlUrl(controlUrl);
+      if (!urlCheck.ok) throw new Error(urlCheck.error ?? "invalid_control_url");
+
+      const method = (input.fields.control_method ?? DEFAULT_CONTROL_METHOD).trim().toUpperCase()
+        || DEFAULT_CONTROL_METHOD;
+      if (!ALLOWED_CONTROL_METHODS.includes(method)) throw new Error("invalid_control_method");
+
+      const headersRaw = input.fields.control_headers ?? DEFAULT_CONTROL_HEADERS;
+      const parsedHeaders = parseHeaderBlock(headersRaw);
+      if ("error" in parsedHeaders) throw new Error(parsedHeaders.error);
+
+      const bodyRaw = input.fields.control_body ?? DEFAULT_CONTROL_BODY;
+      const sample = sampleVars(externalDeviceId, friendlyName);
+      // Templates must render (no unknown placeholders)…
+      let renderedBody: string;
+      try {
+        renderedBody = renderTemplate(bodyRaw, sample);
+        for (const v of Object.values(parsedHeaders.headers)) renderTemplate(v, sample);
+      } catch (err) {
+        throw new Error(err instanceof Error ? err.message : "invalid_template");
+      }
+      // …and the body must be valid JSON when the headers declare JSON.
+      if (isJsonContentType(parsedHeaders.headers)) {
+        try { JSON.parse(renderedBody); } catch { throw new Error("control_body_not_json"); }
+      }
+
+      controlCreds.control_url = controlUrl;
+      controlCreds.control_method = method;
+      controlCreds.control_headers = headersRaw;
+      controlCreds.control_body = bodyRaw;
+      controllable = true;
+    }
 
     const meta: CustomHttpIntegrationMeta = {
       webhook_secret: webhookSecret,
@@ -284,8 +410,10 @@ export const customHttpAdapter: ProviderAdapter = {
     );
 
     return {
-      // No upstream credentials to store — secret lives on the integration metadata.
-      credsToStore: {},
+      // The webhook secret lives on integration metadata; outbound valve
+      // control config (url + headers + body template, possibly carrying an
+      // API key) is sensitive → stored in the encrypted credentials blob.
+      credsToStore: controlCreds,
       integrationMetadata: meta as unknown as Record<string, unknown>,
       devices: [
         {
@@ -294,7 +422,7 @@ export const customHttpAdapter: ProviderAdapter = {
           family,
           metadata: family === "soil_sensor"
             ? { source: "custom_http" }
-            : { source: "custom_http", default_duration_seconds: 1800 },
+            : { source: "custom_http", default_duration_seconds: 1800, controllable },
         },
       ],
       postConnect: {
@@ -306,6 +434,64 @@ export const customHttpAdapter: ProviderAdapter = {
         samplePayload: exampleStr,
       },
     };
+  },
+
+  async control(device: DeviceRow, command: ControlCommand, creds: Creds): Promise<void> {
+    const controlUrl = (creds.control_url ?? "").trim();
+    if (!controlUrl) throw new Error("valve_not_controllable");
+    const urlCheck = checkControlUrl(controlUrl);
+    if (!urlCheck.ok) throw new Error(urlCheck.error ?? "invalid_control_url");
+
+    const method = (creds.control_method || DEFAULT_CONTROL_METHOD).toUpperCase();
+    const parsedHeaders = parseHeaderBlock(creds.control_headers || DEFAULT_CONTROL_HEADERS);
+    if ("error" in parsedHeaders) throw new Error(parsedHeaders.error);
+    const bodyTemplate = creds.control_body || DEFAULT_CONTROL_BODY;
+
+    const isOpen = command.kind === "valve_open";
+    const durationSeconds = isOpen ? command.duration_seconds : 0;
+    const vars: TemplateVars = {
+      command: isOpen ? "turn_on" : "turn_off",
+      state: isOpen ? "on" : "off",
+      duration_seconds: durationSeconds,
+      duration_minutes: Math.round(durationSeconds / 60),
+      device_external_id: device.external_device_id,
+      device_name: device.name,
+    };
+
+    // Render headers; re-guard against CRLF in the rendered value.
+    const headers: Record<string, string> = {};
+    for (const [k, v] of Object.entries(parsedHeaders.headers)) {
+      const rendered = renderTemplate(v, vars);
+      if (/[\r\n]/.test(rendered)) throw new Error("invalid_header_value");
+      headers[k] = rendered;
+    }
+
+    let body: string | undefined;
+    if (method !== "GET") {
+      body = renderTemplate(bodyTemplate, vars);
+      if (isJsonContentType(parsedHeaders.headers)) {
+        try { JSON.parse(body); } catch { throw new Error("control_body_not_json"); }
+      }
+    }
+
+    const ac = new AbortController();
+    const timer = setTimeout(() => ac.abort(), CONTROL_TIMEOUT_MS);
+    let res: Response;
+    try {
+      res = await fetch(controlUrl, { method, headers, body, signal: ac.signal });
+    } catch (err) {
+      throw new Error(
+        `control_request_unreachable: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    } finally {
+      clearTimeout(timer);
+    }
+
+    if (!res.ok) {
+      let snippet = "";
+      try { snippet = (await res.text()).slice(0, 200); } catch { /* ignore */ }
+      throw new Error(`control_request_failed: ${res.status}${snippet ? ` ${snippet}` : ""}`);
+    }
   },
 
   async parseWebhook(req: Request, integrationMetadata: Record<string, unknown>): Promise<NormalisedReading[]> {

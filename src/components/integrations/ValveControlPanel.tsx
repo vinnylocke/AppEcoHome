@@ -1,22 +1,35 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
-import { Power, RotateCcw, Timer, Loader2 } from "lucide-react";
+import { Power, RotateCcw, Timer, Loader2, Lock } from "lucide-react";
 import { IconWatering } from "../../constants/icons";
+import { valveControlMode } from "../../lib/valveControl";
 
 interface Props {
   deviceId: string;
   homeId: string;
+  /** `integrations.provider` — drives which control path is used. */
+  provider: string;
+  /** custom_http valves: true when a control URL was configured at connect. */
+  controllable: boolean;
+  /** Caller's `integrations.control` permission. */
+  canControl: boolean;
   defaultDurationSeconds: number;
 }
 
 type ValveState = "on" | "off" | "unknown";
 
-export default function ValveControlPanel({ deviceId, homeId, defaultDurationSeconds }: Props) {
+export default function ValveControlPanel({
+  deviceId, provider, controllable, canControl, defaultDurationSeconds,
+}: Props) {
   const [state, setState] = useState<ValveState>("unknown");
   const [autoOffAt, setAutoOffAt] = useState<Date | null>(null);
   const [countdown, setCountdown] = useState<string | null>(null);
   const [loading, setLoading] = useState<"on" | "off" | "state" | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  const mode = valveControlMode(provider, controllable);    // "ewelink" | "custom" | "readonly"
+  const isEwelink = provider === "ewelink";
+  const canActuate = canControl && mode !== "readonly";
 
   // Countdown timer display
   useEffect(() => {
@@ -40,11 +53,8 @@ export default function ValveControlPanel({ deviceId, homeId, defaultDurationSec
   }, [deviceId]);
 
   /** supabase.functions.invoke surfaces non-2xx as a FunctionsHttpError
-   *  whose `message` is the generic "Edge Function returned a non-2xx
-   *  status code". The actual JSON body — which contains the real reason
-   *  like "Failed to reach eWeLink API" or "eWeLink error: ..." — lives
-   *  on `error.context`. Extract it so the user sees what actually
-   *  happened. */
+   *  whose `message` is generic; the real reason lives on `error.context`
+   *  as JSON. Extract it so the user sees what actually happened. */
   const extractEdgeError = async (err: unknown, fallback: string): Promise<string> => {
     if (!err) return fallback;
     const ctx = (err as { context?: { json?: () => Promise<unknown> } }).context;
@@ -61,20 +71,31 @@ export default function ValveControlPanel({ deviceId, homeId, defaultDurationSec
     return fallback;
   };
 
+  /** eWeLink reads live state from the provider; everything else (custom_http
+   *  + read-only valves) reflects the most recent reported reading. */
   const fetchState = async () => {
     setLoading("state");
     setError(null);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("integrations-ewelink-state", {
-        body: { deviceId },
-        headers: { Authorization: `Bearer ${session?.access_token}` },
-      });
-      if (res.error) {
-        const real = await extractEdgeError(res.error, "Failed to fetch state");
-        throw new Error(real);
+      if (isEwelink) {
+        const { data: { session } } = await supabase.auth.getSession();
+        const res = await supabase.functions.invoke("integrations-ewelink-state", {
+          body: { deviceId },
+          headers: { Authorization: `Bearer ${session?.access_token}` },
+        });
+        if (res.error) throw new Error(await extractEdgeError(res.error, "Failed to fetch state"));
+        setState(res.data.state as ValveState);
+      } else {
+        const { data, error: qErr } = await supabase
+          .from("device_readings")
+          .select("data")
+          .eq("device_id", deviceId)
+          .order("recorded_at", { ascending: false })
+          .limit(1);
+        if (qErr) throw new Error(qErr.message);
+        const reported = (data?.[0]?.data as { state?: string } | undefined)?.state;
+        setState(reported === "on" ? "on" : reported === "off" ? "off" : "unknown");
       }
-      setState(res.data.state as ValveState);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : "Failed to fetch state");
     } finally {
@@ -87,14 +108,12 @@ export default function ValveControlPanel({ deviceId, homeId, defaultDurationSec
     setError(null);
     try {
       const { data: { session } } = await supabase.auth.getSession();
-      const res = await supabase.functions.invoke("integrations-ewelink-control", {
+      const fn = isEwelink ? "integrations-ewelink-control" : "integrations-adapter-control";
+      const res = await supabase.functions.invoke(fn, {
         body: { deviceId, command, durationSeconds: defaultDurationSeconds },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
-      if (res.error) {
-        const real = await extractEdgeError(res.error, "Command failed");
-        throw new Error(real);
-      }
+      if (res.error) throw new Error(await extractEdgeError(res.error, "Command failed"));
       setState(command === "turn_on" ? "on" : "off");
       if (command === "turn_on" && res.data?.autoOffAt) {
         setAutoOffAt(new Date(res.data.autoOffAt));
@@ -111,7 +130,10 @@ export default function ValveControlPanel({ deviceId, homeId, defaultDurationSec
   const isOn = state === "on";
 
   return (
-    <div className="rounded-3xl border border-rhozly-outline/20 bg-rhozly-surface-lowest p-5">
+    <div
+      className="rounded-3xl border border-rhozly-outline/20 bg-rhozly-surface-lowest p-5"
+      data-testid={canActuate ? "valve-control-panel" : "valve-state-panel"}
+    >
       <div className="flex items-center gap-3 mb-5">
         <div className={`w-10 h-10 rounded-2xl flex items-center justify-center ${isOn ? "bg-blue-100" : "bg-rhozly-surface-low"}`}>
           <IconWatering className={isOn ? "text-blue-600" : "text-rhozly-on-surface-variant"} size={20} />
@@ -144,36 +166,50 @@ export default function ValveControlPanel({ deviceId, homeId, defaultDurationSec
         <p className="mb-4 text-xs text-red-600 bg-red-50 rounded-xl px-3 py-2">{error}</p>
       )}
 
-      {/* Control buttons */}
-      <div className="flex gap-3">
-        <button
-          onClick={() => sendCommand("turn_on")}
-          disabled={loading !== null || isOn}
-          data-testid="valve-turn-on"
-          className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-colors ${
-            isOn
-              ? "bg-blue-500 text-white cursor-default"
-              : "bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
-          }`}
-        >
-          {loading === "on" ? <Loader2 size={16} className="animate-spin" /> : <Power size={16} />}
-          {isOn ? "Running" : "Turn On"}
-        </button>
+      {canActuate ? (
+        <>
+          {/* Control buttons */}
+          <div className="flex gap-3">
+            <button
+              onClick={() => sendCommand("turn_on")}
+              disabled={loading !== null || isOn}
+              data-testid="valve-turn-on"
+              className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm transition-colors ${
+                isOn
+                  ? "bg-blue-500 text-white cursor-default"
+                  : "bg-blue-500 text-white hover:bg-blue-600 disabled:opacity-50"
+              }`}
+            >
+              {loading === "on" ? <Loader2 size={16} className="animate-spin" /> : <Power size={16} />}
+              {isOn ? "Running" : "Turn On"}
+            </button>
 
-        <button
-          onClick={() => sendCommand("turn_off")}
-          disabled={loading !== null || !isOn}
-          data-testid="valve-turn-off"
-          className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm border-2 border-rhozly-outline/20 text-rhozly-on-surface hover:border-red-300 hover:text-red-600 disabled:opacity-40 transition-colors"
-        >
-          {loading === "off" ? <Loader2 size={16} className="animate-spin" /> : <Power size={16} />}
-          Turn Off
-        </button>
-      </div>
+            <button
+              onClick={() => sendCommand("turn_off")}
+              disabled={loading !== null || !isOn}
+              data-testid="valve-turn-off"
+              className="flex-1 flex items-center justify-center gap-2 py-3 rounded-2xl font-bold text-sm border-2 border-rhozly-outline/20 text-rhozly-on-surface hover:border-red-300 hover:text-red-600 disabled:opacity-40 transition-colors"
+            >
+              {loading === "off" ? <Loader2 size={16} className="animate-spin" /> : <Power size={16} />}
+              Turn Off
+            </button>
+          </div>
 
-      <p className="text-xs text-rhozly-on-surface-variant text-center mt-3">
-        Auto-off after {Math.round(defaultDurationSeconds / 60)} min · Configurable in device settings
-      </p>
+          <p className="text-xs text-rhozly-on-surface-variant text-center mt-3">
+            Auto-off after {Math.round(defaultDurationSeconds / 60)} min · Configurable in device settings
+          </p>
+        </>
+      ) : (
+        // Read-only: custom valve without a control endpoint, or no control permission.
+        <div className="flex items-start gap-2 px-3 py-2.5 rounded-2xl bg-rhozly-surface-low/60">
+          <Lock size={14} className="text-rhozly-on-surface-variant mt-0.5 shrink-0" />
+          <p className="text-xs text-rhozly-on-surface-variant leading-relaxed">
+            {mode === "readonly"
+              ? "This valve reports its state but isn't set up for control. Add a control URL in the connect flow to turn it on/off from Rhozly."
+              : "You don't have permission to control valves in this home."}
+          </p>
+        </div>
+      )}
     </div>
   );
 }

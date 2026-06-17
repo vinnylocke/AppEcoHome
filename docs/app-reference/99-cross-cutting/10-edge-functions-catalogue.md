@@ -105,7 +105,8 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 | Function | Trigger | Purpose |
 |----------|---------|---------|
 | `integrations-ewelink-connect` | Wizard | OAuth + device discovery. |
-| `integrations-ewelink-control` | Device Detail modal | Open/close valves. |
+| `integrations-ewelink-control` | Device Detail modal | Open/close eWeLink valves. |
+| `integrations-adapter-control` | Device Detail modal | Provider-generic valve control. Dispatches to `getAdapter(provider).control()` (custom_http: templated outbound POST). Records `device_commands` + optimistic reading. |
 | `integrations-ewelink-state` | Polling | Sync state. Extracts battery (`params.battery` etc.) into the reading; the shared `insertReading` dual-writes to `devices.battery_*`. |
 | `integrations-ewelink-sync` | Cron | Periodic state + readings. |
 | `integrations-ecowitt-connect` | Wizard | Ecowitt setup. |

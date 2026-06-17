@@ -19,7 +19,7 @@ Three call sites use the adapter interface:
 | Connect wizard (Step 3 credentials) | `adapter.describeConnectForm()` | Per-field descriptors so the form renders without provider-specific UI code |
 | Connect dispatcher edge fn | `adapter.connect()` | Validates credentials, generates secrets (if needed), returns discovered devices + optional post-connect instructions |
 | Shared cron poller (not yet built) | `adapter.poll()` | Optional — push-only providers omit it |
-| Valve control | `adapter.control()` | Optional — only actuator families implement |
+| Valve control | `adapter.control()` | Optional — only actuator families implement. `custom_http` implements it (templated outbound POST); dispatched by `integrations-adapter-control` |
 | Webhook router | `adapter.parseWebhook()` | Optional — only webhook-capable providers implement; the router authenticates by `integrations.metadata.webhook_secret` exact match and dispatches |
 
 ---
@@ -79,6 +79,29 @@ The adapter parsers (`parseSoilPayload`, `parseValvePayload`) snap fractional va
 
 When the user manually swaps a battery, they record it via the **"Battery changed?"** button in `DeviceBatteryPanel` → writes a row to `device_battery_resets (device_id, occurred_at)`. The days-remaining regression bounds its sliding window at the most recent reset, so a battery swap doesn't look like a recharge in the trendline.
 
+### Valve control — `custom_http` (`adapter.control()`)
+
+`custom_http` water valves can be turned on/off from Rhozly via a **user-defined outbound request**
+(the industry-standard "templated webhook" pattern — cf. Home Assistant `rest_command`, Grafana, n8n):
+
+- **Connect:** for a `water_valve` the user supplies an optional **`control_url`** (public HTTPS) plus
+  override-able **method / headers / body**. These are validated and stored **encrypted** on
+  `integrations.credentials_encrypted`; the device gets `metadata.controllable = true`. No URL ⇒ the
+  valve stays read-only (the panel shows reported state only).
+- **Templating:** logic-less `{{var}}` substitution from a fixed map — `{{command}}` (`turn_on`/
+  `turn_off`), `{{state}}` (`on`/`off`), `{{duration_seconds}}`, `{{duration_minutes}}`,
+  `{{device_external_id}}`, `{{device_name}}`. No expression eval; **unknown placeholders error**
+  (`_shared/integrations/template.ts`). Default body:
+  `{"schema_version":1,"command":"{{command}}","duration_seconds":{{duration_seconds}}}`.
+- **`control(device, command, creds)`** renders the template and POSTs it (8 s timeout). Non-2xx →
+  throws with the status; the dispatcher records a failed `device_commands` row and surfaces the reason.
+- **Reachability:** the dispatcher runs in the cloud edge runtime, so `control_url` must be publicly
+  routable over HTTPS — a LAN address won't be reachable. The connect UI states this.
+- **SSRF / safety** (`_shared/integrations/urlSafety.ts`): https-only + private/loopback/link-local/
+  metadata host block (connect + control); CRLF rejected in rendered header values; JSON body validated
+  when the content-type is JSON; outbound config encrypted at rest. Full DNS-rebinding protection is a
+  follow-up.
+
 ### Legacy providers
 
 Ecowitt and eWeLink predate this contract. They ship as direct per-provider edge functions (`integrations-ecowitt-*`, `integrations-ewelink-*`) and are NOT registered with `getAdapter()` today. They will be migrated to the contract in a follow-up — the existing code conceptually already does what the contract describes (connect / poll / webhook / control), so the migration is a lift-and-shift.
@@ -101,6 +124,7 @@ Adapters and provider sync code never write directly to `devices.battery_*`. The
 | `integrations-adapter-connect` | Dispatcher. Looks up adapter, validates home membership, calls `adapter.connect()`, persists the integration row AND upserts a `devices` row per discovered device (the original Phase 3 dispatcher forgot the device upsert — fixed 2026-06-16), then returns the discovered devices + optional post-connect block. Used by `Step3Credentials` when `brand === "custom_http"`. |
 | `integrations-webhook-router` | Public endpoint. Authenticates via three secret-discovery paths, looks up the integration, dispatches to the adapter's `parseWebhook()`, writes one `device_readings` row per normalised reading, and refreshes `devices.battery_percent` + `devices.battery_reported_at` when the payload carries one. `verify_jwt = false` — secret IS the auth. |
 | `integrations-rotate-webhook-secret` | Generates a new 256-bit secret for a custom_http integration. JWT-verified. Membership-gated against `home_members`. Returns the new full webhook URL so the caller can show it to the user immediately. |
+| `integrations-adapter-control` | **Provider-generic valve control dispatcher.** Body `{ deviceId, command: "turn_on"\|"turn_off", durationSeconds? }`. JWT + `home_members` membership (parity with eWeLink control; `integrations.control` is enforced client-side by the panel). Decrypts the integration creds, calls `getAdapter(provider).control(deviceRow, cmd, creds)`, then writes a `device_commands` row + an optimistic valve `device_readings` row. Returns `{ success, autoOffAt }`. |
 | `integrations-ecowitt-*` (existing) | Legacy direct edge fns — to be migrated. |
 | `integrations-ewelink-*` (existing) | Legacy direct edge fns — to be migrated. |
 

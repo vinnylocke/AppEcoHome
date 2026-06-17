@@ -2,6 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import { supabase } from "../../../lib/supabase";
 import { Loader2, ExternalLink } from "lucide-react";
 import type { WizardState, DiscoveredDevice } from "../ConnectDeviceWizard";
+import {
+  buildControlPreview,
+  DEFAULT_CONTROL_METHOD,
+  DEFAULT_CONTROL_HEADERS,
+  DEFAULT_CONTROL_BODY,
+} from "../../../lib/payloadTemplate";
 import { Capacitor } from "@capacitor/core";
 import { Browser } from "@capacitor/browser";
 import { App as CapApp } from "@capacitor/app";
@@ -219,6 +225,14 @@ export default function Step3Credentials({ homeId, state, update, onNext }: Prop
       const friendlyName = (fields.friendly_name ?? "").trim();
       if (!friendlyName) throw new Error("Give your device a name.");
       const family = state.deviceType ?? "soil_sensor";
+      const connectFields: Record<string, string> = { friendly_name: friendlyName, family };
+      // Outbound control config — only for valves where the user set a URL.
+      if (family === "water_valve" && (fields.control_url ?? "").trim()) {
+        connectFields.control_url = fields.control_url.trim();
+        connectFields.control_method = (fields.control_method ?? DEFAULT_CONTROL_METHOD).trim() || DEFAULT_CONTROL_METHOD;
+        connectFields.control_headers = fields.control_headers ?? DEFAULT_CONTROL_HEADERS;
+        connectFields.control_body = fields.control_body ?? DEFAULT_CONTROL_BODY;
+      }
       const appOrigin = typeof window !== "undefined"
         ? `${window.location.protocol}//${window.location.host}`
         : null;
@@ -227,7 +241,7 @@ export default function Step3Credentials({ homeId, state, update, onNext }: Prop
         body: {
           provider: "custom_http",
           homeId,
-          fields: { friendly_name: friendlyName, family },
+          fields: connectFields,
           appOrigin,
         },
         headers: { Authorization: `Bearer ${session?.access_token}` },
@@ -294,6 +308,9 @@ export default function Step3Credentials({ homeId, state, update, onNext }: Prop
               Family is set from your earlier choice ({state.deviceType === "water_valve" ? "water valve" : "soil sensor"}).
               After connect we'll show you the webhook URL + the JSON shape your device should POST.
             </div>
+            {state.deviceType === "water_valve" && (
+              <ValveControlConfig fields={fields} set={set} />
+            )}
           </div>
           {error && <p className="mt-4 text-sm text-red-600 bg-red-50 rounded-2xl px-4 py-3">{error}</p>}
           <button
@@ -376,6 +393,123 @@ function Field({
         data-testid={testId}
         className="w-full px-4 py-3 rounded-2xl border border-rhozly-outline/30 bg-white text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary text-sm"
       />
+    </div>
+  );
+}
+
+function Textarea({
+  label, value, onChange, testId, rows = 3,
+}: {
+  label: string; value: string; onChange: (v: string) => void; testId: string; rows?: number;
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-semibold text-rhozly-on-surface mb-1.5">{label}</label>
+      <textarea
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        rows={rows}
+        data-testid={testId}
+        spellCheck={false}
+        className="w-full px-4 py-3 rounded-2xl border border-rhozly-outline/30 bg-white text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary text-xs font-mono resize-y"
+      />
+    </div>
+  );
+}
+
+const CONTROL_VARS_HINT =
+  "Variables: {{command}}, {{state}}, {{duration_seconds}}, {{duration_minutes}}, {{device_external_id}}, {{device_name}}";
+
+/** Optional outbound-control config for a custom water valve. UI-only flag
+ *  `__control_enabled` is not sent to the server (submitCustomHttp builds the
+ *  control_* fields explicitly). */
+function ValveControlConfig({
+  fields, set,
+}: {
+  fields: Record<string, string>; set: (k: string, v: string) => void;
+}) {
+  const enabled = (fields.control_url ?? "") !== "" || fields.__control_enabled === "1";
+
+  const toggle = () => {
+    if (enabled) {
+      set("control_url", "");
+      set("__control_enabled", "");
+    } else {
+      set("__control_enabled", "1");
+      if (!fields.control_method) set("control_method", DEFAULT_CONTROL_METHOD);
+      if (!fields.control_headers) set("control_headers", DEFAULT_CONTROL_HEADERS);
+      if (!fields.control_body) set("control_body", DEFAULT_CONTROL_BODY);
+    }
+  };
+
+  const preview = enabled
+    ? buildControlPreview({
+        url: fields.control_url ?? "",
+        method: fields.control_method,
+        headers: fields.control_headers,
+        body: fields.control_body,
+      })
+    : null;
+
+  return (
+    <div className="rounded-2xl border border-rhozly-outline/20 p-4 space-y-3">
+      <button
+        type="button"
+        onClick={toggle}
+        data-testid="valve-control-toggle"
+        className="text-sm font-bold text-rhozly-primary"
+      >
+        {enabled ? "✕ Remove valve control" : "+ Allow Rhozly to turn this valve on/off"}
+      </button>
+
+      {enabled && (
+        <>
+          <Field
+            label="Control URL (public HTTPS)"
+            value={fields.control_url ?? ""}
+            onChange={(v) => set("control_url", v)}
+            placeholder="https://your-device.example.com/valve"
+            testId="cred-control-url"
+          />
+          <p className="text-[11px] text-rhozly-on-surface-variant leading-relaxed">
+            Rhozly runs in the cloud, so this must be reachable over the internet — your device's public URL,
+            a vendor/relay cloud API, or a tunnel. A LAN address (e.g. 192.168.x) won't be reachable.
+          </p>
+          <Field
+            label="HTTP method"
+            value={fields.control_method ?? DEFAULT_CONTROL_METHOD}
+            onChange={(v) => set("control_method", v)}
+            testId="cred-control-method"
+          />
+          <Textarea
+            label="Headers (one Key: Value per line)"
+            value={fields.control_headers ?? DEFAULT_CONTROL_HEADERS}
+            onChange={(v) => set("control_headers", v)}
+            testId="cred-control-headers"
+            rows={2}
+          />
+          <Textarea
+            label="Body template"
+            value={fields.control_body ?? DEFAULT_CONTROL_BODY}
+            onChange={(v) => set("control_body", v)}
+            testId="cred-control-body"
+            rows={3}
+          />
+          <p className="text-[11px] text-rhozly-on-surface-variant font-mono break-all">{CONTROL_VARS_HINT}</p>
+          {preview && (
+            <div data-testid="control-preview" className="rounded-xl bg-rhozly-surface-low p-3">
+              <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface-variant mb-1.5">
+                Request preview
+              </p>
+              {preview.ok ? (
+                <pre className="text-[11px] whitespace-pre-wrap break-all text-rhozly-on-surface">{preview.text}</pre>
+              ) : (
+                <p className="text-[11px] text-red-600">Template problem: {preview.error}</p>
+              )}
+            </div>
+          )}
+        </>
+      )}
     </div>
   );
 }

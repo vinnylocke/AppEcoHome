@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Integrations",
+    "items": [
+      "Custom (HTTP) smart valves can now be controlled from Rhozly — turn them on and off, with an auto-off timer.",
+      "Set it up in the Connect wizard: add your valve's control URL and, if needed, customise the request (method, headers, body) with a live preview. Works with your own device endpoint or a vendor/relay cloud API.",
+      "Custom valves without a control URL now show their reported on/off state read-only instead of erroring."
+    ]
+  }
+]

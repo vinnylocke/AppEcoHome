@@ -109,12 +109,17 @@ export default function DeviceDetailModal({ device, onClose, onRefresh, canManag
               </section>
             )}
 
-            {/* Valve controls */}
-            {device.device_type === "water_valve" && canControl && (
+            {/* Valve controls / state — provider-aware. eWeLink + controllable
+                custom valves get live control (when permitted); a custom valve
+                without a control URL shows reported state read-only. */}
+            {device.device_type === "water_valve" && (
               <section>
                 <ValveControlPanel
                   deviceId={device.id}
                   homeId={device.home_id}
+                  provider={device.provider}
+                  controllable={device.metadata?.controllable === true}
+                  canControl={canControl}
                   defaultDurationSeconds={(device.metadata?.default_duration_seconds as number | undefined) ?? 1800}
                 />
               </section>

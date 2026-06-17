@@ -735,7 +735,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 330 tests across 22 files
+### Unit tests — 340 tests across 24 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -758,6 +758,8 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `UpdatedChip.test.ts` | 6 | Wave 5 — renders nothing for count≤0, singular vs plural label, button when onClick provided, span otherwise, fires onClick |
 | `aiPlantOverrides.test.ts` | 12 | Wave 6 — `diffOverriddenFields` (no-change, scalar, array, sort/case-insensitive, null/empty equivalence, ignores non-overridable fields) + `mergeOverriddenFields` (union, dedup, null/empty handling) |
 | `SourceChip.test.ts` | 5 | Wave 6 — renders nothing for non-AI, catalogue variant when overrides empty/null, custom variant when overrides non-empty |
+| `valveControl.test.ts` | 4 | `valveControlMode` — eWeLink → live, custom_http+controllable → custom, otherwise read-only |
+| `payloadTemplate.test.ts` | 6 | Custom valve control preview — `{{var}}` render (+ unknown-var throw, parity with Deno), `buildControlPreview` ok / template-error / non-JSON-body cases |
 
 ### Edge function tests — Deno
 
@@ -780,6 +782,8 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `aiPlantCatalogue.test.ts` | 22 | Wave 2 of AI Plant Overhaul — `normaliseScientificKey`, `parseMatchString`, `diffCareGuide` |
 | `refreshStaleAiPlants.test.ts` | 5 | Wave 4 of AI Plant Overhaul — changed/unchanged paths, empty batch, mid-batch crash isolation, batch-size cap |
 | `sceneJson.test.ts` | 6 | Multi-ID — `parseSceneJson` tolerant parse (clean JSON, code fence, prose preamble, truncated-array salvage, unrecoverable → empty, null/empty input) |
+| `controlTemplate.test.ts` | 12 | Custom valve control — `renderTemplate` ({{var}} subst, unknown-var throw, no eval), `templateVarsUsed`, `checkControlUrl` (https + private/loopback/metadata host block) |
+| `customHttpControl.test.ts` | 13 | `customHttpAdapter.control()` (no-url / http / non-2xx / template error; renders body+headers; stubbed `fetch`) + `connect()` control-config storage + validation; `parseHeaderBlock` / `isJsonContentType` |
 
 ### E2E tests — 460 tests across 29 files (+ 13 isolation tests)
 
