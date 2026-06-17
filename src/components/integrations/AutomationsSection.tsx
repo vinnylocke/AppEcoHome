@@ -21,6 +21,17 @@ export interface AutomationFull {
   /** New (weather-aware) — min forecast max temp (°C) at which trigger_if_hot fires. */
   heat_threshold_c: number;
   retry_on_failure: boolean;
+  /** Weather handling: off / skip / defer (Smart). */
+  weather_mode: "off" | "skip" | "defer";
+  weather_min_probability: number;
+  weather_defer_window_hours: number;
+  critical_threshold_value: number | null;
+  max_defers: number;
+  defer_skip_in_heat: boolean;
+  /** Moisture target (%) for Smart scheduled automations. */
+  sensor_threshold_value: number | null;
+  /** When defer-mode is currently holding for forecast rain (ISO), else null. */
+  defer_until: string | null;
   last_run_date: string | null;
   created_at: string;
   devices: Array<{ device_id: string; device_name: string }>;
@@ -57,6 +68,9 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
         id, home_id, name, is_active, scheduled_time, duration_seconds,
         fire_valves_sequentially, skip_if_rained, rain_threshold_mm,
         trigger_if_hot, heat_threshold_c, retry_on_failure,
+        weather_mode, weather_min_probability, weather_defer_window_hours,
+        critical_threshold_value, max_defers, defer_skip_in_heat,
+        sensor_threshold_value, defer_until,
         last_run_date, created_at,
         automation_devices(device_id, devices(id, name)),
         automation_blueprints(blueprint_id, role, task_blueprints(title))
@@ -99,6 +113,14 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
       trigger_if_hot: r.trigger_if_hot ?? false,
       heat_threshold_c: r.heat_threshold_c ?? 28,
       retry_on_failure: r.retry_on_failure,
+      weather_mode: r.weather_mode ?? "off",
+      weather_min_probability: r.weather_min_probability ?? 60,
+      weather_defer_window_hours: r.weather_defer_window_hours ?? 12,
+      critical_threshold_value: r.critical_threshold_value ?? null,
+      max_defers: r.max_defers ?? 2,
+      defer_skip_in_heat: r.defer_skip_in_heat ?? true,
+      sensor_threshold_value: r.sensor_threshold_value ?? null,
+      defer_until: r.defer_until ?? null,
       last_run_date: r.last_run_date,
       created_at: r.created_at,
       devices: (r.automation_devices ?? []).map((d: any) => ({
@@ -139,7 +161,8 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
     const { data: row } = await supabase
       .from("automations")
       .select(
-        "id, name, is_active, trigger_kind, area_id, sensor_metric, sensor_comparator, sensor_threshold_value, sensor_hysteresis, sensor_cooldown_minutes, sensor_agg_mode",
+        "id, name, is_active, trigger_kind, area_id, sensor_metric, sensor_comparator, sensor_threshold_value, sensor_hysteresis, sensor_cooldown_minutes, sensor_agg_mode, " +
+        "weather_mode, skip_if_rained, rain_threshold_mm, weather_min_probability, weather_defer_window_hours, critical_threshold_value, max_defers, defer_skip_in_heat",
       )
       .eq("id", automation.id)
       .single();
@@ -166,6 +189,14 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
         sensor_hysteresis: (row as any).sensor_hysteresis ?? 0,
         sensor_cooldown_minutes: (row as any).sensor_cooldown_minutes ?? 60,
         sensor_agg_mode: (row as any).sensor_agg_mode ?? "any",
+        weather_mode: (row as any).weather_mode ?? null,
+        skip_if_rained: (row as any).skip_if_rained ?? null,
+        rain_threshold_mm: (row as any).rain_threshold_mm ?? null,
+        weather_min_probability: (row as any).weather_min_probability ?? null,
+        weather_defer_window_hours: (row as any).weather_defer_window_hours ?? null,
+        critical_threshold_value: (row as any).critical_threshold_value ?? null,
+        max_defers: (row as any).max_defers ?? null,
+        defer_skip_in_heat: (row as any).defer_skip_in_heat ?? null,
         sensors: (sensors ?? []) as any,
         actions: (actions ?? []) as any,
       });

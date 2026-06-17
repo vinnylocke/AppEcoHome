@@ -20,6 +20,7 @@ const STATUS_BADGE: Record<string, { label: string; color: string; dot: string }
   partial:          { label: "Partial",        color: "text-amber-700 bg-amber-50", dot: "bg-amber-500" },
   failed:           { label: "Failed",         color: "text-red-700 bg-red-50",     dot: "bg-red-500"   },
   skipped_weather:  { label: "Rain skipped",   color: "text-blue-700 bg-blue-50",   dot: "bg-blue-400"  },
+  deferred_weather: { label: "Waiting for rain", color: "text-sky-700 bg-sky-50",   dot: "bg-sky-400"   },
   skipped_no_tasks: { label: "No tasks due",   color: "text-slate-600 bg-slate-100",dot: "bg-slate-400" },
 };
 
@@ -134,6 +135,19 @@ export default function AutomationCard({ automation, onEdit, onDeleted, canManag
       )}
 
       {/* Last run */}
+      {(() => {
+        const deferUntil = (automation as { defer_until?: string | null }).defer_until;
+        if (!deferUntil || new Date(deferUntil).getTime() <= Date.now()) return null;
+        return (
+          <div className="flex items-center gap-2" data-testid={`automation-deferred-${automation.id}`}>
+            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold text-sky-700 bg-sky-50">
+              <CloudRain size={12} />
+              Waiting for rain until {new Date(deferUntil).toLocaleString([], { timeStyle: "short" })}
+            </span>
+          </div>
+        );
+      })()}
+
       {lastRun && lastRunBadge && (
         <div className="flex items-center gap-2">
           <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${lastRunBadge.color}`}>

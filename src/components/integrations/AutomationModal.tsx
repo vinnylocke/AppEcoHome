@@ -2,12 +2,13 @@ import React, { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
 import { supabase } from "../../lib/supabase";
 import { X, Loader2, Droplets, AlertCircle, Check, Search, ChevronDown, Thermometer, CloudRain } from "lucide-react";
+import WeatherHandlingSection, { type WeatherConfig, weatherConfigFromRow } from "./WeatherHandlingSection";
 import type { AutomationFull } from "./AutomationsSection";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-interface AvailableDevice { id: string; name: string; }
+interface AvailableDevice { id: string; name: string; area_id: string | null; }
 
 interface AvailableBlueprint {
   id: string;
@@ -46,8 +47,9 @@ export default function AutomationModal({ homeId, automation, onSaved, onClose }
   );
   const [durationSeconds, setDurationSeconds] = useState(automation?.duration_seconds ?? DEFAULT_DURATION);
   const [fireSequentially, setFireSequentially] = useState(automation?.fire_valves_sequentially ?? false);
-  const [skipIfRained, setSkipIfRained] = useState(automation?.skip_if_rained ?? false);
-  const [rainThreshold, setRainThreshold] = useState(automation?.rain_threshold_mm ?? 5);
+  const [weather, setWeather] = useState<WeatherConfig>(weatherConfigFromRow(automation as Parameters<typeof weatherConfigFromRow>[0]));
+  const [moistureTarget, setMoistureTarget] = useState<number>((automation as { sensor_threshold_value?: number } | null)?.sensor_threshold_value ?? 30);
+  const [areasWithSensor, setAreasWithSensor] = useState<Set<string>>(new Set());
   const [triggerIfHot, setTriggerIfHot] = useState(automation?.trigger_if_hot ?? false);
   const [heatThreshold, setHeatThreshold] = useState(automation?.heat_threshold_c ?? 28);
   const [retryOnFailure, setRetryOnFailure] = useState(automation?.retry_on_failure ?? true);
@@ -56,7 +58,7 @@ export default function AutomationModal({ homeId, automation, onSaved, onClose }
   // is enabled. Toggling it OFF clears both sub-settings on save;
   // toggling ON re-reveals the sub-rows so the user can opt in.
   const [weatherAware, setWeatherAware] = useState(
-    (automation?.skip_if_rained ?? false) || (automation?.trigger_if_hot ?? false),
+    (weatherConfigFromRow(automation as Parameters<typeof weatherConfigFromRow>[0]).weather_mode !== "off") || (automation?.trigger_if_hot ?? false),
   );
 
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<string[]>(
@@ -85,6 +87,16 @@ export default function AutomationModal({ homeId, automation, onSaved, onClose }
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  // Smart (defer) needs a soil sensor in the selected valve's area to recheck.
+  const selectedValveArea = (() => {
+    for (const id of selectedDeviceIds) {
+      const d = availableDevices.find((x) => x.id === id);
+      if (d?.area_id) return d.area_id;
+    }
+    return null;
+  })();
+  const canDefer = selectedValveArea !== null && areasWithSensor.has(selectedValveArea);
+
   // ── Data fetch ──────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -94,11 +106,22 @@ export default function AutomationModal({ homeId, automation, onSaved, onClose }
       // Valves for this home
       const { data: allDevices } = await supabase
         .from("devices")
-        .select("id, name")
+        .select("id, name, area_id")
         .eq("home_id", homeId)
         .eq("device_type", "water_valve")
         .eq("is_active", true)
         .order("name");
+
+      // Areas that have at least one active soil sensor → Smart (defer) needs
+      // one to recheck moisture.
+      const { data: sensorDevices } = await supabase
+        .from("devices")
+        .select("area_id")
+        .eq("home_id", homeId)
+        .eq("device_type", "soil_sensor")
+        .eq("is_active", true)
+        .not("area_id", "is", null);
+      setAreasWithSensor(new Set((sensorDevices ?? []).map((d: { area_id: string }) => d.area_id)));
 
       // Devices already in OTHER automations
       const { data: linked } = await supabase
@@ -290,10 +313,24 @@ export default function AutomationModal({ homeId, automation, onSaved, onClose }
     setSaving(true);
     setError(null);
     try {
-      // Weather-aware parent toggle: when OFF, both sub-settings must be
-      // cleared on save so they don't linger from a previous edit.
-      const effectiveSkipIfRained = weatherAware && skipIfRained;
+      // Weather-aware parent toggle: when OFF, weather + heat are cleared on
+      // save so they don't linger from a previous edit.
+      const effectiveMode: WeatherConfig["weather_mode"] = weatherAware ? weather.weather_mode : "off";
       const effectiveTriggerIfHot = weatherAware && triggerIfHot;
+
+      // Smart (defer) on a scheduled valve automation needs a moisture rule so
+      // the recheck loop knows when the soil is "still dry" — derive it from
+      // the valve's area + the moisture target.
+      const smartRule = effectiveMode === "defer"
+        ? {
+            area_id: selectedValveArea,
+            sensor_metric: "soil_moisture",
+            sensor_comparator: "<",
+            sensor_threshold_value: moistureTarget,
+            sensor_agg_mode: "average",
+            sensor_hysteresis: 0,
+          }
+        : {};
 
       const payload = {
         name: name.trim(),
@@ -301,11 +338,18 @@ export default function AutomationModal({ homeId, automation, onSaved, onClose }
         scheduled_time: scheduledTime + ":00",
         duration_seconds: durationSeconds,
         fire_valves_sequentially: fireSequentially,
-        skip_if_rained: effectiveSkipIfRained,
-        rain_threshold_mm: rainThreshold,
+        weather_mode: effectiveMode,
+        skip_if_rained: effectiveMode === "skip",
+        rain_threshold_mm: weather.rain_threshold_mm,
+        weather_min_probability: weather.weather_min_probability,
+        weather_defer_window_hours: weather.weather_defer_window_hours,
+        critical_threshold_value: weather.critical_threshold_value,
+        max_defers: weather.max_defers,
+        defer_skip_in_heat: weather.defer_skip_in_heat,
         trigger_if_hot: effectiveTriggerIfHot,
         heat_threshold_c: heatThreshold,
         retry_on_failure: retryOnFailure,
+        ...smartRule,
         updated_at: new Date().toISOString(),
       };
 
@@ -633,41 +677,13 @@ export default function AutomationModal({ homeId, automation, onSaved, onClose }
 
                     {weatherAware && (
                       <div className="border-t border-rhozly-outline/15 px-3 py-3 space-y-4 bg-rhozly-surface/30">
-                        {/* Skip if rained */}
-                        <div>
-                          <label className="flex items-start gap-3 cursor-pointer" data-testid="automation-skip-rain-toggle">
-                            <input
-                              type="checkbox"
-                              checked={skipIfRained}
-                              onChange={(e) => setSkipIfRained(e.target.checked)}
-                              className="mt-0.5 w-4 h-4 accent-rhozly-primary"
-                            />
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-semibold text-rhozly-on-surface flex items-center gap-1.5">
-                                <CloudRain size={13} className="text-rhozly-primary" />
-                                Skip if it rained
-                              </p>
-                              <p className="text-xs text-rhozly-on-surface-variant mt-0.5">
-                                Skip the run if today's rainfall exceeds the threshold.
-                              </p>
-                            </div>
-                          </label>
-                          {skipIfRained && (
-                            <div className="mt-2 ml-7 flex items-center gap-3">
-                              <input
-                                type="number"
-                                min={1}
-                                max={50}
-                                step={0.5}
-                                value={rainThreshold}
-                                onChange={(e) => setRainThreshold(Number(e.target.value))}
-                                data-testid="automation-rain-threshold"
-                                className="w-24 px-3 py-2 rounded-xl border border-rhozly-outline/30 bg-white text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary text-sm"
-                              />
-                              <span className="text-xs text-rhozly-on-surface-variant">mm rainfall threshold</span>
-                            </div>
-                          )}
-                        </div>
+                        {/* Rain handling — Off / Skip / Smart (defer & recheck) */}
+                        <WeatherHandlingSection
+                          value={weather}
+                          onChange={setWeather}
+                          canDefer={canDefer}
+                          moistureTarget={{ value: moistureTarget, onChange: setMoistureTarget }}
+                        />
 
                         {/* Trigger if hot */}
                         <div>

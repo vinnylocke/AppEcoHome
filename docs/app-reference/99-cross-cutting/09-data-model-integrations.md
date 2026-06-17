@@ -105,6 +105,10 @@ automation_blueprints ─ blueprint_id, automation_id, role: "controlling" | "dr
 
 Audit trail of every fire. `status`: `ran` / `skipped_rain` / `failed` / `retried`.
 
+### Weather-defer columns on `automations` (added 2026-06-17)
+
+`automations` gains a per-row weather-handling selector + single-pending deferral state (hybrid weather + sensor watering): `weather_mode text default 'off'` (CHECK `off|skip|defer`, back-filled from `skip_if_rained`), `weather_min_probability`, `weather_defer_window_hours`, `critical_threshold_value`, `max_defers`, `defer_skip_in_heat`, and the deferral state `defer_until` / `defer_count` / `defer_started_at` (indexed where `defer_until IS NOT NULL`). The 5-min `evaluate-sensor-automations` loop reads these to defer-and-recheck; `run-automations` honours `weather_mode` on scheduled runs. See [Edge Functions Catalogue](./10-edge-functions-catalogue.md), [Weather](./27-weather.md).
+
 ### `area_ai_insights` (AI Area Coach cache, added 2026-06-17)
 
 One row per area (`area_id` PK, `home_id` FK), home-scoped RLS SELECT, service-role writes only. Caches the AI Area Coach analysis as `insight` jsonb. `based_on_reading_at` records the latest `device_reading.recorded_at` the insight reflects — the `area-sensor-analysis` fn regenerates only when a newer reading (live or manual) arrives. Also stores `persona`, `model`, `generated_at`. See [Edge Functions Catalogue](./10-edge-functions-catalogue.md) and [Caching](./14-caching.md).

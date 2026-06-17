@@ -131,8 +131,10 @@ Deno.serve(async (req) => {
           longitude: lng.toString(),
           // Daily gives clean per-day aggregates for rain/wind/heat rules
           daily: "precipitation_sum,temperature_2m_max,temperature_2m_min,weathercode,windspeed_10m_max,precipitation_probability_max",
-          // Hourly: frost detection + chart metrics + weather code for all 7 days
-          hourly: "temperature_2m,wind_speed_10m,precipitation_probability,relative_humidity_2m,weather_code",
+          // Hourly: frost detection + chart metrics + weather code for all 7 days.
+          // `precipitation` (mm/h) lets weather-defer automations sum expected
+          // rain inside the recheck window instead of leaning on the daily total.
+          hourly: "temperature_2m,wind_speed_10m,precipitation_probability,precipitation,relative_humidity_2m,weather_code",
           timezone: "auto",
           past_days: "1",
           forecast_days: "7",

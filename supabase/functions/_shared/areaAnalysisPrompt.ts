@@ -52,6 +52,8 @@ export interface AreaAnalysisInput {
     valveDurationSeconds: number | null;
     /** How many recurring care tasks (blueprints) this automation drives. */
     linkedTaskCount: number;
+    /** "off" | "skip" | "defer" — how the automation reacts to rain. */
+    weatherMode: string | null;
   }>;
 }
 
@@ -208,7 +210,12 @@ export function buildAreaAnalysisPrompt(input: AreaAnalysisInput): string {
           ? `trigger: ${a.triggerKind}`
           : "waters the area";
         const tasks = a.linkedTaskCount > 0 ? ` · drives ${a.linkedTaskCount} care task${a.linkedTaskCount === 1 ? "" : "s"}` : "";
-        return `  - ${a.name}${a.isActive ? "" : " (inactive)"}: ${trig}${dur}${tasks}`;
+        const weather = a.weatherMode === "defer"
+          ? " · rain: smart (waits for forecast rain, rechecks)"
+          : a.weatherMode === "skip"
+          ? " · rain: skips the run if rain forecast"
+          : " · rain: ignores forecast";
+        return `  - ${a.name}${a.isActive ? "" : " (inactive)"}: ${trig}${dur}${weather}${tasks}`;
       }).join("\n")
     : "  (none configured)";
 
@@ -244,7 +251,9 @@ For THIS area and THESE plants:
    - If EC is raw ADC (uncalibrated), say ranges are relative and recommend a calibrated sensor for absolutes.
 2. automation_review: if automations exist, judge whether they suit these plants and the current
    readings — e.g. is the schedule frequent enough, or the moisture threshold appropriate, given the
-   moisture trend? (set ok + notes). If NONE exist, set automation_review.ok=false with a short note and
+   moisture trend? Also comment on the rain handling: prefer "smart" (defer-and-recheck) over "skip"
+   (which can leave soil dry if forecast rain under-delivers) or "ignores forecast" (wastes water when
+   it does rain). (set ok + notes). If NONE exist, set automation_review.ok=false with a short note and
    populate automation_suggestions with 1-3 concrete moisture-triggered watering automations to add
    (title, description, suggested_moisture_threshold_pct).
 3. confidence_note: one line on how much data this is based on (e.g. "based on N readings over X days").

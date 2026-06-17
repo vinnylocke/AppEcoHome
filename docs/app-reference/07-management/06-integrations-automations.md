@@ -19,12 +19,22 @@
 
 Each automation has a **trigger_kind**:
 
+### Weather handling (`weather_mode`, both kinds, 2026-06-17)
+
+Every automation now picks how it reacts to rain via **`weather_mode`** (supersedes the legacy `skip_if_rained` boolean, which is back-filled to `'skip'`):
+
+- **`off`** — ignore the forecast.
+- **`skip`** — hard-skip the run when meaningful rain is forecast (today's behaviour).
+- **`defer`** (Smart) — **defer-and-recheck**: hold watering, then re-read the moisture sensor and water only if the rain under-delivered. The moisture sensor is the source of truth; weather can only *defer*, never silently cancel.
+
+Defer config columns: `weather_min_probability`, `weather_defer_window_hours`, `critical_threshold_value` (failsafe floor — waters regardless of forecast), `max_defers`, `defer_skip_in_heat` (heatwave: water anyway vs keep waiting). Single-pending deferral state lives on the row: `defer_until`, `defer_count`, `defer_started_at` (one deferral per automation — five forecast showers collapse to one hold, no per-event conflict). Resolved by the 5-min `evaluate-sensor-automations` loop, which now processes **sensor_threshold rules AND any automation with a pending `defer_until`** (so scheduled valve automations can defer too — they recheck via the area's soil sensors). `run-automations` hands a scheduled `defer` automation to that loop instead of hard-skipping. New `automation_runs` statuses: `deferred_weather`, plus fire reasons `critical_low` / `forecast_underdelivered`. Builder degrades `defer`→`skip` when no moisture sensor is reachable. See [docs/plans/hybrid-weather-sensor-automations.md](../../plans/hybrid-weather-sensor-automations.md), [Weather](../99-cross-cutting/27-weather.md).
+
 ### `time_scheduled` (existing)
 
 - Fires daily at a `scheduled_time`.
 - Opens one or more valves for `duration_seconds`.
 - Optionally fires valves sequentially (one at a time).
-- Optionally skips if rain >= `rain_threshold_mm` in the last 24h.
+- Weather handling via `weather_mode` (off / skip / Smart-defer) — see above.
 - Optionally retries on provider failure.
 - Optionally ties to one or more `task_blueprints`:
   - **Controlling**: completing this blueprint task triggers the automation immediately.

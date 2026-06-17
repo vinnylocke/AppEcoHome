@@ -29,11 +29,16 @@ import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import {
   evaluateAutomation,
+  evaluateHybrid,
+  ruleSatisfiedAcrossSensors,
   type SensorMetric,
   type Comparator,
   type AggMode,
   type SensorObservation,
+  type SensorRule,
+  type WeatherMode,
 } from "../_shared/automationEvaluator.ts";
+import { readForecast } from "../_shared/weatherForecast.ts";
 
 const FN = "evaluate-sensor-automations";
 
@@ -55,7 +60,26 @@ interface AutomationRow {
   sensor_cooldown_minutes: number;
   sensor_agg_mode: AggMode;
   sensor_last_fired_at: string | null;
+  // Hybrid weather layer.
+  weather_mode: WeatherMode | null;
+  weather_min_probability: number | null;
+  weather_defer_window_hours: number | null;
+  critical_threshold_value: number | null;
+  max_defers: number | null;
+  defer_skip_in_heat: boolean | null;
+  heat_threshold_c: number | null;
+  rain_threshold_mm: number | null;
+  defer_until: string | null;
+  defer_count: number | null;
+  defer_started_at: string | null;
 }
+
+const AUTOMATION_COLUMNS =
+  "id, home_id, name, area_id, sensor_metric, sensor_comparator, sensor_threshold_value, " +
+  "sensor_hysteresis, sensor_cooldown_minutes, sensor_agg_mode, sensor_last_fired_at, " +
+  "weather_mode, weather_min_probability, weather_defer_window_hours, critical_threshold_value, " +
+  "max_defers, defer_skip_in_heat, heat_threshold_c, rain_threshold_mm, " +
+  "defer_until, defer_count, defer_started_at";
 
 interface ActionRow {
   id: string;
@@ -93,19 +117,33 @@ async function loadSensorObservations(
   db: ReturnType<typeof createClient>,
   automationId: string,
   metric: SensorMetric,
+  areaId: string | null,
 ): Promise<SensorObservation[]> {
+  // Prefer explicitly linked sensors; fall back to the area's soil sensors so a
+  // time-scheduled valve automation in 'defer' mode can still recheck moisture.
+  let deviceIds: string[] = [];
   const { data: linked } = await db
     .from("automation_sensors")
     .select("sensor_device_id")
     .eq("automation_id", automationId);
-  if (!linked?.length) return [];
+  if (linked?.length) {
+    deviceIds = (linked as Array<{ sensor_device_id: string }>).map((r) => r.sensor_device_id);
+  } else if (areaId) {
+    const { data: areaSensors } = await db
+      .from("devices")
+      .select("id")
+      .eq("area_id", areaId)
+      .eq("device_type", "soil_sensor");
+    deviceIds = (areaSensors ?? []).map((d: { id: string }) => d.id);
+  }
+  if (!deviceIds.length) return [];
 
   const observations: SensorObservation[] = [];
-  for (const row of linked as Array<{ sensor_device_id: string }>) {
+  for (const id of deviceIds) {
     const { data: latest } = await db
       .from("device_readings")
       .select("data")
-      .eq("device_id", row.sensor_device_id)
+      .eq("device_id", id)
       .order("recorded_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -115,6 +153,52 @@ async function loadSensorObservations(
     observations.push({ value });
   }
   return observations;
+}
+
+/** Persist the single-pending deferral state on the automation row. */
+async function setDeferState(
+  db: ReturnType<typeof createClient>,
+  automation: AutomationRow,
+  until: Date,
+): Promise<void> {
+  await db.from("automations").update({
+    defer_until: until.toISOString(),
+    defer_count: (automation.defer_count ?? 0) + 1,
+    defer_started_at: automation.defer_started_at ?? new Date().toISOString(),
+  }).eq("id", automation.id);
+}
+
+async function clearDeferState(
+  db: ReturnType<typeof createClient>,
+  automationId: string,
+): Promise<void> {
+  await db.from("automations").update({
+    defer_until: null,
+    defer_count: 0,
+    defer_started_at: null,
+  }).eq("id", automationId);
+}
+
+async function writeRunRow(
+  db: ReturnType<typeof createClient>,
+  automation: AutomationRow,
+  status: string,
+): Promise<void> {
+  await db.from("automation_runs").insert({
+    automation_id: automation.id,
+    home_id: automation.home_id,
+    triggered_by: "schedule",
+    status,
+    completed_at: new Date().toISOString(),
+  });
+}
+
+/** Critical-low floor in the metric's units (defaults a margin past threshold). */
+function deriveCritical(rule: SensorRule, configured: number | null): number {
+  if (configured != null) return Number(configured);
+  return rule.comparator === "<" || rule.comparator === "<="
+    ? rule.threshold - 10
+    : rule.threshold + 10;
 }
 
 async function fanoutActions(
@@ -205,7 +289,7 @@ async function fanoutActions(
 async function processOne(
   db: ReturnType<typeof createClient>,
   automation: AutomationRow,
-): Promise<{ decision: string; aggregated_value?: number }> {
+): Promise<{ decision: string; reason?: string; aggregated_value?: number }> {
   // Validate the rule fields early. A NULL metric / comparator /
   // threshold means the user saved the automation in sensor_threshold
   // mode without finishing the rule — skip safely.
@@ -218,23 +302,70 @@ async function processOne(
     return { decision: "skip_incomplete_rule" };
   }
 
-  const observations = await loadSensorObservations(db, automation.id, automation.sensor_metric);
+  const now = new Date();
+  const rule: SensorRule = {
+    metric: automation.sensor_metric,
+    comparator: automation.sensor_comparator,
+    threshold: Number(automation.sensor_threshold_value),
+    hysteresis: Number(automation.sensor_hysteresis),
+    cooldown_minutes: Number(automation.sensor_cooldown_minutes),
+    agg_mode: automation.sensor_agg_mode,
+  };
+  const observations = await loadSensorObservations(db, automation.id, automation.sensor_metric, automation.area_id);
   const outcome = evaluateAutomation(
-    {
-      metric: automation.sensor_metric,
-      comparator: automation.sensor_comparator,
-      threshold: Number(automation.sensor_threshold_value),
-      hysteresis: Number(automation.sensor_hysteresis),
-      cooldown_minutes: Number(automation.sensor_cooldown_minutes),
-      agg_mode: automation.sensor_agg_mode,
-    },
+    rule,
     observations,
     automation.sensor_last_fired_at ? new Date(automation.sensor_last_fired_at) : null,
-    new Date(),
+    now,
   );
 
   if (outcome.decision === "skip") {
+    // Moisture recovered (rain delivered / hand-watered) → drop any pending defer.
+    if (outcome.reason === "rule_not_satisfied" && automation.defer_until) {
+      await clearDeferState(db, automation.id);
+    }
     return { decision: outcome.reason };
+  }
+
+  // Base rule wants to water. Apply the weather layer.
+  const weatherMode = (automation.weather_mode ?? "off") as WeatherMode;
+  let fireReason = "rule_satisfied";
+  if (weatherMode !== "off") {
+    const windowHours = automation.weather_defer_window_hours ?? 12;
+    const minProbability = automation.weather_min_probability ?? 60;
+    const heatThresholdC = automation.heat_threshold_c ?? 30;
+    const forecast = await readForecast(db, automation.home_id, now, windowHours, minProbability, heatThresholdC);
+
+    const criticalRule: SensorRule = { ...rule, threshold: deriveCritical(rule, automation.critical_threshold_value), hysteresis: 0 };
+    const criticalSatisfied = ruleSatisfiedAcrossSensors(observations, criticalRule);
+
+    const hybrid = evaluateHybrid({
+      weatherMode,
+      criticalSatisfied,
+      rain: forecast.rain,
+      rainThresholdMm: Number(automation.rain_threshold_mm ?? 5),
+      minProbability,
+      maxDefers: automation.max_defers ?? 2,
+      deferSkipInHeat: automation.defer_skip_in_heat ?? true,
+      isHeatwave: forecast.isHeatwave,
+      defer: {
+        deferUntil: automation.defer_until ? new Date(automation.defer_until) : null,
+        deferCount: automation.defer_count ?? 0,
+      },
+      now,
+    });
+
+    if (hybrid.decision === "skip") {
+      if (hybrid.clearDefer) await clearDeferState(db, automation.id);
+      if (hybrid.reason === "weather_skip") await writeRunRow(db, automation, "skipped_weather");
+      return { decision: hybrid.reason };
+    }
+    if (hybrid.decision === "defer") {
+      await setDeferState(db, automation, hybrid.until);
+      await writeRunRow(db, automation, "deferred_weather");
+      return { decision: "deferred_weather" };
+    }
+    fireReason = hybrid.reason;
   }
 
   // FIRE. Create the run row, fan-out actions, stamp last_fired_at.
@@ -256,9 +387,10 @@ async function processOne(
 
   const fanout = await fanoutActions(db, automation, runId);
 
+  // Stamp cooldown and reset the deferral episode (a fire ends the dry spell).
   await db
     .from("automations")
-    .update({ sensor_last_fired_at: new Date().toISOString() })
+    .update({ sensor_last_fired_at: new Date().toISOString(), defer_until: null, defer_count: 0, defer_started_at: null })
     .eq("id", automation.id);
 
   await db
@@ -269,7 +401,7 @@ async function processOne(
     })
     .eq("id", runId);
 
-  return { decision: "fire", aggregated_value: outcome.aggregated_value };
+  return { decision: "fire", reason: fireReason, aggregated_value: outcome.aggregated_value };
 }
 
 serve(async (_req: Request) => {
@@ -279,13 +411,13 @@ serve(async (_req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    // Sensor-threshold rules (continuous) PLUS any automation with a pending
+    // deferral recheck (covers time-scheduled 'defer' automations too).
     const { data: automations, error: listErr } = await db
       .from("automations")
-      .select(
-        "id, home_id, name, area_id, sensor_metric, sensor_comparator, sensor_threshold_value, sensor_hysteresis, sensor_cooldown_minutes, sensor_agg_mode, sensor_last_fired_at",
-      )
+      .select(AUTOMATION_COLUMNS)
       .eq("is_active", true)
-      .eq("trigger_kind", "sensor_threshold");
+      .or("trigger_kind.eq.sensor_threshold,defer_until.not.is.null");
 
     if (listErr) throw listErr;
 
@@ -293,7 +425,7 @@ serve(async (_req: Request) => {
     let skipped = 0;
     let errored = 0;
 
-    for (const a of (automations ?? []) as AutomationRow[]) {
+    for (const a of (automations ?? []) as unknown as AutomationRow[]) {
       try {
         const result = await processOne(db, a);
         if (result.decision === "fire") fired += 1;

@@ -14,6 +14,7 @@ import { buildControlPayload, resolveEffectiveDuration } from "../_shared/integr
 import { regionToApiBase } from "../_shared/integrations/ewelinkAuth.ts";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
+import { readForecast } from "../_shared/weatherForecast.ts";
 
 const FN = "run-automations";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -566,8 +567,59 @@ async function runAutomation(
 
   log(FN, "automation_start", { automationId, homeId, triggeredBy });
 
-  // ── Weather check (scheduled runs only) ──────────────────────────────────
-  if (triggeredBy === "schedule" && automation.skip_if_rained) {
+  // ── Weather handling (scheduled runs only) ───────────────────────────────
+  // `weather_mode` supersedes the legacy `skip_if_rained` boolean:
+  //   off   → ignore the forecast
+  //   skip  → hard-skip today's run when meaningful rain is forecast (below)
+  //   defer → don't skip; set a recheck and let evaluate-sensor-automations
+  //           re-read the area's moisture sensor and water if rain under-delivers
+  const weatherMode = (automation.weather_mode as string)
+    ?? (automation.skip_if_rained ? "skip" : "off");
+
+  if (triggeredBy === "schedule" && weatherMode === "defer") {
+    const now = new Date();
+    const windowHours = (automation.weather_defer_window_hours as number) ?? 12;
+    const minProb = (automation.weather_min_probability as number) ?? 60;
+    const heatC = (automation.heat_threshold_c as number) ?? 30;
+    const forecast = await readForecast(db, homeId, now, windowHours, minProb, heatC).catch(() => null);
+    const rainThreshold = (automation.rain_threshold_mm as number) ?? 5;
+    const meaningful = !!forecast
+      && forecast.rain.rainMm >= rainThreshold
+      && forecast.rain.probabilityMax >= minProb;
+    const skipDeferForHeat = !!forecast?.isHeatwave && ((automation.defer_skip_in_heat as boolean) ?? true);
+
+    if (meaningful && !skipDeferForHeat) {
+      log(FN, "weather_defer", { automationId, until: forecast!.rain.windowEnd.toISOString() });
+      await db.from("automations").update({
+        defer_until: forecast!.rain.windowEnd.toISOString(),
+        defer_count: ((automation.defer_count as number) ?? 0) + 1,
+        defer_started_at: (automation.defer_started_at as string) ?? now.toISOString(),
+        last_run_date: today,
+      }).eq("id", automationId);
+      await db.from("automation_runs").insert({
+        automation_id: automationId, home_id: homeId,
+        triggered_by: triggeredBy, status: "deferred_weather",
+        completed_at: now.toISOString(),
+      });
+      // Postpone (not skip) the linked tasks — we're waiting on rain, not done.
+      try {
+        const { data: abps } = await db.from("automation_blueprints")
+          .select("blueprint_id").eq("automation_id", automationId);
+        const bpIds = (abps ?? []).map((r: any) => r.blueprint_id as string);
+        if (bpIds.length > 0) {
+          await db.from("tasks").update({ status: "Postponed" })
+            .in("blueprint_id", bpIds).eq("home_id", homeId)
+            .eq("due_date", today).in("status", ["Pending"]);
+        }
+      } catch (e: any) {
+        warn(FN, "defer_task_update_failed", { error: e.message });
+      }
+      return { status: "deferred_weather" };
+    }
+    // Not deferring (no meaningful rain, or heat override) → water normally.
+  }
+
+  if (triggeredBy === "schedule" && weatherMode === "skip") {
     const { rained, mm: rainMm } = await checkRain(db, homeId, automation.rain_threshold_mm as number)
       .catch(() => ({ rained: false, mm: 0 }));
     if (rained) {

@@ -76,9 +76,11 @@ Detected rules (illustrative):
 ```
 https://api.open-meteo.com/v1/forecast
   ?latitude=...&longitude=...
-  &current=...&daily=temperature_2m_min,temperature_2m_max,...
-  &hourly=...&timezone=auto
+  &current=...&daily=temperature_2m_min,temperature_2m_max,precipitation_sum,precipitation_probability_max,...
+  &hourly=...,precipitation_probability,precipitation,...&timezone=auto
 ```
+
+**2026-06-17:** hourly `precipitation` (mm/h) was added to the fetch so weather-defer automations can sum expected rain inside the recheck window (`_shared/weatherForecast.ts` → `computeRainWindow`) instead of leaning on the daily total. `readForecast(db, homeId, now, windowHours, minProbability, heatThresholdC)` resolves the rain window + heatwave flag the automation evaluators use. See [Automations](../07-management/06-integrations-automations.md).
 
 ### Data flow
 

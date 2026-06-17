@@ -74,9 +74,10 @@ export function aggregateForLog(values: number[], _aggMode: AggMode): number {
 
 /**
  * Decide whether the rule is satisfied across the linked sensors,
- * given the agg_mode.
+ * given the agg_mode. Exported so the hybrid evaluator can re-use it for
+ * the critical-low check with the same aggregation.
  */
-function ruleSatisfiedAcrossSensors(
+export function ruleSatisfiedAcrossSensors(
   observations: SensorObservation[],
   rule: SensorRule,
 ): boolean {
@@ -130,4 +131,142 @@ export function evaluateAutomation(
     return { decision: "fire", reason: "rule_satisfied", aggregated_value: aggregated };
   }
   return { decision: "skip", reason: "rule_not_satisfied", aggregated_value: aggregated };
+}
+
+// ── Hybrid weather-aware layer ───────────────────────────────────────────────
+// Applied AFTER the base rule says "water" (moisture low + cooldown passed).
+// The moisture sensor is the source of truth — weather may only DEFER a
+// watering, never cancel it, because every deferral ends in a sensor recheck.
+
+export type WeatherMode = "off" | "skip" | "defer";
+
+/** One hourly forecast point (already parsed). */
+export interface HourlyPoint {
+  time: Date;
+  /** Rain probability %. */
+  probability: number;
+  /** Expected mm this hour, when the snapshot carries hourly precipitation. */
+  precipitation?: number | null;
+}
+
+export interface RainForecast {
+  /** Expected rain across the look-ahead window (mm). */
+  rainMm: number;
+  /** Peak rain probability % across the window. */
+  probabilityMax: number;
+  /** When the rain window ends + an infiltration buffer — the recheck time. */
+  windowEnd: Date;
+}
+
+/**
+ * Resolve the rain look-ahead from the forecast. Pure.
+ *
+ * - `rainMm` = sum of hourly precipitation inside the window when available,
+ *   else the daily total (`todayRainMm`).
+ * - `probabilityMax` = peak hourly probability in the window, falling back to
+ *   `dailyProbabilityMax` when there's no hourly data.
+ * - `windowEnd` = (last hour at/above `minProbability`) + `bufferHours`, or
+ *   `now + windowHours` when no qualifying hour is found. Always defined so the
+ *   caller can schedule a recheck whenever it decides to defer.
+ */
+export function computeRainWindow(
+  todayRainMm: number,
+  dailyProbabilityMax: number,
+  hourly: HourlyPoint[],
+  now: Date,
+  windowHours: number,
+  minProbability: number,
+  bufferHours = 2,
+): RainForecast {
+  const windowEndLimit = new Date(now.getTime() + windowHours * 3_600_000);
+  const inWindow = hourly
+    .filter((h) => h.time >= now && h.time <= windowEndLimit)
+    .sort((a, b) => a.time.getTime() - b.time.getTime());
+
+  const hasHourlyMm = inWindow.some((h) => typeof h.precipitation === "number");
+  const rainMm = hasHourlyMm
+    ? inWindow.reduce((s, h) => s + (typeof h.precipitation === "number" ? h.precipitation : 0), 0)
+    : todayRainMm;
+
+  const probabilityMax = inWindow.length > 0
+    ? inWindow.reduce((m, h) => Math.max(m, h.probability), 0)
+    : dailyProbabilityMax;
+
+  const qualifying = inWindow.filter((h) => h.probability >= minProbability);
+  const windowEnd = qualifying.length > 0
+    ? new Date(qualifying[qualifying.length - 1].time.getTime() + bufferHours * 3_600_000)
+    : windowEndLimit;
+
+  return { rainMm, probabilityMax, windowEnd };
+}
+
+export interface HybridInputs {
+  weatherMode: WeatherMode;
+  /** Soil already below the FAILSAFE floor (critical-low) — water regardless. */
+  criticalSatisfied: boolean;
+  rain: RainForecast;
+  /** automations.rain_threshold_mm — how much rain "counts". */
+  rainThresholdMm: number;
+  /** weather_min_probability — confidence gate. */
+  minProbability: number;
+  maxDefers: number;
+  deferSkipInHeat: boolean;
+  isHeatwave: boolean;
+  /** Current single-pending deferral state. */
+  defer: { deferUntil: Date | null; deferCount: number };
+  now: Date;
+}
+
+export type HybridDecision =
+  | { decision: "fire"; reason: "rule_satisfied" | "critical_low" | "forecast_underdelivered"; clearDefer: true }
+  | { decision: "skip"; reason: "weather_skip" | "still_deferred"; clearDefer: boolean }
+  | { decision: "defer"; reason: "rain_forecast"; until: Date; clearDefer: false };
+
+/**
+ * Given that the base rule WANTS to water, decide what weather does about it.
+ * Pure — the caller persists the resulting defer state. The "five showers"
+ * case is handled here: there is one deferral keyed by `defer`, extended (not
+ * stacked) on recheck, so multiple forecast showers collapse to a single hold.
+ */
+export function evaluateHybrid(input: HybridInputs): HybridDecision {
+  const { weatherMode, criticalSatisfied, rain, rainThresholdMm, minProbability,
+    maxDefers, deferSkipInHeat, isHeatwave, defer, now } = input;
+
+  if (weatherMode === "off") {
+    return { decision: "fire", reason: "rule_satisfied", clearDefer: true };
+  }
+
+  const meaningfulRain = rain.rainMm >= rainThresholdMm && rain.probabilityMax >= minProbability;
+
+  if (weatherMode === "skip") {
+    return meaningfulRain
+      ? { decision: "skip", reason: "weather_skip", clearDefer: true }
+      : { decision: "fire", reason: "rule_satisfied", clearDefer: true };
+  }
+
+  // weather_mode === "defer"
+  if (criticalSatisfied) {
+    return { decision: "fire", reason: "critical_low", clearDefer: true };
+  }
+  if (isHeatwave && deferSkipInHeat) {
+    return { decision: "fire", reason: "rule_satisfied", clearDefer: true };
+  }
+
+  const isDeferred = defer.deferUntil !== null;
+  if (isDeferred && now < defer.deferUntil!) {
+    return { decision: "skip", reason: "still_deferred", clearDefer: false };
+  }
+  if (isDeferred && now >= defer.deferUntil!) {
+    // Recheck due and soil is still low → forecast under-delivered, unless
+    // more rain is still expected and we're under the defer cap.
+    if (meaningfulRain && defer.deferCount < maxDefers) {
+      return { decision: "defer", reason: "rain_forecast", until: rain.windowEnd, clearDefer: false };
+    }
+    return { decision: "fire", reason: "forecast_underdelivered", clearDefer: true };
+  }
+  // Not currently deferred.
+  if (meaningfulRain && defer.deferCount < maxDefers) {
+    return { decision: "defer", reason: "rain_forecast", until: rain.windowEnd, clearDefer: false };
+  }
+  return { decision: "fire", reason: "rule_satisfied", clearDefer: true };
 }

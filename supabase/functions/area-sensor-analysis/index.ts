@@ -180,20 +180,18 @@ serve(async (req) => {
         deviceLinkedIds = (ad ?? []).map((r: { automation_id: string }) => r.automation_id);
       }
 
+      const AUTO_COLS = "id, name, is_active, trigger_kind, sensor_metric, sensor_threshold_value, duration_seconds, weather_mode";
       const [{ data: byArea }, byDeviceRes] = await Promise.all([
-        db.from("automations")
-          .select("id, name, is_active, trigger_kind, sensor_metric, sensor_threshold_value, duration_seconds")
-          .eq("home_id", homeId).eq("area_id", areaId),
+        db.from("automations").select(AUTO_COLS).eq("home_id", homeId).eq("area_id", areaId),
         deviceLinkedIds.length > 0
-          ? db.from("automations")
-              .select("id, name, is_active, trigger_kind, sensor_metric, sensor_threshold_value, duration_seconds")
-              .in("id", deviceLinkedIds)
+          ? db.from("automations").select(AUTO_COLS).in("id", deviceLinkedIds)
           : Promise.resolve({ data: [] as Record<string, unknown>[] }),
       ]);
 
       const merged = [...(byArea ?? []), ...((byDeviceRes.data ?? []))] as Array<{
         id: string; name: string; is_active: boolean; trigger_kind: string | null;
         sensor_metric: string | null; sensor_threshold_value: number | null; duration_seconds: number | null;
+        weather_mode: string | null;
       }>;
       const dedup = new Map<string, typeof merged[number]>();
       for (const r of merged) if (!dedup.has(r.id)) dedup.set(r.id, r);
@@ -219,6 +217,7 @@ serve(async (req) => {
           moistureThresholdPct: isMoisture ? r.sensor_threshold_value : null,
           valveDurationSeconds: r.duration_seconds ?? null,
           linkedTaskCount: taskCountById.get(r.id) ?? 0,
+          weatherMode: r.weather_mode ?? null,
         });
       }
     }

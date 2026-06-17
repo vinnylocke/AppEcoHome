@@ -18,6 +18,7 @@ import {
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
+import WeatherHandlingSection, { type WeatherConfig, weatherConfigFromRow } from "./WeatherHandlingSection";
 
 /**
  * Phase 3 (2026-06-16) — sensor-driven automation builder.
@@ -48,6 +49,15 @@ export interface SensorAutomation {
   sensor_hysteresis: number;
   sensor_cooldown_minutes: number;
   sensor_agg_mode: "any" | "all" | "average";
+  // Weather handling (optional — only present when editing).
+  weather_mode?: "off" | "skip" | "defer" | null;
+  skip_if_rained?: boolean | null;
+  rain_threshold_mm?: number | null;
+  weather_min_probability?: number | null;
+  weather_defer_window_hours?: number | null;
+  critical_threshold_value?: number | null;
+  max_defers?: number | null;
+  defer_skip_in_heat?: boolean | null;
   sensors: Array<{ sensor_device_id: string }>;
   actions: Array<{
     id?: string;
@@ -120,6 +130,7 @@ export default function SensorAutomationModal({ homeId, automation, onSaved, onC
   );
   const [hysteresis, setHysteresis] = useState<number>(automation?.sensor_hysteresis ?? 0);
   const [cooldownMinutes, setCooldownMinutes] = useState<number>(automation?.sensor_cooldown_minutes ?? 60);
+  const [weather, setWeather] = useState<WeatherConfig>(weatherConfigFromRow(automation as Parameters<typeof weatherConfigFromRow>[0]));
   const [aggMode, setAggMode] = useState<NonNullable<SensorAutomation["sensor_agg_mode"]>>(
     automation?.sensor_agg_mode ?? "any",
   );
@@ -243,6 +254,8 @@ export default function SensorAutomationModal({ homeId, automation, onSaved, onC
         sensor_hysteresis: hysteresis,
         sensor_cooldown_minutes: cooldownMinutes,
         sensor_agg_mode: aggMode,
+        ...weather,
+        skip_if_rained: weather.weather_mode === "skip",
       };
 
       let automationId: string;
@@ -556,6 +569,15 @@ export default function SensorAutomationModal({ homeId, automation, onSaved, onC
                   Hysteresis: how far past the threshold before firing (prevents flapping). Cooldown: minutes
                   between successive fires.
                 </p>
+              </Section>
+
+              {/* Weather handling */}
+              <Section title="Weather" hint="How rain affects this automation.">
+                <WeatherHandlingSection
+                  value={weather}
+                  onChange={setWeather}
+                  canDefer={selectedSensorIds.length > 0}
+                />
               </Section>
 
               {/* Actions */}

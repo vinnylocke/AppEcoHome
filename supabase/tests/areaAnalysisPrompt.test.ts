@@ -22,7 +22,7 @@ function baseInput(overrides: Partial<AreaAnalysisInput> = {}): AreaAnalysisInpu
       { name: "Basil", health: null, soilPhMin: null, soilPhMax: null },
     ],
     automations: [
-      { name: "Morning Water", isActive: true, triggerKind: "sensor_threshold", moistureThresholdPct: 25, valveDurationSeconds: 600, linkedTaskCount: 0 },
+      { name: "Morning Water", isActive: true, triggerKind: "sensor_threshold", moistureThresholdPct: 25, valveDurationSeconds: 600, linkedTaskCount: 0, weatherMode: "defer" },
     ],
     ...overrides,
   };
@@ -43,7 +43,7 @@ Deno.test("prompt includes area, current readings, plants and automations", () =
 Deno.test("prompt describes a time-scheduled automation + linked tasks", () => {
   const p = buildAreaAnalysisPrompt(baseInput({
     automations: [
-      { name: "Strawberry watering", isActive: true, triggerKind: "time_scheduled", moistureThresholdPct: null, valveDurationSeconds: 30, linkedTaskCount: 4 },
+      { name: "Strawberry watering", isActive: true, triggerKind: "time_scheduled", moistureThresholdPct: null, valveDurationSeconds: 30, linkedTaskCount: 4, weatherMode: "skip" },
     ],
   }));
   assert(p.includes("Strawberry watering"));
