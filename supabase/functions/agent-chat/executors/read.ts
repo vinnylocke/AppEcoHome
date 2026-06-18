@@ -466,7 +466,33 @@ export async function exec_optimise_area_schedule(
 
 type Executor = (ctx: ExecutorContext, args: Record<string, any>) => Promise<ExecResult>;
 
+/**
+ * Display-only tool — echoes the plant names the model wants to SHOW the user.
+ * The send_message handler turns these into `suggested_plants`, which the chat
+ * renders as cards with real licensed photos (Wikipedia/Unsplash). This is how
+ * the text chat answers "show me what a peace lily looks like" without any
+ * unlicensed web-image scraping.
+ */
+export async function exec_show_plant_images(
+  _ctx: ExecutorContext,
+  args: { plants?: Array<{ name?: string; search_query?: string }> },
+): Promise<ExecResult> {
+  const plants = Array.isArray(args?.plants) ? args.plants : [];
+  const clean = plants
+    .filter((p) => p && typeof p.name === "string" && p.name.trim())
+    .slice(0, 8)
+    .map((p) => ({
+      name: p.name!.trim(),
+      search_query: (typeof p.search_query === "string" && p.search_query.trim()) ? p.search_query.trim() : p.name!.trim(),
+    }));
+  return {
+    payload: { plants: clean },
+    summary: clean.length ? `Showing photos of ${clean.map((p) => p.name).join(", ")}.` : "No plants to show.",
+  };
+}
+
 export const READ_EXECUTORS: Record<string, Executor> = {
+  show_plant_images:     exec_show_plant_images,
   list_plants:           exec_list_plants,
   list_tasks:            exec_list_tasks,
   list_blueprints:       exec_list_blueprints,

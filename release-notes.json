@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Improvements",
+    "items": [
+      "The AI chat can now show you real photos of plants — ask to see a plant (\"show me what a peace lily looks like\") and it displays licensed pictures right in the conversation.",
+      "Fixed the Plant Identifier sometimes failing with an error — identification is reliable again."
+    ]
+  }
+]

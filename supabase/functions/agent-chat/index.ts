@@ -246,7 +246,7 @@ async function handleSendMessage(
   // ("tomorrow", "next Tuesday"). Done per-call (not cached) so a chat
   // that crosses midnight doesn't see a stale "today".
   const datePrefix = buildDatePrefix(context.timezone);
-  const imageRule = "IMAGES: You cannot embed, generate or attach images. If the user asks to see a plant or wants pictures, describe what it looks like in words and point them to Plant Doctor's photo tools — never write markdown image syntax (![...](...)), never paste image URLs, and never promise to show or attach an image.";
+  const imageRule = "IMAGES: To show the user what a plant looks like, call the show_plant_images tool with the plant name(s) — the app then displays a real licensed photo for each. Use it whenever the user asks to see a plant or wants pictures. You cannot embed images yourself, so never write markdown image syntax (![...](...)) or paste image URLs — always use show_plant_images instead.";
   const fullPrompt = `${datePrefix}\n\n${context.prompt}\n\n${imageRule}`;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
@@ -403,10 +403,20 @@ async function handleSendMessage(
     }
   }
 
-  // Update the chat_messages row with the final content.
+  // Plants the model asked to SHOW (via show_plant_images) → rendered as
+  // licensed photo cards by the client (no web-image scraping).
+  const suggestedPlants = toolResults
+    .filter((t) => t.tool === "show_plant_images")
+    .flatMap((t) => {
+      const p = (t.payload as { plants?: Array<{ name: string; search_query: string }> })?.plants;
+      return Array.isArray(p) ? p : [];
+    });
+
+  // Update the chat_messages row with the final content (+ any plant cards so
+  // they persist on reload).
   await db
     .from("chat_messages")
-    .update({ content: finalReply })
+    .update({ content: finalReply, suggested_plants: suggestedPlants.length ? suggestedPlants : null })
     .eq("id", assistantMsg!.id);
 
   // Best-effort token update (don't block response).
@@ -429,6 +439,7 @@ async function handleSendMessage(
     reply: finalReply,
     toolResults,
     pendingToolCalls,
+    suggested_plants: suggestedPlants,
     quota: quotaRow,
   });
 }

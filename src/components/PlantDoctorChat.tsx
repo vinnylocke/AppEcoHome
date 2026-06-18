@@ -594,6 +594,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       return {
         reply: data?.reply ?? "",
         assistant_message_id: data?.messageId,
+        suggested_plants: data?.suggested_plants ?? [],
         tool_results: data?.toolResults ?? [],
         pending_tool_calls: data?.pendingToolCalls ?? [],
       };

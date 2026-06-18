@@ -165,6 +165,33 @@ export const READ_TOOLS: ToolMeta[] = [
     risk: "auto",
     minTier: "sprout",
     decl: {
+      name: "show_plant_images",
+      description:
+        "Display real photos of one or more plants to the user. Call this whenever the user asks to SEE a plant, asks what something looks like, or would benefit from a picture. The app renders a licensed photo (Wikipedia/Unsplash) for each — you cannot embed images yourself, so use this tool instead of saying you can't show pictures.",
+      parameters: {
+        type: "object",
+        properties: {
+          plants: {
+            type: "array",
+            description: "The plants to show (1-8).",
+            items: {
+              type: "object",
+              properties: {
+                name: { type: "string", description: "Common name to label the photo." },
+                search_query: { type: "string", description: "Optional better image search phrase (e.g. scientific name)." },
+              },
+              required: ["name"],
+            },
+          },
+        },
+        required: ["plants"],
+      },
+    },
+  },
+  {
+    risk: "auto",
+    minTier: "sprout",
+    decl: {
       name: "search_plant_database",
       description:
         "Search the global plant database (Perenual + Verdantly + Rhozly AI catalogue) for a plant species the user does NOT yet have. Use this to find candidate plants before suggesting one to add. Returns species metadata, never plants from the user's Shed.",
