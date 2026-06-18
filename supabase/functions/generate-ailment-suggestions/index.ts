@@ -114,10 +114,28 @@ serve(async (req) => {
       }
     }
 
+    // Ground in the curated ailment catalogue — prefer known entries so the
+    // watchlist stays consistent with the library. Best-effort, never fatal.
+    let catalogueBlock = "";
+    try {
+      const safe = String(query).replace(/[%,()]/g, " ").trim();
+      if (safe) {
+        const { data: lib } = await supabase
+          .from("ailment_library")
+          .select("name, kind, scientific_name, severity")
+          .ilike("name", `%${safe}%`)
+          .limit(6);
+        if (lib && lib.length) {
+          catalogueBlock = `\n\nKNOWN CATALOGUE ENTRIES (prefer these where they match the query — keep the name + key facts consistent with them):\n`
+            + lib.map((a: any) => `- ${a.name} (${a.kind}${a.scientific_name ? `, ${a.scientific_name}` : ""})${a.severity ? ` [${a.severity}]` : ""}`).join("\n");
+        }
+      }
+    } catch { /* non-fatal grounding */ }
+
     const systemPrompt = `
 You are a horticulture and plant pathology expert helping gardeners build a watchlist of threats to their garden.
 
-The gardener searched for: "${query}"
+The gardener searched for: "${query}"${catalogueBlock}
 
 Return 3 to 6 distinct ailments (pests, diseases, or invasive plants) that closely match or relate to this search query.
 Aim for variety — include both the most likely exact match AND related threats they might also want to track.

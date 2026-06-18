@@ -448,6 +448,9 @@ verify_jwt = false
 [functions.seed-ailment-library]
 verify_jwt = false
 
+[functions.verify-ailment-library]
+verify_jwt = false
+
 [functions.verify-plant-library]
 verify_jwt = false
 
