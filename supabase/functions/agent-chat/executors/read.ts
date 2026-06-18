@@ -484,6 +484,9 @@ export async function exec_show_plant_images(
     .map((p) => ({
       name: p.name!.trim(),
       search_query: (typeof p.search_query === "string" && p.search_query.trim()) ? p.search_query.trim() : p.name!.trim(),
+      // Flags the client to render a multi-photo gallery (vs. the compact
+      // thumbnail used for "you might like…" plant suggestions).
+      show: true,
     }));
   return {
     payload: { plants: clean },

@@ -14,6 +14,7 @@ import {
   Trash2,
   Camera,
   ImagePlus,
+  Images,
 } from "lucide-react";
 import { IconGrowth, IconPlant } from "../constants/icons";
 import MicButton, { type VoiceCaptureResult } from "./chat/MicButton";
@@ -28,6 +29,10 @@ import { Logger } from "../lib/errorHandler";
 import { logEvent, EVENT } from "../events/registry";
 import { getPlantWikiInfo } from "../lib/wikipedia";
 import { sanitizeAssistantText } from "../lib/stripMarkdownImages";
+import { visibleToolResults } from "../lib/visibleToolResults";
+import { Lightbox, type GalleryImage } from "./DiagnosisImageGallery";
+import ImageCredit from "./credit/ImageCredit";
+import { coerceImageCredit, isKnownCredit } from "../lib/imageCredit";
 import toast from "react-hot-toast";
 import { PlantActionButtons } from "./PlantActionButtons";
 import { TaskActionButtons } from "./TaskActionButtons";
@@ -57,7 +62,7 @@ interface Message {
   role: "user" | "assistant";
   content: string;
   imagePreviewUrl?: string;
-  suggested_plants?: Array<{ name: string; search_query: string }>;
+  suggested_plants?: Array<{ name: string; search_query: string; show?: boolean }>;
   suggested_tasks?: Array<any>;
   preferences_captured?: number;
   plan_suggestion?: PlanSuggestion | null;
@@ -70,11 +75,98 @@ interface Message {
 const WELCOME_CONTENT =
   "Hello! I'm your Garden AI. How can I help your garden grow today?";
 
-// Lightweight wiki info card shown per suggested plant
+// Multi-photo gallery shown when the user asks to SEE a plant. Pulls several
+// licensed images (Unsplash / Pixabay / Wikipedia, with attribution) via the
+// plant-image-search edge function and renders a tappable strip + shared
+// Lightbox — no web-image scraping.
+function ChatPlantGallery({ query, label }: { query: string; label: string }) {
+  const [images, setImages] = useState<GalleryImage[] | null>(null);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    supabase.functions
+      .invoke("plant-image-search", { body: { query, count: 6 } })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        setImages(!error && Array.isArray(data?.images) ? data.images : []);
+      })
+      .catch(() => {
+        if (!cancelled) setImages([]);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [query]);
+
+  if (images === null) {
+    return (
+      <div className="flex gap-2 overflow-hidden" data-testid="chat-plant-gallery-loading">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div
+            key={i}
+            className="w-24 h-24 rounded-xl bg-rhozly-surface animate-pulse shrink-0 border border-rhozly-outline/15"
+          />
+        ))}
+      </div>
+    );
+  }
+
+  if (images.length === 0) {
+    return (
+      <div className="w-full h-24 rounded-xl bg-rhozly-surface border border-rhozly-outline/20 flex items-center justify-center text-rhozly-on-surface/40 text-[11px] gap-1.5">
+        <Images size={14} /> No photos found
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div
+        className="flex gap-2 overflow-x-auto pb-1"
+        style={{ scrollbarWidth: "none" }}
+        data-testid="chat-plant-gallery"
+      >
+        {images.map((img, i) => {
+          const credit = coerceImageCredit((img as any).image_credit);
+          return (
+            <button
+              key={img.id}
+              data-testid="chat-plant-gallery-thumb"
+              onClick={() => setLightboxIndex(i)}
+              className="relative shrink-0 w-24 h-24 rounded-xl overflow-hidden border border-rhozly-outline/20 hover:border-rhozly-primary/60 transition-colors"
+            >
+              <img src={img.thumb_url} alt={img.alt} className="w-full h-full object-cover" />
+              {isKnownCredit(credit) && (
+                <div
+                  className="absolute bottom-0.5 right-0.5 z-[2]"
+                  onClick={(e) => e.stopPropagation()}
+                >
+                  <ImageCredit credit={credit} variant="badge-only" />
+                </div>
+              )}
+            </button>
+          );
+        })}
+      </div>
+      {lightboxIndex !== null && (
+        <Lightbox
+          images={images}
+          startIndex={lightboxIndex}
+          onClose={() => setLightboxIndex(null)}
+        />
+      )}
+    </>
+  );
+}
+
+// Lightweight wiki info card shown per suggested plant. When `plant.show` is set
+// (the user asked to SEE the plant), it renders the multi-photo ChatPlantGallery
+// instead of the compact thumbnail used for "you might like…" suggestions.
 function ChatPlantCard({
   plant,
 }: {
-  plant: { name: string; search_query: string };
+  plant: { name: string; search_query: string; show?: boolean };
 }) {
   const [info, setInfo] = useState<{
     extract: string | null;
@@ -87,6 +179,42 @@ function ChatPlantCard({
     getPlantWikiInfo(plant.search_query || plant.name).then(setInfo);
   }, [plant.name, plant.search_query]);
 
+  const learnMore = info?.extract ? (
+    <>
+      <button
+        onClick={() => setExpanded((v) => !v)}
+        className="flex items-center gap-1 text-xs text-rhozly-primary font-bold hover:opacity-80 transition-opacity"
+      >
+        {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
+        {expanded ? "Less" : "Learn more"}
+      </button>
+      {expanded && (
+        <p className="text-[11px] text-rhozly-on-surface/80 leading-relaxed">
+          {info!.extract!.length > 320
+            ? `${info!.extract!.slice(0, 320)}…`
+            : info!.extract}
+        </p>
+      )}
+    </>
+  ) : null;
+
+  // "Show me what X looks like" → prominent multi-photo gallery.
+  if (plant.show) {
+    return (
+      <div
+        className="p-2.5 rounded-xl bg-rhozly-surface-low border border-rhozly-outline/20 space-y-2"
+        data-testid="chat-plant-card-show"
+      >
+        <p className="text-xs font-black text-rhozly-on-surface leading-tight">
+          {plant.name}
+        </p>
+        <ChatPlantGallery query={plant.search_query || plant.name} label={plant.name} />
+        {learnMore}
+      </div>
+    );
+  }
+
+  // Default: compact suggestion card (thumbnail + name + learn more).
   return (
     <div className="p-2.5 rounded-xl bg-rhozly-surface-low border border-rhozly-outline/20">
       <div className="flex items-center gap-2.5">
@@ -110,24 +238,9 @@ function ChatPlantCard({
           <p className="text-xs font-black text-rhozly-on-surface leading-tight">
             {plant.name}
           </p>
-          {info?.extract && (
-            <button
-              onClick={() => setExpanded((v) => !v)}
-              className="flex items-center gap-1 text-xs text-rhozly-primary font-bold mt-0.5 hover:opacity-80 transition-opacity"
-            >
-              {expanded ? <ChevronUp size={10} /> : <ChevronDown size={10} />}
-              {expanded ? "Less" : "Learn more"}
-            </button>
-          )}
+          <div className="mt-0.5">{learnMore}</div>
         </div>
       </div>
-      {expanded && info?.extract && (
-        <p className="mt-2 text-[11px] text-rhozly-on-surface/80 leading-relaxed">
-          {info.extract.length > 320
-            ? `${info.extract.slice(0, 320)}…`
-            : info.extract}
-        </p>
-      )}
     </div>
   );
 }
@@ -563,7 +676,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
      *  id. The caller must NOT save another row — doing so was producing
      *  the duplicated-on-reload bug the user reported. */
     assistant_message_id?: string;
-    suggested_plants?: Array<{ name: string; search_query: string }>;
+    suggested_plants?: Array<{ name: string; search_query: string; show?: boolean }>;
     suggested_tasks?: Array<any>;
     plan_suggestion?: PlanSuggestion | null;
     preferences_captured?: number;
@@ -615,7 +728,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     if (!data?.reply) throw new Error("No reply received from AI");
     return data as {
       reply: string;
-      suggested_plants?: Array<{ name: string; search_query: string }>;
+      suggested_plants?: Array<{ name: string; search_query: string; show?: boolean }>;
       suggested_tasks?: Array<any>;
       plan_suggestion?: PlanSuggestion | null;
       preferences_captured?: number;
@@ -1084,12 +1197,14 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
 
                         {/* Agent tool results — Phase 1 renders read-only
                             tool outputs (plant lists, task lists, etc.)
-                            as inline cards. */}
+                            as inline cards. Display-only tools (e.g.
+                            show_plant_images) are surfaced via suggested_plants
+                            instead, so they're filtered out here to avoid a raw
+                            JSON debug dump. */}
                         {msg.role === "assistant" &&
-                          msg.tool_results &&
-                          msg.tool_results.length > 0 && (
+                          visibleToolResults(msg.tool_results).length > 0 && (
                             <div className="mt-2 space-y-2">
-                              {msg.tool_results.map((tr, i) => (
+                              {visibleToolResults(msg.tool_results).map((tr, i) => (
                                 <ToolResultCard
                                   key={i}
                                   tool={tr.tool}

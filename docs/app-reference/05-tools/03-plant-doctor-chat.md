@@ -27,7 +27,7 @@ PlantDoctorChat (Portal / fixed-position)
 ├── Message list
 │   ├── Message bubble (user / assistant)
 │   ├── Image preview (if attached)
-│   ├── Suggested Plants → ChatPlantCard (Wikipedia info)
+│   ├── Suggested Plants → ChatPlantCard (Wikipedia info; multi-photo ChatPlantGallery when `show`)
 │   ├── Suggested Tasks → TaskActionButtons
 │   ├── PlantActionButtons (e.g. "Add to Shed")
 │   ├── PlanSuggestionCard (proactive "Make a Plan" CTA — at most once per thread)
@@ -89,7 +89,9 @@ supabase.from("chat_messages")
 
 | Function | Purpose |
 |----------|---------|
-| `plant-doctor-ai` | Gemini chat with vision + tool calls |
+| `agent-chat` | Primary text chat — Gemini function-calling loop (read tools auto-run, mutations confirmed). Returns `{ reply, toolResults, pendingToolCalls, suggested_plants, quota }`. **Display-only tools (e.g. `show_plant_images`) are filtered out of `toolResults`** — they surface via `suggested_plants` instead, so they never render as a `ToolResultCard` JSON dump. |
+| `plant-doctor-ai` | Gemini chat with **vision** (when an image is attached) |
+| `plant-image-search` | Multi-photo gallery — returns up to 9 licensed images (Unsplash / Pixabay / Wikipedia, with attribution) for a `show` plant card. Cached in `plant_image_cache`. |
 
 ### Page context (`PlantDoctorContext`)
 
@@ -106,7 +108,9 @@ The AI uses this to ground its answer: "you're currently on the Light Sensor at 
 
 ### Suggested plants → `ChatPlantCard`
 
-When the AI returns `suggested_plants: [{ name, search_query }]`, each renders as a card calling `getPlantWikiInfo(search_query)` for a thumbnail + extract. Tap to expand.
+When the AI returns `suggested_plants: [{ name, search_query, show? }]`, each renders as a card calling `getPlantWikiInfo(search_query)` for a thumbnail + extract. Tap to expand.
+
+When an item has **`show: true`** (set server-side by the `show_plant_images` tool — i.e. the user asked to *see* what a plant looks like), the card renders **`ChatPlantGallery`** instead of the compact thumbnail: an inline horizontal strip of several licensed photos from `plant-image-search`, each with an `ImageCredit` badge and tappable to open the shared `Lightbox`. Falls back to the single Wikipedia thumbnail if no images are returned. Plants without `show` (ordinary "you might like…" suggestions) keep the compact thumbnail. The `PlantActionButtons` (Add to Shed) still render below either way.
 
 ### Suggested tasks → `TaskActionButtons`
 

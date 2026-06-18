@@ -408,9 +408,15 @@ async function handleSendMessage(
   const suggestedPlants = toolResults
     .filter((t) => t.tool === "show_plant_images")
     .flatMap((t) => {
-      const p = (t.payload as { plants?: Array<{ name: string; search_query: string }> })?.plants;
+      const p = (t.payload as { plants?: Array<{ name: string; search_query: string; show?: boolean }> })?.plants;
       return Array.isArray(p) ? p : [];
     });
+
+  // Display-only tools are surfaced through dedicated UI (e.g. show_plant_images
+  // → suggested_plants photo cards), so they must NOT also be returned as raw
+  // tool results — the client renders unknown tool results as a JSON debug dump.
+  const DISPLAY_ONLY_TOOLS = new Set(["show_plant_images"]);
+  const visibleToolResults = toolResults.filter((t) => !DISPLAY_ONLY_TOOLS.has(t.tool));
 
   // Update the chat_messages row with the final content (+ any plant cards so
   // they persist on reload).
@@ -437,7 +443,7 @@ async function handleSendMessage(
   return json({
     messageId: assistantMsg!.id,
     reply: finalReply,
-    toolResults,
+    toolResults: visibleToolResults,
     pendingToolCalls,
     suggested_plants: suggestedPlants,
     quota: quotaRow,
