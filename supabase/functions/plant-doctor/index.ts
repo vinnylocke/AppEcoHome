@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade, toMessages, VISION_DIAGNOSIS_MODELS } from "../_shared/gemini.ts";
+import { extractJsonObject } from "../_shared/extractJson.ts";
 import { loadPreferences, formatPreferencesBlock } from "../_shared/preferences.ts";
 import { guardAiByHome, guardPerenualByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
@@ -820,7 +821,7 @@ Each match must be a real plant species. Format each as "Common Name (Scientific
         apiKey, FN, toMessages([prompt]),
         { responseSchema: SEARCH_PLANTS_SCHEMA, maxOutputTokens: 1500, logContext: { action } },
       );
-      const parsed = JSON.parse(text);
+      const parsed = extractJsonObject(text) as any;
       const allMatches: string[] = parsed.matches ?? [];
 
       await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "search_plants_text", usage });
@@ -1005,7 +1006,7 @@ Return all fields accurately. STRICT formatting rules:
         apiKey, FN, toMessages([prompt]),
         { responseSchema: CARE_GUIDE_SCHEMA, temperature: 0.2, logContext: { action } },
       );
-      let parsedData = JSON.parse(rawText);
+      let parsedData = extractJsonObject(rawText) as any;
       if (!parsedData.plantData) parsedData = { plantData: parsedData };
 
       const wikiImageUrl = await getWikiImage(cleanName);
@@ -1161,7 +1162,7 @@ Use specific common names (e.g. "French Marigold" not "Marigold").`;
         apiKey, FN, toMessages([prompt]),
         { responseSchema: RECOMMEND_PLANTS_SCHEMA, logContext: { action } },
       );
-      const parsedData = JSON.parse(rawText);
+      const parsedData = extractJsonObject(rawText) as any;
       await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "recommend_plants", usage });
       log(FN, "result", {
         action, homeId: homeId ?? null, area: areaData?.name,
@@ -1235,7 +1236,7 @@ Also return a brief observation in notes.`;
         // than the ~20× cost delta (still cents per call).
         { responseSchema: IDENTIFY_VISION_SCHEMA, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },
       );
-      const aiParsed = JSON.parse(rawText);
+      const aiParsed = extractJsonObject(rawText) as any;
       await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_vision", usage });
 
       const aiCredit = {
@@ -1495,7 +1496,7 @@ RESPONSE RULES:
         // working together to keep diagnoses evidence-grounded.
         { responseSchema: DIAGNOSE_SCHEMA, temperature: 0.2, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },
       );
-      const parsed = JSON.parse(rawText);
+      const parsed = extractJsonObject(rawText) as any;
 
       // Server-side confidence floor — drop anything under 50% so the
       // UI never shows low-confidence speculation. Matches the prompt
@@ -1613,7 +1614,7 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
         // once (health + disease + pest + edibility + pruning).
         { responseSchema: ANALYSE_COMPREHENSIVE_SCHEMA, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },
       );
-      const parsed = JSON.parse(rawText);
+      const parsed = extractJsonObject(rawText) as any;
       await logAiUsage(supabase, {
         homeId: homeId ?? null,
         userId: callerUserId,
@@ -1815,7 +1816,7 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
       if (!rawText || !rawText.trim()) {
         throw new Error("Gemini returned empty text for the grow guide.");
       }
-      const parsed = JSON.parse(rawText) as PlantGrowGuide;
+      const parsed = extractJsonObject(rawText) as PlantGrowGuide;
       await logAiUsage(supabase, {
         homeId: homeId ?? null,
         userId: callerUserId,
@@ -1924,7 +1925,7 @@ Notes: optional one-line caveat about regional variability or microclimate consi
         apiKey, FN, toMessages([promptText]),
         { responseSchema: LOOKUP_FROST_DATES_SCHEMA, logContext: { action } },
       );
-      const parsed = JSON.parse(rawText);
+      const parsed = extractJsonObject(rawText) as any;
       await logAiUsage(supabase, {
         homeId, userId: callerUserId, functionName: FN,
         action: "lookup_frost_dates", usage,
@@ -2020,7 +2021,7 @@ Return precise planting guidance for THIS plant in THIS location:
         apiKey, FN, toMessages([promptText]),
         { responseSchema: PLANT_WHEN_TO_PLANT_SCHEMA, logContext: { action } },
       );
-      const parsed = JSON.parse(rawText);
+      const parsed = extractJsonObject(rawText) as any;
       await logAiUsage(supabase, {
         homeId, userId: callerUserId, functionName: FN,
         action: "plant_when_to_plant", usage,
@@ -2077,7 +2078,7 @@ CRITICAL RULES:
         apiKey, FN, toMessages([promptText]),
         { responseSchema: REMEDIAL_PLAN_SCHEMA, logContext: { action } },
       );
-      const parsed = JSON.parse(rawText);
+      const parsed = extractJsonObject(rawText) as any;
       await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "generate_remedial_plan", usage });
       log(FN, "result", {
         action, targetPlant,
@@ -2138,7 +2139,7 @@ RESPONSE RULES:
         // anti-hallucination reasoning we use on diagnose.
         { responseSchema: IDENTIFY_PEST_SCHEMA, temperature: 0.2, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },
       );
-      const parsed = JSON.parse(rawText);
+      const parsed = extractJsonObject(rawText) as any;
 
       // Server-side confidence floor — drop sub-50% guesses before
       // returning, so the UI never shows low-confidence speculation.
