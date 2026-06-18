@@ -210,16 +210,31 @@ serve(async (req) => {
           );
           const r = parseCareRangeResponse(text);
           if (r) {
-            await db.from("plants").update({
-              soil_moisture_min: r.soil_moisture_min, soil_moisture_max: r.soil_moisture_max,
-              soil_ec_min: r.soil_ec_min, soil_ec_max: r.soil_ec_max,
-              soil_temp_min: r.soil_temp_min, soil_temp_max: r.soil_temp_max,
-            }).eq("id", c.id);
             careById.set(c.id, mergeCareRanges(r, careById.get(c.id)));
             await logAiUsage(db, { userId, homeId, functionName: "plant-care-ranges", action: "care_range_backfill", usage });
           }
         } catch (e) {
           logError(FN, "care_range_gen_failed", { plant_id: c.id, message: e instanceof Error ? e.message : String(e) });
+        }
+      }
+
+      // Persist resolved ranges (from the library OR generated above) back onto
+      // each `plants` row wherever it was missing them. `plants` is a shared
+      // catalogue, so this both makes the data visible in the table and means
+      // future reads need no library join — generated/looked-up once per plant.
+      const RANGE_FIELDS = [
+        "soil_moisture_min", "soil_moisture_max", "soil_ec_min", "soil_ec_max", "soil_temp_min", "soil_temp_max",
+      ] as const;
+      for (const c of care ?? []) {
+        const resolved = careById.get(c.id as number);
+        if (!resolved) continue;
+        const patch: Record<string, number> = {};
+        for (const f of RANGE_FIELDS) {
+          if ((c as Record<string, unknown>)[f] == null && resolved[f] != null) patch[f] = resolved[f] as number;
+        }
+        if (Object.keys(patch).length > 0) {
+          const { error } = await db.from("plants").update(patch).eq("id", c.id as number);
+          if (error) logError(FN, "care_range_persist_failed", { plant_id: c.id, message: error.message });
         }
       }
     }

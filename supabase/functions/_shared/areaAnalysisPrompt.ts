@@ -270,9 +270,15 @@ ${automationLines}
 
 == YOUR TASK ==
 For THIS area and THESE plants:
-1. For each of moisture, EC, and soil temperature, give the ideal range (ideal_min/ideal_max with a unit),
-   the current value if known, a status (good/low/high; "unknown" if no reading), a plain "meaning" of the
-   metric, "why_for_these_plants" (relate it to the specific plants above), and a "recommendation".
+1. Return EXACTLY three metric objects in the "metrics" array, ALWAYS in this order:
+   (1) moisture, (2) temperature, (3) ec. Include all three every time — even when there is
+   no current reading. Use the SAME consistent structure for each metric:
+   - ideal_min / ideal_max with a unit — the target range for THESE plants.
+   - current — the current value, if known; omit it entirely when there is no reading.
+   - status — good / low / high; use "unknown" when there is no current reading.
+   - meaning — 1-2 sentences: what this metric is and WHY it matters / why it's important for healthy growth.
+   - why_for_these_plants — what THESE specific plants (name them) need for this metric and why.
+   - recommendation — the concrete action to take now.
    - ${hasStored
      ? "IMPORTANT: where a plant lists an [ideal: …] range above, those are AUTHORITATIVE stored values — set ideal_min/ideal_max to match them (for multiple plants, use the overlap / tightest sensible combined range). Only estimate a range yourself for a metric that has no stored value."
      : "No stored ideal ranges are provided, so estimate sensible agronomic ranges for these plants."}

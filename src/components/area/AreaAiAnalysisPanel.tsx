@@ -27,6 +27,10 @@ const METRIC_ICON: Record<MetricKey, typeof Droplets> = {
   temperature: Thermometer,
 };
 
+// Always present the metrics in this fixed order so the analysis reads the same
+// every time, regardless of the order the model returned them.
+const METRIC_ORDER: MetricKey[] = ["moisture", "temperature", "ec"];
+
 export default function AreaAiAnalysisPanel({ areaId, homeId, aiEnabled }: Props) {
   const [result, setResult] = useState<AreaInsightResult | null>(null);
   const [loading, setLoading] = useState(false);
@@ -127,7 +131,9 @@ export default function AreaAiAnalysisPanel({ areaId, homeId, aiEnabled }: Props
           </div>
 
           <div className="space-y-3">
-            {insight.metrics.map((m) => {
+            {METRIC_ORDER.map((key) => {
+              const m = insight.metrics.find((x) => x.metric === key);
+              if (!m) return null;
               const Icon = METRIC_ICON[m.metric] ?? Droplets;
               const meta = statusMeta(m.status);
               return (
@@ -149,7 +155,7 @@ export default function AreaAiAnalysisPanel({ areaId, homeId, aiEnabled }: Props
                       </span>
                     )}
                     <span className="text-gray-500">
-                      Ideal {m.ideal_min}–{m.ideal_max}{m.unit}
+                      Target for your plants <span className="font-semibold">{m.ideal_min}–{m.ideal_max}{m.unit}</span>
                     </span>
                   </div>
                   <p className="mt-2 text-sm text-gray-600">{m.meaning}</p>

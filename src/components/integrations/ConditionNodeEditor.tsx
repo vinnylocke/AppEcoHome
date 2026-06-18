@@ -7,7 +7,7 @@ import {
   newLeaf, newGroup, WEEKDAYS, WEEKDAY_LABELS,
   type ConditionNode, type LeafKind, type Weekday, type SensorMetric, type Comparator, type AggMode,
 } from "../../lib/conditionTree";
-import { mmddToInput, inputToMmdd, seasonPreset, type SeasonPreset } from "../../lib/dateRangeLeaf";
+import { splitMmDd, makeMmDd, daysInMonth, MONTH_LABELS, seasonPreset, type SeasonPreset } from "../../lib/dateRangeLeaf";
 import type { Hemisphere } from "../../lib/seasonal";
 
 export interface BuilderCtx {
@@ -26,17 +26,31 @@ const LEAF_KINDS: Array<{ id: LeafKind; label: string }> = [
 
 const SEASONS: SeasonPreset[] = ["spring", "summer", "autumn", "winter"];
 
+function MonthDayPicker({ value, onChange, testId }: { value: string; onChange: (mmdd: string) => void; testId: string }) {
+  const { month, day } = splitMmDd(value);
+  return (
+    <span className="inline-flex items-center gap-1">
+      <select data-testid={`${testId}-month`} value={month} onChange={(e) => onChange(makeMmDd(Number(e.target.value), day))} className={inputCls}>
+        {MONTH_LABELS.map((label, i) => <option key={i} value={i + 1}>{label}</option>)}
+      </select>
+      <select data-testid={`${testId}-day`} value={day} onChange={(e) => onChange(makeMmDd(month, Number(e.target.value)))} className={inputCls}>
+        {Array.from({ length: daysInMonth(month) }, (_, i) => i + 1).map((d) => <option key={d} value={d}>{d}</option>)}
+      </select>
+    </span>
+  );
+}
+
 function DateRangeFields({ node, onChange, ctx }: { node: Extract<ConditionNode, { kind: "date_range" }>; onChange: (n: ConditionNode) => void; ctx: BuilderCtx }) {
   const set = (p: Partial<typeof node>) => onChange({ ...node, ...p });
+  const wraps = node.to < node.from; // e.g. 1 Dec → 28 Feb
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <span className="text-gray-500">from</span>
-        <input data-testid="date-range-from" type="date" value={mmddToInput(node.from)}
-          onChange={(e) => set({ from: inputToMmdd(e.target.value) || node.from })} className={inputCls} />
+        <MonthDayPicker value={node.from} onChange={(v) => set({ from: v })} testId="date-range-from" />
         <span className="text-gray-500">to</span>
-        <input data-testid="date-range-to" type="date" value={mmddToInput(node.to)}
-          onChange={(e) => set({ to: inputToMmdd(e.target.value) || node.to })} className={inputCls} />
+        <MonthDayPicker value={node.to} onChange={(v) => set({ to: v })} testId="date-range-to" />
+        {wraps && <span className="text-[11px] text-amber-600 font-semibold">(into next year)</span>}
       </div>
       <div className="flex flex-wrap gap-1.5">
         {SEASONS.map((s) => (
@@ -47,7 +61,7 @@ function DateRangeFields({ node, onChange, ctx }: { node: Extract<ConditionNode,
           </button>
         ))}
       </div>
-      <p className="text-[11px] text-gray-400">Repeats every year (the year shown is ignored). Season presets use your hemisphere. An end before the start wraps over New Year.</p>
+      <p className="text-[11px] text-gray-400">Repeats every year. Season presets use your hemisphere. An end month/day before the start wraps over New Year.</p>
     </div>
   );
 }
