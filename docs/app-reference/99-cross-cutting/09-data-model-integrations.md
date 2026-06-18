@@ -123,6 +123,10 @@ Audit trail of every fire. `status`: `ran` / `skipped_rain` / `failed` / `retrie
 
 One row per area (`area_id` PK, `home_id` FK), home-scoped RLS SELECT, service-role writes only. Caches the AI Area Coach analysis as `insight` jsonb. `based_on_reading_at` records the latest `device_reading.recorded_at` the insight reflects — the `area-sensor-analysis` fn regenerates only when a newer reading (live or manual) arrives. Also stores `persona`, `model`, `generated_at`. See [Edge Functions Catalogue](./10-edge-functions-catalogue.md) and [Caching](./14-caching.md).
 
+### `latest_device_readings(p_home_id)` RPC (Batch C, 2026-06-18, migration `20260802000000`)
+
+`SECURITY INVOKER` SQL function returning the newest `device_readings` row per device for a home (`DISTINCT ON (device_id) … ORDER BY device_id, recorded_at DESC`). Existing `device_readings` RLS ("home members read readings") gates the rows. Powers the live moisture/temp/EC/valve-state chips on `DeviceCard` (`src/lib/integrations/readingChips.ts`) without a per-card query. `GRANT EXECUTE … TO authenticated`.
+
 ### Cron
 
 | Cron | Cadence | Effect |

@@ -3,7 +3,9 @@ import { supabase } from "../../lib/supabase";
 import { Plus, Loader2, Zap } from "lucide-react";
 import AutomationCard from "./AutomationCard";
 import AutomationBuilderModal from "./AutomationBuilderModal";
-import type { ConditionNode } from "../../lib/conditionTree";
+import SearchInput from "./SearchInput";
+import { summariseTree, type ConditionNode } from "../../lib/conditionTree";
+import { filterByText } from "../../lib/textFilter";
 
 export interface AutomationFull {
   id: string;
@@ -33,8 +35,11 @@ interface Props {
 export default function AutomationsSection({ homeId, canManage, canRun }: Props) {
   const [automations, setAutomations] = useState<AutomationFull[]>([]);
   const [loading, setLoading] = useState(true);
+  const [query, setQuery] = useState("");
   // Unified builder (Phase 2): undefined = closed, null = new, string = edit id.
   const [builderId, setBuilderId] = useState<string | null | undefined>(undefined);
+
+  const filtered = filterByText(automations, query, (a) => [a.name, summariseTree(a.trigger_logic), a.area_name, a.location_name]);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -142,18 +147,29 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
       ) : automations.length === 0 ? (
         <AutomationsEmptyState onNew={canManage ? openNew : undefined} />
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {automations.map((a) => (
-            <AutomationCard
-              key={a.id}
-              automation={a}
-              onEdit={() => openEdit(a)}
-              onDeleted={() => handleDeleted(a.id)}
-              canManage={canManage}
-              canRun={canRun}
-            />
-          ))}
-        </div>
+        <>
+          {automations.length > 4 && (
+            <div className="mb-3">
+              <SearchInput value={query} onChange={setQuery} placeholder="Search automations…" testId="automation-search" />
+            </div>
+          )}
+          {filtered.length === 0 ? (
+            <p className="text-sm text-rhozly-on-surface-variant py-6 text-center">No automations match “{query}”.</p>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filtered.map((a) => (
+                <AutomationCard
+                  key={a.id}
+                  automation={a}
+                  onEdit={() => openEdit(a)}
+                  onDeleted={() => handleDeleted(a.id)}
+                  canManage={canManage}
+                  canRun={canRun}
+                />
+              ))}
+            </div>
+          )}
+        </>
       )}
 
       {builderId !== undefined && (

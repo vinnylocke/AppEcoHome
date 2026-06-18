@@ -134,6 +134,7 @@ export default function DeviceDetailModal({ device, onClose, onRefresh, canManag
                 tempDisplayUnit={
                   (device.metadata?.display_temp_unit as "celsius" | "fahrenheit" | undefined) ?? "celsius"
                 }
+                ecSource={(device.metadata?.ec_source as "calibrated_us_cm" | "raw_adc" | undefined) ?? null}
               />
             </section>
 

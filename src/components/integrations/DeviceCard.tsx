@@ -1,15 +1,31 @@
 import React from "react";
-import { Zap, Wifi, WifiOff } from "lucide-react";
+import { Wifi, WifiOff } from "lucide-react";
 import { IconWatering, IconTemperature } from "../../constants/icons";
 import BatteryPip from "./BatteryPip";
+import { buildReadingChips, type ChipTone } from "../../lib/integrations/readingChips";
 import type { Device } from "./IntegrationsPage";
 
 interface Props {
   device: Device;
+  /** Newest reading's `data` jsonb (from latest_device_readings). */
+  latest?: { data: Record<string, unknown>; recorded_at: string };
   onClick: () => void;
 }
 
-export default function DeviceCard({ device, onClick }: Props) {
+const CHIP_CLASS: Record<ChipTone, string> = {
+  moisture:   "bg-blue-50 text-blue-700",
+  temp:       "bg-amber-50 text-amber-700",
+  ec:         "bg-violet-50 text-violet-700",
+  "state-on": "bg-green-100 text-green-700",
+  "state-off":"bg-rhozly-surface-low text-rhozly-on-surface-variant",
+};
+
+export default function DeviceCard({ device, latest, onClick }: Props) {
+  const chips = buildReadingChips(
+    device.device_type,
+    latest?.data,
+    (device.metadata?.ec_source as "calibrated_us_cm" | "raw_adc" | undefined) ?? null,
+  );
   // Valves don't send periodic readings so last_seen_at goes stale — treat as
   // online whenever the device is linked (external_device_id present).
   const isOnline = device.device_type === "water_valve"
@@ -51,6 +67,17 @@ export default function DeviceCard({ device, onClick }: Props) {
       <p className="text-xs text-rhozly-on-surface-variant capitalize mb-3">
         {device.provider} · {isSoil ? "Soil Sensor" : "Water Valve"}
       </p>
+
+      {/* Latest reading chips */}
+      {chips.length > 0 && (
+        <div className="flex flex-wrap gap-1.5 mb-3" data-testid={`device-chips-${device.id}`}>
+          {chips.map((c, i) => (
+            <span key={i} className={`px-2 py-0.5 rounded-lg text-xs font-bold ${CHIP_CLASS[c.tone]}`}>
+              {c.label}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* Last seen */}
       {isSoil ? (

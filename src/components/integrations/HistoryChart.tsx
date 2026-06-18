@@ -5,6 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
 import type { AggregatePeriod } from "../../lib/integrations/types";
+import { hasSeries } from "../../lib/integrations/hasSeries";
 import ValveTimeline from "./ValveTimeline";
 
 interface Props {
@@ -13,6 +14,8 @@ interface Props {
   /** Optional — defaults to "celsius". Storage is always Celsius; this
    *  only flips the axis label + value conversion at render time. */
   tempDisplayUnit?: "celsius" | "fahrenheit";
+  /** Drives the EC axis label/unit. calibrated → µS/cm, raw → relative ADC. */
+  ecSource?: "calibrated_us_cm" | "raw_adc" | null;
 }
 
 const PERIODS: { id: AggregatePeriod; label: string }[] = [
@@ -22,7 +25,7 @@ const PERIODS: { id: AggregatePeriod; label: string }[] = [
   { id: "12m", label: "12m" },
 ];
 
-export default function HistoryChart({ deviceId, deviceType, tempDisplayUnit = "celsius" }: Props) {
+export default function HistoryChart({ deviceId, deviceType, tempDisplayUnit = "celsius", ecSource = null }: Props) {
   const [period, setPeriod] = useState<AggregatePeriod>("24h");
   const [data, setData] = useState<Record<string, unknown>[]>([]);
   const [loading, setLoading] = useState(false);
@@ -90,7 +93,7 @@ export default function HistoryChart({ deviceId, deviceType, tempDisplayUnit = "
       ) : data.length === 0 ? (
         <p className="text-sm text-rhozly-on-surface-variant text-center py-6">No data for this period.</p>
       ) : (
-        <SoilChart data={data} period={period} tempDisplayUnit={tempDisplayUnit} />
+        <SoilChart data={data} period={period} tempDisplayUnit={tempDisplayUnit} ecSource={ecSource} />
       )}
     </div>
   );
@@ -100,10 +103,12 @@ function SoilChart({
   data,
   period,
   tempDisplayUnit,
+  ecSource,
 }: {
   data: Record<string, unknown>[];
   period: AggregatePeriod;
   tempDisplayUnit: "celsius" | "fahrenheit";
+  ecSource: "calibrated_us_cm" | "raw_adc" | null;
 }) {
   const fmt = (bucket: string) => {
     const d = new Date(bucket);
@@ -132,6 +137,16 @@ function SoilChart({
       <ChartBlock title="Moisture (%)" data={data} dataKey="soil_moisture" color="#3b82f6" fmt={fmt} domain={[0, 100]} />
       {/* Temperature */}
       <ChartBlock title={tempTitle} data={tempData} dataKey="soil_temp" color="#f97316" fmt={fmt} />
+      {/* EC — only for sensors that report it (WH52 calibrated µS/cm or WH51 raw ADC) */}
+      {hasSeries(data, "soil_ec") && (
+        <ChartBlock
+          title={ecSource === "calibrated_us_cm" ? "EC (µS/cm)" : ecSource === "raw_adc" ? "EC (raw)" : "EC"}
+          data={data}
+          dataKey="soil_ec"
+          color="#8b5cf6"
+          fmt={fmt}
+        />
+      )}
     </div>
   );
 }

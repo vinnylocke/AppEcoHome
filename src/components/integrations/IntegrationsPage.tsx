@@ -4,6 +4,8 @@ import { Plus, RefreshCw, AlertCircle, Loader2, CheckCircle, XCircle, Cpu, Zap }
 import { IconIntegrations } from "../../constants/icons";
 import { usePermissions } from "../../context/HomePermissionsContext";
 import DeviceCard from "./DeviceCard";
+import SearchInput from "./SearchInput";
+import { filterByText } from "../../lib/textFilter";
 import ConnectDeviceWizard from "./ConnectDeviceWizard";
 import DeviceDetailModal from "./DeviceDetailModal";
 import AutomationsSection from "./AutomationsSection";
@@ -39,6 +41,8 @@ export default function IntegrationsPage({ homeId }: Props) {
 
   const [activeTab, setActiveTab] = useState<TabId>("devices");
   const [devices, setDevices] = useState<Device[]>([]);
+  const [deviceQuery, setDeviceQuery] = useState("");
+  const [latestByDevice, setLatestByDevice] = useState<Map<string, { data: Record<string, unknown>; recorded_at: string }>>(new Map());
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showWizard, setShowWizard] = useState(false);
@@ -131,6 +135,14 @@ export default function IntegrationsPage({ homeId }: Props) {
       setError(err.message);
     } else {
       setDevices((data ?? []) as Device[]);
+      // Latest reading per device → live metric/state chips on the cards.
+      supabase.rpc("latest_device_readings", { p_home_id: homeId }).then(({ data: rows }) => {
+        const map = new Map<string, { data: Record<string, unknown>; recorded_at: string }>();
+        for (const r of (rows ?? []) as Array<{ device_id: string; data: Record<string, unknown>; recorded_at: string }>) {
+          map.set(r.device_id, { data: r.data, recorded_at: r.recorded_at });
+        }
+        setLatestByDevice(map);
+      });
     }
     setLoading(false);
   }, [homeId]);
@@ -323,11 +335,29 @@ export default function IntegrationsPage({ homeId }: Props) {
             ) : devices.length === 0 ? (
               <EmptyState onConnect={canManageIntegrations ? () => setShowWizard(true) : undefined} />
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-                {devices.map((d) => (
-                  <DeviceCard key={d.id} device={d} onClick={() => setSelectedDevice(d)} />
-                ))}
-              </div>
+              <>
+                {devices.length > 4 && (
+                  <div className="mb-3">
+                    <SearchInput value={deviceQuery} onChange={setDeviceQuery} placeholder="Search devices…" testId="device-search" />
+                  </div>
+                )}
+                {(() => {
+                  const filteredDevices = filterByText(devices, deviceQuery, (d) => [
+                    d.name,
+                    d.device_type === "soil_sensor" ? "soil sensor" : "water valve",
+                    d.provider,
+                  ]);
+                  return filteredDevices.length === 0 ? (
+                    <p className="text-sm text-rhozly-on-surface-variant py-6 text-center">No devices match “{deviceQuery}”.</p>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                      {filteredDevices.map((d) => (
+                        <DeviceCard key={d.id} device={d} latest={latestByDevice.get(d.id)} onClick={() => setSelectedDevice(d)} />
+                      ))}
+                    </div>
+                  );
+                })()}
+              </>
             )}
           </>
         )}
