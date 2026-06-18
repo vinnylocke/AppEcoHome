@@ -63,6 +63,11 @@ export default function CreditPopover({ credit, anchorRect, onClose }: Props) {
       style={{ top, left, width: PANEL_WIDTH }}
       className="fixed z-[200] bg-white rounded-2xl shadow-xl border border-rhozly-outline/15 p-3 animate-in fade-in zoom-in-95"
       data-testid="image-credit-popover"
+      // The popover portals to <body> but is a React child of the trigger
+      // button, so React events bubble back to it. Without this, clicking the
+      // ✕ (or anything inside) re-fires the trigger's onClick and re-opens the
+      // popover — making it impossible to close. Stop clicks here.
+      onClick={(e) => e.stopPropagation()}
     >
       <div className="flex items-start justify-between gap-2 mb-2">
         <span
