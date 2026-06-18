@@ -21,7 +21,7 @@ import { captureException } from "../_shared/sentry.ts";
 import type { SensorMetric, SensorObservation } from "../_shared/automationEvaluator.ts";
 import { readForecast, type ForecastReading } from "../_shared/weatherForecast.ts";
 import {
-  evaluateTree, isWithinSchedule, evalSensorLeaf, evalWeatherLeaf, shouldFire,
+  evaluateTree, isWithinSchedule, isWithinDateRange, evalSensorLeaf, evalWeatherLeaf, shouldFire,
   summariseSatisfied,
   type ConditionNode, type LeafNode,
 } from "../_shared/conditionTree.ts";
@@ -206,6 +206,7 @@ async function processOne(
     switch (leaf.kind) {
       case "sensor": return evalSensorLeaf(leaf, obsByLeaf.get(leaf) ?? []);
       case "time": return isWithinSchedule(now, leaf.schedule, leaf.tz ?? homeTz);
+      case "date_range": return isWithinDateRange(now, leaf.from, leaf.to, homeTz);
       case "task_due": return leaf.blueprintIds.some((b) => dueSet.has(b));
       case "weather": return forecast ? evalWeatherLeaf(leaf, forecast) : false;
     }

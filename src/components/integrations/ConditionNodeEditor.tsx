@@ -7,18 +7,50 @@ import {
   newLeaf, newGroup, WEEKDAYS, WEEKDAY_LABELS,
   type ConditionNode, type LeafKind, type Weekday, type SensorMetric, type Comparator, type AggMode,
 } from "../../lib/conditionTree";
+import { mmddToInput, inputToMmdd, seasonPreset, type SeasonPreset } from "../../lib/dateRangeLeaf";
+import type { Hemisphere } from "../../lib/seasonal";
 
 export interface BuilderCtx {
   sensors: Array<{ id: string; name: string }>;
   blueprints: Array<{ id: string; title: string }>;
+  hemisphere: Hemisphere;
 }
 
 const LEAF_KINDS: Array<{ id: LeafKind; label: string }> = [
   { id: "sensor", label: "Sensor reading" },
   { id: "time", label: "Time / day" },
+  { id: "date_range", label: "Date range" },
   { id: "task_due", label: "Task due" },
   { id: "weather", label: "Weather" },
 ];
+
+const SEASONS: SeasonPreset[] = ["spring", "summer", "autumn", "winter"];
+
+function DateRangeFields({ node, onChange, ctx }: { node: Extract<ConditionNode, { kind: "date_range" }>; onChange: (n: ConditionNode) => void; ctx: BuilderCtx }) {
+  const set = (p: Partial<typeof node>) => onChange({ ...node, ...p });
+  return (
+    <div className="space-y-2">
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-gray-500">from</span>
+        <input data-testid="date-range-from" type="date" value={mmddToInput(node.from)}
+          onChange={(e) => set({ from: inputToMmdd(e.target.value) || node.from })} className={inputCls} />
+        <span className="text-gray-500">to</span>
+        <input data-testid="date-range-to" type="date" value={mmddToInput(node.to)}
+          onChange={(e) => set({ to: inputToMmdd(e.target.value) || node.to })} className={inputCls} />
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {SEASONS.map((s) => (
+          <button key={s} type="button" data-testid={`season-${s}`}
+            onClick={() => { const r = seasonPreset(s, ctx.hemisphere); set({ from: r.from, to: r.to }); }}
+            className="px-2 py-1 rounded-lg text-xs font-medium border border-gray-200 text-gray-600 hover:border-emerald-400 hover:text-emerald-700 capitalize">
+            {s}
+          </button>
+        ))}
+      </div>
+      <p className="text-[11px] text-gray-400">Repeats every year (the year shown is ignored). Season presets use your hemisphere. An end before the start wraps over New Year.</p>
+    </div>
+  );
+}
 
 function NegateToggle({ negate, onChange }: { negate: boolean; onChange: (n: boolean) => void }) {
   return (
@@ -196,6 +228,7 @@ export default function ConditionNodeEditor({ node, onChange, onDelete, ctx, dep
       </div>
       {node.kind === "sensor" && <SensorFields node={node} onChange={onChange} ctx={ctx} />}
       {node.kind === "time" && <TimeFields node={node} onChange={onChange} />}
+      {node.kind === "date_range" && <DateRangeFields node={node} onChange={onChange} ctx={ctx} />}
       {node.kind === "task_due" && <TaskFields node={node} onChange={onChange} ctx={ctx} />}
       {node.kind === "weather" && <WeatherFields node={node} onChange={onChange} />}
     </div>

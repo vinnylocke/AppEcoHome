@@ -11,6 +11,8 @@ import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { newGroup, newLeaf, summariseTree, type ConditionNode } from "../../lib/conditionTree";
 import { AUTOMATION_TEMPLATES, type AutomationTemplate } from "../../lib/automationTemplates";
 import { scopeDevicesToArea } from "../../lib/automationDeviceScope";
+import { hemisphereForHome } from "../../lib/dateRangeLeaf";
+import type { Hemisphere } from "../../lib/seasonal";
 import ConditionNodeEditor, { type BuilderCtx } from "./ConditionNodeEditor";
 
 interface Props {
@@ -60,16 +62,18 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
   const [blueprints, setBlueprints] = useState<Array<{ id: string; title: string }>>([]);
   const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([]);
   const [areas, setAreas] = useState<Array<{ id: string; name: string; location_id: string }>>([]);
+  const [hemisphere, setHemisphere] = useState<Hemisphere>("northern");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [{ data: devs }, { data: bps }, { data: locs }, autoRes] = await Promise.all([
+      const [{ data: devs }, { data: bps }, { data: locs }, { data: home }, autoRes] = await Promise.all([
         supabase.from("devices").select("id, name, device_type, area_id").eq("home_id", homeId).eq("is_active", true).order("name"),
         supabase.from("task_blueprints").select("id, title").eq("home_id", homeId).eq("is_recurring", true).order("title"),
         supabase.from("locations").select("id, name").eq("home_id", homeId).order("name"),
+        supabase.from("homes").select("lat, timezone").eq("id", homeId).maybeSingle(),
         automationId
           ? supabase.from("automations").select("name, is_active, sensor_cooldown_minutes, trigger_logic, location_id, area_id, run_limit_count, run_limit_window_hours").eq("id", automationId).single()
           : Promise.resolve({ data: null }),
@@ -79,6 +83,7 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
       setValves((devs ?? []).filter((d: { device_type: string }) => d.device_type === "water_valve").map(toOpt));
       setBlueprints((bps ?? []).map((b: { id: string; title: string }) => ({ id: b.id, title: b.title })));
       setLocations((locs ?? []) as Array<{ id: string; name: string }>);
+      setHemisphere(hemisphereForHome(home as { lat?: number | null; timezone?: string | null } | null));
 
       const locIds = (locs ?? []).map((l: { id: string }) => l.id);
       if (locIds.length) {
@@ -113,7 +118,7 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
   const scopedSensors = useMemo(() => scopeDevicesToArea(sensors, areaId, collectSensorIds(tree)), [sensors, areaId, tree]);
   const scopedValves = useMemo(() => scopeDevicesToArea(valves, areaId, selectedValveIds), [valves, areaId, selectedValveIds]);
   const areasForLocation = useMemo(() => locationId ? areas.filter((ar) => ar.location_id === locationId) : areas, [areas, locationId]);
-  const ctx: BuilderCtx = useMemo(() => ({ sensors: scopedSensors, blueprints }), [scopedSensors, blueprints]);
+  const ctx: BuilderCtx = useMemo(() => ({ sensors: scopedSensors, blueprints, hemisphere }), [scopedSensors, blueprints, hemisphere]);
   const summary = useMemo(() => summariseTree(tree), [tree]);
 
   const applyTemplate = (t: AutomationTemplate) => {

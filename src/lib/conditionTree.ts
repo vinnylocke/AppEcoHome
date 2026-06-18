@@ -2,6 +2,8 @@
 // (supabase/functions/_shared/conditionTree.ts). Pure helpers for the builder
 // UI + the card summary — no React, fully unit-testable.
 
+import { formatMmDd } from "./dateRangeLeaf";
+
 export type Weekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 export const WEEKDAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 export const WEEKDAY_LABELS: Record<Weekday, string> = {
@@ -19,10 +21,11 @@ export type ConditionNode =
   | { kind: "group"; op: "and" | "or"; negate?: boolean; children: ConditionNode[] }
   | { kind: "sensor"; negate?: boolean; metric: SensorMetric; comparator: Comparator; value: number; agg: AggMode; sensorIds?: string[]; areaId?: string | null }
   | { kind: "time"; negate?: boolean; schedule: WeeklySchedule; tz?: string }
+  | { kind: "date_range"; negate?: boolean; from: string; to: string } // "MM-DD"; recurs yearly; to<from wraps year-end
   | { kind: "task_due"; negate?: boolean; blueprintIds: string[] }
   | { kind: "weather"; negate?: boolean; type: "rain_forecast" | "heatwave"; thresholdMm?: number; minProbability?: number; windowHours?: number; thresholdC?: number };
 
-export type LeafKind = "sensor" | "time" | "task_due" | "weather";
+export type LeafKind = "sensor" | "time" | "date_range" | "task_due" | "weather";
 
 export const emptySchedule = (): WeeklySchedule =>
   ({ mon: [], tue: [], wed: [], thu: [], fri: [], sat: [], sun: [] });
@@ -35,6 +38,13 @@ export function newLeaf(kind: LeafKind): ConditionNode {
       const s = emptySchedule();
       for (const d of ["mon", "tue", "wed", "thu", "fri"] as Weekday[]) s[d] = [{ start: "08:00", end: "20:00" }];
       return { kind: "time", schedule: s };
+    }
+    case "date_range": {
+      // Default to the current month (1st → last day).
+      const now = new Date();
+      const mm = String(now.getMonth() + 1).padStart(2, "0");
+      const last = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      return { kind: "date_range", from: `${mm}-01`, to: `${mm}-${String(last).padStart(2, "0")}` };
     }
     case "task_due": return { kind: "task_due", blueprintIds: [] };
     case "weather": return { kind: "weather", type: "rain_forecast", thresholdMm: 5, minProbability: 60, windowHours: 12 };
@@ -80,6 +90,9 @@ export function summariseNode(node: ConditionNode): string {
     }
     case "time":
       s = `time is${summariseTimes(node.schedule)} ${summariseDays(node.schedule)}`.replace(/\s+/g, " ").trim();
+      break;
+    case "date_range":
+      s = `date is between ${formatMmDd(node.from)} and ${formatMmDd(node.to)}`;
       break;
     case "task_due": {
       const n = node.blueprintIds.length;

@@ -61,4 +61,15 @@ describe("summariseNode / summariseTree", () => {
   it("null tree → dash", () => {
     expect(summariseTree(null)).toBe("—");
   });
+
+  it("date_range default is the current month, and summarises with month names", () => {
+    const l = newLeaf("date_range");
+    expect(l.kind).toBe("date_range");
+    if (l.kind === "date_range") {
+      expect(l.from).toMatch(/^\d{2}-01$/);
+      expect(l.to).toMatch(/^\d{2}-\d{2}$/);
+    }
+    const tree: ConditionNode = { kind: "date_range", from: "01-01", to: "01-09" };
+    expect(summariseTree(tree)).toBe("Date is between 1 Jan and 9 Jan");
+  });
 });

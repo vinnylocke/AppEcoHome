@@ -32,6 +32,7 @@ export type ConditionNode =
       sensorIds?: string[]; areaId?: string | null;
     }
   | { kind: "time"; negate?: boolean; schedule: WeeklySchedule; tz?: string }
+  | { kind: "date_range"; negate?: boolean; from: string; to: string } // "MM-DD"; recurs yearly; to<from wraps year-end
   | { kind: "task_due"; negate?: boolean; blueprintIds: string[] }
   | {
       kind: "weather"; negate?: boolean; type: "rain_forecast" | "heatwave";
@@ -105,7 +106,31 @@ export function isWithinSchedule(now: Date, schedule: WeeklySchedule, tz: string
   return false;
 }
 
+/**
+ * Is `now` (in `tz`) within the recurring calendar window [from, to] (each
+ * "MM-DD")? When `to < from` the window wraps the year end (e.g. southern-
+ * hemisphere summer "12-01".."02-28"). Pure.
+ */
+export function isWithinDateRange(now: Date, from: string, to: string, tz: string): boolean {
+  if (!/^\d{2}-\d{2}$/.test(from) || !/^\d{2}-\d{2}$/.test(to)) return false;
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: tz, month: "2-digit", day: "2-digit",
+  }).formatToParts(now);
+  const mm = parts.find((p) => p.type === "month")?.value ?? "01";
+  const dd = parts.find((p) => p.type === "day")?.value ?? "01";
+  const cur = `${mm}-${dd}`;
+  return from <= to ? (cur >= from && cur <= to) : (cur >= from || cur <= to);
+}
+
 // ── Plain-English summary (server-side, for the AI Area Coach) ────────────────
+
+const SUMMARY_MONTHS = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+function fmtMmDd(mmdd: string): string {
+  const m = /^(\d{2})-(\d{2})$/.exec(mmdd ?? "");
+  if (!m) return "";
+  const month = Number(m[1]);
+  return month >= 1 && month <= 12 ? `${Number(m[2])} ${SUMMARY_MONTHS[month - 1]}` : "";
+}
 
 const SUMMARY_METRIC: Record<string, string> = { soil_moisture: "moisture", soil_temp_c: "soil temp", soil_ec: "EC" };
 const SUMMARY_UNIT: Record<string, string> = { soil_moisture: "%", soil_temp_c: "°C", soil_ec: "µS/cm" };
@@ -135,6 +160,7 @@ export function summariseNode(node: ConditionNode): string {
       s = `time is${uniq.length === 1 ? ` ${uniq[0]}` : slots.length ? " (varies)" : ""} ${summariseDays(node.schedule)}`.replace(/\s+/g, " ").trim();
       break;
     }
+    case "date_range": s = `date is between ${fmtMmDd(node.from)} and ${fmtMmDd(node.to)}`; break;
     case "task_due": s = "a linked task is due"; break;
     case "weather": s = node.type === "rain_forecast" ? `rain forecast (≥${node.thresholdMm ?? 5}mm)` : `heatwave${node.thresholdC ? ` (≥${node.thresholdC}°C)` : ""}`; break;
   }
