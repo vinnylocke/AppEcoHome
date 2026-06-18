@@ -11,6 +11,7 @@ import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 import { summariseTree, type ConditionNode } from "../_shared/conditionTree.ts";
 import { mergeCareRanges, careMatchKey, type CareRanges } from "../_shared/careRanges.ts";
 import { buildPlantCareRangePrompt, parseCareRangeResponse, CARE_RANGE_SCHEMA } from "../_shared/plantCareRangeGen.ts";
+import { uniqueAutomationIds } from "../_shared/automationAreaLinks.ts";
 import {
   buildAreaAnalysisPrompt,
   parseAreaInsight,
@@ -225,9 +226,10 @@ serve(async (req) => {
 
     // ── Automations for this area ───────────────────────────────────────────
     // An automation is "in" this area if EITHER it's scoped directly by area_id
-    // (sensor-threshold automations) OR it controls a device (valve/sensor) that
-    // lives in this area (time-scheduled valve automations link via
-    // automation_devices, leaving automations.area_id NULL).
+    // OR it controls a device (valve/sensor) that lives in this area. Devices
+    // are linked two ways: the legacy `automation_devices` join AND the unified
+    // condition builder's `automation_actions.target_device_id` — we must check
+    // both or condition automations with a valve in the area get missed.
     const automations: AreaAnalysisInput["automations"] = [];
     {
       // All devices physically in this area (valves + sensors).
@@ -237,9 +239,14 @@ serve(async (req) => {
 
       let deviceLinkedIds: string[] = [];
       if (areaDeviceIds.length > 0) {
-        const { data: ad } = await db.from("automation_devices")
-          .select("automation_id").in("device_id", areaDeviceIds);
-        deviceLinkedIds = (ad ?? []).map((r: { automation_id: string }) => r.automation_id);
+        const [{ data: ad }, { data: aa }] = await Promise.all([
+          db.from("automation_devices").select("automation_id").in("device_id", areaDeviceIds),
+          db.from("automation_actions").select("automation_id").in("target_device_id", areaDeviceIds),
+        ]);
+        deviceLinkedIds = uniqueAutomationIds(
+          ad as Array<{ automation_id: string }> | null,
+          aa as Array<{ automation_id: string }> | null,
+        );
       }
 
       const AUTO_COLS = "id, name, is_active, duration_seconds, trigger_logic";

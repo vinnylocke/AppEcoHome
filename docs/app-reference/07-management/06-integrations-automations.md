@@ -68,6 +68,10 @@ Each run writes an `automation_runs` row; the card shows the last-run status pil
 - **Why it ran** — on fire, `evaluate-automations` writes `automation_runs.trigger_reason = { summary, matched }` (the satisfied condition leaves, via `summariseSatisfied` in `_shared/conditionTree.ts`). `AutomationRunHistory` shows "Fired because: …".
 - **Run limit** — `automations.run_limit_count` per `run_limit_window_hours` (NULL = unlimited). Before firing, the engine counts fired runs (`FIRED_STATUSES`) in the rolling window (`_shared/runLimit.ts`); over-limit ticks record a `skipped_rate_limited` run and don't fire. The card shows a "≤ N/Hh" chip.
 
+### AI Area Coach linkage (2026-06-18 fix)
+
+The Area Coach (`area-sensor-analysis`) lists an area's automations found via `automations.area_id` **and** via device links to the area's devices. Device links are collected from **both** `automation_devices` (legacy) **and** `automation_actions.target_device_id` (unified condition builder — `_shared/automationAreaLinks.ts` `uniqueAutomationIds`). Previously only `automation_devices` was checked, so condition automations with a valve in the area but no `area_id` were missed.
+
 ---
 
 ## Role 1 — Technical Reference
