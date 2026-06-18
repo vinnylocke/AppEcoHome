@@ -1,11 +1,1 @@
-[
-  {
-    "label": "Improvements",
-    "items": [
-      "Readings and the AI Area Coach are now available right on the dashboard area view, not just in Location Management.",
-      "AI chat shows real plant photos with its suggestions and no longer leaves broken image placeholders when you ask to see a plant.",
-      "The AI Area Coach now gives consistent moisture / EC / temperature targets, backed by stored plant care data instead of re-estimating each time.",
-      "The profile menu now scrolls on smaller screens, so the bottom options are no longer cut off."
-    ]
-  }
-]
+[]
