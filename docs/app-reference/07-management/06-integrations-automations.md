@@ -17,7 +17,13 @@
 
 ## Quick Summary
 
-Each automation has a **trigger_kind**:
+### Unified condition builder (2026-06-17, Phase 2)
+
+"+ New automation" and edit both open **one** `AutomationBuilderModal` — a free **condition tree** (AND/OR groups + per-condition **is/isn't**) of leaves (sensor reading · time/day with per-day slots incl. overnight · task due · weather rain/heat) plus an ordered **actions** list (open/close valve, notify) and a cooldown. It saves `trigger_kind='condition'` + `trigger_logic jsonb`. Components: `AutomationBuilderModal.tsx`, recursive `ConditionNodeEditor.tsx`, pure `src/lib/conditionTree.ts` (`summariseTree`, `newLeaf`/`newGroup`). The two legacy modals (`AutomationModal`, `SensorAutomationModal`) + the mode picker are **deprecated** (removed in Phase 3); existing automations were auto-converted to trees and now open in the unified builder. The card shows a plain-English `summariseTree` of the condition. Runtime is owned by the 5-min unified engine — see [Cron Jobs](../99-cross-cutting/11-cron-jobs.md) + `_shared/conditionTree.ts`.
+
+### Legacy trigger kinds (read-only, pre-Phase-2)
+
+Each legacy automation has a **trigger_kind**:
 
 ### Weather handling (`weather_mode`, both kinds, 2026-06-17)
 

@@ -735,7 +735,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 350 tests across 26 files
+### Unit tests — 360 tests across 27 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -762,6 +762,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `payloadTemplate.test.ts` | 6 | Custom valve control preview — `{{var}}` render (+ unknown-var throw, parity with Deno), `buildControlPreview` ok / template-error / non-JSON-body cases |
 | `areaInsight.test.ts` | 5 | AI Area Coach presentation helpers — `metricLabel`, `statusMeta` (good/low/high/unknown styling), `formatAnalysedLabel` (just-now/m/h/d/date windows) |
 | `weatherConfig.test.ts` | 5 | Hybrid weather automations — `weatherConfigFromRow` (null defaults, legacy `skip_if_rained`→skip back-fill, explicit mode wins, dial pass-through, per-field defaults) |
+| `conditionTree.test.ts` | 10 | Unified automation builder — `newLeaf`/`newGroup` defaults, `summariseNode`/`summariseTree` (sensor count, negate "not", time weekdays/every-day, AND join, empty AND/OR, null) |
 
 ### Edge function tests — Deno
 

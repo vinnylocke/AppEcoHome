@@ -3,8 +3,8 @@ import { createPortal } from "react-dom";
 import { supabase } from "../../lib/supabase";
 import { Plus, Loader2, Zap, Clock, Cpu, X } from "lucide-react";
 import AutomationCard from "./AutomationCard";
-import AutomationModal from "./AutomationModal";
-import SensorAutomationModal, { type SensorAutomation } from "./SensorAutomationModal";
+import AutomationBuilderModal from "./AutomationBuilderModal";
+import type { ConditionNode } from "../../lib/conditionTree";
 
 export interface AutomationFull {
   id: string;
@@ -32,6 +32,8 @@ export interface AutomationFull {
   sensor_threshold_value: number | null;
   /** When defer-mode is currently holding for forecast rain (ISO), else null. */
   defer_until: string | null;
+  /** Unified condition tree (present after auto-convert / new builder). */
+  trigger_logic: ConditionNode | null;
   last_run_date: string | null;
   created_at: string;
   devices: Array<{ device_id: string; device_name: string }>;
@@ -50,14 +52,8 @@ type ModalKind = "time" | "sensor";
 export default function AutomationsSection({ homeId, canManage, canRun }: Props) {
   const [automations, setAutomations] = useState<AutomationFull[]>([]);
   const [loading, setLoading] = useState(true);
-  const [showModal, setShowModal] = useState(false);
-  const [modalKind, setModalKind] = useState<ModalKind>("time");
-  const [editingAutomation, setEditingAutomation] = useState<AutomationFull | null>(null);
-  const [editingSensorAutomation, setEditingSensorAutomation] = useState<SensorAutomation | null>(null);
-  // 2026-06-16 Phase 3 — when the user taps "+ New automation" we open
-  // a small mode picker first (time-scheduled vs sensor-triggered).
-  // Editing skips the picker since the kind is already known.
-  const [showModePicker, setShowModePicker] = useState(false);
+  // Unified builder (Phase 2): undefined = closed, null = new, string = edit id.
+  const [builderId, setBuilderId] = useState<string | null | undefined>(undefined);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -70,7 +66,7 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
         trigger_if_hot, heat_threshold_c, retry_on_failure,
         weather_mode, weather_min_probability, weather_defer_window_hours,
         critical_threshold_value, max_defers, defer_skip_in_heat,
-        sensor_threshold_value, defer_until,
+        sensor_threshold_value, defer_until, trigger_logic,
         last_run_date, created_at,
         automation_devices(device_id, devices(id, name)),
         automation_blueprints(blueprint_id, role, task_blueprints(title))
@@ -121,6 +117,7 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
       defer_skip_in_heat: r.defer_skip_in_heat ?? true,
       sensor_threshold_value: r.sensor_threshold_value ?? null,
       defer_until: r.defer_until ?? null,
+      trigger_logic: r.trigger_logic ?? null,
       last_run_date: r.last_run_date,
       created_at: r.created_at,
       devices: (r.automation_devices ?? []).map((d: any) => ({
@@ -141,88 +138,11 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
 
   useEffect(() => { load(); }, [load]);
 
-  const openNew = () => {
-    setEditingAutomation(null);
-    setEditingSensorAutomation(null);
-    setShowModePicker(true);
-  };
+  const openNew = () => setBuilderId(null);
+  const openEdit = (automation: AutomationFull) => setBuilderId(automation.id);
 
-  const startNewWithKind = async (kind: ModalKind) => {
-    setShowModePicker(false);
-    setModalKind(kind);
-    setShowModal(true);
-  };
-
-  const openEdit = async (automation: AutomationFull) => {
-    // 2026-06-16 — figure out whether this is a time or sensor automation
-    // and route to the right modal. Time-scheduled is the default for the
-    // existing rows; sensor-threshold needs an extra fetch for the rule
-    // + sensors + actions that AutomationFull doesn't currently carry.
-    const { data: row } = await supabase
-      .from("automations")
-      .select(
-        "id, name, is_active, trigger_kind, area_id, sensor_metric, sensor_comparator, sensor_threshold_value, sensor_hysteresis, sensor_cooldown_minutes, sensor_agg_mode, " +
-        "weather_mode, skip_if_rained, rain_threshold_mm, weather_min_probability, weather_defer_window_hours, critical_threshold_value, max_defers, defer_skip_in_heat",
-      )
-      .eq("id", automation.id)
-      .single();
-    if (row && (row as any).trigger_kind === "sensor_threshold") {
-      const [{ data: sensors }, { data: actions }] = await Promise.all([
-        supabase
-          .from("automation_sensors")
-          .select("sensor_device_id")
-          .eq("automation_id", automation.id),
-        supabase
-          .from("automation_actions")
-          .select("id, action_kind, notification_title, notification_body, target_device_id, valve_duration_seconds, ord")
-          .eq("automation_id", automation.id)
-          .order("ord", { ascending: true }),
-      ]);
-      setEditingSensorAutomation({
-        id: (row as any).id,
-        name: (row as any).name,
-        is_active: (row as any).is_active,
-        area_id: (row as any).area_id ?? null,
-        sensor_metric: (row as any).sensor_metric ?? null,
-        sensor_comparator: (row as any).sensor_comparator ?? null,
-        sensor_threshold_value: (row as any).sensor_threshold_value ?? null,
-        sensor_hysteresis: (row as any).sensor_hysteresis ?? 0,
-        sensor_cooldown_minutes: (row as any).sensor_cooldown_minutes ?? 60,
-        sensor_agg_mode: (row as any).sensor_agg_mode ?? "any",
-        weather_mode: (row as any).weather_mode ?? null,
-        skip_if_rained: (row as any).skip_if_rained ?? null,
-        rain_threshold_mm: (row as any).rain_threshold_mm ?? null,
-        weather_min_probability: (row as any).weather_min_probability ?? null,
-        weather_defer_window_hours: (row as any).weather_defer_window_hours ?? null,
-        critical_threshold_value: (row as any).critical_threshold_value ?? null,
-        max_defers: (row as any).max_defers ?? null,
-        defer_skip_in_heat: (row as any).defer_skip_in_heat ?? null,
-        sensors: (sensors ?? []) as any,
-        actions: (actions ?? []) as any,
-      });
-      setModalKind("sensor");
-      setShowModal(true);
-      return;
-    }
-    setEditingAutomation(automation);
-    setModalKind("time");
-    setShowModal(true);
-  };
-
-  const closeModal = () => {
-    setShowModal(false);
-    setEditingAutomation(null);
-    setEditingSensorAutomation(null);
-  };
-
-  const handleSaved = () => {
-    closeModal();
-    load();
-  };
-
-  const handleDeleted = (id: string) => {
-    setAutomations((prev) => prev.filter((a) => a.id !== id));
-  };
+  const handleSaved = () => { setBuilderId(undefined); load(); };
+  const handleDeleted = (id: string) => setAutomations((prev) => prev.filter((a) => a.id !== id));
 
   return (
     <div className="mt-10">
@@ -270,26 +190,12 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
         </div>
       )}
 
-      {showModal && modalKind === "time" && (
-        <AutomationModal
+      {builderId !== undefined && (
+        <AutomationBuilderModal
           homeId={homeId}
-          automation={editingAutomation}
+          automationId={builderId}
           onSaved={handleSaved}
-          onClose={closeModal}
-        />
-      )}
-      {showModal && modalKind === "sensor" && (
-        <SensorAutomationModal
-          homeId={homeId}
-          automation={editingSensorAutomation}
-          onSaved={handleSaved}
-          onClose={closeModal}
-        />
-      )}
-      {showModePicker && (
-        <ModePickerModal
-          onPick={(k) => startNewWithKind(k)}
-          onClose={() => setShowModePicker(false)}
+          onClose={() => setBuilderId(undefined)}
         />
       )}
     </div>

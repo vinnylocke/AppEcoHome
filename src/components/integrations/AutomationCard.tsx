@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import AutomationRunHistory from "./AutomationRunHistory";
 import type { AutomationFull } from "./AutomationsSection";
+import { summariseTree } from "../../lib/conditionTree";
 
 interface Props {
   automation: AutomationFull;
@@ -81,9 +82,10 @@ export default function AutomationCard({ automation, onEdit, onDeleted, canManag
                 </span>
               )}
             </div>
-            <p className="text-xs text-rhozly-on-surface-variant mt-0.5">
-              {formattedTime} UTC · {durationMins} min
-              {automation.fire_valves_sequentially && " · sequential"}
+            <p className="text-xs text-rhozly-on-surface-variant mt-0.5" data-testid={`automation-summary-${automation.id}`}>
+              {automation.trigger_logic
+                ? summariseTree(automation.trigger_logic)
+                : `${formattedTime} UTC · ${durationMins} min${automation.fire_valves_sequentially ? " · sequential" : ""}`}
             </p>
           </div>
         </div>
