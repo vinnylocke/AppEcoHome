@@ -8,6 +8,7 @@ import { logAiUsage } from "../_shared/aiUsage.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
+import { summariseTree, type ConditionNode } from "../_shared/conditionTree.ts";
 import {
   buildAreaAnalysisPrompt,
   parseAreaInsight,
@@ -180,7 +181,7 @@ serve(async (req) => {
         deviceLinkedIds = (ad ?? []).map((r: { automation_id: string }) => r.automation_id);
       }
 
-      const AUTO_COLS = "id, name, is_active, trigger_kind, sensor_metric, sensor_threshold_value, duration_seconds, weather_mode";
+      const AUTO_COLS = "id, name, is_active, trigger_kind, sensor_metric, sensor_threshold_value, duration_seconds, weather_mode, trigger_logic";
       const [{ data: byArea }, byDeviceRes] = await Promise.all([
         db.from("automations").select(AUTO_COLS).eq("home_id", homeId).eq("area_id", areaId),
         deviceLinkedIds.length > 0
@@ -191,7 +192,7 @@ serve(async (req) => {
       const merged = [...(byArea ?? []), ...((byDeviceRes.data ?? []))] as Array<{
         id: string; name: string; is_active: boolean; trigger_kind: string | null;
         sensor_metric: string | null; sensor_threshold_value: number | null; duration_seconds: number | null;
-        weather_mode: string | null;
+        weather_mode: string | null; trigger_logic: ConditionNode | null;
       }>;
       const dedup = new Map<string, typeof merged[number]>();
       for (const r of merged) if (!dedup.has(r.id)) dedup.set(r.id, r);
@@ -218,6 +219,7 @@ serve(async (req) => {
           valveDurationSeconds: r.duration_seconds ?? null,
           linkedTaskCount: taskCountById.get(r.id) ?? 0,
           weatherMode: r.weather_mode ?? null,
+          conditionSummary: r.trigger_logic ? summariseTree(r.trigger_logic) : null,
         });
       }
     }

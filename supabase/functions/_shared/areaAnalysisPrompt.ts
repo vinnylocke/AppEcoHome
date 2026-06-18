@@ -52,8 +52,10 @@ export interface AreaAnalysisInput {
     valveDurationSeconds: number | null;
     /** How many recurring care tasks (blueprints) this automation drives. */
     linkedTaskCount: number;
-    /** "off" | "skip" | "defer" — how the automation reacts to rain. */
+    /** "off" | "skip" | "defer" — how the automation reacts to rain (legacy). */
     weatherMode: string | null;
+    /** Plain-English summary of the condition tree (unified automations). */
+    conditionSummary?: string | null;
   }>;
 }
 
@@ -199,6 +201,11 @@ export function buildAreaAnalysisPrompt(input: AreaAnalysisInput): string {
 
   const automationLines = automations.length > 0
     ? automations.map((a) => {
+        // Prefer the unified condition-tree summary when present.
+        if (a.conditionSummary) {
+          const t = a.linkedTaskCount > 0 ? ` · drives ${a.linkedTaskCount} care task${a.linkedTaskCount === 1 ? "" : "s"}` : "";
+          return `  - ${a.name}${a.isActive ? "" : " (inactive)"}: runs when ${a.conditionSummary}${t}`;
+        }
         const dur = a.valveDurationSeconds
           ? ` for ${a.valveDurationSeconds >= 60 ? `${Math.round(a.valveDurationSeconds / 60)} min` : `${a.valveDurationSeconds} s`}`
           : "";

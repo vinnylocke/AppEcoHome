@@ -105,6 +105,52 @@ export function isWithinSchedule(now: Date, schedule: WeeklySchedule, tz: string
   return false;
 }
 
+// ── Plain-English summary (server-side, for the AI Area Coach) ────────────────
+
+const SUMMARY_METRIC: Record<string, string> = { soil_moisture: "moisture", soil_temp_c: "soil temp", soil_ec: "EC" };
+const SUMMARY_UNIT: Record<string, string> = { soil_moisture: "%", soil_temp_c: "°C", soil_ec: "µS/cm" };
+
+function summariseDays(schedule: WeeklySchedule): string {
+  const active = WEEKDAYS.filter((d) => (schedule[d]?.length ?? 0) > 0);
+  if (active.length === 7) return "every day";
+  if (active.length === 5 && active.every((d) => d !== "sat" && d !== "sun")) return "weekdays";
+  if (active.length === 2 && active.includes("sat") && active.includes("sun")) return "weekends";
+  if (active.length === 0) return "never";
+  return active.join(", ");
+}
+
+export function summariseNode(node: ConditionNode): string {
+  if (node.kind === "group") {
+    if (node.children.length === 0) return node.op === "and" ? "always" : "never";
+    const joined = node.children.map(summariseNode).join(node.op === "and" ? " and " : " or ");
+    const wrapped = node.children.length > 1 ? `(${joined})` : joined;
+    return node.negate ? `not ${wrapped}` : wrapped;
+  }
+  let s: string;
+  switch (node.kind) {
+    case "sensor": s = `${SUMMARY_METRIC[node.metric]} ${node.comparator} ${node.value}${SUMMARY_UNIT[node.metric]}`; break;
+    case "time": {
+      const slots = WEEKDAYS.flatMap((d) => node.schedule[d] ?? []);
+      const uniq = [...new Set(slots.map((x) => `${x.start}–${x.end === "24:00" ? "00:00" : x.end}`))];
+      s = `time is${uniq.length === 1 ? ` ${uniq[0]}` : slots.length ? " (varies)" : ""} ${summariseDays(node.schedule)}`.replace(/\s+/g, " ").trim();
+      break;
+    }
+    case "task_due": s = "a linked task is due"; break;
+    case "weather": s = node.type === "rain_forecast" ? `rain forecast (≥${node.thresholdMm ?? 5}mm)` : `heatwave${node.thresholdC ? ` (≥${node.thresholdC}°C)` : ""}`; break;
+  }
+  return node.negate ? `not ${s}` : s;
+}
+
+/** Top-level summary (root group unwrapped). */
+export function summariseTree(node: ConditionNode | null | undefined): string {
+  if (!node) return "";
+  if (node.kind === "group" && !node.negate) {
+    if (node.children.length === 0) return node.op === "and" ? "always" : "never";
+    return node.children.map(summariseNode).join(node.op === "and" ? " and " : " or ");
+  }
+  return summariseNode(node);
+}
+
 export interface SensorLeafInput { metric: SensorMetric; comparator: Comparator; value: number; agg: AggMode }
 export function evalSensorLeaf(leaf: SensorLeafInput, observations: SensorObservation[]): boolean {
   if (observations.length === 0) return false;

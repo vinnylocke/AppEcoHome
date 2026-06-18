@@ -1,7 +1,6 @@
 import React, { useCallback, useEffect, useState } from "react";
-import { createPortal } from "react-dom";
 import { supabase } from "../../lib/supabase";
-import { Plus, Loader2, Zap, Clock, Cpu, X } from "lucide-react";
+import { Plus, Loader2, Zap } from "lucide-react";
 import AutomationCard from "./AutomationCard";
 import AutomationBuilderModal from "./AutomationBuilderModal";
 import type { ConditionNode } from "../../lib/conditionTree";
@@ -46,8 +45,6 @@ interface Props {
   canManage: boolean;
   canRun: boolean;
 }
-
-type ModalKind = "time" | "sensor";
 
 export default function AutomationsSection({ homeId, canManage, canRun }: Props) {
   const [automations, setAutomations] = useState<AutomationFull[]>([]);
@@ -199,85 +196,6 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
         />
       )}
     </div>
-  );
-}
-
-/**
- * Tiny chooser shown on "+ New automation". Lets the user decide
- * upfront whether they're building a time-scheduled automation (e.g.
- * "07:00 water valves daily") or a sensor-triggered one ("greenhouse
- * temp >= 30°C → notify me"). Routes to the matching modal.
- */
-function ModePickerModal({
-  onPick,
-  onClose,
-}: {
-  onPick: (kind: ModalKind) => void;
-  onClose: () => void;
-}) {
-  return createPortal(
-    <div
-      data-testid="automation-mode-picker"
-      className="fixed inset-0 z-[120] bg-black/55 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in duration-200"
-      onClick={onClose}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="bg-white rounded-3xl w-full max-w-md shadow-2xl border border-rhozly-outline/10 overflow-hidden animate-in zoom-in-95 duration-200"
-      >
-        <div className="flex items-center justify-between gap-3 px-5 py-4 border-b border-rhozly-outline/10">
-          <div className="min-w-0">
-            <h2 className="font-display font-black text-lg text-rhozly-on-surface">New automation</h2>
-            <p className="text-[11px] font-bold text-rhozly-on-surface/45 leading-snug">
-              Pick how this one should fire.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            aria-label="Close"
-            className="shrink-0 p-2 rounded-xl text-rhozly-on-surface/40 hover:text-rhozly-on-surface hover:bg-rhozly-surface-low transition-colors"
-          >
-            <X size={18} />
-          </button>
-        </div>
-        <div className="p-5 space-y-3">
-          <button
-            type="button"
-            data-testid="mode-picker-time"
-            onClick={() => onPick("time")}
-            className="w-full flex items-start gap-3 p-4 rounded-2xl border-2 border-rhozly-outline/20 hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-left"
-          >
-            <div className="w-10 h-10 rounded-xl bg-blue-100 text-blue-700 flex items-center justify-center shrink-0">
-              <Clock size={18} />
-            </div>
-            <div>
-              <p className="text-sm font-black text-rhozly-on-surface">Time-scheduled</p>
-              <p className="text-xs font-bold text-rhozly-on-surface/55 mt-0.5 leading-snug">
-                Fires at a daily time. Optionally skip on rain. Best for routine watering.
-              </p>
-            </div>
-          </button>
-          <button
-            type="button"
-            data-testid="mode-picker-sensor"
-            onClick={() => onPick("sensor")}
-            className="w-full flex items-start gap-3 p-4 rounded-2xl border-2 border-rhozly-outline/20 hover:border-rhozly-primary/40 hover:bg-rhozly-primary/5 transition-all text-left"
-          >
-            <div className="w-10 h-10 rounded-xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
-              <Cpu size={18} />
-            </div>
-            <div>
-              <p className="text-sm font-black text-rhozly-on-surface">Sensor-triggered</p>
-              <p className="text-xs font-bold text-rhozly-on-surface/55 mt-0.5 leading-snug">
-                Fires when a soil sensor reading crosses your threshold. Notification + valves.
-              </p>
-            </div>
-          </button>
-        </div>
-      </div>
-    </div>,
-    document.body,
   );
 }
 

@@ -168,6 +168,9 @@ async function processOne(
     await db.from("automations").update({ trigger_logic: tree }).eq("id", id);
   }
 
+  // Inactive automations are converted (above) but never fire.
+  if (!automation.is_active) return { decision: "inactive" };
+
   const leaves = collectLeaves(tree);
 
   // 2. Build context.
@@ -237,8 +240,10 @@ serve(async (_req: Request) => {
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const now = new Date();
 
+    // Active automations (to evaluate + fire) plus any not-yet-converted legacy
+    // row (active or inactive) so trigger_logic is backfilled universally.
     const { data: automations, error: listErr } = await db
-      .from("automations").select("*").eq("is_active", true);
+      .from("automations").select("*").or("is_active.eq.true,trigger_logic.is.null");
     if (listErr) throw listErr;
 
     // Home timezones for time conditions.

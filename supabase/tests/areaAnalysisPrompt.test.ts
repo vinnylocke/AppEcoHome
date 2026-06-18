@@ -40,6 +40,16 @@ Deno.test("prompt includes area, current readings, plants and automations", () =
   assert(p.includes("soil moisture < 25%"));
 });
 
+Deno.test("prompt uses the condition-tree summary when present", () => {
+  const p = buildAreaAnalysisPrompt(baseInput({
+    automations: [
+      { name: "Smart water", isActive: true, triggerKind: "condition", moistureThresholdPct: null, valveDurationSeconds: 30, linkedTaskCount: 2, weatherMode: null, conditionSummary: "moisture < 30% and not rain forecast (≥5mm)" },
+    ],
+  }));
+  assert(p.includes("runs when moisture < 30% and not rain forecast"));
+  assert(p.includes("drives 2 care tasks"));
+});
+
 Deno.test("prompt describes a time-scheduled automation + linked tasks", () => {
   const p = buildAreaAnalysisPrompt(baseInput({
     automations: [

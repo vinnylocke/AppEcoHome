@@ -5,6 +5,7 @@ import {
   evalSensorLeaf,
   evalWeatherLeaf,
   shouldFire,
+  summariseTree,
   type ConditionNode,
   type LeafNode,
   type WeeklySchedule,
@@ -100,6 +101,17 @@ Deno.test("evalWeatherLeaf — rain forecast + heatwave", () => {
 });
 
 // ── shouldFire (rising edge + cooldown) ──────────────────────────────────────
+
+Deno.test("summariseTree — root group unwrapped, leaves + negate", () => {
+  const tree: ConditionNode = {
+    kind: "group", op: "and", children: [
+      { kind: "sensor", metric: "soil_moisture", comparator: "<", value: 30, agg: "any" },
+      { kind: "weather", type: "rain_forecast", thresholdMm: 5, negate: true },
+    ],
+  };
+  assertEquals(summariseTree(tree), "moisture < 30% and not rain forecast (≥5mm)");
+  assertEquals(summariseTree(null), "");
+});
 
 Deno.test("shouldFire — rising edge, holds, cooldown floor", () => {
   const now = new Date("2026-01-15T08:00:00Z");
