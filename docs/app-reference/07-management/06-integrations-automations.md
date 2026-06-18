@@ -56,8 +56,8 @@ Defer config columns: `weather_min_probability`, `weather_defer_window_hours`, `
 - For multi-sensor automations, `sensor_agg_mode` ∈ `{any, all, average}` decides whether the rule needs ANY linked sensor to satisfy, ALL to satisfy, or the AVERAGE across sensors to satisfy.
 - **Actions** — an ordered `automation_actions` list. Three kinds:
   - `notification` — push to every `home_member` via the existing `notifications` table (custom title + body or fall back to the automation's name).
-  - `valve_open` — enqueue a `turn_on` command on `automation_valve_queue` with a `valve_duration_seconds` failsafe; the existing `drainValveQueue` step in `run-automations` cron actually talks to eWeLink.
-  - `valve_close` — same pattern with `turn_off`.
+  - `valve_open` — enqueues a `turn_on` on `automation_valve_queue`, **and (2026-06-18 fix) when `valve_duration_seconds` is set also enqueues the paired `turn_off` at `fire_at + duration`** so the valve actually closes after its run time. The every-5-min `drainValveQueue` step in `run-automations` cron talks to eWeLink to fire both. Row-building is the pure `_shared/valveQueueRows.ts` (`buildValveQueueRows`, Deno-tested). Previously the engine enqueued only the `turn_on`, so valves stayed open indefinitely.
+  - `valve_close` — same pattern with `turn_off` (no paired event).
 
 Each run writes an `automation_runs` row; the card shows the last-run status pill.
 
@@ -222,7 +222,7 @@ If you've installed smart valves, automations are the difference between "I have
 
 #### 5. Run history
 
-- Inside the edit modal — full audit trail.
+- Inside the edit modal — full audit trail (`AutomationRunHistory`). It summarises each run via the pure `src/lib/automationRunSummary.ts` (`summariseAutomationRun`), which tolerates **both** `automation_runs.devices_triggered` shapes — the condition engine's object `{ notifications, valves_queued }` and the legacy runner's per-device array. (2026-06-18 fix: the view used to call `.filter()` assuming the array shape and crashed on the object.) Unknown statuses render a neutral chip instead of a spinner.
 
 ### Information on display — what every field means
 

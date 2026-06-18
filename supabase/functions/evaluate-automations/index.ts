@@ -24,6 +24,7 @@ import {
   evaluateTree, isWithinSchedule, evalSensorLeaf, evalWeatherLeaf, shouldFire,
   type ConditionNode, type LeafNode,
 } from "../_shared/conditionTree.ts";
+import { buildValveQueueRows } from "../_shared/valveQueueRows.ts";
 
 const FN = "evaluate-automations";
 
@@ -116,11 +117,17 @@ async function fanoutActions(
     }
     if (action.action_kind === "valve_open" || action.action_kind === "valve_close") {
       if (!action.target_device_id) continue;
-      const fireAt = new Date(Date.now() + valveStaggerSeconds * 1000).toISOString();
-      const command = action.action_kind === "valve_open" ? "turn_on" : "turn_off";
-      const { error } = await db.from("automation_valve_queue").insert({
-        automation_run_id: runId, device_id: action.target_device_id, fire_at: fireAt, command,
+      // valve_open with a duration also enqueues the paired turn_off, so the
+      // valve actually closes after its run time (the drain cron only fires
+      // what's queued — without this the valve stays open forever).
+      const rows = buildValveQueueRows({
+        actionKind: action.action_kind,
+        runId,
+        deviceId: action.target_device_id,
+        fireAtMs: Date.now() + valveStaggerSeconds * 1000,
+        durationSeconds: action.valve_duration_seconds,
       });
+      const { error } = await db.from("automation_valve_queue").insert(rows);
       if (error) logError(FN, "valve_queue_insert_failed", { automation_id: automation.id, message: error.message });
       else { valvesQueued += 1; valveStaggerSeconds += 5; }
     }

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
-import { Loader2, CheckCircle, XCircle, CloudRain, Calendar, Play, Clock } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, CloudRain, Calendar, Play, Clock, Activity } from "lucide-react";
+import { summariseAutomationRun } from "../../lib/automationRunSummary";
 
 interface DeviceResult { device_id: string; name: string; success: boolean; queued?: boolean; }
 interface TaskResult { blueprint_id: string; title: string; already_done: boolean; }
@@ -10,8 +11,9 @@ interface AutomationRun {
   triggered_at: string;
   triggered_by: "schedule" | "manual";
   status: string;
-  devices_triggered: DeviceResult[];
-  tasks_completed: TaskResult[];
+  // Condition engine writes an object; legacy runner wrote an array — both handled.
+  devices_triggered: DeviceResult[] | { notifications?: number; valves_queued?: number } | null;
+  tasks_completed: TaskResult[] | null;
   error_message: string | null;
   completed_at: string | null;
 }
@@ -22,12 +24,27 @@ interface Props {
 
 const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
   success:           { label: "Success",        color: "text-green-600 bg-green-50",    icon: <CheckCircle size={12} /> },
+  ran:               { label: "Success",        color: "text-green-600 bg-green-50",    icon: <CheckCircle size={12} /> },
   partial:           { label: "Partial",         color: "text-amber-600 bg-amber-50",   icon: <CheckCircle size={12} /> },
   failed:            { label: "Failed",          color: "text-red-600 bg-red-50",       icon: <XCircle size={12} /> },
   skipped_weather:   { label: "Skipped (rain)",  color: "text-blue-600 bg-blue-50",     icon: <CloudRain size={12} /> },
+  skipped_rain:      { label: "Skipped (rain)",  color: "text-blue-600 bg-blue-50",     icon: <CloudRain size={12} /> },
+  deferred_weather:  { label: "Deferred (rain)", color: "text-blue-600 bg-blue-50",     icon: <CloudRain size={12} /> },
   skipped_no_tasks:  { label: "No tasks due",    color: "text-slate-500 bg-slate-100",  icon: <Calendar size={12} /> },
   pending:           { label: "Running…",        color: "text-rhozly-primary bg-rhozly-primary/10", icon: <Loader2 size={12} className="animate-spin" /> },
 };
+
+// Unknown / future statuses get a neutral chip rather than a misleading
+// "Running…" spinner.
+function statusChip(status: string) {
+  return (
+    STATUS_CONFIG[status] ?? {
+      label: status ? status.replace(/_/g, " ") : "Unknown",
+      color: "text-slate-500 bg-slate-100",
+      icon: <Activity size={12} />,
+    }
+  );
+}
 
 export default function AutomationRunHistory({ automationId }: Props) {
   const [runs, setRuns] = useState<AutomationRun[]>([]);
@@ -61,9 +78,8 @@ export default function AutomationRunHistory({ automationId }: Props) {
   return (
     <div className="space-y-2">
       {runs.map((run) => {
-        const cfg = STATUS_CONFIG[run.status] ?? STATUS_CONFIG.pending;
-        const completedDevices = (run.devices_triggered ?? []).filter((d) => d.success && !d.queued);
-        const completedTasks = (run.tasks_completed ?? []).filter((t) => !t.already_done);
+        const cfg = statusChip(run.status);
+        const summary = summariseAutomationRun(run);
         return (
           <div key={run.id} className="flex items-start gap-3 py-2 border-b border-rhozly-outline/10 last:border-0">
             <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-semibold shrink-0 mt-0.5 ${cfg.color}`}>
@@ -79,11 +95,9 @@ export default function AutomationRunHistory({ automationId }: Props) {
                   {run.triggered_by === "manual" ? "Manual" : "Scheduled"}
                 </span>
               </p>
-              {(completedDevices.length > 0 || completedTasks.length > 0) && (
+              {summary.length > 0 && (
                 <p className="text-xs text-rhozly-on-surface-variant mt-0.5">
-                  {completedDevices.length > 0 && `${completedDevices.length} valve${completedDevices.length !== 1 ? "s" : ""} fired`}
-                  {completedDevices.length > 0 && completedTasks.length > 0 && " · "}
-                  {completedTasks.length > 0 && `${completedTasks.length} task${completedTasks.length !== 1 ? "s" : ""} completed`}
+                  {summary.join(" · ")}
                 </p>
               )}
               {run.error_message && (
