@@ -65,3 +65,13 @@ constantly change — and so the Coach can reason from ground-truth values.
 ## Docs to update
 - `03-data-model-plants.md`, `25-plant-providers.md`, Plant Library admin refs,
   the Area Coach section of `03-location-manager.md`, `13-ai-gemini.md`.
+
+## Update — Batch D (2026-06-18): population gap closed
+Schema, the Coach reader, and the authoritative prompt all landed earlier, BUT step 2
+(population) never wrote `plants.soil_*` — only `plant_library` is seeded, so users'
+plants had NULL ranges and the Coach kept estimating (drift). Closed by
+[batch-d-area-coach-stable-ranges.md](./batch-d-area-coach-stable-ranges.md):
+`area-sensor-analysis` now fills missing ranges from the matching `plant_library` row
+(`_shared/careRanges.ts`). Remaining (deferred) durability item: persist resolved ranges
+back onto `plants.soil_*` via the AI plant care generator so non-library plants are
+covered without the per-run library join.

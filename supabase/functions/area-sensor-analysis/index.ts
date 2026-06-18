@@ -9,6 +9,7 @@ import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 import { summariseTree, type ConditionNode } from "../_shared/conditionTree.ts";
+import { mergeCareRanges, careMatchKey, type CareRanges } from "../_shared/careRanges.ts";
 import {
   buildAreaAnalysisPrompt,
   parseAreaInsight,
@@ -155,24 +156,37 @@ serve(async (req) => {
     }
 
     // ── Plant care (stored ranges — authoritative ground truth) ──────────────
+    // A plant's own `plants.soil_*` columns are rarely populated, so missing
+    // ranges are filled from the seeded `plant_library` (matched by
+    // scientific_name_key). This is what stops the Coach re-estimating — and
+    // drifting — between runs for library-covered plants.
     const plantIds = [...new Set((inventory ?? []).map((i: { plant_id: number | null }) => i.plant_id).filter((x): x is number => typeof x === "number"))];
-    interface PlantCare {
-      soil_ph_min: number | null; soil_ph_max: number | null;
-      soil_moisture_min: number | null; soil_moisture_max: number | null;
-      soil_ec_min: number | null; soil_ec_max: number | null;
-      soil_temp_min: number | null; soil_temp_max: number | null;
-    }
-    const careById = new Map<number, PlantCare>();
+    const careById = new Map<number, CareRanges>();
     if (plantIds.length > 0) {
       const { data: care } = await db.from("plants")
-        .select("id, soil_ph_min, soil_ph_max, soil_moisture_min, soil_moisture_max, soil_ec_min, soil_ec_max, soil_temp_min, soil_temp_max")
+        .select("id, common_name, scientific_name, soil_ph_min, soil_ph_max, soil_moisture_min, soil_moisture_max, soil_ec_min, soil_ec_max, soil_temp_min, soil_temp_max")
         .in("id", plantIds);
-      for (const c of care ?? []) careById.set(c.id as number, {
-        soil_ph_min: c.soil_ph_min, soil_ph_max: c.soil_ph_max,
-        soil_moisture_min: c.soil_moisture_min, soil_moisture_max: c.soil_moisture_max,
-        soil_ec_min: c.soil_ec_min, soil_ec_max: c.soil_ec_max,
-        soil_temp_min: c.soil_temp_min, soil_temp_max: c.soil_temp_max,
-      });
+
+      // Library fallback — fetch matching plant_library rows once.
+      const keys = [...new Set((care ?? [])
+        .map((c: { scientific_name: unknown; common_name: unknown }) => careMatchKey(c.scientific_name, c.common_name))
+        .filter((k): k is string => !!k))];
+      const libByKey = new Map<string, CareRanges>();
+      if (keys.length > 0) {
+        const { data: lib } = await db.from("plant_library")
+          .select("scientific_name_key, soil_moisture_min, soil_moisture_max, soil_ec_min, soil_ec_max, soil_temp_min, soil_temp_max")
+          .in("scientific_name_key", keys);
+        for (const l of lib ?? []) {
+          const k = l.scientific_name_key as string | null;
+          if (k) libByKey.set(k.toLowerCase(), l as unknown as CareRanges);
+        }
+      }
+
+      for (const c of care ?? []) {
+        const key = careMatchKey(c.scientific_name, c.common_name);
+        const lib = key ? libByKey.get(key) : undefined;
+        careById.set(c.id as number, mergeCareRanges(c as Partial<CareRanges>, lib));
+      }
     }
 
     // ── Automations for this area ───────────────────────────────────────────
