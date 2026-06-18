@@ -9,6 +9,7 @@ import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { newGroup, newLeaf, summariseTree, type ConditionNode } from "../../lib/conditionTree";
+import { AUTOMATION_TEMPLATES, type AutomationTemplate } from "../../lib/automationTemplates";
 import ConditionNodeEditor, { type BuilderCtx } from "./ConditionNodeEditor";
 
 interface Props {
@@ -77,6 +78,19 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
   const ctx: BuilderCtx = useMemo(() => ({ sensors, blueprints }), [sensors, blueprints]);
   const summary = useMemo(() => summariseTree(tree), [tree]);
 
+  const applyTemplate = (t: AutomationTemplate) => {
+    const built = t.build();
+    if (!name.trim()) setName(built.name);
+    setTree(built.tree);
+    setActions(built.actions.map((a) => ({
+      action_kind: a.action_kind,
+      target_device_id: a.action_kind === "notification" ? null : (valves[0]?.id ?? null),
+      valve_duration_seconds: a.valve_duration_seconds ?? 1800,
+      notification_title: a.notification_title ?? null,
+      notification_body: null,
+    })));
+  };
+
   const addAction = () => setActions((p) => [...p, { action_kind: "valve_open", target_device_id: valves[0]?.id ?? null, valve_duration_seconds: 1800, notification_title: null, notification_body: null }]);
   const setAction = (i: number, patch: Partial<ActionDraft>) => setActions((p) => p.map((a, j) => j === i ? { ...a, ...patch } : a));
   const delAction = (i: number) => setActions((p) => p.filter((_, j) => j !== i));
@@ -141,6 +155,24 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
                 className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold ${isActive ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-500"}`}>
                 {isActive ? <Power size={15} /> : <PowerOff size={15} />}{isActive ? "Active" : "Off"}
               </button>
+            </div>
+
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Start from a template</p>
+              <div className="flex flex-wrap gap-2">
+                {AUTOMATION_TEMPLATES.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    data-testid={`template-${t.id}`}
+                    title={t.description}
+                    onClick={() => applyTemplate(t)}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-600 hover:border-emerald-400 hover:text-emerald-700 transition-colors"
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
             </div>
 
             <div>

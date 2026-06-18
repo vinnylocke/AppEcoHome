@@ -567,151 +567,9 @@ async function runAutomation(
 
   log(FN, "automation_start", { automationId, homeId, triggeredBy });
 
-  // ── Weather handling (scheduled runs only) ───────────────────────────────
-  // `weather_mode` supersedes the legacy `skip_if_rained` boolean:
-  //   off   → ignore the forecast
-  //   skip  → hard-skip today's run when meaningful rain is forecast (below)
-  //   defer → don't skip; set a recheck and let evaluate-sensor-automations
-  //           re-read the area's moisture sensor and water if rain under-delivers
-  const weatherMode = (automation.weather_mode as string)
-    ?? (automation.skip_if_rained ? "skip" : "off");
-
-  if (triggeredBy === "schedule" && weatherMode === "defer") {
-    const now = new Date();
-    const windowHours = (automation.weather_defer_window_hours as number) ?? 12;
-    const minProb = (automation.weather_min_probability as number) ?? 60;
-    const heatC = (automation.heat_threshold_c as number) ?? 30;
-    const forecast = await readForecast(db, homeId, now, windowHours, minProb, heatC).catch(() => null);
-    const rainThreshold = (automation.rain_threshold_mm as number) ?? 5;
-    const meaningful = !!forecast
-      && forecast.rain.rainMm >= rainThreshold
-      && forecast.rain.probabilityMax >= minProb;
-    const skipDeferForHeat = !!forecast?.isHeatwave && ((automation.defer_skip_in_heat as boolean) ?? true);
-
-    if (meaningful && !skipDeferForHeat) {
-      log(FN, "weather_defer", { automationId, until: forecast!.rain.windowEnd.toISOString() });
-      await db.from("automations").update({
-        defer_until: forecast!.rain.windowEnd.toISOString(),
-        defer_count: ((automation.defer_count as number) ?? 0) + 1,
-        defer_started_at: (automation.defer_started_at as string) ?? now.toISOString(),
-        last_run_date: today,
-      }).eq("id", automationId);
-      await db.from("automation_runs").insert({
-        automation_id: automationId, home_id: homeId,
-        triggered_by: triggeredBy, status: "deferred_weather",
-        completed_at: now.toISOString(),
-      });
-      // Postpone (not skip) the linked tasks — we're waiting on rain, not done.
-      try {
-        const { data: abps } = await db.from("automation_blueprints")
-          .select("blueprint_id").eq("automation_id", automationId);
-        const bpIds = (abps ?? []).map((r: any) => r.blueprint_id as string);
-        if (bpIds.length > 0) {
-          await db.from("tasks").update({ status: "Postponed" })
-            .in("blueprint_id", bpIds).eq("home_id", homeId)
-            .eq("due_date", today).in("status", ["Pending"]);
-        }
-      } catch (e: any) {
-        warn(FN, "defer_task_update_failed", { error: e.message });
-      }
-      return { status: "deferred_weather" };
-    }
-    // Not deferring (no meaningful rain, or heat override) → water normally.
-  }
-
-  if (triggeredBy === "schedule" && weatherMode === "skip") {
-    const { rained, mm: rainMm } = await checkRain(db, homeId, automation.rain_threshold_mm as number)
-      .catch(() => ({ rained: false, mm: 0 }));
-    if (rained) {
-      log(FN, "weather_skip", { automationId, rainMm });
-      await db.from("automation_runs").insert({
-        automation_id: automationId, home_id: homeId,
-        triggered_by: triggeredBy, status: "skipped_weather",
-        completed_at: new Date().toISOString(),
-      });
-      await db.from("automations").update({ last_run_date: today }).eq("id", automationId);
-
-      // BUG FIX: previously we only fired the "skipped — rain detected"
-      // notification but left the linked watering tasks untouched. The
-      // user saw the notification, expected the tasks to be skipped,
-      // and was surprised when they showed up as overdue overnight.
-      // Now we also mark every linked Pending/Postponed task for today
-      // as Skipped with a rain reason so the agenda matches the push.
-      try {
-        const { data: abps } = await db
-          .from("automation_blueprints")
-          .select("blueprint_id")
-          .eq("automation_id", automationId);
-        const bpIds = (abps ?? []).map((r: any) => r.blueprint_id as string);
-        if (bpIds.length > 0) {
-          await db
-            .from("tasks")
-            .update({
-              status: "Skipped",
-              auto_completed_reason: `Skipped — ${rainMm.toFixed(1)}mm rain detected`,
-              completed_at: new Date().toISOString(),
-            })
-            .in("blueprint_id", bpIds)
-            .eq("home_id", homeId)
-            .eq("due_date", today)
-            .in("status", ["Pending", "Postponed"]);
-        }
-      } catch (e: any) {
-        warn(FN, "rain_skip_task_update_failed", { error: e.message });
-      }
-
-      await sendNotification(db, homeId, automationName, "skipped_weather", automation.duration_seconds as number, automationId, rainMm)
-        .catch((e) => warn(FN, "notify_error", { error: e.message }));
-      return { status: "skipped_weather" };
-    }
-  }
-
-  // ── Task due check (scheduled runs only) ─────────────────────────────────
-  // Heat trigger bypasses this check — when `trigger_if_hot` is set and
-  // today's forecast max temp meets the threshold, we fire even when no
-  // controlling task is due. Rain skip (above) still wins.
-  let triggeredByHeat = false;
-  let heatMaxTempC = 0;
-  if (triggeredBy === "schedule") {
-    const hasDue = await checkControllingTaskDue(db, automationId, today);
-    if (!hasDue && automation.trigger_if_hot) {
-      const { hot, maxTempC } = await checkHeat(db, homeId, automation.heat_threshold_c as number)
-        .catch(() => ({ hot: false, maxTempC: 0 }));
-      if (hot) {
-        triggeredByHeat = true;
-        heatMaxTempC = maxTempC;
-        log(FN, "heat_trigger", { automationId, maxTempC });
-      }
-    }
-    if (!hasDue && !triggeredByHeat) {
-      log(FN, "no_due_tasks", { automationId });
-      await db.from("automation_runs").insert({
-        automation_id: automationId, home_id: homeId,
-        triggered_by: triggeredBy, status: "skipped_no_tasks",
-        completed_at: new Date().toISOString(),
-      });
-      await db.from("automations").update({ last_run_date: today }).eq("id", automationId);
-      return { status: "skipped_no_tasks" };
-    }
-  }
-
-  // ── Atomic claim guard (scheduled runs only) ─────────────────────────────
-  // Set last_run_date = today ONLY if it isn't already today. Two cron ticks
-  // racing here will see exactly one row updated; the loser bails silently.
-  // Match rows where last_run_date IS NULL OR != today — Postgres `!=` is
-  // NULL-unsafe so we need the explicit IS NULL branch.
-  if (triggeredBy === "schedule") {
-    const { data: claimed } = await db
-      .from("automations")
-      .update({ last_run_date: today })
-      .eq("id", automationId)
-      .or(`last_run_date.is.null,last_run_date.neq.${today}`)
-      .select("id");
-    if (!claimed || (claimed as unknown[]).length === 0) {
-      log(FN, "duplicate_run_blocked", { automationId, today });
-      return { status: "duplicate_blocked" };
-    }
-  }
+  // Scheduled firing + weather/heat handling is retired — the unified condition
+  // engine (evaluate-sensor-automations) owns all triggers. runAutomation now
+  // serves only the manual "run now" path, which fires valves directly.
 
   // ── Create run record ─────────────────────────────────────────────────────
   const { data: runRow, error: runErr } = await db
@@ -742,14 +600,12 @@ async function runAutomation(
     completed_at: new Date().toISOString(),
   }).eq("id", runId);
 
-  await db.from("automations").update({ last_run_date: today }).eq("id", automationId);
-
   // ── Notify ────────────────────────────────────────────────────────────────
   await sendNotification(
     db, homeId, automationName, runStatus,
     automation.duration_seconds as number, automationId,
     0,
-    triggeredByHeat ? heatMaxTempC : undefined,
+    undefined,
   )
     .then(() => db.from("automation_runs").update({ notified_at: new Date().toISOString() }).eq("id", runId))
     .catch((e) => warn(FN, "notify_error", { error: e.message }));

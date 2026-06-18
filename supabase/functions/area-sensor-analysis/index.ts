@@ -181,7 +181,7 @@ serve(async (req) => {
         deviceLinkedIds = (ad ?? []).map((r: { automation_id: string }) => r.automation_id);
       }
 
-      const AUTO_COLS = "id, name, is_active, trigger_kind, sensor_metric, sensor_threshold_value, duration_seconds, weather_mode, trigger_logic";
+      const AUTO_COLS = "id, name, is_active, duration_seconds, trigger_logic";
       const [{ data: byArea }, byDeviceRes] = await Promise.all([
         db.from("automations").select(AUTO_COLS).eq("home_id", homeId).eq("area_id", areaId),
         deviceLinkedIds.length > 0
@@ -190,9 +190,8 @@ serve(async (req) => {
       ]);
 
       const merged = [...(byArea ?? []), ...((byDeviceRes.data ?? []))] as Array<{
-        id: string; name: string; is_active: boolean; trigger_kind: string | null;
-        sensor_metric: string | null; sensor_threshold_value: number | null; duration_seconds: number | null;
-        weather_mode: string | null; trigger_logic: ConditionNode | null;
+        id: string; name: string; is_active: boolean;
+        duration_seconds: number | null; trigger_logic: ConditionNode | null;
       }>;
       const dedup = new Map<string, typeof merged[number]>();
       for (const r of merged) if (!dedup.has(r.id)) dedup.set(r.id, r);
@@ -210,15 +209,14 @@ serve(async (req) => {
       }
 
       for (const r of dedup.values()) {
-        const isMoisture = r.sensor_metric === "soil_moisture";
         automations.push({
           name: r.name,
           isActive: !!r.is_active,
-          triggerKind: r.trigger_kind ?? null,
-          moistureThresholdPct: isMoisture ? r.sensor_threshold_value : null,
+          triggerKind: null,
+          moistureThresholdPct: null,
           valveDurationSeconds: r.duration_seconds ?? null,
           linkedTaskCount: taskCountById.get(r.id) ?? 0,
-          weatherMode: r.weather_mode ?? null,
+          weatherMode: null,
           conditionSummary: r.trigger_logic ? summariseTree(r.trigger_logic) : null,
         });
       }

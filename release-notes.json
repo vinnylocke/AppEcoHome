@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "New: Automation templates",
+    "items": [
+      "Start a new automation from a template — including Smart watering, which waters when the soil is dry, holds off if rain is forecast, and waters anyway if it gets critically dry.",
+      "Other one-tap recipes: scheduled watering that skips if it's about to rain, a low-moisture alert, and simple water-when-dry. Pick one and tweak it to taste."
+    ]
+  }
+]

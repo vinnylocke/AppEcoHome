@@ -1,9 +1,8 @@
 /**
- * evaluate-sensor-automations — unified automation engine (Phase 1, 2026-06-17)
+ * evaluate-automations — the unified automation engine (2026-06-18).
  *
  * Runs every 5 min via pg_cron. For each `is_active` automation:
- *   1. Lazily convert legacy (time_scheduled / sensor_threshold + weather/heat)
- *      rows into a `trigger_logic` condition tree on first sight.
+ *   1. Read its `trigger_logic` condition tree.
  *   2. Build a context (sensor readings, local time, due blueprints, forecast)
  *      and evaluate the tree (`evaluateTree` from `_shared/conditionTree.ts`).
  *   3. Fire actions on the RISING edge (false→true) gated by a cooldown:
@@ -11,8 +10,8 @@
  *      (drained by `run-automations`). Stamp `last_fired_at` + `condition_was_true`.
  *
  * Per-automation try/catch. Service role. `verify_jwt = false`.
- * (Kept the function name in Phase 1 to avoid re-pointing the cron; renamed in
- * the Phase 3 cleanup.)
+ * (Formerly `evaluate-sensor-automations`; renamed in the Phase 3 cleanup once
+ * it became the single engine for all trigger kinds.)
  */
 
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
@@ -25,9 +24,8 @@ import {
   evaluateTree, isWithinSchedule, evalSensorLeaf, evalWeatherLeaf, shouldFire,
   type ConditionNode, type LeafNode,
 } from "../_shared/conditionTree.ts";
-import { convertLegacyToTree, type LegacyAutomation } from "../_shared/conditionConvert.ts";
 
-const FN = "evaluate-sensor-automations";
+const FN = "evaluate-automations";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -55,25 +53,6 @@ function collectLeaves(node: ConditionNode, acc: LeafNode[] = []): LeafNode[] {
   if (node.kind === "group") for (const c of node.children) collectLeaves(c, acc);
   else acc.push(node);
   return acc;
-}
-
-function legacyFrom(a: Record<string, unknown>): LegacyAutomation {
-  return {
-    trigger_kind: (a.trigger_kind as LegacyAutomation["trigger_kind"]) ?? null,
-    area_id: (a.area_id as string | null) ?? null,
-    sensor_metric: (a.sensor_metric as SensorMetric | null) ?? null,
-    sensor_comparator: (a.sensor_comparator as LegacyAutomation["sensor_comparator"]) ?? null,
-    sensor_threshold_value: (a.sensor_threshold_value as number | null) ?? null,
-    sensor_agg_mode: (a.sensor_agg_mode as LegacyAutomation["sensor_agg_mode"]) ?? null,
-    scheduled_time: (a.scheduled_time as string | null) ?? null,
-    weather_mode: (a.weather_mode as LegacyAutomation["weather_mode"]) ?? null,
-    skip_if_rained: (a.skip_if_rained as boolean | null) ?? null,
-    rain_threshold_mm: (a.rain_threshold_mm as number | null) ?? null,
-    weather_min_probability: (a.weather_min_probability as number | null) ?? null,
-    critical_threshold_value: (a.critical_threshold_value as number | null) ?? null,
-    trigger_if_hot: (a.trigger_if_hot as boolean | null) ?? null,
-    heat_threshold_c: (a.heat_threshold_c as number | null) ?? null,
-  };
 }
 
 async function loadObsForSensorLeaf(
@@ -159,17 +138,8 @@ async function processOne(
   const homeId = automation.home_id as string;
   const areaId = (automation.area_id as string | null) ?? null;
 
-  // 1. Lazy convert legacy rows to a tree.
-  let tree = automation.trigger_logic as ConditionNode | null;
-  if (!tree) {
-    const { data: abps } = await db.from("automation_blueprints").select("blueprint_id").eq("automation_id", id);
-    const blueprintIds = (abps ?? []).map((b: { blueprint_id: string }) => b.blueprint_id);
-    tree = convertLegacyToTree(legacyFrom(automation), blueprintIds);
-    await db.from("automations").update({ trigger_logic: tree }).eq("id", id);
-  }
-
-  // Inactive automations are converted (above) but never fire.
-  if (!automation.is_active) return { decision: "inactive" };
+  const tree = automation.trigger_logic as ConditionNode | null;
+  if (!tree) { log(FN, "skip_no_logic", { id }); return { decision: "no_logic" }; }
 
   const leaves = collectLeaves(tree);
 
@@ -225,7 +195,7 @@ async function processOne(
   const fanout = await fanoutActions(db, { id, home_id: homeId, name: automation.name as string }, runId);
 
   await db.from("automations").update({
-    last_fired_at: now.toISOString(), sensor_last_fired_at: now.toISOString(), condition_was_true: true,
+    last_fired_at: now.toISOString(), condition_was_true: true,
   }).eq("id", id);
   await db.from("automation_runs").update({
     completed_at: now.toISOString(),
@@ -240,10 +210,8 @@ serve(async (_req: Request) => {
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const now = new Date();
 
-    // Active automations (to evaluate + fire) plus any not-yet-converted legacy
-    // row (active or inactive) so trigger_logic is backfilled universally.
     const { data: automations, error: listErr } = await db
-      .from("automations").select("*").or("is_active.eq.true,trigger_logic.is.null");
+      .from("automations").select("*").eq("is_active", true);
     if (listErr) throw listErr;
 
     // Home timezones for time conditions.

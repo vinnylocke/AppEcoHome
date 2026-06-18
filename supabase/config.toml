@@ -480,7 +480,7 @@ verify_jwt = false
 # _shared/automationEvaluator.ts, then fans out actions (notifications
 # → notifications table; valve commands → automation_valve_queue which
 # the existing drainValveQueue step in run-automations handles).
-[functions.evaluate-sensor-automations]
+[functions.evaluate-automations]
 verify_jwt = false
 
 # 2026-06-16 Custom integrations Phase 3 — public webhook router for

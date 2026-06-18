@@ -10,7 +10,9 @@
 - `src/components/integrations/SensorAutomationModal.tsx` — **Phase 3 (2026-06-16)** sensor-triggered builder
 - `src/components/integrations/AutomationRunHistory.tsx` — run history
 - `supabase/functions/run-automations/index.ts` — time-scheduled cron runner (hourly)
-- `supabase/functions/evaluate-sensor-automations/index.ts` — **Phase 3** sensor-threshold evaluator (every 5 min)
+- `supabase/functions/evaluate-automations/index.ts` — the unified 5-min automation engine (formerly `evaluate-sensor-automations`)
+- `src/components/integrations/AutomationBuilderModal.tsx` + `ConditionNodeEditor.tsx` — the unified builder
+- `src/lib/conditionTree.ts` + `src/lib/automationTemplates.ts` — tree summary + modular templates
 - `supabase/functions/_shared/automationEvaluator.ts` — **Phase 3** pure rule + cooldown logic, exercised by `supabase/tests/automationEvaluator.test.ts`
 
 ---

@@ -10,30 +10,8 @@ export interface AutomationFull {
   home_id: string;
   name: string;
   is_active: boolean;
-  scheduled_time: string;
-  duration_seconds: number;
-  fire_valves_sequentially: boolean;
-  skip_if_rained: boolean;
-  rain_threshold_mm: number;
-  /** New (weather-aware) — fire automatically on hot days even when no task is due. */
-  trigger_if_hot: boolean;
-  /** New (weather-aware) — min forecast max temp (°C) at which trigger_if_hot fires. */
-  heat_threshold_c: number;
-  retry_on_failure: boolean;
-  /** Weather handling: off / skip / defer (Smart). */
-  weather_mode: "off" | "skip" | "defer";
-  weather_min_probability: number;
-  weather_defer_window_hours: number;
-  critical_threshold_value: number | null;
-  max_defers: number;
-  defer_skip_in_heat: boolean;
-  /** Moisture target (%) for Smart scheduled automations. */
-  sensor_threshold_value: number | null;
-  /** When defer-mode is currently holding for forecast rain (ISO), else null. */
-  defer_until: string | null;
-  /** Unified condition tree (present after auto-convert / new builder). */
+  /** Unified condition tree — the canonical trigger definition. */
   trigger_logic: ConditionNode | null;
-  last_run_date: string | null;
   created_at: string;
   devices: Array<{ device_id: string; device_name: string }>;
   blueprints: Array<{ blueprint_id: string; blueprint_title: string; role: "controlling" | "driven" }>;
@@ -58,13 +36,7 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
     const { data: raw } = await supabase
       .from("automations")
       .select(`
-        id, home_id, name, is_active, scheduled_time, duration_seconds,
-        fire_valves_sequentially, skip_if_rained, rain_threshold_mm,
-        trigger_if_hot, heat_threshold_c, retry_on_failure,
-        weather_mode, weather_min_probability, weather_defer_window_hours,
-        critical_threshold_value, max_defers, defer_skip_in_heat,
-        sensor_threshold_value, defer_until, trigger_logic,
-        last_run_date, created_at,
+        id, home_id, name, is_active, trigger_logic, created_at,
         automation_devices(device_id, devices(id, name)),
         automation_blueprints(blueprint_id, role, task_blueprints(title))
       `)
@@ -98,24 +70,7 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
       home_id: r.home_id,
       name: r.name,
       is_active: r.is_active,
-      scheduled_time: r.scheduled_time,
-      duration_seconds: r.duration_seconds,
-      fire_valves_sequentially: r.fire_valves_sequentially,
-      skip_if_rained: r.skip_if_rained,
-      rain_threshold_mm: r.rain_threshold_mm,
-      trigger_if_hot: r.trigger_if_hot ?? false,
-      heat_threshold_c: r.heat_threshold_c ?? 28,
-      retry_on_failure: r.retry_on_failure,
-      weather_mode: r.weather_mode ?? "off",
-      weather_min_probability: r.weather_min_probability ?? 60,
-      weather_defer_window_hours: r.weather_defer_window_hours ?? 12,
-      critical_threshold_value: r.critical_threshold_value ?? null,
-      max_defers: r.max_defers ?? 2,
-      defer_skip_in_heat: r.defer_skip_in_heat ?? true,
-      sensor_threshold_value: r.sensor_threshold_value ?? null,
-      defer_until: r.defer_until ?? null,
       trigger_logic: r.trigger_logic ?? null,
-      last_run_date: r.last_run_date,
       created_at: r.created_at,
       devices: (r.automation_devices ?? []).map((d: any) => ({
         device_id: d.device_id,

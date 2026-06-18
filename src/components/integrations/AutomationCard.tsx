@@ -35,11 +35,6 @@ export default function AutomationCard({ automation, onEdit, onDeleted, canManag
   const lastRun = automation.lastRun;
   const lastRunBadge = lastRun ? STATUS_BADGE[lastRun.status] : null;
 
-  const formattedTime = automation.scheduled_time
-    ? automation.scheduled_time.slice(0, 5)
-    : "—";
-  const durationMins = Math.round(automation.duration_seconds / 60);
-
   const runNow = async () => {
     setRunning(true);
     setRunResult(null);
@@ -83,9 +78,7 @@ export default function AutomationCard({ automation, onEdit, onDeleted, canManag
               )}
             </div>
             <p className="text-xs text-rhozly-on-surface-variant mt-0.5" data-testid={`automation-summary-${automation.id}`}>
-              {automation.trigger_logic
-                ? summariseTree(automation.trigger_logic)
-                : `${formattedTime} UTC · ${durationMins} min${automation.fire_valves_sequentially ? " · sequential" : ""}`}
+              Runs when {summariseTree(automation.trigger_logic)}
             </p>
           </div>
         </div>
@@ -137,19 +130,6 @@ export default function AutomationCard({ automation, onEdit, onDeleted, canManag
       )}
 
       {/* Last run */}
-      {(() => {
-        const deferUntil = (automation as { defer_until?: string | null }).defer_until;
-        if (!deferUntil || new Date(deferUntil).getTime() <= Date.now()) return null;
-        return (
-          <div className="flex items-center gap-2" data-testid={`automation-deferred-${automation.id}`}>
-            <span className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold text-sky-700 bg-sky-50">
-              <CloudRain size={12} />
-              Waiting for rain until {new Date(deferUntil).toLocaleString([], { timeStyle: "short" })}
-            </span>
-          </div>
-        );
-      })()}
-
       {lastRun && lastRunBadge && (
         <div className="flex items-center gap-2">
           <span className={`flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-semibold ${lastRunBadge.color}`}>
