@@ -735,7 +735,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 358 tests across 27 files
+### Unit tests — 363 tests across 28 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -761,6 +761,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `valveControl.test.ts` | 4 | `valveControlMode` — eWeLink → live, custom_http+controllable → custom, otherwise read-only |
 | `payloadTemplate.test.ts` | 6 | Custom valve control preview — `{{var}}` render (+ unknown-var throw, parity with Deno), `buildControlPreview` ok / template-error / non-JSON-body cases |
 | `areaInsight.test.ts` | 5 | AI Area Coach presentation helpers — `metricLabel`, `statusMeta` (good/low/high/unknown styling), `formatAnalysedLabel` (just-now/m/h/d/date windows) |
+| `stripMarkdownImages.test.ts` | 5 | Chat image sanitiser — strips `![alt](url)` + reference images, keeps normal links/text, collapses whitespace |
 | `automationTemplates.test.ts` | 3 | Builder templates — unique ids, each builds a named tree + actions; Smart watering = (moisture<30 AND not rain) OR moisture<18; scheduled-skip-rain shape |
 | `conditionTree.test.ts` | 10 | Unified automation builder — `newLeaf`/`newGroup` defaults, `summariseNode`/`summariseTree` (sensor count, negate "not", time weekdays/every-day, AND join, empty AND/OR, null) |
 
@@ -787,7 +788,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `sceneJson.test.ts` | 6 | Multi-ID — `parseSceneJson` tolerant parse (clean JSON, code fence, prose preamble, truncated-array salvage, unrecoverable → empty, null/empty input) |
 | `controlTemplate.test.ts` | 12 | Custom valve control — `renderTemplate` ({{var}} subst, unknown-var throw, no eval), `templateVarsUsed`, `checkControlUrl` (https + private/loopback/metadata host block) |
 | `customHttpControl.test.ts` | 13 | `customHttpAdapter.control()` (no-url / http / non-2xx / template error; renders body+headers; stubbed `fetch`) + `connect()` control-config storage + validation; `parseHeaderBlock` / `isJsonContentType` |
-| `areaAnalysisPrompt.test.ts` | 13 | AI Area Coach — `buildAreaAnalysisPrompt` (area/readings/plants/automations, **condition-tree summary**, scheduled-vs-moisture trigger + linked tasks, raw-ADC label, persona branch, empties), `parseAreaInsight` (valid/fenced/garbage), `shouldRegenerate` (force / no-readings / cache-empty / newer-reading) |
+| `areaAnalysisPrompt.test.ts` | 15 | AI Area Coach — `buildAreaAnalysisPrompt` (area/readings/plants/automations, **stored care ranges authoritative**, **condition-tree summary**, scheduled-vs-moisture trigger + linked tasks, raw-ADC label, persona branch, empties), `parseAreaInsight` (valid/fenced/garbage), `shouldRegenerate` (force / no-readings / cache-empty / newer-reading) |
 | `hybridWeatherEvaluator.test.ts` | 12 | Hybrid weather watering — `computeRainWindow` (hourly mm sum + window end, daily fallback, out-of-window), `evaluateHybrid` (off/skip/defer, critical-low, heat override, hold while deferred, forecast-underdelivered, max-defers cap, **five showers → one deferral**) |
 | `conditionTree.test.ts` | 12 | Unified automations engine — `evaluateTree` (AND/OR/NOT, nesting, empty groups), `isWithinSchedule` (weekday/time window, timezone shift, overnight wrap, all-day/empty), `evalSensorLeaf` (agg modes), `evalWeatherLeaf` (rain/heat), `summariseTree`, `shouldFire` (rising edge + cooldown) |
 

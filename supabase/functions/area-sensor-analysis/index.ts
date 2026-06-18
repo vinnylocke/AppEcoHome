@@ -154,12 +154,25 @@ serve(async (req) => {
       const e = num(r.data.soil_ec); if (e !== null) histEc.push(e);
     }
 
-    // ── Plant care (soil pH ranges) ─────────────────────────────────────────
+    // ── Plant care (stored ranges — authoritative ground truth) ──────────────
     const plantIds = [...new Set((inventory ?? []).map((i: { plant_id: number | null }) => i.plant_id).filter((x): x is number => typeof x === "number"))];
-    const careById = new Map<number, { soil_ph_min: number | null; soil_ph_max: number | null }>();
+    interface PlantCare {
+      soil_ph_min: number | null; soil_ph_max: number | null;
+      soil_moisture_min: number | null; soil_moisture_max: number | null;
+      soil_ec_min: number | null; soil_ec_max: number | null;
+      soil_temp_min: number | null; soil_temp_max: number | null;
+    }
+    const careById = new Map<number, PlantCare>();
     if (plantIds.length > 0) {
-      const { data: care } = await db.from("plants").select("id, soil_ph_min, soil_ph_max").in("id", plantIds);
-      for (const c of care ?? []) careById.set(c.id as number, { soil_ph_min: c.soil_ph_min, soil_ph_max: c.soil_ph_max });
+      const { data: care } = await db.from("plants")
+        .select("id, soil_ph_min, soil_ph_max, soil_moisture_min, soil_moisture_max, soil_ec_min, soil_ec_max, soil_temp_min, soil_temp_max")
+        .in("id", plantIds);
+      for (const c of care ?? []) careById.set(c.id as number, {
+        soil_ph_min: c.soil_ph_min, soil_ph_max: c.soil_ph_max,
+        soil_moisture_min: c.soil_moisture_min, soil_moisture_max: c.soil_moisture_max,
+        soil_ec_min: c.soil_ec_min, soil_ec_max: c.soil_ec_max,
+        soil_temp_min: c.soil_temp_min, soil_temp_max: c.soil_temp_max,
+      });
     }
 
     // ── Automations for this area ───────────────────────────────────────────
@@ -269,6 +282,12 @@ serve(async (req) => {
           health: null,
           soilPhMin: care?.soil_ph_min ?? null,
           soilPhMax: care?.soil_ph_max ?? null,
+          moistureMin: care?.soil_moisture_min ?? null,
+          moistureMax: care?.soil_moisture_max ?? null,
+          ecMin: care?.soil_ec_min ?? null,
+          ecMax: care?.soil_ec_max ?? null,
+          tempMin: care?.soil_temp_min ?? null,
+          tempMax: care?.soil_temp_max ?? null,
         };
       }),
       automations,

@@ -215,7 +215,7 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
           <div className="fixed inset-0 z-40" onClick={(e) => { e.stopPropagation(); setOpen(false); }} />
           <div
             data-testid="user-profile-dropdown"
-            className="absolute top-full right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-rhozly-outline/20 z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200"
+            className="absolute top-full right-0 mt-2 w-60 bg-white rounded-2xl shadow-xl border border-rhozly-outline/20 z-50 max-h-[80vh] overflow-y-auto overscroll-contain custom-scrollbar animate-in fade-in slide-in-from-top-2 duration-200"
           >
             {/* Name + email header */}
             <div className="px-4 py-3 border-b border-rhozly-outline/10">

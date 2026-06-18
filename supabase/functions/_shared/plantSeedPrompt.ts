@@ -54,6 +54,12 @@ export const SEED_BATCH_SCHEMA = {
           soil:                { type: "ARRAY", items: { type: "STRING" } },
           soil_ph_min:         { type: "NUMBER" },
           soil_ph_max:         { type: "NUMBER" },
+          soil_moisture_min:   { type: "NUMBER" },
+          soil_moisture_max:   { type: "NUMBER" },
+          soil_ec_min:         { type: "NUMBER" },
+          soil_ec_max:         { type: "NUMBER" },
+          soil_temp_min:       { type: "NUMBER" },
+          soil_temp_max:       { type: "NUMBER" },
           days_to_harvest_min: { type: "NUMBER" },
           days_to_harvest_max: { type: "NUMBER" },
         },
@@ -101,6 +107,12 @@ export interface SeedRow {
   soil?: string[] | null;
   soil_ph_min?: number | null;
   soil_ph_max?: number | null;
+  soil_moisture_min?: number | null;
+  soil_moisture_max?: number | null;
+  soil_ec_min?: number | null;
+  soil_ec_max?: number | null;
+  soil_temp_min?: number | null;
+  soil_temp_max?: number | null;
   days_to_harvest_min?: number | null;
   days_to_harvest_max?: number | null;
 }
@@ -169,6 +181,9 @@ All other fields MUST be populated. EVERY row needs:
 - hardiness_min, hardiness_max (USDA zone numbers as strings)
 - growth_rate, growth_habit, maintenance
 - soil (at least one), soil_ph_min, soil_ph_max
+- soil_moisture_min, soil_moisture_max (ideal volumetric soil moisture for healthy growth, as whole-number percentages 0–100, e.g. 30–60 for most veg)
+- soil_ec_min, soil_ec_max (ideal nutrient/salinity range in µS/cm, e.g. 800–1800 for fruiting veg; use realistic agronomic values)
+- soil_temp_min, soil_temp_max (ideal root-zone soil temperature range in °C)
 - propagation (every plant has propagation methods — seed at minimum)
 - description (2-3 sentences in your own words)
 - is_edible, is_toxic_pets, is_toxic_humans (decisive booleans)
@@ -338,6 +353,12 @@ export function seedRowToColumnShape(
     soil:                splitJoinedStringArray(p.soil),
     soil_ph_min:         p.soil_ph_min ?? null,
     soil_ph_max:         p.soil_ph_max ?? null,
+    soil_moisture_min:   p.soil_moisture_min ?? null,
+    soil_moisture_max:   p.soil_moisture_max ?? null,
+    soil_ec_min:         p.soil_ec_min ?? null,
+    soil_ec_max:         p.soil_ec_max ?? null,
+    soil_temp_min:       p.soil_temp_min ?? null,
+    soil_temp_max:       p.soil_temp_max ?? null,
     days_to_harvest_min: toInt(p.days_to_harvest_min),
     days_to_harvest_max: toInt(p.days_to_harvest_max),
     thumbnail_url:       null,

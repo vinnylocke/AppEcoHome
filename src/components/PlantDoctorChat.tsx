@@ -27,6 +27,7 @@ import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import { logEvent, EVENT } from "../events/registry";
 import { getPlantWikiInfo } from "../lib/wikipedia";
+import { stripMarkdownImages } from "../lib/stripMarkdownImages";
 import toast from "react-hot-toast";
 import { PlantActionButtons } from "./PlantActionButtons";
 import { TaskActionButtons } from "./TaskActionButtons";
@@ -80,6 +81,7 @@ function ChatPlantCard({
     thumbnail: string | null;
   } | null>(null);
   const [expanded, setExpanded] = useState(false);
+  const [imgError, setImgError] = useState(false);
 
   useEffect(() => {
     getPlantWikiInfo(plant.search_query || plant.name).then(setInfo);
@@ -92,10 +94,11 @@ function ChatPlantCard({
           <div className="w-10 h-10 rounded-lg bg-rhozly-surface border border-rhozly-outline/20 flex items-center justify-center shrink-0">
             <Loader2 size={14} className="animate-spin text-rhozly-primary" />
           </div>
-        ) : info.thumbnail ? (
+        ) : info.thumbnail && !imgError ? (
           <img
             src={info.thumbnail}
             alt={plant.name}
+            onError={() => setImgError(true)}
             className="w-10 h-10 rounded-lg object-cover shrink-0 border border-rhozly-outline/20"
           />
         ) : (
@@ -1029,7 +1032,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                             className="w-full max-h-48 object-cover rounded-xl mb-1"
                           />
                         )}
-                        <div className="whitespace-pre-wrap">{msg.content}</div>
+                        <div className="whitespace-pre-wrap">{msg.role === "assistant" ? stripMarkdownImages(msg.content) : msg.content}</div>
 
                         {msg.role === "assistant" &&
                           !!msg.preferences_captured &&

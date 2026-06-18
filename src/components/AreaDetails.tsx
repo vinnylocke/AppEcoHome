@@ -17,6 +17,7 @@ import {
   ListChecks,
   CheckSquare,
   Edit3,
+  Thermometer,
 } from "lucide-react";
 import { IconPlantDB, IconGrowth, IconAI, IconHarvest, IconScan, IconPest } from "../constants/icons";
 import { supabase } from "../lib/supabase";
@@ -24,6 +25,8 @@ import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import AreaAdvancedFields from "./AreaAdvancedFields";
 import AreaInsightsPanel from "./area/AreaInsightsPanel";
+import AreaSensorsPanel from "./area/AreaSensorsPanel";
+import AreaAiAnalysisPanel from "./area/AreaAiAnalysisPanel";
 import InstanceEditModal from "./InstanceEditModal";
 import BulkConfigModal from "./BulkConfigModal";
 import { ConfirmModal } from "./ConfirmModal";
@@ -87,6 +90,8 @@ export default function AreaDetails({
     null,
   );
   const [showHistory, setShowHistory] = useState(false);
+  const [envOpen, setEnvOpen] = useState(false);
+  const [envTab, setEnvTab] = useState<"readings" | "ai">("readings");
 
   // Bulk Edit State
   const [isBulkEditing, setIsBulkEditing] = useState(false);
@@ -518,6 +523,51 @@ export default function AreaDetails({
             isOutside={isOutside}
             aiEnabled={aiEnabled}
           />
+        )}
+
+        {/* Environment: live sensor readings + AI Area Coach (same panels as the
+            Area Metrics modal). Collapsible so it doesn't crowd the area view. */}
+        {area?.id && (
+          <div className="rounded-3xl border border-rhozly-outline/10 bg-rhozly-surface-lowest overflow-hidden">
+            <button
+              type="button"
+              data-testid="area-environment-toggle"
+              onClick={() => setEnvOpen((v) => !v)}
+              className="w-full flex items-center justify-between gap-3 px-5 py-4"
+            >
+              <span className="flex items-center gap-2 font-black text-rhozly-on-surface text-sm">
+                <Thermometer size={16} className="text-rhozly-primary" /> Environment &amp; AI Coach
+              </span>
+              {envOpen ? <ChevronUp size={18} className="text-rhozly-on-surface/40" /> : <ChevronDown size={18} className="text-rhozly-on-surface/40" />}
+            </button>
+            {envOpen && (
+              <div className="px-5 pb-5 space-y-4">
+                <div className="flex gap-2 border-b border-rhozly-outline/10">
+                  {([["readings", "Readings"], ["ai", "AI Area Coach"]] as const).map(([key, label]) => (
+                    <button
+                      key={key}
+                      type="button"
+                      data-testid={`area-env-tab-${key}`}
+                      onClick={() => setEnvTab(key)}
+                      className={`px-4 py-2 text-sm font-black transition-colors border-b-2 -mb-px ${
+                        envTab === key
+                          ? "border-rhozly-primary text-rhozly-primary"
+                          : "border-transparent text-rhozly-on-surface/40 hover:text-rhozly-on-surface/70"
+                      }`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+                {envTab === "readings" && (
+                  <AreaSensorsPanel areaId={area.id} areaName={area.name ?? "this area"} homeId={homeId} />
+                )}
+                {envTab === "ai" && (
+                  <AreaAiAnalysisPanel areaId={area.id} homeId={homeId} aiEnabled={aiEnabled} />
+                )}
+              </div>
+            )}
+          </div>
         )}
 
         <div className="space-y-4">

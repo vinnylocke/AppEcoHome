@@ -42,7 +42,14 @@ export interface AreaAnalysisInput {
     temp: { min: number; max: number; avg: number } | null;
     ec: { min: number; max: number; avg: number } | null;
   } | null;
-  plants: Array<{ name: string; health: string | null; soilPhMin: number | null; soilPhMax: number | null }>;
+  plants: Array<{
+    name: string; health: string | null;
+    soilPhMin: number | null; soilPhMax: number | null;
+    // Stored authoritative care ranges (from the plant library). Null = unknown.
+    moistureMin?: number | null; moistureMax?: number | null;
+    ecMin?: number | null; ecMax?: number | null;
+    tempMin?: number | null; tempMax?: number | null;
+  }>;
   automations: Array<{
     name: string;
     isActive: boolean;
@@ -192,12 +199,23 @@ export function buildAreaAnalysisPrompt(input: AreaAnalysisInput): string {
       ].join("\n")
     : "  (no history available)";
 
+  const range = (lo: number | null | undefined, hi: number | null | undefined, unit: string) =>
+    (lo != null && hi != null) ? `${lo}-${hi}${unit}` : null;
   const plantLines = plants.length > 0
     ? plants.map((p) => {
-        const ph = (p.soilPhMin != null && p.soilPhMax != null) ? ` [preferred soil pH ${p.soilPhMin}-${p.soilPhMax}]` : "";
-        return `  - ${p.name}${p.health ? ` (health: ${p.health})` : ""}${ph}`;
+        const stored = [
+          range(p.soilPhMin, p.soilPhMax, " pH") && `pH ${p.soilPhMin}-${p.soilPhMax}`,
+          range(p.moistureMin, p.moistureMax, "%") && `moisture ${p.moistureMin}-${p.moistureMax}%`,
+          range(p.ecMin, p.ecMax, "") && `EC ${p.ecMin}-${p.ecMax}µS/cm`,
+          range(p.tempMin, p.tempMax, "°C") && `soil temp ${p.tempMin}-${p.tempMax}°C`,
+        ].filter(Boolean);
+        const careStr = stored.length ? ` [ideal: ${stored.join(", ")}]` : "";
+        return `  - ${p.name}${p.health ? ` (health: ${p.health})` : ""}${careStr}`;
       }).join("\n")
     : "  (no plants recorded in this area)";
+
+  // Stored ranges are authoritative — the model must use them, not invent.
+  const hasStored = plants.some((p) => p.moistureMin != null || p.ecMin != null || p.tempMin != null);
 
   const automationLines = automations.length > 0
     ? automations.map((a) => {
@@ -255,6 +273,9 @@ For THIS area and THESE plants:
 1. For each of moisture, EC, and soil temperature, give the ideal range (ideal_min/ideal_max with a unit),
    the current value if known, a status (good/low/high; "unknown" if no reading), a plain "meaning" of the
    metric, "why_for_these_plants" (relate it to the specific plants above), and a "recommendation".
+   - ${hasStored
+     ? "IMPORTANT: where a plant lists an [ideal: …] range above, those are AUTHORITATIVE stored values — set ideal_min/ideal_max to match them (for multiple plants, use the overlap / tightest sensible combined range). Only estimate a range yourself for a metric that has no stored value."
+     : "No stored ideal ranges are provided, so estimate sensible agronomic ranges for these plants."}
    - If EC is raw ADC (uncalibrated), say ranges are relative and recommend a calibrated sensor for absolutes.
 2. automation_review: if automations exist, judge whether they suit these plants and the current
    readings — e.g. is the schedule frequent enough, or the moisture threshold appropriate, given the

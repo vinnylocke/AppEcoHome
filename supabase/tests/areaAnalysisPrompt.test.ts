@@ -35,7 +35,7 @@ Deno.test("prompt includes area, current readings, plants and automations", () =
   assert(p.includes("Veg Bed"));
   assert(p.includes("Moisture (avg): 28.0%"));
   assert(p.includes("Tomato"));
-  assert(p.includes("preferred soil pH 6-6.8"));
+  assert(p.includes("[ideal: pH 6-6.8"));
   assert(p.includes("Morning Water"));
   assert(p.includes("soil moisture < 25%"));
 });
@@ -60,6 +60,23 @@ Deno.test("prompt describes a time-scheduled automation + linked tasks", () => {
   assert(p.includes("waters on a fixed schedule"));
   assert(p.includes("for 30 s"));
   assert(p.includes("drives 4 care tasks"));
+});
+
+Deno.test("prompt uses stored care ranges as authoritative when present", () => {
+  const p = buildAreaAnalysisPrompt(baseInput({
+    plants: [
+      { name: "Tomato", health: null, soilPhMin: 6.0, soilPhMax: 6.8, moistureMin: 35, moistureMax: 60, ecMin: 1200, ecMax: 2000, tempMin: 18, tempMax: 27 },
+    ],
+  }));
+  assert(p.includes("[ideal: pH 6-6.8, moisture 35-60%, EC 1200-2000µS/cm, soil temp 18-27°C]"));
+  assert(p.includes("AUTHORITATIVE stored values"));
+});
+
+Deno.test("prompt asks the model to estimate when no stored ranges", () => {
+  const p = buildAreaAnalysisPrompt(baseInput({
+    plants: [{ name: "Basil", health: null, soilPhMin: null, soilPhMax: null }],
+  }));
+  assert(p.includes("No stored ideal ranges are provided"));
 });
 
 Deno.test("prompt labels raw ADC EC as uncalibrated", () => {

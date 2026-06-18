@@ -27,6 +27,8 @@ plants (species)
 
 ### `plants` columns (subset)
 
+**Care ranges (2026-06-18):** `plants` + `plant_library` gained `soil_moisture_min/max` (%), `soil_ec_min/max` (µS/cm), `soil_temp_min/max` (°C) — ideal stable care ranges per species, populated by the plant-library AI seeder (`_shared/plantSeedPrompt.ts`). The **AI Area Coach** reads these as **authoritative** target ranges (falls back to the model's estimate when null), so its moisture/EC/temp targets stop drifting between runs. Migration `20260729000000_plant_care_ranges.sql`.
+
 | Column | Type | Notes |
 |--------|------|-------|
 | `id` | int (auto) | PK |

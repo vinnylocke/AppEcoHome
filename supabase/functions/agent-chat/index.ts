@@ -246,7 +246,8 @@ async function handleSendMessage(
   // ("tomorrow", "next Tuesday"). Done per-call (not cached) so a chat
   // that crosses midnight doesn't see a stale "today".
   const datePrefix = buildDatePrefix(context.timezone);
-  const fullPrompt = `${datePrefix}\n\n${context.prompt}`;
+  const imageRule = "IMAGES: You cannot embed, generate or attach images. If the user asks to see a plant or wants pictures, describe what it looks like in words and point them to Plant Doctor's photo tools — never write markdown image syntax (![...](...)), never paste image URLs, and never promise to show or attach an image.";
+  const fullPrompt = `${datePrefix}\n\n${context.prompt}\n\n${imageRule}`;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {
     const resp = await callGeminiWithTools(apiKey, FN, messages, tools, {

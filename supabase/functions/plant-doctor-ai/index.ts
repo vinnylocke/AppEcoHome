@@ -225,6 +225,9 @@ serve(async (req) => {
       Tailor seasonal advice to the user's hemisphere and current season (${ctx.currentSeason}, ${ctx.currentMonth}).
       If you recommend a specific plant they do NOT already own, include it in 'suggested_plants'.
 
+      IMAGE REQUEST RULES:
+      You CANNOT embed or generate images. When the user asks to SEE a plant or wants pictures, put the relevant species in 'suggested_plants' (the app renders a real photo thumbnail for each) and briefly describe what it looks like in words. NEVER write markdown image syntax (e.g. ![...](...)), never paste image URLs, and never promise to "show" or "attach" an image you cannot render. If you truly can't identify a species to suggest, say plainly that you can't display photos and describe it instead.
+
       TASK GENERATION RULES:
       Only generate tasks when the user explicitly asks for a schedule, care plan, or to-do list AND the tasks represent real physical garden work (watering, planting, pruning, fertilising, harvesting, treating pests, etc.).
       DO NOT generate tasks for: informational queries, plant recommendations, research suggestions, "look into this", or any action that isn't hands-in-the-soil garden work.
