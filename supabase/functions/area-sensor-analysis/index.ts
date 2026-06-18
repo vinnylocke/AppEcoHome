@@ -228,6 +228,8 @@ serve(async (req) => {
       for (const c of care ?? []) {
         const resolved = careById.get(c.id as number);
         if (!resolved) continue;
+
+        // a) Fill the plants row.
         const patch: Record<string, number> = {};
         for (const f of RANGE_FIELDS) {
           if ((c as Record<string, unknown>)[f] == null && resolved[f] != null) patch[f] = resolved[f] as number;
@@ -235,6 +237,22 @@ serve(async (req) => {
         if (Object.keys(patch).length > 0) {
           const { error } = await db.from("plants").update(patch).eq("id", c.id as number);
           if (error) logError(FN, "care_range_persist_failed", { plant_id: c.id, message: error.message });
+        }
+
+        // b) Top up an EXISTING plant_library row that's missing ranges (so the
+        //    knowledge base self-heals too). New library rows stay the seeder's
+        //    job — we never create sparse library entries here.
+        const key = careMatchKey(c.scientific_name, c.common_name);
+        const libRow = key ? libByKey.get(key) : undefined;
+        if (libRow) {
+          const libPatch: Record<string, number> = {};
+          for (const f of RANGE_FIELDS) {
+            if ((libRow as unknown as Record<string, unknown>)[f] == null && resolved[f] != null) libPatch[f] = resolved[f] as number;
+          }
+          if (Object.keys(libPatch).length > 0) {
+            const { error } = await db.from("plant_library").update(libPatch).eq("scientific_name_key", key);
+            if (error) logError(FN, "library_range_persist_failed", { key, message: error.message });
+          }
         }
       }
     }
