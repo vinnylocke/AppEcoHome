@@ -1234,7 +1234,10 @@ Also return a brief observation in notes.`;
         buildVisionMessage(promptText, images),
         // Pro-first cascade — identification accuracy matters more
         // than the ~20× cost delta (still cents per call).
-        { responseSchema: IDENTIFY_VISION_SCHEMA, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },
+        // 8192 (not the 2048 default): reasoning vision models spend "thinking"
+        // tokens against this cap, so a small cap truncated the JSON mid-object
+        // → "invalid JSON" / failed to analyze.
+        { responseSchema: IDENTIFY_VISION_SCHEMA, models: VISION_DIAGNOSIS_MODELS, maxOutputTokens: 8192, logContext: { action } },
       );
       const aiParsed = extractJsonObject(rawText) as any;
       await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_vision", usage });
@@ -1494,7 +1497,7 @@ RESPONSE RULES:
         buildVisionMessage(promptText, images),
         // Pro-first cascade + low temp + two-stage prompt — all three
         // working together to keep diagnoses evidence-grounded.
-        { responseSchema: DIAGNOSE_SCHEMA, temperature: 0.2, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },
+        { responseSchema: DIAGNOSE_SCHEMA, temperature: 0.2, models: VISION_DIAGNOSIS_MODELS, maxOutputTokens: 8192, logContext: { action } },
       );
       const parsed = extractJsonObject(rawText) as any;
 
@@ -1612,7 +1615,7 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
         // Pro-first cascade — comprehensive analyse benefits even
         // more from Pro vision since it integrates many signals at
         // once (health + disease + pest + edibility + pruning).
-        { responseSchema: ANALYSE_COMPREHENSIVE_SCHEMA, models: VISION_DIAGNOSIS_MODELS, logContext: { action } },
+        { responseSchema: ANALYSE_COMPREHENSIVE_SCHEMA, models: VISION_DIAGNOSIS_MODELS, maxOutputTokens: 8192, logContext: { action } },
       );
       const parsed = extractJsonObject(rawText) as any;
       await logAiUsage(supabase, {
