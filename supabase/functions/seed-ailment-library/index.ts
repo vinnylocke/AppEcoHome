@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
 
     const body = await req.json().catch(() => ({}));
     const triggeredBy = typeof body.triggered_by === "string" ? body.triggered_by : null;
-    const count = Math.max(1, Math.min(30, Math.floor(typeof body.count === "number" ? body.count : 12)));
+    const count = Math.max(1, Math.min(20, Math.floor(typeof body.count === "number" ? body.count : 8)));
 
     const { data: run, error: runErr } = await db
       .from("ailment_library_runs")
@@ -65,7 +65,10 @@ Deno.serve(async (req) => {
             responseSchema: AILMENT_SEED_BATCH_SCHEMA,
             responseMimeType: "application/json",
             maxRetriesPerModel: 1,
-            timeoutMs: 25_000,
+            // Generating + detailing ailments takes longer than the plant
+            // seeder's pre-supplied-name enrichment, so allow more wall-clock
+            // per model before cascading.
+            timeoutMs: 60_000,
             logContext: { run_id: runId },
           },
         );
