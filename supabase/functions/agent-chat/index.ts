@@ -246,7 +246,7 @@ async function handleSendMessage(
   // ("tomorrow", "next Tuesday"). Done per-call (not cached) so a chat
   // that crosses midnight doesn't see a stale "today".
   const datePrefix = buildDatePrefix(context.timezone);
-  const imageRule = "IMAGES: To show the user what a plant looks like, call the show_plant_images tool with the plant name(s) — the app then displays a real licensed photo for each. Use it whenever the user asks to see a plant or wants pictures. You cannot embed images yourself, so never write markdown image syntax (![...](...)) or paste image URLs — always use show_plant_images instead.";
+  const imageRule = "IMAGES: You CAN show plants. When the user asks to see a plant or what something looks like, CALL the show_plant_images tool with the plant name(s) — the app then displays a real licensed photo for each. After calling it, reply with ONE short friendly caption (e.g. \"Here's what a runner bean looks like 🌱\"). NEVER tell the user you can't show images or can't help with this — you can, via the tool. NEVER write code, code blocks, ```tool_code```, or otherwise describe/print the tool call in your text reply. NEVER use markdown image syntax (![...](...)) or paste image URLs — only the tool.";
   const fullPrompt = `${datePrefix}\n\n${context.prompt}\n\n${imageRule}`;
 
   for (let round = 0; round < MAX_TOOL_ROUNDS; round++) {

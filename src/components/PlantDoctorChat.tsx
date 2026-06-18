@@ -27,7 +27,7 @@ import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import { logEvent, EVENT } from "../events/registry";
 import { getPlantWikiInfo } from "../lib/wikipedia";
-import { stripMarkdownImages } from "../lib/stripMarkdownImages";
+import { sanitizeAssistantText } from "../lib/stripMarkdownImages";
 import toast from "react-hot-toast";
 import { PlantActionButtons } from "./PlantActionButtons";
 import { TaskActionButtons } from "./TaskActionButtons";
@@ -1033,7 +1033,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                             className="w-full max-h-48 object-cover rounded-xl mb-1"
                           />
                         )}
-                        <div className="whitespace-pre-wrap">{msg.role === "assistant" ? stripMarkdownImages(msg.content) : msg.content}</div>
+                        <div className="whitespace-pre-wrap">{msg.role === "assistant" ? sanitizeAssistantText(msg.content) : msg.content}</div>
 
                         {msg.role === "assistant" &&
                           !!msg.preferences_captured &&
