@@ -72,6 +72,8 @@ Schema, the Coach reader, and the authoritative prompt all landed earlier, BUT s
 plants had NULL ranges and the Coach kept estimating (drift). Closed by
 [batch-d-area-coach-stable-ranges.md](./batch-d-area-coach-stable-ranges.md):
 `area-sensor-analysis` now fills missing ranges from the matching `plant_library` row
-(`_shared/careRanges.ts`). Remaining (deferred) durability item: persist resolved ranges
-back onto `plants.soil_*` via the AI plant care generator so non-library plants are
-covered without the per-run library join.
+(`_shared/careRanges.ts`). The deferred durability item is now also **done**
+([area-coach-persist-care-ranges.md](./area-coach-persist-care-ranges.md)): when a plant
+is in neither `plants.soil_*` nor the library, the Coach generates the ranges and writes
+them to the shared `plants` row (bounded, cache-miss only), so they're generated once for
+every user and reused — fully closing the population gap.

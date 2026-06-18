@@ -10,6 +10,7 @@ import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 import { summariseTree, type ConditionNode } from "../_shared/conditionTree.ts";
 import { mergeCareRanges, careMatchKey, type CareRanges } from "../_shared/careRanges.ts";
+import { buildPlantCareRangePrompt, parseCareRangeResponse, CARE_RANGE_SCHEMA } from "../_shared/plantCareRangeGen.ts";
 import {
   buildAreaAnalysisPrompt,
   parseAreaInsight,
@@ -186,6 +187,39 @@ serve(async (req) => {
         const key = careMatchKey(c.scientific_name, c.common_name);
         const lib = key ? libByKey.get(key) : undefined;
         careById.set(c.id as number, mergeCareRanges(c as Partial<CareRanges>, lib));
+      }
+
+      // Persist generated ranges for plants STILL missing them (no plant value,
+      // no library match). `plants` is a shared catalogue, so generating once
+      // here means every user with this plant reuses the saved ranges — and the
+      // current insight is already stable (merged below). Bounded per run.
+      const MISSING_CAP = 3;
+      const missing = (care ?? []).filter((c: { id: number }) => {
+        const m = careById.get(c.id);
+        return m && m.soil_moisture_min == null && m.soil_ec_min == null && m.soil_temp_min == null;
+      }).slice(0, MISSING_CAP) as Array<{ id: number; common_name: string; scientific_name: unknown }>;
+
+      for (const c of missing) {
+        try {
+          const { text, usage } = await callGeminiCascade(
+            geminiApiKey,
+            "plant-care-ranges",
+            toMessages([buildPlantCareRangePrompt({ common_name: c.common_name, scientific_name: c.scientific_name })]),
+            { responseSchema: CARE_RANGE_SCHEMA, responseMimeType: "application/json", temperature: 0.2, maxOutputTokens: 512, logContext: { plantId: c.id } },
+          );
+          const r = parseCareRangeResponse(text);
+          if (r) {
+            await db.from("plants").update({
+              soil_moisture_min: r.soil_moisture_min, soil_moisture_max: r.soil_moisture_max,
+              soil_ec_min: r.soil_ec_min, soil_ec_max: r.soil_ec_max,
+              soil_temp_min: r.soil_temp_min, soil_temp_max: r.soil_temp_max,
+            }).eq("id", c.id);
+            careById.set(c.id, mergeCareRanges(r, careById.get(c.id)));
+            await logAiUsage(db, { userId, homeId, functionName: "plant-care-ranges", action: "care_range_backfill", usage });
+          }
+        } catch (e) {
+          logError(FN, "care_range_gen_failed", { plant_id: c.id, message: e instanceof Error ? e.message : String(e) });
+        }
       }
     }
 
