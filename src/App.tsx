@@ -98,6 +98,7 @@ const QuickAccessMenuButton = lazy(() => import("./components/QuickAccessMenuBut
 const LightSensor         = lazy(() => import("./components/LightSensor"));
 const SunTrajectoryAR     = lazy(() => import("./components/SunTrajectoryAR"));
 const GuideList           = lazy(() => import("./components/GuideList"));
+const AilmentLibrary      = lazy(() => import("./components/AilmentLibrary"));
 const BlueprintManager    = lazy(() => import("./components/BlueprintManager"));
 const PlantVisualiser     = lazy(() => import("./components/PlantVisualiser"));
 const GardenLayoutList    = lazy(() => import("./components/GardenLayoutList"));
@@ -1773,6 +1774,14 @@ function AppShell() {
                       <Route path="/guides" element={
                         <div className="h-full animate-in fade-in duration-500">
                           <GuideList />
+                        </div>
+                      } />
+
+                      <Route path="/ailment-library" element={
+                        <div className="h-full animate-in fade-in duration-500">
+                          {profile?.home_id ? (
+                            <AilmentLibrary homeId={profile.home_id} />
+                          ) : null}
                         </div>
                       } />
 

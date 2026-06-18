@@ -3,7 +3,7 @@ import { createPortal } from "react-dom";
 import {
   Plus, Search, Loader2, Biohazard, X,
   Edit3, Trash2, ChevronRight, ChevronUp, ChevronDown, ChevronLeft, AlertTriangle,
-  CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock, Sparkles,
+  CheckCircle2, Info, Square, CheckSquare2, Archive, ArchiveRestore, Lock, Sparkles, Library,
 } from "lucide-react";
 import { IconPest, IconPlant, IconPlantDB, IconAI } from "../constants/icons";
 import { toast } from "react-hot-toast";
@@ -1736,6 +1736,16 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
           className="w-full pl-11 pr-4 py-3.5 min-h-[44px] rounded-2xl border border-rhozly-outline/20 bg-white font-bold text-sm focus:outline-none focus:ring-2 focus:ring-rhozly-primary/30"
         />
       </div>
+
+      {/* Browse the global ailment library (Phase 2) */}
+      <button
+        type="button"
+        data-testid="browse-ailment-library"
+        onClick={() => navigate("/ailment-library")}
+        className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-dashed border-rhozly-outline/30 text-sm font-black text-rhozly-on-surface/60 hover:border-rhozly-primary/40 hover:text-rhozly-primary transition-colors"
+      >
+        <Library size={16} /> Browse the ailment library
+      </button>
 
       {/* Grid */}
       {fetchError ? (
