@@ -26,6 +26,10 @@ plant_instance_ailments (link table)
 
 ## Role 1 — Technical Reference
 
+### `ailment_library` (global catalogue, added 2026-06-18 — Phase 1)
+
+A self-populating **global** catalogue of pests/diseases/invasives/disorders, mirroring `plant_library` (distinct from the per-home `ailments` watchlist below). Columns: `name`, `kind` (pest|disease|invasive|disorder), `scientific_name`, `aliases`, `description`, `symptoms`, `causes`, `treatment`, `prevention`, `severity` (low|moderate|high|critical), `affected_plant_types`, `affected_families`, `season`, `organic_friendly`, image fields, provenance (`source`, `valid`, `sources`, `seeded_*`/`verified_*`), and a generated `name_key` (unique, dedup). RLS: public read for `authenticated`; writes service-role only. `ailment_library_runs` logs each seed run (admin-read). Seeded by [`seed-ailment-library`](./10-edge-functions-catalogue.md) (`_shared/ailmentSeedPrompt.ts`). Phase 2 adds the browse UI + "add to watchlist"; Phase 3 a verifier + Perenual source. Migration `20260730000000_ailment_library.sql`. See [docs/plans/ailment-library.md](../../plans/ailment-library.md).
+
 ### `ailments` columns (subset)
 
 | Column | Type | Notes |

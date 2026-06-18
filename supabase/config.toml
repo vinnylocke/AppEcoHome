@@ -445,6 +445,9 @@ verify_jwt = false
 [functions.seed-plant-library]
 verify_jwt = false
 
+[functions.seed-ailment-library]
+verify_jwt = false
+
 [functions.verify-plant-library]
 verify_jwt = false
 
