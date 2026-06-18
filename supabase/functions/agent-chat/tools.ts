@@ -178,7 +178,7 @@ export const READ_TOOLS: ToolMeta[] = [
               type: "object",
               properties: {
                 name: { type: "string", description: "Common name to label the photo." },
-                search_query: { type: "string", description: "Optional better image search phrase (e.g. scientific name)." },
+                search_query: { type: "string", description: "Strongly recommended: an image-search phrase that returns the GROWING PLANT, not its produce/seeds. Use the botanical or specific common name plus 'plant' (e.g. 'Phaseolus coccineus plant', 'scarlet runner bean plant', 'Lavandula angustifolia plant'). This makes the photos far more accurate." },
               },
               required: ["name"],
             },

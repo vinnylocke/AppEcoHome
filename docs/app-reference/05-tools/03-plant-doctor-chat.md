@@ -110,7 +110,9 @@ The AI uses this to ground its answer: "you're currently on the Light Sensor at 
 
 When the AI returns `suggested_plants: [{ name, search_query, show? }]`, each renders as a card calling `getPlantWikiInfo(search_query)` for a thumbnail + extract. Tap to expand.
 
-When an item has **`show: true`** (set server-side by the `show_plant_images` tool — i.e. the user asked to *see* what a plant looks like), the card renders **`ChatPlantGallery`** instead of the compact thumbnail: an inline horizontal strip of several licensed photos from `plant-image-search`, each with an `ImageCredit` badge and tappable to open the shared `Lightbox`. Falls back to the single Wikipedia thumbnail if no images are returned. Plants without `show` (ordinary "you might like…" suggestions) keep the compact thumbnail. The `PlantActionButtons` (Add to Shed) still render below either way.
+When an item has **`show: true`** (set server-side by the `show_plant_images` tool — i.e. the user asked to *see* what a plant looks like), the card renders **`ChatPlantGallery`** instead of the compact thumbnail: an inline horizontal strip of up to 9 licensed photos from `plant-image-search`, each with an `ImageCredit` badge and tappable to open the shared `Lightbox`. Falls back to the single Wikipedia thumbnail if no images are returned. Plants without `show` (ordinary "you might like…" suggestions) keep the compact thumbnail. The `PlantActionButtons` (Add to Shed) still render below either way.
+
+**Photo relevance:** the gallery query is built by `src/lib/plantPhotoQuery.ts`, which biases toward the *growing plant* (not its produce/seeds) by appending `" plant"` to a bare name — e.g. "runner bean" → "runner bean plant" — unless the phrase is already botanical. The `show_plant_images` tool also asks Gemini to supply a `search_query` using the botanical/specific name plus "plant" (e.g. "Phaseolus coccineus plant"). Wikipedia is always fetched first (canonical reference shot).
 
 ### Suggested tasks → `TaskActionButtons`
 

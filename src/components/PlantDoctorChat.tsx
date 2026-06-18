@@ -30,6 +30,7 @@ import { logEvent, EVENT } from "../events/registry";
 import { getPlantWikiInfo } from "../lib/wikipedia";
 import { sanitizeAssistantText } from "../lib/stripMarkdownImages";
 import { visibleToolResults } from "../lib/visibleToolResults";
+import { plantPhotoQuery } from "../lib/plantPhotoQuery";
 import { Lightbox, type GalleryImage } from "./DiagnosisImageGallery";
 import ImageCredit from "./credit/ImageCredit";
 import { coerceImageCredit, isKnownCredit } from "../lib/imageCredit";
@@ -86,7 +87,7 @@ function ChatPlantGallery({ query, label }: { query: string; label: string }) {
   useEffect(() => {
     let cancelled = false;
     supabase.functions
-      .invoke("plant-image-search", { body: { query, count: 6 } })
+      .invoke("plant-image-search", { body: { query, count: 9 } })
       .then(({ data, error }) => {
         if (cancelled) return;
         setImages(!error && Array.isArray(data?.images) ? data.images : []);
@@ -208,7 +209,7 @@ function ChatPlantCard({
         <p className="text-xs font-black text-rhozly-on-surface leading-tight">
           {plant.name}
         </p>
-        <ChatPlantGallery query={plant.search_query || plant.name} label={plant.name} />
+        <ChatPlantGallery query={plantPhotoQuery(plant.name, plant.search_query)} label={plant.name} />
         {learnMore}
       </div>
     );
