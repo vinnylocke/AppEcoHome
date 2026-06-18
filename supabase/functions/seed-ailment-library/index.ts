@@ -64,10 +64,12 @@ Deno.serve(async (req) => {
             maxOutputTokens: 32768,
             responseSchema: AILMENT_SEED_BATCH_SCHEMA,
             responseMimeType: "application/json",
+            // Open-ended generation + a rich schema makes the small/lite models
+            // time out; pin the models proven to handle this (gemini-3-flash-
+            // preview lands it), so we don't burn ~3 min cascading through
+            // time-outs + a 404 model first.
+            models: ["gemini-3-flash-preview", "gemini-2.5-flash", "gemini-3.5-flash"],
             maxRetriesPerModel: 1,
-            // Generating + detailing ailments takes longer than the plant
-            // seeder's pre-supplied-name enrichment, so allow more wall-clock
-            // per model before cascading.
             timeoutMs: 60_000,
             logContext: { run_id: runId },
           },
