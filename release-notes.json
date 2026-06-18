@@ -1,11 +1,1 @@
-[
-  {
-    "label": "New: Automation builder",
-    "items": [
-      "Automations now have a single, more powerful builder — combine any number of conditions with AND/OR and 'is / isn't' logic.",
-      "Trigger on sensor readings, time of day and day of week (including overnight windows and a different setup at weekends), when a task is due, or the weather forecast — in any combination.",
-      "Each automation shows a plain-English summary of exactly when it runs.",
-      "Your existing automations were upgraded automatically and keep working exactly as before."
-    ]
-  }
-]
+[]
