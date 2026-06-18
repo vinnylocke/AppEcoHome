@@ -451,7 +451,7 @@ function AddAilmentModal({
   // AI state
   const [aiQuery, setAiQuery] = useState("");
   const [aiSearchLoading, setAiSearchLoading] = useState(false);
-  type AIResult = { cartId: string; data: Omit<Ailment, "id" | "created_at"> };
+  type AIResult = { cartId: string; data: Omit<Ailment, "id" | "created_at">; library_id?: number };
   const [aiResults, setAiResults] = useState<AIResult[]>([]);
   const [checkedAiIds, setCheckedAiIds] = useState<Set<string>>(new Set());
   const [aiPreviewCache, setAiPreviewCache] = useState<Record<string, { loading: boolean; image?: string }>>({});
@@ -635,6 +635,7 @@ function AddAilmentModal({
         }));
       const results: AIResult[] = (funcData.results || []).map((ai: any) => ({
         cartId: crypto.randomUUID(),
+        library_id: typeof ai.library_id === "number" ? ai.library_id : undefined,
         data: {
           home_id: homeId,
           name: ai.name || "Unknown",
@@ -1108,6 +1109,16 @@ function AddAilmentModal({
                                 <span className={`inline-flex items-center gap-0.5 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full ${meta.colour}`}>
                                   {meta.icon} {meta.label}
                                 </span>
+                                {r.library_id && (
+                                  <button
+                                    type="button"
+                                    data-testid={`ailment-result-library-${r.cartId}`}
+                                    onClick={(e) => { e.stopPropagation(); navigate(`/ailment-library?ailment=${r.library_id}`); }}
+                                    className="ml-1.5 inline-flex items-center gap-0.5 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full bg-rhozly-primary/10 text-rhozly-primary hover:bg-rhozly-primary/20 transition-colors"
+                                  >
+                                    <Library size={10} /> In library
+                                  </button>
+                                )}
                               </div>
                               <button
                                 onClick={() => setExpandedAiId(isExpanded ? null : r.cartId)}

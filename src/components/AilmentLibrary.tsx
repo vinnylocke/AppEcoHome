@@ -3,7 +3,7 @@
 // "Add to watchlist" which copies an entry into the home's watchlist.
 
 import { useEffect, useMemo, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { Search, Bug, Biohazard, Sprout, AlertTriangle, X, Plus, Loader2, ArrowLeft, Leaf } from "lucide-react";
 import toast from "react-hot-toast";
 import {
@@ -29,6 +29,7 @@ const KINDS: AilmentKind[] = ["pest", "disease", "invasive", "disorder"];
 
 export default function AilmentLibrary({ homeId }: Props) {
   const navigate = useNavigate();
+  const [params, setParams] = useSearchParams();
   const [list, setList] = useState<LibraryAilment[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -37,9 +38,29 @@ export default function AilmentLibrary({ homeId }: Props) {
   const [adding, setAdding] = useState(false);
 
   useEffect(() => {
-    fetchAilmentLibrary().then(setList).catch(() => toast.error("Couldn't load the ailment library."))
+    fetchAilmentLibrary()
+      .then((rows) => {
+        setList(rows);
+        // Deep-link: ?ailment=<id> opens that entry (e.g. from a Plant Doctor
+        // suggestion / watchlist result).
+        const target = params.get("ailment");
+        if (target) {
+          const hit = rows.find((r) => String(r.id) === target);
+          if (hit) setSelected(hit);
+        }
+      })
+      .catch(() => toast.error("Couldn't load the ailment library."))
       .finally(() => setLoading(false));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Keep the URL param in sync so detail links are shareable + back works.
+  const openDetail = (a: LibraryAilment | null) => {
+    setSelected(a);
+    const next = new URLSearchParams(params);
+    if (a) next.set("ailment", String(a.id)); else next.delete("ailment");
+    setParams(next, { replace: true });
+  };
 
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -58,7 +79,7 @@ export default function AilmentLibrary({ homeId }: Props) {
     try {
       await addLibraryAilmentToWatchlist(a, homeId);
       toast.success(`"${a.name}" added to your watchlist.`);
-      setSelected(null);
+      openDetail(null);
     } catch (e) {
       toast.error(e instanceof Error ? e.message : "Couldn't add to watchlist.");
     } finally {
@@ -114,7 +135,7 @@ export default function AilmentLibrary({ homeId }: Props) {
           {filtered.map((a) => {
             const M = KIND_META[a.kind];
             return (
-              <button key={a.id} data-testid={`ailment-card-${a.id}`} onClick={() => setSelected(a)}
+              <button key={a.id} data-testid={`ailment-card-${a.id}`} onClick={() => openDetail(a)}
                 className="text-left rounded-2xl border border-rhozly-outline/15 bg-white p-4 hover:border-rhozly-primary/40 transition-colors">
                 <div className="flex items-start justify-between gap-2">
                   <div className="flex items-center gap-2 min-w-0">
@@ -138,7 +159,7 @@ export default function AilmentLibrary({ homeId }: Props) {
       )}
 
       {selected && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => setSelected(null)}>
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm" onClick={() => openDetail(null)}>
           <div className="bg-white w-full max-w-lg rounded-3xl shadow-2xl max-h-[90vh] overflow-y-auto" onClick={(e) => e.stopPropagation()} data-testid="ailment-detail">
             <div className="flex items-start justify-between gap-3 p-5 border-b border-rhozly-outline/10 sticky top-0 bg-white">
               <div className="flex items-center gap-2.5 min-w-0">
@@ -153,7 +174,7 @@ export default function AilmentLibrary({ homeId }: Props) {
                   </div>
                 </div>
               </div>
-              <button onClick={() => setSelected(null)} className="p-2 rounded-xl hover:bg-rhozly-surface-low"><X size={18} /></button>
+              <button onClick={() => openDetail(null)} className="p-2 rounded-xl hover:bg-rhozly-surface-low"><X size={18} /></button>
             </div>
             <div className="p-5 space-y-4 text-sm">
               {selected.description && <p className="text-rhozly-on-surface/80">{selected.description}</p>}

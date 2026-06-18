@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Improvements",
+    "items": [
+      "When you search the watchlist for pests or diseases, matching entries now show an 'In library' link that opens the full Ailment Library entry."
+    ]
+  }
+]

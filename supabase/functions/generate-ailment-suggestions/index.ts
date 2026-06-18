@@ -178,13 +178,26 @@ ${extraContext ? `\nADDITIONAL CONTEXT:\n${extraContext}` : ""}
         step_order: s.step_order ?? i + 1,
       }));
 
-    const results = (result.results || []).map((ailment: any) => ({
+    let results = (result.results || []).map((ailment: any) => ({
       ...ailment,
       source: "ai" as const,
       symptoms:         (ailment.symptoms || []).map((s: any) => ({ ...s, id: s.id || crypto.randomUUID() })),
       prevention_steps: stampIds(ailment.prevention_steps),
       remedy_steps:     stampIds(ailment.remedy_steps),
     }));
+
+    // Link each suggestion to a catalogue entry by name (case-insensitive) so
+    // the client can deep-link to the Ailment Library detail.
+    try {
+      const { data: libRows } = await supabase.from("ailment_library").select("id, name");
+      if (libRows?.length) {
+        const byName = new Map<string, number>(libRows.map((r: any) => [String(r.name).toLowerCase().trim(), r.id]));
+        results = results.map((r: any) => {
+          const id = byName.get(String(r.name ?? "").toLowerCase().trim());
+          return id ? { ...r, library_id: id } : r;
+        });
+      }
+    } catch { /* non-fatal library link */ }
 
     if (ailmentKey) await setCached(supabase, ailmentKey, FN, { results }, 14);
     if (userId) await logAiUsage(serviceDb, { userId, functionName: FN, action: "ailment_suggestions", usage });
