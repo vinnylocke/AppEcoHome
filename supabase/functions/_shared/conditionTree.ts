@@ -151,6 +151,32 @@ export function summariseTree(node: ConditionNode | null | undefined): string {
   return summariseNode(node);
 }
 
+/**
+ * Collect the leaves whose effective value (after their own `negate`) is true —
+ * i.e. the conditions that were actually satisfied at fire time. Walks every
+ * leaf regardless of group logic, so for an OR only the matching branch shows.
+ * Used to record WHY an automation ran. Pure.
+ */
+export function collectSatisfiedLeaves(
+  node: ConditionNode,
+  leafEval: (leaf: LeafNode) => boolean,
+): LeafNode[] {
+  if (node.kind === "group") {
+    return node.children.flatMap((c) => collectSatisfiedLeaves(c, leafEval));
+  }
+  const satisfied = node.negate ? !leafEval(node) : leafEval(node);
+  return satisfied ? [node] : [];
+}
+
+/** Plain-English "why it ran": the satisfied leaves + a joined summary. Pure. */
+export function summariseSatisfied(
+  node: ConditionNode,
+  leafEval: (leaf: LeafNode) => boolean,
+): { summary: string; matched: string[] } {
+  const matched = collectSatisfiedLeaves(node, leafEval).map(summariseNode);
+  return { summary: matched.join(" · "), matched };
+}
+
 export interface SensorLeafInput { metric: SensorMetric; comparator: Comparator; value: number; agg: AggMode }
 export function evalSensorLeaf(leaf: SensorLeafInput, observations: SensorObservation[]): boolean {
   if (observations.length === 0) return false;

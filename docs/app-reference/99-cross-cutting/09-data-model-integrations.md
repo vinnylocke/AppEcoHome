@@ -103,7 +103,13 @@ automation_blueprints ─ blueprint_id, automation_id, role: "controlling" | "dr
 
 ### `automation_runs`
 
-Audit trail of every fire. `status`: `ran` / `skipped_rain` / `failed` / `retried`.
+Audit trail of every fire. `status`: `ran` / `skipped_rain` / `failed` / `retried` / `skipped_rate_limited` (Batch B). `trigger_reason jsonb` (Batch B) records `{ summary, matched }` — the satisfied condition leaves ("why it ran").
+
+### Batch B automation columns (2026-06-18, migration `20260801000000`)
+
+- `automations.location_id` (FK `locations`, nullable) — joins `area_id` for the builder's Scope picker.
+- `automations.run_limit_count` (int, NULL = unlimited) + `run_limit_window_hours` (int, default 24) — per-window fire cap enforced by `evaluate-automations`.
+- `automation_actions.action_kind` gains `'complete_task'`; new `target_blueprint_id` (FK `task_blueprints`). The migration converts existing `automation_blueprints` **driven** links into `complete_task` actions and **deletes** the driven rows (implicit auto-completion retired — completion is now an explicit action handled by `evaluate-automations`). `controlling` links are untouched.
 
 ### Unified condition tree on `automations` (added 2026-06-17, Phase 1)
 

@@ -13,6 +13,12 @@ export interface AutomationFull {
   /** Unified condition tree — the canonical trigger definition. */
   trigger_logic: ConditionNode | null;
   created_at: string;
+  location_id: string | null;
+  area_id: string | null;
+  location_name: string | null;
+  area_name: string | null;
+  run_limit_count: number | null;
+  run_limit_window_hours: number;
   devices: Array<{ device_id: string; device_name: string }>;
   blueprints: Array<{ blueprint_id: string; blueprint_title: string; role: "controlling" | "driven" }>;
   lastRun: { id: string; status: string; triggered_at: string; triggered_by: string } | null;
@@ -37,6 +43,8 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
       .from("automations")
       .select(`
         id, home_id, name, is_active, trigger_logic, created_at,
+        location_id, area_id, run_limit_count, run_limit_window_hours,
+        areas(name), locations(name),
         automation_devices(device_id, devices(id, name)),
         automation_blueprints(blueprint_id, role, task_blueprints(title))
       `)
@@ -72,6 +80,12 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
       is_active: r.is_active,
       trigger_logic: r.trigger_logic ?? null,
       created_at: r.created_at,
+      location_id: r.location_id ?? null,
+      area_id: r.area_id ?? null,
+      location_name: r.locations?.name ?? null,
+      area_name: r.areas?.name ?? null,
+      run_limit_count: r.run_limit_count ?? null,
+      run_limit_window_hours: r.run_limit_window_hours ?? 24,
       devices: (r.automation_devices ?? []).map((d: any) => ({
         device_id: d.device_id,
         device_name: d.devices?.name ?? "Unknown device",

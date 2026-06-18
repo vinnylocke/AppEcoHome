@@ -4,12 +4,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import { X, Loader2, Check, Plus, Trash2, Bell, Power, PowerOff } from "lucide-react";
+import { X, Loader2, Check, Plus, Trash2, Bell, Power, PowerOff, Gauge } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { newGroup, newLeaf, summariseTree, type ConditionNode } from "../../lib/conditionTree";
 import { AUTOMATION_TEMPLATES, type AutomationTemplate } from "../../lib/automationTemplates";
+import { scopeDevicesToArea } from "../../lib/automationDeviceScope";
 import ConditionNodeEditor, { type BuilderCtx } from "./ConditionNodeEditor";
 
 interface Props {
@@ -19,16 +20,25 @@ interface Props {
   onClose: () => void;
 }
 
-type ActionKind = "valve_open" | "valve_close" | "notification";
+type ActionKind = "valve_open" | "valve_close" | "notification" | "complete_task";
 interface ActionDraft {
   action_kind: ActionKind;
   target_device_id: string | null;
+  target_blueprint_id: string | null;
   valve_duration_seconds: number | null;
   notification_title: string | null;
   notification_body: string | null;
 }
 
+interface DeviceOpt { id: string; name: string; area_id: string | null }
+
 const defaultTree = (): ConditionNode => ({ kind: "group", op: "and", children: [newLeaf("sensor")] });
+
+/** All sensor ids referenced anywhere in the condition tree. */
+function collectSensorIds(node: ConditionNode): string[] {
+  if (node.kind === "group") return node.children.flatMap(collectSensorIds);
+  return node.kind === "sensor" ? (node.sensorIds ?? []) : [];
+}
 
 export default function AutomationBuilderModal({ homeId, automationId, onSaved, onClose }: Props) {
   const trapRef = useFocusTrap<HTMLDivElement>(true);
@@ -40,34 +50,54 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
   const [tree, setTree] = useState<ConditionNode>(defaultTree());
   const [actions, setActions] = useState<ActionDraft[]>([]);
 
-  const [sensors, setSensors] = useState<Array<{ id: string; name: string }>>([]);
-  const [valves, setValves] = useState<Array<{ id: string; name: string }>>([]);
+  const [locationId, setLocationId] = useState<string | null>(null);
+  const [areaId, setAreaId] = useState<string | null>(null);
+  const [runLimitCount, setRunLimitCount] = useState<number | null>(null);
+  const [runLimitWindowHours, setRunLimitWindowHours] = useState(24);
+
+  const [sensors, setSensors] = useState<DeviceOpt[]>([]);
+  const [valves, setValves] = useState<DeviceOpt[]>([]);
   const [blueprints, setBlueprints] = useState<Array<{ id: string; title: string }>>([]);
+  const [locations, setLocations] = useState<Array<{ id: string; name: string }>>([]);
+  const [areas, setAreas] = useState<Array<{ id: string; name: string; location_id: string }>>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
       setLoading(true);
-      const [{ data: devs }, { data: bps }, autoRes] = await Promise.all([
-        supabase.from("devices").select("id, name, device_type").eq("home_id", homeId).eq("is_active", true).order("name"),
+      const [{ data: devs }, { data: bps }, { data: locs }, autoRes] = await Promise.all([
+        supabase.from("devices").select("id, name, device_type, area_id").eq("home_id", homeId).eq("is_active", true).order("name"),
         supabase.from("task_blueprints").select("id, title").eq("home_id", homeId).eq("is_recurring", true).order("title"),
+        supabase.from("locations").select("id, name").eq("home_id", homeId).order("name"),
         automationId
-          ? supabase.from("automations").select("name, is_active, sensor_cooldown_minutes, trigger_logic").eq("id", automationId).single()
+          ? supabase.from("automations").select("name, is_active, sensor_cooldown_minutes, trigger_logic, location_id, area_id, run_limit_count, run_limit_window_hours").eq("id", automationId).single()
           : Promise.resolve({ data: null }),
       ]);
-      setSensors((devs ?? []).filter((d: { device_type: string }) => d.device_type === "soil_sensor").map((d: { id: string; name: string }) => ({ id: d.id, name: d.name })));
-      setValves((devs ?? []).filter((d: { device_type: string }) => d.device_type === "water_valve").map((d: { id: string; name: string }) => ({ id: d.id, name: d.name })));
+      const toOpt = (d: { id: string; name: string; area_id: string | null }) => ({ id: d.id, name: d.name, area_id: d.area_id ?? null });
+      setSensors((devs ?? []).filter((d: { device_type: string }) => d.device_type === "soil_sensor").map(toOpt));
+      setValves((devs ?? []).filter((d: { device_type: string }) => d.device_type === "water_valve").map(toOpt));
       setBlueprints((bps ?? []).map((b: { id: string; title: string }) => ({ id: b.id, title: b.title })));
+      setLocations((locs ?? []) as Array<{ id: string; name: string }>);
 
-      const a = (autoRes as { data: { name: string; is_active: boolean; sensor_cooldown_minutes: number | null; trigger_logic: ConditionNode | null } | null }).data;
+      const locIds = (locs ?? []).map((l: { id: string }) => l.id);
+      if (locIds.length) {
+        const { data: ars } = await supabase.from("areas").select("id, name, location_id").in("location_id", locIds).order("name");
+        setAreas((ars ?? []) as Array<{ id: string; name: string; location_id: string }>);
+      }
+
+      const a = (autoRes as { data: { name: string; is_active: boolean; sensor_cooldown_minutes: number | null; trigger_logic: ConditionNode | null; location_id: string | null; area_id: string | null; run_limit_count: number | null; run_limit_window_hours: number | null } | null }).data;
       if (a) {
         setName(a.name);
         setIsActive(a.is_active);
         setCooldown(a.sensor_cooldown_minutes ?? 60);
         setTree(a.trigger_logic ?? defaultTree());
+        setLocationId(a.location_id ?? null);
+        setAreaId(a.area_id ?? null);
+        setRunLimitCount(a.run_limit_count ?? null);
+        setRunLimitWindowHours(a.run_limit_window_hours ?? 24);
         const { data: acts } = await supabase.from("automation_actions")
-          .select("action_kind, target_device_id, valve_duration_seconds, notification_title, notification_body")
+          .select("action_kind, target_device_id, target_blueprint_id, valve_duration_seconds, notification_title, notification_body")
           .eq("automation_id", automationId).order("ord", { ascending: true });
         setActions((acts ?? []) as ActionDraft[]);
       }
@@ -75,7 +105,15 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
     })();
   }, [homeId, automationId]);
 
-  const ctx: BuilderCtx = useMemo(() => ({ sensors, blueprints }), [sensors, blueprints]);
+  const selectedValveIds = useMemo(
+    () => actions.filter((a) => a.action_kind === "valve_open" || a.action_kind === "valve_close")
+      .map((a) => a.target_device_id).filter((x): x is string => !!x),
+    [actions],
+  );
+  const scopedSensors = useMemo(() => scopeDevicesToArea(sensors, areaId, collectSensorIds(tree)), [sensors, areaId, tree]);
+  const scopedValves = useMemo(() => scopeDevicesToArea(valves, areaId, selectedValveIds), [valves, areaId, selectedValveIds]);
+  const areasForLocation = useMemo(() => locationId ? areas.filter((ar) => ar.location_id === locationId) : areas, [areas, locationId]);
+  const ctx: BuilderCtx = useMemo(() => ({ sensors: scopedSensors, blueprints }), [scopedSensors, blueprints]);
   const summary = useMemo(() => summariseTree(tree), [tree]);
 
   const applyTemplate = (t: AutomationTemplate) => {
@@ -85,13 +123,14 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
     setActions(built.actions.map((a) => ({
       action_kind: a.action_kind,
       target_device_id: a.action_kind === "notification" ? null : (valves[0]?.id ?? null),
+      target_blueprint_id: null,
       valve_duration_seconds: a.valve_duration_seconds ?? 1800,
       notification_title: a.notification_title ?? null,
       notification_body: null,
     })));
   };
 
-  const addAction = () => setActions((p) => [...p, { action_kind: "valve_open", target_device_id: valves[0]?.id ?? null, valve_duration_seconds: 1800, notification_title: null, notification_body: null }]);
+  const addAction = () => setActions((p) => [...p, { action_kind: "valve_open", target_device_id: valves[0]?.id ?? null, target_blueprint_id: null, valve_duration_seconds: 1800, notification_title: null, notification_body: null }]);
   const setAction = (i: number, patch: Partial<ActionDraft>) => setActions((p) => p.map((a, j) => j === i ? { ...a, ...patch } : a));
   const delAction = (i: number) => setActions((p) => p.filter((_, j) => j !== i));
 
@@ -103,6 +142,9 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
         home_id: homeId, name: name.trim(), is_active: isActive,
         trigger_kind: "condition", trigger_logic: tree,
         sensor_cooldown_minutes: cooldown, condition_was_true: false,
+        location_id: locationId, area_id: areaId,
+        run_limit_count: runLimitCount && runLimitCount > 0 ? runLimitCount : null,
+        run_limit_window_hours: runLimitWindowHours > 0 ? runLimitWindowHours : 24,
       };
       let id = automationId;
       if (isEdit && id) {
@@ -118,7 +160,8 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
         const { error: actErr } = await supabase.from("automation_actions").insert(
           actions.map((a, ord) => ({
             automation_id: id, action_kind: a.action_kind,
-            target_device_id: a.action_kind === "notification" ? null : a.target_device_id || null,
+            target_device_id: (a.action_kind === "valve_open" || a.action_kind === "valve_close") ? (a.target_device_id || null) : null,
+            target_blueprint_id: a.action_kind === "complete_task" ? (a.target_blueprint_id || null) : null,
             valve_duration_seconds: a.action_kind === "valve_open" ? (a.valve_duration_seconds ?? 1800) : null,
             notification_title: a.notification_title?.trim() || null,
             notification_body: a.notification_body?.trim() || null,
@@ -158,6 +201,29 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
             </div>
 
             <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Scope (optional)</p>
+              <div className="flex flex-wrap items-center gap-2">
+                <select data-testid="automation-location" value={locationId ?? ""}
+                  onChange={(e) => { setLocationId(e.target.value || null); setAreaId(null); }}
+                  className="rounded-lg border border-gray-200 p-1.5 text-sm">
+                  <option value="">All locations</option>
+                  {locations.map((l) => <option key={l.id} value={l.id}>{l.name}</option>)}
+                </select>
+                <select data-testid="automation-area" value={areaId ?? ""}
+                  onChange={(e) => {
+                    const v = e.target.value || null;
+                    setAreaId(v);
+                    if (v) { const ar = areas.find((x) => x.id === v); if (ar) setLocationId(ar.location_id); }
+                  }}
+                  className="rounded-lg border border-gray-200 p-1.5 text-sm" disabled={areasForLocation.length === 0}>
+                  <option value="">{locationId ? "All areas here" : "Any area"}</option>
+                  {areasForLocation.map((ar) => <option key={ar.id} value={ar.id}>{ar.name}</option>)}
+                </select>
+                {areaId && <span className="text-[11px] text-gray-400">Sensor & valve pickers filtered to this area</span>}
+              </div>
+            </div>
+
+            <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-gray-400 mb-2">Start from a template</p>
               <div className="flex flex-wrap gap-2">
                 {AUTOMATION_TEMPLATES.map((t) => (
@@ -190,11 +256,12 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
                       <option value="valve_open">Open valve</option>
                       <option value="valve_close">Close valve</option>
                       <option value="notification">Notify</option>
+                      <option value="complete_task">Complete task</option>
                     </select>
-                    {a.action_kind !== "notification" && (
-                      <select value={a.target_device_id ?? ""} onChange={(e) => setAction(i, { target_device_id: e.target.value })} className="rounded-lg border border-gray-200 p-1.5 text-sm">
+                    {(a.action_kind === "valve_open" || a.action_kind === "valve_close") && (
+                      <select data-testid={`action-valve-${i}`} value={a.target_device_id ?? ""} onChange={(e) => setAction(i, { target_device_id: e.target.value })} className="rounded-lg border border-gray-200 p-1.5 text-sm">
                         <option value="">Select valve…</option>
-                        {valves.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
+                        {scopedValves.map((v) => <option key={v.id} value={v.id}>{v.name}</option>)}
                       </select>
                     )}
                     {a.action_kind === "valve_open" && (
@@ -202,6 +269,12 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
                     )}
                     {a.action_kind === "notification" && (
                       <input value={a.notification_title ?? ""} onChange={(e) => setAction(i, { notification_title: e.target.value })} placeholder="Title (optional)" className="flex-1 rounded-lg border border-gray-200 p-1.5 text-sm" />
+                    )}
+                    {a.action_kind === "complete_task" && (
+                      <select data-testid={`action-blueprint-${i}`} value={a.target_blueprint_id ?? ""} onChange={(e) => setAction(i, { target_blueprint_id: e.target.value })} className="rounded-lg border border-gray-200 p-1.5 text-sm">
+                        <option value="">Select task…</option>
+                        {blueprints.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
+                      </select>
                     )}
                     <button type="button" onClick={() => delAction(i)} className="ml-auto text-gray-300 hover:text-rose-500"><Trash2 size={15} /></button>
                   </div>
@@ -213,6 +286,21 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
             <div className="flex items-center gap-2">
               <Bell size={14} className="text-gray-400" />
               <label className="text-xs text-gray-500">Don't re-fire for <input type="number" value={cooldown} onChange={(e) => setCooldown(Number(e.target.value))} className="rounded-lg border border-gray-200 p-1.5 text-sm w-20 mx-1" /> min after firing</label>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <Gauge size={14} className="text-gray-400" />
+              <label className="text-xs text-gray-500">Run at most
+                <input data-testid="automation-run-limit" type="number" min={1} value={runLimitCount ?? ""} placeholder="∞"
+                  onChange={(e) => setRunLimitCount(e.target.value === "" ? null : Math.max(1, Number(e.target.value)))}
+                  className="rounded-lg border border-gray-200 p-1.5 text-sm w-16 mx-1" />
+                time(s) per
+                <input data-testid="automation-run-window" type="number" min={1} value={runLimitWindowHours}
+                  onChange={(e) => setRunLimitWindowHours(Math.max(1, Number(e.target.value)))}
+                  className="rounded-lg border border-gray-200 p-1.5 text-sm w-16 mx-1" />
+                hours
+              </label>
+              {runLimitCount == null && <span className="text-[11px] text-gray-400">(blank = unlimited)</span>}
             </div>
 
             <div className="flex gap-3 pt-2">

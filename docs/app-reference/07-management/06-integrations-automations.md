@@ -58,8 +58,15 @@ Defer config columns: `weather_min_probability`, `weather_defer_window_hours`, `
   - `notification` — push to every `home_member` via the existing `notifications` table (custom title + body or fall back to the automation's name).
   - `valve_open` — enqueues a `turn_on` on `automation_valve_queue`, **and (2026-06-18 fix) when `valve_duration_seconds` is set also enqueues the paired `turn_off` at `fire_at + duration`** so the valve actually closes after its run time. The every-5-min `drainValveQueue` step in `run-automations` cron talks to eWeLink to fire both. Row-building is the pure `_shared/valveQueueRows.ts` (`buildValveQueueRows`, Deno-tested). Previously the engine enqueued only the `turn_on`, so valves stayed open indefinitely.
   - `valve_close` — same pattern with `turn_off` (no paired event).
+  - `complete_task` — **(Batch B, 2026-06-18)** marks today's (or overdue) Pending/Postponed task(s) for the linked `target_blueprint_id` Completed (`auto_completed_reason='automation'`). This is the **only** way an automation completes a task now: the implicit "driven" blueprint auto-completion was retired — existing `driven` links were migrated to explicit `complete_task` actions and the `automation_blueprints` driven rows deleted. A task can still **trigger** an automation via the `task_due` condition leaf without being completed.
 
 Each run writes an `automation_runs` row; the card shows the last-run status pill.
+
+### Batch B features (2026-06-18)
+
+- **Location / area scope** — `automations.location_id` + `area_id`. The builder's Scope picker filters the sensor + valve pickers to the chosen area (already-selected devices are always retained, even if out of area — `src/lib/automationDeviceScope.ts`). The card shows a location/area chip.
+- **Why it ran** — on fire, `evaluate-automations` writes `automation_runs.trigger_reason = { summary, matched }` (the satisfied condition leaves, via `summariseSatisfied` in `_shared/conditionTree.ts`). `AutomationRunHistory` shows "Fired because: …".
+- **Run limit** — `automations.run_limit_count` per `run_limit_window_hours` (NULL = unlimited). Before firing, the engine counts fired runs (`FIRED_STATUSES`) in the rolling window (`_shared/runLimit.ts`); over-limit ticks record a `skipped_rate_limited` run and don't fire. The card shows a "≤ N/Hh" chip.
 
 ---
 

@@ -2,7 +2,7 @@ import React, { useState } from "react";
 import { supabase } from "../../lib/supabase";
 import {
   Play, Settings, Trash2, ChevronDown, ChevronUp, Loader2,
-  CheckCircle, XCircle, CloudRain, Calendar, Clock, Droplets,
+  CheckCircle, XCircle, CloudRain, Calendar, Clock, Droplets, MapPin, Gauge,
 } from "lucide-react";
 import AutomationRunHistory from "./AutomationRunHistory";
 import type { AutomationFull } from "./AutomationsSection";
@@ -101,6 +101,24 @@ export default function AutomationCard({ automation, onEdit, onDeleted, canManag
           </div>
         )}
       </div>
+
+      {/* Scope + run-limit chips */}
+      {(automation.area_name || automation.location_name || automation.run_limit_count) && (
+        <div className="flex flex-wrap gap-1.5">
+          {(automation.area_name || automation.location_name) && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-rhozly-surface text-rhozly-on-surface-variant text-xs font-semibold">
+              <MapPin size={10} />
+              {automation.area_name ?? automation.location_name}
+            </span>
+          )}
+          {automation.run_limit_count && (
+            <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-amber-50 text-amber-700 text-xs font-semibold">
+              <Gauge size={10} />
+              ≤ {automation.run_limit_count}/{automation.run_limit_window_hours}h
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Devices */}
       {automation.devices.length > 0 && (

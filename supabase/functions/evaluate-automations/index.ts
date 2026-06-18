@@ -22,9 +22,11 @@ import type { SensorMetric, SensorObservation } from "../_shared/automationEvalu
 import { readForecast, type ForecastReading } from "../_shared/weatherForecast.ts";
 import {
   evaluateTree, isWithinSchedule, evalSensorLeaf, evalWeatherLeaf, shouldFire,
+  summariseSatisfied,
   type ConditionNode, type LeafNode,
 } from "../_shared/conditionTree.ts";
 import { buildValveQueueRows } from "../_shared/valveQueueRows.ts";
+import { isRateLimited, windowStartIso, FIRED_STATUSES } from "../_shared/runLimit.ts";
 
 const FN = "evaluate-automations";
 
@@ -35,13 +37,16 @@ const corsHeaders = {
 
 interface ActionRow {
   id: string;
-  action_kind: "notification" | "valve_open" | "valve_close";
+  action_kind: "notification" | "valve_open" | "valve_close" | "complete_task";
   notification_title: string | null;
   notification_body: string | null;
   target_device_id: string | null;
+  target_blueprint_id: string | null;
   valve_duration_seconds: number | null;
   ord: number;
 }
+
+interface TaskCompletion { blueprint_id: string; title: string; already_done: boolean }
 
 function readMetric(metric: SensorMetric, data: Record<string, unknown> | null): number | null {
   if (!data || typeof data !== "object") return null;
@@ -87,13 +92,15 @@ async function fanoutActions(
   db: ReturnType<typeof createClient>,
   automation: { id: string; home_id: string; name: string },
   runId: string,
-): Promise<{ notifications_queued: number; valves_queued: number }> {
+  now: Date,
+): Promise<{ notifications_queued: number; valves_queued: number; tasks_completed: TaskCompletion[] }> {
   const { data: actions } = await db.from("automation_actions")
-    .select("id, action_kind, notification_title, notification_body, target_device_id, valve_duration_seconds, ord")
+    .select("id, action_kind, notification_title, notification_body, target_device_id, target_blueprint_id, valve_duration_seconds, ord")
     .eq("automation_id", automation.id).order("ord", { ascending: true });
-  if (!actions?.length) return { notifications_queued: 0, valves_queued: 0 };
+  if (!actions?.length) return { notifications_queued: 0, valves_queued: 0, tasks_completed: [] };
 
   let notificationsQueued = 0, valvesQueued = 0;
+  const tasksCompleted: TaskCompletion[] = [];
   let memberIds: string[] = [];
   if ((actions as ActionRow[]).some((a) => a.action_kind === "notification")) {
     const { data: members } = await db.from("home_members").select("user_id").eq("home_id", automation.home_id);
@@ -130,9 +137,30 @@ async function fanoutActions(
       const { error } = await db.from("automation_valve_queue").insert(rows);
       if (error) logError(FN, "valve_queue_insert_failed", { automation_id: automation.id, message: error.message });
       else { valvesQueued += 1; valveStaggerSeconds += 5; }
+      continue;
+    }
+    if (action.action_kind === "complete_task") {
+      // Opt-in task completion (#10): mark today's (or overdue) Pending/Postponed
+      // task(s) for the linked blueprint Completed. Never materialises a task.
+      if (!action.target_blueprint_id) continue;
+      const today = now.toISOString().split("T")[0];
+      const { data: dueTasks } = await db.from("tasks")
+        .select("id, title, blueprint_id")
+        .eq("blueprint_id", action.target_blueprint_id)
+        .lte("due_date", today)
+        .in("status", ["Pending", "Postponed"]);
+      for (const t of (dueTasks ?? []) as Array<{ id: string; title: string; blueprint_id: string }>) {
+        const { error } = await db.from("tasks").update({
+          status: "Completed",
+          completed_at: now.toISOString(),
+          auto_completed_reason: "automation",
+        }).eq("id", t.id);
+        if (error) logError(FN, "task_complete_failed", { automation_id: automation.id, message: error.message });
+        else tasksCompleted.push({ blueprint_id: t.blueprint_id, title: t.title ?? "", already_done: false });
+      }
     }
   }
-  return { notifications_queued: notificationsQueued, valves_queued: valvesQueued };
+  return { notifications_queued: notificationsQueued, valves_queued: valvesQueued, tasks_completed: tasksCompleted };
 }
 
 async function processOne(
@@ -192,14 +220,41 @@ async function processOne(
     return { decision: nowTrue ? "holding" : "idle" };
   }
 
-  // 4. FIRE.
+  // 4. Run-limit gate (#7) — count actual fires in the rolling window.
+  const runLimitCount = (automation.run_limit_count as number | null) ?? null;
+  if (runLimitCount != null) {
+    const windowHours = Number(automation.run_limit_window_hours ?? 24);
+    const { count } = await db.from("automation_runs")
+      .select("id", { count: "exact", head: true })
+      .eq("automation_id", id)
+      .gte("triggered_at", windowStartIso(now, windowHours))
+      .in("status", FIRED_STATUSES as unknown as string[]);
+    if (isRateLimited(count ?? 0, runLimitCount)) {
+      await db.from("automation_runs").insert({
+        automation_id: id, home_id: homeId, triggered_by: "schedule",
+        status: "skipped_rate_limited",
+        devices_triggered: { notifications: 0, valves_queued: 0 },
+        completed_at: now.toISOString(),
+      });
+      // Mark the edge consumed so we don't log a skip every tick.
+      await db.from("automations").update({ condition_was_true: true }).eq("id", id);
+      log(FN, "rate_limited", { id, count, limit: runLimitCount });
+      return { decision: "rate_limited" };
+    }
+  }
+
+  // 5. FIRE.
+  const reason = summariseSatisfied(tree, leafEval); // { summary, matched } — why it ran (#5)
   const { data: runIns, error: runErr } = await db.from("automation_runs")
-    .insert({ automation_id: id, home_id: homeId, triggered_by: "schedule", status: "success", devices_triggered: [] })
+    .insert({
+      automation_id: id, home_id: homeId, triggered_by: "schedule", status: "success",
+      devices_triggered: [], trigger_reason: reason,
+    })
     .select("id").single();
   if (runErr || !runIns) throw new Error(`Failed to create automation_run: ${runErr?.message ?? "no row"}`);
   const runId = (runIns as { id: string }).id;
 
-  const fanout = await fanoutActions(db, { id, home_id: homeId, name: automation.name as string }, runId);
+  const fanout = await fanoutActions(db, { id, home_id: homeId, name: automation.name as string }, runId, now);
 
   await db.from("automations").update({
     last_fired_at: now.toISOString(), condition_was_true: true,
@@ -207,6 +262,7 @@ async function processOne(
   await db.from("automation_runs").update({
     completed_at: now.toISOString(),
     devices_triggered: { notifications: fanout.notifications_queued, valves_queued: fanout.valves_queued },
+    tasks_completed: fanout.tasks_completed,
   }).eq("id", runId);
 
   return { decision: "fire" };

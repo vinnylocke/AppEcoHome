@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
-import { Loader2, CheckCircle, XCircle, CloudRain, Calendar, Play, Clock, Activity } from "lucide-react";
+import { Loader2, CheckCircle, XCircle, CloudRain, Calendar, Play, Clock, Activity, Gauge } from "lucide-react";
 import { summariseAutomationRun } from "../../lib/automationRunSummary";
 
 interface DeviceResult { device_id: string; name: string; success: boolean; queued?: boolean; }
@@ -14,6 +14,7 @@ interface AutomationRun {
   // Condition engine writes an object; legacy runner wrote an array — both handled.
   devices_triggered: DeviceResult[] | { notifications?: number; valves_queued?: number } | null;
   tasks_completed: TaskResult[] | null;
+  trigger_reason: { summary?: string; matched?: string[] } | null;
   error_message: string | null;
   completed_at: string | null;
 }
@@ -31,6 +32,7 @@ const STATUS_CONFIG: Record<string, { label: string; color: string; icon: React.
   skipped_rain:      { label: "Skipped (rain)",  color: "text-blue-600 bg-blue-50",     icon: <CloudRain size={12} /> },
   deferred_weather:  { label: "Deferred (rain)", color: "text-blue-600 bg-blue-50",     icon: <CloudRain size={12} /> },
   skipped_no_tasks:  { label: "No tasks due",    color: "text-slate-500 bg-slate-100",  icon: <Calendar size={12} /> },
+  skipped_rate_limited: { label: "Rate limited", color: "text-amber-600 bg-amber-50",   icon: <Gauge size={12} /> },
   pending:           { label: "Running…",        color: "text-rhozly-primary bg-rhozly-primary/10", icon: <Loader2 size={12} className="animate-spin" /> },
 };
 
@@ -53,7 +55,7 @@ export default function AutomationRunHistory({ automationId }: Props) {
   useEffect(() => {
     supabase
       .from("automation_runs")
-      .select("id, triggered_at, triggered_by, status, devices_triggered, tasks_completed, error_message, completed_at")
+      .select("id, triggered_at, triggered_by, status, devices_triggered, tasks_completed, trigger_reason, error_message, completed_at")
       .eq("automation_id", automationId)
       .order("triggered_at", { ascending: false })
       .limit(10)
@@ -95,6 +97,11 @@ export default function AutomationRunHistory({ automationId }: Props) {
                   {run.triggered_by === "manual" ? "Manual" : "Scheduled"}
                 </span>
               </p>
+              {run.trigger_reason?.summary && (
+                <p className="text-[11px] text-rhozly-on-surface-variant/80 mt-0.5">
+                  <span className="font-semibold">Fired because:</span> {run.trigger_reason.summary}
+                </p>
+              )}
               {summary.length > 0 && (
                 <p className="text-xs text-rhozly-on-surface-variant mt-0.5">
                   {summary.join(" · ")}
