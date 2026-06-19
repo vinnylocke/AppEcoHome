@@ -28,6 +28,7 @@ import {
 import { buildValveQueueRows } from "../_shared/valveQueueRows.ts";
 import { isRateLimited, windowStartIso, FIRED_STATUSES } from "../_shared/runLimit.ts";
 import { defaultWindowOpen, type DefaultWindow } from "../_shared/automationWindow.ts";
+import { treeHasTimeTrigger, treeAffectedByDevice } from "../_shared/automationCandidates.ts";
 
 const FN = "evaluate-automations";
 
@@ -278,17 +279,43 @@ async function processOne(
   return { decision: "fire" };
 }
 
-serve(async (_req: Request) => {
+serve(async (req: Request) => {
   try {
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);
     const now = new Date();
 
-    const { data: automations, error: listErr } = await db
+    // Scope (hybrid engine):
+    //   { deviceId }      → event path: only automations watching that device.
+    //   { scope: "time" } → 5-min cron: only clock-driven (time/date/weather).
+    //   { scope: "all" }  → 15-min safety sweep + back-compat: everything.
+    const body = await req.json().catch(() => ({})) as { scope?: string; deviceId?: string };
+    const deviceId = typeof body.deviceId === "string" ? body.deviceId : null;
+    const scope: "event" | "time" | "all" = deviceId ? "event" : body.scope === "time" ? "time" : "all";
+
+    const { data: allActive, error: listErr } = await db
       .from("automations").select("*").eq("is_active", true);
     if (listErr) throw listErr;
 
+    // ── Select the candidate set for this scope ──────────────────────────────
+    let automations = (allActive ?? []) as Array<Record<string, unknown>>;
+    if (scope === "time") {
+      automations = automations.filter((a) => {
+        const t = a.trigger_logic as ConditionNode | null;
+        return t ? treeHasTimeTrigger(t) : false;
+      });
+    } else if (scope === "event" && deviceId) {
+      // Resolve the device's area, then keep automations whose sensor leaves
+      // watch this device (explicit id) or its area.
+      const { data: dev } = await db.from("devices").select("area_id").eq("id", deviceId).maybeSingle();
+      const deviceAreaId = (dev?.area_id as string | null) ?? null;
+      automations = automations.filter((a) => {
+        const t = a.trigger_logic as ConditionNode | null;
+        return t ? treeAffectedByDevice(t, deviceId, deviceAreaId, (a.area_id as string | null) ?? null) : false;
+      });
+    }
+
     // Home timezones + default automation window for time/window conditions.
-    const homeIds = [...new Set((automations ?? []).map((a: Record<string, unknown>) => a.home_id as string))];
+    const homeIds = [...new Set(automations.map((a: Record<string, unknown>) => a.home_id as string))];
     const tzByHome = new Map<string, string>();
     const windowByHome = new Map<string, DefaultWindow>();
     if (homeIds.length > 0) {
@@ -306,7 +333,7 @@ serve(async (_req: Request) => {
     }
 
     let fired = 0, skipped = 0, errored = 0;
-    for (const a of (automations ?? []) as Array<Record<string, unknown>>) {
+    for (const a of automations) {
       try {
         const homeId = a.home_id as string;
         const r = await processOne(db, a, tzByHome.get(homeId) ?? "UTC", now, windowByHome.get(homeId) ?? null);
@@ -317,8 +344,8 @@ serve(async (_req: Request) => {
       }
     }
 
-    log(FN, "complete", { considered: automations?.length ?? 0, fired, skipped, errored });
-    return new Response(JSON.stringify({ ok: true, considered: automations?.length ?? 0, fired, skipped, errored }),
+    log(FN, "complete", { scope, deviceId, considered: automations.length, fired, skipped, errored });
+    return new Response(JSON.stringify({ ok: true, scope, considered: automations.length, fired, skipped, errored }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } });
   } catch (err) {
     logError(FN, "fatal", { message: err instanceof Error ? err.message : String(err) });
