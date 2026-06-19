@@ -371,7 +371,10 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       .then(({ data }) => setUserId(data.user?.id ?? null));
   }, []);
 
-  // Load voice_settings whenever a user resolves. Cheap: one row.
+  // Load voice_settings when the user resolves AND each time the chat opens.
+  // The chat is a persistent overlay (mounted once), so re-reading on open is
+  // what lets a voice / auto-read change in settings take effect without a full
+  // app reload — otherwise the overlay holds the value from app start. One row.
   useEffect(() => {
     if (!userId) return;
     let cancelled = false;
@@ -387,7 +390,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
         setPreferredVoice(vs.preferred_voice || undefined);
       });
     return () => { cancelled = true; };
-  }, [userId]);
+  }, [userId, isOpen]);
 
   // Load persisted chat history from DB. Pulled out as a stable
   // callback so the retry banner can re-fire it without re-mounting.
