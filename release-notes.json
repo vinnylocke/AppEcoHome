@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "\"Read AI replies aloud\" now stays switched on and Garden AI reads each reply aloud automatically as intended",
+      "Updating your display name in Account now saves correctly"
+    ]
+  }
+]

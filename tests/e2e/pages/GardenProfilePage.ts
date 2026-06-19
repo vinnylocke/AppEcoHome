@@ -17,6 +17,10 @@ export class GardenProfilePage {
   readonly preferencesHeading: Locator;
   readonly deletePreferenceButton: Locator;
 
+  // Voice section (lives on the Notifications tab)
+  readonly voiceSection: Locator;
+  readonly voiceAutoReadToggle: Locator;
+
   constructor(page: Page) {
     this.page = page;
     this.heading = page.getByRole("heading", { name: "Garden Preferences" });
@@ -30,10 +34,18 @@ export class GardenProfilePage {
     this.resetButton = page.getByRole("button", { name: /Reset/i });
     this.preferencesHeading = page.getByText("Your garden preferences");
     this.deletePreferenceButton = page.getByLabel("Remove preference").first();
+    this.voiceSection = page.getByTestId("voice-section");
+    this.voiceAutoReadToggle = page.getByTestId("voice-auto-read-toggle");
   }
 
   async goto() {
     await this.page.goto("/profile");
+  }
+
+  /** Deep-link to the Gardener's Profile Notifications tab (`/gardener`),
+   *  where the Voice section lives. (The quiz/preferences live on `/profile`.) */
+  async gotoNotifications() {
+    await this.page.goto("/gardener?tab=notifications");
   }
 
   async waitForLoad() {

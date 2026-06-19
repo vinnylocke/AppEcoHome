@@ -377,7 +377,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     supabase
       .from("user_profiles")
       .select("voice_settings")
-      .eq("id", userId)
+      .eq("uid", userId)
       .maybeSingle()
       .then(({ data }) => {
         if (cancelled) return;

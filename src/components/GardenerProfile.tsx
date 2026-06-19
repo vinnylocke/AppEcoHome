@@ -357,7 +357,7 @@ function VoiceSection() {
       supabase
         .from("user_profiles")
         .select("voice_settings")
-        .eq("id", uid)
+        .eq("uid", uid)
         .maybeSingle()
         .then(({ data }) => {
           if (cancelled) return;
@@ -374,13 +374,18 @@ function VoiceSection() {
     setAutoRead(next);
     setSaving(true);
     try {
-      await supabase
+      const { error } = await supabase
         .from("user_profiles")
         .update({ voice_settings: { auto_read_assistant_replies: next } })
-        .eq("id", userId);
-    } catch (err) {
-      // Best-effort — revert UI state on failure.
+        .eq("uid", userId);
+      // supabase-js resolves (does not throw) on RLS / DB errors — inspect
+      // `error` explicitly, otherwise a failed write looks like a success and
+      // the toggle silently reverts to off on the next load.
+      if (error) throw error;
+    } catch {
+      // Revert the optimistic UI state on failure.
       setAutoRead(!next);
+      toast.error("Couldn't save voice setting");
     } finally {
       setSaving(false);
     }
@@ -665,7 +670,7 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, isAd
     const { error } = await supabase
       .from("user_profiles")
       .update({ display_name: trimmed })
-      .eq("user_id", userId);
+      .eq("uid", userId);
     setIsSavingName(false);
     if (error) {
       toast.error("Failed to update name");

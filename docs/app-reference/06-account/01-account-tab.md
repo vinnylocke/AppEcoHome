@@ -69,7 +69,7 @@ GardenerProfile (parent — top tab bar)
 
 #### Display name
 ```ts
-supabase.from("user_profiles").update({ display_name }).eq("user_id", userId);
+supabase.from("user_profiles").update({ display_name }).eq("uid", userId);
 ```
 
 #### Email

@@ -1,6 +1,6 @@
 # 12. Profile (Garden Profile + Gardener's Profile)
 
-**Spec files:** `tests/e2e/specs/garden-profile.spec.ts` · `tests/e2e/specs/gardener-profile.spec.ts` _(not yet written)_
+**Spec files:** `tests/e2e/specs/garden-profile.spec.ts` · `tests/e2e/specs/gardener-profile.spec.ts`
 **Page Object:** `tests/e2e/pages/GardenProfilePage.ts`
 **Seed dependencies:** `00_bootstrap.sql`, `08_profile_preferences.sql`
 **App-reference:** [06-account/](../app-reference/06-account/)
@@ -25,7 +25,7 @@
 | PROF-014 | ✅ | Preferences empty — "No preferences yet" | — | ✅ Passing |
 | PROF-015 | ✅ | Delete preference | — | ✅ Passing |
 
-## Gardener's Profile (`/gardener`) — spec not yet written
+## Gardener's Profile (`/gardener`)
 
 | ID | Type | Description | Mock | Status |
 |---|---|---|---|---|
@@ -39,3 +39,6 @@
 | GP-008 | ✅ | "Early Adopter" always unlocked | — | 🔲 Pending |
 | GP-009 | ✅ | Locked achievement shows "Keep going to unlock" | — | 🔲 Pending |
 | GP-010 | ✅ | Stats tab renders metric cards | — | 🔲 Pending |
+| GP-011 | ✅ | Voice "Read AI replies aloud" toggle persists across reload (Alerts tab) | — | 🔲 Written (run pending local stack) |
+
+**Note:** the Voice toggle (`?tab=notifications`) writes `user_profiles.voice_settings` keyed on `uid`. GP-011 guards the regression where it filtered on a non-existent `id` column and silently never saved.

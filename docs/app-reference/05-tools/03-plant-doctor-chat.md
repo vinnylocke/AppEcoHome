@@ -31,6 +31,7 @@ PlantDoctorChat (Portal / fixed-position)
 │   ├── Suggested Tasks → TaskActionButtons
 │   ├── PlantActionButtons (e.g. "Add to Shed")
 │   ├── PlanSuggestionCard (proactive "Make a Plan" CTA — at most once per thread)
+│   ├── ReadAloudButton (🔊 per assistant message — tap to play / stop; uses tts-speak)
 │   └── Feedback buttons (👍 / 👎)
 ├── Pending image preview (before send)
 ├── Input bar
@@ -72,6 +73,17 @@ supabase.from("chat_messages")
   .order("created_at", { ascending: true });
 ```
 
+```ts
+// Auto-read preference. NOTE: user_profiles is keyed on `uid` — filtering on
+// `id`/`user_id` matches zero rows and the read silently resolves to "off".
+supabase.from("user_profiles")
+  .select("voice_settings")
+  .eq("uid", userId)
+  .maybeSingle();
+```
+
+When `voice_settings.auto_read_assistant_replies` is `true`, an effect speaks each newly-arrived assistant reply via `useTextToSpeech` (→ `tts-speak` edge function). Independently, every assistant message carries a `ReadAloudButton` for on-demand playback. The toggle that sets this preference lives in **Gardener's Profile → Alerts → Voice** (`/gardener?tab=notifications`).
+
 ### Data flow — write paths
 
 #### Each turn
@@ -92,6 +104,7 @@ supabase.from("chat_messages")
 | `agent-chat` | Primary text chat — Gemini function-calling loop (read tools auto-run, mutations confirmed). Returns `{ reply, toolResults, pendingToolCalls, suggested_plants, quota }`. **Display-only tools (e.g. `show_plant_images`) are filtered out of `toolResults`** — they surface via `suggested_plants` instead, so they never render as a `ToolResultCard` JSON dump. |
 | `plant-doctor-ai` | Gemini chat with **vision** (when an image is attached) |
 | `plant-image-search` | Multi-photo gallery — returns up to 9 licensed images (Unsplash / Pixabay / Wikipedia, with attribution) for a `show` plant card. Cached in `plant_image_cache`. |
+| `tts-speak` | Text-to-speech for read-aloud (auto-read effect + per-message `ReadAloudButton`). Returns cached audio from `tts_cache` / `tts-audio` bucket when available, otherwise synthesises via Google Cloud TTS. |
 
 ### Page context (`PlantDoctorContext`)
 
@@ -216,6 +229,11 @@ It's also context-aware. Open it from the Light Sensor with a reading of 800 lx 
 
 - Trash icon in header. Wipes all `chat_messages` for your user. Cannot be undone.
 
+#### 8. Listen to replies (voice)
+
+- Tap the 🔊 speaker on any assistant message to hear it read aloud; tap again to stop.
+- To have **every** reply spoken automatically as it lands, turn on **Read AI replies aloud** in Gardener's Profile → Alerts → Voice. The preference syncs to your account, so it applies on every device.
+
 ### Information on display — what every field means
 
 | Element | Meaning |
@@ -270,6 +288,9 @@ It's also context-aware. Open it from the Light Sensor with a reading of 800 lx 
 - `src/components/PlantActionButtons.tsx` — Add to Shed etc.
 - `src/components/TaskActionButtons.tsx` — Add to Schedule
 - `src/components/chat/PlanSuggestionCard.tsx` — Plan CTA card
+- `src/components/chat/ReadAloudButton.tsx` — per-message read-aloud control
+- `src/hooks/useTextToSpeech.ts` — TTS playback hook (calls `tts-speak`)
+- `supabase/functions/tts-speak/index.ts` — TTS edge fn (Google Cloud TTS + `tts_cache`)
 - `supabase/functions/plant-doctor-ai/index.ts` — edge fn
 - `supabase/migrations/20260427000000_chat_history.sql` — base schema
 - `supabase/migrations/20260624000200_chat_plan_suggestion.sql` — plan_suggestion column
