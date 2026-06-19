@@ -186,7 +186,7 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
 
   return createPortal(
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div ref={trapRef} className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto" data-testid="automation-builder-modal">
+      <div ref={trapRef} className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl max-h-[92vh] overflow-y-auto overflow-x-hidden" data-testid="automation-builder-modal">
         <div className="flex items-center justify-between p-5 border-b border-gray-100 sticky top-0 bg-white z-10">
           <h3 className="text-lg font-black text-gray-900">{isEdit ? "Edit automation" : "New automation"}</h3>
           <button onClick={onClose} className="p-2 rounded-xl hover:bg-gray-100"><X size={20} /></button>
@@ -198,7 +198,7 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
           <div className="p-5 space-y-5">
             <div className="flex items-center gap-3">
               <input data-testid="automation-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Automation name"
-                className="flex-1 rounded-xl border border-gray-200 p-3 font-semibold" />
+                className="flex-1 min-w-0 rounded-xl border border-gray-200 p-3 font-semibold" />
               <button type="button" data-testid="automation-active" onClick={() => setIsActive((v) => !v)}
                 className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-sm font-bold ${isActive ? "bg-emerald-100 text-emerald-800" : "bg-gray-100 text-gray-500"}`}>
                 {isActive ? <Power size={15} /> : <PowerOff size={15} />}{isActive ? "Active" : "Off"}
