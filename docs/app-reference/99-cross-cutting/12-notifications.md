@@ -73,6 +73,8 @@ for each user:
 // Golden Hour pass is gated by prefs.goldenHour the same way.
 ```
 
+**Delivery timing (2026-06-19):** `daily-batch-notifications` now runs **every 15 min** (not a single 08:00 UTC fire). The task digest is delivered at each user's chosen **local `reminderTime`** (`notification_prefs.reminderTime`, default `"08:00"` local — editable in the Notifications tab); golden hour fires **~45 min before each home's real sunset**. Per-user dedup is a rolling ~18 h window. Pure timing helpers: `_shared/notificationTiming.ts` (`localMinutesOfDay`, `isReminderDue`, `isNearSunset`). See [Cron Jobs](./11-cron-jobs.md).
+
 The shared helper `_shared/taskFilters.ts` is the SERVER-SIDE MIRROR of `src/lib/taskFilters.ts`. Both must agree — if the client says a task is hidden today, the server agrees and skips the push. Covered by `supabase/tests/notificationFilters.test.ts`.
 
 ### Notification categories (from [Notifications Tab](../06-account/02-notifications-tab.md))

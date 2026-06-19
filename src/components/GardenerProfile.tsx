@@ -52,6 +52,8 @@ interface NotificationPrefs {
   /** Weekly email: one combined email per recipient with sections per home,
    *  or the legacy fan-out (one email per home). */
   digestStyle:    DigestStyle;
+  /** "HH:MM" local time the daily task digest is delivered. */
+  reminderTime:   string;
 }
 
 const DEFAULT_NOTIF_PREFS: NotificationPrefs = {
@@ -65,6 +67,7 @@ const DEFAULT_NOTIF_PREFS: NotificationPrefs = {
   weeklyOverview: true,   // Wave 21.A — new
   betaPrompts:    true,
   digestStyle:    "combined", // Wave 22.0044
+  reminderTime:   "08:00",    // local time the daily digest is delivered
 };
 
 function loadNotifPrefs(): NotificationPrefs {
@@ -257,6 +260,26 @@ function NotificationsTab({ userId }: { userId: string }) {
             />
           </label>
         ))}
+      </section>
+
+      {/* Daily reminder time — when the task digest is delivered (local) */}
+      <section className={`bg-white rounded-2xl border border-rhozly-outline/10 p-4 transition-opacity ${prefs.master ? "" : "opacity-50 pointer-events-none"}`}>
+        <label className="flex items-center justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-black text-rhozly-on-surface">Daily reminder time</p>
+            <p className="text-[11px] font-bold text-rhozly-on-surface/50 leading-snug">
+              When we send your daily task summary, in your local time.
+            </p>
+          </div>
+          <input
+            data-testid="reminder-time-input"
+            type="time"
+            value={prefs.reminderTime}
+            disabled={!prefs.master}
+            onChange={(e) => update({ reminderTime: e.target.value || "08:00" })}
+            className="shrink-0 rounded-xl border border-rhozly-outline/30 px-3 py-2 text-sm font-bold text-rhozly-on-surface disabled:cursor-not-allowed"
+          />
+        </label>
       </section>
 
       {/* Weekly email layout — only meaningful when the weekly overview is on */}

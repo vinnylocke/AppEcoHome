@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "label": "New",
+    "items": [
+      "Pick when you get your daily task reminder — set your own time in Notifications settings, delivered in your local timezone (no more fixed early-morning UTC reminder)."
+    ]
+  },
+  {
+    "label": "Improved",
+    "items": [
+      "Golden hour reminders now arrive about 45 minutes before your actual sunset — when the soft light is genuinely useful for photos and watering — instead of as a morning heads-up."
+    ]
+  }
+]

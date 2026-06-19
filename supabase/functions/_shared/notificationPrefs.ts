@@ -17,6 +17,8 @@ export interface NotificationPrefs {
   betaPrompts?: boolean;
   /** "combined" = one email per recipient with sections per home; "per_home" = the legacy fan-out (one email per home). */
   digestStyle?: DigestStyle;
+  /** "HH:MM" local time the daily task digest is delivered (default "08:00"). */
+  reminderTime?: string;
 }
 
 /** True if the user wants to receive notifications of this category.

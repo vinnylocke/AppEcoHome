@@ -14,7 +14,8 @@ Four stacked sections:
 1. **Browser permission** — status pill (Granted / Denied / Default / Unsupported) + "Enable" button.
 2. **Master switch** — turn everything off in one tap.
 3. **Per-category toggles** — Watering, Harvest, Pruning, Weather alerts, Golden hour, Optimise digest, Weekly garden overview, Beta feedback prompts. **All wired** — both the in-app delivery (browser notifications) and the server-side push + email pipelines honour these.
-4. **Weekly email layout** — when Weekly garden overview is on, choose between "one combined email" (default) and "one email per home" (legacy fan-out for users who explicitly want separate emails per home).
+4. **Daily reminder time** (2026-06-19) — `<input type="time">` (`reminder-time-input`) writing `notification_prefs.reminderTime` (`"HH:MM"`, default `08:00`). `daily-batch-notifications` (now every 15 min) delivers the task digest at this **local** time instead of a fixed 08:00 UTC. See [Notifications](../99-cross-cutting/12-notifications.md).
+5. **Weekly email layout** — when Weekly garden overview is on, choose between "one combined email" (default) and "one email per home" (legacy fan-out for users who explicitly want separate emails per home).
 
 Prefs are stored on `user_profiles.notification_prefs` (sparse jsonb) and mirrored to `localStorage` (key `rhozly_notif_prefs`) for instant first paint. The server reads the column when sending pushes / emails so the user's preferences apply on every device.
 
