@@ -10,6 +10,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decryptCredentials } from "../_shared/integrations/encrypt.ts";
+import { fanoutActions } from "../_shared/fanoutActions.ts";
 import { buildControlPayload, resolveEffectiveDuration } from "../_shared/integrations/ewelinkDevice.ts";
 import { regionToApiBase } from "../_shared/integrations/ewelinkAuth.ts";
 import { log, warn, error as logError } from "../_shared/logger.ts";
@@ -560,18 +561,20 @@ async function runAutomation(
   automation: Record<string, unknown>,
   triggeredBy: "schedule" | "manual",
 ): Promise<{ status: string; runId?: string }> {
-  const today = new Date().toISOString().split("T")[0];
+  const now = new Date();
   const automationId = automation.id as string;
   const homeId = automation.home_id as string;
   const automationName = automation.name as string;
 
   log(FN, "automation_start", { automationId, homeId, triggeredBy });
 
-  // Scheduled firing + weather/heat handling is retired — the unified condition
-  // engine (evaluate-sensor-automations) owns all triggers. runAutomation now
-  // serves only the manual "run now" path, which fires valves directly.
+  // Manual "Run now" deliberately bypasses the trigger conditions, active
+  // window, cooldown and run-limit — it's an explicit user override. It runs
+  // the SAME action fan-out as an automatic fire (shared `fanoutActions`):
+  // notification / valve_open / complete_task from `automation_actions`. The
+  // legacy `automation_devices` path is retired — it was empty for unified-
+  // builder automations, so manual runs reported success while doing nothing.
 
-  // ── Create run record ─────────────────────────────────────────────────────
   const { data: runRow, error: runErr } = await db
     .from("automation_runs")
     .insert({ automation_id: automationId, home_id: homeId, triggered_by: triggeredBy, status: "pending" })
@@ -581,37 +584,20 @@ async function runAutomation(
   if (runErr || !runRow) throw new Error(`Failed to create run: ${runErr?.message}`);
   const runId = (runRow as Record<string, unknown>).id as string;
 
-  // ── Fire valves ───────────────────────────────────────────────────────────
-  const devicesTriggered = await fireValves(db, automationId, automation, runId, triggeredBy);
-
-  // ── Mark tasks done ───────────────────────────────────────────────────────
-  const tasksCompleted = await completeTasks(db, automationId, homeId, today, triggeredBy === "manual");
-
-  // ── Determine run status ──────────────────────────────────────────────────
-  const realFires = devicesTriggered.filter((d) => !d.queued);
-  const allOk = realFires.length === 0 || realFires.every((d) => d.success);
-  const anyOk = realFires.some((d) => d.success);
-  const runStatus = allOk ? "success" : anyOk ? "partial" : "failed";
+  // Execute the configured actions, then drain the valve queue right away so a
+  // valve fires on the click instead of waiting for the next cron tick.
+  const fanout = await fanoutActions(db, { id: automationId, home_id: homeId, name: automationName }, runId, now);
+  await drainValveQueue(db).catch((e) => warn(FN, "manual_drain_error", { error: e.message }));
 
   await db.from("automation_runs").update({
-    status: runStatus,
-    devices_triggered: devicesTriggered,
-    tasks_completed: tasksCompleted,
-    completed_at: new Date().toISOString(),
+    status: "success",
+    devices_triggered: { notifications: fanout.notifications_queued, valves_queued: fanout.valves_queued },
+    tasks_completed: fanout.tasks_completed,
+    completed_at: now.toISOString(),
   }).eq("id", runId);
 
-  // ── Notify ────────────────────────────────────────────────────────────────
-  await sendNotification(
-    db, homeId, automationName, runStatus,
-    automation.duration_seconds as number, automationId,
-    0,
-    undefined,
-  )
-    .then(() => db.from("automation_runs").update({ notified_at: new Date().toISOString() }).eq("id", runId))
-    .catch((e) => warn(FN, "notify_error", { error: e.message }));
-
-  log(FN, "automation_complete", { automationId, runId, status: runStatus });
-  return { status: runStatus, runId };
+  log(FN, "automation_complete", { automationId, runId, valves: fanout.valves_queued, notifications: fanout.notifications_queued, tasks: fanout.tasks_completed.length });
+  return { status: "success", runId };
 }
 
 // ── Entrypoint ────────────────────────────────────────────────────────────────

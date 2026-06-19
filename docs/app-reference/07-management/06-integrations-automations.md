@@ -88,6 +88,10 @@ Three changes from watering-automation feedback:
 - **Rate-limited skips no longer flood the history (2026-06-19, two iterations).** Because `shouldFire` is repeat-while-true (it ignores `condition_was_true`) AND the engine is event-driven (~1 s per reading), a rate-limited automation was logging a *fresh* `skipped_rate_limited` row on every tick while its condition stayed true — burying the real runs (the UI shows only the last 10). **Final design — "mute until next eligible":** when over the limit the engine computes the exact next-eligible instant (`nextEligibleAt` in `_shared/runLimit.ts` = the `run_limit_count`-th most-recent in-window fire + window), stores it in `automations.rate_limited_until`, and writes **one** `skipped_rate_limited` row with `trigger_reason = { summary, next_eligible_at }`. The **mute gate** at the top of `processOne` then short-circuits every tick (no condition eval, no count query, no skip write) until `now ≥ rate_limited_until`. At that boundary it re-checks; if extra fires snuck in it recomputes and re-mutes (updating the single skip row via `shouldCollapseRateLimitSkip`). A real fire clears `rate_limited_until`. `AutomationRunHistory` renders "Run limit reached — next try {time}" (no counter). A `BEFORE UPDATE` trigger (`clear_automation_rate_limit_on_change`, migration `20260810000000`) nulls `rate_limited_until` whenever the definition changes / it's re-activated, so amendments re-check immediately via any client path. (The earlier interim "collapse + retried N× counter" + backlog-cleanup migration `20260809000000` is superseded; the dead `condition_was_true = true` skip-path write was removed.)
 - **`complete_task` action picker** is now task_due-style **toggle chips + search** (`BlueprintActionSelect` in `AutomationBuilderModal.tsx`) instead of a dropdown, using the shared `pickerFilter`.
 
+### "Run now" fires the configured actions (2026-06-19 fix)
+
+The manual run path fired the legacy `automation_devices` table, which is **empty** for unified-builder automations (their actions live in `automation_actions`). So Run now reported `success` while executing **nothing** — no valve, no notification, no task. The fix extracts the action executor (`fanoutActions`) from `evaluate-automations` into `_shared/fanoutActions.ts` and calls it from `run-automations`' manual path, so a manual run does **exactly what an automatic fire does** — runs `automation_actions`, **bypassing the trigger conditions / window / cooldown / run-limit** (it's an explicit override) — then immediately drains the valve queue so the valve fires on the click rather than at the next cron tick.
+
 ### AI Area Coach linkage (2026-06-18 fix)
 
 The Area Coach (`area-sensor-analysis`) lists an area's automations found via `automations.area_id` **and** via device links to the area's devices. Device links are collected from **both** `automation_devices` (legacy) **and** `automation_actions.target_device_id` (unified condition builder — `_shared/automationAreaLinks.ts` `uniqueAutomationIds`). Previously only `automation_devices` was checked, so condition automations with a valve in the area but no `area_id` were missed.
@@ -168,7 +172,7 @@ supabase.from("automation_runs")
 | Edit | `automations.update(...)` + diff-update of join tables |
 | Toggle active | `automations.update({ is_active })` |
 | Delete | `automations.delete()` (cascades join tables) |
-| Manual run | `run-automations` edge fn invoked with `automationId` |
+| Manual run ("Run now") | `run-automations` (`action: "manual"`) → shared `fanoutActions` runs `automation_actions` (notify / valve / complete_task), **bypassing trigger conditions + run-limit**, then drains the valve queue immediately so a valve fires on the click |
 
 ### Edge functions invoked
 

@@ -25,10 +25,10 @@ import {
   summariseSatisfied,
   type ConditionNode, type LeafNode,
 } from "../_shared/conditionTree.ts";
-import { buildValveQueueRows } from "../_shared/valveQueueRows.ts";
 import { isRateLimited, windowStartIso, FIRED_STATUSES, shouldCollapseRateLimitSkip, nextEligibleAt } from "../_shared/runLimit.ts";
 import { defaultWindowOpen, type DefaultWindow } from "../_shared/automationWindow.ts";
 import { treeHasTimeTrigger, treeAffectedByDevice } from "../_shared/automationCandidates.ts";
+import { fanoutActions } from "../_shared/fanoutActions.ts";
 
 const FN = "evaluate-automations";
 
@@ -36,19 +36,6 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
-
-interface ActionRow {
-  id: string;
-  action_kind: "notification" | "valve_open" | "valve_close" | "complete_task";
-  notification_title: string | null;
-  notification_body: string | null;
-  target_device_id: string | null;
-  target_blueprint_id: string | null;
-  valve_duration_seconds: number | null;
-  ord: number;
-}
-
-interface TaskCompletion { blueprint_id: string; title: string; already_done: boolean }
 
 function readMetric(metric: SensorMetric, data: Record<string, unknown> | null): number | null {
   if (!data || typeof data !== "object") return null;
@@ -88,81 +75,6 @@ async function loadObsForSensorLeaf(
     if (v !== null) obs.push({ value: v });
   }
   return obs;
-}
-
-async function fanoutActions(
-  db: ReturnType<typeof createClient>,
-  automation: { id: string; home_id: string; name: string },
-  runId: string,
-  now: Date,
-): Promise<{ notifications_queued: number; valves_queued: number; tasks_completed: TaskCompletion[] }> {
-  const { data: actions } = await db.from("automation_actions")
-    .select("id, action_kind, notification_title, notification_body, target_device_id, target_blueprint_id, valve_duration_seconds, ord")
-    .eq("automation_id", automation.id).order("ord", { ascending: true });
-  if (!actions?.length) return { notifications_queued: 0, valves_queued: 0, tasks_completed: [] };
-
-  let notificationsQueued = 0, valvesQueued = 0;
-  const tasksCompleted: TaskCompletion[] = [];
-  let memberIds: string[] = [];
-  if ((actions as ActionRow[]).some((a) => a.action_kind === "notification")) {
-    const { data: members } = await db.from("home_members").select("user_id").eq("home_id", automation.home_id);
-    memberIds = (members ?? []).map((m: { user_id: string }) => m.user_id);
-  }
-
-  let valveStaggerSeconds = 0;
-  for (const action of actions as ActionRow[]) {
-    if (action.action_kind === "notification") {
-      if (memberIds.length === 0) continue;
-      const title = action.notification_title?.trim() || automation.name;
-      const body = action.notification_body?.trim() || `Automation "${automation.name}" triggered.`;
-      const rows = memberIds.map((uid) => ({
-        user_id: uid, home_id: automation.home_id, title, body,
-        type: "automation_sensor", data: { route: "/integrations", automationId: automation.id }, is_read: false,
-      }));
-      const { error } = await db.from("notifications").insert(rows);
-      if (error) logError(FN, "notification_insert_failed", { automation_id: automation.id, message: error.message });
-      else notificationsQueued += rows.length;
-      continue;
-    }
-    if (action.action_kind === "valve_open" || action.action_kind === "valve_close") {
-      if (!action.target_device_id) continue;
-      // valve_open with a duration also enqueues the paired turn_off, so the
-      // valve actually closes after its run time (the drain cron only fires
-      // what's queued — without this the valve stays open forever).
-      const rows = buildValveQueueRows({
-        actionKind: action.action_kind,
-        runId,
-        deviceId: action.target_device_id,
-        fireAtMs: Date.now() + valveStaggerSeconds * 1000,
-        durationSeconds: action.valve_duration_seconds,
-      });
-      const { error } = await db.from("automation_valve_queue").insert(rows);
-      if (error) logError(FN, "valve_queue_insert_failed", { automation_id: automation.id, message: error.message });
-      else { valvesQueued += 1; valveStaggerSeconds += 5; }
-      continue;
-    }
-    if (action.action_kind === "complete_task") {
-      // Opt-in task completion (#10): mark today's (or overdue) Pending/Postponed
-      // task(s) for the linked blueprint Completed. Never materialises a task.
-      if (!action.target_blueprint_id) continue;
-      const today = now.toISOString().split("T")[0];
-      const { data: dueTasks } = await db.from("tasks")
-        .select("id, title, blueprint_id")
-        .eq("blueprint_id", action.target_blueprint_id)
-        .lte("due_date", today)
-        .in("status", ["Pending", "Postponed"]);
-      for (const t of (dueTasks ?? []) as Array<{ id: string; title: string; blueprint_id: string }>) {
-        const { error } = await db.from("tasks").update({
-          status: "Completed",
-          completed_at: now.toISOString(),
-          auto_completed_reason: "automation",
-        }).eq("id", t.id);
-        if (error) logError(FN, "task_complete_failed", { automation_id: automation.id, message: error.message });
-        else tasksCompleted.push({ blueprint_id: t.blueprint_id, title: t.title ?? "", already_done: false });
-      }
-    }
-  }
-  return { notifications_queued: notificationsQueued, valves_queued: valvesQueued, tasks_completed: tasksCompleted };
 }
 
 async function processOne(
