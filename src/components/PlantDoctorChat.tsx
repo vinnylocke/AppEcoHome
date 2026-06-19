@@ -284,6 +284,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
   // Loaded once on chat open; the setting itself is toggled from the
   // GardenerProfile Voice section.
   const [autoReadReplies, setAutoReadReplies] = useState<boolean>(false);
+  const [preferredVoice, setPreferredVoice] = useState<string | undefined>(undefined);
   // When set, the next sendMessage attaches this audio clip to the
   // agent-chat call instead of (or alongside) text.
   const [pendingAudio, setPendingAudio] = useState<VoiceCaptureResult | null>(null);
@@ -381,8 +382,9 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       .maybeSingle()
       .then(({ data }) => {
         if (cancelled) return;
-        const vs = (data?.voice_settings ?? {}) as { auto_read_assistant_replies?: boolean };
+        const vs = (data?.voice_settings ?? {}) as { auto_read_assistant_replies?: boolean; preferred_voice?: string };
         setAutoReadReplies(!!vs.auto_read_assistant_replies);
+        setPreferredVoice(vs.preferred_voice || undefined);
       });
     return () => { cancelled = true; };
   }, [userId]);
@@ -607,7 +609,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     // Skip the welcome content — it never changes and getting it spoken
     // every open would be annoying.
     if (last.content === WELCOME_CONTENT) return;
-    tts.speak(last.content, { key: `chat-${last._key}` }).catch(() => { /* swallowed in hook */ });
+    tts.speak(last.content, { key: `chat-${last._key}`, voice: preferredVoice }).catch(() => { /* swallowed in hook */ });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages, autoReadReplies, isOpen, isLoading]);
 
@@ -1242,6 +1244,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                               <ReadAloudButton
                                 text={msg.content}
                                 messageKey={`chat-${msg._key}`}
+                                voice={preferredVoice}
                                 size="sm"
                               />
                             )}

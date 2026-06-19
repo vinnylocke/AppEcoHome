@@ -11,6 +11,8 @@ import QuickLauncherPicker from "./quick/QuickLauncherPicker";
 import { useHighContrast } from "../hooks/useHighContrast";
 import PersonaSetting from "./PersonaSetting";
 import JournalAutoUpdateSetting from "./JournalAutoUpdateSetting";
+import { TTS_VOICES, DEFAULT_VOICE_ID } from "../constants/voices";
+import { mergeVoiceSettings, type VoiceSettings } from "../lib/voiceSettings";
 
 interface Props {
   userId: string;
@@ -337,13 +339,15 @@ function NotificationsTab({ userId }: { userId: string }) {
 // ─── Voice section (Wave 22.0001-A) ────────────────────────────────────
 //
 // Stores `voice_settings` on `user_profiles` (server-side, syncs across
-// devices). For now exposes a single toggle — auto-read AI replies aloud.
-// The voice picker is deferred to a follow-up; the underlying jsonb
-// column already accepts `preferred_voice` for when we ship it.
+// devices): { auto_read_assistant_replies, preferred_voice }. The toggle and
+// the voice picker both merge into the same jsonb (a plain replace would wipe
+// the other field) via `mergeVoiceSettings`.
 
 function VoiceSection() {
   const [userId, setUserId] = useState<string | null>(null);
   const [autoRead, setAutoRead] = useState(false);
+  const [voice, setVoice] = useState<string>(DEFAULT_VOICE_ID);
+  const [settings, setSettings] = useState<VoiceSettings>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
@@ -361,30 +365,38 @@ function VoiceSection() {
         .maybeSingle()
         .then(({ data }) => {
           if (cancelled) return;
-          const vs = (data?.voice_settings ?? {}) as { auto_read_assistant_replies?: boolean };
+          const vs = (data?.voice_settings ?? {}) as VoiceSettings;
+          setSettings(vs);
           setAutoRead(!!vs.auto_read_assistant_replies);
+          setVoice(vs.preferred_voice || DEFAULT_VOICE_ID);
           setLoading(false);
         });
     });
     return () => { cancelled = true; };
   }, []);
 
-  const update = async (next: boolean) => {
+  // Merge the patch into the existing voice_settings and write the WHOLE object
+  // (jsonb is replaced on write — toggle + picker must not clobber each other).
+  // Reverts optimistic state on failure (supabase-js resolves, not throws, on
+  // RLS / DB errors, so a failed write would otherwise look like success).
+  const save = async (patch: Partial<VoiceSettings>) => {
     if (!userId) return;
-    setAutoRead(next);
+    const prev = { settings, autoRead, voice };
+    const merged = mergeVoiceSettings(settings, patch);
+    setSettings(merged);
+    if (patch.auto_read_assistant_replies !== undefined) setAutoRead(!!patch.auto_read_assistant_replies);
+    if (patch.preferred_voice !== undefined) setVoice(patch.preferred_voice);
     setSaving(true);
     try {
       const { error } = await supabase
         .from("user_profiles")
-        .update({ voice_settings: { auto_read_assistant_replies: next } })
+        .update({ voice_settings: merged })
         .eq("uid", userId);
-      // supabase-js resolves (does not throw) on RLS / DB errors — inspect
-      // `error` explicitly, otherwise a failed write looks like a success and
-      // the toggle silently reverts to off on the next load.
       if (error) throw error;
     } catch {
-      // Revert the optimistic UI state on failure.
-      setAutoRead(!next);
+      setSettings(prev.settings);
+      setAutoRead(prev.autoRead);
+      setVoice(prev.voice);
       toast.error("Couldn't save voice setting");
     } finally {
       setSaving(false);
@@ -409,15 +421,30 @@ function VoiceSection() {
           type="checkbox"
           checked={autoRead}
           disabled={loading || saving || !userId}
-          onChange={(e) => update(e.target.checked)}
+          onChange={(e) => save({ auto_read_assistant_replies: e.target.checked })}
           aria-label="Read AI replies aloud"
           className="w-11 h-6 shrink-0 appearance-none rounded-full bg-rhozly-outline/30 checked:bg-rhozly-primary transition-colors relative cursor-pointer
             after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:bg-white after:rounded-full after:shadow-md after:transition-transform
             checked:after:translate-x-5 disabled:opacity-50 disabled:cursor-wait"
         />
       </label>
+      <label className="block">
+        <span className="text-sm font-black text-rhozly-on-surface">Voice</span>
+        <select
+          data-testid="voice-picker"
+          value={voice}
+          disabled={loading || saving || !userId}
+          onChange={(e) => save({ preferred_voice: e.target.value })}
+          aria-label="Read-aloud voice"
+          className="mt-1 w-full rounded-xl border border-rhozly-outline/30 px-3 py-2 text-sm font-bold text-rhozly-on-surface bg-white disabled:opacity-50 disabled:cursor-wait"
+        >
+          {TTS_VOICES.map((v) => (
+            <option key={v.id} value={v.id}>{v.label}</option>
+          ))}
+        </select>
+      </label>
       <p className="text-[10px] font-bold text-rhozly-on-surface/45 leading-snug">
-        Voice uses Google's natural-voice service; clips are cached server-side so re-playing a reply is free.
+        Voice uses Google's natural-voice service; clips are cached server-side so re-playing a reply is free. Premium voices sound the most natural; the lightweight option is cheaper to synthesise.
       </p>
     </section>
   );

@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "\"Run now\" on an automation now actually performs its actions — opens the valve, sends the notification, completes the task — bypassing the trigger conditions, instead of reporting success while doing nothing"
+    ]
+  },
+  {
+    "label": "New",
+    "items": [
+      "Choose the voice Garden AI uses to read replies aloud — Account → Alerts → Voice"
+    ]
+  }
+]

@@ -16,7 +16,7 @@ Four stacked sections:
 3. **Per-category toggles** — Watering, Harvest, Pruning, Weather alerts, Golden hour, Optimise digest, Weekly garden overview, Beta feedback prompts. **All wired** — both the in-app delivery (browser notifications) and the server-side push + email pipelines honour these.
 4. **Daily reminder time** (2026-06-19) — `<input type="time">` (`reminder-time-input`) writing `notification_prefs.reminderTime` (`"HH:MM"`, default `08:00`). `daily-batch-notifications` (now every 15 min) delivers the task digest at this **local** time instead of a fixed 08:00 UTC. See [Notifications](../99-cross-cutting/12-notifications.md).
 5. **Weekly email layout** — when Weekly garden overview is on, choose between "one combined email" (default) and "one email per home" (legacy fan-out for users who explicitly want separate emails per home).
-6. **Voice** (`voice-section`) — a single toggle, **Read AI replies aloud**. Unlike the notification prefs above, this writes **straight to the server** (`user_profiles.voice_settings`, keyed on `uid`) with no `localStorage` mirror. When on, Garden AI speaks every chat reply as it lands — see [Plant Doctor Chat](../05-tools/03-plant-doctor-chat.md).
+6. **Voice** (`voice-section`) — a **Read AI replies aloud** toggle + a **voice picker** (`voice-picker`, curated en-GB voices). Both write **straight to the server** (`user_profiles.voice_settings = { auto_read_assistant_replies, preferred_voice }`, keyed on `uid`, **merged** so neither field clobbers the other) with no `localStorage` mirror. See [Plant Doctor Chat](../05-tools/03-plant-doctor-chat.md).
 
 Prefs are stored on `user_profiles.notification_prefs` (sparse jsonb) and mirrored to `localStorage` (key `rhozly_notif_prefs`) for instant first paint. The server reads the column when sending pushes / emails so the user's preferences apply on every device.
 
@@ -35,7 +35,8 @@ NotificationsTab
 ├── Daily reminder time (reminder-time-input)
 ├── Weekly email layout (radios — combined / per-home)
 └── VoiceSection (voice-section)
-    └── voice-auto-read-toggle → user_profiles.voice_settings.auto_read_assistant_replies
+    ├── voice-auto-read-toggle → voice_settings.auto_read_assistant_replies
+    └── voice-picker → voice_settings.preferred_voice
 ```
 
 ### Local state
@@ -85,12 +86,15 @@ NotificationsTab
 // `id`/`user_id` matches zero rows — the read resolves to "off" and the
 // write silently no-ops. (That mismatch was the persistence bug fixed in 28.x.)
 supabase.from("user_profiles").select("voice_settings").eq("uid", userId).maybeSingle();
+// The toggle AND the voice picker share one writer that MERGES the patch into
+// the existing jsonb (mergeVoiceSettings in src/lib/voiceSettings.ts) — a plain
+// replace would wipe the other field.
 supabase.from("user_profiles")
-  .update({ voice_settings: { auto_read_assistant_replies } })
+  .update({ voice_settings: { auto_read_assistant_replies, preferred_voice } })
   .eq("uid", userId);
 ```
 
-The save inspects the returned `{ error }` and reverts the optimistic toggle (with a toast) on failure — `supabase-js` resolves rather than throws on RLS / DB errors, so an unchecked write looks like a success.
+The save inspects the returned `{ error }` and reverts the optimistic state (with a toast) on failure — `supabase-js` resolves rather than throws on RLS / DB errors, so an unchecked write looks like a success. The voice list is the curated, pre-verified `src/constants/voices.ts`; `tts-speak` caches per voice, so each voice synthesises independently.
 
 ### Edge functions invoked
 
@@ -160,7 +164,8 @@ If you're tired of every notification or want to silence specific categories (wa
 #### 4. Read AI replies aloud (Voice)
 
 - Toggle on to have Garden AI speak every chat reply automatically as it arrives. Prefer listening selectively? Leave it off and tap the 🔊 on any individual message instead.
-- This preference is saved to your **account**, not just this device, so it follows you everywhere. If a save fails you'll see a toast and the toggle flips back.
+- Pick the **voice** from the dropdown — premium (most natural), natural, or a lightweight (cheaper) option. Your choice applies to both auto-read and the per-message 🔊.
+- These preferences are saved to your **account**, not just this device, so they follow you everywhere. If a save fails you'll see a toast and it reverts.
 
 ### Information on display — what every field means
 
@@ -206,5 +211,6 @@ Same for every tier.
 - `src/components/GardenerProfile.tsx` — `NotificationsTab` (incl. `VoiceSection`)
 - `supabase/functions/daily-batch-notifications/index.ts` — delivery
 - `src/components/chat/ReadAloudButton.tsx` · `src/hooks/useTextToSpeech.ts` · `supabase/functions/tts-speak/index.ts` — read-aloud playback
+- `src/constants/voices.ts` · `src/lib/voiceSettings.ts` (`mergeVoiceSettings`) — voice list + jsonb merge
 - `supabase/migrations/20260708000000_voice_settings.sql` — `voice_settings` column
 - `localStorage` key `rhozly_notif_prefs`
