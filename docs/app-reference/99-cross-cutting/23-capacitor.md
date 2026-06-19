@@ -41,6 +41,22 @@ Used to branch:
 | `@capgo/capacitor-light-sensor` | Native ambient light sensor |
 | `@capacitor-community/screen-orientation` (or similar) | Orientation lock |
 
+### Android permissions (`android/app/src/main/AndroidManifest.xml`)
+
+| Permission | For |
+|------------|-----|
+| `INTERNET` | WebView loads `server.url` (`https://rhozly.com`) |
+| `CAMERA` | Plant Doctor / camera capture in the WebView |
+| `RECORD_AUDIO` + `MODIFY_AUDIO_SETTINGS` | Garden AI tap-to-talk — `getUserMedia({ audio: true })`. **Without `RECORD_AUDIO` the WebView's mic request can never be granted and Android shows no mic toggle for the app.** |
+| `ACCESS_FINE_LOCATION` | Weather / area location |
+| `POST_NOTIFICATIONS` | Push (Android 13+) |
+
+Adding a permission requires an **APK rebuild + redistribution** — it can't ship via a web deploy, even though the WebView loads the live site.
+
+### WebView media playback
+
+`MainActivity` calls `webView.getSettings().setMediaPlaybackRequiresUserGesture(false)` so Garden AI read-aloud can (a) auto-play replies (no gesture) and (b) play *after* the async `tts-speak` fetch. The Android WebView default (`true`) blocks both, and the web `speechSynthesis` fallback is silent in System WebView — so without this, native read-aloud produces no audio. See [Plant Doctor Chat](../05-tools/03-plant-doctor-chat.md).
+
 ### Deep linking
 
 Configured in `capacitor.config.ts` (URL schemes). `App.addListener("appUrlOpen", ...)` in `src/main.tsx` parses and navigates.
@@ -100,6 +116,10 @@ Most users will be on one or the other; some power users have both.
 ## Code references for ongoing maintenance
 
 - `capacitor.config.ts`
+- `android/app/src/main/AndroidManifest.xml` — Android permissions (incl. `RECORD_AUDIO`)
+- `android/app/src/main/java/com/rhozly/app/MainActivity.java` — WebView media-playback config
 - `src/main.tsx` — deep link wiring
 - `src/hooks/usePushNotifications.ts`
 - `src/hooks/useDeviceOrientation.ts`
+- `src/hooks/useVoiceCapture.ts` · `src/components/chat/MicButton.tsx` — tap-to-talk (`getUserMedia` + `MediaRecorder`)
+- `src/hooks/useTextToSpeech.ts` — read-aloud playback
