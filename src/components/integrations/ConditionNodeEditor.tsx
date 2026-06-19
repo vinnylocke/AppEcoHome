@@ -132,11 +132,11 @@ function TimeFields({ node, onChange }: { node: Extract<ConditionNode, { kind: "
             <div className="flex-1 space-y-1">
               {slots.length === 0 && <span className="text-xs text-gray-300">off</span>}
               {slots.map((s, i) => (
-                <div key={i} className="flex items-center gap-1">
-                  <input type="time" value={s.start} onChange={(e) => setDay(d, slots.map((x, j) => j === i ? { ...x, start: e.target.value } : x))} className={inputCls} />
-                  <span className="text-gray-400 text-xs">–</span>
-                  <input type="time" value={s.end === "24:00" ? "00:00" : s.end} onChange={(e) => setDay(d, slots.map((x, j) => j === i ? { ...x, end: e.target.value } : x))} className={inputCls} />
-                  <button type="button" onClick={() => setDay(d, slots.filter((_, j) => j !== i))} className="text-gray-300 hover:text-rose-500"><Trash2 size={13} /></button>
+                <div key={i} className="flex flex-wrap items-center gap-1">
+                  <input type="time" value={s.start} onChange={(e) => setDay(d, slots.map((x, j) => j === i ? { ...x, start: e.target.value } : x))} className={`${inputCls} flex-1 min-w-0`} />
+                  <span className="text-gray-400 text-xs shrink-0">–</span>
+                  <input type="time" value={s.end === "24:00" ? "00:00" : s.end} onChange={(e) => setDay(d, slots.map((x, j) => j === i ? { ...x, end: e.target.value } : x))} className={`${inputCls} flex-1 min-w-0`} />
+                  <button type="button" onClick={() => setDay(d, slots.filter((_, j) => j !== i))} className="text-gray-300 hover:text-rose-500 shrink-0"><Trash2 size={13} /></button>
                 </div>
               ))}
               <button type="button" data-testid={`time-add-${d}`} onClick={() => setDay(d, [...slots, { start: "08:00", end: "20:00" }])}
@@ -199,7 +199,7 @@ export default function ConditionNodeEditor({ node, onChange, onDelete, ctx, dep
     const delChild = (i: number) => onChange({ ...node, children: node.children.filter((_, j) => j !== i) });
     return (
       <div className={`rounded-xl border ${depth === 0 ? "border-gray-200" : "border-gray-200 bg-gray-50/50"} p-3 space-y-2`} data-testid="cond-group">
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <div className="inline-flex rounded-lg bg-gray-100 p-0.5 text-xs font-black">
             <button type="button" data-testid="group-and" onClick={() => onChange({ ...node, op: "and" })} className={`px-2.5 py-0.5 rounded-md ${node.op === "and" ? "bg-white shadow text-emerald-700" : "text-gray-500"}`}>ALL</button>
             <button type="button" data-testid="group-or" onClick={() => onChange({ ...node, op: "or" })} className={`px-2.5 py-0.5 rounded-md ${node.op === "or" ? "bg-white shadow text-emerald-700" : "text-gray-500"}`}>ANY</button>
@@ -232,7 +232,7 @@ export default function ConditionNodeEditor({ node, onChange, onDelete, ctx, dep
   return (
     <div className="rounded-xl border border-gray-200 p-3 space-y-2 bg-white" data-testid={`cond-leaf-${node.kind}`}>
       <div className="flex items-center gap-2">
-        <select data-testid="leaf-kind" value={node.kind} onChange={(e) => onChange(newLeaf(e.target.value as LeafKind))} className={`${inputCls} font-semibold`}>
+        <select data-testid="leaf-kind" value={node.kind} onChange={(e) => onChange(newLeaf(e.target.value as LeafKind))} className={`${inputCls} font-semibold min-w-0`}>
           {LEAF_KINDS.map((k) => <option key={k.id} value={k.id}>{k.label}</option>)}
         </select>
         <div className="ml-auto flex items-center gap-2">
