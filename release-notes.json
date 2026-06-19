@@ -1,11 +1,1 @@
-[
-  {
-    "label": "Fixed",
-    "items": [
-      "Dashboard task tiles and category chips now take you to the right view (the Completed/automatic tiles open today's calendar agenda; category chips filter your routines)",
-      "\"Jump to a day\" links (dashboard, weekly overview, daily brief) now open that exact day on the calendar",
-      "The \"customise quick launcher\" shortcut now scrolls straight to it in Account settings",
-      "Help → Account topics (display name, subscription, AI usage) now open your Account settings instead of the Garden Quiz"
-    ]
-  }
-]
+[]
