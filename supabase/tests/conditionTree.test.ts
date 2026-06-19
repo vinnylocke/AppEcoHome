@@ -100,7 +100,7 @@ Deno.test("evalWeatherLeaf — rain forecast + heatwave", () => {
   assert(!evalWeatherLeaf({ type: "heatwave", thresholdC: 28 }, forecast(0, 0, false, 25)));
 });
 
-// ── shouldFire (rising edge + cooldown) ──────────────────────────────────────
+// ── shouldFire (repeat-while-true + cooldown) ────────────────────────────────
 
 Deno.test("summariseTree — root group unwrapped, leaves + negate", () => {
   const tree: ConditionNode = {
@@ -113,11 +113,16 @@ Deno.test("summariseTree — root group unwrapped, leaves + negate", () => {
   assertEquals(summariseTree(null), "");
 });
 
-Deno.test("shouldFire — rising edge, holds, cooldown floor", () => {
+Deno.test("shouldFire — repeat-while-true, cooldown floor", () => {
   const now = new Date("2026-01-15T08:00:00Z");
   assert(shouldFire(true, false, null, 60, now));                                  // fresh edge
-  assert(!shouldFire(true, true, null, 60, now));                                  // holding
-  assert(!shouldFire(false, false, null, 60, now));                                // not true
+  assert(!shouldFire(false, false, null, 60, now));                                // not true → never
+  assert(!shouldFire(false, true, null, 60, now));                                 // not true → never
+  // Continuously true now re-fires once the cooldown elapses (was one-shot before).
+  assert(shouldFire(true, true, new Date("2026-01-15T06:30:00Z"), 60, now));       // still true, cooled → re-fire
+  assert(!shouldFire(true, true, new Date("2026-01-15T07:30:00Z"), 60, now));      // still true but cooling
+  assert(shouldFire(true, true, null, 60, now));                                   // true, no prior fire → fire
+  // Rising edge still respects the cooldown floor.
   assert(!shouldFire(true, false, new Date("2026-01-15T07:30:00Z"), 60, now));     // edge but cooling
   assert(shouldFire(true, false, new Date("2026-01-15T06:30:00Z"), 60, now));      // edge, cooled
 });

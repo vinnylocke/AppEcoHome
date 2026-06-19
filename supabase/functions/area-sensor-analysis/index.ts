@@ -108,6 +108,83 @@ serve(async (req) => {
     }
     const latestReadingAt = readings.length > 0 ? readings[0].recorded_at : null;
 
+    // ── Plant care ranges — resolve + cheap persist (runs on EVERY view) ─────
+    // `plants.soil_*` columns are rarely populated, so missing ranges are
+    // filled from the seeded `plant_library` (matched by scientific_name_key).
+    // Resolving + writing the LIBRARY values back is cheap (no Gemini), so it
+    // runs before the cache gate below — that's what makes the catalogue columns
+    // actually populate even when we serve the cached insight. Gemini back-fill
+    // for plants absent from the library is bounded and only runs on the
+    // regenerate path (after the rate-limit gate).
+    const RANGE_FIELDS = [
+      "soil_moisture_min", "soil_moisture_max", "soil_ec_min", "soil_ec_max", "soil_temp_min", "soil_temp_max",
+    ] as const;
+    const plantIds = [...new Set((inventory ?? [])
+      .map((i: { plant_id: number | null }) => i.plant_id)
+      .filter((x): x is number => typeof x === "number"))];
+    const careById = new Map<number, CareRanges>();
+    const libByKey = new Map<string, CareRanges>();
+    let careRows: Array<{ id: number; common_name: string; scientific_name: unknown } & Partial<CareRanges>> = [];
+
+    if (plantIds.length > 0) {
+      const { data: care } = await db.from("plants")
+        .select("id, common_name, scientific_name, soil_ph_min, soil_ph_max, soil_moisture_min, soil_moisture_max, soil_ec_min, soil_ec_max, soil_temp_min, soil_temp_max")
+        .in("id", plantIds);
+      careRows = (care ?? []) as typeof careRows;
+
+      const keys = [...new Set(careRows
+        .map((c) => careMatchKey(c.scientific_name, c.common_name))
+        .filter((k): k is string => !!k))];
+      if (keys.length > 0) {
+        const { data: lib } = await db.from("plant_library")
+          .select("scientific_name_key, soil_moisture_min, soil_moisture_max, soil_ec_min, soil_ec_max, soil_temp_min, soil_temp_max")
+          .in("scientific_name_key", keys);
+        for (const l of lib ?? []) {
+          const k = l.scientific_name_key as string | null;
+          if (k) libByKey.set(k.toLowerCase(), l as unknown as CareRanges);
+        }
+      }
+      for (const c of careRows) {
+        const key = careMatchKey(c.scientific_name, c.common_name);
+        const lib = key ? libByKey.get(key) : undefined;
+        careById.set(c.id, mergeCareRanges(c as Partial<CareRanges>, lib));
+      }
+    }
+
+    // Write resolved ranges onto each `plants` row + top up an existing
+    // `plant_library` row wherever a column is missing. Cheap (no Gemini). Also
+    // mutates the in-memory copies so a second call (after generation) only
+    // writes the newly-filled fields.
+    const persistResolvedRanges = async () => {
+      for (const c of careRows) {
+        const resolved = careById.get(c.id);
+        if (!resolved) continue;
+        const patch: Record<string, number> = {};
+        for (const f of RANGE_FIELDS) {
+          if ((c as Record<string, unknown>)[f] == null && resolved[f] != null) patch[f] = resolved[f] as number;
+        }
+        if (Object.keys(patch).length > 0) {
+          Object.assign(c, patch);
+          const { error } = await db.from("plants").update(patch).eq("id", c.id);
+          if (error) logError(FN, "care_range_persist_failed", { plant_id: c.id, message: error.message });
+        }
+        const key = careMatchKey(c.scientific_name, c.common_name);
+        const libRow = key ? libByKey.get(key) : undefined;
+        if (libRow) {
+          const libPatch: Record<string, number> = {};
+          for (const f of RANGE_FIELDS) {
+            if ((libRow as unknown as Record<string, unknown>)[f] == null && resolved[f] != null) libPatch[f] = resolved[f] as number;
+          }
+          if (Object.keys(libPatch).length > 0) {
+            Object.assign(libRow, libPatch);
+            const { error } = await db.from("plant_library").update(libPatch).eq("scientific_name_key", key);
+            if (error) logError(FN, "library_range_persist_failed", { key, message: error.message });
+          }
+        }
+      }
+    };
+    await persistResolvedRanges();
+
     // ── Cache check ─────────────────────────────────────────────────────────
     const { data: cached } = await db
       .from("area_ai_insights")
@@ -157,49 +234,19 @@ serve(async (req) => {
       const e = num(r.data.soil_ec); if (e !== null) histEc.push(e);
     }
 
-    // ── Plant care (stored ranges — authoritative ground truth) ──────────────
-    // A plant's own `plants.soil_*` columns are rarely populated, so missing
-    // ranges are filled from the seeded `plant_library` (matched by
-    // scientific_name_key). This is what stops the Coach re-estimating — and
-    // drifting — between runs for library-covered plants.
-    const plantIds = [...new Set((inventory ?? []).map((i: { plant_id: number | null }) => i.plant_id).filter((x): x is number => typeof x === "number"))];
-    const careById = new Map<number, CareRanges>();
-    if (plantIds.length > 0) {
-      const { data: care } = await db.from("plants")
-        .select("id, common_name, scientific_name, soil_ph_min, soil_ph_max, soil_moisture_min, soil_moisture_max, soil_ec_min, soil_ec_max, soil_temp_min, soil_temp_max")
-        .in("id", plantIds);
-
-      // Library fallback — fetch matching plant_library rows once.
-      const keys = [...new Set((care ?? [])
-        .map((c: { scientific_name: unknown; common_name: unknown }) => careMatchKey(c.scientific_name, c.common_name))
-        .filter((k): k is string => !!k))];
-      const libByKey = new Map<string, CareRanges>();
-      if (keys.length > 0) {
-        const { data: lib } = await db.from("plant_library")
-          .select("scientific_name_key, soil_moisture_min, soil_moisture_max, soil_ec_min, soil_ec_max, soil_temp_min, soil_temp_max")
-          .in("scientific_name_key", keys);
-        for (const l of lib ?? []) {
-          const k = l.scientific_name_key as string | null;
-          if (k) libByKey.set(k.toLowerCase(), l as unknown as CareRanges);
-        }
-      }
-
-      for (const c of care ?? []) {
-        const key = careMatchKey(c.scientific_name, c.common_name);
-        const lib = key ? libByKey.get(key) : undefined;
-        careById.set(c.id as number, mergeCareRanges(c as Partial<CareRanges>, lib));
-      }
-
-      // Persist generated ranges for plants STILL missing them (no plant value,
-      // no library match). `plants` is a shared catalogue, so generating once
-      // here means every user with this plant reuses the saved ranges — and the
-      // current insight is already stable (merged below). Bounded per run.
-      const MISSING_CAP = 3;
-      const missing = (care ?? []).filter((c: { id: number }) => {
-        const m = careById.get(c.id);
-        return m && m.soil_moisture_min == null && m.soil_ec_min == null && m.soil_temp_min == null;
-      }).slice(0, MISSING_CAP) as Array<{ id: number; common_name: string; scientific_name: unknown }>;
-
+    // ── Gemini back-fill for plants STILL missing a range ────────────────────
+    // Only on the regenerate path (rate-limited above). Treats each metric
+    // independently — a plant with a library moisture range but no EC/temp is
+    // still topped up. `plants` is a shared catalogue, so a value generated once
+    // here is reused by every user with that plant. Bounded per run; the rest
+    // drain over subsequent regenerations. Existing (plant + library) values are
+    // authoritative — generation only fills the gaps.
+    if (careRows.length > 0) {
+      const MISSING_CAP = 5;
+      const missingAny = (m: CareRanges | undefined) =>
+        !!m && (m.soil_moisture_min == null || m.soil_ec_min == null || m.soil_temp_min == null);
+      const missing = careRows.filter((c) => missingAny(careById.get(c.id))).slice(0, MISSING_CAP);
+      let generated = false;
       for (const c of missing) {
         try {
           const { text, usage } = await callGeminiCascade(
@@ -210,51 +257,15 @@ serve(async (req) => {
           );
           const r = parseCareRangeResponse(text);
           if (r) {
-            careById.set(c.id, mergeCareRanges(r, careById.get(c.id)));
+            careById.set(c.id, mergeCareRanges(careById.get(c.id), r));
+            generated = true;
             await logAiUsage(db, { userId, homeId, functionName: "plant-care-ranges", action: "care_range_backfill", usage });
           }
         } catch (e) {
           logError(FN, "care_range_gen_failed", { plant_id: c.id, message: e instanceof Error ? e.message : String(e) });
         }
       }
-
-      // Persist resolved ranges (from the library OR generated above) back onto
-      // each `plants` row wherever it was missing them. `plants` is a shared
-      // catalogue, so this both makes the data visible in the table and means
-      // future reads need no library join — generated/looked-up once per plant.
-      const RANGE_FIELDS = [
-        "soil_moisture_min", "soil_moisture_max", "soil_ec_min", "soil_ec_max", "soil_temp_min", "soil_temp_max",
-      ] as const;
-      for (const c of care ?? []) {
-        const resolved = careById.get(c.id as number);
-        if (!resolved) continue;
-
-        // a) Fill the plants row.
-        const patch: Record<string, number> = {};
-        for (const f of RANGE_FIELDS) {
-          if ((c as Record<string, unknown>)[f] == null && resolved[f] != null) patch[f] = resolved[f] as number;
-        }
-        if (Object.keys(patch).length > 0) {
-          const { error } = await db.from("plants").update(patch).eq("id", c.id as number);
-          if (error) logError(FN, "care_range_persist_failed", { plant_id: c.id, message: error.message });
-        }
-
-        // b) Top up an EXISTING plant_library row that's missing ranges (so the
-        //    knowledge base self-heals too). New library rows stay the seeder's
-        //    job — we never create sparse library entries here.
-        const key = careMatchKey(c.scientific_name, c.common_name);
-        const libRow = key ? libByKey.get(key) : undefined;
-        if (libRow) {
-          const libPatch: Record<string, number> = {};
-          for (const f of RANGE_FIELDS) {
-            if ((libRow as unknown as Record<string, unknown>)[f] == null && resolved[f] != null) libPatch[f] = resolved[f] as number;
-          }
-          if (Object.keys(libPatch).length > 0) {
-            const { error } = await db.from("plant_library").update(libPatch).eq("scientific_name_key", key);
-            if (error) logError(FN, "library_range_persist_failed", { key, message: error.message });
-          }
-        }
-      }
+      if (generated) await persistResolvedRanges();
     }
 
     // ── Automations for this area ───────────────────────────────────────────

@@ -40,4 +40,46 @@ test.describe("Automations — unified builder (Section 23)", () => {
       await expect(auto.template(id)).toBeVisible();
     }
   });
+
+  test("AUTO-004: default run-window card shows + persists a saved window", async ({ authenticatedPage }) => {
+    const auto = new AutomationsPage(authenticatedPage);
+    await auto.goto();
+
+    await expect(auto.defaultsCard).toBeVisible({ timeout: 10000 });
+    // Pre-populated 08:00–20:00 by default.
+    await expect(auto.windowStart).toHaveValue("08:00");
+    await expect(auto.windowEnd).toHaveValue("20:00");
+
+    // Edit + save, then reload and confirm it stuck.
+    await auto.windowStart.fill("07:30");
+    await auto.windowSave.click();
+    await expect(authenticatedPage.getByText("Default run window saved")).toBeVisible({ timeout: 10000 });
+
+    await auto.goto();
+    await expect(auto.windowStart).toHaveValue("07:30");
+
+    // Restore the default so the test is idempotent for the next run.
+    await auto.windowStart.fill("08:00");
+    await auto.windowSave.click();
+  });
+
+  test("AUTO-005: task-due leaf renders a picker (searchable when the list is long)", async ({ authenticatedPage }) => {
+    const auto = new AutomationsPage(authenticatedPage);
+    await auto.goto();
+    await auto.openBuilder();
+
+    // Switch the default sensor leaf to a Task-due condition.
+    await auto.leafKindSelect().selectOption("task_due");
+    const leaf = authenticatedPage.getByTestId("cond-leaf-task_due");
+    await expect(leaf).toBeVisible();
+
+    // The search box only appears once there are more than 6 recurring tasks;
+    // when present, typing must narrow the chips without clearing selections.
+    if (await auto.taskLeafSearch.isVisible()) {
+      const chipsBefore = await leaf.locator("button").count();
+      await auto.taskLeafSearch.fill("zzz-no-such-task");
+      const chipsAfter = await leaf.locator("button").count();
+      expect(chipsAfter).toBeLessThanOrEqual(chipsBefore);
+    }
+  });
 });

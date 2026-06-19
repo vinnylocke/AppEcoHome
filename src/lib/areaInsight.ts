@@ -1,7 +1,7 @@
 // Pure presentation helpers for the AI Area Coach panel — extracted so the
 // status/label mapping is unit-testable without rendering React.
 
-import type { MetricKey, MetricStatus } from "../services/areaSensorsService";
+import type { MetricKey, MetricStatus, AreaCompatibility } from "../services/areaSensorsService";
 
 export function metricLabel(metric: MetricKey): string {
   switch (metric) {
@@ -31,6 +31,26 @@ export function statusMeta(status: MetricStatus): StatusMeta {
     case "unknown":
     default:
       return { label: "No reading", badgeClass: "bg-gray-100 text-gray-600", dotClass: "bg-gray-400" };
+  }
+}
+
+export interface CompatMeta {
+  label: string;
+  /** Tailwind classes for the callout container. */
+  toneClass: string;
+}
+
+/** Presentation for the plant-compatibility verdict. Pure. */
+export function compatibilityMeta(verdict: AreaCompatibility["verdict"]): CompatMeta {
+  switch (verdict) {
+    case "well_matched":
+      return { label: "Well matched", toneClass: "bg-emerald-50 text-emerald-900" };
+    case "minor_variance":
+      return { label: "Minor differences", toneClass: "bg-amber-50 text-amber-900" };
+    case "poorly_matched":
+      return { label: "Conflicting needs", toneClass: "bg-rose-50 text-rose-900" };
+    default:
+      return { label: "Compatibility", toneClass: "bg-gray-50 text-gray-800" };
   }
 }
 

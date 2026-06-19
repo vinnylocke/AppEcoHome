@@ -155,10 +155,30 @@ export interface InsightMetric {
   recommendation: string;
 }
 
+export type MetricFit = "good" | "low" | "high" | "unknown";
+
+export interface PlantFit {
+  name: string;
+  moisture_fit: MetricFit;
+  temp_fit: MetricFit;
+  ec_fit: MetricFit;
+  notes: string;
+}
+
+export interface AreaCompatibility {
+  verdict: "well_matched" | "minor_variance" | "poorly_matched";
+  moisture_only: boolean;
+  note: string;
+}
+
 export interface AreaInsight {
   headline: string;
   summary: string;
   metrics: InsightMetric[];
+  /** Per-plant fit of the current readings vs each plant's ideal ranges. */
+  plant_analysis?: PlantFit[];
+  /** Whether the plants suit sharing this area; flags moisture-only divergence. */
+  compatibility?: AreaCompatibility | null;
   automation_review?: { ok: boolean; notes: string } | null;
   automation_suggestions?: Array<{
     title: string;

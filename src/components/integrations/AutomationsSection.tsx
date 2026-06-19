@@ -3,6 +3,7 @@ import { supabase } from "../../lib/supabase";
 import { Plus, Loader2, Zap } from "lucide-react";
 import AutomationCard from "./AutomationCard";
 import AutomationBuilderModal from "./AutomationBuilderModal";
+import AutomationDefaultsCard from "./AutomationDefaultsCard";
 import SearchInput from "./SearchInput";
 import { summariseTree, type ConditionNode } from "../../lib/conditionTree";
 import { filterByText } from "../../lib/textFilter";
@@ -139,6 +140,8 @@ export default function AutomationsSection({ homeId, canManage, canRun }: Props)
           </button>
         )}
       </div>
+
+      {canManage && <AutomationDefaultsCard homeId={homeId} canManage={canManage} />}
 
       {loading ? (
         <div className="flex items-center justify-center py-8">

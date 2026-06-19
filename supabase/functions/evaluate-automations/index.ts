@@ -27,6 +27,7 @@ import {
 } from "../_shared/conditionTree.ts";
 import { buildValveQueueRows } from "../_shared/valveQueueRows.ts";
 import { isRateLimited, windowStartIso, FIRED_STATUSES } from "../_shared/runLimit.ts";
+import { defaultWindowOpen, type DefaultWindow } from "../_shared/automationWindow.ts";
 
 const FN = "evaluate-automations";
 
@@ -168,6 +169,7 @@ async function processOne(
   automation: Record<string, unknown>,
   homeTz: string,
   now: Date,
+  defaultWindow: DefaultWindow | null,
 ): Promise<{ decision: string }> {
   const id = automation.id as string;
   const homeId = automation.home_id as string;
@@ -216,9 +218,14 @@ async function processOne(
   const lastFired = automation.last_fired_at ? new Date(automation.last_fired_at as string) : null;
   const cooldown = Number(automation.sensor_cooldown_minutes ?? 60);
 
-  if (!shouldFire(nowTrue, wasTrue, lastFired, cooldown, now)) {
+  const fire = shouldFire(nowTrue, wasTrue, lastFired, cooldown, now);
+  // Home default active-hours window — only gates automations with no time/date
+  // condition of their own. Gates FIRING, not the condition_was_true bookkeeping
+  // (so the rising edge isn't lost across the window boundary).
+  const windowOpen = defaultWindowOpen(tree, defaultWindow, now, homeTz);
+  if (!fire || !windowOpen) {
     if (wasTrue !== nowTrue) await db.from("automations").update({ condition_was_true: nowTrue }).eq("id", id);
-    return { decision: nowTrue ? "holding" : "idle" };
+    return { decision: !nowTrue ? "idle" : !windowOpen ? "outside_window" : "holding" };
   }
 
   // 4. Run-limit gate (#7) — count actual fires in the rolling window.
@@ -278,18 +285,29 @@ serve(async (_req: Request) => {
       .from("automations").select("*").eq("is_active", true);
     if (listErr) throw listErr;
 
-    // Home timezones for time conditions.
+    // Home timezones + default automation window for time/window conditions.
     const homeIds = [...new Set((automations ?? []).map((a: Record<string, unknown>) => a.home_id as string))];
     const tzByHome = new Map<string, string>();
+    const windowByHome = new Map<string, DefaultWindow>();
     if (homeIds.length > 0) {
-      const { data: homes } = await db.from("homes").select("id, timezone").in("id", homeIds);
-      for (const h of homes ?? []) tzByHome.set(h.id as string, (h.timezone as string | null) ?? "UTC");
+      const { data: homes } = await db.from("homes")
+        .select("id, timezone, automation_window_start, automation_window_end, automation_window_enabled")
+        .in("id", homeIds);
+      for (const h of homes ?? []) {
+        tzByHome.set(h.id as string, (h.timezone as string | null) ?? "UTC");
+        windowByHome.set(h.id as string, {
+          start: (h.automation_window_start as string | null) ?? "08:00",
+          end: (h.automation_window_end as string | null) ?? "20:00",
+          enabled: h.automation_window_enabled !== false,
+        });
+      }
     }
 
     let fired = 0, skipped = 0, errored = 0;
     for (const a of (automations ?? []) as Array<Record<string, unknown>>) {
       try {
-        const r = await processOne(db, a, tzByHome.get(a.home_id as string) ?? "UTC", now);
+        const homeId = a.home_id as string;
+        const r = await processOne(db, a, tzByHome.get(homeId) ?? "UTC", now, windowByHome.get(homeId) ?? null);
         if (r.decision === "fire") fired += 1; else skipped += 1;
       } catch (err) {
         errored += 1;

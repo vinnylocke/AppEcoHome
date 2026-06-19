@@ -1,1 +1,25 @@
-[]
+[
+  {
+    "label": "New",
+    "items": [
+      "AI Area Coach now analyses each plant in an area individually — showing how the current moisture, temperature and EC suit each one — and adds a compatibility check that tells you whether your plants suit sharing a spot (and when the only mismatch is how much they drink, it suggests zoned, plant-focused watering instead of moving them).",
+      {
+        "text": "Automations now have a default run window: rules without their own time condition only act between 08:00 and 20:00 by default, so you won't get surprise overnight watering. Adjust the hours or switch it off any time.",
+        "link": { "label": "Set it up", "path": "/integrations?tab=automations" }
+      }
+    ]
+  },
+  {
+    "label": "Improved",
+    "items": [
+      "Sensor automations now keep acting while their condition stays true — a \"water when dry\" rule re-waters each cooldown until the soil recovers, still capped by your run limit (previously it fired only once).",
+      "The task and sensor pickers in the automation builder are now searchable, so long lists are quick to navigate instead of clogging up the screen."
+    ]
+  },
+  {
+    "label": "Fixed",
+    "items": [
+      "The AI Area Coach now reliably fills in the soil moisture, EC and temperature target ranges for the plants in your areas, so its coaching is grounded in real numbers."
+    ]
+  }
+]

@@ -3,6 +3,7 @@ import {
   buildAreaAnalysisPrompt,
   parseAreaInsight,
   shouldRegenerate,
+  AREA_ANALYSIS_SCHEMA,
   type AreaAnalysisInput,
 } from "@shared/areaAnalysisPrompt.ts";
 
@@ -102,6 +103,26 @@ Deno.test("prompt handles empty plants and no automations", () => {
   assert(p.includes("(none configured)"));
 });
 
+Deno.test("prompt asks for per-plant analysis and a compatibility verdict", () => {
+  const p = buildAreaAnalysisPrompt(baseInput());
+  assert(p.includes("plant_analysis"));
+  assert(p.includes("moisture_fit"));
+  assert(p.includes("compatibility"));
+  assert(p.includes("moisture_only"));
+  assert(p.includes("zoned / plant-focused watering"));
+});
+
+// ── AREA_ANALYSIS_SCHEMA ────────────────────────────────────────────────────
+
+Deno.test("schema exposes plant_analysis + compatibility fields", () => {
+  const props = AREA_ANALYSIS_SCHEMA.properties as Record<string, unknown>;
+  assert("plant_analysis" in props);
+  assert("compatibility" in props);
+  const compat = (props.compatibility as { properties: Record<string, unknown> }).properties;
+  assert("verdict" in compat);
+  assert("moisture_only" in compat);
+});
+
 // ── parseAreaInsight ────────────────────────────────────────────────────────
 
 Deno.test("parseAreaInsight — accepts valid JSON", () => {
@@ -120,6 +141,24 @@ Deno.test("parseAreaInsight — rejects garbage / wrong shape", () => {
   assertEquals(parseAreaInsight("not json"), null);
   assertEquals(parseAreaInsight(JSON.stringify({ headline: "h" })), null); // no metrics array
   assertEquals(parseAreaInsight(JSON.stringify({ metrics: [] })), null); // no headline
+});
+
+Deno.test("parseAreaInsight — carries plant_analysis + compatibility when present", () => {
+  const obj = parseAreaInsight(JSON.stringify({
+    headline: "Hi", summary: "x", metrics: [],
+    plant_analysis: [{ name: "Tomato", moisture_fit: "low", temp_fit: "good", ec_fit: "good", notes: "A bit dry." }],
+    compatibility: { verdict: "minor_variance", moisture_only: true, note: "Water the lavender less." },
+  }));
+  assert(obj);
+  assertEquals(obj!.plant_analysis?.[0].name, "Tomato");
+  assertEquals(obj!.compatibility?.moisture_only, true);
+});
+
+Deno.test("parseAreaInsight — tolerates the new fields being absent (legacy cache)", () => {
+  const obj = parseAreaInsight(JSON.stringify({ headline: "Hi", summary: "x", metrics: [] }));
+  assert(obj);
+  assertEquals(obj!.plant_analysis, undefined);
+  assertEquals(obj!.compatibility, undefined);
 });
 
 // ── shouldRegenerate ────────────────────────────────────────────────────────

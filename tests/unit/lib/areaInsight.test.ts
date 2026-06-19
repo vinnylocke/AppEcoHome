@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { metricLabel, statusMeta, formatAnalysedLabel } from "../../../src/lib/areaInsight";
+import { metricLabel, statusMeta, compatibilityMeta, formatAnalysedLabel } from "../../../src/lib/areaInsight";
 
 describe("metricLabel", () => {
   it("maps known metrics to friendly names", () => {
@@ -18,6 +18,17 @@ describe("statusMeta", () => {
     expect(statusMeta("good").dotClass).toContain("emerald");
     expect(statusMeta("low").dotClass).toContain("amber");
     expect(statusMeta("high").dotClass).toContain("rose");
+  });
+});
+
+describe("compatibilityMeta", () => {
+  it("maps each verdict to a distinct label + tone", () => {
+    expect(compatibilityMeta("well_matched").label).toBe("Well matched");
+    expect(compatibilityMeta("minor_variance").label).toBe("Minor differences");
+    expect(compatibilityMeta("poorly_matched").label).toBe("Conflicting needs");
+    expect(compatibilityMeta("well_matched").toneClass).toContain("emerald");
+    expect(compatibilityMeta("minor_variance").toneClass).toContain("amber");
+    expect(compatibilityMeta("poorly_matched").toneClass).toContain("rose");
   });
 });
 

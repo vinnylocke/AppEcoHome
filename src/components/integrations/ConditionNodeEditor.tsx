@@ -2,11 +2,13 @@
 // controlled component: it renders itself and calls `onChange` with its updated
 // subtree, or `onDelete` to remove itself from its parent.
 
-import { Plus, Trash2, FolderPlus } from "lucide-react";
+import { useState } from "react";
+import { Plus, Trash2, FolderPlus, Search } from "lucide-react";
 import {
   newLeaf, newGroup, WEEKDAYS, WEEKDAY_LABELS,
   type ConditionNode, type LeafKind, type Weekday, type SensorMetric, type Comparator, type AggMode,
 } from "../../lib/conditionTree";
+import { filterPickerItems, shouldShowPickerSearch, type PickerItem } from "../../lib/pickerFilter";
 import { splitMmDd, makeMmDd, daysInMonth, MONTH_LABELS, seasonPreset, type SeasonPreset } from "../../lib/dateRangeLeaf";
 import type { Hemisphere } from "../../lib/seasonal";
 
@@ -79,12 +81,40 @@ function NegateToggle({ negate, onChange }: { negate: boolean; onChange: (n: boo
 
 const inputCls = "rounded-lg border border-gray-200 p-1.5 text-sm";
 
+/** Chip-list filter state. The pure logic lives in `lib/pickerFilter` so it's
+ *  unit-tested; this hook just wires the query into local state. */
+function usePickerFilter<T extends PickerItem>(
+  items: T[],
+  selected: string[],
+): { query: string; setQuery: (q: string) => void; visible: T[]; showSearch: boolean } {
+  const [query, setQuery] = useState("");
+  const showSearch = shouldShowPickerSearch(items.length);
+  const visible = showSearch ? filterPickerItems(items, query, selected) : items;
+  return { query, setQuery, visible, showSearch };
+}
+
+function PickerSearch({ testId, placeholder, query, onChange, selectedCount }: {
+  testId: string; placeholder: string; query: string; onChange: (q: string) => void; selectedCount: number;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <div className="relative flex-1">
+        <Search size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-gray-300" />
+        <input data-testid={testId} value={query} onChange={(e) => onChange(e.target.value)} placeholder={placeholder}
+          className={`${inputCls} w-full pl-7`} />
+      </div>
+      {selectedCount > 0 && <span className="text-[11px] font-semibold text-emerald-700 whitespace-nowrap">{selectedCount} selected</span>}
+    </div>
+  );
+}
+
 function SensorFields({ node, onChange, ctx }: { node: Extract<ConditionNode, { kind: "sensor" }>; onChange: (n: ConditionNode) => void; ctx: BuilderCtx }) {
   const set = (p: Partial<typeof node>) => onChange({ ...node, ...p });
+  const selected = node.sensorIds ?? [];
   const toggleSensor = (id: string) => {
-    const cur = node.sensorIds ?? [];
-    set({ sensorIds: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] });
+    set({ sensorIds: selected.includes(id) ? selected.filter((x) => x !== id) : [...selected, id] });
   };
+  const { query, setQuery, visible, showSearch } = usePickerFilter(ctx.sensors, selected);
   return (
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
@@ -101,10 +131,11 @@ function SensorFields({ node, onChange, ctx }: { node: Extract<ConditionNode, { 
           <option value="any">any sensor</option><option value="all">all sensors</option><option value="average">average</option>
         </select>
       </div>
+      {showSearch && <PickerSearch testId="sensor-leaf-search" placeholder="Filter sensors…" query={query} onChange={setQuery} selectedCount={selected.length} />}
       {ctx.sensors.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {ctx.sensors.map((s) => {
-            const on = (node.sensorIds ?? []).includes(s.id);
+          {visible.map((s) => {
+            const on = selected.includes(s.id);
             return (
               <button key={s.id} type="button" onClick={() => toggleSensor(s.id)}
                 className={`px-2 py-1 rounded-lg text-xs font-medium border ${on ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-gray-200 text-gray-600"}`}>
@@ -112,6 +143,7 @@ function SensorFields({ node, onChange, ctx }: { node: Extract<ConditionNode, { 
               </button>
             );
           })}
+          {visible.length === 0 && <span className="text-xs text-gray-300 py-1">No sensors match.</span>}
         </div>
       )}
       <p className="text-[11px] text-gray-400">Pick sensors, or leave blank to use the area's soil sensors.</p>
@@ -155,18 +187,24 @@ function TaskFields({ node, onChange, ctx }: { node: Extract<ConditionNode, { ki
     const cur = node.blueprintIds;
     onChange({ ...node, blueprintIds: cur.includes(id) ? cur.filter((x) => x !== id) : [...cur, id] });
   };
+  // Hook must run before any early return (rules of hooks).
+  const { query, setQuery, visible, showSearch } = usePickerFilter(ctx.blueprints, node.blueprintIds);
   if (ctx.blueprints.length === 0) return <p className="text-xs text-gray-400">No recurring tasks to link.</p>;
   return (
-    <div className="flex flex-wrap gap-1.5">
-      {ctx.blueprints.map((b) => {
-        const on = node.blueprintIds.includes(b.id);
-        return (
-          <button key={b.id} type="button" onClick={() => toggle(b.id)}
-            className={`px-2 py-1 rounded-lg text-xs font-medium border ${on ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-gray-200 text-gray-600"}`}>
-            {b.title}
-          </button>
-        );
-      })}
+    <div className="space-y-2">
+      {showSearch && <PickerSearch testId="task-leaf-search" placeholder="Filter tasks…" query={query} onChange={setQuery} selectedCount={node.blueprintIds.length} />}
+      <div className="flex flex-wrap gap-1.5">
+        {visible.map((b) => {
+          const on = node.blueprintIds.includes(b.id);
+          return (
+            <button key={b.id} type="button" onClick={() => toggle(b.id)}
+              className={`px-2 py-1 rounded-lg text-xs font-medium border ${on ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-gray-200 text-gray-600"}`}>
+              {b.title}
+            </button>
+          );
+        })}
+        {visible.length === 0 && <span className="text-xs text-gray-300 py-1">No tasks match.</span>}
+      </div>
     </div>
   );
 }

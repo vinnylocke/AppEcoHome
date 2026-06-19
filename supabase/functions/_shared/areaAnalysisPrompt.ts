@@ -110,6 +110,29 @@ export const AREA_ANALYSIS_SCHEMA = {
         required: ["metric", "unit", "ideal_min", "ideal_max", "status", "meaning", "why_for_these_plants", "recommendation"],
       },
     },
+    plant_analysis: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: {
+          name: { type: "string" },
+          moisture_fit: { type: "string", enum: ["good", "low", "high", "unknown"] },
+          temp_fit: { type: "string", enum: ["good", "low", "high", "unknown"] },
+          ec_fit: { type: "string", enum: ["good", "low", "high", "unknown"] },
+          notes: { type: "string" },
+        },
+        required: ["name", "moisture_fit", "temp_fit", "ec_fit", "notes"],
+      },
+    },
+    compatibility: {
+      type: "object",
+      properties: {
+        verdict: { type: "string", enum: ["well_matched", "minor_variance", "poorly_matched"] },
+        moisture_only: { type: "boolean" },
+        note: { type: "string" },
+      },
+      required: ["verdict", "moisture_only", "note"],
+    },
     automation_review: {
       type: "object",
       properties: {
@@ -283,21 +306,54 @@ For THIS area and THESE plants:
      ? "IMPORTANT: where a plant lists an [ideal: …] range above, those are AUTHORITATIVE stored values — set ideal_min/ideal_max to match them (for multiple plants, use the overlap / tightest sensible combined range). Only estimate a range yourself for a metric that has no stored value."
      : "No stored ideal ranges are provided, so estimate sensible agronomic ranges for these plants."}
    - If EC is raw ADC (uncalibrated), say ranges are relative and recommend a calibrated sensor for absolutes.
-2. automation_review: if automations exist, judge whether they suit these plants and the current
+2. plant_analysis: return ONE entry per plant listed in "PLANTS IN THIS AREA", in the same order.
+   For each plant, compare its [ideal: …] ranges (AUTHORITATIVE — use them, don't invent) against the
+   CURRENT readings above:
+   - moisture_fit / temp_fit / ec_fit — "good" if the current reading sits inside that plant's ideal
+     range, "low" or "high" if it's below/above, "unknown" if either the reading or that plant's range
+     for that metric is missing.
+   - notes — 1-2 sentences naming the plant and how it is currently faring in this soil.
+3. compatibility: judge whether these plants suit being grown TOGETHER in this one area:
+   - verdict — "well_matched" (their ideal ranges broadly overlap), "minor_variance" (small, manageable
+     differences) or "poorly_matched" (ranges conflict enough that some plants will struggle here).
+   - moisture_only — true if the ONLY large divergence between the plants is MOISTURE (their temperature
+     and EC needs broadly agree). When true, recommend zoned / plant-focused watering (water the thirsty
+     and the dry-loving plants separately) rather than splitting them between areas. When false and
+     poorly_matched, name which plants want very different conditions.
+   - note — one or two plain, actionable sentences for the gardener.
+   With one plant or none, set verdict "well_matched", moisture_only false, and say there's nothing to compare.
+4. automation_review: if automations exist, judge whether they suit these plants and the current
    readings — e.g. is the schedule frequent enough, or the moisture threshold appropriate, given the
    moisture trend? Also comment on the rain handling: prefer "smart" (defer-and-recheck) over "skip"
    (which can leave soil dry if forecast rain under-delivers) or "ignores forecast" (wastes water when
    it does rain). (set ok + notes). If NONE exist, set automation_review.ok=false with a short note and
    populate automation_suggestions with 1-3 concrete moisture-triggered watering automations to add
    (title, description, suggested_moisture_threshold_pct).
-3. confidence_note: one line on how much data this is based on (e.g. "based on N readings over X days").
+5. confidence_note: one line on how much data this is based on (e.g. "based on N readings over X days").
+   If any plant could not be analysed (no linked catalogue entry), say so here.
 Be specific to the plants and the numbers above. Do not invent sensor values not provided.`;
+}
+
+export type MetricFit = "good" | "low" | "high" | "unknown";
+export interface PlantFit {
+  name: string;
+  moisture_fit: MetricFit;
+  temp_fit: MetricFit;
+  ec_fit: MetricFit;
+  notes: string;
+}
+export interface AreaCompatibility {
+  verdict: "well_matched" | "minor_variance" | "poorly_matched";
+  moisture_only: boolean;
+  note: string;
 }
 
 export interface AreaInsight {
   headline: string;
   summary: string;
   metrics: Array<Record<string, unknown>>;
+  plant_analysis?: PlantFit[];
+  compatibility?: AreaCompatibility | null;
   automation_review?: { ok: boolean; notes: string } | null;
   automation_suggestions?: Array<Record<string, unknown>>;
   confidence_note?: string;

@@ -42,6 +42,9 @@ A single user can belong to multiple homes (allotment + house). The "active home
 | `climate_zone` | text | Köppen (research-grade) |
 | `north_offset_deg` | float8 | For sun analysis |
 | `layout_id` | uuid? | Primary layout (Garden Layout) |
+| `automation_window_start` | time | Default automation active-window start (home local). Default `08:00` (2026-06-19, migration `20260803000000`). |
+| `automation_window_end` | time | Default automation active-window end; `end <= start` wraps midnight. Default `20:00`. |
+| `automation_window_enabled` | boolean | When false, automations without their own time condition run 24/7. Default `true`. Applied by `evaluate-automations` via `_shared/automationWindow.ts`. See [Integrations — Automations](../07-management/06-integrations-automations.md). |
 | `created_at`, `updated_at` | timestamptz | |
 
 ### `home_members` columns

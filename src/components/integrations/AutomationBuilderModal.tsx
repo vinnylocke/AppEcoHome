@@ -8,7 +8,8 @@ import { X, Loader2, Check, Plus, Trash2, Bell, Power, PowerOff, Gauge } from "l
 import toast from "react-hot-toast";
 import { supabase } from "../../lib/supabase";
 import { useFocusTrap } from "../../hooks/useFocusTrap";
-import { newGroup, newLeaf, summariseTree, type ConditionNode } from "../../lib/conditionTree";
+import { newLeaf, summariseTree, type ConditionNode } from "../../lib/conditionTree";
+import { filterPickerItems, shouldShowPickerSearch } from "../../lib/pickerFilter";
 import { AUTOMATION_TEMPLATES, type AutomationTemplate } from "../../lib/automationTemplates";
 import { scopeDevicesToArea } from "../../lib/automationDeviceScope";
 import { hemisphereForHome } from "../../lib/dateRangeLeaf";
@@ -40,6 +41,32 @@ const defaultTree = (): ConditionNode => ({ kind: "group", op: "and", children: 
 function collectSensorIds(node: ConditionNode): string[] {
   if (node.kind === "group") return node.children.flatMap(collectSensorIds);
   return node.kind === "sensor" ? (node.sensorIds ?? []) : [];
+}
+
+/** Blueprint picker for a `complete_task` action. Adds a type-ahead filter once
+ *  the home has enough recurring tasks that the bare select gets unwieldy; the
+ *  currently-selected task always stays in the list even when filtered out. */
+function BlueprintActionSelect({ index, value, blueprints, onChange }: {
+  index: number;
+  value: string | null;
+  blueprints: Array<{ id: string; title: string }>;
+  onChange: (id: string) => void;
+}) {
+  const [q, setQ] = useState("");
+  const showSearch = shouldShowPickerSearch(blueprints.length);
+  const visible = showSearch ? filterPickerItems(blueprints, q, value ? [value] : []) : blueprints;
+  return (
+    <div className="flex flex-wrap items-center gap-1.5">
+      {showSearch && (
+        <input data-testid={`action-blueprint-search-${index}`} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter tasks…"
+          className="rounded-lg border border-gray-200 p-1.5 text-sm w-32" />
+      )}
+      <select data-testid={`action-blueprint-${index}`} value={value ?? ""} onChange={(e) => onChange(e.target.value)} className="rounded-lg border border-gray-200 p-1.5 text-sm">
+        <option value="">Select task…</option>
+        {visible.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
+      </select>
+    </div>
+  );
 }
 
 export default function AutomationBuilderModal({ homeId, automationId, onSaved, onClose }: Props) {
@@ -276,10 +303,7 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
                       <input value={a.notification_title ?? ""} onChange={(e) => setAction(i, { notification_title: e.target.value })} placeholder="Title (optional)" className="flex-1 rounded-lg border border-gray-200 p-1.5 text-sm" />
                     )}
                     {a.action_kind === "complete_task" && (
-                      <select data-testid={`action-blueprint-${i}`} value={a.target_blueprint_id ?? ""} onChange={(e) => setAction(i, { target_blueprint_id: e.target.value })} className="rounded-lg border border-gray-200 p-1.5 text-sm">
-                        <option value="">Select task…</option>
-                        {blueprints.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
-                      </select>
+                      <BlueprintActionSelect index={i} value={a.target_blueprint_id} blueprints={blueprints} onChange={(id) => setAction(i, { target_blueprint_id: id })} />
                     )}
                     <button type="button" onClick={() => delAction(i)} className="ml-auto text-gray-300 hover:text-rose-500"><Trash2 size={15} /></button>
                   </div>

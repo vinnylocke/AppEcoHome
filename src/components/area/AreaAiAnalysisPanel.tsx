@@ -5,15 +5,16 @@
 // cache untouched unless a newer reading exists (no Gemini spend) or `force`.
 
 import { useCallback, useEffect, useRef, useState } from "react";
-import { Sparkles, RefreshCw, Lock, AlertTriangle, Droplets, Zap, Thermometer, Cpu } from "lucide-react";
+import { Sparkles, RefreshCw, Lock, AlertTriangle, Droplets, Zap, Thermometer, Cpu, Leaf, Scale } from "lucide-react";
 import {
   fetchAreaInsight,
   generateAreaInsight,
   type AreaInsight,
   type AreaInsightResult,
   type MetricKey,
+  type MetricFit,
 } from "../../services/areaSensorsService";
-import { metricLabel, statusMeta, formatAnalysedLabel } from "../../lib/areaInsight";
+import { metricLabel, statusMeta, compatibilityMeta, formatAnalysedLabel } from "../../lib/areaInsight";
 
 interface Props {
   areaId: string;
@@ -30,6 +31,18 @@ const METRIC_ICON: Record<MetricKey, typeof Droplets> = {
 // Always present the metrics in this fixed order so the analysis reads the same
 // every time, regardless of the order the model returned them.
 const METRIC_ORDER: MetricKey[] = ["moisture", "temperature", "ec"];
+
+const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+
+// Compact per-metric fit pill for a single plant (icon-only, tooltip = label).
+function FitPill({ icon: Icon, fit, title }: { icon: typeof Droplets; fit: MetricFit; title: string }) {
+  const meta = statusMeta(fit);
+  return (
+    <span title={`${title}: ${meta.label}`} className={`inline-flex items-center justify-center rounded-full p-1 ${meta.badgeClass}`}>
+      <Icon className="h-3 w-3" />
+    </span>
+  );
+}
 
 export default function AreaAiAnalysisPanel({ areaId, homeId, aiEnabled }: Props) {
   const [result, setResult] = useState<AreaInsightResult | null>(null);
@@ -165,6 +178,43 @@ export default function AreaAiAnalysisPanel({ areaId, homeId, aiEnabled }: Props
               );
             })}
           </div>
+
+          {(insight.plant_analysis?.length ?? 0) > 0 && (
+            <div data-testid="area-ai-plants" className="space-y-2">
+              <div className="flex items-center gap-2">
+                <Leaf className="h-4 w-4 text-emerald-600" />
+                <h5 className="font-medium text-gray-900">Each plant in this area</h5>
+              </div>
+              {insight.plant_analysis!.map((p, i) => (
+                <div key={i} data-testid={`area-ai-plant-${slug(p.name)}`} className="rounded-xl border border-gray-100 p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-medium text-gray-900">{p.name}</span>
+                    <div className="flex items-center gap-1">
+                      <FitPill icon={Droplets} fit={p.moisture_fit} title="Moisture" />
+                      <FitPill icon={Thermometer} fit={p.temp_fit} title="Soil temp" />
+                      <FitPill icon={Zap} fit={p.ec_fit} title="EC" />
+                    </div>
+                  </div>
+                  <p className="mt-1.5 text-sm text-gray-600">{p.notes}</p>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {insight.compatibility && (
+            <div data-testid="area-ai-compatibility" className={`rounded-xl p-4 ${compatibilityMeta(insight.compatibility.verdict).toneClass}`}>
+              <div className="flex items-center gap-2">
+                <Scale className="h-4 w-4" />
+                <span className="font-semibold">{compatibilityMeta(insight.compatibility.verdict).label}</span>
+                {insight.compatibility.moisture_only && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-white/60 px-2 py-0.5 text-xs font-medium">
+                    <Droplets className="h-3 w-3" /> watering only
+                  </span>
+                )}
+              </div>
+              <p className="mt-1 text-sm opacity-90">{insight.compatibility.note}</p>
+            </div>
+          )}
 
           {(insight.automation_review || (insight.automation_suggestions?.length ?? 0) > 0) && (
             <div data-testid="area-ai-automations" className="rounded-xl border border-gray-100 p-4">

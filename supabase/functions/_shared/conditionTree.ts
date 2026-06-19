@@ -229,20 +229,23 @@ export function evalWeatherLeaf(
 }
 
 /**
- * Rising-edge fire decision. Fires when the tree is true now and either it was
- * false last tick (a fresh edge) or the cooldown has elapsed since the last
- * fire. Pure.
+ * Fire decision. Fires when the tree is true now AND either there has been no
+ * previous fire or the cooldown has elapsed since the last one. This is
+ * "repeat-while-true": a condition that stays true (e.g. soil staying below a
+ * moisture threshold) keeps firing every cooldown rather than only once on the
+ * rising edge — so a "water when dry" rule actually keeps watering. The
+ * per-window run-limit in `evaluate-automations` bounds how often it can fire.
+ * `wasTrue` is retained for the caller's `condition_was_true` bookkeeping but no
+ * longer gates the decision. Pure.
  */
 export function shouldFire(
   nowTrue: boolean,
-  wasTrue: boolean,
+  _wasTrue: boolean,
   lastFiredAt: Date | null,
   cooldownMinutes: number,
   now: Date,
 ): boolean {
   if (!nowTrue) return false;
-  const cooledDown = lastFiredAt === null
+  return lastFiredAt === null
     || (now.getTime() - lastFiredAt.getTime()) >= cooldownMinutes * 60_000;
-  if (!wasTrue) return cooledDown;     // rising edge
-  return false;                         // already true and holding → no re-fire
 }
