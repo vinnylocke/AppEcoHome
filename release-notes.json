@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "Rate-limited automations no longer flood the run history — repeated \"Rate limited\" entries are collapsed into one, so your successful runs stay visible"
+    ]
+  }
+]

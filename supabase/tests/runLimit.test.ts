@@ -1,5 +1,11 @@
 import { assert, assertEquals } from "@std/assert";
-import { isRateLimited, windowStartIso, FIRED_STATUSES } from "@shared/runLimit.ts";
+import {
+  isRateLimited,
+  windowStartIso,
+  FIRED_STATUSES,
+  shouldCollapseRateLimitSkip,
+  nextSkipAttempts,
+} from "@shared/runLimit.ts";
 
 Deno.test("isRateLimited — unlimited when limit null/0/negative", () => {
   assertEquals(isRateLimited(99, null), false);
@@ -25,4 +31,23 @@ Deno.test("FIRED_STATUSES excludes skips/defers", () => {
   assert(FIRED_STATUSES.includes("success"));
   assert(!(FIRED_STATUSES as readonly string[]).includes("skipped_rate_limited"));
   assert(!(FIRED_STATUSES as readonly string[]).includes("deferred_weather"));
+});
+
+Deno.test("shouldCollapseRateLimitSkip — only when the latest run is itself a rate-limited skip", () => {
+  assertEquals(shouldCollapseRateLimitSkip("skipped_rate_limited"), true);
+  // A real (or any non-skip) latest run breaks the chain → insert a fresh row.
+  assertEquals(shouldCollapseRateLimitSkip("success"), false);
+  assertEquals(shouldCollapseRateLimitSkip("partial"), false);
+  assertEquals(shouldCollapseRateLimitSkip("deferred_weather"), false);
+  assertEquals(shouldCollapseRateLimitSkip(null), false);
+  assertEquals(shouldCollapseRateLimitSkip(undefined), false);
+});
+
+Deno.test("nextSkipAttempts — increments, clamps a missing/invalid prior to 2", () => {
+  assertEquals(nextSkipAttempts(1), 2);
+  assertEquals(nextSkipAttempts(3), 4);
+  assertEquals(nextSkipAttempts(null), 2);
+  assertEquals(nextSkipAttempts(undefined), 2);
+  assertEquals(nextSkipAttempts(0), 2);
+  assertEquals(nextSkipAttempts(2.7), 3); // floors before incrementing
 });

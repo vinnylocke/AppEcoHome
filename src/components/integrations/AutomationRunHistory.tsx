@@ -14,7 +14,7 @@ interface AutomationRun {
   // Condition engine writes an object; legacy runner wrote an array — both handled.
   devices_triggered: DeviceResult[] | { notifications?: number; valves_queued?: number } | null;
   tasks_completed: TaskResult[] | null;
-  trigger_reason: { summary?: string; matched?: string[] } | null;
+  trigger_reason: { summary?: string; matched?: string[]; attempts?: number } | null;
   error_message: string | null;
   completed_at: string | null;
 }
@@ -98,9 +98,18 @@ export default function AutomationRunHistory({ automationId }: Props) {
                 </span>
               </p>
               {run.trigger_reason?.summary && (
-                <p className="text-[11px] text-rhozly-on-surface-variant/80 mt-0.5">
-                  <span className="font-semibold">Fired because:</span> {run.trigger_reason.summary}
-                </p>
+                run.status === "skipped_rate_limited" ? (
+                  <p className="text-[11px] text-rhozly-on-surface-variant/80 mt-0.5">
+                    {run.trigger_reason.summary}
+                    {typeof run.trigger_reason.attempts === "number" && run.trigger_reason.attempts > 1
+                      ? ` · retried ${run.trigger_reason.attempts}×`
+                      : ""}
+                  </p>
+                ) : (
+                  <p className="text-[11px] text-rhozly-on-surface-variant/80 mt-0.5">
+                    <span className="font-semibold">Fired because:</span> {run.trigger_reason.summary}
+                  </p>
+                )
               )}
               {summary.length > 0 && (
                 <p className="text-xs text-rhozly-on-surface-variant mt-0.5">

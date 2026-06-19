@@ -21,3 +21,22 @@ export function windowStartIso(now: Date, windowHours: number): string {
   const hours = windowHours > 0 ? windowHours : 24;
   return new Date(now.getTime() - hours * 60 * 60 * 1000).toISOString();
 }
+
+// ── Skip-row collapsing ────────────────────────────────────────────────────
+// The event-driven engine + repeat-while-true firing would otherwise log a
+// `skipped_rate_limited` run on every tick while the condition stays true,
+// flooding the run history and burying real runs. We instead keep ONE rolling
+// skip row between real runs: collapse onto the most recent run when it's
+// already a rate-limited skip, otherwise insert a fresh one.
+
+/** True when a new rate-limited skip should COLLAPSE into the most recent run
+ *  (i.e. update it) rather than insert a new row. */
+export function shouldCollapseRateLimitSkip(lastStatus: string | null | undefined): boolean {
+  return lastStatus === "skipped_rate_limited";
+}
+
+/** Next `attempts` count when collapsing onto an existing skip row (≥ 2). */
+export function nextSkipAttempts(prevAttempts: number | null | undefined): number {
+  const n = Number(prevAttempts);
+  return (Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1) + 1;
+}

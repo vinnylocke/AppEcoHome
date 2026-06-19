@@ -26,7 +26,7 @@ import {
   type ConditionNode, type LeafNode,
 } from "../_shared/conditionTree.ts";
 import { buildValveQueueRows } from "../_shared/valveQueueRows.ts";
-import { isRateLimited, windowStartIso, FIRED_STATUSES } from "../_shared/runLimit.ts";
+import { isRateLimited, windowStartIso, FIRED_STATUSES, shouldCollapseRateLimitSkip, nextSkipAttempts } from "../_shared/runLimit.ts";
 import { defaultWindowOpen, type DefaultWindow } from "../_shared/automationWindow.ts";
 import { treeHasTimeTrigger, treeAffectedByDevice } from "../_shared/automationCandidates.ts";
 
@@ -239,16 +239,38 @@ async function processOne(
       .gte("triggered_at", windowStartIso(now, windowHours))
       .in("status", FIRED_STATUSES as unknown as string[]);
     if (isRateLimited(count ?? 0, runLimitCount)) {
-      const { error: skipErr } = await db.from("automation_runs").insert({
-        automation_id: id, home_id: homeId, triggered_by: "schedule",
-        status: "skipped_rate_limited",
-        devices_triggered: { notifications: 0, valves_queued: 0 },
-        completed_at: now.toISOString(),
-      });
-      // Don't let a logging-row failure hide a rate-limited skip ever again.
-      if (skipErr) logError(FN, "skip_run_insert_failed", { id, status: "skipped_rate_limited", message: skipErr.message });
-      // Mark the edge consumed so we don't log a skip every tick.
-      await db.from("automations").update({ condition_was_true: true }).eq("id", id);
+      // Collapse consecutive rate-limited skips into ONE rolling row. The
+      // event-driven engine + repeat-while-true firing would otherwise insert
+      // a skip on every tick while the condition stays true, flooding the
+      // history and burying real runs. A real run breaks the chain, so there's
+      // at most one skip row between fires. (Note: `condition_was_true` no
+      // longer gates `shouldFire`, so the old "mark the edge consumed" write
+      // was a no-op — the collapse is what bounds the flood.)
+      const { data: lastRun } = await db.from("automation_runs")
+        .select("id, status, trigger_reason")
+        .eq("automation_id", id)
+        .order("triggered_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (shouldCollapseRateLimitSkip(lastRun?.status as string | undefined)) {
+        const attempts = nextSkipAttempts((lastRun?.trigger_reason as { attempts?: number } | null)?.attempts);
+        const { error: updErr } = await db.from("automation_runs").update({
+          triggered_at: now.toISOString(),
+          completed_at: now.toISOString(),
+          trigger_reason: { summary: "Run limit reached", attempts },
+        }).eq("id", (lastRun as { id: string }).id);
+        if (updErr) logError(FN, "skip_run_update_failed", { id, message: updErr.message });
+      } else {
+        const { error: skipErr } = await db.from("automation_runs").insert({
+          automation_id: id, home_id: homeId, triggered_by: "schedule",
+          status: "skipped_rate_limited",
+          devices_triggered: { notifications: 0, valves_queued: 0 },
+          trigger_reason: { summary: "Run limit reached", attempts: 1 },
+          completed_at: now.toISOString(),
+        });
+        // Don't let a logging-row failure hide a rate-limited skip ever again.
+        if (skipErr) logError(FN, "skip_run_insert_failed", { id, status: "skipped_rate_limited", message: skipErr.message });
+      }
       log(FN, "rate_limited", { id, count, limit: runLimitCount });
       return { decision: "rate_limited" };
     }
