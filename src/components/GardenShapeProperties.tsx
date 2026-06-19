@@ -545,7 +545,7 @@ export default function GardenShapeProperties({
                 </div>
                 <button
                   data-testid="shape-open-watchlist-btn"
-                  onClick={() => navigate("/watchlist")}
+                  onClick={() => navigate("/shed?tab=watchlist")}
                   className="text-[10px] font-black text-rhozly-primary uppercase tracking-widest hover:underline"
                 >
                   Open Watchlist →

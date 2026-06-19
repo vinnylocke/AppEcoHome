@@ -2,7 +2,12 @@ import { describe, test, expect } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
 import React from "react";
 
+import { MemoryRouter } from "react-router-dom";
 import ImageCredit from "../../../src/components/credit/ImageCredit";
+
+// CreditPopover links to /credits via <Link>, which needs a Router ancestor.
+const renderInRouter = (ui: React.ReactElement) =>
+  render(React.createElement(MemoryRouter, null, ui));
 
 // A known (non-"unknown") credit so the badge + popover render fully.
 const credit = {
@@ -13,7 +18,7 @@ const credit = {
 
 describe("ImageCredit / CreditPopover", () => {
   test("opens the source popover when the badge is clicked", () => {
-    render(React.createElement(ImageCredit, { credit, variant: "badge-only" }));
+    renderInRouter(React.createElement(ImageCredit, { credit, variant: "badge-only" }));
 
     expect(screen.queryByTestId("image-credit-popover")).toBeNull();
     fireEvent.click(screen.getByTestId("image-credit-badge"));
@@ -24,7 +29,7 @@ describe("ImageCredit / CreditPopover", () => {
     // Regression: the popover portals to <body> but is a React child of the
     // trigger button, so a click on ✕ used to bubble back to the trigger's
     // onClick and immediately re-open it. The panel now stops propagation.
-    render(React.createElement(ImageCredit, { credit, variant: "badge-only" }));
+    renderInRouter(React.createElement(ImageCredit, { credit, variant: "badge-only" }));
 
     fireEvent.click(screen.getByTestId("image-credit-badge"));
     expect(screen.getByTestId("image-credit-popover")).toBeTruthy();

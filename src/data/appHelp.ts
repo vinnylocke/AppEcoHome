@@ -237,19 +237,19 @@ export const APP_HELP_SECTIONS: HelpSection[] = [
   {
     id: "watchlist-overview",
     title: "What is the Ailment Watchlist?",
-    route: "/watchlist",
+    route: "/shed?tab=watchlist",
     summary: "The Watchlist tracks pests, diseases, and invasive plants that affect your garden so you can monitor and treat them.",
   },
   {
     id: "watchlist-add",
     title: "Adding a pest, disease, or invasive plant",
-    route: "/watchlist",
+    route: "/shed?tab=watchlist",
     summary: "Go to Watchlist → tap + and search for an ailment, or use AI to identify one from a description or photo.",
   },
   {
     id: "watchlist-link",
     title: "Linking an ailment to a plant",
-    route: "/watchlist",
+    route: "/shed?tab=watchlist",
     summary: "Open a plant instance, tap 'Link Ailment', and select the relevant watchlist entry to track it on that plant.",
   },
 
@@ -277,19 +277,19 @@ export const APP_HELP_SECTIONS: HelpSection[] = [
   {
     id: "shopping-overview",
     title: "What is the Shopping List?",
-    route: "/shopping",
+    route: "/planner?tab=shopping",
     summary: "The Shopping List helps you track what you need to buy for your garden — tools, seeds, fertilisers, and more.",
   },
   {
     id: "shopping-add",
     title: "Adding items to a Shopping List",
-    route: "/shopping",
+    route: "/planner?tab=shopping",
     summary: "Open a list and tap + to add an item. Search the Plant Database, your Shed plants, or type a custom item.",
   },
   {
     id: "shopping-lists",
     title: "Creating multiple Shopping Lists",
-    route: "/shopping",
+    route: "/planner?tab=shopping",
     summary: "Tap 'New List' on the Shopping page to create separate lists for different occasions (e.g. Spring Planting, Hardware Run).",
   },
 

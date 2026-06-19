@@ -128,10 +128,12 @@ default view, not the intended one) plus a few **wrong-target** links. External 
 | 7 | App-Help Account topics → `/gardener?tab=account` (were `/profile`, the quiz) | `appHelp.ts` |
 | — | Routing reference re-synced to the real route table | `21-routing.md` |
 
-**Deferred (tracked, not bugs):**
-- **#8** `href="/credits"` (CreditPopover, DiagnosisImageGallery) — reaches the right page; only a
-  full-reload nicety. Skipped to avoid adding router imports to two non-router components.
-- **#9** links that lean on redirect routes (`/watchlist`, `/shopping`) — functional; cosmetic.
+**#8 + #9 — also done (follow-up):**
+- **#8** `/credits` links now use `<Link>` (client-side nav, no full reload) in `CreditPopover` +
+  `DiagnosisImageGallery`. The `ImageCredit` unit test now renders under a `MemoryRouter` (the
+  component legitimately needs a Router ancestor).
+- **#9** redirect-reliant links now target directly: `GardenShapeProperties` "Open Watchlist" →
+  `/shed?tab=watchlist`; App-Help `/watchlist`→`/shed?tab=watchlist` and `/shopping`→`/planner?tab=shopping`.
 
 **Tests added:** `tests/unit/data/appHelp.test.ts` (runnable — guards **every** help deep-link
 resolves to a real route + #7); `tests/e2e/specs/navigation-deeplinks.spec.ts` (NAV-001..004 — tile

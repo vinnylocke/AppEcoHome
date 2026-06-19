@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { Link } from "react-router-dom";
 import {
   ExternalLink,
   Flag,
@@ -138,13 +139,13 @@ function LightboxAttribution({ image }: { image: GalleryImage }) {
   // No legacy fields, no image_credit — show the umbrella attribution
   // link so the "tap to learn the source" promise holds.
   return (
-    <a
-      href="/credits"
+    <Link
+      to="/credits"
       className="text-xs text-white/55 underline hover:text-white/80 inline-flex items-center gap-1"
       onClick={(e) => e.stopPropagation()}
     >
       Source unknown — see Credits
-    </a>
+    </Link>
   );
 }
 

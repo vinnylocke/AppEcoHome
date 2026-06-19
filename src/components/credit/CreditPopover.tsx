@@ -1,5 +1,6 @@
 import React, { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
+import { Link } from "react-router-dom";
 import { ExternalLink, FileText, X } from "lucide-react";
 import {
   type ImageCredit,
@@ -127,12 +128,12 @@ export default function CreditPopover({ credit, anchorRect, onClose }: Props) {
             <FileText size={11} /> Licence terms
           </a>
         )}
-        <a
-          href="/credits"
+        <Link
+          to="/credits"
           className="inline-flex items-center gap-1 text-[10px] font-bold text-rhozly-on-surface/55 hover:text-rhozly-primary"
         >
           All image sources →
-        </a>
+        </Link>
       </div>
     </div>,
     document.body,
