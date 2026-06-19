@@ -35,8 +35,14 @@ push notification       ← Firebase Cloud Messaging via Capacitor on native
 Tokens stored in `user_devices`:
 
 ```ts
-{ user_id, platform, token, created_at, last_active_at }
+{ user_id, platform, token, created_at, last_used_at }
 ```
+
+### Push delivery trigger (`push_on_notification_insert`, 2026-06-19)
+
+Device push is fanned out by an **`AFTER INSERT` trigger on `public.notifications`** — `notify_push_on_notification()` calls the `push-webhook` edge function via `pg_net` (`net.http_post`, body `{ record: <row> }`), which looks up the user's `user_devices` tokens and sends FCM. Auth uses the **publishable (anon) key** as Bearer (public; satisfies `push-webhook`'s `verify_jwt = true` — same pattern as the function-calling crons), so no secret is committed and `push-webhook` is unchanged. The `net.http_post` is wrapped in an exception handler so a push failure can never roll back the in-app notification insert.
+
+This was previously a **dashboard-configured Database Webhook** that went missing/disabled on prod (in-app bell rows were created but no device push ever sent). Codifying it as a migration (`20260804000000_push_notification_trigger.sql`) version-controls the link so it can't silently vanish again. **If a stale dashboard webhook ever resurfaces, delete it** to avoid duplicate pushes.
 
 ### `daily-batch-notifications` cron
 
