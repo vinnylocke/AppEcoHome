@@ -92,6 +92,16 @@ Three changes from watering-automation feedback:
 
 The manual run path fired the legacy `automation_devices` table, which is **empty** for unified-builder automations (their actions live in `automation_actions`). So Run now reported `success` while executing **nothing** — no valve, no notification, no task. The fix extracts the action executor (`fanoutActions`) from `evaluate-automations` into `_shared/fanoutActions.ts` and calls it from `run-automations`' manual path, so a manual run does **exactly what an automatic fire does** — runs `automation_actions`, **bypassing the trigger conditions / window / cooldown / run-limit** (it's an explicit override) — then immediately drains the valve queue so the valve fires on the click rather than at the next cron tick.
 
+### Garden AI can manage automations (2026-06-19)
+
+Garden AI (agent-chat) gained automation tools: `list_devices`, `list_automations` (read) and
+`create_automation` / `update_automation` / `run_automation` / `delete_automation` (Botanist+,
+confirm-gated; delete is strong-confirm). Create/update accept a full nested AND/OR condition tree +
+multi-action list, built + validated by the pure `_shared/automationTriggerBuild.ts` (the same
+`trigger_logic` shape the engine evaluates) with every referenced device/sensor/blueprint/area ID
+checked against the home. `run_automation` reuses the shared `fanoutActions`. See
+[Agent Tools Catalogue](../99-cross-cutting/35-agent-tools.md).
+
 ### AI Area Coach linkage (2026-06-18 fix)
 
 The Area Coach (`area-sensor-analysis`) lists an area's automations found via `automations.area_id` **and** via device links to the area's devices. Device links are collected from **both** `automation_devices` (legacy) **and** `automation_actions.target_device_id` (unified condition builder — `_shared/automationAreaLinks.ts` `uniqueAutomationIds`). Previously only `automation_devices` was checked, so condition automations with a valve in the area but no `area_id` were missed.

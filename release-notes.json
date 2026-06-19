@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "New",
+    "items": [
+      "Garden AI can now manage your automations — ask it to create (even multi-condition, multi-action), edit, run, or delete one, and it shows a confirmation before saving"
+    ]
+  }
+]

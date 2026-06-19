@@ -6,7 +6,6 @@
 // (manual "Run now", bypassing conditions). Keeping it in one place means a
 // manual run does EXACTLY what an automatic fire does.
 
-import { type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { error as logError } from "./logger.ts";
 import { buildValveQueueRows } from "./valveQueueRows.ts";
 
@@ -32,9 +31,11 @@ export interface FanoutResult {
 }
 
 export async function fanoutActions(
-  // Loosely typed so both callers' clients (different supabase-js versions)
-  // pass cleanly without the schema-generic mismatch surfacing here.
-  db: SupabaseClient<any, any, any>,
+  // `any` so every caller's client passes cleanly — this helper is shared by
+  // functions pinned to different supabase-js versions, whose SupabaseClient
+  // types are nominally incompatible (protected members).
+  // deno-lint-ignore no-explicit-any
+  db: any,
   automation: { id: string; home_id: string; name: string },
   runId: string,
   now: Date,

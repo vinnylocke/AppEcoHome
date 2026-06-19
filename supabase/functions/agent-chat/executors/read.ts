@@ -11,6 +11,7 @@
  */
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { summariseTree, type ConditionNode } from "../../_shared/conditionTree.ts";
 
 export interface ExecutorContext {
   db: SupabaseClient;
@@ -494,6 +495,72 @@ export async function exec_show_plant_images(
   };
 }
 
+// ─── list_devices ──────────────────────────────────────────────────────
+export async function exec_list_devices(
+  ctx: ExecutorContext,
+  args: Record<string, any>,
+): Promise<ExecResult> {
+  let q = ctx.db
+    .from("devices")
+    .select("id, name, device_type, area_id")
+    .eq("home_id", ctx.homeId)
+    .eq("is_active", true)
+    .order("name");
+  if (args.device_type) q = q.eq("device_type", args.device_type);
+  if (args.area_id) q = q.eq("area_id", args.area_id);
+  const { data, error } = await q;
+  if (error) throw error;
+  return {
+    payload: data ?? [],
+    summary: `Found ${data?.length ?? 0} device${data?.length === 1 ? "" : "s"} (valves + sensors).`,
+  };
+}
+
+// ─── list_automations ──────────────────────────────────────────────────
+export async function exec_list_automations(
+  ctx: ExecutorContext,
+  _args: Record<string, any>,
+): Promise<ExecResult> {
+  const { data: autos, error } = await ctx.db
+    .from("automations")
+    .select("id, name, is_active, trigger_logic, run_limit_count, run_limit_window_hours, sensor_cooldown_minutes, rate_limited_until, last_fired_at, area_id")
+    .eq("home_id", ctx.homeId)
+    .order("created_at");
+  if (error) throw error;
+
+  const ids = (autos ?? []).map((a: { id: string }) => a.id);
+  const actionsByAuto = new Map<string, string[]>();
+  if (ids.length) {
+    const { data: acts } = await ctx.db
+      .from("automation_actions")
+      .select("automation_id, action_kind, ord")
+      .in("automation_id", ids)
+      .order("ord");
+    for (const a of (acts ?? []) as Array<{ automation_id: string; action_kind: string }>) {
+      const arr = actionsByAuto.get(a.automation_id) ?? [];
+      arr.push(a.action_kind);
+      actionsByAuto.set(a.automation_id, arr);
+    }
+  }
+
+  const payload = (autos ?? []).map((a: Record<string, any>) => ({
+    id: a.id,
+    name: a.name,
+    is_active: a.is_active,
+    trigger: summariseTree(a.trigger_logic as ConditionNode),
+    actions: actionsByAuto.get(a.id) ?? [],
+    run_limit: a.run_limit_count ? `${a.run_limit_count} per ${a.run_limit_window_hours ?? 24}h` : "unlimited",
+    cooldown_minutes: a.sensor_cooldown_minutes,
+    last_fired_at: a.last_fired_at,
+    rate_limited_until: a.rate_limited_until,
+    area_id: a.area_id,
+  }));
+  return {
+    payload,
+    summary: `Found ${payload.length} automation${payload.length === 1 ? "" : "s"}.`,
+  };
+}
+
 export const READ_EXECUTORS: Record<string, Executor> = {
   show_plant_images:     exec_show_plant_images,
   list_plants:           exec_list_plants,
@@ -510,4 +577,6 @@ export const READ_EXECUTORS: Record<string, Executor> = {
   get_weather_now:       (ctx) => exec_get_weather_now(ctx),
   get_overdue_summary:   (ctx) => exec_get_overdue_summary(ctx),
   optimise_area_schedule: exec_optimise_area_schedule,
+  list_devices:          exec_list_devices,
+  list_automations:      exec_list_automations,
 };

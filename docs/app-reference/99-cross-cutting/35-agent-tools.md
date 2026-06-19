@@ -1,6 +1,6 @@
 # Agent Tools — Catalogue
 
-> The catalogue of tools the AI Agent (extended Plant Doctor chat) can invoke. Each tool maps to a typed function declaration sent to Gemini and a server-side executor that performs the action. Phase 1 covers 13 read-only tools; Phase 2-4 will add mutations.
+> The catalogue of tools the AI Agent (extended Plant Doctor chat) can invoke. Each tool maps to a typed function declaration sent to Gemini and a server-side executor that performs the action. Phases 1–5 cover read (auto-run), safe-create, structural, destructive, and automation tools.
 
 ---
 
@@ -117,6 +117,26 @@ All Phase 4 tools render with `risk_level: 'strong_confirm'` — the UI swaps th
 | `get_overdue_summary` | — | Combined digest of overdue tasks + ailments + alerts |
 | `optimise_area_schedule` | `area_id` | Invokes `optimise-area-ai` and returns schedule-consolidation suggestions. Read-shaped (proposes only — applying stays manual in the Optimise tab). Forwards the caller's bearer token so the downstream function's auth + AI quota apply. Botanist+. |
 
+### Phase 5 tool catalogue (automations + devices)
+
+Read (auto, Botanist+):
+
+| Tool | Args | Effect |
+|------|------|--------|
+| `list_devices` | `device_type?, area_id?` | Connected valves + soil sensors (id, name, type, area) — the IDs needed to wire automations. |
+| `list_automations` | — | Automations with a plain-English trigger summary, their actions, active state, run-limit, cooldown, last-fired time and rate-limit window. |
+
+Mutations (Botanist+, confirm-gated):
+
+| Tool | Risk | Args | Effect |
+|------|------|------|--------|
+| `create_automation` | confirm | `name, trigger, actions, run_limit_count?, run_limit_window_hours?, cooldown_minutes?, area_id?, is_active?` | Builds the `trigger_logic` condition tree (nested AND/OR) + `automation_actions` from structured params via the pure `_shared/automationTriggerBuild.ts` validator; inserts both. Undo deletes (cascades actions). |
+| `update_automation` | confirm | `automation_id, name?, is_active?, trigger?, actions?, run_limit_*?, cooldown_minutes?` | Patches provided fields; passing `trigger`/`actions` fully replaces them. Undo restores the prior fields + actions snapshot. |
+| `run_automation` | confirm | `automation_id` | Fires the automation's actions now (shared `fanoutActions`), bypassing conditions + run-limit. No undo. |
+| `delete_automation` | strong_confirm | `automation_id` | Deletes the automation + its actions. Undo recreates from a full snapshot. |
+
+`trigger` accepts an arbitrarily nested condition tree (`{op, conditions:[leaf|group]}`); leaves are sensor / time / date_range / task_due / weather. The pure builder (`buildTriggerTree`/`buildActions`, Deno-tested) validates shape, and the executor verifies every referenced device/sensor/blueprint/area ID belongs to the home before saving. The confirm card previews the plain-English `summariseTree`.
+
 ### Tier gating
 
 Per [tools.ts](../../supabase/functions/agent-chat/tools.ts) `getToolsForTier()`:
@@ -181,6 +201,7 @@ The `preview` text is persisted on the `chat_tool_calls` row at insert time (add
 | 2 | ✅ Shipped | 10 safe-create tools with `<ToolConfirmCard>` + Undo |
 | 3 | ✅ Shipped | 6 structural tools (blueprints, locations, areas, plans) with rich previews |
 | 4 | ✅ Shipped | 9 destructive/bulk tools with hold-to-confirm + 24h Undo |
+| 5 | ✅ Shipped | Automations — `list_devices` / `list_automations` (read) + `create` / `update` / `run` / `delete` automation (Botanist+, full multi-trigger / multi-action via the pure tree validator) |
 
 ---
 

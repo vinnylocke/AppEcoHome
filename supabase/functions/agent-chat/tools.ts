@@ -748,6 +748,150 @@ export const DESTRUCTIVE_TOOLS: ToolMeta[] = [
   },
 ];
 
+// ─────────────────────────────────────────────────────────────────────
+// Phase 5 — Automations (list/create/update/run/delete)
+// ─────────────────────────────────────────────────────────────────────
+//
+// `trigger` is a condition tree the engine evaluates. A condition is either a
+// LEAF or a GROUP. A group = { op:"and"|"or", conditions:[...] } and may nest
+// (so you can build "(A and B) or C"). A leaf has a `kind`:
+//   sensor    — { kind:"sensor", metric:"soil_moisture"|"soil_temp_c"|"soil_ec",
+//                 comparator:">"|">="|"<"|"<=", value:<number>, agg?:"any"|"all"|"average",
+//                 sensor_device_ids?:[...]  OR  area_id?:"..." }
+//   time      — { kind:"time", days?:["mon".."sun"], start:"HH:MM", end:"HH:MM" }
+//   date_range— { kind:"date_range", from:"MM-DD", to:"MM-DD" }
+//   task_due  — { kind:"task_due", blueprint_ids:[...] }
+//   weather   — { kind:"weather", type:"rain_forecast"|"heatwave", threshold_mm?, min_probability?, threshold_c? }
+//   any leaf/group may set `negate:true` (is/isn't).
+// Always resolve device/sensor/blueprint/area IDs first via list_devices /
+// list_blueprints / list_areas — never invent IDs.
+
+const LEAF_FIELDS = {
+  kind: { type: "string", description: "group | sensor | time | date_range | task_due | weather" },
+  negate: { type: "boolean", description: "Invert this condition." },
+  metric: { type: "string", description: "sensor leaf: soil_moisture | soil_temp_c | soil_ec" },
+  comparator: { type: "string", description: "sensor leaf: > | >= | < | <=" },
+  value: { type: "number", description: "sensor leaf: threshold number" },
+  agg: { type: "string", description: "sensor leaf: any | all | average (default any)" },
+  sensor_device_ids: { type: "array", items: { type: "string" }, description: "sensor leaf: device IDs (from list_devices)" },
+  area_id: { type: "string", description: "sensor leaf: area whose sensors to use (alternative to sensor_device_ids)" },
+  days: { type: "array", items: { type: "string" }, description: "time leaf: weekdays mon..sun (default every day)" },
+  start: { type: "string", description: "time leaf: HH:MM" },
+  end: { type: "string", description: "time leaf: HH:MM (24:00 = end of day)" },
+  from: { type: "string", description: "date_range leaf: MM-DD" },
+  to: { type: "string", description: "date_range leaf: MM-DD" },
+  blueprint_ids: { type: "array", items: { type: "string" }, description: "task_due leaf: blueprint IDs (from list_blueprints)" },
+  type: { type: "string", description: "weather leaf: rain_forecast | heatwave" },
+  threshold_mm: { type: "number", description: "weather rain: mm threshold" },
+  min_probability: { type: "number", description: "weather rain: % probability" },
+  threshold_c: { type: "number", description: "weather heatwave: °C threshold" },
+};
+
+// One nested group level (a condition can itself be a group of leaves).
+const NESTED_CONDITION = {
+  type: "object",
+  properties: { ...LEAF_FIELDS, op: { type: "string", description: "group: and | or" }, conditions: { type: "array", items: { type: "object", properties: LEAF_FIELDS } } },
+};
+
+const TRIGGER_SCHEMA = {
+  type: "object",
+  description: "Condition tree. Top level is a group: { op, conditions } where each condition is a leaf or a nested group. See the tool-file notes for leaf shapes.",
+  properties: {
+    op: { type: "string", description: "and | or" },
+    conditions: { type: "array", description: "Leaves and/or nested groups.", items: NESTED_CONDITION },
+  },
+  required: ["op", "conditions"],
+};
+
+const ACTIONS_SCHEMA = {
+  type: "array",
+  description: "Ordered actions to run when the trigger fires (at least one).",
+  items: {
+    type: "object",
+    properties: {
+      kind: { type: "string", description: "valve_open | valve_close | notification | complete_task" },
+      device_id: { type: "string", description: "valve_open/valve_close: valve device id (from list_devices)" },
+      duration_seconds: { type: "integer", description: "valve_open: run time in seconds (default 1800)" },
+      title: { type: "string", description: "notification: title" },
+      body: { type: "string", description: "notification: body" },
+      blueprint_id: { type: "string", description: "complete_task: blueprint id (from list_blueprints)" },
+    },
+    required: ["kind"],
+  },
+};
+
+export const AUTOMATION_TOOLS: ToolMeta[] = [
+  {
+    risk: "auto", minTier: "botanist",
+    decl: {
+      name: "list_devices",
+      description: "List the home's connected devices (smart valves + soil sensors) with id, name, device_type, area. Use this to get the device IDs needed to build or edit an automation.",
+      parameters: { type: "object", properties: {
+        device_type: { type: "string", description: "Optional filter, e.g. 'soil_sensor' or a valve type." },
+        area_id: { type: "string", description: "Optional area filter." },
+      } },
+    },
+  },
+  {
+    risk: "auto", minTier: "botanist",
+    decl: {
+      name: "list_automations",
+      description: "List the home's automations with a plain-English trigger summary, their actions, active state, run-limit, cooldown, last fired time and any rate-limit window. Use before update/delete/run to get the automation id.",
+      parameters: { type: "object", properties: {} },
+    },
+  },
+  {
+    risk: "confirm", minTier: "botanist",
+    decl: {
+      name: "create_automation",
+      description: "Create an automation: a condition `trigger` tree (multi-condition AND/OR allowed) + an ordered `actions` list. Resolve device/sensor/blueprint IDs via list_devices/list_blueprints/list_areas first. The confirm card shows the plain-English logic before it saves.",
+      parameters: { type: "object", properties: {
+        name: { type: "string" },
+        trigger: TRIGGER_SCHEMA,
+        actions: ACTIONS_SCHEMA,
+        run_limit_count: { type: "integer", description: "Max fires per window (omit = unlimited)." },
+        run_limit_window_hours: { type: "integer", description: "Rolling window for the run limit (default 24)." },
+        cooldown_minutes: { type: "integer", description: "Minimum gap between fires (default 60)." },
+        area_id: { type: "string", description: "Optional area scope for the automation." },
+        is_active: { type: "boolean", description: "Default true." },
+      }, required: ["name", "trigger", "actions"] },
+    },
+  },
+  {
+    risk: "confirm", minTier: "botanist",
+    decl: {
+      name: "update_automation",
+      description: "Amend an existing automation. Only the fields you pass change. Passing `trigger` replaces the whole condition tree; passing `actions` replaces the whole actions list.",
+      parameters: { type: "object", properties: {
+        automation_id: { type: "string" },
+        name: { type: "string" },
+        is_active: { type: "boolean" },
+        trigger: TRIGGER_SCHEMA,
+        actions: ACTIONS_SCHEMA,
+        run_limit_count: { type: "integer" },
+        run_limit_window_hours: { type: "integer" },
+        cooldown_minutes: { type: "integer" },
+      }, required: ["automation_id"] },
+    },
+  },
+  {
+    risk: "confirm", minTier: "botanist",
+    decl: {
+      name: "run_automation",
+      description: "Run an automation now — fires its actions immediately, bypassing the trigger conditions and run-limit. Use for 'water bed 1 now' style asks.",
+      parameters: { type: "object", properties: { automation_id: { type: "string" } }, required: ["automation_id"] },
+    },
+  },
+  {
+    risk: "strong_confirm", minTier: "botanist",
+    decl: {
+      name: "delete_automation",
+      description: "Delete an automation and its actions. Reversible via Undo (it's recreated from a snapshot).",
+      parameters: { type: "object", properties: { automation_id: { type: "string" } }, required: ["automation_id"] },
+    },
+  },
+];
+
 /**
  * Master catalog — combination of all phases.
  */
@@ -756,6 +900,7 @@ export const ALL_TOOLS: ToolMeta[] = [
   ...MUTATION_TOOLS,
   ...STRUCTURAL_TOOLS,
   ...DESTRUCTIVE_TOOLS,
+  ...AUTOMATION_TOOLS,
 ];
 
 /** Look up a tool by name. */
