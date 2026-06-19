@@ -4,7 +4,7 @@ import {
   windowStartIso,
   FIRED_STATUSES,
   shouldCollapseRateLimitSkip,
-  nextSkipAttempts,
+  nextEligibleAt,
 } from "@shared/runLimit.ts";
 
 Deno.test("isRateLimited — unlimited when limit null/0/negative", () => {
@@ -43,11 +43,20 @@ Deno.test("shouldCollapseRateLimitSkip — only when the latest run is itself a 
   assertEquals(shouldCollapseRateLimitSkip(undefined), false);
 });
 
-Deno.test("nextSkipAttempts — increments, clamps a missing/invalid prior to 2", () => {
-  assertEquals(nextSkipAttempts(1), 2);
-  assertEquals(nextSkipAttempts(3), 4);
-  assertEquals(nextSkipAttempts(null), 2);
-  assertEquals(nextSkipAttempts(undefined), 2);
-  assertEquals(nextSkipAttempts(0), 2);
-  assertEquals(nextSkipAttempts(2.7), 3); // floors before incrementing
+Deno.test("nextEligibleAt — limit-th most-recent fire + window", () => {
+  // 2/24h fired at 12:35 + 14:05 → eligible when the OLDER (12:35) ages out.
+  const fires = ["2026-06-18T14:05:00.000Z", "2026-06-18T12:35:00.000Z"];
+  assertEquals(nextEligibleAt(fires, 2, 24), "2026-06-19T12:35:00.000Z");
+  // limit 1 → the single most-recent fire + window.
+  assertEquals(nextEligibleAt(["2026-06-18T14:05:00.000Z"], 1, 24), "2026-06-19T14:05:00.000Z");
+  // windowHours 0 falls back to 24h.
+  assertEquals(nextEligibleAt(["2026-06-18T00:00:00.000Z"], 1, 0), "2026-06-19T00:00:00.000Z");
+});
+
+Deno.test("nextEligibleAt — null when not actually over the limit / unusable", () => {
+  assertEquals(nextEligibleAt(["2026-06-18T14:05:00.000Z"], 2, 24), null); // fewer than limit
+  assertEquals(nextEligibleAt([], 2, 24), null);
+  assertEquals(nextEligibleAt(["2026-06-18T14:05:00.000Z"], 0, 24), null); // unlimited
+  assertEquals(nextEligibleAt(["2026-06-18T14:05:00.000Z"], null, 24), null);
+  assertEquals(nextEligibleAt(["not-a-date"], 1, 24), null);
 });

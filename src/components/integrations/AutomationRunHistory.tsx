@@ -14,7 +14,7 @@ interface AutomationRun {
   // Condition engine writes an object; legacy runner wrote an array — both handled.
   devices_triggered: DeviceResult[] | { notifications?: number; valves_queued?: number } | null;
   tasks_completed: TaskResult[] | null;
-  trigger_reason: { summary?: string; matched?: string[]; attempts?: number } | null;
+  trigger_reason: { summary?: string; matched?: string[]; next_eligible_at?: string } | null;
   error_message: string | null;
   completed_at: string | null;
 }
@@ -101,8 +101,8 @@ export default function AutomationRunHistory({ automationId }: Props) {
                 run.status === "skipped_rate_limited" ? (
                   <p className="text-[11px] text-rhozly-on-surface-variant/80 mt-0.5">
                     {run.trigger_reason.summary}
-                    {typeof run.trigger_reason.attempts === "number" && run.trigger_reason.attempts > 1
-                      ? ` · retried ${run.trigger_reason.attempts}×`
+                    {run.trigger_reason.next_eligible_at
+                      ? ` — next try ${new Date(run.trigger_reason.next_eligible_at).toLocaleString([], { dateStyle: "short", timeStyle: "short" })}`
                       : ""}
                   </p>
                 ) : (

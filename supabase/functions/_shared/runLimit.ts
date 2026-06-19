@@ -22,12 +22,11 @@ export function windowStartIso(now: Date, windowHours: number): string {
   return new Date(now.getTime() - hours * 60 * 60 * 1000).toISOString();
 }
 
-// ── Skip-row collapsing ────────────────────────────────────────────────────
-// The event-driven engine + repeat-while-true firing would otherwise log a
-// `skipped_rate_limited` run on every tick while the condition stays true,
-// flooding the run history and burying real runs. We instead keep ONE rolling
-// skip row between real runs: collapse onto the most recent run when it's
-// already a rate-limited skip, otherwise insert a fresh one.
+// ── Mute-until + single skip row ────────────────────────────────────────────
+// Once over the run-limit we compute the exact next-eligible time and mute the
+// automation until then (no per-tick re-eval/skip-logging). We keep ONE skip
+// row between real runs: collapse onto the most recent run when it's already a
+// rate-limited skip, otherwise insert a fresh one.
 
 /** True when a new rate-limited skip should COLLAPSE into the most recent run
  *  (i.e. update it) rather than insert a new row. */
@@ -35,8 +34,19 @@ export function shouldCollapseRateLimitSkip(lastStatus: string | null | undefine
   return lastStatus === "skipped_rate_limited";
 }
 
-/** Next `attempts` count when collapsing onto an existing skip row (≥ 2). */
-export function nextSkipAttempts(prevAttempts: number | null | undefined): number {
-  const n = Number(prevAttempts);
-  return (Number.isFinite(n) && n >= 1 ? Math.floor(n) : 1) + 1;
+/** The instant the run-limit next clears: the `limit`-th most-recent in-window
+ *  fire ages out at its timestamp + window. `firedDescIso` is the in-window
+ *  fired-run timestamps, newest-first (length ≥ limit when actually limited).
+ *  Returns null when not actually over the limit / inputs are unusable. */
+export function nextEligibleAt(
+  firedDescIso: string[],
+  limit: number | null | undefined,
+  windowHours: number,
+): string | null {
+  if (limit == null || limit <= 0) return null;
+  if (firedDescIso.length < limit) return null;
+  const hours = windowHours > 0 ? windowHours : 24;
+  const t = new Date(firedDescIso[limit - 1]).getTime();
+  if (!Number.isFinite(t)) return null;
+  return new Date(t + hours * 60 * 60 * 1000).toISOString();
 }

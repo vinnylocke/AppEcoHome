@@ -26,7 +26,7 @@ import {
   type ConditionNode, type LeafNode,
 } from "../_shared/conditionTree.ts";
 import { buildValveQueueRows } from "../_shared/valveQueueRows.ts";
-import { isRateLimited, windowStartIso, FIRED_STATUSES, shouldCollapseRateLimitSkip, nextSkipAttempts } from "../_shared/runLimit.ts";
+import { isRateLimited, windowStartIso, FIRED_STATUSES, shouldCollapseRateLimitSkip, nextEligibleAt } from "../_shared/runLimit.ts";
 import { defaultWindowOpen, type DefaultWindow } from "../_shared/automationWindow.ts";
 import { treeHasTimeTrigger, treeAffectedByDevice } from "../_shared/automationCandidates.ts";
 
@@ -179,6 +179,14 @@ async function processOne(
   const tree = automation.trigger_logic as ConditionNode | null;
   if (!tree) { log(FN, "skip_no_logic", { id }); return { decision: "no_logic" }; }
 
+  // Rate-limit mute: once over the run-limit we store the exact next-eligible
+  // time and skip evaluation entirely until then — no condition eval, no count
+  // query, no skip-row writes. This is what stops the event-driven flood. A DB
+  // trigger clears `rate_limited_until` whenever the automation is amended, so
+  // edits re-check immediately.
+  const rlUntil = automation.rate_limited_until ? new Date(automation.rate_limited_until as string) : null;
+  if (rlUntil && now < rlUntil) { return { decision: "rate_limited_muted" }; }
+
   const leaves = collectLeaves(tree);
 
   // 2. Build context.
@@ -229,35 +237,38 @@ async function processOne(
     return { decision: !nowTrue ? "idle" : !windowOpen ? "outside_window" : "holding" };
   }
 
-  // 4. Run-limit gate (#7) — count actual fires in the rolling window.
+  // 4. Run-limit gate (#7) — fetch the in-window fires (newest-first, capped at
+  // the limit) so we can both gate AND compute the exact next-eligible time.
   const runLimitCount = (automation.run_limit_count as number | null) ?? null;
-  if (runLimitCount != null) {
+  if (runLimitCount != null && runLimitCount > 0) {
     const windowHours = Number(automation.run_limit_window_hours ?? 24);
-    const { count } = await db.from("automation_runs")
-      .select("id", { count: "exact", head: true })
+    const { data: firedRows } = await db.from("automation_runs")
+      .select("triggered_at")
       .eq("automation_id", id)
       .gte("triggered_at", windowStartIso(now, windowHours))
-      .in("status", FIRED_STATUSES as unknown as string[]);
-    if (isRateLimited(count ?? 0, runLimitCount)) {
-      // Collapse consecutive rate-limited skips into ONE rolling row. The
-      // event-driven engine + repeat-while-true firing would otherwise insert
-      // a skip on every tick while the condition stays true, flooding the
-      // history and burying real runs. A real run breaks the chain, so there's
-      // at most one skip row between fires. (Note: `condition_was_true` no
-      // longer gates `shouldFire`, so the old "mark the edge consumed" write
-      // was a no-op — the collapse is what bounds the flood.)
+      .in("status", FIRED_STATUSES as unknown as string[])
+      .order("triggered_at", { ascending: false })
+      .limit(runLimitCount);
+    const firedDesc = (firedRows ?? []).map((r) => r.triggered_at as string);
+    if (isRateLimited(firedDesc.length, runLimitCount)) {
+      // Over the limit: store the exact next-eligible time so the mute gate
+      // above short-circuits every tick until then (no flood, no counter), and
+      // write ONE run-history row recording when it'll next try. We only reach
+      // here when not muted — i.e. first time over the limit, or a boundary
+      // recheck — so this writes/updates the single skip row at most rarely.
+      const nextIso = nextEligibleAt(firedDesc, runLimitCount, windowHours);
+      await db.from("automations").update({ rate_limited_until: nextIso }).eq("id", id);
+
+      const reason = { summary: "Run limit reached", next_eligible_at: nextIso };
       const { data: lastRun } = await db.from("automation_runs")
-        .select("id, status, trigger_reason")
+        .select("id, status")
         .eq("automation_id", id)
         .order("triggered_at", { ascending: false })
         .limit(1)
         .maybeSingle();
       if (shouldCollapseRateLimitSkip(lastRun?.status as string | undefined)) {
-        const attempts = nextSkipAttempts((lastRun?.trigger_reason as { attempts?: number } | null)?.attempts);
         const { error: updErr } = await db.from("automation_runs").update({
-          triggered_at: now.toISOString(),
-          completed_at: now.toISOString(),
-          trigger_reason: { summary: "Run limit reached", attempts },
+          triggered_at: now.toISOString(), completed_at: now.toISOString(), trigger_reason: reason,
         }).eq("id", (lastRun as { id: string }).id);
         if (updErr) logError(FN, "skip_run_update_failed", { id, message: updErr.message });
       } else {
@@ -265,13 +276,13 @@ async function processOne(
           automation_id: id, home_id: homeId, triggered_by: "schedule",
           status: "skipped_rate_limited",
           devices_triggered: { notifications: 0, valves_queued: 0 },
-          trigger_reason: { summary: "Run limit reached", attempts: 1 },
+          trigger_reason: reason,
           completed_at: now.toISOString(),
         });
         // Don't let a logging-row failure hide a rate-limited skip ever again.
         if (skipErr) logError(FN, "skip_run_insert_failed", { id, status: "skipped_rate_limited", message: skipErr.message });
       }
-      log(FN, "rate_limited", { id, count, limit: runLimitCount });
+      log(FN, "rate_limited", { id, fired: firedDesc.length, limit: runLimitCount, next: nextIso });
       return { decision: "rate_limited" };
     }
   }
@@ -290,7 +301,7 @@ async function processOne(
   const fanout = await fanoutActions(db, { id, home_id: homeId, name: automation.name as string }, runId, now);
 
   await db.from("automations").update({
-    last_fired_at: now.toISOString(), condition_was_true: true,
+    last_fired_at: now.toISOString(), condition_was_true: true, rate_limited_until: null,
   }).eq("id", id);
   await db.from("automation_runs").update({
     completed_at: now.toISOString(),
