@@ -38,11 +38,13 @@ Tokens stored in `user_devices`:
 { user_id, platform, token, created_at, last_used_at }
 ```
 
-### Push delivery trigger (`push_on_notification_insert`, 2026-06-19)
+### Push delivery trigger — `"Trigger Push Notification"` (dashboard webhook)
 
-Device push is fanned out by an **`AFTER INSERT` trigger on `public.notifications`** — `notify_push_on_notification()` calls the `push-webhook` edge function via `pg_net` (`net.http_post`, body `{ record: <row> }`), which looks up the user's `user_devices` tokens and sends FCM. Auth uses the **publishable (anon) key** as Bearer (public; satisfies `push-webhook`'s `verify_jwt = true` — same pattern as the function-calling crons), so no secret is committed and `push-webhook` is unchanged. The `net.http_post` is wrapped in an exception handler so a push failure can never roll back the in-app notification insert.
+Device push is fanned out by a **Supabase Database Webhook** named **`"Trigger Push Notification"`** — an `AFTER INSERT` trigger on `public.notifications` that calls the `push-webhook` edge function via `supabase_functions.http_request` (POST, `{ record: <row> }`, service_role Bearer, 5s timeout). `push-webhook` looks up the user's `user_devices` tokens and sends FCM (HIGH priority). So **any** `notifications` row insert (daily reminders, golden hour, weekly overview, automations) triggers a device push.
 
-This was previously a **dashboard-configured Database Webhook** that went missing/disabled on prod (in-app bell rows were created but no device push ever sent). Codifying it as a migration (`20260804000000_push_notification_trigger.sql`) version-controls the link so it can't silently vanish again. **If a stale dashboard webhook ever resurfaces, delete it** to avoid duplicate pushes.
+> ⚠️ **This webhook is dashboard-configured (Database → Webhooks), NOT in version control.** If it is deleted or disabled in the dashboard, every device push silently stops while the in-app bell keeps working — and nothing in the repo would reveal why. A 2026-06-19 attempt to codify it as a migration (`20260804000000`) was **reverted** (`20260805000000`) because it ran *alongside* the existing webhook and produced **duplicate** pushes. If you ever want it codified, first delete `"Trigger Push Notification"` in the dashboard, then add the trigger as a migration — never run both.
+
+Debugging "no push" (verified 2026-06-19): confirm in order — (1) a `notifications` row was created (cron + filters OK), (2) `user_devices` has a token for the user, (3) the webhook fired (it can be invoked manually: `POST /functions/v1/push-webhook` with `{ record: { user_id, title, body, data, id } }`), (4) FCM/device delivery.
 
 ### `daily-batch-notifications` cron
 

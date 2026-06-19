@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Fixed",
-    "items": [
-      "Daily task-reminder push notifications weren't reaching your device (the in-app bell still worked, but nothing pushed to your phone). Push delivery is now reliable again for reminders, golden hour, weekly overview and automations."
-    ]
-  }
-]
+[]

@@ -84,6 +84,16 @@ CREATE TRIGGER push_on_notification_insert
 - [99-cross-cutting/12-notifications.md](../app-reference/99-cross-cutting/12-notifications.md) — document the codified `push_on_notification_insert` trigger as the delivery mechanism (replacing the implicit "dashboard webhook" assumption); add the duplicate-webhook note.
 - [99-cross-cutting/10-edge-functions-catalogue.md](../app-reference/99-cross-cutting/10-edge-functions-catalogue.md) — `push-webhook` "invoked by" = the notifications-insert trigger.
 
+## OUTCOME (2026-06-19) — reverted; diagnosis was partly wrong
+
+After deploying the trigger (`20260804000000`) and inserting a test notification row, the reporting user received the push **twice**. A `supabase db dump` of prod revealed a **pre-existing dashboard Database Webhook** `"Trigger Push Notification"` (via `supabase_functions.http_request`) already firing `push-webhook` on every `notifications` insert. So the trigger was **not missing** — the added trigger merely duplicated the existing one.
+
+**Resolution:** reverted the added trigger + function (`20260805000000`); the dashboard webhook remains the single delivery mechanism. The original "no morning push" was therefore most likely a one-off delivery/notice issue, not a missing trigger.
+
+**Lasting value of this investigation:** the previously-undocumented dashboard webhook is now documented in [Notifications](../app-reference/99-cross-cutting/12-notifications.md) + [Edge Functions Catalogue](../app-reference/99-cross-cutting/10-edge-functions-catalogue.md), including the fragility that it's **not in version control** (deleting it in the dashboard silently kills all push). The manual `push-webhook` invoke is recorded there as a delivery test.
+
+**Lesson:** before codifying an assumed-missing webhook/trigger, dump the remote schema first (`supabase db dump --schema public`) to check what already exists.
+
 ## Out of scope (separate follow-up)
 
 The once-daily **08:00 UTC** batch is the only reminder source — no real-time/at-due-time push and no second daily pass. Worth a later enhancement (per-user reminder time, or notify at the task's due time), but not required to fix the reported "no push at all" bug.

@@ -121,7 +121,7 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 | `integrations-webhook-router` | External POST | Public webhook endpoint for adapter-based providers. Three auth styles (path / query / `X-Rhozly-Token`). Writes `device_readings` + refreshes `devices.battery_*` columns. `verify_jwt = false`. |
 | `integrations-rotate-webhook-secret` | DeviceSettings → Webhook details panel | Regenerates the 256-bit webhook secret for a `custom_http` integration. JWT-verified, home-member gated. |
 | `integrations-readings-query` | Browser | Generic readings query API. |
-| `push-webhook` | `push_on_notification_insert` trigger on `notifications` (via `pg_net`) | Push fan-out. Reads `payload.record`, looks up the user's `user_devices` tokens, sends FCM (HIGH priority). Invoked by the codified `AFTER INSERT` trigger (2026-06-19, migration `20260804000000`) using the publishable key for auth — see [Notifications](./12-notifications.md). `verify_jwt = true`. |
+| `push-webhook` | `"Trigger Push Notification"` Database Webhook on `notifications` INSERT | Push fan-out. Reads `payload.record`, looks up the user's `user_devices` tokens, sends FCM (HIGH priority). Invoked by a **dashboard-configured** Database Webhook (`supabase_functions.http_request`, service_role auth) — **not version-controlled**; if deleted in the dashboard, all device push silently stops. See [Notifications](./12-notifications.md). `verify_jwt = true`. |
 
 ### System
 
