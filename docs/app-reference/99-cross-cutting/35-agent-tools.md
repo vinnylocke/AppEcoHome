@@ -137,6 +137,20 @@ Mutations (Botanist+, confirm-gated):
 
 `trigger` accepts an arbitrarily nested condition tree (`{op, conditions:[leaf|group]}`); leaves are sensor / time / date_range / task_due / weather. The pure builder (`buildTriggerTree`/`buildActions`, Deno-tested) validates shape, and the executor verifies every referenced device/sensor/blueprint/area ID belongs to the home before saving. The confirm card previews the plain-English `summariseTree`.
 
+### Phase 6 tool catalogue (gap-filling single-item tools)
+
+Botanist+, confirm-gated (archive/delete = strong-confirm), all with Undo:
+
+| Tool(s) | Risk | Effect |
+|---------|------|--------|
+| `complete_task` / `skip_task` / `snooze_task` | confirm | Single-task Complete / Skip / move-due-date — complements to the bulk variants. |
+| `remove_shopping_item` / `toggle_shopping_item_bought` / `complete_shopping_list` | confirm | Remove an item, tick it bought (`is_checked`), or mark a list completed / reopened. |
+| `resolve_ailment` / `unlink_ailment_from_instance` | confirm | Mark a plant's ailment resolved, or delete the `plant_instance_ailments` link (identified by instance + ailment id). |
+| `update_plan` / `remove_plant_from_plan` | confirm | Edit a plan's name/description/status; remove a plant from the manifest (re-indexes `plant_mapping`). |
+| `archive_plan` | strong_confirm | Status → Archived. |
+| `rename_area` / `rename_location` | confirm | Rename. |
+| `delete_area` / `delete_location` | strong_confirm | Delete — **guarded**: refuses if the area still has active plants/devices or the location still has areas. Undo recreates from a snapshot. |
+
 ### Tier gating
 
 Per [tools.ts](../../supabase/functions/agent-chat/tools.ts) `getToolsForTier()`:
@@ -202,6 +216,7 @@ The `preview` text is persisted on the `chat_tool_calls` row at insert time (add
 | 3 | ✅ Shipped | 6 structural tools (blueprints, locations, areas, plans) with rich previews |
 | 4 | ✅ Shipped | 9 destructive/bulk tools with hold-to-confirm + 24h Undo |
 | 5 | ✅ Shipped | Automations — `list_devices` / `list_automations` (read) + `create` / `update` / `run` / `delete` automation (Botanist+, full multi-trigger / multi-action via the pure tree validator) |
+| 6 | ✅ Shipped | Gap-filling single-item tools — task complete/skip/snooze, shopping remove/tick/complete, ailment resolve/unlink, plan update/archive/remove-plant, area+location rename/delete (Botanist+, all with Undo) |
 
 ---
 

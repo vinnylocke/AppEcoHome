@@ -32,13 +32,15 @@ import { MUTATION_EXECUTORS } from "./executors/mutations.ts";
 import { STRUCTURAL_EXECUTORS } from "./executors/structural.ts";
 import { DESTRUCTIVE_EXECUTORS } from "./executors/destructive.ts";
 import { AUTOMATION_EXECUTORS } from "./executors/automations.ts";
+import { GAP_EXECUTORS } from "./executors/gaps.ts";
 
-// Combined mutation executor registry across Phase 2 + 3 + 4 + 5.
+// Combined mutation executor registry across Phase 2 + 3 + 4 + 5 + 6.
 const ALL_MUTATION_EXECUTORS = {
   ...MUTATION_EXECUTORS,
   ...STRUCTURAL_EXECUTORS,
   ...DESTRUCTIVE_EXECUTORS,
   ...AUTOMATION_EXECUTORS,
+  ...GAP_EXECUTORS,
 };
 import { buildHomeContext, invalidateContext } from "./context.ts";
 

@@ -892,6 +892,33 @@ export const AUTOMATION_TOOLS: ToolMeta[] = [
   },
 ];
 
+// ─────────────────────────────────────────────────────────────────────
+// Phase 6 — Gap-filling single-item tools
+// ─────────────────────────────────────────────────────────────────────
+
+export const GAP_TOOLS: ToolMeta[] = [
+  // Tasks (single-item complements to the bulk tools)
+  { risk: "confirm", minTier: "botanist", decl: { name: "complete_task", description: "Mark ONE task Completed. (For many at once, use bulk_complete_tasks.)", parameters: { type: "object", properties: { task_id: { type: "string" } }, required: ["task_id"] } } },
+  { risk: "confirm", minTier: "botanist", decl: { name: "skip_task", description: "Mark ONE task Skipped (it won't count as done and stops appearing as due).", parameters: { type: "object", properties: { task_id: { type: "string" } }, required: ["task_id"] } } },
+  { risk: "confirm", minTier: "botanist", decl: { name: "snooze_task", description: "Move a task's due date. Pass `new_date` (ISO YYYY-MM-DD) OR `days` (relative, default +1).", parameters: { type: "object", properties: { task_id: { type: "string" }, days: { type: "integer" }, new_date: { type: "string", description: "ISO date" } }, required: ["task_id"] } } },
+  // Shopping
+  { risk: "confirm", minTier: "botanist", decl: { name: "remove_shopping_item", description: "Remove an item from a shopping list (use list_shopping_lists to get the item id).", parameters: { type: "object", properties: { item_id: { type: "string" } }, required: ["item_id"] } } },
+  { risk: "confirm", minTier: "botanist", decl: { name: "toggle_shopping_item_bought", description: "Tick/untick a shopping item as bought. Pass `bought` (true/false) or omit to toggle.", parameters: { type: "object", properties: { item_id: { type: "string" }, bought: { type: "boolean" } }, required: ["item_id"] } } },
+  { risk: "confirm", minTier: "botanist", decl: { name: "complete_shopping_list", description: "Mark a shopping list completed (or reopen it with `reopen: true`).", parameters: { type: "object", properties: { list_id: { type: "string" }, reopen: { type: "boolean" } }, required: ["list_id"] } } },
+  // Ailments
+  { risk: "confirm", minTier: "botanist", decl: { name: "resolve_ailment", description: "Mark an ailment on a specific plant as resolved (keeps history). Identify by the plant instance + ailment id.", parameters: { type: "object", properties: { inventory_item_id: { type: "string" }, ailment_id: { type: "string" } }, required: ["inventory_item_id", "ailment_id"] } } },
+  { risk: "confirm", minTier: "botanist", decl: { name: "unlink_ailment_from_instance", description: "Remove the link marking a plant as affected by an ailment (deletes the link).", parameters: { type: "object", properties: { inventory_item_id: { type: "string" }, ailment_id: { type: "string" } }, required: ["inventory_item_id", "ailment_id"] } } },
+  // Plans
+  { risk: "confirm", minTier: "botanist", decl: { name: "update_plan", description: "Update a plan's name, description, or status (Draft | In Progress | Completed | Archived).", parameters: { type: "object", properties: { plan_id: { type: "string" }, name: { type: "string" }, description: { type: "string" }, status: { type: "string" } }, required: ["plan_id"] } } },
+  { risk: "strong_confirm", minTier: "botanist", decl: { name: "archive_plan", description: "Archive a plan (status → Archived). Reversible.", parameters: { type: "object", properties: { plan_id: { type: "string" } }, required: ["plan_id"] } } },
+  { risk: "confirm", minTier: "botanist", decl: { name: "remove_plant_from_plan", description: "Remove a plant from a plan's plant list. Identify by `index` (from the list_plans payload) or `common_name`.", parameters: { type: "object", properties: { plan_id: { type: "string" }, index: { type: "integer" }, common_name: { type: "string" } }, required: ["plan_id"] } } },
+  // Areas / locations
+  { risk: "confirm", minTier: "botanist", decl: { name: "rename_area", description: "Rename a garden area.", parameters: { type: "object", properties: { area_id: { type: "string" }, name: { type: "string" } }, required: ["area_id", "name"] } } },
+  { risk: "confirm", minTier: "botanist", decl: { name: "rename_location", description: "Rename a location.", parameters: { type: "object", properties: { location_id: { type: "string" }, name: { type: "string" } }, required: ["location_id", "name"] } } },
+  { risk: "strong_confirm", minTier: "botanist", decl: { name: "delete_area", description: "Delete a garden area. Only succeeds if it has no active plants or devices (move them first). Reversible via Undo.", parameters: { type: "object", properties: { area_id: { type: "string" } }, required: ["area_id"] } } },
+  { risk: "strong_confirm", minTier: "botanist", decl: { name: "delete_location", description: "Delete a location. Only succeeds if it has no areas (delete those first). Reversible via Undo.", parameters: { type: "object", properties: { location_id: { type: "string" } }, required: ["location_id"] } } },
+];
+
 /**
  * Master catalog — combination of all phases.
  */
@@ -901,6 +928,7 @@ export const ALL_TOOLS: ToolMeta[] = [
   ...STRUCTURAL_TOOLS,
   ...DESTRUCTIVE_TOOLS,
   ...AUTOMATION_TOOLS,
+  ...GAP_TOOLS,
 ];
 
 /** Look up a tool by name. */
