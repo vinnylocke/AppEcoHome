@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { TextToSpeech } from "@capacitor-community/text-to-speech";
+import { Capacitor } from "@capacitor/core";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 
@@ -56,6 +58,26 @@ function browserSpeak(text: string, onEnd: () => void, onError: (e: unknown) => 
   }
 }
 
+// Device-native TTS — the fallback when cloud TTS is off/unavailable. Uses the
+// Capacitor community plugin, which speaks through the OS engine on Android/iOS
+// (so it works INSIDE the WebView, unlike the Web Speech API, which is silent in
+// the Android System WebView) and wraps speechSynthesis on web. Free — no
+// per-character cost. Falls back to raw speechSynthesis only when the plugin
+// isn't present (e.g. an APK built before it was added).
+async function deviceSpeak(text: string, onEnd: () => void, onError: (e: unknown) => void) {
+  if (!Capacitor.isPluginAvailable("TextToSpeech")) {
+    browserSpeak(text, onEnd, onError);
+    return;
+  }
+  try {
+    try { await TextToSpeech.stop(); } catch { /* ignore */ }
+    await TextToSpeech.speak({ text, lang: "en-GB", rate: 1.0, pitch: 1.0, volume: 1.0, category: "playback" });
+    onEnd();
+  } catch (err) {
+    onError(err);
+  }
+}
+
 export function useTextToSpeech() {
   const [state, setState] = useState<TtsState>("idle");
   const [activeKey, setActiveKey] = useState<string | null>(null);
@@ -71,6 +93,9 @@ export function useTextToSpeech() {
     }
     if (typeof window !== "undefined" && "speechSynthesis" in window) {
       try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
+    }
+    if (Capacitor.isPluginAvailable("TextToSpeech")) {
+      try { void TextToSpeech.stop(); } catch { /* ignore */ }
     }
     setState("idle");
     setActiveKey(null);
@@ -129,14 +154,14 @@ export function useTextToSpeech() {
             single.audio = null;
             single.currentKey = null;
           }
-          browserSpeak(trimmed,
+          deviceSpeak(trimmed,
             () => { setState("idle"); setActiveKey(null); },
             () => { setState("error"); setActiveKey(null); });
         };
         await audio.play().catch((e) => {
           // Autoplay policy may have blocked playback — fall back.
           Logger.warn("TTS audio.play rejected", { e });
-          browserSpeak(trimmed,
+          deviceSpeak(trimmed,
             () => { setState("idle"); setActiveKey(null); },
             () => { setState("error"); setActiveKey(null); });
         });

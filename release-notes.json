@@ -1,1 +1,14 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "Rate-limited automations no longer flood the run history — you now see a single entry showing when the automation will next be allowed to run"
+    ]
+  },
+  {
+    "label": "Improved",
+    "items": [
+      "Garden AI read-aloud now falls back to your device's built-in voice if the premium cloud voice is unavailable, so chat replies can still be read out"
+    ]
+  }
+]

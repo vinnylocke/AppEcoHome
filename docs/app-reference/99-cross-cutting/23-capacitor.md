@@ -39,6 +39,7 @@ Used to branch:
 | `@capacitor/app` | URL listener (deep links) |
 | `@capacitor/device` | Device info |
 | `@capgo/capacitor-light-sensor` | Native ambient light sensor |
+| `@capacitor-community/text-to-speech` | Native device voice — read-aloud fallback when cloud TTS is off/unavailable (speaks inside the WebView, unlike the Web Speech API) |
 | `@capacitor-community/screen-orientation` (or similar) | Orientation lock |
 
 ### Android permissions (`android/app/src/main/AndroidManifest.xml`)
@@ -55,7 +56,7 @@ Adding a permission requires an **APK rebuild + redistribution** — it can't sh
 
 ### WebView media playback
 
-`MainActivity` calls `webView.getSettings().setMediaPlaybackRequiresUserGesture(false)` so Garden AI read-aloud can (a) auto-play replies (no gesture) and (b) play *after* the async `tts-speak` fetch. The Android WebView default (`true`) blocks both, and the web `speechSynthesis` fallback is silent in System WebView — so without this, native read-aloud produces no audio. See [Plant Doctor Chat](../05-tools/03-plant-doctor-chat.md).
+`MainActivity` calls `webView.getSettings().setMediaPlaybackRequiresUserGesture(false)` so Garden AI read-aloud can (a) auto-play replies (no gesture) and (b) play *after* the async `tts-speak` fetch. The Android WebView default (`true`) blocks both. **Read-aloud fallback chain** (`useTextToSpeech`): cloud Chirp3-HD MP3 → on any failure the `@capacitor-community/text-to-speech` native device voice (works in the WebView) → raw `speechSynthesis` only if the plugin is absent (older APK). The Web Speech API alone is silent in the Android System WebView, which is why the native plugin fallback exists. See [Plant Doctor Chat](../05-tools/03-plant-doctor-chat.md).
 
 ### Deep linking
 

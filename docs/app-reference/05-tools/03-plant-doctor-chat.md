@@ -84,7 +84,7 @@ supabase.from("user_profiles")
 
 When `voice_settings.auto_read_assistant_replies` is `true`, an effect speaks each newly-arrived assistant reply via `useTextToSpeech` (→ `tts-speak` edge function). Independently, every assistant message carries a `ReadAloudButton` for on-demand playback. The toggle that sets this preference lives in **Gardener's Profile → Alerts → Voice** (`/gardener?tab=notifications`).
 
-> **Native APK requirements:** tap-to-talk needs `RECORD_AUDIO` in the Android manifest, and read-aloud needs `MainActivity` to set `setMediaPlaybackRequiresUserGesture(false)` — the Android WebView default blocks both auto-read (no gesture) and the post-`await` `audio.play()`, and the `speechSynthesis` fallback is silent in System WebView. Both are baked into the APK (rebuild required); the PWA is unaffected. See [Capacitor](../99-cross-cutting/23-capacitor.md).
+> **Native APK requirements:** tap-to-talk needs `RECORD_AUDIO` in the Android manifest; read-aloud needs `MainActivity` to set `setMediaPlaybackRequiresUserGesture(false)` (the WebView default blocks both auto-read and the post-`await` `audio.play()`). **Read-aloud fallback chain:** cloud Chirp3-HD → on any failure the `@capacitor-community/text-to-speech` native device voice (works in the WebView) → raw `speechSynthesis` only if the plugin is absent. The Web Speech API alone is silent in the Android System WebView, hence the native plugin. All baked into the APK (rebuild required); the PWA is unaffected. See [Capacitor](../99-cross-cutting/23-capacitor.md).
 
 ### Data flow — write paths
 
