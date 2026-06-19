@@ -1278,6 +1278,21 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
     setParams(p, { replace: true });
   };
 
+  // "Customise quick launcher" deep link (?section=quick-launcher): ensure the
+  // Account tab (where the picker lives) is active, scroll to it, strip param.
+  useEffect(() => {
+    if (params.get("section") !== "quick-launcher") return;
+    setTabState("account");
+    const t = setTimeout(() => {
+      document.getElementById("quick-launcher-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 350);
+    const p = new URLSearchParams(params);
+    p.delete("section");
+    setParams(p, { replace: true });
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Avatar — fetched on mount; updated via PhotoUploader.
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);
   const [avatarLoading, setAvatarLoading] = useState(false);
@@ -1416,6 +1431,7 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
           />
           <PersonaSetting userId={userId} />
           <JournalAutoUpdateSetting userId={userId} />
+          <div id="quick-launcher-section" />
           <QuickLauncherPicker
             userId={userId}
             homeId={homeId ?? null}

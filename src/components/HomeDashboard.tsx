@@ -130,7 +130,7 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
             label="Completed"
             value={tasks.completed}
             sub={`${tasks.completionRate}% rate`}
-            onClick={() => navigate("/schedule?filter=completed")}
+            onClick={() => navigate(`/dashboard?view=calendar&date=${new Date().toISOString().split("T")[0]}`)}
           />
           <StatCard
             data-testid="dash-stat-tasks-overdue"
@@ -152,7 +152,7 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
             data-testid="dash-stat-tasks-auto"
             label="Done automatically"
             value={tasks.autoCompleted}
-            onClick={tasks.autoCompleted > 0 ? () => navigate("/schedule?filter=automated") : undefined}
+            onClick={tasks.autoCompleted > 0 ? () => navigate(`/dashboard?view=calendar&date=${new Date().toISOString().split("T")[0]}`) : undefined}
           />
           <StatCard
             data-testid="dash-stat-tasks-streak"

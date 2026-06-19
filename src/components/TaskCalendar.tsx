@@ -138,10 +138,17 @@ export default function TaskCalendar({
   const [searchParams, setSearchParams] = useSearchParams();
   useEffect(() => {
     const open = searchParams.get("open");
+    const dateParam = searchParams.get("date");
     if (open === "add-task") setIsAddingTask(true);
     else if (open === "add-todo-list") setIsAddingToDo(true);
     else if (open === "todo-lists") setTodoListsOpenId("auto");
-    if (open) setSearchParams((prev) => { prev.delete("open"); return prev; }, { replace: true });
+    // ?date=YYYY-MM-DD selects that day so calendar-day deep links (dashboard
+    // tiles, week preview, weekly overview) land on the intended day's agenda.
+    // Parse at local noon to avoid a UTC-midnight day rollover.
+    if (dateParam && /^\d{4}-\d{2}-\d{2}$/.test(dateParam)) {
+      setSelectedDate(new Date(`${dateParam}T12:00:00`));
+    }
+    if (open || dateParam) setSearchParams((prev) => { prev.delete("open"); prev.delete("date"); return prev; }, { replace: true });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [isFilterOpen, setIsFilterOpen] = useState(false);

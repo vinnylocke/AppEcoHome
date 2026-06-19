@@ -108,10 +108,18 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
 
   useEffect(() => {
     if (openHandled.current) return;
-    if (searchParams.get("open") === "add-task") {
+    const open = searchParams.get("open");
+    const category = searchParams.get("category");
+    const tab = searchParams.get("tab");
+    if (open || category || tab) {
       openHandled.current = true;
-      setIsBuilding(true);
-      setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("open"); return n; }, { replace: true });
+      if (open === "add-task") setIsBuilding(true);
+      // ?category=Pruning|Harvesting|… filters the routines list by task type
+      // (dashboard category chips). ?tab=optimise opens the Optimise tab
+      // (weekly optimise-digest notification).
+      if (category) setFilterType(category);
+      if (tab === "optimise" || tab === "blueprints") setActiveTab(tab);
+      setSearchParams((p) => { const n = new URLSearchParams(p); n.delete("open"); n.delete("category"); n.delete("tab"); return n; }, { replace: true });
     }
   }, [searchParams, setSearchParams]);
 

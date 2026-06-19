@@ -23,13 +23,14 @@ BrowserRouter
     │    mode — persistent top bar + side nav hidden; QuickAccessMenuButton +
     │    MobileNavDrawer provide nav access on demand. Desktop unchanged.)
     ├── /dashboard         ← Home (Dashboard / Locations / Calendar / Weather sub-tabs via ?view=)
-    ├── /shed              ← TheShed
+    ├── /shed              ← GardenHub (Shed / Watchlist / Senescence sub-tabs via ?tab=)
     ├── /schedule          ← BlueprintManager
     ├── /planner           ← PlannerHub (?tab=planner|shopping)
     ├── /doctor            ← PlantDoctor
     ├── /profile           ← GardenProfile + HabitQuiz
     ├── /management        ← LocationManager
-    ├── /watchlist         ← AilmentWatchlist
+    ├── /watchlist         ← redirect → /shed?tab=watchlist
+    ├── /ailment-library   ← AilmentLibrary (?ailment= to deep-link an entry)
     ├── /visualiser        ← PlantVisualiser
     ├── /lightsensor       ← Sun Tracker family
     ├── /sun-trajectory    ← SunTrajectoryAR
@@ -37,7 +38,12 @@ BrowserRouter
     ├── /help              ← Redirect → /guides?tab=help (Sprint 2 — top-level shortcut to App Help)
     ├── /join/:token       ← JoinHomeViaToken (Sprint 4b — invite redemption landing page; lives OUTSIDE AppShell so signed-out invitees can land on it before signing in)
     ├── /shopping          ← ShoppingLists (alias to /planner?tab=shopping)
-    ├── /gardener          ← GardenerProfile (Account Settings)
+    ├── /gardener          ← GardenerProfile (Account Settings; ?tab=account|notifications|achievements|stats, ?section=quick-launcher)
+    ├── /journal           ← GlobalJournal
+    ├── /weekly            ← WeeklyOverviewPage
+    ├── /notes             ← NotesPage
+    ├── /credits           ← CreditsPage (image attribution)
+    ├── /share/garden-layout/:token ← shared read-only garden layout (outside AppShell)
     ├── /home-management   ← HomeManagement
     ├── /audit             ← AuditPage
     ├── /integrations      ← IntegrationsPage
@@ -55,11 +61,15 @@ BrowserRouter
 
 | Pattern | Purpose |
 |---------|---------|
-| `?view=X` | Sub-tab within Dashboard |
-| `?tab=X` | Sub-tab elsewhere (Planner, Guides, Account Settings) |
+| `?view=X` | Sub-tab within Dashboard (dashboard \| locations \| calendar \| weather) |
+| `?tab=X` | Sub-tab elsewhere (Garden Hub shed/watchlist/senescence, Planner, Guides, Account, Routines blueprints/optimise) |
 | `?open=X` | Auto-open a modal on the destination |
 | `?q=X` | Search query (Guides) |
-| `?locationId=X` | Drill-in (Location Page) |
+| `?locationId=X` / `?areaId=X` / `?instanceId=X` | Drill-in (Dashboard locations → area → plant) |
+| `?date=YYYY-MM-DD` | Select a day on the Calendar (TaskCalendar) |
+| `?category=X` | Filter Routines by task type (BlueprintManager) |
+| `?section=quick-launcher` | Scroll to the Quick Launcher picker on Account settings |
+| `?ailment=X` | Deep-link an Ailment Library entry |
 
 ### Quick-add deep links (from GlobalQuickAdd)
 

@@ -317,19 +317,19 @@ export const APP_HELP_SECTIONS: HelpSection[] = [
   {
     id: "account-name",
     title: "Changing your display name",
-    route: "/profile",
+    route: "/gardener?tab=account",
     summary: "Open your Gardener Profile (tap your avatar), go to the Account tab, and update your Display Name.",
   },
   {
     id: "account-plan",
     title: "Understanding subscription plans",
-    route: "/profile",
+    route: "/gardener?tab=account",
     summary: "Sprout (free tracking), Botanist (species database), Sage (AI features), Evergreen (everything). Switch plans in Account → Your Plan.",
   },
   {
     id: "account-ai-usage",
     title: "Viewing your AI usage and rate limits",
-    route: "/profile",
+    route: "/gardener?tab=account",
     summary: "In your Gardener Profile → Account tab, scroll to AI Usage to see calls today, this month, and your hourly limits.",
   },
 
