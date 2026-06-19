@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  kindToWatchlistType, severityToWatchlist, mapLibraryToWatchlistPayload,
+  kindToWatchlistType, severityToWatchlist, mapLibraryToWatchlistPayload, filterAilmentLibrary,
   type LibraryAilment,
 } from "../../../src/services/ailmentLibraryService";
 
@@ -54,5 +54,29 @@ describe("mapLibraryToWatchlistPayload", () => {
     expect(p.remedy_steps).toEqual([]);
     expect(p.prevention_steps).toEqual([]);
     expect(p.thumbnail_url).toBe("http://img");
+  });
+});
+
+describe("filterAilmentLibrary", () => {
+  const rows: LibraryAilment[] = [
+    base,
+    { ...base, id: 2, name: "Aphids", scientific_name: "Aphidoidea", aliases: ["greenfly", "blackfly"] },
+    { ...base, id: 3, name: "Powdery Mildew", scientific_name: "Erysiphales", aliases: [] },
+  ];
+
+  it("returns [] for an empty query", () => {
+    expect(filterAilmentLibrary(rows, "  ")).toEqual([]);
+  });
+  it("matches on name (case-insensitive)", () => {
+    expect(filterAilmentLibrary(rows, "blight").map((r) => r.id)).toEqual([1]);
+  });
+  it("matches on scientific name", () => {
+    expect(filterAilmentLibrary(rows, "erysiph").map((r) => r.id)).toEqual([3]);
+  });
+  it("matches on an alias", () => {
+    expect(filterAilmentLibrary(rows, "greenfly").map((r) => r.id)).toEqual([2]);
+  });
+  it("returns [] when nothing matches", () => {
+    expect(filterAilmentLibrary(rows, "zzz")).toEqual([]);
   });
 });

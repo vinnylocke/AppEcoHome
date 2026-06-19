@@ -28,6 +28,32 @@ export interface LibraryAilment {
   thumbnail_url: string | null;
 }
 
+/** Pure: filter library rows by a search query (name / scientific / aliases). */
+export function filterAilmentLibrary(rows: LibraryAilment[], query: string): LibraryAilment[] {
+  const q = query.trim().toLowerCase();
+  if (!q) return [];
+  return rows.filter((r) =>
+    r.name.toLowerCase().includes(q) ||
+    (r.scientific_name ?? "").toLowerCase().includes(q) ||
+    (r.aliases ?? []).some((a) => (a ?? "").toLowerCase().includes(q)),
+  );
+}
+
+/**
+ * Persist an AI-generated ailment to the shared `ailment_library` (best-effort,
+ * service-role write via the edge fn) so future users find it in the library
+ * tier. Returns the library row (new or pre-existing) or null on failure.
+ */
+export async function persistAiAilmentToLibrary(aiData: Record<string, unknown>): Promise<LibraryAilment | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke("add-ailment-to-library", { body: { ailment: aiData } });
+    if (error) return null;
+    return (data?.ailment ?? null) as LibraryAilment | null;
+  } catch {
+    return null;
+  }
+}
+
 export async function fetchAilmentLibrary(): Promise<LibraryAilment[]> {
   const { data, error } = await supabase
     .from("ailment_library")

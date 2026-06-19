@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { createPortal } from "react-dom";
 import {
   Plus, Search, Loader2, Biohazard, X,
@@ -10,6 +10,10 @@ import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
 import { supabase } from "../lib/supabase";
 import { PerenualService } from "../lib/perenualService";
+import {
+  fetchAilmentLibrary, filterAilmentLibrary, addLibraryAilmentToWatchlist,
+  persistAiAilmentToLibrary, kindToWatchlistType, type LibraryAilment,
+} from "../services/ailmentLibraryService";
 import SmartImage from "./SmartImage";
 import MultiImageGallery from "./MultiImageGallery";
 import { ConfirmModal } from "./ConfirmModal";
@@ -405,7 +409,7 @@ function AilmentDetailModal({
 
 // ─── Add Ailment Modal ────────────────────────────────────────────────────────
 
-type CreationMode = "manual" | "perenual" | "ai";
+type CreationMode = "search" | "manual" | "perenual" | "ai";
 
 const EMPTY_FORM = {
   name: "",
@@ -430,7 +434,13 @@ function AddAilmentModal({
   onClose: () => void;
 }) {
   const navigate = useNavigate();
-  const [mode, setMode] = useState<CreationMode>("ai");
+  const [mode, setMode] = useState<CreationMode>("search");
+
+  // Unified tiered search (library → databases → Rhozly AI).
+  const [query, setQuery] = useState("");
+  const [library, setLibrary] = useState<LibraryAilment[]>([]);
+  const [libraryLoading, setLibraryLoading] = useState(true);
+  const [addedLibraryIds, setAddedLibraryIds] = useState<Set<number>>(new Set());
   const [form, setForm] = useState(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [formErrors, setFormErrors] = useState<{ name?: string; description?: string }>({});
@@ -458,6 +468,18 @@ function AddAilmentModal({
   const [checkedAiIds, setCheckedAiIds] = useState<Set<string>>(new Set());
   const [aiPreviewCache, setAiPreviewCache] = useState<Record<string, { loading: boolean; image?: string }>>({});
   const [expandedAiId, setExpandedAiId] = useState<string | null>(null);
+
+  // Load the shared ailment library once (tier 1 — searched client-side).
+  useEffect(() => {
+    let cancelled = false;
+    fetchAilmentLibrary()
+      .then((rows) => { if (!cancelled) setLibrary(rows); })
+      .catch(() => { /* library is a bonus tier — fail soft */ })
+      .finally(() => { if (!cancelled) setLibraryLoading(false); });
+    return () => { cancelled = true; };
+  }, []);
+
+  const libraryMatches = useMemo(() => filterAilmentLibrary(library, query), [library, query]);
 
   useEffect(() => {
     if (!aiResults.length) return;
@@ -600,12 +622,12 @@ function AddAilmentModal({
     fetchWikiPreview(id, r.common_name, extractScientificName(r.scientific_name));
   };
 
-  const searchPerenual = async () => {
-    if (!perenualQuery.trim()) return;
+  const searchPerenual = async (q: string = perenualQuery) => {
+    if (!q.trim()) return;
     setPerenualLoading(true);
     setPerenualError(null);
     try {
-      const results = await PerenualService.searchPestDisease(perenualQuery);
+      const results = await PerenualService.searchPestDisease(q);
       setPerenualResults(results);
       if (results.length === 0) {
         setPerenualError("No results found. Try a different search term.");
@@ -619,13 +641,13 @@ function AddAilmentModal({
     }
   };
 
-  const searchWithAI = async () => {
-    if (!aiQuery.trim()) { toast.error("Enter a search query."); return; }
+  const searchWithAI = async (q: string = aiQuery) => {
+    if (!q.trim()) { toast.error("Enter a search query."); return; }
     setAiSearchLoading(true);
     try {
       const { data: { session } } = await supabase.auth.getSession();
       const { data: funcData, error } = await supabase.functions.invoke("generate-ailment-suggestions", {
-        body: { query: aiQuery },
+        body: { query: q },
         headers: { Authorization: `Bearer ${session?.access_token}` },
       });
       if (error) throw error;
@@ -766,6 +788,9 @@ function AddAilmentModal({
       if (!payloads.length) { toast.error("Nothing selected."); return; }
       const { data, error } = await supabase.from("ailments").insert(payloads).select();
       if (error) throw error;
+      // Persist AI-generated ailments to the shared library so future users find
+      // them in the library tier (best-effort; never blocks the add).
+      aiPayloads.forEach((p) => { void persistAiAilmentToLibrary(p as unknown as Record<string, unknown>); });
       (data as Ailment[]).forEach((a) => onSaved(a));
       (data as Ailment[]).forEach((a) => logEvent(EVENT.AILMENT_ADDED, { ailment_id: a.id, name: a.name, type: a.type }));
       toast.success(`Added ${data.length} ailment${data.length !== 1 ? "s" : ""} to watchlist.`);
@@ -776,6 +801,23 @@ function AddAilmentModal({
       setSaving(false);
     }
   };
+
+  const addFromLibrary = async (lib: LibraryAilment) => {
+    if (addedLibraryIds.has(lib.id)) return;
+    try {
+      const data = await addLibraryAilmentToWatchlist(lib, homeId);
+      setAddedLibraryIds((prev) => new Set(prev).add(lib.id));
+      onSaved(data as Ailment);
+      logEvent(EVENT.AILMENT_ADDED, { ailment_id: (data as Ailment).id, name: lib.name, type: kindToWatchlistType(lib.kind) });
+      toast.success(`"${lib.name}" added to watchlist.`);
+    } catch (err: any) {
+      Logger.error("Failed to add library ailment", err, { homeId }, err.message || "Add failed.");
+    }
+  };
+
+  // Reach a deeper tier with the current search term pre-filled + run.
+  const goToDatabases = () => { setPerenualQuery(query); setMode("perenual"); if (query.trim()) searchPerenual(query); };
+  const goToAi = () => { setAiQuery(query); setMode("ai"); if (query.trim()) searchWithAI(query); };
 
   const showSteps = mode === "manual";
   const totalSelected = checkedPerenualIds.size + checkedAiIds.size;
@@ -794,38 +836,25 @@ function AddAilmentModal({
           </button>
         </div>
 
-        {step === "tabs" && (
+        {step === "tabs" && mode === "search" && (
           <div className="mx-6 mb-2 flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-2xl px-4 py-3">
             <IconAI size={16} className="text-amber-500 shrink-0 mt-0.5" />
             <p className="text-xs font-bold text-amber-700 leading-snug">
-              Not sure what's affecting your plant? Describe what you see to Rhozly AI and we'll identify it.
+              Search the library first. Not there? Try more databases, or let Rhozly AI identify and add it.
             </p>
           </div>
         )}
 
-        {/* Mode Picker — hidden during review */}
-        {step === "tabs" && (
-          <div className="overflow-x-auto mx-4 mb-4">
-            <div className="flex bg-rhozly-surface-low p-1 rounded-2xl gap-1 min-w-max">
-            {(["ai", "perenual", "manual"] as CreationMode[]).map((m) => (
-              <button
-                key={m}
-                onClick={() => setMode(m)}
-                className={`shrink-0 px-4 py-3 rounded-xl font-black text-xs uppercase tracking-widest transition-all flex items-center justify-center gap-1.5 ${
-                  mode === m
-                    ? m === "ai"
-                      ? "bg-white text-amber-500 shadow-sm"
-                      : "bg-white text-rhozly-primary shadow-sm"
-                    : "text-rhozly-on-surface/40 hover:text-rhozly-on-surface"
-                }`}
-              >
-                {m === "manual" && <Edit3 size={12} />}
-                {m === "perenual" && <IconPlantDB size={12} />}
-                {m === "ai" && <IconAI size={12} />}
-                {m === "manual" ? "Add Manually" : m === "perenual" ? "Search Database" : "Ask Rhozly AI ✦"}
-              </button>
-            ))}
-            </div>
+        {/* Back-to-search header for the deeper tiers + manual */}
+        {step === "tabs" && mode !== "search" && (
+          <div className="mx-6 mb-1">
+            <button
+              onClick={() => setMode("search")}
+              data-testid="ailment-back-to-search"
+              className="flex items-center gap-2 text-xs font-black uppercase tracking-widest text-rhozly-on-surface/50 hover:text-rhozly-primary transition-colors"
+            >
+              <ChevronLeft size={14} /> Back to Search
+            </button>
           </div>
         )}
 
@@ -915,6 +944,84 @@ function AddAilmentModal({
           {/* ── Tabs content ── */}
           {step === "tabs" && (
             <>
+              {/* Tiered search: library → databases → Rhozly AI */}
+              {mode === "search" && (
+                <div className="space-y-4">
+                  <input
+                    data-testid="ailment-search-input"
+                    value={query}
+                    onChange={(e) => setQuery(e.target.value)}
+                    autoFocus
+                    placeholder="Search pests, diseases, weeds…"
+                    className="w-full p-4 bg-rhozly-surface-low rounded-2xl font-black text-sm border border-transparent focus:border-rhozly-primary outline-none"
+                  />
+
+                  {query.trim() && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">From the library</p>
+                      {libraryLoading ? (
+                        <div className="flex items-center gap-2 py-3 text-rhozly-on-surface/40">
+                          <Loader2 size={14} className="animate-spin" /><span className="text-xs font-bold">Loading library…</span>
+                        </div>
+                      ) : libraryMatches.length === 0 ? (
+                        <p className="text-xs font-bold text-rhozly-on-surface/40 py-1">No library matches — try the databases or Rhozly AI below.</p>
+                      ) : (
+                        libraryMatches.slice(0, 12).map((lib) => {
+                          const meta = TYPE_META[kindToWatchlistType(lib.kind)];
+                          const added = addedLibraryIds.has(lib.id);
+                          return (
+                            <div key={lib.id} data-testid={`ailment-library-result-${lib.id}`} className="border border-rhozly-outline/10 rounded-2xl bg-white flex items-center gap-3 p-3">
+                              <div className="w-12 h-12 rounded-xl bg-rhozly-surface-low overflow-hidden shrink-0 flex items-center justify-center text-rhozly-on-surface/20">
+                                {lib.thumbnail_url ? <img src={lib.thumbnail_url} alt={lib.name} className="w-full h-full object-cover" /> : meta.icon}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className="font-black text-sm text-rhozly-on-surface truncate">{lib.name}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                                  <span className={`inline-flex items-center gap-0.5 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full ${meta.colour}`}>{meta.icon} {meta.label}</span>
+                                  <span className="inline-flex items-center gap-0.5 text-[9px] font-black uppercase px-1.5 py-0.5 rounded-full bg-rhozly-primary/10 text-rhozly-primary"><Library size={10} /> Library</span>
+                                </div>
+                              </div>
+                              <button
+                                onClick={() => addFromLibrary(lib)}
+                                disabled={added}
+                                data-testid={`ailment-library-add-${lib.id}`}
+                                className="shrink-0 px-3 py-2 rounded-xl bg-rhozly-primary text-white text-xs font-black flex items-center gap-1 disabled:opacity-60 disabled:bg-rhozly-on-surface/20"
+                              >
+                                {added ? <><CheckCircle2 size={13} /> Added</> : <><Plus size={13} /> Add</>}
+                              </button>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+
+                  <div className="pt-2 border-t border-rhozly-outline/10 space-y-2">
+                    <button
+                      onClick={goToDatabases}
+                      data-testid="ailment-search-databases"
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-rhozly-outline/20 font-black text-sm text-rhozly-on-surface/70 hover:border-rhozly-primary/40 hover:text-rhozly-primary transition-colors"
+                    >
+                      <IconPlantDB size={16} /> Search more databases
+                    </button>
+                    <button
+                      onClick={goToAi}
+                      data-testid="ailment-search-ai"
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-amber-500 text-white font-black text-sm hover:scale-[1.01] transition-transform"
+                    >
+                      <IconAI size={16} /> Search with Rhozly AI ✦
+                    </button>
+                    <button
+                      onClick={() => setMode("manual")}
+                      data-testid="ailment-add-manually"
+                      className="w-full text-center text-[11px] font-black uppercase tracking-widest text-rhozly-on-surface/40 hover:text-rhozly-on-surface py-1.5 transition-colors"
+                    >
+                      or add manually
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Perenual search */}
               {mode === "perenual" && (
                 <div className="space-y-4">

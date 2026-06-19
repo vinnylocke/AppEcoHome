@@ -9,7 +9,7 @@
 
 ## Quick Summary
 
-A grid of ailment cards. Each card represents one `ailments` row — a pest, disease, or invasive plant defined for this home. Cards show the ailment image, severity badge, prevention/remedy step counts, an "N plants affected" rose chip when at least one plant instance is linked, and an "Ask Rhozly AI about this" button (Sage/Evergreen). Add new ailments via three modes: Manual, Perenual database, or AI suggestion.
+A grid of ailment cards. Each card represents one `ailments` row — a pest, disease, or invasive plant defined for this home. Cards show the ailment image, severity badge, prevention/remedy step counts, an "N plants affected" rose chip when at least one plant instance is linked, and an "Ask Rhozly AI about this" button (Sage/Evergreen). Add new ailments via a tiered search: library → more databases → Rhozly AI (which saves its result to the shared library), plus a manual fallback.
 
 ---
 
@@ -66,13 +66,18 @@ Roll up `plant_instance_ailments` into `affectedCounts: Record<ailmentId, number
 
 ### Data flow — write paths
 
-#### Add Ailment (three modes)
+#### Add Ailment — tiered search (2026-06-19)
 
-| Mode | Behaviour |
+`AddAilmentModal` now mirrors the plant search: **one** search box with progressive tiers
+(the old AI / Perenual tabs were removed). Source files: `AilmentWatchlist.tsx` (modal) +
+`src/services/ailmentLibraryService.ts` (`filterAilmentLibrary`, `persistAiAilmentToLibrary`).
+
+| Tier | Behaviour |
 |------|-----------|
-| Manual | Free-form entry: name, type, description, symptoms, prevention steps, remedy steps |
-| Perenual | Searches `perenual-proxy` → picks a result → fetches details → inserts ailment with `source = 'perenual'` |
-| AI | Calls `generate-ailment-suggestions` edge fn with a description → user confirms → inserts with `source = 'ai'` |
+| **1 · Library** (free) | Filters the seeded `ailment_library` client-side (`filterAilmentLibrary`) → results carry a **Library** chip → tap **Add** → `addLibraryAilmentToWatchlist` (`source='ai'`). |
+| **2 · Databases** | "Search more databases" button → escalates with the query → `perenual-proxy` (`searchPestDisease`) → cart-select → insert (`source='perenual'`). |
+| **3 · Rhozly AI ✦** (AI tier) | "Search with Rhozly AI" → `generate-ailment-suggestions` → on add, also **persists the result to the shared `ailment_library`** via `add-ailment-to-library` (so future users find it in Tier 1) + inserts to the watchlist (`source='ai'`). |
+| **Manual** | "or add manually" → the free-form `StepBuilder` form (name, type, description, symptoms, prevention/remedy steps). |
 
 #### Link ailment to plant
 
@@ -102,8 +107,9 @@ Opens Plant Doctor chat with the ailment loaded as context.
 
 | Function | When |
 |----------|------|
-| `generate-ailment-suggestions` | AI add mode |
-| `perenual-proxy` | Perenual search |
+| `generate-ailment-suggestions` | AI search tier |
+| `add-ailment-to-library` | Persists an AI result into the shared `ailment_library` (service role; dedups on `name_key`) |
+| `perenual-proxy` | Databases tier (pest/disease search) |
 
 ### Cron / scheduled jobs that affect this surface
 
