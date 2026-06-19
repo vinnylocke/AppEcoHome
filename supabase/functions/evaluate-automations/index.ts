@@ -238,12 +238,14 @@ async function processOne(
       .gte("triggered_at", windowStartIso(now, windowHours))
       .in("status", FIRED_STATUSES as unknown as string[]);
     if (isRateLimited(count ?? 0, runLimitCount)) {
-      await db.from("automation_runs").insert({
+      const { error: skipErr } = await db.from("automation_runs").insert({
         automation_id: id, home_id: homeId, triggered_by: "schedule",
         status: "skipped_rate_limited",
         devices_triggered: { notifications: 0, valves_queued: 0 },
         completed_at: now.toISOString(),
       });
+      // Don't let a logging-row failure hide a rate-limited skip ever again.
+      if (skipErr) logError(FN, "skip_run_insert_failed", { id, status: "skipped_rate_limited", message: skipErr.message });
       // Mark the edge consumed so we don't log a skip every tick.
       await db.from("automations").update({ condition_was_true: true }).eq("id", id);
       log(FN, "rate_limited", { id, count, limit: runLimitCount });

@@ -103,7 +103,7 @@ automation_blueprints ─ blueprint_id, automation_id, role: "controlling" | "dr
 
 ### `automation_runs`
 
-Audit trail of every fire. `status`: `ran` / `skipped_rain` / `failed` / `retried` / `skipped_rate_limited` (Batch B). `trigger_reason jsonb` (Batch B) records `{ summary, matched }` — the satisfied condition leaves ("why it ran").
+Audit trail of every fire. `status`: `ran` / `skipped_rain` / `failed` / `retried` / `skipped_rate_limited` (Batch B). `trigger_reason jsonb` (Batch B) records `{ summary, matched }` — the satisfied condition leaves ("why it ran"). **Constraint fix (2026-06-19, `20260806000000`):** `automation_runs_status_check` originally allowed only `pending/success/partial/failed/skipped_weather/skipped_no_tasks`, so `skipped_rate_limited` + `deferred_weather` INSERTs silently failed the CHECK and were never recorded (a rate-limited automation looked like it never ran). The constraint now covers every status the engine writes; the engine logs the insert error as a backstop.
 
 ### Batch B automation columns (2026-06-18, migration `20260801000000`)
 

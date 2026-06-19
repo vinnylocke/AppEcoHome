@@ -55,16 +55,25 @@ function BlueprintActionSelect({ index, value, blueprints, onChange }: {
   const [q, setQ] = useState("");
   const showSearch = shouldShowPickerSearch(blueprints.length);
   const visible = showSearch ? filterPickerItems(blueprints, q, value ? [value] : []) : blueprints;
+  if (blueprints.length === 0) return <span className="text-xs text-gray-400">No recurring tasks to link.</span>;
   return (
-    <div className="flex flex-wrap items-center gap-1.5">
+    <div className="w-full space-y-1.5" data-testid={`action-blueprint-${index}`}>
       {showSearch && (
         <input data-testid={`action-blueprint-search-${index}`} value={q} onChange={(e) => setQ(e.target.value)} placeholder="Filter tasks…"
-          className="rounded-lg border border-gray-200 p-1.5 text-sm w-32" />
+          className="rounded-lg border border-gray-200 p-1.5 text-sm w-full" />
       )}
-      <select data-testid={`action-blueprint-${index}`} value={value ?? ""} onChange={(e) => onChange(e.target.value)} className="rounded-lg border border-gray-200 p-1.5 text-sm">
-        <option value="">Select task…</option>
-        {visible.map((b) => <option key={b.id} value={b.id}>{b.title}</option>)}
-      </select>
+      <div className="flex flex-wrap gap-1.5">
+        {visible.map((b) => {
+          const on = b.id === value;
+          return (
+            <button key={b.id} type="button" data-testid={`action-blueprint-${index}-${b.id}`} onClick={() => onChange(on ? "" : b.id)}
+              className={`px-2 py-1 rounded-lg text-xs font-medium border ${on ? "border-emerald-500 bg-emerald-50 text-emerald-800" : "border-gray-200 text-gray-600"}`}>
+              {b.title}
+            </button>
+          );
+        })}
+        {visible.length === 0 && <span className="text-xs text-gray-300 py-1">No tasks match.</span>}
+      </div>
     </div>
   );
 }

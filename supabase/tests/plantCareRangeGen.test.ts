@@ -1,5 +1,20 @@
 import { assert, assertEquals } from "@std/assert";
-import { buildPlantCareRangePrompt, parseCareRangeResponse } from "@shared/plantCareRangeGen.ts";
+import { buildPlantCareRangePrompt, parseCareRangeResponse, CARE_RANGE_SCHEMA } from "@shared/plantCareRangeGen.ts";
+
+Deno.test("CARE_RANGE_SCHEMA requires all six fields (so Gemini can't omit any)", () => {
+  // The bug: no `required` array meant the model returned partial ranges that
+  // never fully persisted. All six must be required + lowercase-typed.
+  assertEquals(CARE_RANGE_SCHEMA.type, "object");
+  const req = [...(CARE_RANGE_SCHEMA as { required: readonly string[] }).required].sort();
+  assertEquals(req, [
+    "soil_ec_max", "soil_ec_min",
+    "soil_moisture_max", "soil_moisture_min",
+    "soil_temp_max", "soil_temp_min",
+  ]);
+  for (const f of Object.values(CARE_RANGE_SCHEMA.properties)) {
+    assertEquals((f as { type: string }).type, "number");
+  }
+});
 
 Deno.test("buildPlantCareRangePrompt includes the common + scientific name", () => {
   const p = buildPlantCareRangePrompt({ common_name: "Strawberry", scientific_name: ["Fragaria × ananassa"] });

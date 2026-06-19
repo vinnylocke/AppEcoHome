@@ -171,12 +171,25 @@ export interface AreaCompatibility {
   note: string;
 }
 
+export interface PlantRange {
+  name: string;
+  count: number;
+  moisture_min: number | null;
+  moisture_max: number | null;
+  ec_min: number | null;
+  ec_max: number | null;
+  temp_min: number | null;
+  temp_max: number | null;
+}
+
 export interface AreaInsight {
   headline: string;
   summary: string;
   metrics: InsightMetric[];
   /** Per-plant fit of the current readings vs each plant's ideal ranges. */
   plant_analysis?: PlantFit[];
+  /** Per-plant ideal ranges (deduped, deterministic). */
+  plant_ranges?: PlantRange[];
   /** Whether the plants suit sharing this area; flags moisture-only divergence. */
   compatibility?: AreaCompatibility | null;
   automation_review?: { ok: boolean; notes: string } | null;

@@ -334,6 +334,34 @@ serve(async (req) => {
       }
     }
 
+    // Dedupe plants by catalogue id (fallback name) so a bed with 11 instances
+    // of one plant is analysed ONCE, not 11×. Keep an instance count.
+    const plantGroups = new Map<string, { name: string; plant_id: number | null; count: number }>();
+    for (const i of (inventory ?? []) as Array<{ plant_name: string; plant_id: number | null }>) {
+      const key = i.plant_id != null ? `id:${i.plant_id}` : `name:${(i.plant_name ?? "").toLowerCase()}`;
+      const g = plantGroups.get(key);
+      if (g) g.count += 1;
+      else plantGroups.set(key, { name: i.plant_name, plant_id: i.plant_id, count: 1 });
+    }
+    const dedupedPlants = [...plantGroups.values()];
+
+    // Deterministic per-plant recommended ranges (from the resolved care ranges),
+    // attached to the insight so the panel shows EACH plant's own targets — not
+    // just the area-combined metric ranges. No AI drift.
+    const plantRanges = dedupedPlants.map((p) => {
+      const care = p.plant_id != null ? careById.get(p.plant_id) : undefined;
+      return {
+        name: p.name,
+        count: p.count,
+        moisture_min: care?.soil_moisture_min ?? null,
+        moisture_max: care?.soil_moisture_max ?? null,
+        ec_min: care?.soil_ec_min ?? null,
+        ec_max: care?.soil_ec_max ?? null,
+        temp_min: care?.soil_temp_min ?? null,
+        temp_max: care?.soil_temp_max ?? null,
+      };
+    });
+
     // ── Build input + prompt ────────────────────────────────────────────────
     const input: AreaAnalysisInput = {
       persona: (profile?.persona as "new" | "experienced" | null) ?? null,
@@ -374,10 +402,10 @@ serve(async (req) => {
             ec: stat(histEc),
           }
         : null,
-      plants: (inventory ?? []).map((i: { plant_name: string; plant_id: number | null }) => {
-        const care = i.plant_id != null ? careById.get(i.plant_id) : undefined;
+      plants: dedupedPlants.map((p) => {
+        const care = p.plant_id != null ? careById.get(p.plant_id) : undefined;
         return {
-          name: i.plant_name,
+          name: p.count > 1 ? `${p.name} (×${p.count})` : p.name,
           health: null,
           soilPhMin: care?.soil_ph_min ?? null,
           soilPhMax: care?.soil_ph_max ?? null,
@@ -415,6 +443,8 @@ serve(async (req) => {
       logError(FN, "parse_failed", { text: text.slice(0, 200) });
       return json({ error: "analysis_failed" }, 502);
     }
+    // Attach the deterministic per-plant recommended ranges (not AI-generated).
+    insight.plant_ranges = plantRanges;
 
     const generatedAt = new Date().toISOString();
     await db.from("area_ai_insights").upsert({

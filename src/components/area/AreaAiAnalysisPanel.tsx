@@ -34,6 +34,9 @@ const METRIC_ORDER: MetricKey[] = ["moisture", "temperature", "ec"];
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
 
+const fmtRange = (min: number | null, max: number | null, unit: string) =>
+  min != null && max != null ? `${min}–${max}${unit}` : "—";
+
 // Compact per-metric fit pill for a single plant (icon-only, tooltip = label).
 function FitPill({ icon: Icon, fit, title }: { icon: typeof Droplets; fit: MetricFit; title: string }) {
   const meta = statusMeta(fit);
@@ -179,27 +182,48 @@ export default function AreaAiAnalysisPanel({ areaId, homeId, aiEnabled }: Props
             })}
           </div>
 
-          {(insight.plant_analysis?.length ?? 0) > 0 && (
-            <div data-testid="area-ai-plants" className="space-y-2">
-              <div className="flex items-center gap-2">
-                <Leaf className="h-4 w-4 text-emerald-600" />
-                <h5 className="font-medium text-gray-900">Each plant in this area</h5>
-              </div>
-              {insight.plant_analysis!.map((p, i) => (
-                <div key={i} data-testid={`area-ai-plant-${slug(p.name)}`} className="rounded-xl border border-gray-100 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="font-medium text-gray-900">{p.name}</span>
-                    <div className="flex items-center gap-1">
-                      <FitPill icon={Droplets} fit={p.moisture_fit} title="Moisture" />
-                      <FitPill icon={Thermometer} fit={p.temp_fit} title="Soil temp" />
-                      <FitPill icon={Zap} fit={p.ec_fit} title="EC" />
-                    </div>
-                  </div>
-                  <p className="mt-1.5 text-sm text-gray-600">{p.notes}</p>
+          {(() => {
+            const ranges = insight.plant_ranges ?? [];
+            const analysis = insight.plant_analysis ?? [];
+            // Prefer the deterministic, deduped per-plant ranges; overlay the AI
+            // fit/notes when a matching entry exists. Fall back to analysis-only
+            // for legacy cached insights without plant_ranges.
+            const rows = ranges.length > 0
+              ? ranges.map((r) => ({ r, a: analysis.find((x) => x.name === r.name || x.name.startsWith(r.name)) ?? null }))
+              : analysis.map((a) => ({ r: null as null, a }));
+            if (rows.length === 0) return null;
+            return (
+              <div data-testid="area-ai-plants" className="space-y-2">
+                <div className="flex items-center gap-2">
+                  <Leaf className="h-4 w-4 text-emerald-600" />
+                  <h5 className="font-medium text-gray-900">Each plant in this area</h5>
                 </div>
-              ))}
-            </div>
-          )}
+                {rows.map(({ r, a }, i) => {
+                  const name = r ? (r.count > 1 ? `${r.name} (×${r.count})` : r.name) : a!.name;
+                  return (
+                    <div key={i} data-testid={`area-ai-plant-${slug(name)}`} className="rounded-xl border border-gray-100 p-3">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-medium text-gray-900">{name}</span>
+                        {a && (
+                          <div className="flex items-center gap-1">
+                            <FitPill icon={Droplets} fit={a.moisture_fit} title="Moisture" />
+                            <FitPill icon={Thermometer} fit={a.temp_fit} title="Soil temp" />
+                            <FitPill icon={Zap} fit={a.ec_fit} title="EC" />
+                          </div>
+                        )}
+                      </div>
+                      {r && (
+                        <p className="mt-1 text-xs text-gray-500">
+                          Target — moisture {fmtRange(r.moisture_min, r.moisture_max, "%")} · EC {fmtRange(r.ec_min, r.ec_max, " µS/cm")} · soil temp {fmtRange(r.temp_min, r.temp_max, "°C")}
+                        </p>
+                      )}
+                      {a?.notes && <p className="mt-1.5 text-sm text-gray-600">{a.notes}</p>}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {insight.compatibility && (
             <div data-testid="area-ai-compatibility" className={`rounded-xl p-4 ${compatibilityMeta(insight.compatibility.verdict).toneClass}`}>

@@ -9,16 +9,25 @@
 
 import { extractJsonObject } from "./extractJson.ts";
 
+// Lowercase types + an explicit `required` array (matching the working
+// AREA_ANALYSIS_SCHEMA). WITHOUT `required`, Gemini omitted fields — so only
+// some of the six ranges came back and they drifted between runs, never fully
+// persisting to `plants` / `plant_library`.
 export const CARE_RANGE_SCHEMA = {
-  type: "OBJECT",
+  type: "object",
   properties: {
-    soil_moisture_min: { type: "NUMBER" },
-    soil_moisture_max: { type: "NUMBER" },
-    soil_ec_min: { type: "NUMBER" },
-    soil_ec_max: { type: "NUMBER" },
-    soil_temp_min: { type: "NUMBER" },
-    soil_temp_max: { type: "NUMBER" },
+    soil_moisture_min: { type: "number" },
+    soil_moisture_max: { type: "number" },
+    soil_ec_min: { type: "number" },
+    soil_ec_max: { type: "number" },
+    soil_temp_min: { type: "number" },
+    soil_temp_max: { type: "number" },
   },
+  required: [
+    "soil_moisture_min", "soil_moisture_max",
+    "soil_ec_min", "soil_ec_max",
+    "soil_temp_min", "soil_temp_max",
+  ],
 } as const;
 
 export interface GeneratedCareRanges {

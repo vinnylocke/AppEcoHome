@@ -348,11 +348,25 @@ export interface AreaCompatibility {
   note: string;
 }
 
+/** Deterministic per-plant recommended ranges (from stored care ranges, not AI). */
+export interface PlantRange {
+  name: string;
+  count: number;
+  moisture_min: number | null;
+  moisture_max: number | null;
+  ec_min: number | null;
+  ec_max: number | null;
+  temp_min: number | null;
+  temp_max: number | null;
+}
+
 export interface AreaInsight {
   headline: string;
   summary: string;
   metrics: Array<Record<string, unknown>>;
   plant_analysis?: PlantFit[];
+  /** Per-plant ideal ranges (deduped, deterministic) for the panel. */
+  plant_ranges?: PlantRange[];
   compatibility?: AreaCompatibility | null;
   automation_review?: { ok: boolean; notes: string } | null;
   automation_suggestions?: Array<Record<string, unknown>>;

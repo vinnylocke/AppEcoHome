@@ -1,1 +1,16 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "AI Area Coach now reliably fills in every plant's soil moisture, EC and temperature targets — previously only some values filled in and they could drift between refreshes.",
+      "Automations paused by their own run limit now show a clear \"Rate limited\" entry in the run history, instead of silently showing nothing."
+    ]
+  },
+  {
+    "label": "Improved",
+    "items": [
+      "AI Area Coach now lists each plant once (not once per copy) and shows that plant's own recommended moisture, EC and temperature range.",
+      "The automation builder's \"Complete task\" action now uses the same searchable, tappable task chips as the trigger — no more long dropdown."
+    ]
+  }
+]
