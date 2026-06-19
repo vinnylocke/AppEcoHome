@@ -420,10 +420,12 @@ const EMPTY_FORM = {
 
 function AddAilmentModal({
   homeId,
+  aiEnabled,
   onSaved,
   onClose,
 }: {
   homeId: string;
+  aiEnabled: boolean;
   onSaved: (ailment: Ailment) => void;
   onClose: () => void;
 }) {
@@ -1847,6 +1849,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
       {showAdd && createPortal(
         <AddAilmentModal
           homeId={homeId}
+          aiEnabled={aiEnabled}
           onSaved={(a) => { setAilments((prev) => [a, ...prev]); requestFeedback("ailment_add"); }}
           onClose={() => setShowAdd(false)}
         />,
