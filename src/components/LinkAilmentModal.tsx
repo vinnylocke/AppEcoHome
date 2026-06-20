@@ -93,6 +93,10 @@ export default function LinkAilmentModal({ homeId, plantInstance, onClose, onLin
       const { error: linkError } = await supabase.from("plant_instance_ailments").insert(rows);
       if (linkError) throw linkError;
 
+      // Refresh the home's AI pest-risk insights now a new susceptibility is linked
+      // (fire-and-forget; Evergreen-gated + no-ops inside the function otherwise).
+      supabase.functions.invoke("generate-pest-risk", { body: { homeId } }).catch(() => {});
+
       // Fire automations for each newly linked ailment
       const selectedAilments = ailments.filter((a) => selected.has(a.id));
       await Promise.all(

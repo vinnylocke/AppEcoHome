@@ -28,7 +28,7 @@ const json = (d: unknown, s = 200) =>
 
 interface FeedInsight {
   id: string;
-  source: "pattern" | "automation" | "area" | "weekly" | "seasonal" | "planner" | "weather";
+  source: "pattern" | "automation" | "area" | "weekly" | "seasonal" | "planner" | "weather" | "pest";
   category: string;
   title: string;
   body: string;
@@ -209,6 +209,25 @@ serve(async (req) => {
             dismissable: false,
           });
         }
+      }
+
+      // 7. AI pest-risk (home-level; generated weekly + on ailment-link).
+      const { data: pests } = await db
+        .from("home_pest_insights")
+        .select("id, ailment_name, body, severity, generated_at")
+        .eq("home_id", homeId);
+      for (const p of pests ?? []) {
+        insights.push({
+          id: `pest-${p.id}`,
+          source: "pest",
+          category: "pests",
+          title: (p.ailment_name as string) ? `${p.ailment_name} risk` : "Pest risk",
+          body: p.body as string,
+          severity: (p.severity as number) ?? 2,
+          createdAt: p.generated_at as string,
+          link: "/watchlist",
+          dismissable: false,
+        });
       }
     }
 

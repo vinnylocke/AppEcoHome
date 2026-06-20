@@ -501,6 +501,12 @@ verify_jwt = false
 [functions.analyse-automations]
 verify_jwt = false
 
+# Weekly cron (generate-pest-risk-weekly) + on-demand when a user links an
+# ailment to a plant. AI pest/disease risk insights. verify_jwt off (cron +
+# publishable-key client trigger).
+[functions.generate-pest-risk]
+verify_jwt = false
+
 # 2026-06-16 Custom integrations Phase 3 — public webhook router for
 # every adapter that implements parseWebhook(). The user's device hits
 # this endpoint with the per-integration webhook secret in the path,

@@ -26,6 +26,7 @@ const CAT: Record<string, { label: string; cls: string }> = {
   seasonal: { label: "Planting", cls: "bg-lime-50 text-lime-700" },
   planning: { label: "Planner", cls: "bg-fuchsia-50 text-fuchsia-700" },
   weather: { label: "Weather", cls: "bg-cyan-50 text-cyan-700" },
+  pests: { label: "Pest risk", cls: "bg-rose-50 text-rose-700" },
 };
 
 function AiInsightsPageInner() {
