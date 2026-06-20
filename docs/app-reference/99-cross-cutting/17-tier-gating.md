@@ -10,7 +10,7 @@
 |------|-------------|--------------------|------------|
 | Sprout (free) | false | false | Manual everything + **5 free Plant Doctor identifications per rolling 7-day window** (Sprint 3, 2026-06-15). No diagnosis. No Perenual. |
 | Botanist | false | true | + Perenual plant database. Same free identify quota as Sprout. |
-| Sage | true | true | + AI Plant Doctor (identify + diagnose + pest + Multi-ID, all unlimited) + Chat + photo-to-task + AI optimise |
+| Sage | true | false | + AI Plant Doctor (identify + diagnose + pest + Multi-ID, all unlimited) + Chat + photo-to-task + AI optimise. **No Perenual** — the species DB is a Botanist / Evergreen perk (tiers are a lattice, not a ladder). |
 | Evergreen | true | true | Same flags as Sage; reserved for future exclusives (Visualiser AI, advanced AI) |
 
 **Free Plant Doctor identify carve-out (Sprint 3, 2026-06-15):** `identify_vision` is the only AI action a Sprout / Botanist user can call. It runs against a sliding-window quota (5 per 7 days, no calendar reset — every call's 7-day-old slot drops off as new ones land). Helper: [`supabase/functions/_shared/identifyQuota.ts`](../../../supabase/functions/_shared/identifyQuota.ts). Recorded via the existing `ai_usage_log` table — no new schema. Quota state is returned on every successful identify response so the client can update its badge without a second round-trip.
@@ -77,6 +77,30 @@ Then `onTierChange()` lifts flags into App state so the rest of the app re-rende
 | Perenual tab in BulkSearch | `enable_perenual` |
 | Perenual care details fetch | `enable_perenual` |
 | Garden Layout 3D view | (Sage/Evergreen — soft gate) |
+
+### Capability gating for non-AI / non-Perenual features (`FEATURE_GATES`)
+
+The two flags above only express "can use AI" and "can use Perenual". Features that are neither
+(Light Sensor, Garden Layout, Microclimate, Visualiser, ICS export, Multiple Homes, …) are gated by a
+separate, **modular** capability config — `src/constants/tierFeatures.ts`:
+
+```ts
+export const FEATURE_GATES: Record<Feature, TierId[]> = {
+  light_sensor: ALL,        // ALL = ["sprout","botanist","sage","evergreen"] → open to everyone
+  multiple_homes: ALL,      // gate by editing one line, e.g. ["evergreen"] or PAID
+  // …
+};
+tierAllowsFeature(tier, "light_sensor"); // list membership — lattice-safe
+```
+
+**Every feature currently lists `ALL`, so nothing is gated yet** — the mechanism is in place so any one
+feature can be gated by changing its array (no numeric "minimum tier", because Sage ≠ Botanist+).
+Consumed by `useEntitlements(tierProp?)` (`src/hooks/useEntitlements.ts`, module-cached tier fetch) and
+the reusable `<FeatureGate feature tier? fallback?>` + `<UpgradeNudge feature compact? />`
+(`src/components/shared/`). Wired so far: Light Sensor, Garden Layout list (both open). Enforcement is
+**client-side** for cheap visual tools; real resource caps (Multiple Homes, guide authoring) get RLS
+when actually gated. When a gate is flipped it applies to all non-entitled users immediately (no
+grandfathering). See [tier-gating-features-analysis.md](../../plans/tier-gating-features-analysis.md).
 
 ### Client + server enforcement
 

@@ -5,6 +5,7 @@ import { IconLayout } from "../constants/icons";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import toast from "react-hot-toast";
+import FeatureGate from "./shared/FeatureGate";
 
 interface Layout {
   id: string;
@@ -117,7 +118,15 @@ function StylePill({ active, onClick, label, color }: { active: boolean; onClick
   );
 }
 
-export default function GardenLayoutList({ homeId }: Props) {
+export default function GardenLayoutList(props: Props) {
+  return (
+    <FeatureGate feature="garden_layout">
+      <GardenLayoutListInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function GardenLayoutListInner({ homeId }: Props) {
   const navigate = useNavigate();
   const [layouts, setLayouts] = useState<Layout[]>([]);
   const [loading, setLoading] = useState(true);

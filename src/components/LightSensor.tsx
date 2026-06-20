@@ -22,6 +22,7 @@ import { LightSensor as NativeLightSensor } from "@capgo/capacitor-light-sensor"
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import FeatureGate from "./shared/FeatureGate";
 
 type SensorMethod = "Native Sensor" | "Pixel Analysis";
 
@@ -29,7 +30,15 @@ interface LightSensorProps {
   homeId: string;
 }
 
-export default function LightSensor({ homeId }: LightSensorProps) {
+export default function LightSensor(props: LightSensorProps) {
+  return (
+    <FeatureGate feature="light_sensor">
+      <LightSensorInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function LightSensorInner({ homeId }: LightSensorProps) {
   const navigate = useNavigate();
   // 🧠 GRAB THE SETTER FROM CONTEXT
   const { setPageContext } = usePlantDoctor();
