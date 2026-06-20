@@ -5,6 +5,7 @@ import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
+import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 
@@ -75,7 +76,18 @@ serve(async (req) => {
     const rl = await enforceRateLimit(supabase, callerUserId, FN, 30);
     if (rl) return rl;
 
-    const prompt = `You are a gardening assistant. The user has photographed something in their garden and wants a single concrete task suggestion.
+    // Phase 2 — ground the suggestion in the gardener's location / season / weather
+    // so timing is realistic (no out-of-season actions; weather-driven urgency).
+    let contextBlock = "";
+    try {
+      const uctx = await buildUserContext(
+        supabase as unknown as Parameters<typeof buildUserContext>[0],
+        { userId: callerUserId, homeId, skip: ["garden", "tasks", "behaviour"] },
+      );
+      contextBlock = renderContextBlock(uctx, ["location", "weather"]);
+    } catch { /* non-fatal — fall back to image-only */ }
+
+    const prompt = `${contextBlock ? `${contextBlock}\n\n` : ""}You are a gardening assistant. The user has photographed something in their garden and wants a single concrete task suggestion.
 
 From the image, infer the most useful next action. Choose a task_type from: ${ALLOWED_TASK_TYPES.join(", ")}.
 
@@ -83,6 +95,7 @@ Rules:
 - Title must be short and imperative (e.g. "Prune the lavender hedge", "Stake the tomato plant").
 - frequency_days: a sensible recurrence in days. Use 0 if this is genuinely a one-off (e.g. staking, repotting). Watering = typically 2–4, pruning = 14–28, harvesting = 7–14, feeding = 14–30, inspection = 7.
 - Be specific to the photo — don't generate generic advice.
+- Use the gardener context above (location, season, weather) for realistic timing — avoid out-of-season actions and raise weather-driven urgency (e.g. frost or heat in the forecast).
 - If the image is unclear or doesn't show a plant / garden context, default to task_type "Maintenance" with a title "Inspect this area" and explain in the description what was unclear.
 
 Return JSON matching the response schema.`;
@@ -125,6 +138,9 @@ Return JSON matching the response schema.`;
       userId: callerUserId,
       functionName: FN,
       usage,
+      contextBlock,
+      prompt,
+      rawResult: text,
     });
 
     log(FN, "success", { homeId, task_type: parsed.task_type });
