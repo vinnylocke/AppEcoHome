@@ -507,6 +507,11 @@ verify_jwt = false
 [functions.generate-pest-risk]
 verify_jwt = false
 
+# Weekly cron (generate-grow-suggestions-weekly) + on-demand. AI "what to grow
+# this week + tasks you might be missing" from the full gardener context.
+[functions.generate-grow-suggestions]
+verify_jwt = false
+
 # 2026-06-16 Custom integrations Phase 3 — public webhook router for
 # every adapter that implements parseWebhook(). The user's device hits
 # this endpoint with the per-integration webhook secret in the path,

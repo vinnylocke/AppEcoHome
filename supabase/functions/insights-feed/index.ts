@@ -28,7 +28,7 @@ const json = (d: unknown, s = 200) =>
 
 interface FeedInsight {
   id: string;
-  source: "pattern" | "automation" | "area" | "weekly" | "seasonal" | "planner" | "weather" | "pest";
+  source: "pattern" | "automation" | "area" | "weekly" | "seasonal" | "planner" | "weather" | "pest" | "grow" | "task";
   category: string;
   title: string;
   body: string;
@@ -226,6 +226,26 @@ serve(async (req) => {
           severity: (p.severity as number) ?? 2,
           createdAt: p.generated_at as string,
           link: "/watchlist",
+          dismissable: false,
+        });
+      }
+
+      // 8. AI grow + missing-task suggestions (home-level, weekly).
+      const { data: grow } = await db
+        .from("home_grow_suggestions")
+        .select("id, kind, title, body, area_name, severity, generated_at")
+        .eq("home_id", homeId);
+      for (const g of grow ?? []) {
+        const isPlant = g.kind === "plant";
+        insights.push({
+          id: `grow-${g.id}`,
+          source: isPlant ? "grow" : "task",
+          category: isPlant ? "planting" : "tasks",
+          title: isPlant ? `Try growing ${g.title}${g.area_name ? ` in ${g.area_name}` : ""}` : (g.title as string),
+          body: g.body as string,
+          severity: (g.severity as number) ?? 1,
+          createdAt: g.generated_at as string,
+          link: isPlant ? "/shed" : "/schedule",
           dismissable: false,
         });
       }
