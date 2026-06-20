@@ -9,6 +9,7 @@ import { logEvent, EVENT } from "../../events/registry";
 import SeasonalPickTile from "./SeasonalPickTile";
 import PlantDetailModal from "../PlantDetailModal";
 import type { ProviderSearchResult } from "../../lib/verdantlyUtils";
+import FeatureGate from "../shared/FeatureGate";
 
 interface Props {
   homeId: string;
@@ -34,7 +35,15 @@ interface Props {
  * plant-doctor edge fn; gracefully degrades to a deterministic
  * fallback for non-AI tiers and AI failures.
  */
-export default function SeasonalPicksCard({
+export default function SeasonalPicksCard(props: React.ComponentProps<typeof SeasonalPicksCardInner>) {
+  return (
+    <FeatureGate feature="ai_insights" fallback={null}>
+      <SeasonalPicksCardInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function SeasonalPicksCardInner({
   homeId,
   aiEnabled,
   isPremium,

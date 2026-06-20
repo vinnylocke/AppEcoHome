@@ -4,14 +4,18 @@ import {
 } from "../../../src/constants/tierFeatures";
 
 describe("tierFeatures", () => {
-  test("every feature ships OPEN to all four tiers (no behaviour change yet)", () => {
-    // Guard rail: if this fails, a gate was intentionally flipped — confirm it's
-    // wanted and update this expectation in the same change.
+  test("non-insight features ship OPEN to all tiers; ai_insights is Evergreen-only", () => {
+    // Guard rail: if a non-insight feature fails this, a gate was intentionally
+    // flipped — confirm it's wanted and update this expectation in the same change.
     for (const f of Object.keys(FEATURE_GATES) as Feature[]) {
+      if (f === "ai_insights") continue;
       expect(FEATURE_GATES[f]).toEqual(
         expect.arrayContaining(["sprout", "botanist", "sage", "evergreen"]),
       );
     }
+    expect(FEATURE_GATES.ai_insights).toEqual(["evergreen"]);
+    expect(tierAllowsFeature("sage", "ai_insights")).toBe(false);
+    expect(tierAllowsFeature("evergreen", "ai_insights")).toBe(true);
   });
 
   test("tierAllowsFeature reads the gate list; unknown tier = sprout", () => {

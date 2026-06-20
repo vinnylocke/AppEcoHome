@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { Lightbulb, Check, X, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import toast from "react-hot-toast";
+import FeatureGate from "../shared/FeatureGate";
 
 interface Evidence {
   windowDays?: number;
@@ -92,7 +93,15 @@ function detailRows(s: Suggestion): Array<{ label: string; value: string }> {
  * the automations table RLS, so a non-manager's apply fails safe. Renders
  * nothing when there are no active suggestions.
  */
-export default function AutomationSuggestions({
+export default function AutomationSuggestions(props: React.ComponentProps<typeof AutomationSuggestionsInner>) {
+  return (
+    <FeatureGate feature="ai_insights" fallback={null}>
+      <AutomationSuggestionsInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function AutomationSuggestionsInner({
   automationId,
   canManage,
   onApplied,

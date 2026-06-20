@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { Droplets, Sun, Waves, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "../../lib/supabase";
+import FeatureGate from "../shared/FeatureGate";
 
 type RetentionClass = "fast_draining" | "balanced" | "moisture_retentive" | "unknown";
 type WeatherKey = "hot_dry" | "mild" | "cool_wet";
@@ -39,7 +40,15 @@ const mean = (xs: number[]) => (xs.length ? xs.reduce((a, b) => a + b, 0) / xs.l
  * the area has no soil sensor. Simple line by default; "Details" reveals the
  * numbers (weather-segmented drydown, watering response, confidence) for experts.
  */
-export default function MoistureBehaviourCard({ areaId }: { areaId: string }) {
+export default function MoistureBehaviourCard(props: React.ComponentProps<typeof MoistureBehaviourCardInner>) {
+  return (
+    <FeatureGate feature="ai_insights" fallback={null}>
+      <MoistureBehaviourCardInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function MoistureBehaviourCardInner({ areaId }: { areaId: string }) {
   const [loading, setLoading] = useState(true);
   const [profiles, setProfiles] = useState<Profile[]>([]);
   const [showDetails, setShowDetails] = useState(false);

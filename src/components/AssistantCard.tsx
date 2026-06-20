@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { Sparkles, X, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "../lib/supabase";
+import FeatureGate from "./shared/FeatureGate";
 
 interface Insight {
   id: string;
@@ -14,7 +15,15 @@ interface AssistantCardProps {
   contextLabel?: string;
 }
 
-export default function AssistantCard({ userId: userIdProp, contextLabel }: AssistantCardProps) {
+export default function AssistantCard(props: React.ComponentProps<typeof AssistantCardInner>) {
+  return (
+    <FeatureGate feature="ai_insights" fallback={null}>
+      <AssistantCardInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function AssistantCardInner({ userId: userIdProp, contextLabel }: AssistantCardProps) {
   const [resolvedUserId, setResolvedUserId] = useState<string | null>(userIdProp ?? null);
   const [insights, setInsights] = useState<Insight[]>([]);
   const [expanded, setExpanded] = useState(false);

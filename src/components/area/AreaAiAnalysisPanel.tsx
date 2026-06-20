@@ -17,6 +17,7 @@ import {
 import { metricLabel, statusMeta, compatibilityMeta, formatAnalysedLabel } from "../../lib/areaInsight";
 
 import AiFeedback from "../ai/AiFeedback";
+import FeatureGate from "../shared/FeatureGate";
 
 interface Props {
   areaId: string;
@@ -49,7 +50,15 @@ function FitPill({ icon: Icon, fit, title }: { icon: typeof Droplets; fit: Metri
   );
 }
 
-export default function AreaAiAnalysisPanel({ areaId, homeId, aiEnabled }: Props) {
+export default function AreaAiAnalysisPanel(props: React.ComponentProps<typeof AreaAiAnalysisPanelInner>) {
+  return (
+    <FeatureGate feature="ai_insights" fallback={null}>
+      <AreaAiAnalysisPanelInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function AreaAiAnalysisPanelInner({ areaId, homeId, aiEnabled }: Props) {
   const [result, setResult] = useState<AreaInsightResult | null>(null);
   const [loading, setLoading] = useState(false);
   const ranAutoRef = useRef(false);

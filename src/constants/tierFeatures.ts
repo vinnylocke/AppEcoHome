@@ -14,10 +14,12 @@ export type Feature =
   | "ics_export"
   | "guide_authoring"
   | "integrations"
-  | "shopping";
+  | "shopping"
+  | "ai_insights";
 
 const ALL: TierId[] = ["sprout", "botanist", "sage", "evergreen"];
 const PAID: TierId[] = ["botanist", "sage", "evergreen"];
+const EVERGREEN: TierId[] = ["evergreen"];
 
 /**
  * THE single knob for tier-gating non-AI / non-Perenual features.
@@ -46,6 +48,9 @@ export const FEATURE_GATES: Record<Feature, TierId[]> = {
   guide_authoring: ALL,
   integrations: ALL,
   shopping: ALL,
+  // The whole AI-insights experience ships Evergreen-only for now. Flip this one
+  // array (+ its server mirror in supabase/functions/_shared/insightTiers.ts) to amend.
+  ai_insights: EVERGREEN,
 };
 
 export const FEATURE_LABELS: Record<Feature, string> = {
@@ -62,6 +67,7 @@ export const FEATURE_LABELS: Record<Feature, string> = {
   guide_authoring: "Guide Authoring",
   integrations: "Smart Integrations",
   shopping: "Shopping Lists",
+  ai_insights: "AI Insights",
 };
 
 /** Is this tier allowed to use the feature? Unknown tier → treated as Sprout. */
@@ -74,4 +80,4 @@ export function tiersWithFeature(f: Feature): TierId[] {
   return FEATURE_GATES[f];
 }
 
-export { ALL as ALL_TIERS, PAID as PAID_TIERS };
+export { ALL as ALL_TIERS, PAID as PAID_TIERS, EVERGREEN as EVERGREEN_TIERS };

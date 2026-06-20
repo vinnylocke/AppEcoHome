@@ -5,7 +5,8 @@
  * cache-staleness decision are unit-testable in isolation.
  */
 
-export type Persona = "new" | "experienced" | null;
+import type { Persona } from "./persona.ts";
+export type { Persona };
 
 export interface SensorLatest {
   soil_moisture: number;

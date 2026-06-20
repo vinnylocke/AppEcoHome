@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
+import FeatureGate from "./shared/FeatureGate";
 import { Logger } from "../lib/errorHandler";
 import SeasonalPicksCard from "./seasonal/SeasonalPicksCard";
 import { recordSignal } from "../onboarding/signals";
@@ -123,7 +124,15 @@ interface Props {
   isPremium?: boolean;
 }
 
-export default function WeeklyOverviewPage({ homeId, aiEnabled = false, isPremium = false }: Props) {
+export default function WeeklyOverviewPage(props: React.ComponentProps<typeof WeeklyOverviewPageInner>) {
+  return (
+    <FeatureGate feature="ai_insights">
+      <WeeklyOverviewPageInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function WeeklyOverviewPageInner({ homeId, aiEnabled = false, isPremium = false }: Props) {
   const navigate = useNavigate();
   const [payload, setPayload] = useState<WeeklyOverviewPayload | null>(null);
   const [weekStart, setWeekStart] = useState<string | null>(null);
