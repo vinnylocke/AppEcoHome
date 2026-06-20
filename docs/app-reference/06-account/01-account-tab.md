@@ -16,7 +16,7 @@ A long-scroll page with grouped sections:
 | Display name | Update `user_profiles.display_name` |
 | Email | Trigger Supabase Auth email-change flow |
 | Password | Re-auth with current password → update new |
-| Subscription Tier | Switch between Sprout / Botanist / Sage / Evergreen — writes `subscription_tier`, `ai_enabled`, `enable_perenual` |
+| Subscription Tier | Switch between Sprout / Botanist / Sage / Evergreen. Non-admins write `subscription_tier`/`ai_enabled`/`enable_perenual` directly; admins (Stripe sandbox phase) go through Checkout + the `stripe-webhook` sync |
 | AI Usage | `AIUsagePanel` — quota + history |
 | Accessibility | High-contrast toggle |
 | Data Export | GDPR ZIP download |
@@ -83,6 +83,8 @@ supabase.auth.updateUser({ email: newEmail });
 2. On success: `supabase.auth.updateUser({ password: newPassword })`.
 
 #### Tier switch
+
+**Non-admin (honour-system, current default):**
 ```ts
 supabase.from("user_profiles").update({
   subscription_tier: tier.id,
@@ -92,12 +94,17 @@ supabase.from("user_profiles").update({
 ```
 Then `onTierChange()` lifts new flags into App state to update gating across the app without a refetch.
 
+**Admin (Stripe, sandbox phase):** paid-tier selection calls `stripe-create-checkout` → redirect to Stripe-hosted Checkout; "Manage billing" calls `stripe-portal`. The DB is **not** written client-side here — the `stripe-webhook` function is the authoritative writer of `subscription_tier` + flags on `customer.subscription.*`. On return (`?checkout=success&tier=`) the UI optimistically calls `onTierChange()` while the webhook persists. The Stripe billing UI is gated to `isAdmin` for now; everyone else keeps the honour-system switch above.
+
 #### Delete account
 Multi-step destructive flow. See [08-delete-account.md](./08-delete-account.md).
 
 ### Edge functions invoked
 
 - `delete-account` (destructive flow) — purges all user-scoped data + auth user.
+- `stripe-create-checkout` (admin, paid-tier select) — creates a Stripe Checkout Session; returns its hosted URL.
+- `stripe-portal` (admin, "Manage billing") — creates a Billing Portal session; returns its URL.
+- `stripe-webhook` (no direct UI call) — Stripe → server sync that writes the tier + flags into `user_profiles`.
 
 ### Cron / scheduled jobs
 
@@ -110,7 +117,7 @@ None.
 ### Tier gating
 
 - AI Usage panel only shown when `aiEnabled = true`.
-- Tier switcher is visible to every tier (no payment integration — honour-system today).
+- Tier switcher is visible to every tier. **Non-admins:** honour-system (direct DB write). **Admins (Stripe sandbox phase):** paid tiers go through Stripe Checkout + the billing portal, with `stripe-webhook` as the authoritative writer. Going live = swap the Supabase secret to a live key + drop the `isAdmin` gate.
 
 ### Beta gating
 
@@ -244,4 +251,7 @@ Every setting that isn't gardening-specific lives here — name, email, password
 - `src/components/GardenerProfile.tsx` — parent + AccountTab
 - `src/components/AIUsagePanel.tsx` — usage chart
 - `src/constants/tiers.ts` — tier definitions
+- `supabase/functions/stripe-create-checkout/index.ts`, `stripe-portal/index.ts`, `stripe-webhook/index.ts` — Stripe billing
+- `supabase/functions/_shared/stripeTiers.ts` — price↔tier + tier→flags mapping
+- `supabase/migrations/20260811000000_stripe_subscriptions.sql` — `user_profiles` Stripe columns
 - `supabase/functions/delete-account/index.ts` — destructive edge fn

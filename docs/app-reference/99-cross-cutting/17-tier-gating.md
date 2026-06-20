@@ -56,6 +56,8 @@ supabase.from("user_profiles").update({
 
 Then `onTierChange()` lifts flags into App state so the rest of the app re-renders.
 
+**Stripe billing (paid-tier writes — sandbox phase).** The direct write above is the honour-system path kept for non-admins. For **admins**, paid-tier changes go through Stripe-hosted Checkout (`stripe-create-checkout`) + the Billing Portal (`stripe-portal`), and the **`stripe-webhook`** function is the authoritative writer of `subscription_tier` + the two flags (mapping Stripe price → tier via `supabase/functions/_shared/stripeTiers.ts`). The Stripe UI is gated to `isAdmin` while we test against the Stripe **sandbox**; going live = swap the `STRIPE_SECRET_KEY` secret to a live restricted key + live price ids and drop the `isAdmin` gate. Migration `20260811000000_stripe_subscriptions.sql` adds `stripe_customer_id` / `stripe_subscription_id` / `subscription_status` / `subscription_period_end` to `user_profiles`. See [Edge Functions Catalogue](./10-edge-functions-catalogue.md).
+
 ### Gated surfaces (non-exhaustive)
 
 | Feature | Gate |

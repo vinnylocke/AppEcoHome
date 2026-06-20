@@ -40,5 +40,8 @@
 | GP-009 | ✅ | Locked achievement shows "Keep going to unlock" | — | 🔲 Pending |
 | GP-010 | ✅ | Stats tab renders metric cards | — | 🔲 Pending |
 | GP-011 | ✅ | Voice "Read AI replies aloud" toggle persists across reload (Alerts tab) | — | 🔲 Written (run pending local stack) |
+| GP-012 | ✅ | Plan section (admin) — per-tier prices + "Manage billing" visible; selecting a paid tier starts Stripe Checkout (sandbox). Price↔tier mapping unit-covered by `stripeTiers.test.ts`. | Stripe sandbox | 🔲 Pending (live sandbox) |
 
 **Note:** the Voice toggle (`?tab=notifications`) writes `user_profiles.voice_settings` keyed on `uid`. GP-011 guards the regression where it filtered on a non-existent `id` column and silently never saved.
+
+**Stripe billing (GP-012):** the "Your Plan" Stripe Checkout / Billing Portal UI is gated to `isAdmin` during the sandbox phase, so non-admin E2E accounts still see the honour-system tier switch. End-to-end checkout can't be Playwright-tested without the live Stripe sandbox + a test card, so GP-012 is unit-covered (`supabase/tests/stripeTiers.test.ts`) for now; the `stripe-webhook` price→tier mapping is the load-bearing logic.

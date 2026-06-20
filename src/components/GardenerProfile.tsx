@@ -2,7 +2,7 @@ import React, { useState, useEffect } from "react";
 import { useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { toast } from "react-hot-toast";
-import { User, Trophy, BarChart2, Save, Loader2, Lock, Trash2, AlertTriangle, X, CheckCircle2, Bell, Droplets, Wheat, Scissors, Cloud, Sun, Sparkles, MessageSquare, Eye, Calendar as CalendarIcon, Volume2 } from "lucide-react";
+import { User, Trophy, BarChart2, Save, Loader2, Lock, Trash2, AlertTriangle, X, CheckCircle2, Bell, Droplets, Wheat, Scissors, Cloud, Sun, Sparkles, MessageSquare, Eye, Calendar as CalendarIcon, Volume2, CreditCard } from "lucide-react";
 import { TIERS, type TierId } from "../constants/tiers";
 import { useAchievements } from "../hooks/useAchievements";
 import { ACHIEVEMENTS } from "../lib/achievements";
@@ -30,6 +30,15 @@ interface Props {
 }
 
 type Tab = "account" | "notifications" | "achievements" | "stats";
+
+// Monthly price shown on the plan cards (admin-only during the Stripe sandbox
+// phase). Mirrors the Stripe sandbox Prices created for each tier.
+const TIER_PRICE_LABEL: Record<TierId, string> = {
+  sprout: "Free",
+  botanist: "£2/mo",
+  sage: "£5/mo",
+  evergreen: "£10/mo",
+};
 
 // ─── Notification preferences ────────────────────────────────────────────────
 // Wave 22.0044 — synced to `user_profiles.notification_prefs` so the
@@ -667,6 +676,71 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, isAd
   const [showTierConfirmModal, setShowTierConfirmModal] = useState(false);
   const [isSwitchingTier, setIsSwitchingTier] = useState(false);
 
+  // Stripe billing (admin-gated during the sandbox phase — non-admins keep the
+  // instant free switch in confirmSwitchTier below). Checkout + the billing
+  // portal both redirect to Stripe-hosted pages.
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [isRedirecting, setIsRedirecting] = useState(false);
+
+  // Handle the redirect back from Stripe Checkout. The webhook is the source of
+  // truth for user_profiles; here we optimistically reflect the new tier + toast.
+  useEffect(() => {
+    const outcome = searchParams.get("checkout");
+    if (!outcome) return;
+    if (outcome === "success") {
+      const t = TIERS.find((x) => x.id === searchParams.get("tier"));
+      if (t) {
+        toast.success(`✓ Subscribed to ${t.name} — your plan is now active`);
+        onTierChange?.(t.id, t.ai_enabled, t.enable_perenual);
+      } else {
+        toast.success("✓ Subscription active");
+      }
+    } else if (outcome === "cancelled") {
+      toast("Checkout cancelled — no charge was made");
+    }
+    const next = new URLSearchParams(searchParams);
+    next.delete("checkout");
+    next.delete("tier");
+    setSearchParams(next, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams]);
+
+  async function startCheckout(tier: TierId) {
+    setIsRedirecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("stripe-create-checkout", {
+        body: { tier },
+      });
+      if (error || !data?.url) throw new Error(error?.message ?? "Checkout is unavailable");
+      window.location.assign(data.url as string);
+    } catch (e: any) {
+      setIsRedirecting(false);
+      toast.error(e?.message ?? "Could not start checkout");
+    }
+  }
+
+  async function openPortal() {
+    setIsRedirecting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke("stripe-portal", {});
+      if (error || !data?.url) throw new Error(error?.message ?? "Billing portal is unavailable");
+      window.location.assign(data.url as string);
+    } catch (e: any) {
+      setIsRedirecting(false);
+      toast.error(e?.message ?? "Could not open billing portal");
+    }
+  }
+
+  // Admins go through Stripe; everyone else keeps the existing instant switch.
+  function handleUpdatePlan() {
+    if (isAdmin) {
+      if (pendingTier && pendingTier !== "sprout") startCheckout(pendingTier);
+      else openPortal(); // downgrade to free is a cancellation — done in the portal
+      return;
+    }
+    setShowTierConfirmModal(true);
+  }
+
   async function confirmSwitchTier() {
     if (!pendingTier || pendingTier === subscriptionTier) return;
     setIsSwitchingTier(true);
@@ -923,6 +997,11 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, isAd
                 <p className="text-[10px] font-medium text-rhozly-on-surface/50 leading-snug mt-0.5">
                   {tier.vibe}
                 </p>
+                {isAdmin && (
+                  <p className={`text-[10px] font-black mt-1 ${isSelected ? tier.accentText : "text-rhozly-on-surface/70"}`}>
+                    {TIER_PRICE_LABEL[tier.id]}
+                  </p>
+                )}
               </button>
             );
           })}
@@ -932,11 +1011,27 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, isAd
         {pendingTier && pendingTier !== subscriptionTier && (
           <button
             data-testid="plan-update-btn"
-            onClick={() => setShowTierConfirmModal(true)}
-            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-rhozly-primary text-white text-xs font-black transition-opacity"
+            onClick={handleUpdatePlan}
+            disabled={isRedirecting}
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl bg-rhozly-primary text-white text-xs font-black transition-opacity disabled:opacity-50"
           >
-            <Save size={13} />
-            Update Plan
+            {isRedirecting ? <Loader2 size={13} className="animate-spin" /> : <Save size={13} />}
+            {isAdmin && pendingTier !== "sprout"
+              ? `Subscribe — ${TIER_PRICE_LABEL[pendingTier]}`
+              : "Update Plan"}
+          </button>
+        )}
+
+        {/* Manage billing — admin-gated Stripe portal (cancel / change card / invoices) */}
+        {isAdmin && (
+          <button
+            data-testid="plan-manage-billing-btn"
+            onClick={openPortal}
+            disabled={isRedirecting}
+            className="w-full flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-rhozly-outline/20 text-xs font-black text-rhozly-on-surface/70 hover:bg-rhozly-surface transition-colors disabled:opacity-50"
+          >
+            <CreditCard size={13} />
+            Manage billing
           </button>
         )}
       </section>

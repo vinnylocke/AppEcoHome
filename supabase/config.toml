@@ -598,3 +598,13 @@ entrypoint = "./functions/generate-landscape-plan/index.ts"
 # Specifies static files to be bundled with the function. Supports glob patterns.
 # For example, if you want to serve static HTML pages in your function:
 # static_files = [ "./functions/generate-landscape-plan/*.html" ]
+
+[functions.stripe-create-checkout]
+verify_jwt = true
+
+[functions.stripe-portal]
+verify_jwt = true
+
+# Stripe POSTs here with no Supabase JWT — the Stripe signature is the auth.
+[functions.stripe-webhook]
+verify_jwt = false

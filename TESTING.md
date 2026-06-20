@@ -771,6 +771,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 | File | Tests | Rule / Pattern |
 |------|-------|----------------|
+| `stripeTiers.test.ts` | 7 | Stripe billing — `isValidTier`, `tierToFlags` (mirrors `src/constants/tiers.ts`), `PAID_TIERS`, `priceIdForTier`/`tierFromPriceId` (env mapping), `tierFromMetadata`, `statusGrantsAccess` |
 | `heatwave.test.ts` | 6 | Heatwave rule (≥32°C threshold) |
 | `frostRisk.test.ts` | 7 | Frost risk rule (tropical vs standard thresholds) |
 | `highWind.test.ts` | 6 | High wind rule (≥40 kph) |

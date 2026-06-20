@@ -41,6 +41,14 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 | `create-home-invite` | Browser (HomeManagement → Members tab → Invite by email — owners only) | **Sprint 4b (UX review 2026-06-15 item 5.1)** — tokenised email invite. Validates the caller is the home's owner, rate-limits to 10 invites per home per day, reuses any existing unused/unexpired invite for the same email (no duplicate inbox spam), inserts a row in `home_invite_tokens`, sends the email via Resend through `_shared/inviteEmail.ts`. Body: `{ homeId, email, role: "editor"\|"viewer", appOrigin? }`. Returns `{ token, expiresAt, invitee, resentExisting, inviteUrl }`. Errors: `invalid_email` / `invalid_role` (400), `not_owner` (403), `already_member` (409), `rate_limited` (429). Email send failures are logged but don't roll back the insert — the owner can copy the URL from the response or resend. |
 | `redeem-home-invite` | Browser (`/join/:token` → JoinHomeViaToken) | **Sprint 4b (UX review 2026-06-15 item 5.1)** — tokenised email invite redemption. Service-role read against `home_invite_tokens` (no permissive RLS, so anonymous probing by token guess returns nothing). Validation chain: signed-in user, token exists, not used (`used_at IS NULL`), not expired (`expires_at > now()`), caller's `auth.users.email` matches `invitee_email` case-insensitively. On success: inserts the membership at the invite's role + flips `used_at`. Idempotent for already-member calls (still returns `home_id`). Errors: `invite_not_found` (404), `invite_already_used` (410), `invite_expired` (410), `email_mismatch` (403 with `invitee` echoed back), `no_email_on_account` (400). |
 
+### Billing (Stripe)
+
+| Function | Trigger | Purpose |
+|----------|---------|---------|
+| `stripe-create-checkout` | Browser (GardenerProfile → Your Plan, admin-gated) | Find-or-create the user's Stripe Customer (stores `stripe_customer_id`), create a Checkout Session (`mode: subscription`, the selected tier's price, `client_reference_id` + `subscription_data.metadata` = uid+tier). Body `{ tier }`. Returns `{ url }`. `verify_jwt=true` + `requireAuth`. |
+| `stripe-portal` | Browser (GardenerProfile → "Manage billing", admin-gated) | Create a Stripe Billing Portal session for the user's customer. Returns `{ url }`. `verify_jwt=true` + `requireAuth`. |
+| `stripe-webhook` | Stripe (webhook endpoint) | **Authoritative sync** of subscription state → `user_profiles`. Verifies the Stripe signature (`STRIPE_WEBHOOK_SECRET`), maps price→tier (`_shared/stripeTiers.ts`), writes `subscription_tier` + `ai_enabled`/`enable_perenual` + stripe ids/status/period_end on `customer.subscription.created\|updated\|deleted`, `checkout.session.completed`, `invoice.payment_failed`. Idempotent. `verify_jwt=false` (signature is the auth). |
+
 ### Postgres RPCs (called via supabase.rpc)
 
 | RPC | Purpose | Trigger |
