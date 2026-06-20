@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useSearchPreference } from "../../lib/searchPreference";
+import ImageDisclaimer from "../ImageDisclaimer";
 import { Search, Loader2, Sparkles, Database, Plus, Pencil, Lock, SlidersHorizontal, ChevronDown, Check, Info, ChevronUp, BookOpen } from "lucide-react";
 import {
   searchLibrary,
@@ -600,6 +601,8 @@ export default function PlantSearch({
               <Pencil size={13} /> Add "{query.trim()}" manually
             </button>
           )}
+
+          <ImageDisclaimer className="px-1 pt-2 border-t border-rhozly-outline/5 mt-1" />
         </div>
       )}
     </div>
