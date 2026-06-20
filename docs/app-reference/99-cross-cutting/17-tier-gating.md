@@ -136,6 +136,7 @@ To match the cost of running AI to the users who actually use it. AI calls cost 
 
 ## Related reference files
 
+- [Features & How to Get Them](../../feature-access-guide.md) — the full feature catalogue + access map
 - [Tier Selection](../01-onboarding/04-tier-selection.md)
 - [Account Tab](../06-account/01-account-tab.md)
 - [AI — Gemini](./13-ai-gemini.md)
