@@ -245,7 +245,7 @@ Return valid JSON matching the schema exactly.`;
 
     const analysis = JSON.parse(raw);
     log(FN, "analysis_complete", { homeId, areaId, plantCount: analysis.plants?.length ?? 0 });
-    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "scan_area", usage });
+    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "scan_area", usage, prompt: userText, rawResult: raw });
 
     return new Response(JSON.stringify(analysis), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

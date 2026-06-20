@@ -118,7 +118,7 @@ Be specific to what you can actually see. If the image is unclear in any area, s
 
     const result = JSON.parse(raw);
     if (homeId) {
-      await logAiUsage(db, { homeId, userId, functionName: FN, action: "visualiser_analyse", usage });
+      await logAiUsage(db, { homeId, userId, functionName: FN, action: "visualiser_analyse", usage, prompt: userText, rawResult: raw });
     }
 
     return new Response(JSON.stringify(result), {
