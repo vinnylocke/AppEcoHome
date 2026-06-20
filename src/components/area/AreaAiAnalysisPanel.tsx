@@ -16,6 +16,8 @@ import {
 } from "../../services/areaSensorsService";
 import { metricLabel, statusMeta, compatibilityMeta, formatAnalysedLabel } from "../../lib/areaInsight";
 
+import AiFeedback from "../ai/AiFeedback";
+
 interface Props {
   areaId: string;
   homeId: string;
@@ -144,6 +146,15 @@ export default function AreaAiAnalysisPanel({ areaId, homeId, aiEnabled }: Props
           <div className="rounded-xl bg-emerald-50/70 p-4">
             <p className="font-semibold text-emerald-900">{insight.headline}</p>
             <p className="mt-1 text-sm text-emerald-900/80">{insight.summary}</p>
+            <div className="mt-2">
+              <AiFeedback
+                functionName="area-sensor-analysis"
+                action="area_coach"
+                homeId={homeId}
+                targetKind="area_insight"
+                targetId={areaId}
+              />
+            </div>
           </div>
 
           <div className="space-y-3">
