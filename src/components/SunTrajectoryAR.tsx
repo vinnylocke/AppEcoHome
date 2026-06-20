@@ -34,6 +34,7 @@ import {
   DEFAULT_HFOV_RAD,
   DEFAULT_VFOV_RAD,
 } from "../lib/sunProjection";
+import FeatureGate from "./shared/FeatureGate";
 
 const DEG = Math.PI / 180;
 
@@ -679,7 +680,15 @@ function SunControls({ selectedDate, onDateChange, arc }: SunControlsProps) {
 
 // ─── Main component ───────────────────────────────────────────────────────────
 
-export default function SunTrajectoryAR({ homeId }: Props) {
+export default function SunTrajectoryAR(props: React.ComponentProps<typeof SunTrajectoryARInner>) {
+  return (
+    <FeatureGate feature="sun_tracker">
+      <SunTrajectoryARInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function SunTrajectoryARInner({ homeId }: Props) {
   const navigate = useNavigate();
 
   // Time state — start at current moment

@@ -12,6 +12,7 @@ import SeedRefillBanner from "./shopping/SeedRefillBanner";
 import EmptyState from "./shared/EmptyState";
 import { supabase } from "../lib/supabase";
 import type { ShoppingListItem } from "../types/shopping";
+import FeatureGate from "./shared/FeatureGate";
 
 const TEMPLATES: {
   id: string;
@@ -67,7 +68,15 @@ interface Props {
   perenualEnabled: boolean;
 }
 
-export default function ShoppingLists({ homeId, aiEnabled, perenualEnabled }: Props) {
+export default function ShoppingLists(props: React.ComponentProps<typeof ShoppingListsInner>) {
+  return (
+    <FeatureGate feature="shopping">
+      <ShoppingListsInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function ShoppingListsInner({ homeId, aiEnabled, perenualEnabled }: Props) {
   const { can } = usePermissions();
   const navigate = useNavigate();
   const { requestFeedback } = useBetaFeedbackContext();

@@ -13,6 +13,7 @@ import SeedPacketDetailModal from "./SeedPacketDetailModal";
 import BulkPasteSeedPacketsModal from "./BulkPasteSeedPacketsModal";
 import ScanSeedPacketModal from "./ScanSeedPacketModal";
 import { recordSignal } from "../../onboarding/signals";
+import FeatureGate from "../shared/FeatureGate";
 
 interface Props {
   homeId: string;
@@ -32,7 +33,15 @@ interface Props {
  * and exposes an "Add packets" button that opens a placeholder toast
  * (Wave 2 will wire the real modal).
  */
-export default function NurseryTab({
+export default function NurseryTab(props: React.ComponentProps<typeof NurseryTabInner>) {
+  return (
+    <FeatureGate feature="nursery">
+      <NurseryTabInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function NurseryTabInner({
   homeId,
   aiEnabled = false,
   perenualEnabled = false,

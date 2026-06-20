@@ -17,6 +17,7 @@ import {
 import WalkPlantCard from "./WalkPlantCard";
 import WalkSummaryCard from "./WalkSummaryCard";
 import { recordSignal } from "../../onboarding/signals";
+import FeatureGate from "../shared/FeatureGate";
 
 interface Props {
   homeId: string;
@@ -114,7 +115,15 @@ function reducer(state: WalkState, action: WalkAction): WalkState {
  * `garden_walk_visits`, and the rolled-up summary lands in
  * `garden_walk_sessions` when the walk ends.
  */
-export default function GardenWalk({ homeId, userId, aiEnabled }: Props) {
+export default function GardenWalk(props: React.ComponentProps<typeof GardenWalkInner>) {
+  return (
+    <FeatureGate feature="garden_walk">
+      <GardenWalkInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
   const navigate = useNavigate();
   const [state, dispatch] = useReducer(reducer, { kind: "loading" } as WalkState);
   // `startedAtMs` is tracked per-walk-instance — re-set on Walk Again so

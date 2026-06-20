@@ -97,10 +97,17 @@ tierAllowsFeature(tier, "light_sensor"); // list membership — lattice-safe
 feature can be gated by changing its array (no numeric "minimum tier", because Sage ≠ Botanist+).
 Consumed by `useEntitlements(tierProp?)` (`src/hooks/useEntitlements.ts`, module-cached tier fetch) and
 the reusable `<FeatureGate feature tier? fallback?>` + `<UpgradeNudge feature compact? />`
-(`src/components/shared/`). Wired so far: Light Sensor, Garden Layout list (both open). Enforcement is
-**client-side** for cheap visual tools; real resource caps (Multiple Homes, guide authoring) get RLS
-when actually gated. When a gate is flipped it applies to all non-entitled users immediately (no
-grandfathering). See [tier-gating-features-analysis.md](../../plans/tier-gating-features-analysis.md).
+(`src/components/shared/`). **Wired (all open):** `light_sensor` (LightSensor), `garden_layout`
+(GardenLayoutList) + `garden_layout_3d` (GardenLayout3D), `sun_tracker` (SunTrajectoryAR),
+`microclimate` (MicroclimateReportModal), `visualiser` (PlantVisualiser), `nursery` (NurseryTab),
+`garden_walk` (GardenWalk), `shopping` (ShoppingLists), `guide_authoring` (CommunityGuideEditor),
+`integrations` (IntegrationsPage), `multiple_homes` (HomeManagement "New Home" button, `fallback={null}`),
+`ics_export` (TaskCalendar Export button, `fallback={null}`). Enforcement is **client-side** for cheap
+visual tools; real resource caps (Multiple Homes, guide authoring) get RLS when actually gated. When a
+gate is flipped it applies to all non-entitled users immediately (no grandfathering). Per-surface
+reference files get their Role 1 "Tier gating" one-liner updated when a gate is actually flipped (the
+wiring itself is a no-op while everything is open). See
+[tier-gating-features-analysis.md](../../plans/tier-gating-features-analysis.md).
 
 ### Client + server enforcement
 

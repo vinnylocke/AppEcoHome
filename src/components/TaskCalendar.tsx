@@ -15,6 +15,7 @@ import {
   Sprout,
 } from "lucide-react";
 import { buildTasksIcs, downloadIcs } from "../lib/icsExport";
+import FeatureGate from "./shared/FeatureGate";
 import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
@@ -642,14 +643,16 @@ export default function TaskCalendar({
               </span>
             )}
           </button>
-          <button
-            onClick={handleExportIcs}
-            data-testid="calendar-export-ics"
-            className="px-4 py-3 bg-rhozly-surface-low text-rhozly-on-surface rounded-2xl font-black hover:bg-rhozly-surface-mid transition-all shadow-sm flex items-center gap-2"
-            title="Export upcoming tasks as iCalendar (.ics)"
-          >
-            <Download size={16} /> Export
-          </button>
+          <FeatureGate feature="ics_export" fallback={null}>
+            <button
+              onClick={handleExportIcs}
+              data-testid="calendar-export-ics"
+              className="px-4 py-3 bg-rhozly-surface-low text-rhozly-on-surface rounded-2xl font-black hover:bg-rhozly-surface-mid transition-all shadow-sm flex items-center gap-2"
+              title="Export upcoming tasks as iCalendar (.ics)"
+            >
+              <Download size={16} /> Export
+            </button>
+          </FeatureGate>
           <button
             data-testid="calendar-harvest-windows-toggle"
             onClick={() => setShowHarvestWindows((v) => !v)}

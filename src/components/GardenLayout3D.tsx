@@ -8,6 +8,7 @@ import type { ShapePreset } from "./GardenShapePanel";
 import GardenShape3D from "./GardenShape3D";
 import { SUN_CLASS_COLOR, SUN_CLASS_TEXT_COLOR, type ShapeSunResult, type SunClass } from "../lib/sunAnalysis";
 import { getGrassTexture } from "../lib/garden/garden3DMaterials";
+import FeatureGate from "./shared/FeatureGate";
 
 interface Props {
   shapes: ShapeData[];
@@ -96,7 +97,15 @@ function DrawGhost({ preset, start, end }: {
   );
 }
 
-export default function GardenLayout3D({
+export default function GardenLayout3D(props: React.ComponentProps<typeof GardenLayout3DInner>) {
+  return (
+    <FeatureGate feature="garden_layout_3d">
+      <GardenLayout3DInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function GardenLayout3DInner({
   shapes, selectedId, canvasW, canvasH, northOffset,
   interactionMode, pendingPreset,
   onSelect, onShapeChange, onDrawShape, sunPosition,

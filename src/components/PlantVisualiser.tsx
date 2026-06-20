@@ -13,6 +13,7 @@ import PlantCameraView from "./PlantCameraView";
 import CaptureGallery from "./CaptureGallery";
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
+import FeatureGate from "./shared/FeatureGate";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -31,7 +32,15 @@ const FALLBACK_IMAGE =
 
 // ─── Component ────────────────────────────────────────────────────────────────
 
-export default function PlantVisualiser({ homeId, aiEnabled = false }: { homeId: string; aiEnabled?: boolean }) {
+export default function PlantVisualiser(props: React.ComponentProps<typeof PlantVisualiserInner>) {
+  return (
+    <FeatureGate feature="visualiser">
+      <PlantVisualiserInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function PlantVisualiserInner({ homeId, aiEnabled = false }: { homeId: string; aiEnabled?: boolean }) {
   const navigate = useNavigate();
   const { plants, isInitialLoading, isError: shedIsError, mutate } = useCachedShed(homeId) as any;
 

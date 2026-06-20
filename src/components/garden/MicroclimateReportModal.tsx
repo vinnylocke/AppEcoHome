@@ -11,6 +11,7 @@ import {
   type FrostRisk,
   type WindExposure,
 } from "../../lib/garden/microclimate";
+import FeatureGate from "../shared/FeatureGate";
 
 interface Props {
   shapes: ShapeData[];
@@ -33,7 +34,15 @@ const WIND_TONE: Record<WindExposure, string> = {
   "Exposed":          "bg-red-100 text-red-700",
 };
 
-export default function MicroclimateReportModal({
+export default function MicroclimateReportModal(props: React.ComponentProps<typeof MicroclimateReportModalInner>) {
+  return (
+    <FeatureGate feature="microclimate">
+      <MicroclimateReportModalInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function MicroclimateReportModalInner({
   shapes, homeId, sunAnalysisResults, recentLuxByArea, onClose,
 }: Props) {
   const [forecast, setForecast] = useState<ForecastDay[]>([]);

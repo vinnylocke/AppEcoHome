@@ -10,6 +10,7 @@ import ConnectDeviceWizard from "./ConnectDeviceWizard";
 import DeviceDetailModal from "./DeviceDetailModal";
 import AutomationsSection from "./AutomationsSection";
 import type { WizardState } from "./ConnectDeviceWizard";
+import FeatureGate from "../shared/FeatureGate";
 
 type TabId = "devices" | "automations";
 
@@ -34,7 +35,15 @@ export interface Device {
   battery_reported_at: string | null;
 }
 
-export default function IntegrationsPage({ homeId }: Props) {
+export default function IntegrationsPage(props: React.ComponentProps<typeof IntegrationsPageInner>) {
+  return (
+    <FeatureGate feature="integrations">
+      <IntegrationsPageInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function IntegrationsPageInner({ homeId }: Props) {
   const { can } = usePermissions();
   const canManageIntegrations = can('integrations.manage');
   const canControlIntegrations = can('integrations.control');

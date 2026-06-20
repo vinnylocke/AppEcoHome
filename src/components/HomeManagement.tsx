@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
+import FeatureGate from "./shared/FeatureGate";
 import {
   Building2,
   Copy,
@@ -559,14 +560,16 @@ export default function HomeManagement({
             Manage and switch between your homes
           </p>
         </div>
-        <button
-          data-testid="home-mgmt-add-btn"
-          onClick={onAddNewHome}
-          className="flex items-center gap-2 px-4 py-2.5 bg-rhozly-primary text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-rhozly-primary/90 transition-colors shadow-sm"
-        >
-          <Plus size={14} />
-          New Home
-        </button>
+        <FeatureGate feature="multiple_homes" fallback={null}>
+          <button
+            data-testid="home-mgmt-add-btn"
+            onClick={onAddNewHome}
+            className="flex items-center gap-2 px-4 py-2.5 bg-rhozly-primary text-white text-xs font-black uppercase tracking-widest rounded-2xl hover:bg-rhozly-primary/90 transition-colors shadow-sm"
+          >
+            <Plus size={14} />
+            New Home
+          </button>
+        </FeatureGate>
       </div>
 
       {/* Homes list */}

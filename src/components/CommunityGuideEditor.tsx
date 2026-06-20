@@ -30,6 +30,7 @@ import {
 import { supabase } from "../lib/supabase";
 import { logEvent, EVENT } from "../events/registry";
 import { saveGuide, deleteGuide, type CommunityGuide, type GuidePayload } from "../hooks/useCommunityGuides";
+import FeatureGate from "./shared/FeatureGate";
 
 interface Props {
   guideId?: string;
@@ -38,7 +39,15 @@ interface Props {
   onSaved(id: string): void;
 }
 
-export default function CommunityGuideEditor({ guideId: propGuideId, initialData, onClose, onSaved }: Props) {
+export default function CommunityGuideEditor(props: React.ComponentProps<typeof CommunityGuideEditorInner>) {
+  return (
+    <FeatureGate feature="guide_authoring">
+      <CommunityGuideEditorInner {...props} />
+    </FeatureGate>
+  );
+}
+
+function CommunityGuideEditorInner({ guideId: propGuideId, initialData, onClose, onSaved }: Props) {
   const [guideId] = useState(() => propGuideId ?? crypto.randomUUID());
   const [title, setTitle] = useState(initialData?.title ?? "");
   const [subtitle, setSubtitle] = useState(initialData?.subtitle ?? "");
