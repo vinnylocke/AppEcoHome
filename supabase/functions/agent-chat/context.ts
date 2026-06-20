@@ -68,6 +68,7 @@ export async function buildHomeContext(
     { data: plants },
     { data: blueprints },
     { data: plans },
+    { data: insights },
   ] = await Promise.all([
     db.from("homes").select("name, timezone").eq("id", homeId).maybeSingle(),
     db.from("user_profiles").select("subscription_tier, display_name").eq("uid", userId).maybeSingle(),
@@ -93,6 +94,15 @@ export async function buildHomeContext(
       .eq("home_id", homeId)
       .in("status", ["draft", "in_progress"])
       .limit(10),
+    // Pattern-engine findings (e.g. "high postpone rate", "neglected plant") so
+    // the assistant can reference detected patterns proactively.
+    db
+      .from("user_insights")
+      .select("insight_text, created_at")
+      .eq("user_id", userId)
+      .eq("is_significant", true)
+      .order("created_at", { ascending: false })
+      .limit(3),
   ]);
 
   const tier = (profile?.subscription_tier ?? "sprout") as HomeContext["tier"];
@@ -147,6 +157,14 @@ export async function buildHomeContext(
     lines.push("ACTIVE PLANS:");
     for (const p of plans!) {
       lines.push(`  - "${p.name}" (${p.status}, id=${p.id})`);
+    }
+  }
+
+  if ((insights ?? []).length > 0) {
+    lines.push("");
+    lines.push("DETECTED PATTERNS (from the gardener's recent behaviour — reference proactively when relevant):");
+    for (const ins of insights!) {
+      if (ins.insight_text) lines.push(`  - ${ins.insight_text}`);
     }
   }
 
