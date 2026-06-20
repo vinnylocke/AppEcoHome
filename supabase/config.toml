@@ -608,3 +608,7 @@ verify_jwt = true
 # Stripe POSTs here with no Supabase JWT — the Stripe signature is the auth.
 [functions.stripe-webhook]
 verify_jwt = false
+
+# Daily pg_cron trigger (net.http_post) — no user JWT.
+[functions.sync-stripe-ai-cost]
+verify_jwt = false
