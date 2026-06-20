@@ -14,6 +14,8 @@ interface Evidence {
   lowReadings?: number;
   minMoisture?: number | null;
   avgMoisture?: number | null;
+  diagnosis?: string[];
+  alternative?: { field: string; currentValue: unknown; proposedValue: unknown; label: string } | null;
 }
 
 interface Suggestion {
@@ -29,13 +31,13 @@ interface Suggestion {
 }
 
 const KIND_LABEL: Record<string, string> = {
-  raise_run_limit: "Water more often",
+  increase_watering: "Water more",
   reduce_watering: "Ease off watering",
 };
 
 const FIELD_LABEL: Record<string, string> = {
-  run_limit_count: "Run limit",
-  duration_seconds: "Duration",
+  run_limit_count: "Runs per window",
+  duration_seconds: "Run length",
 };
 
 const RETENTION_LABEL: Record<string, string> = {
@@ -45,15 +47,17 @@ const RETENTION_LABEL: Record<string, string> = {
 };
 
 const fmt = (v: unknown) => (v == null ? "—" : String(v));
+const fmtDur = (v: unknown) => (typeof v === "number" ? (v >= 60 ? `${Math.round(v / 60)} min` : `${v}s`) : fmt(v));
 const confLabel = (c: number) => (c < 0.34 ? "Low" : c < 0.67 ? "Building" : "High");
 
 /** The "Details" data breakdown — only rows we actually have data for. */
 function detailRows(s: Suggestion): Array<{ label: string; value: string }> {
   const rows: Array<{ label: string; value: string }> = [];
   if (s.field) {
+    const fv = s.field === "duration_seconds" ? fmtDur : fmt;
     rows.push({
       label: FIELD_LABEL[s.field] ?? "Change",
-      value: `${fmt(s.current_value)} → ${fmt(s.proposed_value)}`,
+      value: `${fv(s.current_value)} → ${fv(s.proposed_value)}`,
     });
   }
   const e = s.evidence;
@@ -161,13 +165,33 @@ export default function AutomationSuggestions({
               <p className="text-[12px] font-medium text-amber-900/80 mt-0.5 break-words">{s.ai_rationale ?? s.rationale}</p>
 
               {openId === s.id && (
-                <div className="mt-2 rounded-xl bg-white/70 border border-amber-100 p-2.5 space-y-1">
-                  {detailRows(s).map((r) => (
-                    <div key={r.label} className="flex items-baseline justify-between gap-3 text-[11px]">
-                      <span className="font-bold text-amber-900/55 shrink-0">{r.label}</span>
-                      <span className="font-bold text-amber-900/85 text-right tabular-nums break-words">{r.value}</span>
+                <div className="mt-2 rounded-xl bg-white/70 border border-amber-100 p-2.5 space-y-2">
+                  {(s.evidence?.diagnosis?.length ?? 0) > 0 && (
+                    <div>
+                      <p className="text-[10px] font-black uppercase tracking-widest text-amber-900/45 mb-1">Why it's struggling</p>
+                      <ul className="space-y-0.5">
+                        {s.evidence!.diagnosis!.map((d, idx) => (
+                          <li key={idx} className="text-[11px] text-amber-900/75 flex gap-1.5">
+                            <span className="text-amber-500 shrink-0">•</span>
+                            <span className="break-words">{d}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
-                  ))}
+                  )}
+                  <div className="space-y-1">
+                    {detailRows(s).map((r) => (
+                      <div key={r.label} className="flex items-baseline justify-between gap-3 text-[11px]">
+                        <span className="font-bold text-amber-900/55 shrink-0">{r.label}</span>
+                        <span className="font-bold text-amber-900/85 text-right tabular-nums break-words">{r.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  {s.evidence?.alternative && (
+                    <p className="text-[11px] text-amber-900/65 border-t border-amber-100 pt-1.5">
+                      <span className="font-black">Or:</span> {s.evidence.alternative.label}
+                    </p>
+                  )}
                 </div>
               )}
 

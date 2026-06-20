@@ -9,7 +9,7 @@ import {
 const cfg = (over: Partial<AutomationConfig> = {}): AutomationConfig => ({
   runLimitCount: 2,
   runLimitWindowHours: 24,
-  durationSeconds: 1800,
+  durationSeconds: 1800, // 30 min
   sensorCooldownMinutes: 60,
   ...over,
 });
@@ -27,32 +27,57 @@ const profile = (over: Partial<ProfileLite> = {}): ProfileLite => ({
   ...over,
 });
 
-Deno.test("raise_run_limit — rate-limited repeatedly", () => {
+Deno.test("increase_watering — rate-limited + decent waterings → more runs (alt: longer)", () => {
   const s = analyseAutomation(
-    cfg({ runLimitCount: 2 }),
+    cfg({ runLimitCount: 2, durationSeconds: 1800 }),
     runs({ total: 11, fired: 8, rateLimited: 3 }),
-    profile({ retentionClass: "fast_draining", drydownRatePerDay: 9 }),
+    profile({ retentionClass: "fast_draining", drydownRatePerDay: 9, avgRewetJump: 25 }),
   );
-  const raise = s.find((d) => d.kind === "raise_run_limit");
-  assert(raise, "should suggest raising the run limit");
-  assertEquals(raise!.field, "run_limit_count");
-  assertEquals(raise!.currentValue, 2);
-  assertEquals(raise!.proposedValue, 3); // extra = 1 (rateLimited 3 < max(3,fired 8))
-  assert(raise!.confidence > 0.6, "fast-draining should boost confidence");
+  const inc = s.find((d) => d.kind === "increase_watering");
+  assert(inc, "should suggest watering more");
+  assertEquals(inc!.field, "run_limit_count");
+  assertEquals(inc!.currentValue, 2);
+  assertEquals(inc!.proposedValue, 3);
+  assert(inc!.confidence > 0.6, "fast-draining should boost confidence");
+  // The other lever is offered as the alternative.
+  assertEquals(inc!.alternative?.field, "duration_seconds");
+  assert(inc!.diagnosis.length > 0);
 });
 
-Deno.test("raise_run_limit rationale cites concrete moisture evidence", () => {
+Deno.test("increase_watering — shallow waterings → longer runs (alt: more runs)", () => {
+  const s = analyseAutomation(
+    cfg({ runLimitCount: 2, durationSeconds: 600 }), // 10 min
+    runs({ total: 11, fired: 8, rateLimited: 3 }),
+    profile({ retentionClass: "fast_draining", drydownRatePerDay: 9, avgRewetJump: 8 }),
+  );
+  const inc = s.find((d) => d.kind === "increase_watering");
+  assert(inc, "should suggest watering more");
+  assertEquals(inc!.field, "duration_seconds");
+  assertEquals(inc!.proposedValue, 900); // 10 min → 15 min
+  assertEquals(inc!.alternative?.field, "run_limit_count");
+  assert(inc!.rationale.includes("run it longer"));
+  assert(inc!.diagnosis.some((d) => d.includes("isn't soaking in deeply")));
+});
+
+Deno.test("diagnosis cites concrete moisture evidence + hot weather", () => {
   const s = analyseAutomation(
     cfg({ runLimitCount: 2 }),
     runs({ total: 11, fired: 8, rateLimited: 3 }),
-    profile({ retentionClass: "fast_draining", drydownRatePerDay: 9 }),
+    profile({
+      retentionClass: "fast_draining", drydownRatePerDay: 9, avgRewetJump: 25,
+      byWeather: [
+        { key: "hot_dry", ratePerDay: 12, segments: 4 },
+        { key: "mild", ratePerDay: 5, segments: 3 },
+      ],
+    }),
     { thresholdPct: 30, totalReadings: 21, lowReadings: 18, minMoisture: 14, avgMoisture: 23 },
   );
-  const raise = s.find((d) => d.kind === "raise_run_limit");
-  assert(raise);
-  assert(raise!.rationale.includes("below the 30% watering mark on 18 of the last 21 readings"),
-    `rationale should cite the evidence: ${raise!.rationale}`);
-  assert(raise!.rationale.includes("low of 14%"));
+  const inc = s.find((d) => d.kind === "increase_watering");
+  assert(inc);
+  assert(inc!.diagnosis.some((d) => d.includes("below the 30% target on 18 of the last 21 readings")),
+    `diagnosis should cite the readings: ${JSON.stringify(inc!.diagnosis)}`);
+  assert(inc!.diagnosis.some((d) => d.includes("hot, dry weather")),
+    `diagnosis should mention hot weather: ${JSON.stringify(inc!.diagnosis)}`);
 });
 
 Deno.test("reduce_watering — frequent fires in a retentive area", () => {
@@ -64,8 +89,8 @@ Deno.test("reduce_watering — frequent fires in a retentive area", () => {
   const reduce = s.find((d) => d.kind === "reduce_watering");
   assert(reduce, "should suggest easing off");
   assertEquals(reduce!.proposedValue, 2);
-  // No raise suggestion when not rate-limited.
-  assertEquals(s.some((d) => d.kind === "raise_run_limit"), false);
+  assert(reduce!.diagnosis.length > 0);
+  assertEquals(s.some((d) => d.kind === "increase_watering"), false);
 });
 
 Deno.test("no suggestions when everything looks healthy", () => {
@@ -77,11 +102,23 @@ Deno.test("no suggestions when everything looks healthy", () => {
   assertEquals(s.length, 0);
 });
 
-Deno.test("raise_run_limit needs a real limit (unlimited → no suggestion)", () => {
+Deno.test("no levers (no run limit + no duration) → no suggestion", () => {
   const s = analyseAutomation(
-    cfg({ runLimitCount: null }),
+    cfg({ runLimitCount: null, durationSeconds: null }),
     runs({ fired: 8, rateLimited: 5 }),
     profile(),
   );
   assertEquals(s.length, 0);
+});
+
+Deno.test("no run limit but a duration → falls back to longer runs (no alternative)", () => {
+  const s = analyseAutomation(
+    cfg({ runLimitCount: null, durationSeconds: 600 }),
+    runs({ fired: 8, rateLimited: 5 }),
+    profile({ retentionClass: "fast_draining", drydownRatePerDay: 9 }),
+  );
+  const inc = s.find((d) => d.kind === "increase_watering");
+  assert(inc);
+  assertEquals(inc!.field, "duration_seconds");
+  assertEquals(inc!.alternative, null);
 });

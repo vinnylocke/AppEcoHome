@@ -174,17 +174,19 @@ serve(async (req) => {
           if (a.area_id) {
             const { data: profs } = await db
               .from("soil_moisture_profiles")
-              .select("drydown_rate_pct_per_day, retention_class, drydown_by_weather, sample_segments")
+              .select("drydown_rate_pct_per_day, retention_class, drydown_by_weather, sample_segments, watering_response")
               .eq("area_id", a.area_id);
             const rated = (profs ?? []).filter((p) =>
               p.drydown_rate_pct_per_day != null && ((p.sample_segments as number) ?? 0) > 0
             );
             if (rated.length > 0) {
               const avg = rated.reduce((s, p) => s + (p.drydown_rate_pct_per_day as number), 0) / rated.length;
+              const wr = (rated[0].watering_response ?? {}) as { avgRewetJump?: number | null };
               profile = {
                 retentionClass: rated[0].retention_class as ProfileLite["retentionClass"],
                 drydownRatePerDay: Math.round(avg * 10) / 10,
                 byWeather: (rated[0].drydown_by_weather ?? []) as ProfileLite["byWeather"],
+                avgRewetJump: wr.avgRewetJump ?? null,
               };
             }
           }
@@ -276,7 +278,7 @@ serve(async (req) => {
               rationale: d.rationale,
               ai_rationale: aiRationales[i] ?? null,
               confidence: d.confidence,
-              evidence: evidenceJson,
+              evidence: { ...evidenceJson, diagnosis: d.diagnosis, alternative: d.alternative },
               expires_at: expiresAt,
               updated_at: nowIso,
             };
