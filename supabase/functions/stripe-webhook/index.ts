@@ -13,8 +13,7 @@ import { serviceClient } from "../_shared/supabaseClient.ts";
 import { stripeClient, stripeCryptoProvider, Stripe } from "../_shared/stripe.ts";
 import {
   type TierId,
-  tierFromMetadata,
-  tierFromPriceId,
+  resolveSubscriptionTier,
   tierToFlags,
   statusGrantsAccess,
 } from "../_shared/stripeTiers.ts";
@@ -100,10 +99,13 @@ async function applySubscription(
   const customerId = typeof sub.customer === "string" ? sub.customer : sub.customer.id;
   const price = sub.items.data[0]?.price;
 
-  const tier: TierId | null =
-    tierFromMetadata(sub.metadata) ??
-    tierFromMetadata(price?.metadata) ??
-    tierFromPriceId(price?.id);
+  // Derive the tier from the live PRICE first — sub.metadata.tier is stamped at
+  // checkout and goes stale after a portal-initiated plan change.
+  const tier: TierId | null = resolveSubscriptionTier({
+    priceMetadata: price?.metadata,
+    priceId: price?.id,
+    subscriptionMetadata: sub.metadata,
+  });
 
   const grants = statusGrantsAccess(sub.status);
   const effectiveTier: TierId = grants && tier ? tier : "sprout";

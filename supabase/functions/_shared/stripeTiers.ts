@@ -63,6 +63,24 @@ export function tierFromMetadata(
   return isValidTier(t) ? t : null;
 }
 
+/**
+ * Resolve a subscription's tier. The current PRICE is the source of truth — it
+ * changes when the plan changes (including portal upgrades/downgrades). The
+ * subscription's own metadata.tier is stamped at checkout and goes STALE after a
+ * portal-initiated price change, so it is only a last-resort fallback.
+ */
+export function resolveSubscriptionTier(args: {
+  priceMetadata?: Record<string, string> | null;
+  priceId?: string | null;
+  subscriptionMetadata?: Record<string, string> | null;
+}): TierId | null {
+  return (
+    tierFromMetadata(args.priceMetadata) ??
+    tierFromPriceId(args.priceId) ??
+    tierFromMetadata(args.subscriptionMetadata)
+  );
+}
+
 // Stripe subscription statuses that should keep the user on their paid tier.
 // past_due is included as a grace window — Smart Retries may still recover the
 // payment; access is only revoked once Stripe fully cancels (canceled/unpaid).

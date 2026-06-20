@@ -6,6 +6,7 @@ import {
   priceIdForTier,
   tierFromPriceId,
   tierFromMetadata,
+  resolveSubscriptionTier,
   statusGrantsAccess,
 } from "@shared/stripeTiers.ts";
 
@@ -65,6 +66,43 @@ Deno.test("tierFromMetadata reads the tier tag set on Stripe objects", () => {
   assertEquals(tierFromMetadata({ tier: "gold" }), null);
   assertEquals(tierFromMetadata({}), null);
   assertEquals(tierFromMetadata(null), null);
+});
+
+Deno.test("resolveSubscriptionTier prefers the live price over stale sub metadata", () => {
+  Deno.env.set("STRIPE_PRICE_EVERGREEN", "price_evergreen");
+
+  // Portal upgrade Sage→Evergreen: the price is now evergreen, but the
+  // subscription's metadata.tier is still the checkout-time "sage". Price wins.
+  assertEquals(
+    resolveSubscriptionTier({
+      priceMetadata: { tier: "evergreen" },
+      priceId: "price_evergreen",
+      subscriptionMetadata: { tier: "sage", uid: "u1" },
+    }),
+    "evergreen",
+  );
+
+  // No price metadata → fall back to the env price-id map (still beats sub metadata).
+  assertEquals(
+    resolveSubscriptionTier({
+      priceMetadata: {},
+      priceId: "price_evergreen",
+      subscriptionMetadata: { tier: "sage" },
+    }),
+    "evergreen",
+  );
+
+  // Only when the price yields nothing do we trust the subscription metadata.
+  assertEquals(
+    resolveSubscriptionTier({
+      priceMetadata: null,
+      priceId: "price_unknown",
+      subscriptionMetadata: { tier: "botanist" },
+    }),
+    "botanist",
+  );
+
+  assertEquals(resolveSubscriptionTier({}), null);
 });
 
 Deno.test("statusGrantsAccess keeps access during grace, revokes when cancelled", () => {
