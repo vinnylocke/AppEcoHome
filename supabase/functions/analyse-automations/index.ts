@@ -224,6 +224,20 @@ serve(async (req) => {
           }
           const drafts = analyseAutomation(cfg, runs, profile, evidence);
 
+          // Structured evidence for the chip's "Details" breakdown.
+          const evidenceJson = {
+            windowDays: RUN_WINDOW_DAYS,
+            rateLimited: runs.rateLimited,
+            fired: runs.fired,
+            drydownRatePerDay: profile?.drydownRatePerDay ?? null,
+            retentionClass: profile?.retentionClass ?? null,
+            thresholdPct: evidence?.thresholdPct ?? null,
+            totalReadings: evidence?.totalReadings ?? 0,
+            lowReadings: evidence?.lowReadings ?? 0,
+            minMoisture: evidence?.minMoisture != null ? Math.round(evidence.minMoisture) : null,
+            avgMoisture: evidence?.avgMoisture != null ? Math.round(evidence.avgMoisture) : null,
+          };
+
           // Reconcile against existing ACTIVE suggestions for this automation.
           const { data: existing } = await db
             .from("automation_suggestions")
@@ -262,6 +276,7 @@ serve(async (req) => {
               rationale: d.rationale,
               ai_rationale: aiRationales[i] ?? null,
               confidence: d.confidence,
+              evidence: evidenceJson,
               expires_at: expiresAt,
               updated_at: nowIso,
             };
