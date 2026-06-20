@@ -28,7 +28,7 @@ const json = (d: unknown, s = 200) =>
 
 interface FeedInsight {
   id: string;
-  source: "pattern" | "automation" | "area" | "weekly" | "seasonal";
+  source: "pattern" | "automation" | "area" | "weekly" | "seasonal" | "planner" | "weather";
   category: string;
   title: string;
   body: string;
@@ -157,6 +157,58 @@ serve(async (req) => {
           link: "/weekly",
           dismissable: false,
         }));
+
+      // 5. Stalled plans (computed) — In Progress with no changes for 2+ weeks.
+      const staleCutoff = new Date(Date.now() - 14 * 86_400_000).toISOString();
+      const { data: plans } = await db
+        .from("plans")
+        .select("id, name, updated_at")
+        .eq("home_id", homeId)
+        .eq("status", "In Progress")
+        .lt("updated_at", staleCutoff);
+      for (const p of plans ?? []) {
+        const weeks = Math.max(2, Math.round((Date.now() - new Date(p.updated_at as string).getTime()) / (7 * 86_400_000)));
+        insights.push({
+          id: `plan-${p.id}`,
+          source: "planner",
+          category: "planning",
+          title: "Plan needs a nudge",
+          body: `"${(p.name as string) ?? "Your plan"}" has been in progress with no changes for about ${weeks} weeks — ready to pick it back up?`,
+          severity: 2,
+          createdAt: p.updated_at as string,
+          link: "/planner",
+          dismissable: false,
+        });
+      }
+
+      // 6. Frost ahead (computed) — a sub-2°C night in the next ~5 days + plants are out.
+      const { data: snap } = await db.from("weather_snapshots").select("data").eq("home_id", homeId).maybeSingle();
+      const daily = ((snap?.data as Record<string, unknown> | null)?.daily ?? {}) as { time?: string[]; temperature_2m_min?: number[] };
+      const times = daily.time ?? [];
+      const mins = daily.temperature_2m_min ?? [];
+      const todayStr = new Date().toISOString().split("T")[0];
+      let frostIdx = -1;
+      for (let i = 0; i < Math.min(times.length, 6); i++) {
+        if (times[i] >= todayStr && typeof mins[i] === "number" && (mins[i] as number) <= 2) { frostIdx = i; break; }
+      }
+      if (frostIdx >= 0) {
+        const { count: planted } = await db.from("inventory_items")
+          .select("id", { count: "exact", head: true }).eq("home_id", homeId).eq("status", "Planted");
+        if ((planted ?? 0) > 0) {
+          const weekday = new Date(times[frostIdx]).toLocaleDateString("en-GB", { weekday: "long" });
+          insights.push({
+            id: `frost-${times[frostIdx]}`,
+            source: "weather",
+            category: "weather",
+            title: "Frost on the way",
+            body: `Frost forecast for ${weekday} (low ~${Math.round(mins[frostIdx] as number)}°C) — fleece tender outdoor plants or move pots under cover.`,
+            severity: 3,
+            createdAt: new Date().toISOString(),
+            link: "/dashboard?view=weather",
+            dismissable: false,
+          });
+        }
+      }
     }
 
     // Rank: severity desc, then most recent first.

@@ -23,6 +23,8 @@ const CAT: Record<string, { label: string; cls: string }> = {
   area: { label: "Area", cls: "bg-violet-50 text-violet-700" },
   weekly: { label: "This week", cls: "bg-indigo-50 text-indigo-700" },
   seasonal: { label: "Planting", cls: "bg-lime-50 text-lime-700" },
+  planning: { label: "Planner", cls: "bg-fuchsia-50 text-fuchsia-700" },
+  weather: { label: "Weather", cls: "bg-cyan-50 text-cyan-700" },
 };
 
 function AiInsightsPageInner() {
