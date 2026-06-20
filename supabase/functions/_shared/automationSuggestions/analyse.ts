@@ -21,7 +21,6 @@ export interface AutomationConfig {
   runLimitCount: number | null;
   runLimitWindowHours: number;
   durationSeconds: number | null;
-  weatherMode: string | null; // 'off' | 'skip' | 'defer'
   sensorCooldownMinutes: number | null;
 }
 
@@ -31,7 +30,9 @@ export interface ProfileLite {
   byWeather: Array<{ key: "hot_dry" | "mild" | "cool_wet"; ratePerDay: number; segments: number }>;
 }
 
-export type SuggestionKind = "raise_run_limit" | "reduce_watering" | "enable_weather_skip";
+// Weather handling lives in the trigger_logic tree now (no weather_mode column),
+// so a one-tap weather suggestion isn't a simple field set — omitted for now.
+export type SuggestionKind = "raise_run_limit" | "reduce_watering";
 
 export interface SuggestionDraft {
   kind: SuggestionKind;
@@ -89,23 +90,6 @@ export function analyseAutomation(
         `This area holds water well` + (rate != null ? ` (dries only ~${round1(rate)}%/day)` : "") +
         ` yet this watered ${runs.fired} times recently — easing the cap from ${cfg.runLimitCount} to ${proposed} per ${cfg.runLimitWindowHours}h helps avoid over-watering.`,
       confidence: 0.6,
-    });
-  }
-
-  // 3) Weather-sensitive but rain-skip is off.
-  const hot = profile?.byWeather.find((b) => b.key === "hot_dry");
-  const cool = profile?.byWeather.find((b) => b.key === "cool_wet");
-  const weatherOff = cfg.weatherMode == null || cfg.weatherMode === "off";
-  if (weatherOff && hot && cool && cool.ratePerDay > 0 && hot.ratePerDay >= 1.5 * cool.ratePerDay) {
-    out.push({
-      kind: "enable_weather_skip",
-      field: "weather_mode",
-      currentValue: cfg.weatherMode ?? "off",
-      proposedValue: "skip",
-      rationale:
-        `Watering here is very weather-dependent (dries ~${round1(hot.ratePerDay)}%/day in hot spells vs ~${round1(cool.ratePerDay)}%/day when it's cool or wet). ` +
-        `Turning on rain-skip avoids watering right before rain.`,
-      confidence: 0.5,
     });
   }
 

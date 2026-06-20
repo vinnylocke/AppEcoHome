@@ -39,7 +39,6 @@ interface AutoRow {
   run_limit_count: number | null;
   run_limit_window_hours: number | null;
   duration_seconds: number | null;
-  weather_mode: string | null;
   sensor_cooldown_minutes: number | null;
 }
 
@@ -103,7 +102,7 @@ serve(async (req) => {
 
     let q = db
       .from("automations")
-      .select("id, home_id, area_id, run_limit_count, run_limit_window_hours, duration_seconds, weather_mode, sensor_cooldown_minutes")
+      .select("id, home_id, area_id, run_limit_count, run_limit_window_hours, duration_seconds, sensor_cooldown_minutes")
       .eq("is_active", true);
     if (body.homeId) q = q.eq("home_id", body.homeId);
     const { data: autos, error } = await q;
@@ -173,7 +172,6 @@ serve(async (req) => {
             runLimitCount: a.run_limit_count,
             runLimitWindowHours: a.run_limit_window_hours ?? 24,
             durationSeconds: a.duration_seconds,
-            weatherMode: a.weather_mode,
             sensorCooldownMinutes: a.sensor_cooldown_minutes,
           };
           const drafts = analyseAutomation(cfg, runs, profile);
