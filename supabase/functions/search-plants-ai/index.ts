@@ -122,7 +122,7 @@ Keep names precise and recognisable. Avoid duplicates.`;
     );
 
     if (userId) {
-      await logAiUsage(serviceDb, { userId, functionName: FN, action: "search_plants_ai", usage });
+      await logAiUsage(serviceDb, { userId, functionName: FN, action: "search_plants_ai", usage, prompt, rawResult: rawText });
     }
 
     let parsed: { plants: Array<{ name: string; description: string }> };
@@ -139,7 +139,7 @@ Keep names precise and recognisable. Avoid duplicates.`;
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (err) {
-    logError(FN, err);
+    logError(FN, "search_failed", { error: err instanceof Error ? err.message : String(err) });
     await captureException(FN, err);
     return new Response(
       JSON.stringify(getFallback("search_plants_ai")),

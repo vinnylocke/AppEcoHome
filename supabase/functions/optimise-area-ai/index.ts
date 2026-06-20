@@ -395,7 +395,7 @@ SCENARIO REFERENCE:
       },
     );
 
-    await logAiUsage(db, { userId, homeId, functionName: FN, action: "optimise_area", usage });
+    await logAiUsage(db, { userId, homeId, functionName: FN, action: "optimise_area", usage, prompt, rawResult: text });
 
     let parsed: { proposals: any[] };
     try {

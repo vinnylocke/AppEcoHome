@@ -200,7 +200,7 @@ ${extraContext ? `\nADDITIONAL CONTEXT:\n${extraContext}` : ""}
     } catch { /* non-fatal library link */ }
 
     if (ailmentKey) await setCached(supabase, ailmentKey, FN, { results }, 14);
-    if (userId) await logAiUsage(serviceDb, { userId, functionName: FN, action: "ailment_suggestions", usage });
+    if (userId) await logAiUsage(serviceDb, { userId, functionName: FN, action: "ailment_suggestions", usage, prompt: systemPrompt, rawResult: rawText });
     log(FN, "result", { query, count: results.length, fromCache: false });
 
     return new Response(

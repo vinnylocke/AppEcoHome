@@ -306,7 +306,7 @@ ${climateBlock}
       );
     }
 
-    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "plant_scheduler", usage });
+    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "plant_scheduler", usage, prompt: `${systemPrompt}\n\n${userMessage}`, rawResult: rawText });
     log(FN, "result", {
       plantName,
       address,

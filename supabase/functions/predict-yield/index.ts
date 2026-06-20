@@ -138,7 +138,7 @@ serve(async (req) => {
       result = JSON.parse(match[0]);
     }
 
-    await logAiUsage(db, { homeId: home_id, userId, functionName: FN, action: "yield_prediction", usage });
+    await logAiUsage(db, { homeId: home_id, userId, functionName: FN, action: "yield_prediction", usage, prompt, rawResult: raw });
     log(FN, "prediction_complete", { instance_id, confidence: result.confidence });
 
     return new Response(JSON.stringify(result), {
