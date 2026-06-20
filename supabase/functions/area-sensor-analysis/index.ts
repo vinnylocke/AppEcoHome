@@ -362,6 +362,31 @@ serve(async (req) => {
       };
     });
 
+    // Area soil-moisture behaviour model (Pillar A) — aggregated across the
+    // area's sensors. Lets the coach factor real drydown / retention into the
+    // moisture recommendation + plant compatibility (Pillar C).
+    let areaMoistureProfile: AreaAnalysisInput["moistureProfile"] = null;
+    {
+      const { data: profRows } = await db.from("soil_moisture_profiles")
+        .select("drydown_rate_pct_per_day, retention_class, drydown_by_weather, watering_response, sample_segments, confidence")
+        .eq("area_id", areaId);
+      const rated = (profRows ?? []).filter((p) =>
+        p.drydown_rate_pct_per_day != null && ((p.sample_segments as number) ?? 0) > 0
+      );
+      if (rated.length > 0) {
+        const avgRate = rated.reduce((s, p) => s + (p.drydown_rate_pct_per_day as number), 0) / rated.length;
+        const wr = (rated[0].watering_response ?? {}) as { avgRewetJump?: number | null; avgSegmentDurationDays?: number | null };
+        areaMoistureProfile = {
+          drydownRatePerDay: Math.round(avgRate * 10) / 10,
+          retentionClass: rated[0].retention_class as string,
+          byWeather: (rated[0].drydown_by_weather ?? []) as Array<{ key: string; ratePerDay: number; segments: number }>,
+          avgRewetJump: wr.avgRewetJump ?? null,
+          avgSegmentDurationDays: wr.avgSegmentDurationDays ?? null,
+          confidence: (rated[0].confidence as number) ?? 0,
+        };
+      }
+    }
+
     // ── Build input + prompt ────────────────────────────────────────────────
     const input: AreaAnalysisInput = {
       persona: (profile?.persona as "new" | "experienced" | null) ?? null,
@@ -418,6 +443,7 @@ serve(async (req) => {
         };
       }),
       automations,
+      moistureProfile: areaMoistureProfile,
     };
 
     const prompt = buildAreaAnalysisPrompt(input);

@@ -24,6 +24,8 @@ import {
   type ProfileLite,
   type RunsSummary,
 } from "../_shared/automationSuggestions/analyse.ts";
+import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 
 const FN = "analyse-automations";
 const CONCURRENCY = 8;
@@ -43,6 +45,50 @@ interface AutoRow {
 
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
+}
+
+const PROSE_SCHEMA = {
+  type: "object",
+  properties: { rewrites: { type: "array", items: { type: "string" } } },
+  required: ["rewrites"],
+};
+
+/**
+ * Sage+ rewrite of the deterministic rationales into warm, plain prose
+ * (one sentence each, numbers kept). Best-effort — on any failure we return []
+ * and the deterministic rationale stands. System-attributed AI usage.
+ */
+async function enrichRationales(
+  apiKey: string,
+  db: ReturnType<typeof serviceClient>,
+  homeId: string,
+  automationId: string,
+  rationales: string[],
+): Promise<string[]> {
+  try {
+    const prompt =
+      "You are Rhozly, a warm, encouraging gardening assistant. Rewrite each watering-automation " +
+      "suggestion below into ONE friendly, plain-English sentence a beginner would understand. Keep " +
+      "the specific numbers and the recommended action; do not add new advice. Return JSON " +
+      `{ "rewrites": [...] } with one string per suggestion, in the same order.\n\nSuggestions:\n` +
+      rationales.map((r, i) => `${i + 1}. ${r}`).join("\n");
+    const { text, usage } = await callGeminiCascade(apiKey, FN, toMessages([prompt]), {
+      systemPrompt: "Reword gardening automation tips warmly and concisely. Keep every number.",
+      responseSchema: PROSE_SCHEMA,
+      responseMimeType: "application/json",
+      temperature: 0.5,
+      maxOutputTokens: 512,
+      logContext: { homeId, automationId },
+    });
+    await logAiUsage(db as unknown as Parameters<typeof logAiUsage>[0], {
+      userId: null, homeId, functionName: FN, action: "suggestion_prose", usage,
+    });
+    const parsed = JSON.parse(text) as { rewrites?: unknown };
+    return Array.isArray(parsed.rewrites) ? parsed.rewrites.map((x) => String(x)) : [];
+  } catch (err) {
+    warn(FN, "ai_enrich_failed", { automationId, error: String(err) });
+    return [];
+  }
 }
 
 serve(async (req) => {
@@ -65,6 +111,22 @@ serve(async (req) => {
 
     const automations = (autos ?? []) as AutoRow[];
     if (automations.length === 0) return json({ automations: 0, suggestions: 0 });
+
+    // Which homes have AI access (any member with ai_enabled) → eligible for the
+    // friendly prose rewrite. Resolved once for all homes in scope.
+    const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
+    const homeAi = new Map<string, boolean>();
+    if (geminiApiKey) {
+      const homeIds = [...new Set(automations.map((a) => a.home_id))];
+      const { data: members } = await db.from("home_members").select("home_id, user_id").in("home_id", homeIds);
+      const memberRows = (members ?? []) as Array<{ home_id: string; user_id: string }>;
+      const userIds = [...new Set(memberRows.map((m) => m.user_id))];
+      if (userIds.length) {
+        const { data: profs } = await db.from("user_profiles").select("uid, ai_enabled").in("uid", userIds);
+        const aiUsers = new Set((profs ?? []).filter((p) => p.ai_enabled).map((p) => p.uid as string));
+        for (const m of memberRows) if (aiUsers.has(m.user_id)) homeAi.set(m.home_id, true);
+      }
+    }
 
     const sinceIso = new Date(Date.now() - RUN_WINDOW_DAYS * 86_400_000).toISOString();
     const nowIso = new Date().toISOString();
@@ -136,7 +198,14 @@ serve(async (req) => {
               .in("id", staleIds);
           }
 
-          for (const d of drafts) {
+          // Sage+ friendly rewrite (best-effort; deterministic rationale stands otherwise).
+          let aiRationales: string[] = [];
+          if (geminiApiKey && drafts.length > 0 && homeAi.get(a.home_id)) {
+            aiRationales = await enrichRationales(geminiApiKey, db, a.home_id, a.id, drafts.map((d) => d.rationale));
+          }
+
+          for (let i = 0; i < drafts.length; i++) {
+            const d = drafts[i];
             const base = {
               automation_id: a.id,
               home_id: a.home_id,
@@ -145,6 +214,7 @@ serve(async (req) => {
               current_value: d.currentValue,
               proposed_value: d.proposedValue,
               rationale: d.rationale,
+              ai_rationale: aiRationales[i] ?? null,
               confidence: d.confidence,
               expires_at: expiresAt,
               updated_at: nowIso,

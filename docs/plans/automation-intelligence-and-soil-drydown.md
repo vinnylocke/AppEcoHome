@@ -5,10 +5,16 @@
   `compute-soil-profiles` + daily cron + the **Moisture behaviour** card on Area details → Readings.
 - **B:** `automation_suggestions` + the deterministic analyser (`_shared/automationSuggestions/analyse.ts`,
   Deno-tested) + `analyse-automations` + daily cron + the suggestion chip on `AutomationCard`
-  (one-tap Apply / Dismiss / Details). **Still to do for B:** the Sage+ AI rewrite of `rationale` →
-  `ai_rationale` (the deterministic rationale ships now; the column + UI already prefer `ai_rationale`).
+  (one-tap Apply / Dismiss / Details).
+- **B.1:** the Sage+ AI rewrite — `analyse-automations` now calls Gemini for AI-enabled homes to reword
+  each `rationale` into `ai_rationale` (best-effort; deterministic rationale stands otherwise).
+- **C (part 1):** the moisture model now feeds `area-sensor-analysis` — drydown rate / retention /
+  weather split go into the AI Area Coach prompt so the **moisture recommendation + plant-compatibility
+  verdict** reflect how the soil actually behaves ("what plants work in this area").
 
-Pillar C (feed the model into plant recommendations + weather advice + a drydown-anomaly pattern) is next.
+**Remaining (optional follow-ups):** C2 — a pattern-engine detector ("drying faster than usual" /
+thirsty plant in a fast-draining bed) for the AssistantCard (needs `pattern-evaluate` copy wiring);
+C3 — weather-aware watering advice on the Dashboard / Weekly Overview (needs a UI surface decision).
 
 **App-reference consulted:** [`09-data-model-integrations.md`](../app-reference/99-cross-cutting/09-data-model-integrations.md),
 [`26-pattern-engine.md`](../app-reference/99-cross-cutting/26-pattern-engine.md); plus a full code

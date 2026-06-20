@@ -64,6 +64,15 @@ export interface AreaAnalysisInput {
     /** Plain-English summary of the condition tree (unified automations). */
     conditionSummary?: string | null;
   }>;
+  /** Deterministic soil-moisture behaviour model (Pillar A), if computed. */
+  moistureProfile?: {
+    drydownRatePerDay: number | null;
+    retentionClass: string;
+    byWeather: Array<{ key: string; ratePerDay: number; segments: number }>;
+    avgRewetJump: number | null;
+    avgSegmentDurationDays: number | null;
+    confidence: number;
+  } | null;
 }
 
 /**
@@ -195,7 +204,26 @@ function ecLabel(src: "calibrated_us_cm" | "raw_adc"): string {
 
 /** Build the user prompt. Pure. */
 export function buildAreaAnalysisPrompt(input: AreaAnalysisInput): string {
-  const { area, home, summary, sensors, history, plants, automations } = input;
+  const { area, home, summary, sensors, history, plants, automations, moistureProfile } = input;
+
+  const RETENTION_TEXT: Record<string, string> = {
+    fast_draining: "fast-draining (dries quickly)",
+    balanced: "balanced drainage",
+    moisture_retentive: "moisture-retentive (holds water)",
+    unknown: "not yet established",
+  };
+  const moistureModelBlock = moistureProfile && moistureProfile.drydownRatePerDay != null
+    ? [
+        `  Dry-down rate: ~${moistureProfile.drydownRatePerDay}%/day (${RETENTION_TEXT[moistureProfile.retentionClass] ?? moistureProfile.retentionClass})`,
+        moistureProfile.byWeather.length
+          ? `  By weather: ${moistureProfile.byWeather.map((b) => `${b.key} ~${b.ratePerDay}%/day`).join(", ")}`
+          : null,
+        moistureProfile.avgRewetJump != null
+          ? `  A watering raises moisture ~${moistureProfile.avgRewetJump}%${moistureProfile.avgSegmentDurationDays != null ? `, lasting ~${moistureProfile.avgSegmentDurationDays} days` : ""}`
+          : null,
+        `  (confidence ${Math.round(moistureProfile.confidence * 100)}%)`,
+      ].filter(Boolean).join("\n")
+    : "  (not yet established — needs more sensor history)";
 
   const currentLines = summary.sensorsWithData > 0
     ? [
@@ -285,6 +313,9 @@ ${sensorLines}
 == HISTORY STATS ==
 ${historyLines}
 
+== SOIL MOISTURE BEHAVIOUR (how this area dries) ==
+${moistureModelBlock}
+
 == PLANTS IN THIS AREA ==
 ${plantLines}
 
@@ -293,6 +324,11 @@ ${automationLines}
 
 == YOUR TASK ==
 For THIS area and THESE plants:
+0. If a SOIL MOISTURE BEHAVIOUR is given, weave it into your advice: a fast-draining area needs more
+   frequent or longer watering (or drought-tolerant / moisture-retentive planting), while a retentive
+   area risks over-watering. Let the dry-down rate and its weather split inform the moisture
+   recommendation AND the plant-compatibility verdict (favour plants whose water needs match how this
+   soil actually behaves).
 1. Return EXACTLY three metric objects in the "metrics" array, ALWAYS in this order:
    (1) moisture, (2) temperature, (3) ec. Include all three every time — even when there is
    no current reading. Use the SAME consistent structure for each metric:

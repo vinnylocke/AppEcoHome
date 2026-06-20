@@ -41,6 +41,32 @@ Deno.test("prompt includes area, current readings, plants and automations", () =
   assert(p.includes("soil moisture < 25%"));
 });
 
+Deno.test("prompt surfaces the soil-moisture behaviour model when present (Pillar C)", () => {
+  const p = buildAreaAnalysisPrompt(baseInput({
+    moistureProfile: {
+      drydownRatePerDay: 8.5,
+      retentionClass: "fast_draining",
+      byWeather: [
+        { key: "hot_dry", ratePerDay: 11, segments: 4 },
+        { key: "cool_wet", ratePerDay: 3, segments: 2 },
+      ],
+      avgRewetJump: 22,
+      avgSegmentDurationDays: 1.8,
+      confidence: 0.7,
+    },
+  }));
+  assert(p.includes("SOIL MOISTURE BEHAVIOUR"));
+  assert(p.includes("~8.5%/day"));
+  assert(p.includes("fast-draining"));
+  assert(p.includes("hot_dry ~11%/day"));
+});
+
+Deno.test("prompt shows a placeholder when no moisture model yet", () => {
+  const p = buildAreaAnalysisPrompt(baseInput());
+  assert(p.includes("SOIL MOISTURE BEHAVIOUR"));
+  assert(p.includes("not yet established"));
+});
+
 Deno.test("prompt uses the condition-tree summary when present", () => {
   const p = buildAreaAnalysisPrompt(baseInput({
     automations: [
