@@ -14,6 +14,7 @@ import {
   Zap,
   BookOpen,
   NotebookPen,
+  Sparkles,
 } from "lucide-react";
 import { IconPlants, IconPlanner, IconDoctor, IconAI, IconIntegrations } from "./constants/icons";
 
@@ -91,6 +92,7 @@ const QuickAccessHome     = lazy(() => import("./components/QuickAccessHome"));
 const LocalizedTaskCalendar = lazy(() => import("./components/quick/LocalizedTaskCalendar"));
 const GlobalJournal         = lazy(() => import("./components/GlobalJournal"));
 const WeeklyOverviewPage    = lazy(() => import("./components/WeeklyOverviewPage"));
+const AiInsightsPage        = lazy(() => import("./components/AiInsightsPage"));
 const NotesPage             = lazy(() => import("./components/notes/NotesPage"));
 const CreditsPage           = lazy(() => import("./components/CreditsPage"));
 const GardenWalk            = lazy(() => import("./components/walk/GardenWalk"));
@@ -214,6 +216,7 @@ const TAB_URL: Record<string, string> = {
   admin_guides:     "/admin/guides",
   tools:            "/tools",
   integrations:     "/integrations",
+  insights:         "/insights",
 };
 
 function AppShell() {
@@ -1160,6 +1163,7 @@ function AppShell() {
     { id: "notes",     icon: <NotebookPen />, label: "Notes",   matchPaths: ["/notes"] },
     { id: "tools",        icon: <IconDoctor />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
     { id: "integrations", icon: <IconIntegrations />,        label: "Integrations", matchPaths: ["/integrations"] },
+    { id: "insights",     icon: <Sparkles />, label: "AI Insights", matchPaths: ["/insights"] },
   ];
 
   const canUsePortal = typeof document !== "undefined";
@@ -1651,6 +1655,11 @@ function AppShell() {
                             <WeeklyOverviewPage homeId={profile.home_id} aiEnabled={!!profile?.ai_enabled} isPremium={!!profile?.enable_perenual} />
                           </div>
                         ) : null
+                      } />
+                      <Route path="/insights" element={
+                        <div className="h-full overflow-auto animate-in fade-in duration-500">
+                          <AiInsightsPage />
+                        </div>
                       } />
 
                       <Route path="/notes" element={
