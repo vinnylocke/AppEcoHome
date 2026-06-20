@@ -69,13 +69,27 @@ Hosts that only need a name + thumbnail (Shopping) use the `PlantSelection` basi
 
 ### Tier gating
 
-| Tier | Library + spelling | External (more databases) | Create with AI |
-|------|--------------------|---------------------------|----------------|
-| Sprout | ✅ | ✅ (Verdantly free; Perenual self-gates) | ❌ nudge |
+| Tier | Library + spelling | External (Verdantly + Perenual) | Create with AI |
+|------|--------------------|---------------------------------|----------------|
+| Sprout | ✅ | ❌ nudge (both now require `enable_perenual`) | ❌ nudge |
 | Botanist | ✅ | ✅ | ❌ nudge |
 | Sage / Evergreen | ✅ | ✅ | ✅ |
 
 `plant_library` RLS is `USING(true)` — readable by every authenticated user, so the library tier needs no permission change.
+
+**Verdantly is now gated like Perenual** (`enable_perenual`) — server-side in `verdantly-search`
+(covers search + details + the Companions ⓘ-peek) and in `companion-planting`'s Verdantly path.
+`<PlantSearch>` gates the external CTA on `enable_perenual` (`canExternal = gates.canSearchExternal
+&& pref.enablePerenual`); Sprout now sees an upgrade nudge instead of Verdantly results.
+
+### Default search source (Settings)
+
+Entitled users (`enable_perenual` or `ai_enabled`) can choose, in the account tab, which source plant
+searches run **first** — `user_profiles.search_settings.plant_source` ∈ {library, verdantly, perenual,
+ai}, entitlement-clamped at read time (`src/lib/searchPreference.ts` → `useSearchPreference`,
+`clampPlantSource`, `availablePlantSources`). When it's not `library`, `<PlantSearch>` auto-runs that
+source on type (debounced, min 3 chars), renders it **first**, and keeps the library as the auto-shown
+fallback below. Default for everyone stays library-first. Watchlist (ailment) is Phase 2.
 
 ### Migration status (surface by surface)
 

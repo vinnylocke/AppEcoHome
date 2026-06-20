@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
+import { guardPerenualByUser } from "../_shared/aiGuard.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import type { GeminiUsage } from "../_shared/gemini.ts";
@@ -276,10 +277,16 @@ serve(async (req) => {
 
     const isVerdantly = source === "verdantly" && !!verdantly_id;
 
-    // Tier gate for the AI path (Verdantly companions are free). Checked before
-    // the cache so non-AI tiers stay gated even once a result is cached.
+    // Tier gate for the AI path. Checked before the cache so non-AI tiers stay
+    // gated even once a result is cached.
     if (!isVerdantly && !ai_enabled) {
       return json({ error: "ai_required" });
+    }
+    // Verdantly companions are now tier-gated like Perenual (enable_perenual) —
+    // also before the cache read so free tiers can't read cached Verdantly data.
+    if (isVerdantly) {
+      const guardErr = await guardPerenualByUser(db, userId);
+      if (guardErr) return guardErr;
     }
 
     const cacheSource = isVerdantly ? "verdantly" : "ai";

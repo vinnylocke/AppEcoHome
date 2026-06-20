@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
+import { guardPerenualByUser } from "../_shared/aiGuard.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { getCached, setCached, cacheKey } from "../_shared/aiCache.ts";
 
@@ -233,6 +234,12 @@ serve(async (req) => {
     const authResult = await requireAuth(req, db);
     if (authResult instanceof Response) return authResult;
     const userId = authResult.user.id;
+
+    // Verdantly is now tier-gated identically to Perenual (enable_perenual / Botanist+).
+    // Gating here covers every Verdantly use — search, details, and the Companions
+    // ⓘ-peek fallback — since they all route through this function.
+    const guardErr = await guardPerenualByUser(db, userId);
+    if (guardErr) return guardErr;
 
     const rateLimitErr = await enforceRateLimit(db, userId, FN);
     if (rateLimitErr) return rateLimitErr;

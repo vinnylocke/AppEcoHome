@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
+import { useSearchPreference } from "../../lib/searchPreference";
 import { Search, Loader2, Sparkles, Database, Plus, Pencil, Lock, SlidersHorizontal, ChevronDown, Check, Info, ChevronUp, BookOpen } from "lucide-react";
 import {
   searchLibrary,
@@ -135,6 +136,15 @@ export default function PlantSearch({
   const gatesRef = useRef<PlantSearchGates>(gates);
   gatesRef.current = gates;
 
+  // Default search source (Settings). Drives the auto-run "preferred first"
+  // behaviour + the now-gated external tier (Verdantly + Perenual = enable_perenual).
+  const pref = useSearchPreference();
+  const prefRef = useRef(pref);
+  prefRef.current = pref;
+  const homeIdRef = useRef(homeId);
+  homeIdRef.current = homeId;
+  const canExternal = gates.canSearchExternal && pref.enablePerenual;
+
   const runLibrary = useCallback(async (q: string) => {
     const trimmed = q.trim();
     const activeFilters = filtersRef.current;
@@ -179,6 +189,23 @@ export default function PlantSearch({
           if (seq === seqRef.current) setAiSuggestions(ai);
         } finally {
           if (seq === seqRef.current) setAiSuggestLoading(false);
+        }
+      }
+
+      // Preferred-source default — auto-run the user's chosen first source (no
+      // button click) when it's a provider. The library above is the fallback;
+      // the render shows the preferred section first. Min length 3 + the 350ms
+      // debounce keep paid-source (Perenual/Verdantly/AI) spend sane.
+      const prefSource = prefRef.current.plantSource;
+      if (prefSource !== "library" && trimmed.length >= 3) {
+        setExternalLoading(true);
+        try {
+          const ext = prefSource === "ai"
+            ? await searchExternal(trimmed, { includeAi: true, only: ["ai"], homeId: homeIdRef.current })
+            : await searchExternal(trimmed, { only: [prefSource], homeId: homeIdRef.current });
+          if (seq === seqRef.current) { setExternalRows(ext); setExternalDone(true); }
+        } finally {
+          if (seq === seqRef.current) setExternalLoading(false);
         }
       }
     } catch (err) {
@@ -443,52 +470,23 @@ export default function PlantSearch({
         </div>
       )}
 
-      {/* Library results */}
-      {libraryRows.length > 0 && (
-        <ul className="space-y-1.5" data-testid="plant-search-results">
-          {libraryRows.map((row) => {
-            const sel = libraryRowToSelection(row);
-            const rowKey = `plant-search-result-library-${row.id}`;
-            return (
-              <ResultRow
-                key={`lib-${row.id}`}
-                testId={rowKey}
-                name={row.common_name}
-                sub={Array.isArray(row.scientific_name) ? row.scientific_name[0] : undefined}
-                thumb={row.thumbnail_url ?? row.image_url ?? null}
-                credit={(row as any).image_credit ?? null}
-                source="library"
-                multiSelect={multiSelect}
-                selected={multiSelect ? !!isSelected?.(sel) : false}
-                onClick={() => onSelect(sel)}
-                allowPreview={allowPreview}
-                onInfo={() => togglePreview(sel, rowKey)}
-                infoActive={previewKey === rowKey}
-                infoLoading={previewLoading.has(rowKey)}
-                preview={renderPreview(rowKey, row.common_name, sel)}
-              />
-            );
-          })}
-        </ul>
-      )}
-
-      {/* External (opt-in) results */}
-      {externalRows.length > 0 && (
-        <div className="space-y-1.5">
-          <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 px-1">From other databases</p>
-          <ul className="space-y-1.5">
-            {externalRows.map((r) => {
-              const sel = providerResultToSelection(r);
-              const rowKey = `plant-search-result-${r._provider}-${r.id}`;
+      {/* Results — when the user set a non-library default, the preferred
+          (external) source renders first and the library falls back below. */}
+      {(() => {
+        const libSection = libraryRows.length > 0 ? (
+          <ul className="space-y-1.5" data-testid="plant-search-results">
+            {libraryRows.map((row) => {
+              const sel = libraryRowToSelection(row);
+              const rowKey = `plant-search-result-library-${row.id}`;
               return (
                 <ResultRow
-                  key={`ext-${r._provider}-${r.id}`}
+                  key={`lib-${row.id}`}
                   testId={rowKey}
-                  name={r.common_name}
-                  sub={r.scientific_name?.[0]}
-                  thumb={r.thumbnail_url ?? null}
-                  credit={(r as any).image_credit ?? null}
-                  source={r._provider}
+                  name={row.common_name}
+                  sub={Array.isArray(row.scientific_name) ? row.scientific_name[0] : undefined}
+                  thumb={row.thumbnail_url ?? row.image_url ?? null}
+                  credit={(row as any).image_credit ?? null}
+                  source="library"
                   multiSelect={multiSelect}
                   selected={multiSelect ? !!isSelected?.(sel) : false}
                   onClick={() => onSelect(sel)}
@@ -496,13 +494,52 @@ export default function PlantSearch({
                   onInfo={() => togglePreview(sel, rowKey)}
                   infoActive={previewKey === rowKey}
                   infoLoading={previewLoading.has(rowKey)}
-                  preview={renderPreview(rowKey, r.common_name, sel)}
+                  preview={renderPreview(rowKey, row.common_name, sel)}
                 />
               );
             })}
           </ul>
-        </div>
-      )}
+        ) : null;
+
+        const extSection = externalRows.length > 0 ? (
+          <div className="space-y-1.5">
+            <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 px-1">
+              {pref.plantSource === "library"
+                ? "From other databases"
+                : `Your default — ${pref.plantSource === "ai" ? "Rhozly AI" : pref.plantSource === "perenual" ? "Perenual" : "Verdantly"}`}
+            </p>
+            <ul className="space-y-1.5">
+              {externalRows.map((r) => {
+                const sel = providerResultToSelection(r);
+                const rowKey = `plant-search-result-${r._provider}-${r.id}`;
+                return (
+                  <ResultRow
+                    key={`ext-${r._provider}-${r.id}`}
+                    testId={rowKey}
+                    name={r.common_name}
+                    sub={r.scientific_name?.[0]}
+                    thumb={r.thumbnail_url ?? null}
+                    credit={(r as any).image_credit ?? null}
+                    source={r._provider}
+                    multiSelect={multiSelect}
+                    selected={multiSelect ? !!isSelected?.(sel) : false}
+                    onClick={() => onSelect(sel)}
+                    allowPreview={allowPreview}
+                    onInfo={() => togglePreview(sel, rowKey)}
+                    infoActive={previewKey === rowKey}
+                    infoLoading={previewLoading.has(rowKey)}
+                    preview={renderPreview(rowKey, r.common_name, sel)}
+                  />
+                );
+              })}
+            </ul>
+          </div>
+        ) : null;
+
+        return pref.plantSource !== "library"
+          ? <>{extSection}{libSection}</>
+          : <>{libSection}{extSection}</>;
+      })()}
 
       {/* Opt-in CTAs + fallbacks — shown once the user has a query */}
       {hasQuery && (
@@ -513,9 +550,9 @@ export default function PlantSearch({
             </p>
           )}
 
-          {/* Search more databases (Botanist+) */}
+          {/* Search more databases (Botanist+ — Verdantly + Perenual both gated) */}
           {!externalDone && (
-            gates.canSearchExternal ? (
+            canExternal ? (
               <button
                 type="button"
                 data-testid="plant-search-external"

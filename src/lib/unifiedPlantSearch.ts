@@ -185,11 +185,11 @@ export async function aiSuggestPlantNames(
  */
 export async function searchExternal(
   query: string,
-  opts: { includeAi?: boolean; homeId?: string } = {},
+  opts: { includeAi?: boolean; homeId?: string; only?: ("perenual" | "verdantly" | "ai")[] } = {},
 ): Promise<ProviderSearchResult[]> {
   const trimmed = query.trim();
   if (!trimmed) return [];
-  return searchAllProviders(trimmed, undefined, undefined, {
+  return searchAllProviders(trimmed, undefined, opts.only, {
     includeAi: opts.includeAi,
     homeId: opts.homeId,
   });

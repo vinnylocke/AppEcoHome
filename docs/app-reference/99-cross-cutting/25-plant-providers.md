@@ -1,6 +1,6 @@
 # Plant Providers — Perenual, Verdantly, AI
 
-> Plant species records come from three sources: **Perenual** (commercial plant DB, Botanist+ tier), **Verdantly** (curated DB, all tiers), and **AI** (Rhozly's PlantDoctorService, Sage+ tier). The unified `plantProvider.ts` abstracts source selection.
+> Plant species records come from three sources: **Perenual** (commercial plant DB, Botanist+ tier), **Verdantly** (curated DB, **Botanist+ — now gated like Perenual via `enable_perenual`**, server-side in `verdantly-search` + `companion-planting`), and **AI** (Rhozly's PlantDoctorService, Sage+ tier). The unified `plantProvider.ts` abstracts source selection.
 
 ---
 
@@ -109,7 +109,7 @@ When multiple providers return results, ranking depends on context:
 ### Why three providers
 
 Each has strengths:
-- **Verdantly** — curated subset, opinionated, free for everyone.
+- **Verdantly** — curated subset, opinionated; Botanist+ (gated like Perenual via `enable_perenual`).
 - **Perenual** — broad commercial DB with many cultivars (paid tier).
 - **AI** — synthesised data when the others miss, tuned to your preferences.
 

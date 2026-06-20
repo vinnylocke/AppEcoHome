@@ -7,6 +7,7 @@ import { TIERS, type TierId } from "../constants/tiers";
 import { useAchievements } from "../hooks/useAchievements";
 import { ACHIEVEMENTS } from "../lib/achievements";
 import AIUsagePanel from "./AIUsagePanel";
+import SearchSourceSection from "./SearchSourceSection";
 import QuickLauncherPicker from "./quick/QuickLauncherPicker";
 import { useHighContrast } from "../hooks/useHighContrast";
 import PersonaSetting from "./PersonaSetting";
@@ -1154,6 +1155,8 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, isAd
 
       {/* AI Usage */}
       <AIUsagePanel homeId={homeId} userId={userId} tier={subscriptionTier} />
+
+      <SearchSourceSection userId={userId} />
 
       {/* Accessibility */}
       <AccessibilitySection />
