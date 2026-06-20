@@ -35,9 +35,9 @@ type Tab = "account" | "notifications" | "achievements" | "stats";
 // phase). Mirrors the Stripe sandbox Prices created for each tier.
 const TIER_PRICE_LABEL: Record<TierId, string> = {
   sprout: "Free",
-  botanist: "£2/mo",
-  sage: "£5/mo",
-  evergreen: "£10/mo",
+  botanist: "£2.99/mo",
+  sage: "£4.99/mo",
+  evergreen: "£6.99/mo",
 };
 
 // ─── Notification preferences ────────────────────────────────────────────────

@@ -89,7 +89,8 @@ Shared `_shared/stripeTiers.ts` — price↔tier map + `tierToFlags(tier)` (reus
 
 ## Decisions (confirmed)
 
-1. **Prices (monthly, GBP):** Botanist **£2**, Sage **£5**, Evergreen **£10**. Sprout **£0**.
+1. **Prices (monthly, GBP):** Botanist **£2.99**, Sage **£4.99**, Evergreen **£6.99**. Sprout **£0**.
+   (Revised from £2/£5/£10 — see "Price revision" below.)
 2. **Free users:** no Stripe subscription — Sprout = "no active paid sub". The Sprout product exists
    only for catalogue/reporting.
 3. **Key:** restricted key (`rk_`) held as a Supabase secret.
@@ -120,6 +121,21 @@ Going live later = (a) swap the Supabase secret to the **live** restricted key +
 | Evergreen | `prod_UjkH4GGzFq4PFf` | `price_1TkGnkBRYbu7KoklB1xfxC1Q` (£10) | `STRIPE_PRICE_EVERGREEN` |
 
 Each product + price carries `metadata.tier` so the webhook can map back to a tier even without env.
+
+### Price revision (£2.99 / £4.99 / £6.99)
+
+Stripe prices are immutable, so new Prices were created on the same products:
+
+| Tier | New Price (monthly GBP) | Secret |
+|------|-------------------------|--------|
+| Botanist | `price_1TkIekBRYbu7Kokl3lwsHsce` (£2.99) | `STRIPE_PRICE_BOTANIST` |
+| Sage | `price_1TkIelBRYbu7KoklQVybX7lF` (£4.99) | `STRIPE_PRICE_SAGE` |
+| Evergreen | `price_1TkIelBRYbu7Kokl6Jwb6EcB` (£6.99) | `STRIPE_PRICE_EVERGREEN` |
+
+The old £2/£5/£10 prices still exist (immutable). Repoint the three secrets + the
+billing portal's "switch plans" products at the new ids, then optionally archive the
+old prices. The webhook maps any price → tier via `price.metadata.tier`, so it keeps
+working through the switch.
 
 ## Status — BUILT ✅ (sandbox, pre-deploy)
 
