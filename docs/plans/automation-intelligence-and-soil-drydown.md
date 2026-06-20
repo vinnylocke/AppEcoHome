@@ -1,9 +1,14 @@
 # Automation Intelligence & Soil-Drydown Model — Plan
 
-**Status:** ✅ **Pillar A shipped (2026-06-20)** — `soil_moisture_profiles` table + RLS, the
-deterministic drydown math (`_shared/soilProfile/drydown.ts`, Deno-tested), the
-`compute-soil-profiles` edge function, the daily cron, and the **Moisture behaviour** card on Area
-details → Readings. Pillars B (automation suggestions) and C (cross-app reuse) are next.
+**Status:** ✅ **Pillars A + B shipped (2026-06-20).**
+- **A:** `soil_moisture_profiles` + drydown math (`_shared/soilProfile/drydown.ts`, Deno-tested) +
+  `compute-soil-profiles` + daily cron + the **Moisture behaviour** card on Area details → Readings.
+- **B:** `automation_suggestions` + the deterministic analyser (`_shared/automationSuggestions/analyse.ts`,
+  Deno-tested) + `analyse-automations` + daily cron + the suggestion chip on `AutomationCard`
+  (one-tap Apply / Dismiss / Details). **Still to do for B:** the Sage+ AI rewrite of `rationale` →
+  `ai_rationale` (the deterministic rationale ships now; the column + UI already prefer `ai_rationale`).
+
+Pillar C (feed the model into plant recommendations + weather advice + a drydown-anomaly pattern) is next.
 
 **App-reference consulted:** [`09-data-model-integrations.md`](../app-reference/99-cross-cutting/09-data-model-integrations.md),
 [`26-pattern-engine.md`](../app-reference/99-cross-cutting/26-pattern-engine.md); plus a full code

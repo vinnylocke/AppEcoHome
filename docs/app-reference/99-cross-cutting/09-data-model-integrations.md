@@ -131,6 +131,10 @@ One row per area (`area_id` PK, `home_id` FK), home-scoped RLS SELECT, service-r
 
 One row per soil sensor (`device_id` PK, `home_id`, `area_id`). The **deterministic** moisture-behaviour model computed by `compute-soil-profiles` from `device_readings` + `weather_snapshots` (no AI): `drydown_rate_pct_per_day`, `retention_class` (`fast_draining|balanced|moisture_retentive|unknown`), `drydown_by_weather` jsonb (per `hot_dry`/`mild`/`cool_wet` bucket), `watering_response` jsonb (`rewetCount`, `avgRewetJump`, `avgSegmentDurationDays`), `sample_segments`, `confidence` (0–1), `based_on_reading_at`, `computed_at`. Home-member RLS SELECT; service-role writes. The drydown math lives in `_shared/soilProfile/drydown.ts` (segment detection from the moisture series — a sharp rise = watering/rain — + OLS slope + weather bucketing; Deno-tested in `supabase/tests/soilDrydown.test.ts`). Surfaced today by the **Moisture behaviour** card on Area details → Readings tab; will feed automation suggestions + plant recommendations (Pillars B/C). See [plan](../../plans/automation-intelligence-and-soil-drydown.md).
 
+### `automation_suggestions` (Automation Intelligence — Pillar B, 2026-06-20)
+
+Deterministic tuning suggestions for watering automations, produced by `analyse-automations` from the last 7 days of `automation_runs` + the area's `soil_moisture_profiles`. Columns: `automation_id`, `home_id`, `kind` (`raise_run_limit|reduce_watering|enable_weather_skip`), `field` (the `automations` column a one-tap Apply mutates), `current_value`/`proposed_value` jsonb, `rationale` (plain-language, all tiers), `ai_rationale` (optional Sage+ rewrite — follow-up), `confidence`, `status` (`active|applied|dismissed`), `expires_at`. Partial unique index keeps ≤1 active per `(automation_id, kind)`. Home-member RLS SELECT + UPDATE — the one-tap Apply also mutates `automations`, whose own RLS is the real guard, so a non-manager's apply fails safe; service-role inserts. Trigger + proposed value are deterministic (`_shared/automationSuggestions/analyse.ts`, Deno-tested). Surfaced as the suggestion chip on `AutomationCard`. See [plan](../../plans/automation-intelligence-and-soil-drydown.md).
+
 ### Cron
 
 | Cron | Cadence | Effect |
@@ -138,6 +142,7 @@ One row per soil sensor (`device_id` PK, `home_id`, `area_id`). The **determinis
 | `run-automations` | every 1 minute | Fires due automations |
 | `integrations-ewelink-sync` | periodic | Refreshes readings + device states |
 | `compute-soil-profiles-daily` | daily 03:00 UTC | Recomputes every soil sensor's `soil_moisture_profiles` |
+| `analyse-automations-daily` | daily 03:30 UTC | (Re)generates `automation_suggestions` from `automation_runs` + `soil_moisture_profiles` |
 
 ---
 

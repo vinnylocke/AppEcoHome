@@ -5,6 +5,7 @@ import {
   CheckCircle, XCircle, CloudRain, Calendar, Clock, Droplets, MapPin, Gauge,
 } from "lucide-react";
 import AutomationRunHistory from "./AutomationRunHistory";
+import AutomationSuggestions from "./AutomationSuggestions";
 import type { AutomationFull } from "./AutomationsSection";
 import { summariseTree } from "../../lib/conditionTree";
 
@@ -159,6 +160,9 @@ export default function AutomationCard({ automation, onEdit, onDeleted, canManag
           </span>
         </div>
       )}
+
+      {/* Tuning suggestions (Pillar B) */}
+      <AutomationSuggestions automationId={automation.id} canManage={canManage} />
 
       {/* Actions */}
       <div className="flex items-center gap-2">
