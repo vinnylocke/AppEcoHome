@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn } from "../_shared/logger.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 import { buildMessage } from "../_shared/templates.ts";
 import { captureException } from "../_shared/sentry.ts";
 
@@ -216,7 +217,7 @@ serve(async (_req) => {
             : "No recorded events for this plant yet.",
         ].filter((l) => l !== null).join("\n");
 
-        const rawText = await callGeminiCascade(
+        const { text: rawText, usage } = await callGeminiCascade(
           apiKey,
           FN,
           toMessages([userMessage]),
@@ -232,6 +233,15 @@ serve(async (_req) => {
             },
           },
         );
+
+        await logAiUsage(db, {
+          userId: hit.user_id,
+          functionName: FN,
+          action: "pattern_eval",
+          usage,
+          prompt: userMessage,
+          rawResult: rawText,
+        });
 
         const result = JSON.parse(rawText);
 

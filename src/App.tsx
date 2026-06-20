@@ -85,6 +85,7 @@ import BetaFeedbackBanner from "./components/BetaFeedbackBanner";
 const HomeDashboard       = lazy(() => import("./components/HomeDashboard"));
 const AdminGuideGenerator = lazy(() => import("./components/AdminGuideGenerator"));
 const PlantLibraryAdmin = lazy(() => import("./components/admin/PlantLibraryAdmin"));
+const AiCallsAdmin = lazy(() => import("./components/admin/AiCallsAdmin"));
 const PlantDoctor         = lazy(() => import("./components/PlantDoctor"));
 const QuickAccessHome     = lazy(() => import("./components/QuickAccessHome"));
 const LocalizedTaskCalendar = lazy(() => import("./components/quick/LocalizedTaskCalendar"));
@@ -1851,6 +1852,14 @@ function AppShell() {
                               isAdmin={!!profile.is_admin}
                               userId={session.user.id}
                             />
+                          </div>
+                        } />
+                      )}
+
+                      {profile?.is_admin && (
+                        <Route path="/admin/ai-calls" element={
+                          <div className="h-full animate-in fade-in duration-500">
+                            <AiCallsAdmin isAdmin={!!profile.is_admin} />
                           </div>
                         } />
                       )}

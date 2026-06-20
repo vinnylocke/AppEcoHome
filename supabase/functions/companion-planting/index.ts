@@ -5,6 +5,8 @@ import { captureException } from "../_shared/sentry.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
+import type { GeminiUsage } from "../_shared/gemini.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 
 const FN = "companion-planting";
 const RAPIDAPI_HOST = "verdantly-gardening-api.p.rapidapi.com";
@@ -121,7 +123,7 @@ const COMPANION_SCHEMA = {
 async function generateAiCompanions(
   plantName: string,
   geminiKey: string,
-): Promise<CompanionPlantsResult> {
+): Promise<{ result: CompanionPlantsResult; usage: GeminiUsage; prompt: string; rawText: string }> {
   const prompt = `You are a gardening expert. Provide companion planting information for "${plantName}".
 
 Return a JSON object with three arrays:
@@ -139,7 +141,7 @@ Include up to 10 beneficial plants, up to 6 harmful plants, and up to 6 neutral 
 
 IMPORTANT: If "${plantName}" has no commonly known companion plants — for example carnivorous bog plants (Venus flytraps, sundews, pitcher plants), strictly aquatic plants, parasitic plants, or species only grown indoors in isolated pots — return empty arrays for the categories that don't apply rather than inventing companions. Empty arrays are a correct and useful answer in those cases.`;
 
-  const { text } = await callGeminiCascade(
+  const { text, usage } = await callGeminiCascade(
     geminiKey,
     FN,
     toMessages([prompt]),
@@ -170,9 +172,14 @@ IMPORTANT: If "${plantName}" has no commonly known companion plants — for exam
   // Ensure id is null for all AI results
   const nullId = (item: any): CompanionPlant => ({ ...item, id: null });
   return {
-    beneficial: (parsed.beneficial ?? []).map(nullId),
-    harmful:    (parsed.harmful    ?? []).map(nullId),
-    neutral:    (parsed.neutral    ?? []).map(nullId),
+    result: {
+      beneficial: (parsed.beneficial ?? []).map(nullId),
+      harmful:    (parsed.harmful    ?? []).map(nullId),
+      neutral:    (parsed.neutral    ?? []).map(nullId),
+    },
+    usage,
+    prompt,
+    rawText: text,
   };
 }
 
@@ -301,7 +308,16 @@ serve(async (req) => {
       result = await fetchVerdantlyCompanions(verdantly_id, apiKey);
     } else {
       log(FN, "ai_lookup", { plant_name, source });
-      result = await generateAiCompanions(plant_name, geminiKey);
+      const ai = await generateAiCompanions(plant_name, geminiKey);
+      result = ai.result;
+      await logAiUsage(db, {
+        userId,
+        functionName: FN,
+        action: "ai_companions",
+        usage: ai.usage,
+        prompt: ai.prompt,
+        rawResult: ai.rawText,
+      });
     }
 
     // 3) Persist (no-op for empty results, so they re-call next time).

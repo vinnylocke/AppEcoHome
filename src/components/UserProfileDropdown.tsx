@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Loader2,
   HelpCircle,
+  Activity,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
@@ -273,6 +274,10 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
                 />
                 <DropdownLink
                   item={{ testId: "user-profile-plant-library", icon: <Library size={15} />, label: "Plant Library", path: "/admin/plant-library" }}
+                  onNavigate={go}
+                />
+                <DropdownLink
+                  item={{ testId: "user-profile-ai-calls", icon: <Activity size={15} />, label: "AI Calls", path: "/admin/ai-calls" }}
                   onNavigate={go}
                 />
               </div>

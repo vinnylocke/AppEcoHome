@@ -154,19 +154,29 @@ async function callGemini({ model, prompt, image?, schema? }) {
 }
 ```
 
-### `ai_calls` table
+### `ai_usage_log` table (the AI call ledger)
+
+One row per Gemini/Imagen call, written by `_shared/aiUsage.ts` → `logAiUsage`:
 
 ```ts
 {
-  id, created_at,
-  user_id, home_id,
-  function_name, action,
-  model, prompt_tokens, candidates_tokens, total_tokens,
-  estimated_cost_usd,
+  id, created_at, user_id, home_id, function_name, action, model,
+  prompt_tokens, candidates_tokens, cached_tokens, thoughts_tokens, total_tokens,
+  image_count, image_cost_usd, estimated_cost_usd,   // cost via estimateGeminiCostUsd (accurate)
+  duration_ms, status, error,                         // status: ok | error | fallback
+  context_block, prompt, raw_result,                  // observability — truncated, base64-stripped, nulled after 30d
 }
 ```
 
-Surfaces in the [Audit Log](../07-management/08-audit-log.md) + Account Tab's AI Usage Panel.
+- **Cost is accurate** — `logAiUsage` costs each call with `_shared/geminiCost.ts`
+  (`estimateGeminiCostUsd`: per-model input/output/cache/thoughts rates + batch discount), NOT a flat
+  per-token rate. Migration `20260813000000` backfilled historical rows.
+- **Observability** — callers pass `contextBlock` / `prompt` / `rawResult` so a call can be reviewed.
+- Surfaces: Account Tab's AI Usage Panel (per-home), the **`/admin/ai-calls`** admin viewer (all
+  calls; expand context→prompt→result), and the **`sync-stripe-ai-cost`** daily cron which mirrors
+  per-customer cost onto Stripe Customer metadata (`ai_cost_usd_30d/_total`, `ai_calls_30d`).
+- A daily `prune-ai-usage-payloads` cron nulls the text payloads after 30 days (keeps the cost row).
+- See [docs/plans/ai-audit-and-improvement.md](../../plans/ai-audit-and-improvement.md) for the wider plan.
 
 ### Quotas
 
