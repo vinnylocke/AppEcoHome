@@ -13,6 +13,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 import { estimateGeminiCostUsd } from "../_shared/geminiCost.ts";
 import {
   AILMENT_SEED_BATCH_SCHEMA,
@@ -81,6 +82,8 @@ Deno.serve(async (req) => {
           cachedContentTokenCount: usage.cachedContentTokenCount ?? 0,
           thoughtsTokenCount: usage.thoughtsTokenCount ?? 0,
         });
+
+        await logAiUsage(db, { functionName: FN, action: "seed_ailments", usage, rawResult: text });
 
         const { ailments } = parseAilmentBatch(text);
         log(FN, "batch_received", { run_id: runId, ai_returned: ailments.length, model });

@@ -10,6 +10,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 import { estimateGeminiCostUsd } from "../_shared/geminiCost.ts";
 import {
   buildEnrichmentPrompt,
@@ -72,6 +73,8 @@ Deno.serve(async (req) => {
         logContext: { single_add: true },
       },
     );
+
+    await logAiUsage(db, { userId: userId ?? null, functionName: FN, action: "add_plant_to_library", usage, rawResult: text });
 
     let parsed: { plants: any[] };
     try {

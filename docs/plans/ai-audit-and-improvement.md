@@ -289,13 +289,14 @@ days while keeping the cost row. One write per call.
   Chose to extend the existing helper rather than a new `logAiCall` so all 27 callers get accurate
   cost with zero edits. Deno-tested (12 cases, 633/633 green).
 - [x] Retired the crude flat per-token costing.
-- [~] Sweep the non-logging callers — **done: companion-planting, pattern-evaluate** (the latter
-  also fixed a latent `JSON.parse({text,usage})` bug by destructuring). The Plant Library funcs
-  (`seed/verify-plant-library`, batch) already track cost in `plant_library_runs` (not gaps).
-  **Remaining (minor):** `suggest-plant-names` (trivial, no user/auth), `seed/verify-ailment-library`,
-  `add-plant-to-library`.
-- [~] Thread context/prompt/raw — companion-planting + pattern-evaluate now thread prompt + raw.
-  **Remaining:** the flagships (agent-chat, plant-doctor, care-guides) — Phase 2 work.
+- [x] Sweep the non-logging callers — companion-planting, pattern-evaluate (also fixed a latent
+  `JSON.parse({text,usage})` bug) + add-plant-to-library now log; seed/verify-ailment-library now also
+  write `ai_usage_log` (they already tracked accurate cost in `ailment_library_runs`). Plant Library
+  seed/verify/batch track cost in `plant_library_runs` (not gaps). `suggest-plant-names` intentionally
+  skipped (trivial, unauthenticated — no user/home to attribute).
+- [x] Thread context/prompt/raw — done across the per-user generators: the assistant, task-from-photo,
+  search/optimise/yield/scheduler/scan-area/visualiser, and **all 14 plant-doctor actions**.
+  Globally-cached features (companion, care-guides, ailment-suggestions) stay generic by design.
 - [x] Admin "AI calls" view — `/admin/ai-calls` (`AiCallsAdmin`), admin-gated, filter by
   function/status, expand a row to fetch context→prompt→raw_result. Linked from the user dropdown.
 - [x] `sync-stripe-ai-cost` cron → Stripe Customer metadata (verified writing live).

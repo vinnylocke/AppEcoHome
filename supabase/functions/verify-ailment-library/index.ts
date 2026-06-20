@@ -10,6 +10,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
 import { estimateGeminiCostUsd } from "../_shared/geminiCost.ts";
 import {
   AILMENT_VERIFY_SCHEMA, buildAilmentVerifyPrompt, applyVerifyResult, parseVerify,
@@ -69,6 +70,8 @@ Deno.serve(async (req) => {
               cachedContentTokenCount: usage.cachedContentTokenCount ?? 0,
               thoughtsTokenCount: usage.thoughtsTokenCount ?? 0,
             });
+            await logAiUsage(db, { functionName: FN, action: "verify_ailment", usage, rawResult: text });
+
             const parsed = parseVerify(text);
             if (!parsed) { failed += 1; continue; }
             const patch = applyVerifyResult(parsed);
