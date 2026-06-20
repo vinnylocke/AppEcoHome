@@ -45,7 +45,7 @@ Edge functions live in `supabase/functions/<name>/index.ts` and share `_shared/`
 
 | Function | Trigger | Purpose |
 |----------|---------|---------|
-| `stripe-create-checkout` | Browser (GardenerProfile → Your Plan, admin-gated) | Find-or-create the user's Stripe Customer (stores `stripe_customer_id`), create a Checkout Session (`mode: subscription`, the selected tier's price, `client_reference_id` + `subscription_data.metadata` = uid+tier). Body `{ tier }`. Returns `{ url }`. `verify_jwt=true` + `requireAuth`. |
+| `stripe-create-checkout` | Browser (GardenerProfile → Your Plan, admin-gated) | Find-or-create the user's Stripe Customer (stores `stripe_customer_id`), create a Checkout Session (`mode: subscription`, the selected tier's price, `client_reference_id` + `subscription_data.metadata` = uid+tier). Body `{ tier }`. Returns `{ url }` — or `{ portal: true }` if the customer already has an active subscription (the client opens the billing portal to switch plans instead of stacking a second subscription). `verify_jwt=true` + `requireAuth`. |
 | `stripe-portal` | Browser (GardenerProfile → "Manage billing", admin-gated) | Create a Stripe Billing Portal session for the user's customer. Returns `{ url }`. `verify_jwt=true` + `requireAuth`. |
 | `stripe-webhook` | Stripe (webhook endpoint) | **Authoritative sync** of subscription state → `user_profiles`. Verifies the Stripe signature (`STRIPE_WEBHOOK_SECRET`), maps price→tier (`_shared/stripeTiers.ts`), writes `subscription_tier` + `ai_enabled`/`enable_perenual` + stripe ids/status/period_end on `customer.subscription.created\|updated\|deleted`, `checkout.session.completed`, `invoice.payment_failed`. Idempotent. `verify_jwt=false` (signature is the auth). |
 

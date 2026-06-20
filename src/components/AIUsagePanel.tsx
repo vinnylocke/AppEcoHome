@@ -8,6 +8,10 @@ import { IconAI } from "../constants/icons";
 interface Props {
   homeId: string;
   userId: string;
+  /** Live tier from the parent (updates optimistically on plan change), preferred
+   *  over the self-fetch so the panel reflects a just-changed plan immediately
+   *  instead of racing the webhook-updated row. */
+  tier?: TierId | null;
 }
 
 interface Override {
@@ -25,9 +29,9 @@ const AI_FUNCTIONS = [
   "optimise-area-ai",
 ];
 
-export default function AIUsagePanel({ homeId, userId }: Props) {
+export default function AIUsagePanel({ homeId, userId, tier: tierProp }: Props) {
   const [loading, setLoading] = useState(true);
-  const [tier, setTier] = useState<TierId>("sprout");
+  const [fetchedTier, setFetchedTier] = useState<TierId>("sprout");
   const [todayCalls, setTodayCalls] = useState(0);
   const [monthCalls, setMonthCalls] = useState(0);
   const [monthCost, setMonthCost] = useState(0);
@@ -61,7 +65,7 @@ export default function AIUsagePanel({ homeId, userId }: Props) {
         ]);
 
         if (profileRes.data?.subscription_tier) {
-          setTier(profileRes.data.subscription_tier as TierId);
+          setFetchedTier(profileRes.data.subscription_tier as TierId);
         }
 
         if (usageRes.data) {
@@ -80,6 +84,9 @@ export default function AIUsagePanel({ homeId, userId }: Props) {
     load();
   }, [homeId, userId]);
 
+  // Parent-supplied tier wins (reflects an optimistic plan change instantly);
+  // otherwise fall back to the value this panel fetched for itself.
+  const tier = tierProp ?? fetchedTier;
   const tierDef = getTier(tier);
   const hasAI = tierDef.ai_enabled;
   const hasOverrides = overrides.length > 0;

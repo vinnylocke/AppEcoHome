@@ -66,6 +66,14 @@ serve(async (req) => {
       await db.from("user_profiles").update({ stripe_customer_id: customerId }).eq("uid", userId);
     }
 
+    // Already subscribed? Send them to the billing portal to change plans rather
+    // than stacking a second subscription (which would double-bill).
+    const active = await stripe.subscriptions.list({ customer: customerId, status: "active", limit: 1 });
+    if (active.data.length > 0) {
+      log(FN, "already_subscribed", { userId, customerId });
+      return json({ portal: true });
+    }
+
     const origin = req.headers.get("origin") ?? Deno.env.get("APP_URL") ?? "https://rhozly.com";
 
     // No payment_method_types — let Stripe pick eligible methods dynamically.

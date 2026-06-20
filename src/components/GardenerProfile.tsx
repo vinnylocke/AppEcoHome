@@ -711,8 +711,15 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, isAd
       const { data, error } = await supabase.functions.invoke("stripe-create-checkout", {
         body: { tier },
       });
-      if (error || !data?.url) throw new Error(error?.message ?? "Checkout is unavailable");
-      window.location.assign(data.url as string);
+      if (error) throw new Error(error.message ?? "Checkout is unavailable");
+      // Already subscribed — switch plans in the billing portal, don't stack a second sub.
+      if ((data as { portal?: boolean })?.portal) {
+        toast("You're already subscribed — opening billing portal to change plan");
+        await openPortal();
+        return;
+      }
+      if (!(data as { url?: string })?.url) throw new Error("Checkout is unavailable");
+      window.location.assign((data as { url: string }).url);
     } catch (e: any) {
       setIsRedirecting(false);
       toast.error(e?.message ?? "Could not start checkout");
@@ -1102,7 +1109,7 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, isAd
       })()}
 
       {/* AI Usage */}
-      <AIUsagePanel homeId={homeId} userId={userId} />
+      <AIUsagePanel homeId={homeId} userId={userId} tier={subscriptionTier} />
 
       {/* Accessibility */}
       <AccessibilitySection />
