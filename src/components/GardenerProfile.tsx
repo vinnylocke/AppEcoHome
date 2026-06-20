@@ -705,6 +705,36 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, isAd
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
+  // Returning to this page (from the Stripe portal, the back button, or a bfcache
+  // restore) can leave the redirect spinner stuck and the tier stale — the webhook
+  // may have changed it server-side. Clear the spinner and revalidate the tier from
+  // the DB so the plan cards + AI Usage stay in sync. The ?checkout= return is owned
+  // by the optimistic effect above, so we don't re-read the tier in that case.
+  useEffect(() => {
+    let cancelled = false;
+    const revalidate = async () => {
+      setIsRedirecting(false);
+      if (searchParams.get("checkout")) return;
+      const { data } = await supabase
+        .from("user_profiles")
+        .select("subscription_tier, ai_enabled, enable_perenual")
+        .eq("uid", userId)
+        .maybeSingle();
+      if (cancelled || !data?.subscription_tier) return;
+      onTierChange?.(
+        data.subscription_tier as TierId,
+        !!data.ai_enabled,
+        !!data.enable_perenual,
+      );
+      setPendingTier(data.subscription_tier as TierId);
+    };
+    void revalidate();
+    const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) void revalidate(); };
+    window.addEventListener("pageshow", onPageShow);
+    return () => { cancelled = true; window.removeEventListener("pageshow", onPageShow); };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [userId]);
+
   async function startCheckout(tier: TierId) {
     setIsRedirecting(true);
     try {
