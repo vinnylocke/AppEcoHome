@@ -11,6 +11,10 @@ const FN = "pattern-evaluate";
 // Max hits to process per run — prevents timeouts on large backlogs.
 const BATCH_LIMIT = 80;
 
+// Patterns whose detector already decided significance — skip the postponement-
+// tuned AI eval and surface them deterministically (structural soil signals).
+const DETERMINISTIC_ITEM_PATTERNS = new Set(["soil_drydown_watering"]);
+
 const SYSTEM_PROMPT = `You are a plant care assistant evaluating detected behavioural patterns to decide whether they warrant surfacing an insight to the user.
 
 Return JSON with exactly these fields:
@@ -177,6 +181,24 @@ serve(async (_req) => {
         const homeInfo = userHomeMap.get(hit.user_id);
         const species = item?.species_id != null ? speciesMap.get(item.species_id) : null;
         const plantName = item?.nickname ?? item?.plant_name ?? "Unknown plant";
+
+        // Deterministic structural patterns skip the AI eval — the detector
+        // already decided significance; just render the template + insert.
+        if (DETERMINISTIC_ITEM_PATTERNS.has(hit.pattern_id)) {
+          const insightText = buildMessage(hit.pattern_id, { plant_name: plantName, ...(hit.raw_data ?? {}) });
+          await db.from("user_insights").insert({
+            user_id: hit.user_id,
+            pattern_id: hit.pattern_id,
+            inventory_item_id: hit.inventory_item_id,
+            is_significant: true,
+            insight_text: insightText,
+            ai_meta: { source: "deterministic", raw_data: hit.raw_data },
+          });
+          insights++;
+          await db.from("user_pattern_hits").update({ evaluated: true }).eq("id", hit.id);
+          evaluated++;
+          continue;
+        }
 
         // Fetch last 20 events for this item
         const { data: recentEvents } = await db

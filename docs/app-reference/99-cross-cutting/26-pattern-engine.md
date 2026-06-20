@@ -72,6 +72,10 @@ Reads recent `pattern_hits`, applies dedup + scoring (severity × recency), emit
 }
 ```
 
+### Deterministic patterns (no AI eval)
+
+Most detectors route through the Gemini significance check in `pattern-evaluate`. **Structural** signals the detector has already judged skip that step — `DETERMINISTIC_ITEM_PATTERNS` in `pattern-evaluate` renders the `_shared/templates.ts` message + inserts the `user_insights` row directly. First member: **`soil_drydown_watering`** (`_shared/patterns/soilDrydownWatering.ts`) — flags Planted items in a **fast-draining** area (from `soil_moisture_profiles`) with **no active watering automation**, and escalates the copy when a hot/dry week is forecast (Pillars C2 + C3 of automation intelligence). Surfaces on the AssistantCard. See [Data Model — Integrations](./09-data-model-integrations.md) + [plan](../../plans/automation-intelligence-and-soil-drydown.md).
+
 ### `user_behaviour_summary`
 
 Per-user weekly summary fed into AI prompts:

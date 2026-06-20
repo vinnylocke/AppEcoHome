@@ -12,9 +12,14 @@
   weather split go into the AI Area Coach prompt so the **moisture recommendation + plant-compatibility
   verdict** reflect how the soil actually behaves ("what plants work in this area").
 
-**Remaining (optional follow-ups):** C2 — a pattern-engine detector ("drying faster than usual" /
-thirsty plant in a fast-draining bed) for the AssistantCard (needs `pattern-evaluate` copy wiring);
-C3 — weather-aware watering advice on the Dashboard / Weekly Overview (needs a UI surface decision).
+- **C2 + C3:** the `soil_drydown_watering` pattern detector (`_shared/patterns/soilDrydownWatering.ts`)
+  — flags Planted items in a fast-draining area with no active automation (C2), escalating the copy
+  when a hot/dry week is forecast (C3). Surfaces on the AssistantCard via a new deterministic (no-AI)
+  branch in `pattern-evaluate` + a `soil_drydown_watering` template. Reuses the existing
+  pattern-scan / pattern-evaluate / AssistantCard pipeline — no new UI surface.
+
+**Feature complete.** All pillars shipped. Possible future polish: a dedicated "watering outlook" card
+on the Weekly Overview, and an opt-in "auto-tune my watering" toggle (the deferred Q1 option).
 
 **App-reference consulted:** [`09-data-model-integrations.md`](../app-reference/99-cross-cutting/09-data-model-integrations.md),
 [`26-pattern-engine.md`](../app-reference/99-cross-cutting/26-pattern-engine.md); plus a full code

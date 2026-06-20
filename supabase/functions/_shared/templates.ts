@@ -9,6 +9,8 @@ const TEMPLATES: Record<string, string> = {
     "You had a {streak}-day care streak going — nice work. {plant_name} is lucky to have you.",
   blueprint_postpone_rate:
     "You've postponed '{task_name}' {count} times this month — it might be worth tweaking the schedule.",
+  soil_drydown_watering:
+    "{plant_name} is in {area_name}, which dries out fast (~{rate}%/day). {advice}",
 };
 
 export function buildMessage(

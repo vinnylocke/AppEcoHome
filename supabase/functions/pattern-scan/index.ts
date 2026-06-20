@@ -63,7 +63,9 @@ serve(async (_req) => {
 
           for (const pattern of PATTERNS) {
             try {
-              const hits = await pattern.detect(userId, homeId, db);
+              // Bridge the cross-version SupabaseClient (serviceClient @2.49.4 vs the
+              // detector signature's @2.39.3) — same shape, different esm.sh pin.
+              const hits = await pattern.detect(userId, homeId, db as unknown as Parameters<typeof pattern.detect>[2]);
 
               // Fetch existing unevaluated hits so we can clean up stale ones
               // (rows the detector no longer produces).

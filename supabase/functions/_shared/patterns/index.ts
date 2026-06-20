@@ -3,6 +3,7 @@ import consecutivePostponements from "./consecutivePostponements.ts";
 import neglectedPlant from "./neglectedPlant.ts";
 import highPostponeRate from "./highPostponeRate.ts";
 import blueprintPostponeRate from "./blueprintPostponeRate.ts";
+import soilDrydownWatering from "./soilDrydownWatering.ts";
 
 export interface PatternHit {
   inventoryItemId?: string | null;
@@ -21,5 +22,6 @@ export const PATTERNS: PatternDetector[] = [
   neglectedPlant,
   highPostponeRate,
   blueprintPostponeRate,
+  soilDrydownWatering,
   // Add new pattern: one file in this folder + one line here
 ];
