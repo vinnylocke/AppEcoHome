@@ -5,6 +5,7 @@ import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { buildMessage } from "../_shared/templates.ts";
 import { tierAllowsInsights } from "../_shared/insightTiers.ts";
+import { type Persona } from "../_shared/persona.ts";
 import { captureException } from "../_shared/sentry.ts";
 
 const FN = "pattern-evaluate";
@@ -77,11 +78,13 @@ serve(async (_req) => {
     // we skip generation for users who can't see them. Mirrors FEATURE_GATES.ai_insights.
     const { data: tierRows } = await db
       .from("user_profiles")
-      .select("uid, subscription_tier")
+      .select("uid, subscription_tier, persona")
       .in("uid", userIds);
     const tierByUser = new Map<string, string | null>();
+    const personaByUser = new Map<string, Persona>();
     for (const t of tierRows ?? []) {
       tierByUser.set(t.uid as string, (t.subscription_tier as string | null) ?? null);
+      personaByUser.set(t.uid as string, (t.persona ?? null) as Persona);
     }
 
     const [
@@ -157,7 +160,7 @@ serve(async (_req) => {
           }
 
           // The threshold IS the significance filter here — no AI call needed.
-          const insightText = buildMessage(hit.pattern_id, hit.raw_data ?? {});
+          const insightText = buildMessage(hit.pattern_id, personaByUser.get(hit.user_id) ?? null, hit.raw_data ?? {});
           await db.from("user_insights").insert({
             user_id: hit.user_id,
             pattern_id: hit.pattern_id,
@@ -204,7 +207,7 @@ serve(async (_req) => {
         // Deterministic structural patterns skip the AI eval — the detector
         // already decided significance; just render the template + insert.
         if (DETERMINISTIC_ITEM_PATTERNS.has(hit.pattern_id)) {
-          const insightText = buildMessage(hit.pattern_id, { plant_name: plantName, ...(hit.raw_data ?? {}) });
+          const insightText = buildMessage(hit.pattern_id, personaByUser.get(hit.user_id) ?? null, { plant_name: plantName, ...(hit.raw_data ?? {}) });
           await db.from("user_insights").insert({
             user_id: hit.user_id,
             pattern_id: hit.pattern_id,
@@ -287,7 +290,7 @@ serve(async (_req) => {
         const result = JSON.parse(rawText);
 
         if (result.isSignificant) {
-          const insightText = buildMessage(hit.pattern_id, {
+          const insightText = buildMessage(hit.pattern_id, personaByUser.get(hit.user_id) ?? null, {
             plant_name: plantName,
             ...(result.vars ?? {}),
           });

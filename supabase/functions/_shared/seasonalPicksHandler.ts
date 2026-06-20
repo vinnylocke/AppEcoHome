@@ -109,10 +109,9 @@ export async function generateSeasonalPicksForHome(
   const climate = climateRes.data;
   const tier = (profileRes.data?.subscription_tier as string | null)?.toLowerCase() ?? "sprout";
 
-  // Cron path: no callerUserId means we need a tier signal from the home
-  // members. Pick the first owner-tier member to decide whether to use AI.
-  // Fall back to fallback path when no tier info is recoverable.
-  let aiTier = tier === "sage" || tier === "evergreen";
+  // AI picks are part of the Evergreen-only insights experience (the deterministic
+  // fallback serves every other tier). Cron path resolves the tier from members.
+  let aiTier = tier === "evergreen";
   if (!opts.callerUserId) {
     const { data: members } = await supabase
       .from("home_members")
@@ -122,7 +121,7 @@ export async function generateSeasonalPicksForHome(
     // deno-lint-ignore no-explicit-any
     const tiers = ((members ?? []) as any[])
       .map((m) => (m.user_profiles?.subscription_tier ?? "").toLowerCase());
-    aiTier = tiers.some((t: string) => t === "sage" || t === "evergreen");
+    aiTier = tiers.some((t: string) => t === "evergreen");
   }
 
   const hemisphere: "Northern" | "Southern" =

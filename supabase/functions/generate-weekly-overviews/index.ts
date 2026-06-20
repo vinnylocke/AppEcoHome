@@ -389,6 +389,25 @@ serve(async (req) => {
       membersByHome[m.home_id].push(m.user_id);
     }
 
+    // AI tips are part of the Evergreen-only insights experience — resolve which
+    // homes have an Evergreen member so we only spend Gemini there (deterministic
+    // tips serve every other tier).
+    const allMemberIds = [...new Set((homeMembers ?? []).map((m) => m.user_id))];
+    const evergreenUsers = new Set<string>();
+    if (allMemberIds.length) {
+      const { data: profs } = await supabase
+        .from("user_profiles").select("uid, subscription_tier").in("uid", allMemberIds);
+      for (const p of profs ?? []) {
+        if (((p.subscription_tier as string | null) ?? "").toLowerCase() === "evergreen") {
+          evergreenUsers.add(p.uid as string);
+        }
+      }
+    }
+    const homeEvergreen = new Set<string>();
+    for (const [hid, ids] of Object.entries(membersByHome)) {
+      if (ids.some((id) => evergreenUsers.has(id))) homeEvergreen.add(hid);
+    }
+
     let overviewsWritten = 0;
     let notificationsQueued = 0;
 
@@ -462,7 +481,7 @@ serve(async (req) => {
         season,
         weatherEvents,
         plantNames.slice(0, 8).join(", "),
-        geminiKey,
+        homeEvergreen.has(home.id) ? geminiKey : undefined,
       );
 
       // 9. Pollen rollup from the latest snapshot.
