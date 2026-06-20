@@ -5,6 +5,8 @@ import { supabase } from "./supabase";
 // for everyone; the others require entitlement (Perenual/Verdantly → enable_perenual,
 // AI → ai_enabled). See docs/plans/search-source-preference.md.
 export type PlantSource = "library" | "verdantly" | "perenual" | "ai";
+// Watchlist/ailment search has no Verdantly tier.
+export type AilmentSource = "library" | "perenual" | "ai";
 
 export interface SearchEntitlements {
   enablePerenual: boolean; // Perenual AND Verdantly (Verdantly is now gated like Perenual)
@@ -14,6 +16,8 @@ export interface SearchEntitlements {
 export interface SearchPreferenceState {
   /** The stored plant_source, clamped to what the user is entitled to. */
   plantSource: PlantSource;
+  /** The stored ailment_source (Watchlist), clamped. No Verdantly for ailments. */
+  ailmentSource: AilmentSource;
   enablePerenual: boolean;
   aiEnabled: boolean;
   loading: boolean;
@@ -44,6 +48,26 @@ export function availablePlantSources(ent: SearchEntitlements): PlantSource[] {
   return out;
 }
 
+/** Clamp a stored ailment source to the user's entitlement (no Verdantly). */
+export function clampAilmentSource(
+  source: string | null | undefined,
+  ent: SearchEntitlements,
+): AilmentSource {
+  switch (source) {
+    case "perenual": return ent.enablePerenual ? "perenual" : "library";
+    case "ai":       return ent.aiEnabled ? "ai" : "library";
+    default:         return "library";
+  }
+}
+
+/** Which ailment sources a user may pick, given their entitlements. */
+export function availableAilmentSources(ent: SearchEntitlements): AilmentSource[] {
+  const out: AilmentSource[] = ["library"];
+  if (ent.enablePerenual) out.push("perenual");
+  if (ent.aiEnabled) out.push("ai");
+  return out;
+}
+
 /**
  * Read the user's default plant search source + entitlements from
  * `user_profiles` (single fetch). The result is entitlement-clamped, so callers
@@ -52,6 +76,7 @@ export function availablePlantSources(ent: SearchEntitlements): PlantSource[] {
 export function useSearchPreference(): SearchPreferenceState {
   const [state, setState] = useState<SearchPreferenceState>({
     plantSource: "library",
+    ailmentSource: "library",
     enablePerenual: false,
     aiEnabled: false,
     loading: true,
@@ -75,9 +100,10 @@ export function useSearchPreference(): SearchPreferenceState {
         enablePerenual: !!data?.enable_perenual,
         aiEnabled: !!data?.ai_enabled,
       };
-      const stored = (data?.search_settings as { plant_source?: string } | null)?.plant_source;
+      const ss = (data?.search_settings ?? {}) as { plant_source?: string; ailment_source?: string };
       setState({
-        plantSource: clampPlantSource(stored, ent),
+        plantSource: clampPlantSource(ss.plant_source, ent),
+        ailmentSource: clampAilmentSource(ss.ailment_source, ent),
         enablePerenual: ent.enablePerenual,
         aiEnabled: ent.aiEnabled,
         loading: false,

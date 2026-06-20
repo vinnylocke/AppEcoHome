@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useSearchPreference } from "../lib/searchPreference";
 import { createPortal } from "react-dom";
 import {
   Plus, Search, Loader2, Biohazard, X,
@@ -435,6 +436,17 @@ function AddAilmentModal({
 }) {
   const navigate = useNavigate();
   const [mode, setMode] = useState<CreationMode>("search");
+
+  // Phase 2 — open in the user's preferred ailment source (Settings) once, on
+  // load. The user can still switch tabs; this just sets the starting one.
+  const searchPref = useSearchPreference();
+  const didInitMode = useRef(false);
+  useEffect(() => {
+    if (didInitMode.current || searchPref.loading) return;
+    didInitMode.current = true;
+    if (searchPref.ailmentSource === "perenual") setMode("perenual");
+    else if (searchPref.ailmentSource === "ai") setMode("ai");
+  }, [searchPref.loading, searchPref.ailmentSource]);
 
   // Unified tiered search (library → databases → Rhozly AI).
   const [query, setQuery] = useState("");

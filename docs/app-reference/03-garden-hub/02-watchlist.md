@@ -79,6 +79,13 @@ Roll up `plant_instance_ailments` into `affectedCounts: Record<ailmentId, number
 | **3 · Rhozly AI ✦** (AI tier) | "Search with Rhozly AI" → `generate-ailment-suggestions` → on add, also **persists the result to the shared `ailment_library`** via `add-ailment-to-library` (so future users find it in Tier 1) + inserts to the watchlist (`source='ai'`). |
 | **Manual** | "or add manually" → the free-form `StepBuilder` form (name, type, description, symptoms, prevention/remedy steps). |
 
+**Default search source (`ailment_source`).** Entitled users can set, in the account tab, which tab the
+Add-modal opens in by default — `user_profiles.search_settings.ailment_source` ∈ {library, perenual, ai}
+(no Verdantly for ailments). `AddAilmentModal` reads it via `useSearchPreference` and sets the initial
+`mode` once on load (`perenual` → Databases tab, `ai` → Rhozly AI tab); the user can still switch tabs.
+Entitlement-clamped (`clampAilmentSource`): Perenual needs `enable_perenual`, AI needs `ai_enabled`,
+otherwise it falls back to library. See [Plant Search](../99-cross-cutting/36-plant-search.md).
+
 #### Link ailment to plant
 
 Done via LinkAilmentModal (typically opened from a plant card, not from this view).

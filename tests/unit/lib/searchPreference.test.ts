@@ -1,5 +1,8 @@
 import { describe, test, expect } from "vitest";
-import { clampPlantSource, availablePlantSources } from "../../../src/lib/searchPreference";
+import {
+  clampPlantSource, availablePlantSources,
+  clampAilmentSource, availableAilmentSources,
+} from "../../../src/lib/searchPreference";
 
 describe("searchPreference", () => {
   test("clampPlantSource falls back to library without the entitlement", () => {
@@ -32,6 +35,25 @@ describe("searchPreference", () => {
     expect(availablePlantSources({ enablePerenual: false, aiEnabled: true })).toEqual(["library", "ai"]);
     expect(availablePlantSources({ enablePerenual: true, aiEnabled: true })).toEqual([
       "library", "verdantly", "perenual", "ai",
+    ]);
+  });
+
+  test("clampAilmentSource has no Verdantly and honours entitlements", () => {
+    const none = { enablePerenual: false, aiEnabled: false };
+    expect(clampAilmentSource("perenual", none)).toBe("library");
+    expect(clampAilmentSource("ai", none)).toBe("library");
+    // Verdantly is not a valid ailment source — always clamps to library.
+    expect(clampAilmentSource("verdantly", { enablePerenual: true, aiEnabled: true })).toBe("library");
+    expect(clampAilmentSource("perenual", { enablePerenual: true, aiEnabled: false })).toBe("perenual");
+    expect(clampAilmentSource("ai", { enablePerenual: false, aiEnabled: true })).toBe("ai");
+  });
+
+  test("availableAilmentSources reflects entitlements (no Verdantly)", () => {
+    expect(availableAilmentSources({ enablePerenual: false, aiEnabled: false })).toEqual(["library"]);
+    expect(availableAilmentSources({ enablePerenual: true, aiEnabled: false })).toEqual(["library", "perenual"]);
+    expect(availableAilmentSources({ enablePerenual: false, aiEnabled: true })).toEqual(["library", "ai"]);
+    expect(availableAilmentSources({ enablePerenual: true, aiEnabled: true })).toEqual([
+      "library", "perenual", "ai",
     ]);
   });
 });

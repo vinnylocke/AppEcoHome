@@ -89,7 +89,9 @@ searches run **first** — `user_profiles.search_settings.plant_source` ∈ {lib
 ai}, entitlement-clamped at read time (`src/lib/searchPreference.ts` → `useSearchPreference`,
 `clampPlantSource`, `availablePlantSources`). When it's not `library`, `<PlantSearch>` auto-runs that
 source on type (debounced, min 3 chars), renders it **first**, and keeps the library as the auto-shown
-fallback below. Default for everyone stays library-first. Watchlist (ailment) is Phase 2.
+fallback below. Default for everyone stays library-first. The Watchlist (pest/disease) search honours a
+parallel `ailment_source` preference (library/perenual/ai — no Verdantly) that opens its Add-modal in the
+chosen tab — `clampAilmentSource` / `availableAilmentSources`; see [Watchlist](../03-garden-hub/02-watchlist.md).
 
 ### Migration status (surface by surface)
 
