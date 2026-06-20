@@ -16,6 +16,8 @@ import { Logger } from "../lib/errorHandler";
 
 const UNIT_OPTIONS = ["g", "kg", "lbs", "oz", "items", "bunches", "Other…"] as const;
 
+import AiFeedback from "./ai/AiFeedback";
+
 interface YieldTabProps {
   instanceId: string;
   homeId: string;
@@ -380,10 +382,21 @@ export default function YieldTab({
 
               {/* Prediction result */}
               {prediction && (
-                <YieldPredictionCard
-                  prediction={prediction}
-                  onDismiss={() => setPrediction(null)}
-                />
+                <>
+                  <YieldPredictionCard
+                    prediction={prediction}
+                    onDismiss={() => setPrediction(null)}
+                  />
+                  <div className="mt-2 px-1">
+                    <AiFeedback
+                      functionName="predict-yield"
+                      action="yield_prediction"
+                      homeId={homeId}
+                      targetKind="yield_prediction"
+                      targetId={instanceId}
+                    />
+                  </div>
+                </>
               )}
             </div>
           )}
