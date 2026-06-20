@@ -14,7 +14,7 @@ const BATCH_LIMIT = 80;
 
 // Patterns whose detector already decided significance — skip the postponement-
 // tuned AI eval and surface them deterministically (structural soil signals).
-const DETERMINISTIC_ITEM_PATTERNS = new Set(["soil_drydown_watering"]);
+const DETERMINISTIC_ITEM_PATTERNS = new Set(["soil_drydown_watering", "harvest_ready"]);
 
 const SYSTEM_PROMPT = `You are a plant care assistant evaluating detected behavioural patterns to decide whether they warrant surfacing an insight to the user.
 

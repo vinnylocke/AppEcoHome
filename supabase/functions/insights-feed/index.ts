@@ -40,6 +40,7 @@ interface FeedInsight {
 
 const PATTERN_META: Record<string, { category: string; title: string; link: string }> = {
   soil_drydown_watering: { category: "watering", title: "Watering", link: "/shed" },
+  harvest_ready: { category: "harvest", title: "Ready to harvest", link: "/shed" },
   neglected_plant: { category: "care", title: "Plant needs attention", link: "/shed" },
   consecutive_postponements: { category: "tasks", title: "Task keeps slipping", link: "/schedule" },
   high_postpone_rate: { category: "tasks", title: "Often postponed", link: "/schedule" },

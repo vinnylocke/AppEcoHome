@@ -18,6 +18,7 @@ interface FeedInsight {
 
 const CAT: Record<string, { label: string; cls: string }> = {
   watering: { label: "Watering", cls: "bg-sky-50 text-sky-700" },
+  harvest: { label: "Harvest", cls: "bg-orange-50 text-orange-700" },
   care: { label: "Plant care", cls: "bg-emerald-50 text-emerald-700" },
   tasks: { label: "Tasks", cls: "bg-amber-50 text-amber-700" },
   area: { label: "Area", cls: "bg-violet-50 text-violet-700" },
