@@ -705,11 +705,20 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, isAd
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [searchParams]);
 
-  // Returning to this page (from the Stripe portal, the back button, or a bfcache
-  // restore) can leave the redirect spinner stuck and the tier stale — the webhook
-  // may have changed it server-side. Clear the spinner and revalidate the tier from
-  // the DB so the plan cards + AI Usage stay in sync. The ?checkout= return is owned
-  // by the optimistic effect above, so we don't re-read the tier in that case.
+  // Keep the selected card in sync with the live saved tier. pendingTier is only
+  // seeded from subscriptionTier once (useState initial), so when the tier changes
+  // externally (Stripe portal / webhook) the old selection would otherwise linger
+  // and keep the "Subscribe" button on screen. Following subscriptionTier deselects
+  // it. (A manual card tap still wins until the saved tier actually changes.)
+  useEffect(() => {
+    setPendingTier(subscriptionTier);
+  }, [subscriptionTier]);
+
+  // Returning to this page — full reload, bfcache/back, OR (installed PWA) bringing
+  // the app back to the foreground after "Manage billing" opened Stripe in an
+  // external browser — can leave the redirect spinner stuck and the tier stale. On
+  // every return, clear the spinner and revalidate the tier from the DB so the cards
+  // + AI Usage match. The ?checkout= return is owned by the optimistic effect above.
   useEffect(() => {
     let cancelled = false;
     const revalidate = async () => {
@@ -726,12 +735,17 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, isAd
         !!data.ai_enabled,
         !!data.enable_perenual,
       );
-      setPendingTier(data.subscription_tier as TierId);
     };
     void revalidate();
-    const onPageShow = (e: PageTransitionEvent) => { if (e.persisted) void revalidate(); };
-    window.addEventListener("pageshow", onPageShow);
-    return () => { cancelled = true; window.removeEventListener("pageshow", onPageShow); };
+    const onReturn = () => { void revalidate(); };
+    const onVisible = () => { if (document.visibilityState === "visible") void revalidate(); };
+    window.addEventListener("pageshow", onReturn);
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      cancelled = true;
+      window.removeEventListener("pageshow", onReturn);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId]);
 
