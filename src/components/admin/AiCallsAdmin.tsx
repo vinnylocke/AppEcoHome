@@ -52,6 +52,11 @@ export default function AiCallsAdmin({ isAdmin }: Props) {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [payloads, setPayloads] = useState<Record<string, Payload>>({});
   const [loadingPayload, setLoadingPayload] = useState<string | null>(null);
+  const [fb, setFb] = useState<{
+    up: number;
+    down: number;
+    recent: Array<{ id: string; function_name: string; action: string | null; comment: string | null }>;
+  }>({ up: 0, down: 0, recent: [] });
 
   useEffect(() => {
     if (!isAdmin) navigate("/dashboard", { replace: true });
@@ -74,6 +79,28 @@ export default function AiCallsAdmin({ isAdmin }: Props) {
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Feedback signal from the 👍/👎 controls on AI outputs (ai_feedback).
+  useEffect(() => {
+    (async () => {
+      const { data } = await supabase
+        .from("ai_feedback")
+        .select("id, function_name, action, rating, comment, created_at")
+        .order("created_at", { ascending: false })
+        .limit(500);
+      const rows = (data ?? []) as Array<{
+        id: string; function_name: string; action: string | null; rating: number; comment: string | null;
+      }>;
+      setFb({
+        up: rows.filter((r) => r.rating === 1).length,
+        down: rows.filter((r) => r.rating === -1).length,
+        recent: rows
+          .filter((r) => r.rating === -1)
+          .slice(0, 5)
+          .map((r) => ({ id: r.id, function_name: r.function_name, action: r.action, comment: r.comment })),
+      });
+    })();
+  }, []);
 
   const toggleRow = async (id: string) => {
     if (expanded === id) {
@@ -154,6 +181,33 @@ export default function AiCallsAdmin({ isAdmin }: Props) {
           <span className="px-2.5 py-1 rounded-full bg-red-50 text-red-700">{totals.errors} errors</span>
         )}
         <span className="text-[10px] font-bold text-rhozly-on-surface/40">latest 250</span>
+      </div>
+
+      {/* Feedback signal (from the 👍/👎 controls on AI outputs) */}
+      <div className="bg-white rounded-2xl border border-rhozly-outline/10 p-3 space-y-2" data-testid="ai-feedback-summary">
+        <div className="flex items-center gap-2 text-xs font-black flex-wrap">
+          <span className="text-rhozly-on-surface/40 uppercase tracking-widest text-[10px]">Feedback</span>
+          <span className="px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">👍 {fb.up}</span>
+          <span className="px-2 py-0.5 rounded-full bg-red-50 text-red-700">👎 {fb.down}</span>
+          {fb.up + fb.down === 0 && (
+            <span className="text-[10px] font-medium text-rhozly-on-surface/30">
+              No feedback yet — the 👍/👎 controls on AI outputs feed this.
+            </span>
+          )}
+        </div>
+        {fb.recent.length > 0 && (
+          <div className="space-y-1 pt-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40">Recent 👎</p>
+            {fb.recent.map((r) => (
+              <div key={r.id} className="text-[11px] text-rhozly-on-surface/70">
+                <span className="font-bold">{r.function_name}{r.action ? ` · ${r.action}` : ""}</span>
+                {r.comment
+                  ? <span className="text-rhozly-on-surface/60"> — "{r.comment}"</span>
+                  : <span className="text-rhozly-on-surface/30"> — (no comment)</span>}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
 
       {/* Table */}
