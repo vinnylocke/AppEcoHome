@@ -8,6 +8,7 @@
  */
 
 import type { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
 
 interface CachedContext {
   prompt: string;
@@ -179,7 +180,22 @@ export async function buildHomeContext(
     "  - Keep replies short and useful. Avoid lecturing. The user is busy; they want the answer.",
   );
 
-  const prompt = lines.join("\n");
+  // Enrich with environment (location / climate / season / weather), gardener
+  // preferences, and 30-day behaviour so the assistant is seasonal + personal,
+  // not just structural. Reuses the tested shared context builder; "garden" +
+  // "tasks" are skipped because the STRUCTURE/SHED blocks above already cover them.
+  let envBlock = "";
+  try {
+    const uctx = await buildUserContext(
+      db as unknown as Parameters<typeof buildUserContext>[0],
+      { userId, homeId, skip: ["garden", "tasks"] },
+    );
+    envBlock = renderContextBlock(uctx, ["location", "weather", "preferences", "behaviour"]);
+  } catch {
+    // Non-fatal — the structural context above is enough to function.
+  }
+
+  const prompt = envBlock ? `${lines.join("\n")}\n\n${envBlock}` : lines.join("\n");
   const timezone = (home?.timezone as string | null) ?? null;
   cache.set(cacheKey(userId, homeId), { prompt, timezone, builtAt: Date.now() });
 

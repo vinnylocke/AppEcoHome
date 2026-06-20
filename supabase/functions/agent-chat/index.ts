@@ -78,7 +78,8 @@ Deno.serve(async (req) => {
   try {
     const db = serviceClient();
 
-    const authResult = await requireAuth(req, db);
+    // serviceClient() is supabase-js@2.49.4; requireAuth pins @2.39.3 — wire-compatible, bridge the types.
+    const authResult = await requireAuth(req, db as unknown as Parameters<typeof requireAuth>[1]);
     if (authResult instanceof Response) return authResult;
     const userId = authResult.user.id;
     const authToken = req.headers.get("Authorization")?.replace("Bearer ", "").trim() ?? "";
