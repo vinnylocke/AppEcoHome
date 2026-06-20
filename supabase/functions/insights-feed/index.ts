@@ -8,7 +8,6 @@
  *
  * See docs/plans/ai-insights-overhaul.md.
  */
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
@@ -47,7 +46,7 @@ const PATTERN_META: Record<string, { category: string; title: string; link: stri
   blueprint_postpone_rate: { category: "tasks", title: "Schedule worth tweaking", link: "/schedule" },
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   try {
     const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!);

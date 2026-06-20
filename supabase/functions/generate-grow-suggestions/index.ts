@@ -9,7 +9,6 @@
  * in home_grow_suggestions (replaced each run) → the /insights feed. Evergreen-
  * gated. Weekly cron + on-demand { homeId }. See docs/plans/ai-insights-overhaul.md.
  */
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { serviceClient } from "../_shared/supabaseClient.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
@@ -47,7 +46,7 @@ const SCHEMA = {
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   try {
     const db = serviceClient();
     const apiKey = Deno.env.get("GEMINI_API_KEY");
