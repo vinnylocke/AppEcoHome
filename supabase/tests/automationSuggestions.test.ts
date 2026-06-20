@@ -41,6 +41,20 @@ Deno.test("raise_run_limit — rate-limited repeatedly", () => {
   assert(raise!.confidence > 0.6, "fast-draining should boost confidence");
 });
 
+Deno.test("raise_run_limit rationale cites concrete moisture evidence", () => {
+  const s = analyseAutomation(
+    cfg({ runLimitCount: 2 }),
+    runs({ total: 11, fired: 8, rateLimited: 3 }),
+    profile({ retentionClass: "fast_draining", drydownRatePerDay: 9 }),
+    { thresholdPct: 30, totalReadings: 21, lowReadings: 18, minMoisture: 14, avgMoisture: 23 },
+  );
+  const raise = s.find((d) => d.kind === "raise_run_limit");
+  assert(raise);
+  assert(raise!.rationale.includes("below the 30% watering mark on 18 of the last 21 readings"),
+    `rationale should cite the evidence: ${raise!.rationale}`);
+  assert(raise!.rationale.includes("low of 14%"));
+});
+
 Deno.test("reduce_watering — frequent fires in a retentive area", () => {
   const s = analyseAutomation(
     cfg({ runLimitCount: 3 }),

@@ -21,9 +21,11 @@ import { FIRED_STATUSES } from "../_shared/runLimit.ts";
 import {
   analyseAutomation,
   type AutomationConfig,
+  type MoistureEvidence,
   type ProfileLite,
   type RunsSummary,
 } from "../_shared/automationSuggestions/analyse.ts";
+import { type ConditionNode } from "../_shared/conditionTree.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 
@@ -40,6 +42,25 @@ interface AutoRow {
   run_limit_window_hours: number | null;
   duration_seconds: number | null;
   sensor_cooldown_minutes: number | null;
+  trigger_logic: ConditionNode | null;
+}
+
+/** Highest "soil_moisture < X" / "<= X" threshold in the automation's trigger tree. */
+function findMoistureThreshold(node: ConditionNode | null): number | null {
+  if (!node) return null;
+  if (node.kind === "group") {
+    let best: number | null = null;
+    for (const c of node.children) {
+      const v = findMoistureThreshold(c);
+      if (v != null && (best == null || v > best)) best = v;
+    }
+    return best;
+  }
+  if (node.kind === "sensor" && node.metric === "soil_moisture" &&
+      (node.comparator === "<" || node.comparator === "<=")) {
+    return node.value;
+  }
+  return null;
 }
 
 function json(body: unknown, status = 200): Response {
@@ -102,7 +123,7 @@ serve(async (req) => {
 
     let q = db
       .from("automations")
-      .select("id, home_id, area_id, run_limit_count, run_limit_window_hours, duration_seconds, sensor_cooldown_minutes")
+      .select("id, home_id, area_id, run_limit_count, run_limit_window_hours, duration_seconds, sensor_cooldown_minutes, trigger_logic")
       .eq("is_active", true);
     if (body.homeId) q = q.eq("home_id", body.homeId);
     const { data: autos, error } = await q;
@@ -174,7 +195,34 @@ serve(async (req) => {
             durationSeconds: a.duration_seconds,
             sensorCooldownMinutes: a.sensor_cooldown_minutes,
           };
-          const drafts = analyseAutomation(cfg, runs, profile);
+
+          // Concrete moisture evidence — recent readings vs the watering threshold.
+          let evidence: MoistureEvidence | null = null;
+          if (a.area_id) {
+            const threshold = findMoistureThreshold(a.trigger_logic);
+            const { data: sensors } = await db.from("devices")
+              .select("id").eq("area_id", a.area_id).eq("device_type", "soil_sensor");
+            const sensorIds = (sensors ?? []).map((s) => s.id as string);
+            if (sensorIds.length) {
+              const { data: rd } = await db.from("device_readings")
+                .select("data").in("device_id", sensorIds).gte("recorded_at", sinceIso).limit(2000);
+              const moistures: number[] = [];
+              for (const r of rd ?? []) {
+                const m = (r.data as Record<string, unknown> | null)?.soil_moisture;
+                if (typeof m === "number" && Number.isFinite(m)) moistures.push(m);
+              }
+              if (moistures.length) {
+                evidence = {
+                  thresholdPct: threshold,
+                  totalReadings: moistures.length,
+                  lowReadings: threshold != null ? moistures.filter((m) => m < threshold).length : 0,
+                  minMoisture: Math.min(...moistures),
+                  avgMoisture: moistures.reduce((s, m) => s + m, 0) / moistures.length,
+                };
+              }
+            }
+          }
+          const drafts = analyseAutomation(cfg, runs, profile, evidence);
 
           // Reconcile against existing ACTIVE suggestions for this automation.
           const { data: existing } = await db
