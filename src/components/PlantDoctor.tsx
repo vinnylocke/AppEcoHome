@@ -42,6 +42,7 @@ import PlantDoctorHistory from "./PlantDoctorHistory";
 import { usePlantDoctorSessions } from "../hooks/usePlantDoctorSessions";
 import PhotoAnnotationOverlay, { type PhotoAnnotation } from "./PhotoAnnotationOverlay";
 import AnalyseResultCard from "./lens/AnalyseResultCard";
+import AiFeedback from "./ai/AiFeedback";
 import SceneMapResultCard from "./lens/SceneMapResultCard";
 import InfoTooltip from "./InfoTooltip";
 import { usePersona } from "../hooks/usePersona";
@@ -1382,6 +1383,9 @@ export default function PlantDoctor({
                     homeId={homeId}
                     onTasksAdded={onTasksAdded}
                   />
+                  <div className="mt-3">
+                    <AiFeedback functionName="plant-doctor" action="analyse_comprehensive" homeId={homeId} targetKind="diagnosis" />
+                  </div>
                 </div>
               )}
 
@@ -1410,6 +1414,9 @@ export default function PlantDoctor({
                     </div>
                     <div className="text-rhozly-on-surface/80 font-medium leading-relaxed whitespace-pre-wrap">
                       {aiResult.notes}
+                    </div>
+                    <div className="mt-3 pt-3 border-t border-rhozly-outline/10">
+                      <AiFeedback functionName="plant-doctor" action={activeAction ?? undefined} homeId={homeId} targetKind="diagnosis" />
                     </div>
                   </div>
 
