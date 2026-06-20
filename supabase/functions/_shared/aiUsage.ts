@@ -1,25 +1,52 @@
 import { SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import type { GeminiUsage } from "./gemini.ts";
+import { estimateGeminiCostUsd } from "./geminiCost.ts";
 
-const COST_PER_TOKEN: Record<string, number> = {
-  "gemini-3.1-flash-lite": 0.00000015,
-  "gemini-2.5-flash-lite": 0.00000015,
-  "gemini-3-flash-preview": 0.0000003,
-  "gemini-3.1-pro-preview": 0.000003,
-};
+// Cap stored prompt / context / result so the audit columns can't bloat the row.
+const MAX_TEXT = 16_000;
+
+function truncate(s: string | null | undefined): string | null {
+  if (!s) return null;
+  return s.length > MAX_TEXT ? `${s.slice(0, MAX_TEXT)}…[+${s.length - MAX_TEXT} chars]` : s;
+}
 
 /**
- * Log a Gemini text/vision call (or an Imagen image generation
- * call) to `ai_usage_log` for the audit page + per-user usage
- * meters.
+ * Strip large base64 blobs (inline image bytes) from a raw model result and
+ * cap its size before storing — keeps the audit row readable + small.
+ */
+function sanitizeResult(raw: unknown): unknown {
+  if (raw === null || raw === undefined) return null;
+  let json: string;
+  try {
+    json = typeof raw === "string" ? raw : JSON.stringify(raw);
+  } catch {
+    return null;
+  }
+  json = json
+    .replace(/"bytesBase64Encoded"\s*:\s*"[^"]*"/g, '"bytesBase64Encoded":"[stripped]"')
+    .replace(/"data"\s*:\s*"[A-Za-z0-9+/]{200,}={0,2}"/g, '"data":"[stripped]"');
+  if (json.length > MAX_TEXT) json = `${json.slice(0, MAX_TEXT)}…[+${json.length - MAX_TEXT}]`;
+  try {
+    return JSON.parse(json);
+  } catch {
+    return { truncated: true, preview: json.slice(0, 500) };
+  }
+}
+
+/**
+ * Log a Gemini text/vision call (or an Imagen image generation call) to
+ * `ai_usage_log` for the audit page, the AI Usage panel, the admin "AI calls"
+ * view, and the per-customer Stripe cost rollup.
  *
- * For text/vision: pass `usage` (Gemini metadata) — token counts +
- * derived cost land in the regular columns.
- * For Imagen: pass `imageCount` + `imageCostUsd` — image columns
- * populate, token columns stay 0.
+ * Cost is computed with `estimateGeminiCostUsd` — the input/output/cache/
+ * thoughts-aware authority in `geminiCost.ts` — NOT a flat per-token rate, so
+ * the stored `estimated_cost_usd` is accurate per model.
  *
- * `estimated_cost_usd` always sums both legs so the audit total
- * stays accurate without joining anything.
+ * Observability (optional but encouraged for every caller): pass `contextBlock`,
+ * `prompt`, and `rawResult` so the call is fully auditable. They're truncated +
+ * base64-stripped here and nulled by the prune cron after the retention window.
+ *
+ * Never throws — an audit insert must not break the feature it's logging.
  */
 export async function logAiUsage(
   db: SupabaseClient,
@@ -35,25 +62,53 @@ export async function logAiUsage(
     imageCostUsd?: number;
     /** Imagen model identifier — overrides `usage.model` for image-only calls. */
     imagenModel?: string;
+    /** Batch API call — 50% discount across input/cache/output. */
+    batch?: boolean;
+    // ── Observability ──
+    /** The grounding context block built for this call. */
+    contextBlock?: string | null;
+    /** The full prompt / messages sent to the model. */
+    prompt?: string | null;
+    /** The raw model response (base64 image bytes are stripped before storing). */
+    rawResult?: unknown;
+    /** Wall-clock duration of the model call. */
+    durationMs?: number | null;
+    /** ok | error | fallback. Defaults to "ok". */
+    status?: "ok" | "error" | "fallback";
+    /** Error message when status !== "ok". */
+    error?: string | null;
   },
 ): Promise<void> {
   const usage = opts.usage;
   const tokenModel = usage?.model;
-  const costPerToken = tokenModel ? (COST_PER_TOKEN[tokenModel] ?? 0.0000003) : 0;
-  const tokenCost = usage ? costPerToken * usage.totalTokenCount : 0;
+  const tokenCost = usage && tokenModel
+    ? estimateGeminiCostUsd(tokenModel, usage, { batch: opts.batch })
+    : 0;
   const imageCost = opts.imageCostUsd ?? 0;
 
-  await db.from("ai_usage_log").insert({
-    home_id: opts.homeId ?? null,
-    user_id: opts.userId ?? null,
-    function_name: opts.functionName,
-    action: opts.action ?? null,
-    model: tokenModel ?? opts.imagenModel ?? "unknown",
-    prompt_tokens:     usage?.promptTokenCount     ?? 0,
-    candidates_tokens: usage?.candidatesTokenCount ?? 0,
-    total_tokens:      usage?.totalTokenCount      ?? 0,
-    image_count:       opts.imageCount ?? 0,
-    image_cost_usd:    imageCost,
-    estimated_cost_usd: tokenCost + imageCost,
-  });
+  try {
+    await db.from("ai_usage_log").insert({
+      home_id: opts.homeId ?? null,
+      user_id: opts.userId ?? null,
+      function_name: opts.functionName,
+      action: opts.action ?? null,
+      model: tokenModel ?? opts.imagenModel ?? "unknown",
+      prompt_tokens:     usage?.promptTokenCount        ?? 0,
+      candidates_tokens: usage?.candidatesTokenCount    ?? 0,
+      total_tokens:      usage?.totalTokenCount         ?? 0,
+      cached_tokens:     usage?.cachedContentTokenCount ?? 0,
+      thoughts_tokens:   usage?.thoughtsTokenCount      ?? 0,
+      image_count:       opts.imageCount ?? 0,
+      image_cost_usd:    imageCost,
+      estimated_cost_usd: tokenCost + imageCost,
+      duration_ms:       opts.durationMs ?? null,
+      status:            opts.status ?? "ok",
+      error:             opts.error ?? null,
+      context_block:     truncate(opts.contextBlock),
+      prompt:            truncate(opts.prompt),
+      raw_result:        opts.rawResult !== undefined ? sanitizeResult(opts.rawResult) : null,
+    });
+  } catch {
+    // Audit logging must never break the feature.
+  }
 }

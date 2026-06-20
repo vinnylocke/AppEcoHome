@@ -1,5 +1,6 @@
 import { assertEquals, assertExists } from "@std/assert";
 import { logAiUsage } from "@shared/aiUsage.ts";
+import { estimateGeminiCostUsd } from "@shared/geminiCost.ts";
 import type { GeminiUsage } from "@shared/gemini.ts";
 
 // ---------------------------------------------------------------------------
@@ -31,45 +32,79 @@ function makeUsage(overrides: Partial<GeminiUsage> = {}): GeminiUsage {
 }
 
 // ---------------------------------------------------------------------------
-// Cost calculation
+// Cost calculation — must delegate to estimateGeminiCostUsd (accurate,
+// input/output/cache/thoughts-aware), NOT a flat per-token rate.
 // ---------------------------------------------------------------------------
 
-Deno.test("logAiUsage — calculates cost correctly for gemini-3.1-flash-lite", async () => {
+Deno.test("logAiUsage — accurate cost for gemini-3.1-flash-lite", async () => {
   const { db, getCaptured } = makeInsertCapture();
-  await logAiUsage(db as any, {
-    userId: "user-1",
-    homeId: "home-1",
-    functionName: "optimise-area-ai",
-    usage: makeUsage({ model: "gemini-3.1-flash-lite", totalTokenCount: 1000 }),
-  });
+  const usage = makeUsage({ model: "gemini-3.1-flash-lite", promptTokenCount: 800, candidatesTokenCount: 200 });
+  await logAiUsage(db as any, { userId: "user-1", homeId: "home-1", functionName: "optimise-area-ai", usage });
   const row = getCaptured()!;
   assertExists(row);
-  // 0.00000015 * 1000 = 0.00015
-  assertEquals(row.estimated_cost_usd, 0.00000015 * 1000);
+  assertEquals(row.estimated_cost_usd, estimateGeminiCostUsd("gemini-3.1-flash-lite", usage));
 });
 
-Deno.test("logAiUsage — calculates cost correctly for gemini-3.1-pro-preview", async () => {
+Deno.test("logAiUsage — accurate cost for gemini-3.1-pro-preview (input ≠ output rate)", async () => {
   const { db, getCaptured } = makeInsertCapture();
-  await logAiUsage(db as any, {
-    userId: "user-1",
-    functionName: "optimise-area-ai",
-    usage: makeUsage({ model: "gemini-3.1-pro-preview", totalTokenCount: 2000 }),
-  });
+  const usage = makeUsage({ model: "gemini-3.1-pro-preview", promptTokenCount: 1500, candidatesTokenCount: 500 });
+  await logAiUsage(db as any, { userId: "user-1", functionName: "plant-doctor", usage });
   const row = getCaptured()!;
-  // 0.000003 * 2000 = 0.006
-  assertEquals(row.estimated_cost_usd, 0.000003 * 2000);
+  assertEquals(row.estimated_cost_usd, estimateGeminiCostUsd("gemini-3.1-pro-preview", usage));
 });
 
-Deno.test("logAiUsage — uses default cost rate for unknown model", async () => {
+Deno.test("logAiUsage — accounts for cached + thoughts tokens", async () => {
+  const { db, getCaptured } = makeInsertCapture();
+  const usage = makeUsage({
+    model: "gemini-2.5-flash",
+    promptTokenCount: 1000,
+    cachedContentTokenCount: 400,
+    candidatesTokenCount: 200,
+    thoughtsTokenCount: 300,
+  });
+  await logAiUsage(db as any, { functionName: "agent-chat", usage });
+  const row = getCaptured()!;
+  assertEquals(row.estimated_cost_usd, estimateGeminiCostUsd("gemini-2.5-flash", usage));
+  assertEquals(row.cached_tokens, 400);
+  assertEquals(row.thoughts_tokens, 300);
+});
+
+Deno.test("logAiUsage — unknown model costs 0 (not a flat default)", async () => {
   const { db, getCaptured } = makeInsertCapture();
   await logAiUsage(db as any, {
-    userId: "user-1",
     functionName: "optimise-area-ai",
-    usage: makeUsage({ model: "gemini-unknown-model", totalTokenCount: 500 }),
+    usage: makeUsage({ model: "gemini-unknown-model" }),
   });
   const row = getCaptured()!;
-  // Default rate: 0.0000003 * 500 = 0.00015
-  assertEquals(row.estimated_cost_usd, 0.0000003 * 500);
+  assertEquals(row.estimated_cost_usd, 0);
+});
+
+Deno.test("logAiUsage — batch discount halves the cost", async () => {
+  const { db, getCaptured } = makeInsertCapture();
+  const usage = makeUsage({ model: "gemini-2.5-flash-lite", promptTokenCount: 5000, candidatesTokenCount: 1000 });
+  await logAiUsage(db as any, { functionName: "seed-plant-library", usage, batch: true });
+  const row = getCaptured()!;
+  assertEquals(row.estimated_cost_usd, estimateGeminiCostUsd("gemini-2.5-flash-lite", usage, { batch: true }));
+});
+
+// ---------------------------------------------------------------------------
+// Imagen (image-only) calls
+// ---------------------------------------------------------------------------
+
+Deno.test("logAiUsage — image-only call logs image cost + model", async () => {
+  const { db, getCaptured } = makeInsertCapture();
+  await logAiUsage(db as any, {
+    functionName: "generate-garden-overhaul",
+    action: "concept_image",
+    imageCount: 2,
+    imageCostUsd: 0.08,
+    imagenModel: "imagen-4.0-generate-001",
+  });
+  const row = getCaptured()!;
+  assertEquals(row.image_count, 2);
+  assertEquals(row.image_cost_usd, 0.08);
+  assertEquals(row.estimated_cost_usd, 0.08);
+  assertEquals(row.model, "imagen-4.0-generate-001");
 });
 
 // ---------------------------------------------------------------------------
@@ -126,16 +161,46 @@ Deno.test("logAiUsage — null userId is passed through as null", async () => {
 });
 
 // ---------------------------------------------------------------------------
-// Handles gemini-3-flash-preview cost tier
+// Observability — context / prompt / raw result
 // ---------------------------------------------------------------------------
 
-Deno.test("logAiUsage — calculates cost correctly for gemini-3-flash-preview", async () => {
+Deno.test("logAiUsage — stores context + prompt, defaults status to ok", async () => {
   const { db, getCaptured } = makeInsertCapture();
   await logAiUsage(db as any, {
     functionName: "plant-doctor",
-    usage: makeUsage({ model: "gemini-3-flash-preview", totalTokenCount: 4000 }),
+    usage: makeUsage(),
+    contextBlock: "=== GARDENER CONTEXT ===",
+    prompt: "Diagnose this plant",
   });
   const row = getCaptured()!;
-  // 0.0000003 * 4000 = 0.0012
-  assertEquals(row.estimated_cost_usd, 0.0000003 * 4000);
+  assertEquals(row.context_block, "=== GARDENER CONTEXT ===");
+  assertEquals(row.prompt, "Diagnose this plant");
+  assertEquals(row.status, "ok");
+  assertEquals(row.error, null);
+});
+
+Deno.test("logAiUsage — strips base64 image bytes from raw_result", async () => {
+  const { db, getCaptured } = makeInsertCapture();
+  await logAiUsage(db as any, {
+    functionName: "plant-doctor",
+    usage: makeUsage(),
+    rawResult: { text: "yellowing leaves", bytesBase64Encoded: "AAAABBBBCCCCDDDD" },
+  });
+  const row = getCaptured()!;
+  const raw = row.raw_result as Record<string, unknown>;
+  assertEquals(raw.text, "yellowing leaves");
+  assertEquals(raw.bytesBase64Encoded, "[stripped]");
+});
+
+Deno.test("logAiUsage — records error status", async () => {
+  const { db, getCaptured } = makeInsertCapture();
+  await logAiUsage(db as any, {
+    functionName: "plant-doctor",
+    status: "error",
+    error: "Gemini 503",
+  });
+  const row = getCaptured()!;
+  assertEquals(row.status, "error");
+  assertEquals(row.error, "Gemini 503");
+  assertEquals(row.estimated_cost_usd, 0);
 });
