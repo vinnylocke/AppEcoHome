@@ -4,6 +4,7 @@ import { log, warn } from "../_shared/logger.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { buildMessage } from "../_shared/templates.ts";
+import { tierAllowsInsights } from "../_shared/insightTiers.ts";
 import { captureException } from "../_shared/sentry.ts";
 
 const FN = "pattern-evaluate";
@@ -72,6 +73,17 @@ serve(async (_req) => {
       hits.map((h: any) => h.inventory_item_id).filter(Boolean) as string[],
     )];
 
+    // AI insights are Evergreen-only (whole insights experience) — fetch tiers so
+    // we skip generation for users who can't see them. Mirrors FEATURE_GATES.ai_insights.
+    const { data: tierRows } = await db
+      .from("user_profiles")
+      .select("uid, subscription_tier")
+      .in("uid", userIds);
+    const tierByUser = new Map<string, string | null>();
+    for (const t of tierRows ?? []) {
+      tierByUser.set(t.uid as string, (t.subscription_tier as string | null) ?? null);
+    }
+
     const [
       { data: members },
       { data: itemRows },
@@ -120,6 +132,13 @@ serve(async (_req) => {
 
     for (const hit of hits as any[]) {
       try {
+        // Evergreen-only gate: skip generating insights for tiers that can't see them.
+        if (!tierAllowsInsights(tierByUser.get(hit.user_id))) {
+          await db.from("user_pattern_hits").update({ evaluated: true }).eq("id", hit.id);
+          evaluated++;
+          continue;
+        }
+
         // --- Blueprint-level hits (no plant item, just a blueprint) ---
         if (!hit.inventory_item_id && hit.blueprint_id) {
           // Skip if an undismissed insight already exists for this pattern+blueprint

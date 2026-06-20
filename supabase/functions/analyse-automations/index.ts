@@ -28,6 +28,8 @@ import {
 import { type ConditionNode } from "../_shared/conditionTree.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
+import { personaInstruction, type Persona } from "../_shared/persona.ts";
+import { tierAllowsInsights } from "../_shared/insightTiers.ts";
 
 const FN = "analyse-automations";
 const CONCURRENCY = 8;
@@ -84,9 +86,11 @@ async function enrichRationales(
   homeId: string,
   automationId: string,
   rationales: string[],
+  persona: Persona = null,
 ): Promise<string[]> {
   try {
     const prompt =
+      personaInstruction(persona) + "\n\n" +
       "You are Rhozly, a warm, encouraging gardening assistant. Rewrite each watering-automation " +
       "suggestion below into ONE friendly, plain-English sentence a beginner would understand. Keep " +
       "the specific numbers and the recommended action; do not add new advice. Return JSON " +
@@ -134,17 +138,29 @@ serve(async (req) => {
 
     // Which homes have AI access (any member with ai_enabled) → eligible for the
     // friendly prose rewrite. Resolved once for all homes in scope.
+    // The AI prose rewrite is part of the Evergreen-only insights experience.
+    // Resolve which homes have an Evergreen member + a persona for the wording.
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY");
-    const homeAi = new Map<string, boolean>();
+    const homeInsights = new Map<string, boolean>();
+    const homePersona = new Map<string, Persona>();
     if (geminiApiKey) {
       const homeIds = [...new Set(automations.map((a) => a.home_id))];
       const { data: members } = await db.from("home_members").select("home_id, user_id").in("home_id", homeIds);
       const memberRows = (members ?? []) as Array<{ home_id: string; user_id: string }>;
       const userIds = [...new Set(memberRows.map((m) => m.user_id))];
       if (userIds.length) {
-        const { data: profs } = await db.from("user_profiles").select("uid, ai_enabled").in("uid", userIds);
-        const aiUsers = new Set((profs ?? []).filter((p) => p.ai_enabled).map((p) => p.uid as string));
-        for (const m of memberRows) if (aiUsers.has(m.user_id)) homeAi.set(m.home_id, true);
+        const { data: profs } = await db.from("user_profiles").select("uid, subscription_tier, persona").in("uid", userIds);
+        const byUid = new Map<string, { tier: string | null; persona: Persona }>();
+        for (const p of profs ?? []) {
+          byUid.set(p.uid as string, { tier: (p.subscription_tier as string | null) ?? null, persona: (p.persona ?? null) as Persona });
+        }
+        for (const m of memberRows) {
+          const info = byUid.get(m.user_id);
+          if (info && tierAllowsInsights(info.tier)) {
+            homeInsights.set(m.home_id, true);
+            if (!homePersona.has(m.home_id)) homePersona.set(m.home_id, info.persona);
+          }
+        }
       }
     }
 
@@ -262,8 +278,8 @@ serve(async (req) => {
 
           // Sage+ friendly rewrite (best-effort; deterministic rationale stands otherwise).
           let aiRationales: string[] = [];
-          if (geminiApiKey && drafts.length > 0 && homeAi.get(a.home_id)) {
-            aiRationales = await enrichRationales(geminiApiKey, db, a.home_id, a.id, drafts.map((d) => d.rationale));
+          if (geminiApiKey && drafts.length > 0 && homeInsights.get(a.home_id)) {
+            aiRationales = await enrichRationales(geminiApiKey, db, a.home_id, a.id, drafts.map((d) => d.rationale), homePersona.get(a.home_id) ?? null);
           }
 
           for (let i = 0; i < drafts.length; i++) {
