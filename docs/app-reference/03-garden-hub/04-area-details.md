@@ -156,4 +156,5 @@ The Area Details modal is the "zoom on one specific bed" view. It's where you co
 
 - `src/components/AreaDetails.tsx` — entire modal
 - `src/components/AreaLuxReadings.tsx` — sparkline
+- `src/components/area/MoistureBehaviourCard.tsx` — **Moisture behaviour** card on the soil-sensor **Readings** tab (deterministic drydown rate / retention class / weather buckets read from `soil_moisture_profiles`; renders only when the area has a soil sensor). See [Data Model — Integrations](../99-cross-cutting/09-data-model-integrations.md) + the [automation-intelligence plan](../../plans/automation-intelligence-and-soil-drydown.md).
 - `supabase/functions/home-location-details/index.ts` — AI summary edge fn

@@ -489,6 +489,12 @@ verify_jwt = false
 [functions.evaluate-automations]
 verify_jwt = false
 
+# Daily cron (compute-soil-profiles-daily) + on-demand recompute. Computes the
+# deterministic soil-moisture behaviour model from device_readings + weather.
+# verify_jwt = false so the cron's net.http_post (publishable key, no user JWT) runs.
+[functions.compute-soil-profiles]
+verify_jwt = false
+
 # 2026-06-16 Custom integrations Phase 3 — public webhook router for
 # every adapter that implements parseWebhook(). The user's device hits
 # this endpoint with the per-integration webhook secret in the path,

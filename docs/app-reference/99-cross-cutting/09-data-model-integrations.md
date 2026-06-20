@@ -127,12 +127,17 @@ One row per area (`area_id` PK, `home_id` FK), home-scoped RLS SELECT, service-r
 
 `SECURITY INVOKER` SQL function returning the newest `device_readings` row per device for a home (`DISTINCT ON (device_id) … ORDER BY device_id, recorded_at DESC`). Existing `device_readings` RLS ("home members read readings") gates the rows. Powers the live moisture/temp/EC/valve-state chips on `DeviceCard` (`src/lib/integrations/readingChips.ts`) without a per-card query. `GRANT EXECUTE … TO authenticated`.
 
+### `soil_moisture_profiles` (Automation Intelligence — Pillar A, 2026-06-20)
+
+One row per soil sensor (`device_id` PK, `home_id`, `area_id`). The **deterministic** moisture-behaviour model computed by `compute-soil-profiles` from `device_readings` + `weather_snapshots` (no AI): `drydown_rate_pct_per_day`, `retention_class` (`fast_draining|balanced|moisture_retentive|unknown`), `drydown_by_weather` jsonb (per `hot_dry`/`mild`/`cool_wet` bucket), `watering_response` jsonb (`rewetCount`, `avgRewetJump`, `avgSegmentDurationDays`), `sample_segments`, `confidence` (0–1), `based_on_reading_at`, `computed_at`. Home-member RLS SELECT; service-role writes. The drydown math lives in `_shared/soilProfile/drydown.ts` (segment detection from the moisture series — a sharp rise = watering/rain — + OLS slope + weather bucketing; Deno-tested in `supabase/tests/soilDrydown.test.ts`). Surfaced today by the **Moisture behaviour** card on Area details → Readings tab; will feed automation suggestions + plant recommendations (Pillars B/C). See [plan](../../plans/automation-intelligence-and-soil-drydown.md).
+
 ### Cron
 
 | Cron | Cadence | Effect |
 |------|---------|--------|
 | `run-automations` | every 1 minute | Fires due automations |
 | `integrations-ewelink-sync` | periodic | Refreshes readings + device states |
+| `compute-soil-profiles-daily` | daily 03:00 UTC | Recomputes every soil sensor's `soil_moisture_profiles` |
 
 ---
 

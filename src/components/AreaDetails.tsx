@@ -27,6 +27,7 @@ import AreaAdvancedFields from "./AreaAdvancedFields";
 import AreaInsightsPanel from "./area/AreaInsightsPanel";
 import AreaSensorsPanel from "./area/AreaSensorsPanel";
 import AreaAiAnalysisPanel from "./area/AreaAiAnalysisPanel";
+import MoistureBehaviourCard from "./area/MoistureBehaviourCard";
 import InstanceEditModal from "./InstanceEditModal";
 import BulkConfigModal from "./BulkConfigModal";
 import { ConfirmModal } from "./ConfirmModal";
@@ -560,7 +561,10 @@ export default function AreaDetails({
                   ))}
                 </div>
                 {envTab === "readings" && (
-                  <AreaSensorsPanel areaId={area.id} areaName={area.name ?? "this area"} homeId={homeId} />
+                  <div className="space-y-4">
+                    <AreaSensorsPanel areaId={area.id} areaName={area.name ?? "this area"} homeId={homeId} />
+                    <MoistureBehaviourCard areaId={area.id} />
+                  </div>
                 )}
                 {envTab === "ai" && (
                   <AreaAiAnalysisPanel areaId={area.id} homeId={homeId} aiEnabled={aiEnabled} />
