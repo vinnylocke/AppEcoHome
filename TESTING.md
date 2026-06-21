@@ -735,7 +735,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 367 tests across 29 files
+### Unit tests — 376 tests across 30 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -766,6 +766,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `stripMarkdownImages.test.ts` | 5 | Chat image sanitiser — strips `![alt](url)` + reference images, keeps normal links/text, collapses whitespace |
 | `automationTemplates.test.ts` | 3 | Builder templates — unique ids, each builds a named tree + actions; Smart watering = (moisture<30 AND not rain) OR moisture<18; scheduled-skip-rain shape |
 | `conditionTree.test.ts` | 10 | Unified automation builder — `newLeaf`/`newGroup` defaults, `summariseNode`/`summariseTree` (sensor count, negate "not", time weekdays/every-day, AND join, empty AND/OR, null) |
+| `chatAutoRead.test.ts` | 9 | Chat auto-read decision — `reduceAutoRead` primes the existing tail on open (no speak), speaks only newly-arrived replies, dedupes re-renders, re-primes on reopen / history reload, skips welcome / off / loading |
 
 ### Edge function tests — Deno
 
@@ -801,6 +802,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `notificationTiming.test.ts` | 5 | Notification timing — `localMinutesOfDay` (tz-aware), `isReminderDue` (at/just-past/before, non-aligned next-tick, malformed→08:00), `isNearSunset` (30–75 min pre-sunset window) |
 | `automationCandidates.test.ts` | 7 | Hybrid engine candidate selection — `treeHasTimeTrigger` (time/date/weather vs sensor/task), `treeHasSensorTrigger`, `treeAffectedByDevice` (explicit sensor id, area-scoped via leaf area + automation-area fallback, nested groups, non-sensor never matches) |
 | `automationWindow.test.ts` | 11 | Home default run-window — `treeHasOwnSchedule` (time/date_range at any depth), `isWithinWindow` (daytime, HH:MM:SS form, overnight wrap, zero-length always, tz shift), `defaultWindowOpen` (disabled bypass, own-schedule bypass, sensor-only gated to window) |
+| `plantImageVet.test.ts` | 10 | Chat gallery AI vetting — `selectConfidentImages` (threshold keep/drop, legitimately drops all, **fails open** on length-mismatch / missing scores, NaN fails, default threshold) + `parseScores` (valid / stringified-coerce / bad-shape→null / NaN) |
 
 ### E2E tests — 468 tests across 31 files (+ 13 isolation tests)
 

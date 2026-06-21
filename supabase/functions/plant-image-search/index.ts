@@ -1,6 +1,14 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { createClient, type SupabaseClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { captureException } from "../_shared/sentry.ts";
+import { callGeminiCascade, toMessages, type GeminiPart } from "../_shared/gemini.ts";
+import { logAiUsage } from "../_shared/aiUsage.ts";
+import {
+  selectConfidentImages,
+  parseScores,
+  MIN_PLANT_PHOTO_CONFIDENCE,
+} from "../_shared/plantImageVet.ts";
+
+const FN = "plant-image-search";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -222,12 +230,106 @@ async function fetchWikipedia(query: string): Promise<GalleryImage[]> {
   return [];
 }
 
-serve(async (req) => {
+// ── AI relevance vetting ──────────────────────────────────────────────────
+const VET_SCORES_SCHEMA = {
+  type: "object",
+  properties: { scores: { type: "array", items: { type: "number" } } },
+  required: ["scores"],
+};
+
+/** Chunked Uint8Array → base64 (avoids spreading huge arrays into btoa). */
+function bytesToBase64(bytes: Uint8Array): string {
+  let binary = "";
+  const chunk = 0x8000;
+  for (let i = 0; i < bytes.length; i += chunk) {
+    binary += String.fromCharCode(...bytes.subarray(i, i + chunk));
+  }
+  return btoa(binary);
+}
+
+/** Fetch a (small) thumbnail and return it as an inline Gemini image part. */
+async function fetchImageInline(url: string): Promise<GeminiPart | null> {
+  try {
+    const res = await fetch(url);
+    if (!res.ok) return null;
+    const mimeType = res.headers.get("content-type") ?? "image/jpeg";
+    if (!mimeType.startsWith("image/")) return null;
+    const bytes = new Uint8Array(await res.arrayBuffer());
+    if (bytes.byteLength === 0 || bytes.byteLength > 3_000_000) return null;
+    return { inlineData: { data: bytesToBase64(bytes), mimeType } };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Score each candidate photo for how clearly it shows the requested plant and
+ * drop those below the confidence threshold. Fails OPEN — any error returns the
+ * unvetted images so the gallery never breaks on a model/network glitch.
+ */
+async function vetGallery<T extends GalleryImage>(
+  images: T[],
+  query: string,
+  apiKey: string,
+  db: SupabaseClient | null,
+): Promise<T[]> {
+  try {
+    // Fetch thumbnails as inline parts, keeping alignment with what we got.
+    const kept: T[] = [];
+    const parts: GeminiPart[] = [];
+    for (const img of images) {
+      const part = await fetchImageInline(img.thumb_url);
+      if (!part) continue;
+      kept.push(img);
+      parts.push(part);
+    }
+    if (kept.length === 0) return images; // couldn't fetch any → fail open
+
+    const instruction =
+      `A gardener asked to see photos of "${query}". You are shown ${kept.length} candidate ` +
+      `photos, in order. For EACH photo, rate 0–1 how confident you are it clearly shows ` +
+      `"${query}" as the living, growing plant — NOT seeds, packets, harvested produce on a ` +
+      `plate, diagrams, logos, people, or an unrelated plant. Return JSON {"scores":[...]} with ` +
+      `exactly ${kept.length} numbers in the SAME order as the photos.`;
+
+    const { text, usage } = await callGeminiCascade(
+      apiKey,
+      FN,
+      toMessages([instruction, ...parts]),
+      {
+        responseSchema: VET_SCORES_SCHEMA,
+        responseMimeType: "application/json",
+        temperature: 0,
+        maxOutputTokens: 256,
+        logContext: { query: query.toLowerCase() },
+      },
+    );
+
+    if (db) {
+      await logAiUsage(db, {
+        functionName: FN,
+        action: "vet_plant_images",
+        usage,
+        contextBlock:
+          `query: ${query}\n` +
+          kept.map((im, i) => `${i + 1}. [${im.source}] ${im.alt}`).join("\n"),
+        prompt: instruction,
+        rawResult: text,
+      });
+    }
+
+    return selectConfidentImages(kept, parseScores(text), MIN_PLANT_PHOTO_CONFIDENCE);
+  } catch {
+    return images; // fail open
+  }
+}
+
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
 
   try {
-    const { query, count = 9 } = await req.json();
+    const { query, count = 9, vet = false } = await req.json();
     if (!query?.trim()) throw new Error("query is required");
 
     const queryKey = normaliseQuery(query);
@@ -258,6 +360,27 @@ serve(async (req) => {
             status: 200,
           },
         );
+      }
+    }
+
+    // ── Vetted-gallery cache hit (vet path only). The vetting model call is
+    //    the expensive part, so serve the stored vetted array when fresh.
+    if (vet && db) {
+      const { data: cachedGallery } = await db
+        .from("plant_gallery_cache")
+        .select("images, expires_at")
+        .eq("query_normalised", queryKey)
+        .maybeSingle();
+      if (
+        cachedGallery &&
+        Array.isArray(cachedGallery.images) &&
+        cachedGallery.images.length > 0 &&
+        new Date(cachedGallery.expires_at).getTime() > Date.now()
+      ) {
+        return new Response(JSON.stringify({ images: cachedGallery.images }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+          status: 200,
+        });
       }
     }
 
@@ -309,8 +432,7 @@ serve(async (req) => {
           },
           { onConflict: "query_normalised" },
         )
-        .then(() => {})
-        .catch(() => {});
+        .then(() => {}, () => {});
     }
 
     // Wave 22.0002 — attach the unified image_credit to every result
@@ -321,7 +443,32 @@ serve(async (req) => {
       image_credit: buildGalleryCredit(img),
     }));
 
-    return new Response(JSON.stringify({ images: imagesWithCredit }), {
+    // AI relevance vetting (chat gallery only). Scores each photo for whether
+    // it actually shows the plant and drops low-confidence ones; fails open.
+    let finalImages = imagesWithCredit;
+    if (vet) {
+      const geminiKey = Deno.env.get("GEMINI_API_KEY");
+      if (geminiKey && finalImages.length > 0) {
+        finalImages = await vetGallery(finalImages, query, geminiKey, db);
+        // Cache the vetted gallery — non-empty only, so a glitchy all-filtered
+        // run can retry next time rather than caching an empty result.
+        if (db && finalImages.length > 0) {
+          db.from("plant_gallery_cache")
+            .upsert(
+              {
+                query_normalised: queryKey,
+                images: finalImages,
+                cached_at: new Date().toISOString(),
+                expires_at: new Date(Date.now() + 90 * 24 * 60 * 60 * 1000).toISOString(),
+              },
+              { onConflict: "query_normalised" },
+            )
+            .then(() => {}, () => {});
+        }
+      }
+    }
+
+    return new Response(JSON.stringify({ images: finalImages }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
       status: 200,
     });

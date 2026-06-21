@@ -28,6 +28,8 @@ import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
 import { logEvent, EVENT } from "../events/registry";
 import { getPlantWikiInfo } from "../lib/wikipedia";
+import { reduceAutoRead, initialAutoReadState } from "../lib/chatAutoRead";
+import ImageDisclaimer from "./ImageDisclaimer";
 import { sanitizeAssistantText } from "../lib/stripMarkdownImages";
 import { visibleToolResults } from "../lib/visibleToolResults";
 import { plantPhotoQuery } from "../lib/plantPhotoQuery";
@@ -76,6 +78,11 @@ interface Message {
 const WELCOME_CONTENT =
   "Hello! I'm your Garden AI. How can I help your garden grow today?";
 
+// Chat plant photos come from the web (Wikipedia / Unsplash / Pixabay), not our
+// verified plant databases — so the disclaimer copy differs from plant search.
+const CHAT_IMAGE_DISCLAIMER =
+  "Photos come from the web (Wikipedia, Unsplash, Pixabay) and may not show the exact plant or variety — use them as a guide.";
+
 // Multi-photo gallery shown when the user asks to SEE a plant. Pulls several
 // licensed images (Unsplash / Pixabay / Wikipedia, with attribution) via the
 // plant-image-search edge function and renders a tappable strip + shared
@@ -87,7 +94,7 @@ function ChatPlantGallery({ query, label }: { query: string; label: string }) {
   useEffect(() => {
     let cancelled = false;
     supabase.functions
-      .invoke("plant-image-search", { body: { query, count: 9 } })
+      .invoke("plant-image-search", { body: { query, count: 9, vet: true } })
       .then(({ data, error }) => {
         if (cancelled) return;
         setImages(!error && Array.isArray(data?.images) ? data.images : []);
@@ -116,7 +123,7 @@ function ChatPlantGallery({ query, label }: { query: string; label: string }) {
   if (images.length === 0) {
     return (
       <div className="w-full h-24 rounded-xl bg-rhozly-surface border border-rhozly-outline/20 flex items-center justify-center text-rhozly-on-surface/40 text-[11px] gap-1.5">
-        <Images size={14} /> No photos found
+        <Images size={14} /> No clear photos found
       </div>
     );
   }
@@ -594,27 +601,30 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     }
   }, [messages]);
 
-  // Wave 22.0001-A — auto-read the latest assistant reply when the setting
-  // is enabled. Guarded so we don't speak history on chat open (only fires
-  // after scrollToNewMsgRef sets — i.e. genuinely new assistant turn).
+  // Auto-read assistant replies when the setting is on. Only speaks a reply
+  // that ARRIVES while the chat is open — `reduceAutoRead` primes the existing
+  // tail as already-heard on open / history (re)load, so the previous reply at
+  // the bottom is never read aloud on open. Logic in src/lib/chatAutoRead.ts.
   const tts = useTextToSpeech();
-  const lastSpokenKeyRef = useRef<string | null>(null);
+  const autoReadStateRef = useRef(initialAutoReadState);
   useEffect(() => {
-    if (!autoReadReplies || !isOpen) return;
-    if (messages.length === 0) return;
-    const last = messages[messages.length - 1];
-    if (last.role !== "assistant" || !last.content) return;
-    // Only speak fresh replies. The welcome message and history loads
-    // bypass scrollToNewMsgRef, so check we're not just re-rendering.
-    if (lastSpokenKeyRef.current === last._key) return;
-    if (isLoading) return;
-    lastSpokenKeyRef.current = last._key;
-    // Skip the welcome content — it never changes and getting it spoken
-    // every open would be annoying.
-    if (last.content === WELCOME_CONTENT) return;
-    tts.speak(last.content, { key: `chat-${last._key}`, voice: preferredVoice }).catch(() => { /* swallowed in hook */ });
+    const last = messages.length ? messages[messages.length - 1] : undefined;
+    const { state, speak } = reduceAutoRead(autoReadStateRef.current, {
+      tailKey: last?._key ?? null,
+      tailRole: last?.role ?? null,
+      tailContent: last?.content ?? null,
+      autoRead: autoReadReplies,
+      isOpen,
+      isLoadingHistory,
+      isLoading,
+      welcomeContent: WELCOME_CONTENT,
+    });
+    autoReadStateRef.current = state;
+    if (speak && last?.content && last._key) {
+      tts.speak(last.content, { key: `chat-${last._key}`, voice: preferredVoice }).catch(() => { /* swallowed in hook */ });
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, autoReadReplies, isOpen, isLoading]);
+  }, [messages, autoReadReplies, isOpen, isLoadingHistory, isLoading]);
 
   const handleVoiceRecorded = (audio: VoiceCaptureResult) => {
     setPendingAudio(audio);
@@ -1172,6 +1182,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
                               {msg.suggested_plants.map((plant, pi) => (
                                 <ChatPlantCard key={pi} plant={plant} />
                               ))}
+                              <ImageDisclaimer text={CHAT_IMAGE_DISCLAIMER} />
                               <div className="mt-1 pt-2 border-t border-rhozly-outline/10">
                                 <PlantActionButtons
                                   plants={msg.suggested_plants}

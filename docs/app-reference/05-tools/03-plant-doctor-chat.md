@@ -82,7 +82,7 @@ supabase.from("user_profiles")
   .maybeSingle();
 ```
 
-When `voice_settings.auto_read_assistant_replies` is `true`, an effect speaks each newly-arrived assistant reply via `useTextToSpeech` (→ `tts-speak` edge function). Independently, every assistant message carries a `ReadAloudButton` for on-demand playback. Both paths honour the user's `voice_settings.preferred_voice` (curated list in `src/constants/voices.ts`; defaults to `en-GB-Chirp3-HD-Achernar`), **re-read each time the chat opens** (the overlay is mounted once, so re-reading on open is what makes a voice/auto-read change in settings apply without an app reload). The toggle + voice picker that set these live in **Gardener's Profile → Alerts → Voice** (`/gardener?tab=notifications`).
+When `voice_settings.auto_read_assistant_replies` is `true`, an effect speaks each assistant reply that arrives **while the chat is open** via `useTextToSpeech` (→ `tts-speak` edge function). The decision lives in the pure `src/lib/chatAutoRead.ts` reducer, which *primes* the message already at the bottom as already-heard on open / history (re)load — so opening the chat never re-reads the previous reply; only genuinely new turns are spoken. Independently, every assistant message carries a `ReadAloudButton` for on-demand playback. Both paths honour the user's `voice_settings.preferred_voice` (curated list in `src/constants/voices.ts`; defaults to `en-GB-Chirp3-HD-Achernar`), **re-read each time the chat opens** (the overlay is mounted once, so re-reading on open is what makes a voice/auto-read change in settings apply without an app reload). The toggle + voice picker that set these live in **Gardener's Profile → Alerts → Voice** (`/gardener?tab=notifications`).
 
 > **Native APK requirements:** tap-to-talk needs `RECORD_AUDIO` in the Android manifest; read-aloud needs `MainActivity` to set `setMediaPlaybackRequiresUserGesture(false)` (the WebView default blocks both auto-read and the post-`await` `audio.play()`). **Read-aloud fallback chain:** cloud Chirp3-HD → on any failure the `@capacitor-community/text-to-speech` native device voice (works in the WebView) → raw `speechSynthesis` only if the plugin is absent. The Web Speech API alone is silent in the Android System WebView, hence the native plugin. All baked into the APK (rebuild required); the PWA is unaffected. See [Capacitor](../99-cross-cutting/23-capacitor.md).
 
@@ -125,7 +125,9 @@ The AI uses this to ground its answer: "you're currently on the Light Sensor at 
 
 When the AI returns `suggested_plants: [{ name, search_query, show? }]`, each renders as a card calling `getPlantWikiInfo(search_query)` for a thumbnail + extract. Tap to expand.
 
-When an item has **`show: true`** (set server-side by the `show_plant_images` tool — i.e. the user asked to *see* what a plant looks like), the card renders **`ChatPlantGallery`** instead of the compact thumbnail: an inline horizontal strip of up to 9 licensed photos from `plant-image-search`, each with an `ImageCredit` badge and tappable to open the shared `Lightbox`. Falls back to the single Wikipedia thumbnail if no images are returned. Plants without `show` (ordinary "you might like…" suggestions) keep the compact thumbnail. The `PlantActionButtons` (Add to Shed) still render below either way.
+When an item has **`show: true`** (set server-side by the `show_plant_images` tool — i.e. the user asked to *see* what a plant looks like), the card renders **`ChatPlantGallery`** instead of the compact thumbnail: an inline horizontal strip of up to 9 licensed photos from `plant-image-search` (requested with **`vet: true`**, so each photo is AI-scored for relevance and low-confidence ones are dropped — see [Image Sources](../99-cross-cutting/24-image-sources.md)), each with an `ImageCredit` badge and tappable to open the shared `Lightbox`. If everything is filtered out it shows "No clear photos found".
+
+**Image disclaimer:** any reply that renders plant photos shows one `ImageDisclaimer` beneath the cards, with chat-specific copy noting the photos come from the web (Wikipedia / Unsplash / Pixabay) and may not match the exact plant — distinct from the plant-search copy that cites our verified plant databases. Falls back to the single Wikipedia thumbnail if no images are returned. Plants without `show` (ordinary "you might like…" suggestions) keep the compact thumbnail. The `PlantActionButtons` (Add to Shed) still render below either way.
 
 **Photo relevance:** the gallery query is built by `src/lib/plantPhotoQuery.ts`, which biases toward the *growing plant* (not its produce/seeds) by appending `" plant"` to a bare name — e.g. "runner bean" → "runner bean plant" — unless the phrase is already botanical. The `show_plant_images` tool also asks Gemini to supply a `search_query` using the botanical/specific name plus "plant" (e.g. "Phaseolus coccineus plant"). Wikipedia is always fetched first (canonical reference shot).
 
@@ -291,8 +293,11 @@ It's also context-aware. Open it from the Light Sensor with a reading of 800 lx 
 - `src/components/TaskActionButtons.tsx` — Add to Schedule
 - `src/components/chat/PlanSuggestionCard.tsx` — Plan CTA card
 - `src/components/chat/ReadAloudButton.tsx` — per-message read-aloud control
+- `src/lib/chatAutoRead.ts` — pure auto-read decision (primes the existing tail on open so only new replies are spoken)
 - `src/hooks/useTextToSpeech.ts` — TTS playback hook (calls `tts-speak`)
+- `src/components/ImageDisclaimer.tsx` — illustrative-image note (accepts custom `text`)
 - `supabase/functions/tts-speak/index.ts` — TTS edge fn (Google Cloud TTS + `tts_cache`)
 - `supabase/functions/plant-doctor-ai/index.ts` — edge fn
+- `supabase/functions/plant-image-search/index.ts` + `supabase/functions/_shared/plantImageVet.ts` — gallery photo search + AI relevance vetting (`vet: true`)
 - `supabase/migrations/20260427000000_chat_history.sql` — base schema
 - `supabase/migrations/20260624000200_chat_plan_suggestion.sql` — plan_suggestion column

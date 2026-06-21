@@ -45,3 +45,7 @@
 | CHAT-006 | ✅ | Cucumber-not-in-Shed surfaces `tool-confirm-*` for `add_plant_to_shed` (Wave 22.0023 mandatory rule) | `agent-chat` | ✅ Passing |
 | CHAT-009 | ✅ | Page-context chip hidden on dashboard (no plant context) | — | ✅ Passing |
 | CHAT-010 | ✅ | Cold open loads pre-seeded turns from `chat_messages` | — | ✅ Passing |
+| CHAT-011 | 🔲 | `image-disclaimer` shows beneath a reply that returns `suggested_plants` (web-photo copy) | `agent-chat` (with suggested_plants) | 🔲 Planned |
+| CHAT-012 | 🔲 | Auto-read on: opening the chat with a pre-seeded last reply does NOT call `tts-speak`; a newly-sent reply DOES (reducer covered by `chatAutoRead.test.ts`) | `agent-chat` + `tts-speak` spy | 🔲 Planned |
+
+> **Auto-read logic** is unit-tested in `tests/unit/lib/chatAutoRead.test.ts` (9 cases — primes the existing tail on open so only newly-arrived replies are spoken). **Gallery AI vetting** (`plant-image-search` `vet: true`) filtering is unit-tested in `supabase/tests/plantImageVet.test.ts` (10 cases — threshold + fail-open).

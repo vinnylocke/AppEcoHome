@@ -41,6 +41,19 @@ Tries multiple URLs in order; falls back to placeholder on all-fail:
 />
 ```
 
+### AI relevance vetting (`vet: true`)
+
+The chat "show me a plant" gallery calls `plant-image-search` with `{ count: 9, vet: true }`.
+On that path the function runs a **single batched Gemini vision call** that scores each
+candidate photo 0–1 for how clearly it shows the requested plant (not seeds, produce on a
+plate, diagrams, people, or an unrelated plant), and drops any below
+`MIN_PLANT_PHOTO_CONFIDENCE` (~0.55, in `_shared/plantImageVet.ts`). It **fails open** — any
+fetch/model error returns the unvetted images, so the gallery never empties on a glitch. The
+surviving array is cached per normalised query in **`plant_gallery_cache`** (90-day,
+server-only — read/written only by the edge function via the service role) so the vision cost
+is paid once. The `count:1` thumbnail path is never vetted. The chat also shows an
+illustrative-image disclaimer beneath any reply that renders photos.
+
 ### `PlantResultThumb` — search-result + hero thumbnails (self-resolving)
 
 `src/components/PlantResultThumb.tsx` is the single place plant **search-result and detail-hero** images resolve. It shows the stored URL when usable; otherwise — or when that URL fails to load — it lazily resolves one **by name** via `plant-image-search` (the `count:1` hot path, server-cached in `plant_image_cache`), then falls back to a leaf / sparkles placeholder.
