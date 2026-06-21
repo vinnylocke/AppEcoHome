@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Planner — plant search fixes",
+    "items": [
+      "When planning around your plants, picking a search result now selects just that one plant — not several look-alikes at once.",
+      "Tap the ⓘ on any search result to see its details, or open the full care guide, grow guide and companions before adding it."
+    ]
+  }
+]
