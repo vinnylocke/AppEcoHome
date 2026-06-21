@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Send, Loader2, RotateCcw, ExternalLink } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { IconAI } from "../constants/icons";
+import ContentFeedback from "./feedback/ContentFeedback";
 import { APP_HELP_SECTIONS, POPULAR_QUESTIONS } from "../data/appHelp";
 import type { HelpSection } from "../data/appHelp";
 
@@ -126,6 +127,17 @@ export default function AppHelpSearch() {
                 </div>
                 <p className="text-sm font-bold text-rhozly-on-surface leading-relaxed">{answer}</p>
               </div>
+              {answer && (
+                <div className="mt-3 pt-3 border-t border-rhozly-outline/10 flex justify-end">
+                  <ContentFeedback
+                    surface="app-help"
+                    targetKind="answer"
+                    targetId={question.toLowerCase().slice(0, 200)}
+                    targetLabel={question}
+                    label="Did this answer your question?"
+                  />
+                </div>
+              )}
             </div>
           )}
 

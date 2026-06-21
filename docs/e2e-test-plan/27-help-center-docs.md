@@ -32,3 +32,12 @@ wrapped in `figure[data-testid="doc-image"]`.
   `public/doc-images/`, named `{docNumber}-{docSlug}-{NN}-{shortdesc}.webp`.
 - As further docs are illustrated, add the new `/doc-images/*` assets and keep HCD-002 representative
   (it asserts on the Dashboard doc's first image).
+
+## Content feedback (👍/👎)
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| HCD-006 | ✅ | Documentation reader shows `content-feedback` ("Was this doc helpful?", surface `documentation`) | `content_feedback` insert | 🔲 Planned |
+| HCD-007 | ✅ | Guides/tours footer shows `content-feedback` ("Are these guides helpful?", surface `onboarding-flow`) | `content_feedback` insert | 🔲 Planned |
+
+> Feedback writes to `content_feedback` (surface = `documentation` / `onboarding-flow`); reviewed by admins at `/admin/content-feedback`.

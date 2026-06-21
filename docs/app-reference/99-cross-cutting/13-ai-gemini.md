@@ -178,6 +178,17 @@ One row per Gemini/Imagen call, written by `_shared/aiUsage.ts` → `logAiUsage`
 - A daily `prune-ai-usage-payloads` cron nulls the text payloads after 30 days (keeps the cost row).
 - See [docs/plans/ai-audit-and-improvement.md](../../plans/ai-audit-and-improvement.md) for the wider plan.
 
+### Two feedback tables — keep them distinct
+
+There are **two** thumbs-up/down tables and they are NOT the same thing:
+
+| Table | Component | Purpose | Surfaced in |
+|-------|-----------|---------|-------------|
+| `ai_feedback` | `src/components/ai/AiFeedback.tsx` | **AI learning signal** — rates a specific AI *output* (a generated answer / diagnosis) so the model/prompt can be tuned. | `/admin/ai-calls` viewer (joined alongside the `ai_usage_log` row) |
+| `content_feedback` | `src/components/feedback/ContentFeedback.tsx` | **Content-quality signal** — rates a piece of *content* (a guide, a doc page, a help answer, a workflow). Not an AI call; no `ai_usage_log` link. | `/admin/content-feedback` viewer (admin-only, route gated by `is_admin`) |
+
+`content_feedback` columns: `id, created_at, user_id, home_id, surface, target_kind, target_id, target_label, rating (±1), comment`. RLS: a user inserts / updates / reads their **own** rows; admins read all. A 👎 inserts the row immediately, then reveals an optional "what's wrong / inaccurate" box that patches the same row's `comment` — so the negative signal is never lost even if no comment is left. `surface` values in use: `rhozly-guide`, `grow-guide`, `app-help`, `documentation`, `onboarding-flow`. Wired into the guide reader, Grow Guide tab, Plant Guides tab, App Help, and the Help Center drawer. Migration `20260817000000_content_feedback.sql`. The `/admin/content-feedback` viewer (`src/components/admin/ContentFeedbackAdmin.tsx`) lists feedback newest-first with surface + 👍/👎 filters and is linked from the User Profile Dropdown's admin section.
+
 ### Quotas
 
 Per-tier monthly token budgets enforced server-side. When exhausted, edge function returns a 429 with `code: "quota_exceeded"`.

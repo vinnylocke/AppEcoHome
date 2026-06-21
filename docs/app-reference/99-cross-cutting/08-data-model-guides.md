@@ -97,6 +97,27 @@ Exposes:
 
 A trigger on `community_guide_stars` maintains `community_guides.star_count` for the list sort.
 
+### `content_feedback` — content-quality 👍/👎 + comment
+
+Not guide-specific, but this is where it's catalogued because guides are its biggest consumer. Written by the reusable `<ContentFeedback>` control (`src/components/feedback/ContentFeedback.tsx`) attached to guides, documentation pages, App Help answers and onboarding flows.
+
+| Column | Type | Notes |
+|--------|------|-------|
+| `id` | uuid | PK |
+| `created_at` | timestamptz | |
+| `user_id` | uuid | FK to user |
+| `home_id` | uuid? | nullable |
+| `surface` | text | `rhozly-guide` / `grow-guide` / `app-help` / `documentation` / `onboarding-flow` |
+| `target_kind` | text? | what's being rated (guide / answer / flow) |
+| `target_id` | text? | guide id, `plant_<id>`, question, doc id |
+| `target_label` | text? | human-readable label (denorm so the admin viewer reads without a join) |
+| `rating` | int | `+1` (👍) or `-1` (👎) |
+| `comment` | text? | optional "what's wrong / inaccurate" note, only on 👎 |
+
+RLS: a user inserts / updates / reads their **own** rows; admins read all. Migration `20260817000000_content_feedback.sql`. Surfaced in the admin-only `/admin/content-feedback` viewer.
+
+**Distinct from `ai_feedback`** (`src/components/ai/AiFeedback.tsx`): that table rates a specific AI *output* as a model-learning signal and is surfaced in `/admin/ai-calls`. `content_feedback` rates *content* (guides/docs/workflows). Don't conflate them. See [AI — Gemini](./13-ai-gemini.md#two-feedback-tables--keep-them-distinct).
+
 ---
 
 ## Role 2 — Expert Gardener's Guide
@@ -125,5 +146,8 @@ Rhozly doesn't have a formal "bookmark" — starring serves that purpose. Star �
 ## Code references for ongoing maintenance
 
 - `src/hooks/useCommunityGuides.ts`
+- `src/components/feedback/ContentFeedback.tsx` — reusable 👍/👎 + comment control (writes `content_feedback`)
+- `src/components/admin/ContentFeedbackAdmin.tsx` — `/admin/content-feedback` viewer
 - `supabase/migrations/*_guides.sql`, `*_community_guides.sql`, `*_community_guide_stars.sql`, `*_community_guide_comments.sql`
+- `supabase/migrations/20260817000000_content_feedback.sql` — `content_feedback` table + RLS
 - `supabase/functions/generate-guide/index.ts`

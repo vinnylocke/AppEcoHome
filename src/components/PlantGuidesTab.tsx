@@ -10,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import CommunityGuideReader from "./CommunityGuideReader";
+import ContentFeedback from "./feedback/ContentFeedback";
 
 interface PlantGuidesTabProps {
   plantId: number;
@@ -311,6 +312,17 @@ function GuideReader({
             );
           return null;
         })}
+      </div>
+
+      {/* Was this guide helpful? — content feedback */}
+      <div className="mt-8 pt-5 border-t border-rhozly-outline/10 flex justify-center">
+        <ContentFeedback
+          surface="rhozly-guide"
+          targetKind="guide"
+          targetId={String(guide.id)}
+          targetLabel={data.title}
+          label="Was this guide helpful?"
+        />
       </div>
     </div>
   );

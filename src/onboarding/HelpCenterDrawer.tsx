@@ -10,6 +10,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { flowRegistry } from "./flowRegistry";
 import { DOCS, type DocEntry } from "./docs";
+import ContentFeedback from "../components/feedback/ContentFeedback";
 import type { FlowCategory, OnboardingState } from "./types";
 
 interface Props {
@@ -236,6 +237,13 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
                 {Object.values(onboardingState).filter((v) => v === "completed").length} of {flowRegistry.length} guides completed
               </p>
             )}
+            <div className="mt-2 flex justify-center">
+              <ContentFeedback
+                surface="onboarding-flow"
+                targetKind="guides-overview"
+                label="Are these guides helpful?"
+              />
+            </div>
           </div>
         </>
       )}
@@ -373,6 +381,17 @@ export default function HelpCenterDrawer({ onboardingState, onClose, onStartFlow
             {/* Strip screenshot callout lines — they're placeholder notes for image placement */}
             {activeDoc.content.replace(/^> 📸 Screenshot:.*$/gm, "").replace(/\n{3,}/g, "\n\n")}
           </ReactMarkdown>
+
+          {/* Was this doc helpful? — content feedback */}
+          <div className="mt-8 pt-5 border-t border-rhozly-outline/10 flex justify-center">
+            <ContentFeedback
+              surface="documentation"
+              targetKind="doc"
+              targetId={activeDoc.id}
+              targetLabel={activeDoc.title}
+              label="Was this doc helpful?"
+            />
+          </div>
         </div>
       )}
 

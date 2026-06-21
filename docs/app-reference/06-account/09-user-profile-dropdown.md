@@ -14,7 +14,7 @@ A multi-section dropdown:
 - **Header** — name + email
 - **Account** — Account Settings, Garden Quiz & Preferences
 - **Management** — Location Management, Members & Permissions, Task Manager, Audit Log (if `canViewAudit`)
-- **Admin** — Guide Studio (if `isAdmin`)
+- **Admin** — Guide Studio, Content Feedback (`/admin/content-feedback`) (if `isAdmin`)
 - **Help** — What's New (if recent version), Getting Started, Help & FAQ (deep-links to `/help` → `/guides?tab=help`), Contact Support, Image credits
 - **Sign Out** — `supabase.auth.signOut()`
 - **Footer** — app version label (tap to open release notes)
@@ -89,6 +89,7 @@ Dismissed by tapping the What's New button or app version label.
 | Task Manager | `/schedule` |
 | Audit Log | `/audit` |
 | Guide Studio | `/admin/guides` |
+| Content Feedback | `/admin/content-feedback` |
 | Getting Started | `/dashboard` |
 
 ### Data flow
@@ -121,6 +122,7 @@ None.
 | Section | Gated by |
 |---------|----------|
 | Admin → Guide Studio | `isAdmin` |
+| Admin → Content Feedback | `isAdmin` |
 | Management → Audit Log | `canViewAudit` |
 
 ### Error states
@@ -162,6 +164,7 @@ This is the catch-all "settings + advanced" menu. Most casual users open it twic
 #### 4. Admin (admin only)
 
 - Guide Studio for AI-authored guides.
+- Content Feedback — the 👍/👎 + comment reports users have left on guides, docs, help answers and workflows (`/admin/content-feedback`).
 
 #### 5. What's New (pulse dot visible)
 

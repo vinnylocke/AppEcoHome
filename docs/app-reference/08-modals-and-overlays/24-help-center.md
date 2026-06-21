@@ -29,6 +29,7 @@ strings (`?raw`) through `src/onboarding/docs.ts`.
   illustrated. They are **stripped at render time** so they never reach the reader. As a doc is
   illustrated, each callout is replaced with its `![alt](/doc-images/…webp)` image.
 - **Tab/row selectors:** `help-tab-guides`, `help-tab-docs`, `help-doc-row-<docId>`.
+- **Content Feedback control:** the documentation reading view renders `<ContentFeedback>` ("Was this doc helpful?", surface `documentation`, target = doc id + title); the Guides/tours footer renders a second control ("Are these guides helpful?", surface `onboarding-flow`). Both write to `content_feedback` (distinct from the AI `ai_feedback` learning signal); 👎 reveals an optional "what's wrong / inaccurate" box.
 - E2E coverage: `tests/e2e/specs/help-center-docs.spec.ts` (HCD-001–003).
 
 **Source files:**
@@ -41,7 +42,7 @@ strings (`?raw`) through `src/onboarding/docs.ts`.
 
 ## Quick Summary
 
-Type a query → fuzzy filter against the bundled help articles → inline answer card. Each article has a title, body (markdown), and tag list. No network fetch — bundled with the client.
+Type a query → fuzzy filter against the bundled help articles → inline answer card. Each article has a title, body (markdown), and tag list. No network fetch — bundled with the client. Each answer also renders the reusable `<ContentFeedback>` 👍/👎 ("Did this answer your question?", surface `app-help`, target = the question) → writes to `content_feedback`; 👎 reveals an optional "what's wrong / inaccurate" box.
 
 ---
 
@@ -129,6 +130,10 @@ For questions about *using Rhozly* — not about gardening. "How do I share my h
 
 - Bottom CTA → Contact Support modal.
 
+#### 4. Rate the answer
+
+- Each answer ends with a 👍/👎 ("Did this answer your question?"). Tap 👎 to add a one-line note about what's wrong or inaccurate — the same control appears on documentation pages and the guided-tour list.
+
 ### Tier-by-tier experience
 
 Same for every tier.
@@ -154,5 +159,8 @@ Same for every tier.
 
 ## Code references for ongoing maintenance
 
-- `src/components/AppHelpSearch.tsx`
+- `src/components/AppHelpSearch.tsx` — App Help answers (surface `app-help`)
+- `src/onboarding/HelpCenterDrawer.tsx` — documentation view (surface `documentation`) + tours footer (surface `onboarding-flow`)
+- `src/components/feedback/ContentFeedback.tsx` — reusable 👍/👎 + comment control (writes `content_feedback`)
+- `supabase/migrations/20260817000000_content_feedback.sql` — `content_feedback` table + RLS
 - Bundled help JSON constant

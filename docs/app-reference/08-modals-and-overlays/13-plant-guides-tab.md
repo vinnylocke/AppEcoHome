@@ -8,7 +8,7 @@
 
 ## Quick Summary
 
-Searches `guides` + `community_guides` for entries tagged with this plant's common or scientific name. Cards link out to the full Guide Reader.
+Searches `guides` + `community_guides` for entries tagged with this plant's common or scientific name. Cards link out to the full Guide Reader. When a Rhozly guide is opened in-place, the reusable `<ContentFeedback>` 👍/👎 control appears (surface `rhozly-guide`, target = guide id + title) — writes to `content_feedback` (distinct from the AI `ai_feedback` signal); 👎 reveals an optional "what's wrong / inaccurate" box.
 
 ---
 
@@ -117,6 +117,7 @@ Same for every tier.
 ### Common mistakes / pitfalls
 
 - **Expecting AI care guide here.** That's the separate "Care Guide" tab — AI-generated. This tab surfaces user-authored / curated articles.
+- **Found a guide that's misleading?** When you open a Rhozly guide here, give it a 👍 or 👎 at the foot — 👎 lets you add a one-line note about what's inaccurate.
 
 ### Recommended workflows
 
@@ -133,8 +134,11 @@ Same for every tier.
 - [Instance Edit Modal](./08-instance-edit-modal.md)
 - [Guides List](../05-tools/07-guides-list.md)
 - [Community Guide Editor](../05-tools/09-community-guide-editor.md)
+- [Data Model — Guides](../99-cross-cutting/08-data-model-guides.md) — `content_feedback` table
 
 ## Code references for ongoing maintenance
 
 - `src/components/PlantGuidesTab.tsx`
+- `src/components/feedback/ContentFeedback.tsx` — reusable 👍/👎 + comment control (writes `content_feedback`, surface `rhozly-guide`)
 - `src/hooks/useCommunityGuides.ts`
+- `supabase/migrations/20260817000000_content_feedback.sql` — `content_feedback` table + RLS

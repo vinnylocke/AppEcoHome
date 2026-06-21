@@ -19,6 +19,7 @@ import {
 } from "lucide-react";
 import CommunityGuidesTab from "./CommunityGuidesTab";
 import AppHelpSearch from "./AppHelpSearch";
+import ContentFeedback from "./feedback/ContentFeedback";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
 
 const GUIDE_TABS = [
@@ -408,6 +409,17 @@ export default function GuideList() {
                 );
               return null;
             })}
+          </div>
+
+          {/* Was this guide helpful? — content feedback */}
+          <div className="mt-12 pt-6 border-t border-rhozly-outline/10 flex justify-center">
+            <ContentFeedback
+              surface="rhozly-guide"
+              targetKind="guide"
+              targetId={String(activeGuide.id)}
+              targetLabel={data.title}
+              label="Was this guide helpful?"
+            />
           </div>
         </div>
       </div>

@@ -19,6 +19,7 @@ import {
   Loader2,
   HelpCircle,
   Activity,
+  MessageSquareText,
 } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import { useNavigate } from "react-router-dom";
@@ -278,6 +279,10 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
                 />
                 <DropdownLink
                   item={{ testId: "user-profile-ai-calls", icon: <Activity size={15} />, label: "AI Calls", path: "/admin/ai-calls" }}
+                  onNavigate={go}
+                />
+                <DropdownLink
+                  item={{ testId: "user-profile-content-feedback", icon: <MessageSquareText size={15} />, label: "Content Feedback", path: "/admin/content-feedback" }}
                   onNavigate={go}
                 />
               </div>

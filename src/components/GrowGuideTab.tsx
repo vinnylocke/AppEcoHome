@@ -17,6 +17,7 @@ import {
 } from "../services/plantDoctorService";
 import GuideSectionCard from "./growGuide/GuideSectionCard";
 import AddToCalendarSheet from "./growGuide/AddToCalendarSheet";
+import ContentFeedback from "./feedback/ContentFeedback";
 import {
   flattenSectionsForCalendar,
   type SchedulableTask,
@@ -386,6 +387,18 @@ export default function GrowGuideTab({
                 plantName={commonName}
               />
             ))}
+          </div>
+
+          {/* Was this guide helpful? — content feedback */}
+          <div className="mt-6 pt-4 border-t border-rhozly-outline/10 flex justify-center">
+            <ContentFeedback
+              surface="grow-guide"
+              targetKind="guide"
+              targetId={`plant_${plantId}`}
+              targetLabel={commonName}
+              homeId={homeId}
+              label="Was this guide helpful?"
+            />
           </div>
           {bulkOpen && (
             <AddToCalendarSheet

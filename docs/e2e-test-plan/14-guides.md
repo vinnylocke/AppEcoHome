@@ -52,3 +52,13 @@
 | CGU-017 | ❌ | Draft guide NOT visible in public community list | — | 🚧 In progress |
 
 > Status `🚧 In progress` means the spec file exists and the tests are wired, but they've not been re-verified against the current seed since a recent migration. Run before promoting to ✅.
+
+## Content feedback (👍/👎)
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| GFB-001 | ✅ | Rhozly guide reading view shows `content-feedback` ("Was this guide helpful?"); 👍 → "Thanks for the feedback ✓" | `content_feedback` insert | 🔲 Planned |
+| GFB-002 | ❌ | 👎 reveals `content-feedback-comment` box; Send posts the comment | `content_feedback` insert + update | 🔲 Planned |
+| GFB-003 | ✅ | App Help answer shows `content-feedback` ("Did this answer your question?") | `app-help` + `content_feedback` | 🔲 Planned |
+
+> The 👍/👎 + "what's wrong/inaccurate" control writes to the `content_feedback` table (distinct from `ai_feedback`); its render is component-tested in `tests/unit/components/ContentFeedback.test.ts`. Surfaces: `rhozly-guide`, `grow-guide`, `app-help`, `documentation`, `onboarding-flow`. Admin review at `/admin/content-feedback`.

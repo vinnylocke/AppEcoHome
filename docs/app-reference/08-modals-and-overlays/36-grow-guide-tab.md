@@ -27,6 +27,8 @@ Phase-aware single-page tab:
 
 All three plant sources work — `ai` / `manual` / `api` / `verdantly`. Manual plants get a best-effort guide built from name + any user-supplied notes (the empty state shows a small hint).
 
+**Content Feedback control:** a loaded guide renders the reusable `<ContentFeedback>` 👍/👎 control at the foot of the section list — surface `grow-guide`, target `plant_<id>` + the plant name. It writes to the `content_feedback` table (distinct from the AI `ai_feedback` learning signal); a 👎 reveals an optional "tell us what's wrong / inaccurate" box.
+
 ---
 
 ## Role 1 — Technical Reference
@@ -232,6 +234,7 @@ The guide is the same for every gardener growing this species — generated once
 - **"No grow guide yet" on a plant that's been in the Shed for months** → tap Generate. The guide didn't auto-populate.
 - **Section copy contradicts a trusted reference** → tap Refresh. If still wrong on the next regen, the prompt may need tuning — flag it for the maintainer.
 - **Generate button is locked** → your tier doesn't include AI features. Upgrade to Sage or Evergreen.
+- **Guide is plain wrong** → tap the 👎 at the foot of the guide and add a one-line note of what's inaccurate. That feedback lands in the admin Content Feedback viewer so the prompt can be tuned.
 
 ---
 
@@ -249,6 +252,8 @@ The guide is the same for every gardener growing this species — generated once
 
 - `src/components/GrowGuideTab.tsx` — orchestrator with empty / loaded / stale / generating / error states
 - `src/components/growGuide/GuideSectionCard.tsx` — one collapsible section, handles the optional-field branches
+- `src/components/feedback/ContentFeedback.tsx` — reusable 👍/👎 + comment control (writes `content_feedback`, surface `grow-guide`)
+- `supabase/migrations/20260817000000_content_feedback.sql` — `content_feedback` table + RLS
 - `src/services/plantDoctorService.ts:generateGrowGuide` — service-layer wrapper
 - `supabase/functions/plant-doctor/index.ts` — `generate_grow_guide` action handler
 - `supabase/functions/refresh-stale-grow-guides/index.ts` — daily cron entry point

@@ -21,6 +21,8 @@ A three-tab guide center. Rhozly tab pulls from `guides` table, supports label f
 
 **Saved-only filter (Sprint 2, 2026-06-15):** when the user has at least one bookmarked Rhozly guide, a "Show saved only" chip appears above the guide grid. Toggling it filters to bookmarks; bookmarks are persisted in the existing `guide_bookmarks` table.
 
+**Content Feedback control:** the Rhozly guide reading view renders the reusable `<ContentFeedback>` 👍/👎 control ("Was this guide helpful?") at the foot of the article — surface `rhozly-guide`, target = guide id + title. It writes to the `content_feedback` table (distinct from the AI `ai_feedback` learning signal); a 👎 reveals an optional "tell us what's wrong / inaccurate" box. The App Help tab (`AppHelpSearch`) carries its own control on each answer — see [Help Center / App Help](../08-modals-and-overlays/24-help-center.md).
+
 ---
 
 ## Role 1 — Technical Reference
@@ -177,6 +179,7 @@ Guides are how Rhozly teaches. Three different lenses:
 
 - Search-as-you-type over bundled help articles.
 - Tap a result → inline answer.
+- Each answer (and every Rhozly guide you read) ends with a small 👍/👎 — tap 👎 to add a one-line note about what was wrong or inaccurate. It's the quickest way to tell us a guide is misleading.
 
 #### 5. First-visit banner
 
@@ -232,5 +235,7 @@ Same for every tier.
 - `src/components/AppHelpSearch.tsx` — help search
 - `src/components/CommunityGuideReader.tsx` — single guide
 - `src/components/CommunityGuideEditor.tsx` — authoring
+- `src/components/feedback/ContentFeedback.tsx` — reusable 👍/👎 + comment control (writes `content_feedback`, surface `rhozly-guide` here)
 - `src/hooks/useCommunityGuides.ts` — fetch hook
 - `supabase/migrations/*_community_guides.sql` — schema + RLS
+- `supabase/migrations/20260817000000_content_feedback.sql` — `content_feedback` table + RLS
