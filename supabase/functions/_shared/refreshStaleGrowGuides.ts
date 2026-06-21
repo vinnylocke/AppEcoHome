@@ -51,7 +51,7 @@ interface PlantJoinRow {
   common_name: string | null;
   scientific_name: unknown;
   source: string;
-  data: unknown;
+  plant_metadata: unknown;
 }
 
 interface CandidateRow {
@@ -107,7 +107,7 @@ export async function refreshStaleGrowGuides(
   const { data: candidatesRaw, error: fetchErr } = await db
     .from("plant_grow_guides")
     .select(
-      "plant_id, guide_data, freshness_version, last_freshness_check_at, plants(common_name, scientific_name, source, data)",
+      "plant_id, guide_data, freshness_version, last_freshness_check_at, plants(common_name, scientific_name, source, plant_metadata)",
     )
     .or(`last_freshness_check_at.is.null,last_freshness_check_at.lt.${cutoffIso}`)
     .order("last_freshness_check_at", { ascending: true, nullsFirst: true })
@@ -144,7 +144,7 @@ export async function refreshStaleGrowGuides(
         commonName: plantInfo.common_name ?? "Unknown plant",
         scientificName: extractScientificName(plantInfo.scientific_name),
         source: plantInfo.source as "manual" | "api" | "ai" | "verdantly",
-        manualNotes: extractManualNotes(plantInfo.source, plantInfo.data),
+        manualNotes: extractManualNotes(plantInfo.source, plantInfo.plant_metadata),
         existingGuide: (row.guide_data ?? null) as PlantGrowGuide | null,
       };
       const { guide: newGuide, usage } = await geminiCall(geminiParams);
