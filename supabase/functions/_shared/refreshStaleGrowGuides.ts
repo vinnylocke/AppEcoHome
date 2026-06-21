@@ -139,21 +139,31 @@ export async function refreshStaleGrowGuides(
     }
 
     try {
-      const { guide: newGuide, usage } = await geminiCall({
+      const geminiParams = {
         plantId: row.plant_id,
         commonName: plantInfo.common_name ?? "Unknown plant",
         scientificName: extractScientificName(plantInfo.scientific_name),
         source: plantInfo.source as "manual" | "api" | "ai" | "verdantly",
         manualNotes: extractManualNotes(plantInfo.source, plantInfo.data),
         existingGuide: (row.guide_data ?? null) as PlantGrowGuide | null,
-      });
+      };
+      const { guide: newGuide, usage } = await geminiCall(geminiParams);
 
+      const growGuideContext = JSON.stringify({
+        commonName: geminiParams.commonName,
+        scientificName: geminiParams.scientificName,
+        source: geminiParams.source,
+        manualNotes: geminiParams.manualNotes,
+      });
       await logAiUsage(db, {
         homeId: null,
         userId: null,
         functionName: "refresh-stale-grow-guides",
         action: "regenerate",
         usage,
+        contextBlock: growGuideContext,
+        prompt: growGuideContext,
+        rawResult: newGuide,
       });
 
       const previousGuide = (row.guide_data ?? null) as PlantGrowGuide | null;

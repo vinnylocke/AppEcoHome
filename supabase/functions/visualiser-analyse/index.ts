@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
@@ -41,7 +40,7 @@ const RESPONSE_SCHEMA = {
   required: ["summary", "plants", "general"],
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
 
@@ -118,7 +117,7 @@ Be specific to what you can actually see. If the image is unclear in any area, s
 
     const result = JSON.parse(raw);
     if (homeId) {
-      await logAiUsage(db, { homeId, userId, functionName: FN, action: "visualiser_analyse", usage, prompt: userText, rawResult: raw });
+      await logAiUsage(db, { homeId, userId, functionName: FN, action: "visualiser_analyse", usage, contextBlock: userText, prompt: userText, rawResult: raw });
     }
 
     return new Response(JSON.stringify(result), {

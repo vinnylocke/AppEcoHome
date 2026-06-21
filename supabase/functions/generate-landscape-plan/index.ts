@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
@@ -164,7 +163,7 @@ const LP_SCHEMA = {
   required: ["project_overview", "infrastructure_requirements", "plant_manifest", "preparation_tasks", "custom_maintenance_tasks"],
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
 
@@ -358,7 +357,7 @@ serve(async (req) => {
 
     const aiResult = JSON.parse(rawText);
 
-    await logAiUsage(supabase, { homeId, userId: userId ?? null, functionName: FN, action: isRegeneration ? "regenerate_plan" : "generate_plan", usage });
+    await logAiUsage(supabase, { homeId, userId: userId ?? null, functionName: FN, action: isRegeneration ? "regenerate_plan" : "generate_plan", usage, contextBlock: systemPrompt, prompt: `${systemPrompt}\n\n${promptText}`, rawResult: rawText });
     log(FN, "result", {
       title: aiResult.project_overview?.title,
       difficulty: aiResult.project_overview?.estimated_difficulty,

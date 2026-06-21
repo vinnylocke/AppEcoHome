@@ -285,6 +285,9 @@ async function backgroundGenerate(
       functionName: FN,
       action: "vision_blueprint",
       usage,
+      contextBlock: input.contextBlock,
+      prompt: promptText,
+      rawResult: rawText,
     });
 
     let parsed: {
@@ -411,6 +414,9 @@ async function backgroundGenerate(
         imageCount: 1,
         imageCostUsd: c.cost_usd,
         imagenModel: c.imagen_model,
+        contextBlock: c.prompt,
+        prompt: c.prompt,
+        rawResult: { image_url: c.image_url, imagen_model: c.imagen_model },
       });
     }
 

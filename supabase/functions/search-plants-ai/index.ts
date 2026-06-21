@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { callGeminiCascade } from "../_shared/gemini.ts";
 import { guardAiByUser } from "../_shared/aiGuard.ts";
@@ -35,7 +34,7 @@ const RESPONSE_SCHEMA = {
   required: ["plants"],
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
 
@@ -122,7 +121,7 @@ Keep names precise and recognisable. Avoid duplicates.`;
     );
 
     if (userId) {
-      await logAiUsage(serviceDb, { userId, functionName: FN, action: "search_plants_ai", usage, prompt, rawResult: rawText });
+      await logAiUsage(serviceDb, { userId, functionName: FN, action: "search_plants_ai", usage, contextBlock: prompt, prompt, rawResult: rawText });
     }
 
     let parsed: { plants: Array<{ name: string; description: string }> };

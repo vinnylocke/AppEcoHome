@@ -2,7 +2,6 @@
 // Given a shape's microclimate context (sun classification, lux, area metadata,
 // hemisphere, season), suggest 5 plants the user could plant there.
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
@@ -32,7 +31,7 @@ interface RequestBody {
   currentSeason?: string;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
@@ -108,6 +107,9 @@ Rules:
       functionName: FN,
       action: "suggest_plants",
       usage,
+      contextBlock: userMessage,
+      prompt: `${systemPrompt}\n\n${userMessage}`,
+      rawResult: rawText,
     });
 
     let parsed: any;

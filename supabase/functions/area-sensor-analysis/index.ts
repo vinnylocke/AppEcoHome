@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { log, error as logError } from "../_shared/logger.ts";
@@ -45,7 +44,7 @@ function stat(values: number[]): { min: number; max: number; avg: number } | nul
   return { min, max, avg: sum / values.length };
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
@@ -249,17 +248,18 @@ serve(async (req) => {
       let generated = false;
       for (const c of missing) {
         try {
+          const careRangePrompt = buildPlantCareRangePrompt({ common_name: c.common_name, scientific_name: c.scientific_name });
           const { text, usage } = await callGeminiCascade(
             geminiApiKey,
             "plant-care-ranges",
-            toMessages([buildPlantCareRangePrompt({ common_name: c.common_name, scientific_name: c.scientific_name })]),
+            toMessages([careRangePrompt]),
             { responseSchema: CARE_RANGE_SCHEMA, responseMimeType: "application/json", temperature: 0.2, maxOutputTokens: 512, logContext: { plantId: c.id } },
           );
           const r = parseCareRangeResponse(text);
           if (r) {
             careById.set(c.id, mergeCareRanges(careById.get(c.id), r));
             generated = true;
-            await logAiUsage(db, { userId, homeId, functionName: "plant-care-ranges", action: "care_range_backfill", usage });
+            await logAiUsage(db, { userId, homeId, functionName: "plant-care-ranges", action: "care_range_backfill", usage, contextBlock: careRangePrompt, prompt: careRangePrompt, rawResult: text });
           }
         } catch (e) {
           logError(FN, "care_range_gen_failed", { plant_id: c.id, message: e instanceof Error ? e.message : String(e) });
@@ -462,7 +462,7 @@ serve(async (req) => {
         logContext: { homeId, areaId },
       },
     );
-    await logAiUsage(db, { userId, homeId, functionName: FN, action: "area_analysis", usage });
+    await logAiUsage(db, { userId, homeId, functionName: FN, action: "area_analysis", usage, contextBlock: prompt, prompt, rawResult: text });
 
     const insight = parseAreaInsight(text);
     if (!insight) {

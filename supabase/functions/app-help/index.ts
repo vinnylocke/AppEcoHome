@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
@@ -133,7 +132,7 @@ Respond ONLY with valid JSON matching this exact shape:
 {"answer": "...", "sectionIds": ["id1", "id2"]}
 `.trim();
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: CORS });
 
   try {
@@ -185,7 +184,7 @@ serve(async (req) => {
 
     log(FN, "answered", { question: normalised, sectionCount: result.sectionIds.length });
     await setCached(supabase, key, FN, result, 30);
-    await logAiUsage(supabase, { userId: authResult.user.id, functionName: FN, action: "app_help", usage });
+    await logAiUsage(supabase, { userId: authResult.user.id, functionName: FN, action: "app_help", usage, contextBlock: userMessage, prompt: `${SYSTEM_PROMPT}\n\n${userMessage}`, rawResult: rawText });
 
     return new Response(JSON.stringify(result), {
       headers: { ...CORS, "Content-Type": "application/json" },

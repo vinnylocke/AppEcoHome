@@ -166,6 +166,9 @@ export async function refreshStaleAiPlants(
         functionName: "refresh-stale-ai-plants",
         action: "stale_check",
         usage,
+        contextBlock: plant.common_name,
+        prompt: plant.common_name,
+        rawResult: newData,
       });
 
       summary.examined += 1;

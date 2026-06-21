@@ -10,7 +10,6 @@
 // get the client-side regex fallback in `src/lib/parsePlantList.ts`. The
 // two return the same `ParsedPlant` shape so the review UI is identical.
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { guardAiByHome } from "../_shared/aiGuard.ts";
@@ -113,7 +112,7 @@ function normalisePlants(raw: unknown): ParsedPlant[] {
   return out;
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
 
@@ -219,6 +218,9 @@ ${text}`;
       functionName: FN,
       action: "parse",
       usage,
+      contextBlock: prompt,
+      prompt,
+      rawResult: rawText,
     });
 
     const parsed = JSON.parse(rawText);

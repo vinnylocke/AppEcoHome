@@ -280,12 +280,14 @@ Deno.serve(async (req) => {
     // --- Call Gemini ---
     log(FN, "calling_gemini", { homeId });
     const geminiApiKey = Deno.env.get("GEMINI_API_KEY") ?? "";
+    const systemPrompt = buildSystemPrompt(home, soil);
+    const userMessage = "Generate location insights for this garden.";
     const { text, usage } = await callGeminiCascade(
       geminiApiKey,
       FN,
-      [{ role: "user", parts: [{ text: "Generate location insights for this garden." }] }],
+      [{ role: "user", parts: [{ text: userMessage }] }],
       {
-        systemPrompt:      buildSystemPrompt(home, soil),
+        systemPrompt,
         temperature:       0.4,
         maxOutputTokens:   2500,
         responseMimeType:  "application/json",
@@ -293,7 +295,7 @@ Deno.serve(async (req) => {
       },
     );
 
-    await logAiUsage(db, { userId, homeId, functionName: FN, usage });
+    await logAiUsage(db, { userId, homeId, functionName: FN, usage, contextBlock: systemPrompt, prompt: `${systemPrompt}\n\n${userMessage}`, rawResult: text });
 
     const aiResult = JSON.parse(text);
 

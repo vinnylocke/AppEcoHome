@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { log, warn, error as logError } from "../_shared/logger.ts";
@@ -144,7 +143,7 @@ function validateProposals(
 // ---------------------------------------------------------------------------
 // Main
 // ---------------------------------------------------------------------------
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   try {
@@ -395,7 +394,7 @@ SCENARIO REFERENCE:
       },
     );
 
-    await logAiUsage(db, { userId, homeId, functionName: FN, action: "optimise_area", usage, prompt, rawResult: text });
+    await logAiUsage(db, { userId, homeId, functionName: FN, action: "optimise_area", usage, contextBlock: prompt, prompt, rawResult: text });
 
     let parsed: { proposals: any[] };
     try {

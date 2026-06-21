@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { buildYieldPrompt } from "../_shared/yieldPrompt.ts";
@@ -16,7 +15,7 @@ const CORS = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: CORS });
   }
@@ -138,7 +137,7 @@ serve(async (req) => {
       result = JSON.parse(match[0]);
     }
 
-    await logAiUsage(db, { homeId: home_id, userId, functionName: FN, action: "yield_prediction", usage, prompt, rawResult: raw });
+    await logAiUsage(db, { homeId: home_id, userId, functionName: FN, action: "yield_prediction", usage, contextBlock: prompt, prompt, rawResult: raw });
     log(FN, "prediction_complete", { instance_id, confidence: result.confidence });
 
     return new Response(JSON.stringify(result), {

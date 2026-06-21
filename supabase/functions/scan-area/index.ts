@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { log, warn, error as logError } from "../_shared/logger.ts";
@@ -100,7 +99,7 @@ const RESPONSE_SCHEMA = {
   required: ["summary", "capacity", "plants", "companions", "maintenance", "pests_diseases", "soil_conditions"],
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
 
@@ -245,7 +244,7 @@ Return valid JSON matching the schema exactly.`;
 
     const analysis = JSON.parse(raw);
     log(FN, "analysis_complete", { homeId, areaId, plantCount: analysis.plants?.length ?? 0 });
-    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "scan_area", usage, prompt: userText, rawResult: raw });
+    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "scan_area", usage, contextBlock: userText, prompt: userText, rawResult: raw });
 
     return new Response(JSON.stringify(analysis), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },

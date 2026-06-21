@@ -53,8 +53,9 @@ Deno.serve(async (req) => {
 
         for (const r of rows ?? []) {
           try {
+            const verifyPrompt = buildAilmentVerifyPrompt(r as AilmentRowForVerify);
             const { text, usage } = await callGeminiCascade(
-              apiKey, FN, toMessages([buildAilmentVerifyPrompt(r as AilmentRowForVerify)]),
+              apiKey, FN, toMessages([verifyPrompt]),
               {
                 temperature: 0.2, maxOutputTokens: 4096,
                 responseSchema: AILMENT_VERIFY_SCHEMA, responseMimeType: "application/json",
@@ -70,7 +71,7 @@ Deno.serve(async (req) => {
               cachedContentTokenCount: usage.cachedContentTokenCount ?? 0,
               thoughtsTokenCount: usage.thoughtsTokenCount ?? 0,
             });
-            await logAiUsage(db, { functionName: FN, action: "verify_ailment", usage, rawResult: text });
+            await logAiUsage(db, { functionName: FN, action: "verify_ailment", usage, contextBlock: JSON.stringify(r), prompt: verifyPrompt, rawResult: text });
 
             const parsed = parseVerify(text);
             if (!parsed) { failed += 1; continue; }

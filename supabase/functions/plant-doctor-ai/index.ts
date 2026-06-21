@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
@@ -106,7 +105,7 @@ const CHAT_SCHEMA = {
   required: ["text"],
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
 
@@ -330,7 +329,7 @@ serve(async (req) => {
       }
     }
 
-    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "chat", usage });
+    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "chat", usage, contextBlock: systemPrompt, prompt: JSON.stringify(messages), rawResult: rawText });
 
     // Validate plan_suggestion shape before passing through — defensive
     // against the model returning a partial object.

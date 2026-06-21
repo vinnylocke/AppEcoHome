@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
@@ -54,7 +53,7 @@ const VALID_TAGS = [
   "cottage-garden", "modern", "tropical", "mediterranean",
 ];
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
 
@@ -181,7 +180,7 @@ serve(async (req) => {
       source: "ai" as const,
     }));
 
-    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "swipe_plants", usage });
+    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "swipe_plants", usage, contextBlock: systemPrompt, prompt: `${systemPrompt}\n\nGenerate ${count} plant suggestions.`, rawResult: rawText });
     log(FN, "result", { homeId, userId, plantCount: plants.length });
 
     return new Response(

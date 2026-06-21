@@ -191,6 +191,9 @@ export async function generateSeasonalPicksForHome(
           functionName: FN,
           action: "seasonal_picks",
           usage,
+          contextBlock: prompt,
+          prompt,
+          rawResult: rawText,
         });
         const parsed = JSON.parse(rawText);
         const normalised = normaliseSeasonalPicks(parsed);

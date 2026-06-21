@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
@@ -17,7 +16,7 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
 
@@ -153,7 +152,7 @@ serve(async (req) => {
 
     const responsePayload = { guide_data: guideData, labels: rawJson.labels };
     await setCached(supabase, guideKey, FN, responsePayload, 7);
-    await logAiUsage(supabase, { userId: authResult.user.id, functionName: FN, action: "generate_guide", usage });
+    await logAiUsage(supabase, { userId: authResult.user.id, functionName: FN, action: "generate_guide", usage, contextBlock: systemPrompt, prompt: `${systemPrompt}\n\nTopic: ${topic}`, rawResult: rawText });
     log(FN, "result", { topic, fromCache: false, sectionsCount: guideData.sections?.length ?? 0 });
 
     return new Response(

@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
@@ -549,7 +548,7 @@ function getSeason(hemisphere: "Northern" | "Southern", month: number): string {
 
 // ── Main handler ─────────────────────────────────────────────────────────────
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS")
     return new Response("ok", { headers: corsHeaders });
 
@@ -824,7 +823,7 @@ Each match must be a real plant species. Format each as "Common Name (Scientific
       const parsed = extractJsonObject(text) as any;
       const allMatches: string[] = parsed.matches ?? [];
 
-      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "search_plants_text", usage, rawResult: text });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "search_plants_text", usage, contextBlock: prompt, prompt, rawResult: text });
       await setCached(supabase, searchCacheKey, FN, { matches: allMatches }, 30);
 
       const page = allMatches.slice(0, PAGE_SIZE);
@@ -1099,7 +1098,7 @@ Return all fields accurately. STRICT formatting rules:
       // Keep the string cache write for backward compat during transition.
       // Wave 4+ will drop this once the catalogue is the canonical store.
       await setCached(supabase, careKey, FN, parsedData, 30);
-      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "generate_care_guide", usage, rawResult: rawText });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "generate_care_guide", usage, contextBlock: prompt, prompt, rawResult: rawText });
       log(FN, "result", {
         action, plant: cleanName, fromCache: false,
         plantType: parsedData.plantData?.plant_type,
@@ -1163,7 +1162,7 @@ Use specific common names (e.g. "French Marigold" not "Marigold").`;
         { responseSchema: RECOMMEND_PLANTS_SCHEMA, logContext: { action } },
       );
       const parsedData = extractJsonObject(rawText) as any;
-      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "recommend_plants", usage, rawResult: rawText });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "recommend_plants", usage, contextBlock: prompt, prompt, rawResult: rawText });
       log(FN, "result", {
         action, homeId: homeId ?? null, area: areaData?.name,
         environment: isOutside ? "outside" : "inside",
@@ -1240,7 +1239,7 @@ Also return a brief observation in notes.`;
         { responseSchema: IDENTIFY_VISION_SCHEMA, models: VISION_DIAGNOSIS_MODELS, maxOutputTokens: 8192, logContext: { action } },
       );
       const aiParsed = extractJsonObject(rawText) as any;
-      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_vision", usage, rawResult: rawText });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_vision", usage, contextBlock: promptText, prompt: promptText, rawResult: rawText });
 
       const aiCredit = {
         provider: "ai" as const,
@@ -1436,7 +1435,7 @@ Add a brief overall observation in notes.`;
         .slice(0, 12);
 
       const result = { notes: parsedRaw.notes ?? "", regions: cleanRegions };
-      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_scene", usage, rawResult: rawText });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_scene", usage, contextBlock: promptText, prompt: promptText, rawResult: rawText });
       log(FN, "result", { action, regionCount: cleanRegions.length });
       return new Response(JSON.stringify(result), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -1526,7 +1525,7 @@ RESPONSE RULES:
         }
       }
 
-      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "diagnose", usage, rawResult: rawText });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "diagnose", usage, contextBlock: envBlock, prompt: promptText, rawResult: rawText });
       log(FN, "result", {
         action,
         severity: parsed.severity ?? null,
@@ -1624,6 +1623,8 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
         functionName: FN,
         action: "analyse_comprehensive",
         usage,
+        contextBlock: envBlock,
+        prompt: promptText,
         rawResult: rawText,
       });
 
@@ -1827,6 +1828,8 @@ SUGGESTED_TASKS: 2-6 actionable tasks the user should add to their calendar base
         functionName: FN,
         action: "generate_grow_guide",
         usage,
+        contextBlock: promptText,
+        prompt: promptText,
         rawResult: rawText,
       });
 
@@ -1933,7 +1936,8 @@ Notes: optional one-line caveat about regional variability or microclimate consi
       const parsed = extractJsonObject(rawText) as any;
       await logAiUsage(supabase, {
         homeId, userId: callerUserId, functionName: FN,
-        action: "lookup_frost_dates", usage, rawResult: rawText,
+        action: "lookup_frost_dates", usage,
+        contextBlock: promptText, prompt: promptText, rawResult: rawText,
       });
 
       const validation = validateFrostPayload(parsed, hemisphere);
@@ -2029,7 +2033,8 @@ Return precise planting guidance for THIS plant in THIS location:
       const parsed = extractJsonObject(rawText) as any;
       await logAiUsage(supabase, {
         homeId, userId: callerUserId, functionName: FN,
-        action: "plant_when_to_plant", usage, rawResult: rawText,
+        action: "plant_when_to_plant", usage,
+        contextBlock: climateContext, prompt: promptText, rawResult: rawText,
       });
 
       log(FN, "result", {
@@ -2054,7 +2059,7 @@ ${locationLine ? `Gardener location: ${locationLine}. Tailor treatment options t
         apiKey, FN, toMessages([promptText]),
         { responseSchema: DISEASE_INFO_SCHEMA, logContext: { action } },
       );
-      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "get_ai_disease_info", usage, rawResult: rawText });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "get_ai_disease_info", usage, contextBlock: promptText, prompt: promptText, rawResult: rawText });
       log(FN, "result", { action, diseaseName, hasNotes: !!notes });
       return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -2084,7 +2089,7 @@ CRITICAL RULES:
         { responseSchema: REMEDIAL_PLAN_SCHEMA, logContext: { action } },
       );
       const parsed = extractJsonObject(rawText) as any;
-      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "generate_remedial_plan", usage, rawResult: rawText });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "generate_remedial_plan", usage, contextBlock: diagnosisContext, prompt: promptText, rawResult: rawText });
       log(FN, "result", {
         action, targetPlant,
         tasksCount: parsed.remedial_schedules?.length ?? 0,
@@ -2169,7 +2174,7 @@ RESPONSE RULES:
         }
       }
 
-      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_pest", usage, rawResult: rawText });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "identify_pest", usage, contextBlock: promptText, prompt: promptText, rawResult: rawText });
       log(FN, "result", { action, possiblePests: (parsed.possible_pests ?? []).map((p: any) => `${p.name} (${p.confidence}%)`), isPest: parsed.is_pest });
       return new Response(JSON.stringify(parsed), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -2188,7 +2193,7 @@ ${locationLine ? `Gardener location: ${locationLine}. Tailor treatment and preve
         apiKey, FN, toMessages([promptText]),
         { responseSchema: PEST_INFO_SCHEMA, logContext: { action } },
       );
-      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "get_ai_pest_info", usage, rawResult: rawText });
+      await logAiUsage(supabase, { homeId: homeId ?? null, userId: callerUserId, functionName: FN, action: "get_ai_pest_info", usage, contextBlock: promptText, prompt: promptText, rawResult: rawText });
       log(FN, "result", { action, pestName });
       return new Response(rawText, {
         headers: { ...corsHeaders, "Content-Type": "application/json" },

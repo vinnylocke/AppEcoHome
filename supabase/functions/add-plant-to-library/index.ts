@@ -59,10 +59,11 @@ Deno.serve(async (req) => {
     log(FN, "request", { name, userId });
 
     // 1. Enrich the single plant via Gemini (same prompt + schema as the seeder).
+    const enrichmentPrompt = buildEnrichmentPrompt([name]);
     const { text, usage } = await callGeminiCascade(
       apiKey,
       FN,
-      toMessages([buildEnrichmentPrompt([name])]),
+      toMessages([enrichmentPrompt]),
       {
         temperature: 0.3,
         maxOutputTokens: 8192,
@@ -74,7 +75,7 @@ Deno.serve(async (req) => {
       },
     );
 
-    await logAiUsage(db, { userId: userId ?? null, functionName: FN, action: "add_plant_to_library", usage, rawResult: text });
+    await logAiUsage(db, { userId: userId ?? null, functionName: FN, action: "add_plant_to_library", usage, contextBlock: enrichmentPrompt, prompt: enrichmentPrompt, rawResult: text });
 
     let parsed: { plants: any[] };
     try {

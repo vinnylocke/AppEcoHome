@@ -20,7 +20,6 @@
 // - System AI-usage attribution: { userId: null, homeId: null } against
 //   ai_usage_log so the cost doesn't land on any user's quota.
 
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
@@ -82,7 +81,7 @@ const CARE_GUIDE_SCHEMA = {
   required: ["plantData"],
 };
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
 
   const supabaseUrl = Deno.env.get("SUPABASE_URL")!;

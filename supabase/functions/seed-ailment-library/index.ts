@@ -58,8 +58,9 @@ Deno.serve(async (req) => {
         const { data: existing } = await db.from("ailment_library").select("name");
         const excludeNames = (existing ?? []).map((r: { name: string }) => r.name).filter(Boolean);
 
+        const seedPrompt = buildAilmentSeedPrompt(count, excludeNames);
         const { text, usage } = await callGeminiCascade(
-          apiKey, FN, toMessages([buildAilmentSeedPrompt(count, excludeNames)]),
+          apiKey, FN, toMessages([seedPrompt]),
           {
             temperature: 0.4,
             maxOutputTokens: 32768,
@@ -83,7 +84,7 @@ Deno.serve(async (req) => {
           thoughtsTokenCount: usage.thoughtsTokenCount ?? 0,
         });
 
-        await logAiUsage(db, { functionName: FN, action: "seed_ailments", usage, rawResult: text });
+        await logAiUsage(db, { functionName: FN, action: "seed_ailments", usage, contextBlock: seedPrompt, prompt: seedPrompt, rawResult: text });
 
         const { ailments } = parseAilmentBatch(text);
         log(FN, "batch_received", { run_id: runId, ai_returned: ailments.length, model });

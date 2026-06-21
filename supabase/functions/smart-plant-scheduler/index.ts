@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
@@ -42,7 +41,7 @@ function aggregateToMonthly(
     }));
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
@@ -306,7 +305,7 @@ ${climateBlock}
       );
     }
 
-    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "plant_scheduler", usage, prompt: `${systemPrompt}\n\n${userMessage}`, rawResult: rawText });
+    await logAiUsage(supabase, { homeId, userId, functionName: FN, action: "plant_scheduler", usage, contextBlock: userMessage, prompt: `${systemPrompt}\n\n${userMessage}`, rawResult: rawText });
     log(FN, "result", {
       plantName,
       address,
