@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Fixes",
+    "items": [
+      "What's New now shows reliably on installed apps — it could previously appear blank on the home-screen app."
+    ]
+  }
+]
