@@ -91,7 +91,7 @@ PlannerDashboard (src/components/PlannerDashboard.tsx)
 
 **Shed load (mount).** `supabase.from("inventory_items").select("id, plant_name").eq("home_id", homeId)` — de-duped by lower-cased `plant_name` into the `shed` chip list. RLS: home-scoped (`inventory_items` policies). No caching beyond component state.
 
-**Plant search.** Delegated to the shared `PlantSearch` (`multiSelect`) — covers in-app library, Perenual, Verdantly, and AI per the `gates` object. External providers gated on `botanist/sage/evergreen`; see [Plant Providers](../99-cross-cutting/25-plant-providers.md).
+**Plant search.** Delegated to the shared `PlantSearch` (`multiSelect`) — covers in-app library, Perenual, Verdantly, and AI per the `gates` object. External providers gated on `botanist/sage/evergreen`; see [Plant Providers](../99-cross-cutting/25-plant-providers.md). Rows expose the per-plant info (ⓘ) preview (`allowPreview`) — label chips + description — and a "see full care" handoff (`onViewDetails`) that opens `PlantDetailModal` (Care / Grow Guide / Companions tabs). **Selection identity is `common_name + scientific_name`** (`selKey`), so near-duplicate results (e.g. two lavenders) are distinct picks rather than toggling together; chips show the scientific name to disambiguate.
 
 ### Data flow — write paths
 

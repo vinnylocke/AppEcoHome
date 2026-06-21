@@ -4,7 +4,9 @@ import { supabase } from "../../lib/supabase";
 import { toast } from "react-hot-toast";
 import { X, ArrowLeft, Loader2, Sprout, Check, RefreshCw } from "lucide-react";
 import PlantSearch from "../shared/PlantSearch";
-import type { PlantSelection } from "../../lib/unifiedPlantSearch";
+import PlantDetailModal from "../PlantDetailModal";
+import { selectionToProviderResult, type PlantSelection } from "../../lib/unifiedPlantSearch";
+import type { ProviderSearchResult } from "../../lib/verdantlyUtils";
 import type { AreaMode, PfpSelectedPlant, PlantFirstBlueprint } from "../../lib/plantFirstPlan";
 import { Logger } from "../../lib/errorHandler";
 
@@ -22,7 +24,12 @@ const AREA_MODES: { value: AreaMode; label: string; desc: string }[] = [
   { value: "new", label: "Design all-new areas", desc: "Plan the areas from scratch based on the plants." },
 ];
 
-const keyOf = (name: string) => name.trim().toLowerCase();
+// Selection identity = common name + scientific name, so two near-duplicate
+// results (same common name, different species) are distinct picks rather than
+// toggling together.
+const selKey = (name: string, sci?: string | null) =>
+  `${name.trim().toLowerCase()}|${(sci ?? "").trim().toLowerCase()}`;
+const keyOfSel = (s: PfpSelectedPlant) => selKey(s.name, s.scientific_name);
 
 /**
  * Plant-first planner wizard: the user picks plants (Shed + search), chooses how
@@ -42,6 +49,7 @@ export default function PlantFirstPlanForm({ homeId, userTier, isOpen, onClose, 
   const [showRegen, setShowRegen] = useState(false);
   const [regenFeedback, setRegenFeedback] = useState("");
   const [creating, setCreating] = useState(false);
+  const [detailResult, setDetailResult] = useState<ProviderSearchResult | null>(null);
 
   const tier = (userTier ?? "").toLowerCase();
   const gates = {
@@ -60,7 +68,8 @@ export default function PlantFirstPlanForm({ homeId, userTier, isOpen, onClose, 
       const seen = new Map<string, { id: string; name: string }>();
       for (const r of data ?? []) {
         const n = ((r.plant_name as string) ?? "").trim();
-        if (n && !seen.has(keyOf(n))) seen.set(keyOf(n), { id: r.id as string, name: n });
+        const k = n.toLowerCase();
+        if (n && !seen.has(k)) seen.set(k, { id: r.id as string, name: n });
       }
       setShed([...seen.values()]);
     });
@@ -68,16 +77,20 @@ export default function PlantFirstPlanForm({ homeId, userTier, isOpen, onClose, 
 
   if (!isOpen) return null;
 
-  const isSel = (name: string) => selected.some((s) => keyOf(s.name) === keyOf(name));
-  const removeSel = (name: string) => setSelected((prev) => prev.filter((s) => keyOf(s.name) !== keyOf(name)));
-  const toggleShed = (item: { id: string; name: string }) =>
-    setSelected((prev) => isSel(item.name)
-      ? prev.filter((s) => keyOf(s.name) !== keyOf(item.name))
+  const isSelKey = (k: string) => selected.some((s) => keyOfSel(s) === k);
+  const removeByKey = (k: string) => setSelected((prev) => prev.filter((s) => keyOfSel(s) !== k));
+  const toggleShed = (item: { id: string; name: string }) => {
+    const k = selKey(item.name);
+    setSelected((prev) => isSelKey(k)
+      ? prev.filter((s) => keyOfSel(s) !== k)
       : [...prev, { name: item.name, source: "shed", inventory_item_id: item.id }]);
-  const toggleSearch = (sel: PlantSelection) =>
-    setSelected((prev) => isSel(sel.common_name)
-      ? prev.filter((s) => keyOf(s.name) !== keyOf(sel.common_name))
+  };
+  const toggleSearch = (sel: PlantSelection) => {
+    const k = selKey(sel.common_name, sel.scientific_name);
+    setSelected((prev) => isSelKey(k)
+      ? prev.filter((s) => keyOfSel(s) !== k)
       : [...prev, { name: sel.common_name, scientific_name: sel.scientific_name ?? null, source: sel.source }]);
+  };
 
   const generate = async (regen = false) => {
     setGenerating(true);
@@ -164,9 +177,10 @@ export default function PlantFirstPlanForm({ homeId, userTier, isOpen, onClose, 
             {selected.length > 0 && (
               <div className="flex flex-wrap gap-1.5" data-testid="plant-first-selected">
                 {selected.map((s) => (
-                  <span key={keyOf(s.name)} className="flex items-center gap-1 bg-rhozly-primary/10 text-rhozly-primary text-xs font-black px-2.5 py-1 rounded-full">
+                  <span key={keyOfSel(s)} className="flex items-center gap-1 bg-rhozly-primary/10 text-rhozly-primary text-xs font-black px-2.5 py-1 rounded-full">
                     {s.name}
-                    <button onClick={() => removeSel(s.name)} aria-label={`Remove ${s.name}`}><X size={11} /></button>
+                    {s.scientific_name && <span className="font-medium italic opacity-60">· {s.scientific_name}</span>}
+                    <button onClick={() => removeByKey(keyOfSel(s))} aria-label={`Remove ${s.name}`}><X size={11} /></button>
                   </span>
                 ))}
               </div>
@@ -180,9 +194,9 @@ export default function PlantFirstPlanForm({ homeId, userTier, isOpen, onClose, 
                       key={item.id}
                       onClick={() => toggleShed(item)}
                       data-testid="plant-first-shed-item"
-                      className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-xl border transition-colors ${isSel(item.name) ? "bg-rhozly-primary text-white border-rhozly-primary" : "bg-white border-rhozly-outline/20 text-rhozly-on-surface/70 hover:border-rhozly-primary/40"}`}
+                      className={`flex items-center gap-1 text-xs font-bold px-2.5 py-1.5 rounded-xl border transition-colors ${isSelKey(selKey(item.name)) ? "bg-rhozly-primary text-white border-rhozly-primary" : "bg-white border-rhozly-outline/20 text-rhozly-on-surface/70 hover:border-rhozly-primary/40"}`}
                     >
-                      {isSel(item.name) && <Check size={12} />} {item.name}
+                      {isSelKey(selKey(item.name)) && <Check size={12} />} {item.name}
                     </button>
                   ))}
                 </div>
@@ -190,7 +204,16 @@ export default function PlantFirstPlanForm({ homeId, userTier, isOpen, onClose, 
             )}
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-rhozly-on-surface/40 mb-2">Search for plants</p>
-              <PlantSearch homeId={homeId} gates={gates} multiSelect isSelected={(sel) => isSel(sel.common_name)} onSelect={toggleSearch} placeholder="Search library, databases or AI…" />
+              <PlantSearch
+                homeId={homeId}
+                gates={gates}
+                multiSelect
+                isSelected={(sel) => isSelKey(selKey(sel.common_name, sel.scientific_name))}
+                onSelect={toggleSearch}
+                allowPreview
+                onViewDetails={(sel) => setDetailResult(selectionToProviderResult(sel))}
+                placeholder="Search library, databases or AI…"
+              />
             </div>
           </div>
         )}
@@ -297,6 +320,16 @@ export default function PlantFirstPlanForm({ homeId, userTier, isOpen, onClose, 
           )}
         </div>
       </div>
+
+      {detailResult && (
+        <PlantDetailModal
+          result={detailResult}
+          homeId={homeId}
+          aiEnabled={gates.canCreateWithAI}
+          isPremium={gates.canCreateWithAI}
+          onClose={() => setDetailResult(null)}
+        />
+      )}
     </div>,
     document.body,
   );
