@@ -27,6 +27,7 @@ const TIER_LIMITS: Record<string, Record<string, number>> = {
   "plant-doctor":                    { sprout: 0, botanist: 10, sage: 25, evergreen: 50 },
   "plant-doctor-ai":                 { sprout: 0, botanist: 5,  sage: 20, evergreen: 40 },
   "generate-landscape-plan":         { sprout: 0, botanist: 3,  sage: 8,  evergreen: 15 },
+  "generate-plant-first-plan":       { sprout: 0, botanist: 0,  sage: 8,  evergreen: 15 },
   "scan-area":                       { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
   "generate-guide":                  { sprout: 0, botanist: 5,  sage: 10, evergreen: 20 },
   "identify-plant":                  { sprout: 0, botanist: 10, sage: 25, evergreen: 50 },

@@ -1,3 +1,5 @@
+import { callGeminiCascade } from "./gemini.ts";
+
 /**
  * Canonical entity_type vocabulary shared by all functions that read/write
  * planner_preferences.  Keeping this in one place prevents drift between
@@ -130,6 +132,49 @@ export function filterNewPreferences(
           e.sentiment === d.sentiment,
       ),
   );
+}
+
+const PREF_EXTRACTION_SCHEMA = {
+  type: "ARRAY",
+  items: {
+    type: "OBJECT",
+    properties: {
+      entity_type: { type: "STRING" },
+      entity_name: { type: "STRING" },
+      sentiment: { type: "STRING" },
+      reason: { type: "STRING", nullable: true },
+    },
+    required: ["entity_type", "entity_name", "sentiment"],
+  },
+};
+
+/**
+ * Mine free-text feedback (e.g. a plan rejection reason, or an initial brief)
+ * for structured preferences so future AI plans reflect the user's evolving
+ * taste. Returns [] on any failure so the calling flow is never interrupted.
+ * `fnName` is just for AI-usage attribution.
+ */
+export async function extractPreferencesFromFeedback(
+  apiKey: string,
+  feedbackText: string,
+  fnName: string,
+): Promise<Array<{ entity_type: string; entity_name: string; sentiment: string; reason: string | null }>> {
+  try {
+    const { text } = await callGeminiCascade(
+      apiKey,
+      fnName,
+      [{
+        role: "user",
+        parts: [{
+          text: `You are a preference extraction engine for a gardening app. Extract structured preferences from this user feedback about their garden plan.\n\nFeedback: "${feedbackText}"\n\nRules:\n- entity_type must be one of: ${ENTITY_TYPES.map((t) => `"${t}"`).join(", ")}\n- entity_name: normalise to title case (e.g. "Rose", "Tropical", "Water Feature", "Low Maintenance")\n- sentiment: "positive" if the user likes or wants it, "negative" if they dislike or don't want it\n- reason: the user's stated reason in their own words, concise, or null if not given\n- Mapping hints: style/look -> aesthetic; water feature/budget/raised bed -> feature; preferred colours -> colour; organic/chemical-free -> pest_management; drought/frost -> climate; sandy/clay -> soil; watering habits -> water_usage\n- Return an empty array [] if no extractable preferences exist`,
+        }],
+      }],
+      { temperature: 0, maxOutputTokens: 400, responseSchema: PREF_EXTRACTION_SCHEMA, logContext: { step: "pref_extraction", fn: fnName } },
+    );
+    return JSON.parse(text) || [];
+  } catch {
+    return [];
+  }
 }
 
 /**
