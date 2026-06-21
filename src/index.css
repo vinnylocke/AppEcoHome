@@ -70,6 +70,11 @@ html,
 body {
   /* This prevents the native browser bounce effect so our custom pull-to-refresh handles it smoothly */
   overscroll-behavior-y: none;
+  /* Guard against horizontal scroll from a fixed/absolute element nudging past
+     the right edge (notably installed PWAs, where 100vw ≠ the layout width).
+     `clip` (not `hidden`) so it doesn't establish a scroll container and break
+     `position: sticky`; inner overflow-x-auto rows are unaffected. */
+  overflow-x: clip;
   font-family: var(--font-body);
   color: var(--color-rhozly-on-surface);
   -webkit-font-smoothing: antialiased;

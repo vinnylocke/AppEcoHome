@@ -1057,7 +1057,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
       {isOpen && (
         <div
           data-testid="plant-doctor-chat-panel"
-          className="fixed bottom-24 right-6 w-[350px] md:w-[450px] max-w-[calc(100vw-3rem)] h-[500px] bg-white rounded-2xl shadow-2xl border border-rhozly-outline/10 flex flex-col z-50 animate-in slide-in-from-bottom-10 overflow-hidden"
+          className="fixed bottom-24 right-6 w-[350px] md:w-[450px] max-w-[calc(100%-3rem)] h-[500px] bg-white rounded-2xl shadow-2xl border border-rhozly-outline/10 flex flex-col z-50 animate-in slide-in-from-bottom-10 overflow-hidden"
         >
           {/* Header */}
           <div className="bg-rhozly-primary text-white p-4 flex items-center justify-between shrink-0">
