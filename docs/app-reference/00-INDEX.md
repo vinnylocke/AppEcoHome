@@ -86,6 +86,7 @@ When the change is shipped, update the matching reference file(s) so the docs ne
 - [x] [Blueprint Manager (Task Schedules)](./04-planner/07-blueprint-manager.md) — recurring task templates
 - [x] [Optimise Tab](./04-planner/08-optimise-tab.md) — schedule consolidator + AI ideas
 - [x] [Garden Overhaul](./04-planner/09-garden-overhaul.md) — Sage+ photo→AI redesign + Imagen concept images
+- [x] [Plant-First Planner](./04-planner/10-plant-first-planner.md) — Sage+ "plan around my plants": pick plants → AI arranges multi-area plan (`kind='plant-first'`)
 
 ## 05 — Tools
 

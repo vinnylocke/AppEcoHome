@@ -735,7 +735,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 376 tests across 30 files
+### Unit tests — 378 tests across 31 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -767,6 +767,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `automationTemplates.test.ts` | 3 | Builder templates — unique ids, each builds a named tree + actions; Smart watering = (moisture<30 AND not rain) OR moisture<18; scheduled-skip-rain shape |
 | `conditionTree.test.ts` | 10 | Unified automation builder — `newLeaf`/`newGroup` defaults, `summariseNode`/`summariseTree` (sensor count, negate "not", time weekdays/every-day, AND join, empty AND/OR, null) |
 | `chatAutoRead.test.ts` | 9 | Chat auto-read decision — `reduceAutoRead` primes the existing tail on open (no speak), speaks only newly-arrived replies, dedupes re-renders, re-primes on reopen / history reload, skips welcome / off / loading |
+| `plantFirstPlan.test.ts` | 2 | Plant-first planner client helper — `countBlueprintPlants` (sums plants across all area groups; null / undefined / no-areas → 0) |
 
 ### Edge function tests — Deno
 
@@ -803,6 +804,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `automationCandidates.test.ts` | 7 | Hybrid engine candidate selection — `treeHasTimeTrigger` (time/date/weather vs sensor/task), `treeHasSensorTrigger`, `treeAffectedByDevice` (explicit sensor id, area-scoped via leaf area + automation-area fallback, nested groups, non-sensor never matches) |
 | `automationWindow.test.ts` | 11 | Home default run-window — `treeHasOwnSchedule` (time/date_range at any depth), `isWithinWindow` (daytime, HH:MM:SS form, overnight wrap, zero-length always, tz shift), `defaultWindowOpen` (disabled bypass, own-schedule bypass, sensor-only gated to window) |
 | `plantImageVet.test.ts` | 10 | Chat gallery AI vetting — `selectConfidentImages` (threshold keep/drop, legitimately drops all, **fails open** on length-mismatch / missing scores, NaN fails, default threshold) + `parseScores` (valid / stringified-coerce / bad-shape→null / NaN) |
+| `plantFirstBlueprint.test.ts` | 6 | Plant-first planner output hardening — `normalisePlantFirstBlueprint`: caps areas (max 6), drops plant-less areas, clamps quantities (1–99) + `frequency_days` (1–365), coerces missing fields, derives `is_new` from `existing_area_id` |
 
 ### E2E tests — 468 tests across 31 files (+ 13 isolation tests)
 

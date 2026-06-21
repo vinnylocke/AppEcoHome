@@ -17,6 +17,7 @@ import {
   Plus,
   Sun,
   Construction,
+  Sprout,
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -26,6 +27,8 @@ import { useSearchParams, useNavigate } from "react-router-dom";
 import { IconAI, IconPlanner } from "../constants/icons";
 import NewPlanForm from "./NewPlanForm";
 import OverhaulPlanForm from "./planner/OverhaulPlanForm";
+import PlantFirstPlanForm from "./planner/PlantFirstPlanForm";
+import PlantFirstPlanView from "./planner/PlantFirstPlanView";
 import PlanStaging from "./PlanStaging";
 import AssistantCard from "./AssistantCard";
 import {
@@ -61,6 +64,7 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
   // through the same PlanStaging engine as designed plans, so we
   // don't need a separate result-view state.
   const [showOverhaulModal, setShowOverhaulModal] = useState(false);
+  const [showPlantFirstModal, setShowPlantFirstModal] = useState(false);
   const [userTier, setUserTier] = useState<string | null>(null);
   const hasOverhaulAccess = userTier === "sage" || userTier === "evergreen";
 
@@ -297,15 +301,26 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
             {selectedPlan.name}
           </span>
         </div>
-        <PlanStaging
-          plan={selectedPlan}
-          homeId={homeId}
-          onBack={() => {
-            setSelectedPlan(null);
-            fetchPlans();
-          }}
-          onPlanUpdated={fetchPlans}
-        />
+        {selectedPlan.kind === "plant-first" ? (
+          <PlantFirstPlanView
+            plan={selectedPlan}
+            homeId={homeId}
+            onBack={() => {
+              setSelectedPlan(null);
+              fetchPlans();
+            }}
+          />
+        ) : (
+          <PlanStaging
+            plan={selectedPlan}
+            homeId={homeId}
+            onBack={() => {
+              setSelectedPlan(null);
+              fetchPlans();
+            }}
+            onPlanUpdated={fetchPlans}
+          />
+        )}
       </div>
     );
   }
@@ -363,6 +378,18 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
                 className="px-4 sm:px-6 py-4 bg-rhozly-primary text-white rounded-2xl font-black shadow-lg hover:bg-rhozly-primary/90 transition-transform active:scale-95 flex items-center gap-1.5 justify-center min-w-0"
               >
                 <Plus size={20} /> <span className="truncate">New Plan</span>
+              </button>
+              <button
+                onClick={() => setShowPlantFirstModal(true)}
+                data-testid="planner-plant-first-btn"
+                title={hasOverhaulAccess ? "Pick plants, AI arranges them into a plan — Sage+" : "Plan around my plants: Sage+ feature"}
+                className="col-span-2 md:col-span-1 px-3 sm:px-4 py-4 bg-white border-2 border-rhozly-primary/30 text-rhozly-primary rounded-2xl font-black shadow-sm hover:bg-rhozly-primary/5 transition-transform active:scale-95 flex items-center gap-1.5 justify-center min-w-0"
+              >
+                <Sprout size={18} />
+                <span className="truncate">My Plants</span>
+                {!hasOverhaulAccess && (
+                  <span className="text-[9px] uppercase tracking-widest text-rhozly-on-surface/45 hidden sm:inline">Sage+</span>
+                )}
               </button>
             </div>
           )}
@@ -755,6 +782,18 @@ export default function PlannerDashboard({ homeId, aiEnabled = false }: PlannerD
           }}
         />
       )}
+
+      <PlantFirstPlanForm
+        homeId={homeId}
+        userTier={userTier}
+        isOpen={showPlantFirstModal}
+        onClose={() => setShowPlantFirstModal(false)}
+        onCreated={async (planRow) => {
+          setShowPlantFirstModal(false);
+          await fetchPlans();
+          if (planRow) setSelectedPlan(planRow);
+        }}
+      />
 
 
       {typeof document !== "undefined" &&
