@@ -229,7 +229,18 @@ function AppShell() {
   // version (what's available). Error pages, release-notes modal,
   // etc. should always report the bundle version so the displayed
   // version matches the code that printed the error.
-  const appVersion = versionState.bundleVersion;
+  //
+  // Fallback: when the bundle version can't be read — null while fetching, or
+  // the "00.0000" sentinel when /build-version.json fails (PWA service-worker
+  // lag / a broken SW, e.g. the `sw.js load failed` Sentry issue) — fall back to
+  // the DB version so the MANUAL "What's New" (dropdown + history) isn't blank
+  // for installed-PWA users. The auto-popup below stays strictly bundle-gated,
+  // so we never auto-show notes for code the user hasn't actually received.
+  const resolvedVersionKey =
+    versionState.bundleVersionKey && versionState.bundleVersionKey !== "00.0000"
+      ? versionState.bundleVersionKey
+      : versionState.dbVersionKey;
+  const appVersion = resolvedVersionKey ? `Rhozly OS ${resolvedVersionKey}` : null;
   const navigate = useNavigate();
   const routerLocation = useLocation();
   const isMobile = useIsMobile();
@@ -298,7 +309,10 @@ function AppShell() {
   // the bundle finishes rolling out — without this filter, "What's new"
   // would show bullets for code the user hasn't yet received.
   const filteredReleaseNotes = useMemo(() => {
-    const bundleKey = versionState.bundleVersionKey;
+    // Use the resolved key (bundle, or the DB version when the bundle is
+    // unknown/sentinel) so PWA users with a stale/unreadable bundle still get a
+    // populated history instead of a blank modal.
+    const bundleKey = resolvedVersionKey;
     if (!bundleKey) return [];
     const [bMajorStr, bMinorStr] = bundleKey.split(".");
     const bMajor = Number(bMajorStr);
@@ -307,7 +321,7 @@ function AppShell() {
     return allReleaseNotes.filter(
       (n) => n.major < bMajor || (n.major === bMajor && n.minor <= bMinor),
     );
-  }, [allReleaseNotes, versionState.bundleVersionKey]);
+  }, [allReleaseNotes, resolvedVersionKey]);
 
   // Release notes — fire when the BUNDLE the user is running has a new
   // version they haven't seen yet. Two gates:
