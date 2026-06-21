@@ -111,6 +111,9 @@ Deno.serve(async (req) => {
         });
         await logAiUsage(db as unknown as Parameters<typeof logAiUsage>[0], {
           userId: ctxUserId, homeId, functionName: FN, action: "grow_suggestions", usage,
+          contextBlock: block + (draftPlans.length ? `\n\nDraft plans: ${draftPlans.join(", ")}` : ""),
+          prompt,
+          rawResult: text,
         });
 
         let parsed: {

@@ -1,4 +1,3 @@
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn } from "../_shared/logger.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
@@ -39,7 +38,7 @@ Be conservative — only mark isSignificant=true when the pattern represents a g
 - Consider how recently the plant was added (a new plant in the first two weeks may have no events yet)
 - Avoid surfacing the same concern repeatedly — if events show recent activity after the pattern, it may already be resolved`;
 
-serve(async (_req) => {
+Deno.serve(async (_req) => {
   try {
     const db = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
@@ -283,6 +282,7 @@ serve(async (_req) => {
           functionName: FN,
           action: "pattern_eval",
           usage,
+          contextBlock: userMessage,
           prompt: userMessage,
           rawResult: rawText,
         });

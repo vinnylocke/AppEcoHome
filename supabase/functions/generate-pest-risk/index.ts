@@ -10,7 +10,6 @@
  * the user links an ailment to a plant. verify_jwt off (publishable-key callers).
  * See docs/plans/ai-insights-overhaul.md.
  */
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { serviceClient } from "../_shared/supabaseClient.ts";
 import { callGeminiCascade, toMessages } from "../_shared/gemini.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
@@ -44,7 +43,7 @@ const PEST_SCHEMA = {
 const json = (b: unknown, s = 200) =>
   new Response(JSON.stringify(b), { status: s, headers: { "Content-Type": "application/json" } });
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   try {
     const db = serviceClient();
     const apiKey = Deno.env.get("GEMINI_API_KEY");
@@ -111,7 +110,12 @@ serve(async (req) => {
           maxOutputTokens: 512,
           logContext: { homeId },
         });
-        await logAiUsage(db as unknown as Parameters<typeof logAiUsage>[0], { homeId, functionName: FN, action: "pest_risk", usage });
+        await logAiUsage(db as unknown as Parameters<typeof logAiUsage>[0], {
+          homeId, functionName: FN, action: "pest_risk", usage,
+          contextBlock: relevant.map((r) => `- ${r.name} (affects: ${r.matched.join(", ")})`).join("\n"),
+          prompt,
+          rawResult: text,
+        });
 
         let parsed: { insights?: Array<{ ailment?: string; plant?: string; body?: string; severity?: number }> } = {};
         try { parsed = JSON.parse(text); } catch { /* keep empty */ }

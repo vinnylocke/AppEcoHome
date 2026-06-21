@@ -12,7 +12,6 @@
  *
  * The optional Sage+ AI rewrite of `rationale` → `ai_rationale` is a follow-up.
  */
-import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { serviceClient } from "../_shared/supabaseClient.ts";
 import { log, warn } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
@@ -106,6 +105,9 @@ async function enrichRationales(
     });
     await logAiUsage(db as unknown as Parameters<typeof logAiUsage>[0], {
       userId: null, homeId, functionName: FN, action: "suggestion_prose", usage,
+      contextBlock: rationales.map((r, i) => `${i + 1}. ${r}`).join("\n"),
+      prompt,
+      rawResult: text,
     });
     const parsed = JSON.parse(text) as { rewrites?: unknown };
     return Array.isArray(parsed.rewrites) ? parsed.rewrites.map((x) => String(x)) : [];
@@ -115,7 +117,7 @@ async function enrichRationales(
   }
 }
 
-serve(async (req) => {
+Deno.serve(async (req) => {
   try {
     const db = serviceClient();
     let body: { homeId?: string } = {};

@@ -280,6 +280,9 @@ Deno.serve(async (req) => {
           summary = text.trim();
           await logAiUsage(db as unknown as Parameters<typeof logAiUsage>[0], {
             userId, homeId, functionName: FN, action: "insights_summary", usage,
+            contextBlock: insights.slice(0, 12).map((i, n) => `${n + 1}. [${i.category}] ${i.title}: ${i.body}`).join("\n"),
+            prompt,
+            rawResult: text,
           });
           await db.from("ai_insight_summaries").upsert({
             user_id: userId, home_id: homeId, summary, based_on: basedOn, persona, generated_at: new Date().toISOString(),
