@@ -45,6 +45,29 @@ window.addEventListener("unhandledrejection", e =>
 // reloading mid-session (which was disorienting and could also loop).
 const updateSW = registerSW({
   immediate: true,
+  onRegisteredSW(_swUrl, registration) {
+    if (!registration) return;
+    // Proactively check for a new service worker while the app is open and on
+    // resume, so installed PWAs pick up deploys without needing a full
+    // relaunch (the SW otherwise only re-checks on navigation). Error-safe: a
+    // transient iOS Safari "Load failed" during the check must never become an
+    // unhandled rejection.
+    const checkForUpdate = () => {
+      if (document.visibilityState !== "visible") return;
+      registration.update().catch(() => {
+        /* offline / backgrounded mid-fetch — ignore, we'll retry on next resume */
+      });
+    };
+    window.setInterval(checkForUpdate, 60 * 60 * 1000); // hourly while open
+    document.addEventListener("visibilitychange", checkForUpdate);
+    window.addEventListener("focus", checkForUpdate);
+  },
+  onRegisterError(error) {
+    // SW registration/update fetch failed — almost always a transient iOS
+    // Safari "Load failed" (offline or backgrounded mid-fetch). Handling it
+    // here stops it surfacing as an unhandled rejection (Sentry RHOZLY-W).
+    console.warn("[pwa] service worker registration error:", error);
+  },
   onNeedRefresh() {
     if (sessionStorage.getItem("rhozly_just_saw_release_notes")) {
       sessionStorage.removeItem("rhozly_just_saw_release_notes");
@@ -78,6 +101,12 @@ Sentry.init({
     const err = hint?.originalException;
     if (err instanceof Error && err.name === "AbortError") return null;
     if (typeof err === "string" && err.includes("AbortError")) return null;
+    // Benign transient iOS Safari noise: the service-worker script update fetch
+    // failed (offline / app backgrounded mid-check). Not actionable — drop it.
+    // Specific match so real chunk-load failures (handled by handleChunkError)
+    // still report.
+    const m = err instanceof Error ? err.message : typeof err === "string" ? err : "";
+    if (m.includes("sw.js") && m.toLowerCase().includes("load failed")) return null;
     return event;
   },
 
