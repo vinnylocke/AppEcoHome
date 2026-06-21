@@ -1,5 +1,8 @@
 {
   "version": "5",
+  "redirects": {
+    "https://esm.sh/stripe@18?target=deno": "https://esm.sh/stripe@18.5.0?target=deno"
+  },
   "remote": {
     "https://deno.land/std@0.168.0/async/abortable.ts": "80b2ac399f142cc528f95a037a7d0e653296352d95c681e284533765961de409",
     "https://deno.land/std@0.168.0/async/deadline.ts": "2c2deb53c7c28ca1dda7a3ad81e70508b1ebc25db52559de6b8636c9278fd41f",
@@ -12,11 +15,14 @@
     "https://deno.land/std@0.168.0/async/retry.ts": "e8e5173623915bbc0ddc537698fa418cf875456c347eda1ed453528645b42e67",
     "https://deno.land/std@0.168.0/async/tee.ts": "3a47cc4e9a940904fd4341f0224907e199121c80b831faa5ec2b054c6d2eff5e",
     "https://deno.land/std@0.168.0/http/server.ts": "e99c1bee8a3f6571ee4cdeb2966efad465b8f6fe62bec1bdb59c1f007cc4d155",
-    "https://esm.sh/@supabase/supabase-js@2.39.3": "832d7714491bd1c8a9008a332b35cb099f24b451ad79e755ecf4d71985fd6610"
+    "https://esm.sh/@supabase/supabase-js@2.39.3": "832d7714491bd1c8a9008a332b35cb099f24b451ad79e755ecf4d71985fd6610",
+    "https://esm.sh/@supabase/supabase-js@2.49.4": "d52c4d06946766d328fdd0ac2e007f52bb6d2ef7ce6103ad9f0f57d92b73e978",
+    "https://esm.sh/stripe@18.5.0?target=deno": "d9b6d1310d5168cc94495f0ffc275048be7aac23ea942ddc7f8bff513ffd9e71"
   },
   "workspace": {
     "packageJson": {
       "dependencies": [
+        "npm:@capacitor-community/text-to-speech@^8.0.2",
         "npm:@capacitor/android@^8.3.0",
         "npm:@capacitor/app@^8.1.0",
         "npm:@capacitor/browser@^8.0.3",
@@ -36,17 +42,19 @@
         "npm:@tailwindcss/postcss@^4.2.2",
         "npm:@testing-library/dom@^10.4.1",
         "npm:@testing-library/react@^16.3.2",
-        "npm:@tiptap/extension-image@^3.22.5",
-        "npm:@tiptap/extension-link@^3.22.5",
-        "npm:@tiptap/extension-placeholder@^3.22.5",
-        "npm:@tiptap/extension-table-cell@^3.22.5",
-        "npm:@tiptap/extension-table-header@^3.22.5",
-        "npm:@tiptap/extension-table-row@^3.22.5",
-        "npm:@tiptap/extension-table@^3.22.5",
+        "npm:@tiptap/extension-image@^3.26.0",
+        "npm:@tiptap/extension-link@^3.26.0",
+        "npm:@tiptap/extension-placeholder@^3.26.0",
+        "npm:@tiptap/extension-table-cell@^3.26.0",
+        "npm:@tiptap/extension-table-header@^3.26.0",
+        "npm:@tiptap/extension-table-row@^3.26.0",
+        "npm:@tiptap/extension-table@^3.26.0",
+        "npm:@tiptap/extension-task-item@^3.26.0",
+        "npm:@tiptap/extension-task-list@^3.26.0",
         "npm:@tiptap/extension-underline@^3.22.5",
         "npm:@tiptap/pm@^3.22.5",
-        "npm:@tiptap/react@^3.22.5",
-        "npm:@tiptap/starter-kit@^3.22.5",
+        "npm:@tiptap/react@^3.26.0",
+        "npm:@tiptap/starter-kit@^3.26.0",
         "npm:@types/leaflet@^1.9.21",
         "npm:@types/node@^24.12.0",
         "npm:@types/pg@^8.20.0",
@@ -54,6 +62,7 @@
         "npm:@types/react@^19.2.14",
         "npm:@types/suncalc@^1.9.2",
         "npm:@types/three@0.184",
+        "npm:@vercel/analytics@^2.0.1",
         "npm:@vitejs/plugin-react@^6.0.1",
         "npm:@vitest/coverage-v8@^4.1.5",
         "npm:autoprefixer@^10.4.27",
