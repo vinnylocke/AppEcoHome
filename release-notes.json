@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Fixes",
+    "items": [
+      "Fixed an issue where an automation could occasionally send a duplicate notification."
+    ]
+  }
+]
