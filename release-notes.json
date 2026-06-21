@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Garden AI chat",
+    "items": [
+      "Read-aloud now only voices new replies — opening the chat no longer reads the previous message aloud.",
+      "When you ask to see a plant, the chat now AI-checks each photo for relevance and hides any that don't clearly show the plant, so you get better-matching images.",
+      "Plant photos in the chat now carry a short note that they're sourced from the web and may not show the exact plant or variety."
+    ]
+  }
+]
