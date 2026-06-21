@@ -29,6 +29,7 @@ import { isRateLimited, windowStartIso, FIRED_STATUSES, shouldCollapseRateLimitS
 import { defaultWindowOpen, type DefaultWindow } from "../_shared/automationWindow.ts";
 import { treeHasTimeTrigger, treeAffectedByDevice } from "../_shared/automationCandidates.ts";
 import { fanoutActions } from "../_shared/fanoutActions.ts";
+import { applyEdgeClaimFilter } from "../_shared/automationClaim.ts";
 
 const FN = "evaluate-automations";
 
@@ -199,7 +200,27 @@ async function processOne(
     }
   }
 
-  // 5. FIRE.
+  // 5. CLAIM the firing edge atomically, BEFORE any side effect. The 5-min
+  //    (time) and 15-min (all) crons coincide every :15, and the sensor event
+  //    path can overlap a sweep — so two invocations can both reach here on the
+  //    same rising edge. A conditional update on `last_fired_at` lets only one
+  //    win: the loser's WHERE no longer matches (Postgres re-checks the
+  //    predicate after the winner commits) → 0 rows → it bails WITHOUT firing,
+  //    so we never insert a second run / send a duplicate notification.
+  const claim = applyEdgeClaimFilter(
+    db.from("automations")
+      .update({ last_fired_at: now.toISOString(), condition_was_true: true, rate_limited_until: null })
+      .eq("id", id),
+    (automation.last_fired_at as string | null) ?? null,
+  );
+  const { data: claimed, error: claimErr } = await claim.select("id");
+  if (claimErr) throw new Error(`Failed to claim firing edge: ${claimErr.message}`);
+  if (!claimed || (claimed as unknown[]).length === 0) {
+    log(FN, "raced", { id });
+    return { decision: "raced" };
+  }
+
+  // 6. FIRE (we won the claim).
   const reason = summariseSatisfied(tree, leafEval); // { summary, matched } — why it ran (#5)
   const { data: runIns, error: runErr } = await db.from("automation_runs")
     .insert({
@@ -212,9 +233,6 @@ async function processOne(
 
   const fanout = await fanoutActions(db, { id, home_id: homeId, name: automation.name as string }, runId, now);
 
-  await db.from("automations").update({
-    last_fired_at: now.toISOString(), condition_was_true: true, rate_limited_until: null,
-  }).eq("id", id);
   await db.from("automation_runs").update({
     completed_at: now.toISOString(),
     devices_triggered: { notifications: fanout.notifications_queued, valves_queued: fanout.valves_queued },

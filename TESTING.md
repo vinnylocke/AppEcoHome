@@ -805,6 +805,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `automationWindow.test.ts` | 11 | Home default run-window — `treeHasOwnSchedule` (time/date_range at any depth), `isWithinWindow` (daytime, HH:MM:SS form, overnight wrap, zero-length always, tz shift), `defaultWindowOpen` (disabled bypass, own-schedule bypass, sensor-only gated to window) |
 | `plantImageVet.test.ts` | 10 | Chat gallery AI vetting — `selectConfidentImages` (threshold keep/drop, legitimately drops all, **fails open** on length-mismatch / missing scores, NaN fails, default threshold) + `parseScores` (valid / stringified-coerce / bad-shape→null / NaN) |
 | `plantFirstBlueprint.test.ts` | 6 | Plant-first planner output hardening — `normalisePlantFirstBlueprint`: caps areas (max 6), drops plant-less areas, clamps quantities (1–99) + `frequency_days` (1–365), coerces missing fields, derives `is_new` from `existing_area_id` |
+| `automationClaim.test.ts` | 3 | Automation firing race guard — `applyEdgeClaimFilter` keys the optimistic-CAS claim on the exact `last_fired_at` read (`IS NULL` when never fired, `eq` otherwise; never an unconditional update), so concurrent cron/event invocations can't double-fire the same rising edge |
 
 ### E2E tests — 468 tests across 31 files (+ 13 isolation tests)
 
