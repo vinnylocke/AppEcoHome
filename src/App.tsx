@@ -14,7 +14,6 @@ import {
   Zap,
   BookOpen,
   NotebookPen,
-  Sparkles,
   Leaf,
 } from "lucide-react";
 import { IconPlants, IconPlanner, IconDoctor, IconAI, IconIntegrations } from "./constants/icons";
@@ -94,7 +93,6 @@ const QuickAccessHome     = lazy(() => import("./components/QuickAccessHome"));
 const LocalizedTaskCalendar = lazy(() => import("./components/quick/LocalizedTaskCalendar"));
 const GlobalJournal         = lazy(() => import("./components/GlobalJournal"));
 const WeeklyOverviewPage    = lazy(() => import("./components/WeeklyOverviewPage"));
-const AiInsightsPage        = lazy(() => import("./components/AiInsightsPage"));
 const HeadGardenerPage      = lazy(() => import("./components/manager/HeadGardenerPage"));
 const HeadGardenerCard      = lazy(() => import("./components/manager/HeadGardenerCard"));
 const NotesPage             = lazy(() => import("./components/notes/NotesPage"));
@@ -220,7 +218,6 @@ const TAB_URL: Record<string, string> = {
   admin_guides:     "/admin/guides",
   tools:            "/tools",
   integrations:     "/integrations",
-  insights:         "/insights",
   manager:          "/manager",
 };
 
@@ -1185,7 +1182,6 @@ function AppShell() {
     { id: "tools",        icon: <IconDoctor />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
     { id: "integrations", icon: <IconIntegrations />,        label: "Integrations", matchPaths: ["/integrations"] },
     { id: "manager",      icon: <Leaf />, label: "Head Gardener", matchPaths: ["/manager"] },
-    { id: "insights",     icon: <Sparkles />, label: "AI Insights", matchPaths: ["/insights"] },
   ];
 
   const canUsePortal = typeof document !== "undefined";
@@ -1681,11 +1677,8 @@ function AppShell() {
                           </div>
                         ) : null
                       } />
-                      <Route path="/insights" element={
-                        <div className="h-full overflow-auto animate-in fade-in duration-500">
-                          <AiInsightsPage />
-                        </div>
-                      } />
+                      {/* AI Insights now lives inside Head Gardener; redirect old links there. */}
+                      <Route path="/insights" element={<Navigate to="/manager?tab=insights" replace />} />
                       <Route path="/manager" element={
                         profile?.home_id ? (
                           <div className="h-full overflow-auto animate-in fade-in duration-500">

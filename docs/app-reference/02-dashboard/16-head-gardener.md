@@ -29,7 +29,7 @@ Where Rhozly's other AI surfaces fire isolated, reactive alerts, the Head Garden
   - `ManagerLog.tsx` — under the report on Overview; the continuity timeline.
   - `GardenBriefPanel.tsx` — Brief tab; AI-draft / edit / confirm flow.
   - `ManagerYearPlan.tsx` — Year Plan tab; this-month / this-season / coming-up.
-  - `AiInsightsPage.tsx` — Insights tab; the existing unified feed, embedded as the raw signal layer.
+  - `AiInsightsPage.tsx` — Insights tab; the unified feed, embedded as the raw signal layer. This is now its ONLY home — the standalone `/insights` route + nav item were removed (folded in here); `/insights` redirects to `/manager?tab=insights`.
   - `HeadGardenerChat.tsx` — Ask tab; grounded conversation.
 
 ### Props received
