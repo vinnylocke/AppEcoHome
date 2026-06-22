@@ -512,6 +512,22 @@ verify_jwt = false
 [functions.generate-grow-suggestions]
 verify_jwt = false
 
+# Head Gardener — drafts a Garden Brief (goals + constraints) from the user's
+# quiz answers, preferences, plants + climate. On-demand; user confirms the draft.
+[functions.synthesize-garden-brief]
+verify_jwt = false
+
+# Head Gardener — the standing Estate Report: a goal-by-goal management breakdown
+# of the whole home (brief + context + gaps + insights + follow-ups). Cached by
+# content hash; on-demand + weekly cron.
+[functions.garden-manager-report]
+verify_jwt = false
+
+# Head Gardener — "Ask your Head Gardener": a grounded chat about the whole garden
+# (brief + report + context + open items). Read/advise-only; learns preferences.
+[functions.head-gardener-chat]
+verify_jwt = false
+
 # 2026-06-16 Custom integrations Phase 3 — public webhook router for
 # every adapter that implements parseWebhook(). The user's device hits
 # this endpoint with the per-integration webhook secret in the path,

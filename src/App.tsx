@@ -15,6 +15,7 @@ import {
   BookOpen,
   NotebookPen,
   Sparkles,
+  Leaf,
 } from "lucide-react";
 import { IconPlants, IconPlanner, IconDoctor, IconAI, IconIntegrations } from "./constants/icons";
 
@@ -94,6 +95,8 @@ const LocalizedTaskCalendar = lazy(() => import("./components/quick/LocalizedTas
 const GlobalJournal         = lazy(() => import("./components/GlobalJournal"));
 const WeeklyOverviewPage    = lazy(() => import("./components/WeeklyOverviewPage"));
 const AiInsightsPage        = lazy(() => import("./components/AiInsightsPage"));
+const HeadGardenerPage      = lazy(() => import("./components/manager/HeadGardenerPage"));
+const HeadGardenerCard      = lazy(() => import("./components/manager/HeadGardenerCard"));
 const NotesPage             = lazy(() => import("./components/notes/NotesPage"));
 const CreditsPage           = lazy(() => import("./components/CreditsPage"));
 const GardenWalk            = lazy(() => import("./components/walk/GardenWalk"));
@@ -218,6 +221,7 @@ const TAB_URL: Record<string, string> = {
   tools:            "/tools",
   integrations:     "/integrations",
   insights:         "/insights",
+  manager:          "/manager",
 };
 
 function AppShell() {
@@ -1178,6 +1182,7 @@ function AppShell() {
     { id: "notes",     icon: <NotebookPen />, label: "Notes",   matchPaths: ["/notes"] },
     { id: "tools",        icon: <IconDoctor />, label: "Tools",        matchPaths: ["/tools", "/doctor", "/visualiser", "/lightsensor", "/guides", "/garden-layout", "/sun-trajectory"] },
     { id: "integrations", icon: <IconIntegrations />,        label: "Integrations", matchPaths: ["/integrations"] },
+    { id: "manager",      icon: <Leaf />, label: "Head Gardener", matchPaths: ["/manager"] },
     { id: "insights",     icon: <Sparkles />, label: "AI Insights", matchPaths: ["/insights"] },
   ];
 
@@ -1537,9 +1542,12 @@ function AppShell() {
                                         )}
                                       </div>
                                     )}
-                                    {/* AI Insight card */}
+                                    {/* Head Gardener entry point + AI Insight card */}
                                     {session?.user?.id && (
                                       <Suspense fallback={null}>
+                                        <div data-testid="dashboard-head-gardener-card">
+                                          <HeadGardenerCard />
+                                        </div>
                                         <div data-testid="dashboard-assistant-card">
                                           <AssistantCard userId={session.user.id} />
                                         </div>
@@ -1675,6 +1683,13 @@ function AppShell() {
                         <div className="h-full overflow-auto animate-in fade-in duration-500">
                           <AiInsightsPage />
                         </div>
+                      } />
+                      <Route path="/manager" element={
+                        profile?.home_id ? (
+                          <div className="h-full overflow-auto animate-in fade-in duration-500">
+                            <HeadGardenerPage homeId={profile.home_id} />
+                          </div>
+                        ) : null
                       } />
 
                       <Route path="/notes" element={

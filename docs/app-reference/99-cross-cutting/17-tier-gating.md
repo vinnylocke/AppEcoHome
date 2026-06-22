@@ -95,8 +95,13 @@ export const FEATURE_GATES: Record<Feature, TierId[]> = {
 tierAllowsFeature(tier, "light_sensor"); // list membership — lattice-safe
 ```
 
-**Every feature currently lists `ALL`, so nothing is gated yet** — the mechanism is in place so any one
+**Most features list `ALL`** — the mechanism is in place so any one
 feature can be gated by changing its array (no numeric "minimum tier", because Sage ≠ Botanist+).
+**Exceptions (gated):** `ai_insights` and `head_gardener` both list `EVERGREEN` (`["evergreen"]`). The
+Head Gardener gate (`head_gardener` → `HeadGardenerPage` + the dashboard `HeadGardenerCard`) is mirrored
+server-side by `tierAllowsInsights()` in `supabase/functions/_shared/insightTiers.ts`, which all three
+Head Gardener edge functions (`synthesize-garden-brief`, `garden-manager-report`, `head-gardener-chat`)
+re-check before doing any work.
 Consumed by `useEntitlements(tierProp?)` (`src/hooks/useEntitlements.ts`, module-cached tier fetch) and
 the reusable `<FeatureGate feature tier? fallback?>` + `<UpgradeNudge feature compact? />`
 (`src/components/shared/`). **Wired (all open):** `light_sensor` (LightSensor), `garden_layout`

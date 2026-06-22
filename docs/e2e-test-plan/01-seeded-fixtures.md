@@ -155,6 +155,19 @@ Per-worker substitution is `1000011` → `${w + 1}00011`. Worker 1 (test1) forks
 
 **Important:** these fork IDs look like leftover plants from old `plant-doctor` runs but they're NOT — they're load-bearing seed data for `ai-plant-freshness.spec.ts` and `ai-plant-override.spec.ts`. Don't scrub plants where `id < 1_000_000 AND source = 'ai'` in any `beforeAll` cleanup; it will delete these and silently break 7 tests across two specs.
 
+### Head Gardener — UUIDs at `0013-` (`14_head_gardener.sql`)
+
+`garden_brief` and `garden_manager_reports` are keyed by `home_id` (one row per home); the continuity log uses the `0013-` block.
+
+```
+GARDEN_BRIEF         = keyed by home_id 00000001-0000-0000-0000-000000000002  (confirmed)
+MANAGER_REPORT       = keyed by home_id (cached Estate Report, persona=experienced)
+MANAGER_LOG_GAP_ID   = 00000001-0000-0000-0013-000000000001  (open gap — winter colour)
+MANAGER_LOG_FEED_ID  = 00000001-0000-0000-0013-000000000002  (acted follow-up — fed tomatoes)
+```
+
+Brief: goals `grow_your_own, year_round_colour, attract_wildlife` · styles `cottage, kitchen_veg` · time `1_3h` · experience `improving`. Evergreen-gated (set the test account tier to `evergreen` to exercise the Head Gardener tab).
+
 ### Rhozly guides (shared across all workers)
 
 ```
@@ -200,5 +213,6 @@ All seed files use `ON CONFLICT DO UPDATE`, so re-running is safe. Seeds that re
 | `11_community_guides.sql` | 2 published guides with stars + comments |
 | `12_shopping_lists.sql` | 2 lists (1 active, 1 completed) with 6 items |
 | `13_ai_freshness.sql` | Cherry Tomato + Lavender catalogue + per-home forks |
+| `14_head_gardener.sql` | Confirmed Garden Brief + cached Estate Report + 2 continuity-log entries |
 
 > **Lost or corrupted seed data?** `npm run test:seed` restores it. Each seed file is independent.

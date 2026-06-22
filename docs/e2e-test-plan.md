@@ -1,6 +1,6 @@
 # Rhozly — E2E test plan
 
-**Status:** ✅ ~547 passing tests across **30 spec files** · 🔲 ~22 planned · 🚧 17 in progress · last verified 2026-06-15.
+**Status:** ✅ ~554 passing tests across **31 spec files** · 🔲 ~22 planned · 🚧 17 in progress · last verified 2026-06-15.
 Full status detail: **[`e2e-test-plan/00-status.md`](e2e-test-plan/00-status.md)**.
 
 This file is the **index**. Each section's test rows + seed dependencies + page-object links live in their own file at `docs/e2e-test-plan/`. The fixtures (UUIDs + per-worker plant IDs) live in [`e2e-test-plan/01-seeded-fixtures.md`](e2e-test-plan/01-seeded-fixtures.md) — single source of truth, cross-linked from CLAUDE.md and every section.
@@ -42,6 +42,7 @@ This file is the **index**. Each section's test rows + seed dependencies + page-
 | 25 | Security (auth + XSS + storage) | `security-{auth,xss,storage}.spec.ts` | [25-security.md](e2e-test-plan/25-security.md) |
 | 26 | Cross-home Data Isolation | `data-isolation.spec.ts` (isolation project) | [26-data-isolation.md](e2e-test-plan/26-data-isolation.md) |
 | 27 | Help Center — Documentation drawer | `help-center-docs.spec.ts` | [27-help-center-docs.md](e2e-test-plan/27-help-center-docs.md) |
+| 28 | Head Gardener (AI manager) | `head-gardener.spec.ts` | [28-head-gardener.md](e2e-test-plan/28-head-gardener.md) |
 
 ## Workflow
 

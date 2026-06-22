@@ -15,7 +15,8 @@ export type Feature =
   | "guide_authoring"
   | "integrations"
   | "shopping"
-  | "ai_insights";
+  | "ai_insights"
+  | "head_gardener";
 
 const ALL: TierId[] = ["sprout", "botanist", "sage", "evergreen"];
 const PAID: TierId[] = ["botanist", "sage", "evergreen"];
@@ -51,6 +52,9 @@ export const FEATURE_GATES: Record<Feature, TierId[]> = {
   // The whole AI-insights experience ships Evergreen-only for now. Flip this one
   // array (+ its server mirror in supabase/functions/_shared/insightTiers.ts) to amend.
   ai_insights: EVERGREEN,
+  // The Head Gardener AI manager tab — same Evergreen gate, mirrored server-side by
+  // tierAllowsInsights() in supabase/functions/_shared/insightTiers.ts.
+  head_gardener: EVERGREEN,
 };
 
 export const FEATURE_LABELS: Record<Feature, string> = {
@@ -68,6 +72,7 @@ export const FEATURE_LABELS: Record<Feature, string> = {
   integrations: "Smart Integrations",
   shopping: "Shopping Lists",
   ai_insights: "AI Insights",
+  head_gardener: "Head Gardener",
 };
 
 /** Is this tier allowed to use the feature? Unknown tier → treated as Sprout. */

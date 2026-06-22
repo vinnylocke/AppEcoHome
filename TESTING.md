@@ -735,7 +735,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 378 tests across 31 files
+### Unit tests — 393 tests across 33 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -768,6 +768,8 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `conditionTree.test.ts` | 10 | Unified automation builder — `newLeaf`/`newGroup` defaults, `summariseNode`/`summariseTree` (sensor count, negate "not", time weekdays/every-day, AND join, empty AND/OR, null) |
 | `chatAutoRead.test.ts` | 9 | Chat auto-read decision — `reduceAutoRead` primes the existing tail on open (no speak), speaks only newly-arrived replies, dedupes re-renders, re-primes on reopen / history reload, skips welcome / off / loading |
 | `plantFirstPlan.test.ts` | 2 | Plant-first planner client helper — `countBlueprintPlants` (sums plants across all area groups; null / undefined / no-areas → 0) |
+| `gardenBrief.test.ts` | 10 | Head Gardener brief helpers — `goalLabel`/`styleLabel`/`timeLabel`/… (id→label + fallback), `isBriefEmpty`/`isBriefConfirmed`, `summariseBrief`, `normaliseDraft` (drops invented ids, de-dupes, caps goals/styles, total on garbage) |
+| `managerReport.test.ts` | 5 | Head Gardener report helpers — `sortSections` (severity desc, stable, non-mutating), `severityTone` (label+classes), `isReportEmpty` |
 
 ### Edge function tests — Deno
 
@@ -806,8 +808,10 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `plantImageVet.test.ts` | 10 | Chat gallery AI vetting — `selectConfidentImages` (threshold keep/drop, legitimately drops all, **fails open** on length-mismatch / missing scores, NaN fails, default threshold) + `parseScores` (valid / stringified-coerce / bad-shape→null / NaN) |
 | `plantFirstBlueprint.test.ts` | 6 | Plant-first planner output hardening — `normalisePlantFirstBlueprint`: caps areas (max 6), drops plant-less areas, clamps quantities (1–99) + `frequency_days` (1–365), coerces missing fields, derives `is_new` from `existing_area_id` |
 | `automationClaim.test.ts` | 3 | Automation firing race guard — `applyEdgeClaimFilter` keys the optimistic-CAS claim on the exact `last_fired_at` read (`IS NULL` when never fired, `eq` otherwise; never an unconditional update), so concurrent cron/event invocations can't double-fire the same rising edge |
+| `gapAnalysis.test.ts` | 12 | Head Gardener goal-gap engine — `analyseGaps` (year-round-colour bare-season detection case-insensitive, grow-your-own no-edibles + harvest-gap, attract-wildlife, low-maintenance overload, family-safe toxic flags, multi-goal accumulation, full-coverage → no gap) |
+| `managerLog.test.ts` | 6 | Head Gardener continuity log — `gapKey`/`gapTitle`, `diffGapLog` (opens new gaps, closes gone gaps, simultaneous open+close, ignores null target_id, no-op) |
 
-### E2E tests — 468 tests across 31 files (+ 13 isolation tests)
+### E2E tests — 475 tests across 32 files (+ 13 isolation tests)
 
 > `ailment-library.spec.ts` (Section 24) covers the browse shell (heading, search, kind filter chips) + the "Browse the ailment library" navigation from the Watchlist. Shell-only (the seeded e2e DB has no `ailment_library` rows → grid empty state).
 
@@ -837,6 +841,7 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `shopping-edge-cases.spec.ts` | 4 | Shopping gaps (SHOP-E-001..004): Add Item sheet renders Plant + Product tabs, Product tab fields render, completed section toggle renders (seed completed list), Add-to-Shed surfaces on the seeded checked-plants list |
 | `planner-restore.spec.ts` | 3 | Planner Archive/Restore (PLN-R-001..003): seeded archived plan visible on Archived tab, options menu shows Restore + Delete, Restore moves plan from Archived → Pending (Active) |
 | `dashboard.spec.ts` | 43 | Dashboard sections, weather card, daily tasks, plant grid, nav links, pull-to-refresh |
+| `head-gardener.spec.ts` | 7 | Head Gardener `/manager` (HG-001..007): hub heading + tabs, Overview report (mocked) headline/section/gap, continuity log seeded open item, Brief tab seeded brief, Year Plan tab seeded items, Insights tab embedded feed, Ask tab grounded reply (mocked) |
 | `plants.spec.ts` | 4 | Shed page load, search input, nav link, plants-or-empty state |
 | `shed-crud.spec.ts` | 30 | Add plant (manual + AI), edit, archive, restore, delete, search/filter, detail drawer |
 | `tasks.spec.ts` | 31 | Daily tasks, pending/completed tabs, complete, postpone, ghost task generation, shift-blueprint on postpone |
