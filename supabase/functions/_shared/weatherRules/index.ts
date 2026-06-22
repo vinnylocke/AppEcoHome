@@ -23,6 +23,7 @@ export interface WeatherContext {
   today: string;              // YYYY-MM-DD
   outsideLocationIds: string[];
   hasTropicalOutdoor: boolean;
+  climateZone: string | null; // home.climate_zone (or derived from lat) — drives the climate-aware heat threshold
   daily: DailySummary[];      // daily[0] = yesterday (past_days=1), daily[1] = today, ...
   hourly: HourlyPoint[];      // 48h window starting from today for frost detection
 }
@@ -34,6 +35,10 @@ export interface WeatherAlert {
   severity: AlertSeverity;
   message: string;
   starts_at: string;
+  /** All affected forecast dates (YYYY-MM-DD), for grouped "Mon–Wed" display. */
+  dates?: string[];
+  /** Last affected moment — drives the stale-out sweep + range display. */
+  endsAt?: string;
 }
 
 export interface TaskAutoComplete {
@@ -58,6 +63,20 @@ export const EMPTY_RESULT: WeatherRuleResult = {
   taskAutoCompletes: [],
   notifications: [],
 };
+
+/** Longest run of consecutive calendar days within a YYYY-MM-DD list (0 if empty). */
+export function maxConsecutiveDays(dates: string[]): number {
+  const sorted = [...new Set(dates)].sort();
+  let best = 0, run = 0;
+  let prev: number | null = null;
+  for (const d of sorted) {
+    const t = Date.parse(`${d}T00:00:00Z`);
+    run = prev !== null && t - prev === 86_400_000 ? run + 1 : 1;
+    if (run > best) best = run;
+    prev = t;
+  }
+  return best;
+}
 
 export interface WeatherRule {
   id: string;

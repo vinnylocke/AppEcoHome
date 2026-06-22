@@ -733,7 +733,9 @@ function AppShell() {
               .select("*")
               .in("location_id", locationIds)
               .eq("is_active", true)
-              .gte("starts_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
+              // Keep an alert visible until its LAST affected day (ends_at), so a
+              // multi-day heatwave/frost doesn't drop off after day one.
+              .gte("ends_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
               .order("starts_at", { ascending: true }),
             supabase
               .from("tasks")
@@ -2063,14 +2065,14 @@ function DashboardRealtimeSubscriber({
 
   // Weather (snapshots + alerts) is NOT subscribed via realtime — it
   // changes on an hourly cron, not user action (scalability Wave D).
-  // Instead we refetch on tab-focus, throttled to once per 5 minutes,
-  // so returning to the app picks up fresh weather without the
+  // Instead we refetch on tab-focus, throttled to once per 60 seconds,
+  // so returning to the app surfaces fresh alerts promptly without the
   // per-client realtime cost.
   useEffect(() => {
     let lastRefetch = Date.now();
     const onVisible = () => {
       if (document.visibilityState !== "visible") return;
-      if (Date.now() - lastRefetch < 5 * 60_000) return;
+      if (Date.now() - lastRefetch < 60_000) return;
       lastRefetch = Date.now();
       onDataRefresh();
     };

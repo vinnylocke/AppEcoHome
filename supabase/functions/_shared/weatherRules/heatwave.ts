@@ -1,35 +1,40 @@
 import type { WeatherRule, WeatherContext, WeatherRuleResult } from "./index.ts";
-import { EMPTY_RESULT } from "./index.ts";
+import { EMPTY_RESULT, maxConsecutiveDays } from "./index.ts";
+import { heatThresholdForClimate } from "../climateZones.ts";
 
-// Advises the user to water more when warm weather is forecast in the next 2 days.
-// Uses the 'heat' alert type to record the alert, plus a notification.
-const HEAT_THRESHOLD_C = 25;
-
+// Flags hot weather across the forecast window so the user can prepare. The
+// threshold is climate-aware (25°C is a heatwave in the UK but a normal day in
+// the tropics) — see heatThresholdForClimate. A run of 3+ consecutive hot days
+// is called a "heatwave"; isolated hot days are "hot day(s)".
 const heatwave: WeatherRule = {
   id: "heatwave",
 
   evaluate(ctx: WeatherContext): WeatherRuleResult {
     if (!ctx.outsideLocationIds.length) return EMPTY_RESULT;
 
-    const hotDay = ctx.daily
-      .filter((d) => d.date >= ctx.today)
-      .slice(0, 2)
-      .find((d) => d.maxTempC >= HEAT_THRESHOLD_C);
+    const threshold = heatThresholdForClimate(ctx.climateZone);
+    const hotDays = ctx.daily.filter((d) => d.date >= ctx.today && d.maxTempC >= threshold);
+    if (hotDays.length === 0) return EMPTY_RESULT;
 
-    if (!hotDay) return EMPTY_RESULT;
+    const dates = hotDays.map((d) => d.date);
+    const peak = Math.round(Math.max(...hotDays.map((d) => d.maxTempC)));
+    const isHeatwave = maxConsecutiveDays(dates) >= 3;
+    const label = isHeatwave ? "Heatwave" : dates.length > 1 ? "Hot days" : "Hot day";
 
     return {
       alerts: [{
         type: "heat",
         severity: "warning",
-        message: `High temperatures expected (${Math.round(hotDay.maxTempC)}°C). Plants may need extra water.`,
-        starts_at: `${hotDay.date}T12:00:00`,
+        message: `${label} ahead — up to ${peak}°C. Your outdoor plants will need extra water.`,
+        starts_at: `${dates[0]}T12:00:00`,
+        endsAt: `${dates[dates.length - 1]}T18:00:00`,
+        dates,
       }],
       taskAutoCompletes: [],
       notifications: [{
         type: "weather_alert",
-        title: "Heat Alert 🌡️",
-        body: `Temperatures up to ${Math.round(hotDay.maxTempC)}°C expected. Your outdoor plants may need extra watering today.`,
+        title: isHeatwave ? "Heatwave ahead 🌡️" : "Heat Alert 🌡️",
+        body: `Temperatures up to ${peak}°C expected. Keep your outdoor plants well watered.`,
       }],
     };
   },

@@ -3,6 +3,7 @@ import { WEATHER_RULES } from "@shared/weatherRules/index.ts";
 import {
   makeWeatherContext,
   makeHourlyPoint,
+  withFrostNight,
 } from "../fixtures/weatherContext.ts";
 
 const frostRisk = WEATHER_RULES.find((r) => r.id === "frost_risk")!;
@@ -73,4 +74,20 @@ Deno.test("frostRisk — no alert when no outdoor locations", () => {
   });
   const result = frostRisk.evaluate(ctx);
   assertEquals(result.alerts.length, 0);
+});
+
+Deno.test("frostRisk — imminent frost carries the affected date", () => {
+  const ctx = makeWeatherContext({
+    hourly: [makeHourlyPoint({ time: "2026-05-01T02:00", tempC: 1 })],
+  });
+  const result = frostRisk.evaluate(ctx);
+  assertEquals(result.alerts[0].dates, ["2026-05-01"]);
+});
+
+Deno.test("frostRisk — forward frost night (daily min) alerts without imminent hourly frost", () => {
+  // hourly stays at the default 15°C; only a future daily min dips below freezing.
+  const ctx = withFrostNight(makeWeatherContext(), "2026-05-03", -1);
+  const result = frostRisk.evaluate(ctx);
+  assertEquals(result.alerts.length, 1);
+  assertEquals(result.alerts[0].dates, ["2026-05-03"]);
 });

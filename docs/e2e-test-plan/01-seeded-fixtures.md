@@ -201,7 +201,7 @@ All seed files use `ON CONFLICT DO UPDATE`, so re-running is safe. Seeds that re
 | `01_locations_areas.sql` | 2 locations, 5 garden areas |
 | `02_plants_shed.sql` | 6 plants + 6 inventory items |
 | `03_tasks_blueprints.sql` | 10 blueprints + 15 standalone tasks + Optimise-tab fragmentation pair |
-| `04_weather.sql` | 7-day forecast + 4 weather alerts |
+| `04_weather.sql` | 7-day forecast + 4 weather alerts (each with `dates` + `ends_at`; the heat alert is a grouped 3-day heatwave: today → +2) |
 | `05_planner.sql` | 3 plans (In Progress, Completed, Archived) |
 | `06_ailments_watchlist.sql` | 4 ailments (3 active, 1 archived) |
 | `07_guides.sql` | 3 Rhozly guides |

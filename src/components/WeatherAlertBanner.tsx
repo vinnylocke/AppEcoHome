@@ -1,15 +1,18 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
-import { Thermometer, Wind, X, Clock, CloudRain } from "lucide-react";
+import { ThermometerSun, Snowflake, Wind, X, Clock, CloudRain } from "lucide-react";
 import toast from "react-hot-toast";
 
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { formatDateRange } from "../lib/weatherDates";
 
 interface WeatherAlert {
   id: string;
-  type: "frost" | "wind" | "rain";
+  type: "frost" | "wind" | "rain" | "heat";
   severity: "info" | "warning" | "critical";
   message: string;
   starts_at: string;
+  dates?: string[];
+  ends_at?: string;
 }
 
 interface Props {
@@ -112,17 +115,21 @@ export const WeatherAlertBanner = ({
     [dismissedIds, handleUndo],
   );
 
-  const formatAlertTime = (isoString: string) => {
-    const date = new Date(isoString);
-    const now = new Date();
-    const isToday = date.toDateString() === now.toDateString();
-    const dayLabel = isToday ? "Today" : "Tomorrow";
-    const timeLabel = date.toLocaleTimeString("en-GB", {
-      hour: "numeric",
-      minute: "2-digit",
-      hour12: true,
-    });
-    return `${dayLabel} at ${timeLabel}`;
+  // When-label: a grouped day range for multi-day alerts ("Mon–Wed"), or a single
+  // day for one-offs. Frost carries a real hour (from the hourly scan), so we append
+  // the time for an imminent single-night frost; heat/wind use a noon placeholder, so
+  // no time is shown for those.
+  const formatWhen = (alert: WeatherAlert) => {
+    const dates = alert.dates && alert.dates.length ? alert.dates : [alert.starts_at.split("T")[0]];
+    if (dates.length > 1) return formatDateRange(dates);
+    const day = formatDateRange(dates);
+    if (alert.type === "frost") {
+      const t = new Date(alert.starts_at).toLocaleTimeString("en-GB", {
+        hour: "numeric", minute: "2-digit", hour12: true,
+      });
+      return `${day} at ${t}`;
+    }
+    return day;
   };
 
   const uniqueAlerts = useMemo(() => {
@@ -199,7 +206,9 @@ export const WeatherAlertBanner = ({
             <div className="flex items-start gap-4">
               <div className={`mt-1 p-2 rounded-xl ${styles.iconBg}`}>
                 {alert.type === "frost" ? (
-                  <Thermometer className="w-5 h-5" />
+                  <Snowflake className="w-5 h-5" />
+                ) : alert.type === "heat" ? (
+                  <ThermometerSun className="w-5 h-5" />
                 ) : alert.type === "wind" ? (
                   <Wind className="w-5 h-5" />
                 ) : (
@@ -215,7 +224,7 @@ export const WeatherAlertBanner = ({
                   <span className="w-1 h-1 rounded-full bg-current opacity-20" />
                   <div className="flex items-center gap-1 text-[10px] font-extrabold text-rhozly-primary">
                     <Clock className="w-3 h-3" />
-                    {formatAlertTime(alert.starts_at)}
+                    {formatWhen(alert)}
                   </div>
                 </div>
                 <p className="text-sm font-bold leading-tight">

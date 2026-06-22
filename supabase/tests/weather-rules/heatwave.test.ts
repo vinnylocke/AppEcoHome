@@ -8,39 +8,53 @@ import {
 // Import via the barrel to avoid circular TDZ: heatwave.ts → index.ts → heatwave.ts
 const heatwave = WEATHER_RULES.find((r) => r.id === "heatwave")!;
 
-// HEAT_THRESHOLD_C = 25 (lowered from 32 for UK-leaning audience — 25°C is hot
-// enough to stress temperate-zone plants without irrigation). Scans today +
-// tomorrow only (slice 0..2 from today onwards). today = "2026-05-01",
-// tomorrow = "2026-05-02".
+// Threshold is climate-aware (heatThresholdForClimate). Fixture default climate is
+// cool_temperate → 28°C. today = "2026-05-01". The rule scans the WHOLE forecast
+// window (not just today+tomorrow) and groups the matching days.
 
-Deno.test("heatwave — triggers alert when today hits 32°C", () => {
+Deno.test("heatwave — triggers when today is over the climate threshold", () => {
   const ctx = withHotDay(makeWeatherContext(), "2026-05-01", 32);
   const result = heatwave.evaluate(ctx);
   assertEquals(result.alerts.length, 1);
   assertEquals(result.alerts[0].type, "heat");
   assertEquals(result.alerts[0].severity, "warning");
+  assertEquals(result.alerts[0].dates, ["2026-05-01"]);
   assertEquals(result.notifications.length, 1);
   assertEquals(result.taskAutoCompletes.length, 0);
 });
 
-Deno.test("heatwave — triggers alert when tomorrow hits 35°C", () => {
-  const ctx = withHotDay(makeWeatherContext(), "2026-05-02", 35);
-  const result = heatwave.evaluate(ctx);
-  assertEquals(result.alerts.length, 1);
-  assertEquals(result.alerts[0].type, "heat");
-});
-
-Deno.test("heatwave — no alert when max temp is 24°C (below 25°C threshold)", () => {
-  const ctx = withHotDay(makeWeatherContext(), "2026-05-01", 24);
+Deno.test("heatwave — no alert below the climate threshold (27°C in cool_temperate)", () => {
+  const ctx = withHotDay(makeWeatherContext(), "2026-05-01", 27);
   const result = heatwave.evaluate(ctx);
   assertEquals(result.alerts.length, 0);
   assertEquals(result.notifications.length, 0);
 });
 
-Deno.test("heatwave — no alert when hot day is 3+ days away", () => {
-  const ctx = withHotDay(makeWeatherContext(), "2026-05-03", 40);
+Deno.test("heatwave — climate-aware: 30°C alerts in cool_temperate but not in tropical", () => {
+  const cool = heatwave.evaluate(withHotDay(makeWeatherContext({ climateZone: "cool_temperate" }), "2026-05-01", 30));
+  assertEquals(cool.alerts.length, 1);
+  const tropical = heatwave.evaluate(withHotDay(makeWeatherContext({ climateZone: "tropical" }), "2026-05-01", 30));
+  assertEquals(tropical.alerts.length, 0); // tropical threshold is 36°C
+});
+
+Deno.test("heatwave — looks ahead across the window (a hot day 3 days out still alerts)", () => {
+  const ctx = withHotDay(makeWeatherContext(), "2026-05-04", 40);
   const result = heatwave.evaluate(ctx);
-  assertEquals(result.alerts.length, 0);
+  assertEquals(result.alerts.length, 1);
+  assertEquals(result.alerts[0].dates, ["2026-05-04"]);
+});
+
+Deno.test("heatwave — 3 consecutive hot days are labelled a heatwave + grouped", () => {
+  let ctx = makeWeatherContext();
+  ctx = withHotDay(ctx, "2026-05-01", 30);
+  ctx = withHotDay(ctx, "2026-05-02", 33);
+  ctx = withHotDay(ctx, "2026-05-03", 31);
+  const result = heatwave.evaluate(ctx);
+  assertEquals(result.alerts.length, 1);
+  assertEquals(result.alerts[0].dates, ["2026-05-01", "2026-05-02", "2026-05-03"]);
+  assertEquals(result.alerts[0].message.includes("Heatwave"), true);
+  assertEquals(result.alerts[0].message.includes("33°C"), true); // peak across the run
+  assertEquals(result.notifications[0].title.includes("Heatwave"), true);
 });
 
 Deno.test("heatwave — no alert when no outdoor locations", () => {
@@ -49,7 +63,7 @@ Deno.test("heatwave — no alert when no outdoor locations", () => {
   assertEquals(result.alerts.length, 0);
 });
 
-Deno.test("heatwave — alert message includes rounded temperature", () => {
+Deno.test("heatwave — peak temperature is rounded in the message", () => {
   const ctx = withHotDay(makeWeatherContext(), "2026-05-01", 34.7);
   const result = heatwave.evaluate(ctx);
   assertEquals(result.alerts[0].message.includes("35°C"), true);

@@ -735,7 +735,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 393 tests across 33 files
+### Unit tests — 401 tests across 34 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -770,15 +770,17 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `plantFirstPlan.test.ts` | 2 | Plant-first planner client helper — `countBlueprintPlants` (sums plants across all area groups; null / undefined / no-areas → 0) |
 | `gardenBrief.test.ts` | 10 | Head Gardener brief helpers — `goalLabel`/`styleLabel`/`timeLabel`/… (id→label + fallback), `isBriefEmpty`/`isBriefConfirmed`, `summariseBrief`, `normaliseDraft` (drops invented ids, de-dupes, caps goals/styles, total on garbage) |
 | `managerReport.test.ts` | 5 | Head Gardener report helpers — `sortSections` (severity desc, stable, non-mutating), `severityTone` (label+classes), `isReportEmpty` |
+| `weatherDates.test.ts` | 8 | `formatDateRange` — Today/Tomorrow, far-out "23 May", consecutive run "Mon–Wed", two-day "&", disjoint comma list, dedupe/sort, "+N" cap |
 
 ### Edge function tests — Deno
 
 | File | Tests | Rule / Pattern |
 |------|-------|----------------|
 | `stripeTiers.test.ts` | 7 | Stripe billing — `isValidTier`, `tierToFlags` (mirrors `src/constants/tiers.ts`), `PAID_TIERS`, `priceIdForTier`/`tierFromPriceId` (env mapping), `tierFromMetadata`, `statusGrantsAccess` |
-| `heatwave.test.ts` | 6 | Heatwave rule (≥32°C threshold) |
-| `frostRisk.test.ts` | 7 | Frost risk rule (tropical vs standard thresholds) |
-| `highWind.test.ts` | 6 | High wind rule (≥40 kph) |
+| `heatwave.test.ts` | 7 | Heatwave rule — climate-aware threshold (`heatThresholdForClimate`), full-window scan, 3-consecutive-day "heatwave" grouping + `dates` |
+| `frostRisk.test.ts` | 9 | Frost risk rule (tropical vs standard thresholds) + imminent-hourly + forward daily-min frost nights + `dates` |
+| `highWind.test.ts` | 6 | High wind rule (≥40 kph) — full-window scan + grouped `dates` |
+| `weatherHelpers.test.ts` | 2 | `maxConsecutiveDays` (longest consecutive-day run) + `heatThresholdForClimate` (climate→°C map, case-insensitive, default 28) |
 | `rainAutoComplete.test.ts` | 6 | Rain auto-complete rule (≥5mm) |
 | `waterlogging.test.ts` | 6 | Waterlogging rule (5 consecutive rainy days) |
 | `consecutivePostponements.test.ts` | 7 | Consecutive postponements pattern |

@@ -33,6 +33,8 @@ export function makeWeatherContext(overrides: Partial<WeatherContext> = {}): Wea
     today,
     outsideLocationIds: ["loc-outdoor-1"],
     hasTropicalOutdoor: false,
+    climateZone: "cool_temperate", // heat threshold 28°C — override per-test for climate-aware cases
+
     // daily[0] = yesterday, daily[1] = today, daily[2] = tomorrow …
     daily: Array.from({ length: 8 }, (_, i) => {
       const d = new Date(`${today}T00:00:00Z`);

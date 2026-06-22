@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
+import { deriveClimate } from "../_shared/climateZones.ts";
 import {
   WEATHER_RULES,
   EMPTY_RESULT,
@@ -40,12 +41,18 @@ Deno.serve(async (req) => {
     const [
       { data: snapshot },
       { data: locations },
+      { data: home },
     ] = await Promise.all([
       supabase.from("weather_snapshots").select("data").eq("home_id", homeId).single(),
       supabase.from("locations").select("id, is_outside").eq("home_id", homeId),
+      supabase.from("homes").select("climate_zone, lat").eq("id", homeId).maybeSingle(),
     ]);
 
     if (!snapshot || !locations) throw new Error("Missing snapshot or locations.");
+
+    // Climate zone drives the climate-aware heat threshold (stored value, else derived from latitude).
+    const climateZone: string | null = (home?.climate_zone as string | null)
+      ?? (typeof home?.lat === "number" ? deriveClimate(home.lat as number).zone : null);
 
     const outsideLocations = (locations ?? []).filter((l) => l.is_outside);
     const outsideLocationIds = outsideLocations.map((l) => l.id);
@@ -64,12 +71,14 @@ Deno.serve(async (req) => {
     // forever. This sweeps anything older than 24h so the WeatherAlertBanner
     // doesn't show "high temperature tomorrow" weeks after the fact.
     const staleCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+    // Key the sweep on ends_at (coalesced to starts_at for legacy rows) so a
+    // multi-day alert (e.g. a Mon–Wed heatwave) stays active until its LAST day.
     const { error: expireErr, count: expiredCount } = await supabase
       .from("weather_alerts")
       .update({ is_active: false }, { count: "exact" })
       .in("location_id", outsideLocationIds)
       .eq("is_active", true)
-      .lt("starts_at", staleCutoff);
+      .lt("ends_at", staleCutoff);
     if (expireErr) {
       warn(FN, "expire_failed", { error: expireErr.message });
     } else if ((expiredCount ?? 0) > 0) {
@@ -128,6 +137,7 @@ Deno.serve(async (req) => {
       today,
       outsideLocationIds,
       hasTropicalOutdoor,
+      climateZone,
       daily,
       hourly,
     };
@@ -172,6 +182,8 @@ Deno.serve(async (req) => {
           severity: alert.severity,
           message: alert.message,
           starts_at: alert.starts_at,
+          ends_at: alert.endsAt ?? alert.starts_at,
+          dates: alert.dates ?? [alert.starts_at.split("T")[0]],
         }))
       );
       await supabase

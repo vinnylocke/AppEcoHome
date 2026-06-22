@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Improved",
+    "items": [
+      "Weather alerts now look further ahead and group the days they cover — e.g. \"Heatwave — Mon–Wed\" or \"Frost — Fri & Sat\" — instead of just the next day.",
+      "Heat alerts are now climate-aware: what counts as \"too hot\" adjusts to your local climate, so a warm day in a hot region won't over-warn and a real heatwave in a cool one still does.",
+      "Weather alerts refresh faster when you come back to the app."
+    ]
+  }
+]

@@ -13,7 +13,7 @@ sync-weather (cron, hourly)
         └── upsert weather_snapshots row
 
 analyse-weather (cron, hourly)
-├── expire stale alerts (is_active=false where starts_at < now()-24h)
+├── expire stale alerts (is_active=false where ends_at < now()-24h)
 └── for each weather_snapshot:
     └── for each rule in _shared/weatherRules/:
         └── evaluate(ctx) → WeatherRuleResult
@@ -22,9 +22,15 @@ analyse-weather (cron, hourly)
 
 ### Alert lifecycle (Wave 21.0004)
 
-`analyse-weather` only upserts NEW alerts on `(location_id, type)` — if conditions stop matching the rule, the previous row sits there with `is_active = true` forever. So the function now begins each run with a sweep that flips `is_active = false` on any row whose `starts_at` is more than 24 hours in the past. The 24-hour grace window keeps morning rain alerts visible the rest of the day.
+`analyse-weather` only upserts NEW alerts on `(location_id, type)` — if conditions stop matching the rule, the previous row sits there with `is_active = true` forever. So the function begins each run with a sweep that flips `is_active = false` on any row whose **`ends_at`** (the last affected day) is more than 24 hours in the past — so a multi-day heatwave/frost stays active until its final day, not just day one. The 24-hour grace window keeps morning rain alerts visible the rest of the day.
 
-Defence-in-depth: every read site that surfaces alerts to the user (the WeatherAlertBanner fetch in `App.tsx`, the TodayFocusCard's hasHeatAlert check) also applies `is_active = true` + `starts_at >= now()-24h` filters. The historical `useGardenReport` queries intentionally include deactivated rows (they're counting monthly totals).
+Defence-in-depth: every read site that surfaces alerts to the user (the WeatherAlertBanner fetch in `App.tsx`, the TodayFocusCard's hasHeatAlert check) also applies `is_active = true` + `ends_at >= now()-24h` filters. The historical `useGardenReport` queries intentionally include deactivated rows (they're counting monthly totals).
+
+### Forward window, grouped days, climate-aware heat (2026-06)
+
+- **Forward-looking + grouped.** `heatwave` and `highWind` scan the WHOLE daily forecast (not just today+tomorrow) and collect every matching day; `frostRisk` keeps the imminent 48h hourly check AND scans the daily min for further frost nights. Each alert carries `dates` (jsonb array of YYYY-MM-DD) + `ends_at`, so the WeatherAlertBanner renders one grouped line per type ("Heatwave — Mon–Wed", "Frost — Fri & Sat") via `src/lib/weatherDates.ts` `formatDateRange`. A run of 3+ consecutive hot days is labelled a "heatwave"; isolated days are "hot day(s)".
+- **Climate-aware heat threshold.** The flat 25°C is replaced by `heatThresholdForClimate(zone)` (`_shared/climateZones.ts`): tropical 36 → subtropical 34 → mediterranean 32 → warm_temperate 30 → cool_temperate 28 → continental 28 → subarctic 26 → arctic 25 (default 28). `analyse-weather` threads `WeatherContext.climateZone` from `home.climate_zone` (falling back to `deriveClimate(lat).zone`).
+- **Prompt display.** Alerts stay on the hourly cron (no realtime), but the dashboard tab-focus refetch throttle was relaxed from 5 min → 60 s (`App.tsx`), so returning to the app surfaces fresh alerts within ~1 minute.
 
 ---
 

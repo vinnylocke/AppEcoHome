@@ -11,6 +11,8 @@
 
 Reads the `alerts` prop (an array of `weather_alerts` rows) and renders one card per alert, colour-coded by severity. The banner uses different layouts depending on whether it's on a tight content area (Dashboard top strip) or the Weather tab (full forecast screen).
 
+**Grouped days (2026-06):** each card shows the day(s) the alert spans, derived from the row's `dates` array via `src/lib/weatherDates.ts` `formatDateRange` — "Today", "Tomorrow", a consecutive run "Mon–Wed", a pair "Fri & Sat", or a disjoint list. Frost (which carries a real hourly time) also appends the time for a single imminent night; heat/wind use a noon placeholder so no time is shown. Icons: frost ❄ `Snowflake`, heat 🌡️ `ThermometerSun`, wind `Wind`, rain `CloudRain` (the `heat` type is now handled — it previously fell through to the rain icon). The `App.tsx` fetch filters on `ends_at >= now()-24h` (so a multi-day alert stays visible until its last day) and refetches on tab-focus throttled to 60 s.
+
 ---
 
 ## Role 1 — Technical Reference

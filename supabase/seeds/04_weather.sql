@@ -108,7 +108,7 @@ ON CONFLICT (home_id) DO UPDATE
 -- unique constraint is on (location_id, type) so DO NOTHING is safe.
 
 INSERT INTO public.weather_alerts (
-  id, location_id, type, message, severity, starts_at, is_active
+  id, location_id, type, message, severity, starts_at, ends_at, dates, is_active
 )
 VALUES
   -- Rain alert — matches today's rain (Day 0 = precipMm 8mm)
@@ -119,16 +119,24 @@ VALUES
     'Rain today (8mm) — outdoor watering tasks are auto-completed.',
     'info',
     CURRENT_DATE,
+    CURRENT_DATE,
+    jsonb_build_array(to_char(CURRENT_DATE, 'YYYY-MM-DD')),
     true
   ),
-  -- Heat alert — kept for alert-panel tests
+  -- Heat alert — a 3-day heatwave (today → +2) to exercise grouped display
   (
     '00000000-0000-0000-000b-000000000002',
     '00000000-0000-0000-0001-000000000001',
     'heat',
-    'Warm and rainy today — check for fungal risk on dense plantings.',
+    'Heatwave ahead — up to 36°C. Your outdoor plants will need extra water.',
     'warning',
     CURRENT_DATE,
+    CURRENT_DATE + INTERVAL '2 days',
+    jsonb_build_array(
+      to_char(CURRENT_DATE, 'YYYY-MM-DD'),
+      to_char(CURRENT_DATE + 1, 'YYYY-MM-DD'),
+      to_char(CURRENT_DATE + 2, 'YYYY-MM-DD')
+    ),
     true
   ),
   -- Frost alert — Day +1 minTemp 0°C
@@ -139,6 +147,8 @@ VALUES
     'Frost risk tomorrow — cover tender plants and bring pots inside.',
     'warning',
     CURRENT_DATE + INTERVAL '1 day',
+    CURRENT_DATE + INTERVAL '1 day',
+    jsonb_build_array(to_char(CURRENT_DATE + 1, 'YYYY-MM-DD')),
     true
   ),
   -- Wind alert — Day +2 windKph 65
@@ -149,6 +159,8 @@ VALUES
     'High winds forecast (65 kph) — stake tall plants and secure structures.',
     'warning',
     CURRENT_DATE + INTERVAL '2 days',
+    CURRENT_DATE + INTERVAL '2 days',
+    jsonb_build_array(to_char(CURRENT_DATE + 2, 'YYYY-MM-DD')),
     true
   )
 ON CONFLICT (location_id, type) DO UPDATE
@@ -156,4 +168,6 @@ ON CONFLICT (location_id, type) DO UPDATE
     message    = EXCLUDED.message,
     severity   = EXCLUDED.severity,
     starts_at  = EXCLUDED.starts_at,
+    ends_at    = EXCLUDED.ends_at,
+    dates      = EXCLUDED.dates,
     is_active  = true;

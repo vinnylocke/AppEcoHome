@@ -146,6 +146,26 @@ export function deriveClimate(lat: number): ClimateInfo {
 }
 
 /**
+ * The max-temperature (°C) above which plants in a given climate are heat-stressed.
+ * A flat threshold over-alerts cool climates (25°C is a normal summer day in the
+ * tropics but a heatwave in the UK), so the trigger scales with the local climate.
+ * Falls back to a temperate-ish 28°C for unknown zones.
+ */
+const HEAT_THRESHOLDS: Record<string, number> = {
+  tropical: 36,
+  subtropical: 34,
+  mediterranean: 32,
+  warm_temperate: 30,
+  cool_temperate: 28,
+  continental: 28,
+  subarctic: 26,
+  arctic: 25,
+};
+export function heatThresholdForClimate(zone: string | null | undefined): number {
+  return HEAT_THRESHOLDS[(zone ?? "").trim().toLowerCase()] ?? 28;
+}
+
+/**
  * Convert a Northern-Hemisphere MM-DD frost date to a Southern-Hemisphere equivalent
  * by adding 6 months and wrapping.
  */
