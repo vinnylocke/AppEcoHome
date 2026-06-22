@@ -16,6 +16,7 @@ import { logAiUsage } from "../_shared/aiUsage.ts";
 import { personaInstruction, type Persona } from "../_shared/persona.ts";
 import { tierAllowsInsights } from "../_shared/insightTiers.ts";
 import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
+import { extractJsonObject } from "../_shared/extractJson.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { log } from "../_shared/logger.ts";
 
@@ -97,7 +98,7 @@ Deno.serve(async (req) => {
       responseSchema: SCHEMA,
       responseMimeType: "application/json",
       temperature: 0.3,
-      maxOutputTokens: 600,
+      maxOutputTokens: 1024,
       logContext: { userId, homeId },
     });
 
@@ -107,7 +108,7 @@ Deno.serve(async (req) => {
     });
 
     let parsed: Record<string, unknown> = {};
-    try { parsed = JSON.parse(text); } catch { /* keep empty → client falls back to manual */ }
+    try { parsed = (extractJsonObject(text) ?? {}) as Record<string, unknown>; } catch { /* keep empty → client falls back to manual */ }
 
     const draft = {
       goals: parsed.goals ?? [],

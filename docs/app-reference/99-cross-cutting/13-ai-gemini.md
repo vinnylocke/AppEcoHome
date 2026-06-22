@@ -67,6 +67,10 @@ Cheapest → most capable. The cascade falls through on per-call failure (timeou
 6. `gemini-3.1-flash-lite`
 7. `gemini-3.5-flash`
 
+### Reading the response — multi-part output
+
+Gemini splits long output across multiple `content.parts` (more so on the thinking-capable gemini-3 rungs). `callOnce` therefore joins **every** text part via `joinPartsText(parts)` rather than reading `parts[0]` — reading only the first part silently truncated large JSON documents (e.g. the Head Gardener Estate Report), which then failed `JSON.parse`. The tool-calling reader already concatenates all text parts. Structured-output callers should parse with the tolerant `extractJsonObject()` (`_shared/extractJson.ts`) and set `maxOutputTokens` high enough to leave headroom for thinking (the report uses 4096; the insights summary 1024).
+
 ### Per-feature cascade override — `VISION_DIAGNOSIS_MODELS`
 
 Vision-heavy plant-doctor actions opt out of the Flash-only default. `_shared/gemini.ts` exports a second cascade led by Pro models:

@@ -72,7 +72,7 @@ Deno.serve(async (req) => {
           const { text, usage } = await callGeminiCascade(Deno.env.get("GEMINI_API_KEY")!, FN, toMessages([prompt]), {
             systemPrompt: "You are Rhozly's garden assistant writing a quick overview of a gardener's insights.",
             temperature: 0.4,
-            maxOutputTokens: 256,
+            maxOutputTokens: 1024,
             logContext: { userId, homeId },
           });
           summary = text.trim();

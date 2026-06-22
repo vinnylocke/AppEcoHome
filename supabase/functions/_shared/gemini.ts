@@ -99,6 +99,22 @@ export function toMessages(
 }
 
 /**
+ * Join the text from EVERY text-bearing part of a Gemini candidate.
+ *
+ * Gemini splits long output across multiple `content.parts`; reading only
+ * `parts[0].text` silently truncates large responses (e.g. a big JSON document),
+ * which then fails `JSON.parse`. Concatenating with no separator faithfully
+ * reconstructs a single document that was chunked across parts. Returns "" when
+ * there is no usable text (e.g. empty parts on a MAX_TOKENS-during-thinking stop).
+ */
+export function joinPartsText(parts: unknown): string {
+  if (!Array.isArray(parts)) return "";
+  return parts
+    .map((p) => (p && typeof (p as { text?: unknown }).text === "string" ? (p as { text: string }).text : ""))
+    .join("");
+}
+
+/**
  * Call the Gemini REST API with model cascade and per-model retry on transient
  * errors (503, 429, timeout). Returns the response text and usage metadata.
  * Callers are responsible for JSON.parse() when they expect structured output.
@@ -215,8 +231,8 @@ async function callOnce(
   // instead so the cascade can fall through to the next model and the
   // client can show a useful error.
   const candidate = data.candidates?.[0];
-  const text = candidate?.content?.parts?.[0]?.text;
-  if (typeof text !== "string") {
+  const text = joinPartsText(candidate?.content?.parts);
+  if (!text) {
     const finishReason = candidate?.finishReason ?? "UNKNOWN";
     const blockReason = data.promptFeedback?.blockReason;
     throw new Error(
@@ -641,7 +657,7 @@ export async function getGeminiBatchResults(
       return { key, text: null, usage: null, error: err };
     }
     const text: string | null =
-      line.response?.candidates?.[0]?.content?.parts?.[0]?.text ?? null;
+      joinPartsText(line.response?.candidates?.[0]?.content?.parts) || null;
     const um = line.response?.usageMetadata;
     return {
       key,

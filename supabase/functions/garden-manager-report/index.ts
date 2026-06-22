@@ -18,6 +18,7 @@ import { personaInstruction, type Persona } from "../_shared/persona.ts";
 import { tierAllowsInsights } from "../_shared/insightTiers.ts";
 import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
 import { aggregateInsights } from "../_shared/insightSources.ts";
+import { extractJsonObject } from "../_shared/extractJson.ts";
 import { analyseGaps, type GapFact, type PlantFact } from "../_shared/gapAnalysis.ts";
 import { diffGapLog, gapKey, gapTitle, type OpenLogEntry } from "../_shared/managerLog.ts";
 import { captureException } from "../_shared/sentry.ts";
@@ -262,7 +263,7 @@ export async function generateManagerReport(
     responseSchema: REPORT_SCHEMA,
     responseMimeType: "application/json",
     temperature: 0.35,
-    maxOutputTokens: 1400,
+    maxOutputTokens: 4096,
     logContext: { userId, homeId },
   });
 
@@ -272,7 +273,7 @@ export async function generateManagerReport(
   });
 
   let parsed: Record<string, unknown> = {};
-  try { parsed = JSON.parse(text); } catch { /* keep empty → minimal report */ }
+  try { parsed = (extractJsonObject(text) ?? {}) as Record<string, unknown>; } catch { /* keep empty → minimal report */ }
 
   const sections = Array.isArray(parsed.sections) ? parsed.sections : [];
   const gaps = Array.isArray(parsed.gaps) ? parsed.gaps : [];
@@ -312,9 +313,15 @@ export async function generateManagerReport(
     persona: persona ?? null,
   };
 
-  await db.from("garden_manager_reports").upsert({
-    home_id: homeId, report, persona, based_on: basedOn, generated_at: new Date().toISOString(),
-  }, { onConflict: "home_id" });
+  // Only cache a report that actually has content. A truncated / unparseable
+  // generation (no greeting, no sections, no gaps) is NOT persisted, so the next
+  // open retries instead of serving a stuck fallback shell.
+  const hasContent = !!report.greeting || report.sections.length > 0 || report.gaps.length > 0;
+  if (hasContent) {
+    await db.from("garden_manager_reports").upsert({
+      home_id: homeId, report, persona, based_on: basedOn, generated_at: new Date().toISOString(),
+    }, { onConflict: "home_id" });
+  }
 
   return { report, cached: false };
 }

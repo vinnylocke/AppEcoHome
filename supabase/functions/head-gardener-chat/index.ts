@@ -18,6 +18,7 @@ import { personaInstruction, type Persona } from "../_shared/persona.ts";
 import { tierAllowsInsights } from "../_shared/insightTiers.ts";
 import { buildUserContext, renderContextBlock } from "../_shared/userContext.ts";
 import { loadPreferences, savePreferences, type PreferenceRow } from "../_shared/preferences.ts";
+import { extractJsonObject } from "../_shared/extractJson.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { log } from "../_shared/logger.ts";
 
@@ -124,7 +125,7 @@ Deno.serve(async (req) => {
     const { text, usage } = await callGeminiCascade(apiKey, FN, geminiMessages, {
       systemPrompt,
       temperature: 0.6,
-      maxOutputTokens: 1000,
+      maxOutputTokens: 1500,
       responseSchema: CHAT_SCHEMA,
       responseMimeType: "application/json",
       logContext: { userId, homeId },
@@ -136,7 +137,7 @@ Deno.serve(async (req) => {
     });
 
     let parsed: { reply?: string; detected_preferences?: Array<{ entity_type: string; entity_name: string; sentiment: string; reason?: string }> } = {};
-    try { parsed = JSON.parse(text); } catch { /* keep empty */ }
+    try { parsed = (extractJsonObject(text) ?? {}) as typeof parsed; } catch { /* keep empty */ }
 
     // Persist any newly-expressed preferences (deduped against what we already know).
     let savedPreferences = 0;
