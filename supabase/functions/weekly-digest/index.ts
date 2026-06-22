@@ -359,14 +359,31 @@ async function collectHome(
 // ── Main handler ─────────────────────────────────────────────────────────────
 
 Deno.serve(async () => {
+  // Hoisted above the try so the catch can release the week claim.
+  const supabase = createClient(
+    Deno.env.get("SUPABASE_URL")!,
+    Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
+  );
+  const { monday, sunday } = getWeekWindow();
   try {
-    const supabase = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-
-    const { monday, sunday } = getWeekWindow();
     log(FN, "request_received", { monday, sunday });
+
+    // Idempotency: claim this week's run BEFORE sending so a duplicate
+    // invocation (overlapping cron tick / pg_net retry / stray duplicate
+    // cron.job / manual run alongside the cron) can't send the digest twice.
+    // The PK on week_iso + ignoreDuplicates makes the claim atomic — a second
+    // invocation gets 0 rows back and bails without sending.
+    const { data: claim } = await supabase
+      .from("weekly_digest_runs")
+      .upsert({ week_iso: monday }, { onConflict: "week_iso", ignoreDuplicates: true })
+      .select("week_iso");
+    if (!claim || claim.length === 0) {
+      log(FN, "already_ran", { monday });
+      return new Response(
+        JSON.stringify({ message: "Weekly digest already ran for this week." }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      );
+    }
 
     // Materialise blueprint tasks for the week so the query below sees them.
     try {
@@ -511,6 +528,12 @@ Deno.serve(async () => {
       { headers: { "Content-Type": "application/json" } },
     );
   } catch (err: any) {
+    // Release the week claim so the next invocation can retry the send. A total
+    // failure here means few/no emails went out (the per-recipient loops
+    // swallow individual failures), so retrying is safe.
+    try {
+      await supabase.from("weekly_digest_runs").delete().eq("week_iso", monday);
+    } catch { /* best-effort */ }
     logError(FN, "fatal", { error: err.message });
     await captureException(FN, err);
     return new Response(JSON.stringify({ error: err.message }), { status: 500 });
