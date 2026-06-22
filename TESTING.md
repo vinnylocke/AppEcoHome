@@ -777,10 +777,10 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | File | Tests | Rule / Pattern |
 |------|-------|----------------|
 | `stripeTiers.test.ts` | 7 | Stripe billing — `isValidTier`, `tierToFlags` (mirrors `src/constants/tiers.ts`), `PAID_TIERS`, `priceIdForTier`/`tierFromPriceId` (env mapping), `tierFromMetadata`, `statusGrantsAccess` |
-| `heatwave.test.ts` | 7 | Heatwave rule — climate-aware threshold (`heatThresholdForClimate`), full-window scan, 3-consecutive-day "heatwave" grouping + `dates` |
+| `heatwave.test.ts` | 8 | Heatwave rule — climate-aware threshold (`heatThresholdForClimate`) incl. UK 25°C override, full-window scan, 3-consecutive-day "heatwave" grouping + `dates` |
 | `frostRisk.test.ts` | 9 | Frost risk rule (tropical vs standard thresholds) + imminent-hourly + forward daily-min frost nights + `dates` |
 | `highWind.test.ts` | 6 | High wind rule (≥40 kph) — full-window scan + grouped `dates` |
-| `weatherHelpers.test.ts` | 2 | `maxConsecutiveDays` (longest consecutive-day run) + `heatThresholdForClimate` (climate→°C map, case-insensitive, default 28) |
+| `weatherHelpers.test.ts` | 3 | `maxConsecutiveDays` (longest consecutive-day run) + `heatThresholdForClimate` (climate→°C map, case-insensitive, default 28, UK 25°C country override) |
 | `rainAutoComplete.test.ts` | 6 | Rain auto-complete rule (≥5mm) |
 | `waterlogging.test.ts` | 6 | Waterlogging rule (5 consecutive rainy days) |
 | `consecutivePostponements.test.ts` | 7 | Consecutive postponements pattern |

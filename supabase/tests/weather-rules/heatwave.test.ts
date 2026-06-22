@@ -57,6 +57,15 @@ Deno.test("heatwave — 3 consecutive hot days are labelled a heatwave + grouped
   assertEquals(result.notifications[0].title.includes("Heatwave"), true);
 });
 
+Deno.test("heatwave — a UK home uses the 25°C Met Office threshold (even in a continental band)", () => {
+  // 26°C: above the UK 25°C baseline but below the continental zone default (28°C).
+  const uk = withHotDay(makeWeatherContext({ country: "United Kingdom", climateZone: "continental" }), "2026-05-01", 26);
+  assertEquals(heatwave.evaluate(uk).alerts.length, 1);
+  // The same continental home outside the UK would NOT alert at 26°C.
+  const other = withHotDay(makeWeatherContext({ climateZone: "continental" }), "2026-05-01", 26);
+  assertEquals(heatwave.evaluate(other).alerts.length, 0);
+});
+
 Deno.test("heatwave — no alert when no outdoor locations", () => {
   const ctx = makeWeatherContext({ outsideLocationIds: [] });
   const result = heatwave.evaluate(ctx);

@@ -161,7 +161,22 @@ const HEAT_THRESHOLDS: Record<string, number> = {
   subarctic: 26,
   arctic: 25,
 };
-export function heatThresholdForClimate(zone: string | null | undefined): number {
+
+// UK Met Office heatwave baseline: 25°C max for 3+ consecutive days (it rises to
+// 27–28°C in London / the SE, but 25°C is the threshold for most of the country).
+// Applied by country because the latitude-derived zones split the UK across
+// cool_temperate (S England) and continental (N England + Scotland).
+const UK_COUNTRY_NAMES = new Set([
+  "united kingdom", "uk", "gb", "gbr", "great britain",
+  "england", "scotland", "wales", "northern ireland",
+]);
+const UK_HEAT_THRESHOLD = 25;
+
+export function heatThresholdForClimate(
+  zone: string | null | undefined,
+  country?: string | null,
+): number {
+  if (country && UK_COUNTRY_NAMES.has(country.trim().toLowerCase())) return UK_HEAT_THRESHOLD;
   return HEAT_THRESHOLDS[(zone ?? "").trim().toLowerCase()] ?? 28;
 }
 

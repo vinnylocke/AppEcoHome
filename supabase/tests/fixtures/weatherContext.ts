@@ -34,6 +34,7 @@ export function makeWeatherContext(overrides: Partial<WeatherContext> = {}): Wea
     outsideLocationIds: ["loc-outdoor-1"],
     hasTropicalOutdoor: false,
     climateZone: "cool_temperate", // heat threshold 28°C — override per-test for climate-aware cases
+    country: null,                 // non-UK by default → zone-based threshold; set "United Kingdom" for the 25°C path
 
     // daily[0] = yesterday, daily[1] = today, daily[2] = tomorrow …
     daily: Array.from({ length: 8 }, (_, i) => {

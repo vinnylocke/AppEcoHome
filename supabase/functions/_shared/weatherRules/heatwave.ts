@@ -12,7 +12,7 @@ const heatwave: WeatherRule = {
   evaluate(ctx: WeatherContext): WeatherRuleResult {
     if (!ctx.outsideLocationIds.length) return EMPTY_RESULT;
 
-    const threshold = heatThresholdForClimate(ctx.climateZone);
+    const threshold = heatThresholdForClimate(ctx.climateZone, ctx.country);
     const hotDays = ctx.daily.filter((d) => d.date >= ctx.today && d.maxTempC >= threshold);
     if (hotDays.length === 0) return EMPTY_RESULT;
 

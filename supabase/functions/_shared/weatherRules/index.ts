@@ -24,6 +24,7 @@ export interface WeatherContext {
   outsideLocationIds: string[];
   hasTropicalOutdoor: boolean;
   climateZone: string | null; // home.climate_zone (or derived from lat) — drives the climate-aware heat threshold
+  country: string | null;     // home.country — a UK home uses the Met Office 25°C heatwave threshold regardless of zone
   daily: DailySummary[];      // daily[0] = yesterday (past_days=1), daily[1] = today, ...
   hourly: HourlyPoint[];      // 48h window starting from today for frost detection
 }

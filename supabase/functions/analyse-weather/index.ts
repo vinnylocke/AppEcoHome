@@ -45,7 +45,7 @@ Deno.serve(async (req) => {
     ] = await Promise.all([
       supabase.from("weather_snapshots").select("data").eq("home_id", homeId).single(),
       supabase.from("locations").select("id, is_outside").eq("home_id", homeId),
-      supabase.from("homes").select("climate_zone, lat").eq("id", homeId).maybeSingle(),
+      supabase.from("homes").select("climate_zone, lat, country").eq("id", homeId).maybeSingle(),
     ]);
 
     if (!snapshot || !locations) throw new Error("Missing snapshot or locations.");
@@ -53,6 +53,7 @@ Deno.serve(async (req) => {
     // Climate zone drives the climate-aware heat threshold (stored value, else derived from latitude).
     const climateZone: string | null = (home?.climate_zone as string | null)
       ?? (typeof home?.lat === "number" ? deriveClimate(home.lat as number).zone : null);
+    const country: string | null = (home?.country as string | null) ?? null;
 
     const outsideLocations = (locations ?? []).filter((l) => l.is_outside);
     const outsideLocationIds = outsideLocations.map((l) => l.id);
@@ -138,6 +139,7 @@ Deno.serve(async (req) => {
       outsideLocationIds,
       hasTropicalOutdoor,
       climateZone,
+      country,
       daily,
       hourly,
     };

@@ -21,3 +21,11 @@ Deno.test("heatThresholdForClimate — scales with climate, defaults to 28", () 
   assertEquals(heatThresholdForClimate(null), 28);
   assertEquals(heatThresholdForClimate("made_up_zone"), 28);
 });
+
+Deno.test("heatThresholdForClimate — UK uses the Met Office 25°C baseline regardless of zone", () => {
+  assertEquals(heatThresholdForClimate("cool_temperate", "United Kingdom"), 25);
+  assertEquals(heatThresholdForClimate("continental", "Scotland"), 25); // northern UK falls in continental by latitude
+  assertEquals(heatThresholdForClimate("warm_temperate", "GB"), 25);
+  assertEquals(heatThresholdForClimate("cool_temperate", "england"), 25); // case-insensitive
+  assertEquals(heatThresholdForClimate("tropical", "Brazil"), 36); // non-UK still uses the zone map
+});

@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Improved",
+    "items": [
+      "Heat alerts now use the official UK Met Office heatwave threshold (25°C) for gardens in the UK."
+    ]
+  }
+]
