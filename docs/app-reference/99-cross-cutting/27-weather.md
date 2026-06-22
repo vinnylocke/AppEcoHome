@@ -24,7 +24,11 @@ analyse-weather (cron, hourly)
 
 `analyse-weather` only upserts NEW alerts on `(location_id, type)` — if conditions stop matching the rule, the previous row sits there with `is_active = true` forever. So the function begins each run with a sweep that flips `is_active = false` on any row whose **`ends_at`** (the last affected day) is more than 24 hours in the past — so a multi-day heatwave/frost stays active until its final day, not just day one. The 24-hour grace window keeps morning rain alerts visible the rest of the day.
 
+Conversely, the per-run upsert sets `is_active = true` on every alert it writes — so a row the sweep previously deactivated **reappears the moment its rule fires again** (without this, a re-triggered heatwave stayed hidden because the upsert left `is_active` untouched).
+
 Defence-in-depth: every read site that surfaces alerts to the user (the WeatherAlertBanner fetch in `App.tsx`, the TodayFocusCard's hasHeatAlert check) also applies `is_active = true` + `ends_at >= now()-24h` filters. The historical `useGardenReport` queries intentionally include deactivated rows (they're counting monthly totals).
+
+**Garden Intelligence panel** (`WeatherForecast.tsx`) re-derives the rules client-side for display; its heat threshold uses the same climate-aware logic via `src/lib/heatThreshold.ts` (mirror of the server helper — UK = 25°C) and scans the whole forecast week, not just today+tomorrow.
 
 ### Forward window, grouped days, climate-aware heat (2026-06)
 

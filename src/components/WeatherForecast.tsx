@@ -11,6 +11,7 @@ import {
 import { Logger } from "../lib/errorHandler";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { supabase } from "../lib/supabase";
+import { heatThresholdForClimate } from "../lib/heatThreshold";
 import InfoTooltip from "./InfoTooltip";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -110,7 +111,7 @@ function formatFullDate(dateStr: string): string {
 
 // ─── Rule evaluation (mirrors edge function logic, client-side) ───────────────
 
-function evaluateRules(rawWeather: any, today: string): RuleResult[] {
+function evaluateRules(rawWeather: any, today: string, heatThresholdC: number): RuleResult[] {
   const rawDaily = rawWeather?.daily ?? {};
   const rawHourly = rawWeather?.hourly ?? {};
   const dailyTimes: string[] = rawDaily.time ?? [];
@@ -183,10 +184,10 @@ function evaluateRules(rawWeather: any, today: string): RuleResult[] {
       : `Minimum temperature in the next 48h: ${minTemp48h !== null ? Math.round(minTemp48h) + "°C" : "unknown"} (threshold: ${frostThreshold}°C).`,
   });
 
-  // 3. Heatwave
-  const HEAT_THRESHOLD = 32;
-  const hotDay = futureDays.slice(0, 2).find((d) => d.maxTempC >= HEAT_THRESHOLD);
-  const maxTemp2d = futureDays.slice(0, 2).reduce((m, d) => Math.max(m, d.maxTempC), 0);
+  // 3. Heatwave — climate-aware threshold (UK = 25°C); scans the whole week so an
+  //    upcoming heatwave shows as "coming up", not just today/tomorrow.
+  const hotDay = futureDays.find((d) => d.maxTempC >= heatThresholdC);
+  const maxTempWeek = futureDays.reduce((m, d) => Math.max(m, d.maxTempC), 0);
 
   results.push({
     id: "heat",
@@ -195,10 +196,10 @@ function evaluateRules(rawWeather: any, today: string): RuleResult[] {
     status: hotDay ? "warning" : "clear",
     heading: hotDay
       ? `Heat warning — ${Math.round(hotDay.maxTempC)}°C forecast`
-      : "No heatwave (next 2 days)",
+      : "No heatwave forecast this week",
     detail: hotDay
       ? `${Math.round(hotDay.maxTempC)}°C on ${formatFullDate(hotDay.date)}. Outdoor plants may need extra watering.`
-      : `Max temperature in next 2 days: ${Math.round(maxTemp2d)}°C (threshold: ${HEAT_THRESHOLD}°C).`,
+      : `Max temperature this week: ${Math.round(maxTempWeek)}°C (threshold: ${heatThresholdC}°C).`,
   });
 
   // 4. High Winds
@@ -331,6 +332,16 @@ export default function WeatherForecast({ weatherData, alerts, homeId, onRefresh
 
   const today = useMemo(() => new Date().toISOString().split("T")[0], []);
 
+  // Climate-aware heat threshold (UK homes → 25°C) for the Garden Intelligence rule.
+  const [heatThresholdC, setHeatThresholdC] = useState(28);
+  useEffect(() => {
+    if (!homeId) return;
+    supabase.from("homes").select("country, climate_zone").eq("id", homeId).maybeSingle()
+      .then(({ data }) => {
+        if (data) setHeatThresholdC(heatThresholdForClimate((data as any).climate_zone, (data as any).country));
+      });
+  }, [homeId]);
+
   // ── Fetch outdoor watering tasks ─────────────────────────────────────────────
   const [rawWateringTasks, setRawWateringTasks] = useState<RawWateringTask[]>([]);
 
@@ -411,8 +422,8 @@ export default function WeatherForecast({ weatherData, alerts, homeId, onRefresh
 
   // ── Rule evaluations ─────────────────────────────────────────────────────────
   const ruleResults = useMemo(
-    () => (weatherData ? evaluateRules(weatherData, today) : []),
-    [weatherData, today],
+    () => (weatherData ? evaluateRules(weatherData, today, heatThresholdC) : []),
+    [weatherData, today, heatThresholdC],
   );
 
   // ── Per-task rain comparisons ─────────────────────────────────────────────────

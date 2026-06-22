@@ -735,7 +735,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 401 tests across 34 files
+### Unit tests — 404 tests across 35 files
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
@@ -771,6 +771,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `gardenBrief.test.ts` | 10 | Head Gardener brief helpers — `goalLabel`/`styleLabel`/`timeLabel`/… (id→label + fallback), `isBriefEmpty`/`isBriefConfirmed`, `summariseBrief`, `normaliseDraft` (drops invented ids, de-dupes, caps goals/styles, total on garbage) |
 | `managerReport.test.ts` | 5 | Head Gardener report helpers — `sortSections` (severity desc, stable, non-mutating), `severityTone` (label+classes), `isReportEmpty` |
 | `weatherDates.test.ts` | 8 | `formatDateRange` — Today/Tomorrow, far-out "23 May", consecutive run "Mon–Wed", two-day "&", disjoint comma list, dedupe/sort, "+N" cap |
+| `heatThreshold.test.ts` | 3 | `heatThresholdForClimate` client mirror — UK 25°C override (any zone), zone map for the rest, default 28 (used by the Garden Intelligence weather panel) |
 
 ### Edge function tests — Deno
 

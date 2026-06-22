@@ -186,6 +186,10 @@ Deno.serve(async (req) => {
           starts_at: alert.starts_at,
           ends_at: alert.endsAt ?? alert.starts_at,
           dates: alert.dates ?? [alert.starts_at.split("T")[0]],
+          // Re-activate on re-trigger: without this, a row the stale-out sweep
+          // previously set is_active=false stays hidden even when the rule fires
+          // again (the upsert would otherwise leave is_active untouched).
+          is_active: true,
         }))
       );
       await supabase
