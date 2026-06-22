@@ -118,6 +118,10 @@ const FUNCTION_LABELS: Record<string, string> = {
   "generate-ailment-suggestions": "Ailment Suggestions",
   "predict-yield": "Yield Predictor",
   "refresh-behaviour-summary": "Behaviour Summary",
+  "garden-manager-report": "Head Gardener — Report",
+  "synthesize-garden-brief": "Head Gardener — Brief",
+  "head-gardener-chat": "Head Gardener — Chat",
+  "insights-feed": "AI Insights Summary",
 };
 
 const PAGE_SIZE = 100;

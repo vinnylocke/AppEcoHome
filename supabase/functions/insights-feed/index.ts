@@ -52,9 +52,13 @@ Deno.serve(async (req) => {
     );
 
     // ── Persona-aware AI summary, cached by the insight-set hash ──
+    // The version prefix invalidates summaries cached before the multi-part /
+    // token-cap fix (those were truncated); bump it whenever the summary
+    // generation changes so stale cached text regenerates once.
+    const SUMMARY_CACHE_VERSION = "v2";
     let summary: string | null = null;
     if (insights.length > 0) {
-      const basedOn = insights.map((i) => i.id).sort().join("|");
+      const basedOn = `${SUMMARY_CACHE_VERSION}|` + insights.map((i) => i.id).sort().join("|");
       const { data: cached } = await db
         .from("ai_insight_summaries")
         .select("summary, based_on")
