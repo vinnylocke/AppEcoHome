@@ -1,9 +1,1 @@
-[
-  {
-    "label": "Fixed",
-    "items": [
-      "Weather alerts now reappear when the weather returns — a heatwave or other alert could get stuck hidden after the first time it expired.",
-      "The weather Garden Intelligence panel now uses your local heatwave threshold (25°C in the UK) and looks across the whole week, so an upcoming heatwave shows again instead of only flagging at 32°C."
-    ]
-  }
-]
+[]
