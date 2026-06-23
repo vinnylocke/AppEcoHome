@@ -23,7 +23,7 @@ interface Props {
   onClose: () => void;
 }
 
-type ActionKind = "valve_open" | "valve_close" | "notification" | "complete_task";
+type ActionKind = "valve_open" | "valve_close" | "notification" | "send_notification" | "complete_task";
 interface ActionDraft {
   action_kind: ActionKind;
   target_device_id: string | null;
@@ -296,6 +296,7 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
                     <select value={a.action_kind} onChange={(e) => setAction(i, { action_kind: e.target.value as ActionKind })} className="rounded-lg border border-gray-200 p-1.5 text-sm font-semibold">
                       <option value="valve_open">Open valve</option>
                       <option value="valve_close">Close valve</option>
+                      <option value="send_notification">Send notification</option>
                       <option value="notification">Automation Receipt</option>
                       <option value="complete_task">Complete task</option>
                     </select>
@@ -307,6 +308,12 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
                     )}
                     {a.action_kind === "valve_open" && (
                       <label className="text-xs text-gray-500">for <input type="number" value={a.valve_duration_seconds ?? 1800} onChange={(e) => setAction(i, { valve_duration_seconds: Number(e.target.value) })} className="rounded-lg border border-gray-200 p-1.5 text-sm w-20 mx-1" />s</label>
+                    )}
+                    {a.action_kind === "send_notification" && (
+                      <div className="flex-1 flex flex-col gap-1 min-w-[180px]">
+                        <input value={a.notification_title ?? ""} onChange={(e) => setAction(i, { notification_title: e.target.value })} placeholder="Title (e.g. Water the tomatoes)" className="rounded-lg border border-gray-200 p-1.5 text-sm" data-testid={`action-notif-title-${i}`} />
+                        <input value={a.notification_body ?? ""} onChange={(e) => setAction(i, { notification_body: e.target.value })} placeholder="Message (optional)" className="rounded-lg border border-gray-200 p-1.5 text-sm" data-testid={`action-notif-body-${i}`} />
+                      </div>
                     )}
                     {a.action_kind === "notification" && (
                       <span className="flex-1 text-xs text-gray-500" data-testid={`action-receipt-hint-${i}`}>

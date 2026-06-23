@@ -246,7 +246,7 @@ async function processOne(
 
   await db.from("automation_runs").update({
     completed_at: now.toISOString(),
-    devices_triggered: { members_alerted: membersAlerted, valves_queued: fanout.valves_queued },
+    devices_triggered: { members_alerted: Math.max(membersAlerted, fanout.notifications_sent), valves_queued: fanout.valves_queued },
     tasks_completed: fanout.tasks_completed,
   }).eq("id", runId);
 

@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "New",
+    "items": [
+      "Send notification — a new automation action that sends a custom reminder to your home when the automation triggers (e.g. \"Water the tomatoes\"). Pair it with conditions to use any automation as a reminder."
+    ]
+  }
+]

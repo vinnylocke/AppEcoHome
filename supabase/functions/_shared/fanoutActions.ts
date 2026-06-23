@@ -13,7 +13,7 @@ const FN = "fanout-actions";
 
 export interface ActionRow {
   id: string;
-  action_kind: "notification" | "valve_open" | "valve_close" | "complete_task";
+  action_kind: "notification" | "send_notification" | "valve_open" | "valve_close" | "complete_task";
   notification_title: string | null;
   notification_body: string | null;
   target_device_id: string | null;
@@ -25,6 +25,8 @@ export interface ActionRow {
 export interface TaskCompletion { blueprint_id: string; title: string; already_done: boolean }
 
 export interface FanoutResult {
+  /** Distinct home members reached by a `send_notification` (reminder) action, 0 if none. */
+  notifications_sent: number;
   valves_queued: number;
   tasks_completed: TaskCompletion[];
 }
@@ -42,16 +44,41 @@ export async function fanoutActions(
   const { data: actions } = await db.from("automation_actions")
     .select("id, action_kind, notification_title, notification_body, target_device_id, target_blueprint_id, valve_duration_seconds, ord")
     .eq("automation_id", automation.id).order("ord", { ascending: true });
-  if (!actions?.length) return { valves_queued: 0, tasks_completed: [] };
+  if (!actions?.length) return { notifications_sent: 0, valves_queued: 0, tasks_completed: [] };
 
   let valvesQueued = 0;
+  let reminderMembers = 0;
   const tasksCompleted: TaskCompletion[] = [];
+
+  // Home members are only needed for a `send_notification` reminder — fetch lazily, once.
+  let memberIds: string[] | null = null;
+  const getMembers = async (): Promise<string[]> => {
+    if (memberIds !== null) return memberIds;
+    const { data } = await db.from("home_members").select("user_id").eq("home_id", automation.home_id);
+    const ids = (data ?? []).map((m: { user_id: string }) => m.user_id as string);
+    memberIds = ids;
+    return ids;
+  };
 
   let valveStaggerSeconds = 0;
   for (const action of actions as ActionRow[]) {
-    // `notification` actions are receipts — sent by the runner at decision time,
-    // not here. The fan-out just executes the side-effecting actions.
+    // `notification` actions are receipts — sent by the runner at decision time, not here.
     if (action.action_kind === "notification") continue;
+    if (action.action_kind === "send_notification") {
+      // Custom-message reminder, sent to every home member when the automation fires.
+      const members = await getMembers();
+      if (members.length === 0) continue;
+      const title = action.notification_title?.trim() || automation.name;
+      const body = action.notification_body?.trim() || `Reminder from "${automation.name}".`;
+      const rows = members.map((uid) => ({
+        user_id: uid, home_id: automation.home_id, title, body,
+        type: "automation_reminder", data: { route: "/integrations", automationId: automation.id }, is_read: false,
+      }));
+      const { error } = await db.from("notifications").insert(rows);
+      if (error) logError(FN, "send_notification_failed", { automation_id: automation.id, message: error.message });
+      else reminderMembers = members.length;
+      continue;
+    }
     if (action.action_kind === "valve_open" || action.action_kind === "valve_close") {
       if (!action.target_device_id) continue;
       // valve_open with a duration also enqueues the paired turn_off, so the
@@ -90,5 +117,9 @@ export async function fanoutActions(
       }
     }
   }
-  return { valves_queued: valvesQueued, tasks_completed: tasksCompleted };
+  return {
+    notifications_sent: reminderMembers,
+    valves_queued: valvesQueued,
+    tasks_completed: tasksCompleted,
+  };
 }
