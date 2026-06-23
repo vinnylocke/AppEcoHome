@@ -2,8 +2,13 @@ import React, { useState, useEffect, useMemo, useCallback } from "react";
 import { ThermometerSun, Snowflake, Wind, X, Clock, CloudRain } from "lucide-react";
 import toast from "react-hot-toast";
 
+import { useNavigate } from "react-router-dom";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { formatDateRange } from "../lib/weatherDates";
+import {
+  isDismissedToday, dismiss as dismissType, undismiss,
+  loadDismissed, saveDismissed, todayLocal, type DismissalMap,
+} from "../lib/weatherAlertDismissal";
 
 interface WeatherAlert {
   id: string;
@@ -18,6 +23,8 @@ interface WeatherAlert {
 interface Props {
   alerts: WeatherAlert[];
   isForecastScreen?: boolean;
+  /** Slim one-line bar (for the app-wide banner) instead of the full cards. */
+  compact?: boolean;
 }
 
 // Safe wrapper so the banner renders even outside a PlantDoctorProvider
@@ -32,88 +39,48 @@ const usePlantDoctorSafe = () => {
 export const WeatherAlertBanner = ({
   alerts,
   isForecastScreen = false,
+  compact = false,
 }: Props) => {
   const plantDoctor = usePlantDoctorSafe();
   const setPageContext = plantDoctor?.setPageContext ?? (() => {});
 
-  const [dismissedIds, setDismissedIds] = useState<string[]>([]);
+  const navigate = useNavigate();
+  // Recomputed each render so it stays fresh if the app is left open past midnight.
+  const today = todayLocal();
+  const [dismissed, setDismissed] = useState<DismissalMap>({});
 
-  useEffect(() => {
-    const saved = localStorage.getItem("dismissed-weather-alerts");
-    if (saved) {
-      try {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) setDismissedIds(parsed);
-      } catch {
-        // Malformed data — start fresh
-        localStorage.removeItem("dismissed-weather-alerts");
-      }
-    }
+  useEffect(() => { setDismissed(loadDismissed()); }, []);
+
+  const handleUndo = useCallback((type: string) => {
+    setDismissed((prev) => {
+      const next = undismiss(prev, type);
+      saveDismissed(next);
+      return next;
+    });
   }, []);
 
-  const handleDismiss = useCallback(
-    (id: string) => {
-      const newDismissed = [...dismissedIds, id];
-      setDismissedIds(newDismissed);
-      localStorage.setItem(
-        "dismissed-weather-alerts",
-        JSON.stringify(newDismissed),
-      );
-
-      toast.success("Alert dismissed", {
-        duration: 4000,
-        ariaProps: { role: "status", "aria-live": "polite" },
-      });
-    },
-    [dismissedIds],
-  );
-
-  const handleUndo = useCallback(
-    (id: string) => {
-      setDismissedIds((prev) => {
-        const next = prev.filter((d) => d !== id);
-        localStorage.setItem(
-          "dismissed-weather-alerts",
-          JSON.stringify(next),
-        );
-        return next;
-      });
-    },
-    [],
-  );
-
-  const handleDismissWithUndo = useCallback(
-    (id: string) => {
-      const newDismissed = [...dismissedIds, id];
-      setDismissedIds(newDismissed);
-      localStorage.setItem(
-        "dismissed-weather-alerts",
-        JSON.stringify(newDismissed),
-      );
-
-      toast(
-        (t) => (
-          <span className="flex items-center gap-3 text-sm font-medium">
-            Alert dismissed
-            <button
-              onClick={() => {
-                handleUndo(id);
-                toast.dismiss(t.id);
-              }}
-              className="font-bold text-rhozly-primary underline underline-offset-2"
-            >
-              Undo
-            </button>
-          </span>
-        ),
-        {
-          duration: 4000,
-          ariaProps: { role: "status", "aria-live": "polite" },
-        },
-      );
-    },
-    [dismissedIds, handleUndo],
-  );
+  // Dismiss an alert TYPE for the rest of today; it reappears tomorrow if still valid.
+  const handleDismiss = useCallback((type: string) => {
+    setDismissed((prev) => {
+      const next = dismissType(prev, type, todayLocal());
+      saveDismissed(next);
+      return next;
+    });
+    toast(
+      (t) => (
+        <span className="flex items-center gap-3 text-sm font-medium">
+          Hidden until tomorrow
+          <button
+            onClick={() => { handleUndo(type); toast.dismiss(t.id); }}
+            className="font-bold text-rhozly-primary underline underline-offset-2"
+          >
+            Undo
+          </button>
+        </span>
+      ),
+      { duration: 4000, ariaProps: { role: "status", "aria-live": "polite" } },
+    );
+  }, [handleUndo]);
 
   // When-label: a grouped day range for multi-day alerts ("Mon–Wed"), or a single
   // day for one-offs. Frost carries a real hour (from the hourly scan), so we append
@@ -143,10 +110,12 @@ export const WeatherAlertBanner = ({
     // "info" alerts (e.g. rain auto-complete) live in the Garden Intelligence
     // panel — never show them in the banner regardless of screen.
     const actionable = uniqueAlerts.filter((a) => a.severity !== "info");
+    // The Weather section (isForecastScreen) always shows alerts; everywhere else
+    // an alert TYPE stays hidden only for the day it was dismissed.
     return isForecastScreen
       ? actionable
-      : actionable.filter((a) => !dismissedIds.includes(a.id));
-  }, [isForecastScreen, uniqueAlerts, dismissedIds]);
+      : actionable.filter((a) => !isDismissedToday(dismissed, a.type, today));
+  }, [isForecastScreen, uniqueAlerts, dismissed, today]);
 
   useEffect(() => {
     if (visibleAlerts.length > 0) {
@@ -193,6 +162,48 @@ export const WeatherAlertBanner = ({
     },
   };
 
+  const alertIcon = (type: WeatherAlert["type"], size: string) =>
+    type === "frost" ? <Snowflake className={size} />
+      : type === "heat" ? <ThermometerSun className={size} />
+      : type === "wind" ? <Wind className={size} />
+      : <CloudRain className={size} />;
+
+  // ── Compact app-wide bar — one slim row per active alert type ──
+  if (compact) {
+    return (
+      <div data-testid="weather-alert-bar" className="space-y-1.5">
+        {visibleAlerts.map((alert) => {
+          const styles = styleMap[alert.severity] ?? styleMap.info;
+          return (
+            <div
+              key={alert.id}
+              data-testid={`weather-alert-bar-${alert.type}`}
+              className={`flex items-center gap-2 rounded-2xl border px-3 py-2 animate-in slide-in-from-top-2 duration-300 ${styles.container}`}
+            >
+              <span className={`shrink-0 p-1 rounded-lg ${styles.iconBg}`}>{alertIcon(alert.type, "w-3.5 h-3.5")}</span>
+              <button
+                onClick={() => navigate("/dashboard?view=weather")}
+                className="flex-1 min-w-0 text-left flex items-baseline gap-1.5"
+              >
+                <span className="text-[12px] font-black uppercase tracking-wide shrink-0">{alert.type}</span>
+                <span className="text-[12px] font-extrabold text-rhozly-primary shrink-0">{formatWhen(alert)}</span>
+                <span className="hidden sm:block text-[12px] font-medium opacity-70 truncate">{alert.message}</span>
+              </button>
+              <button
+                onClick={() => handleDismiss(alert.type)}
+                aria-label={`Dismiss ${alert.type} alert for today`}
+                data-testid={`weather-alert-bar-dismiss-${alert.type}`}
+                className="shrink-0 p-1.5 -mr-1 rounded-lg opacity-50 hover:opacity-100 hover:bg-black/5 transition-colors"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          );
+        })}
+      </div>
+    );
+  }
+
   return (
     <div data-testid="weather-alert-banner" className="space-y-3">
       {visibleAlerts.map((alert) => {
@@ -234,7 +245,7 @@ export const WeatherAlertBanner = ({
 
               {!isForecastScreen && (
                 <button
-                  onClick={() => handleDismissWithUndo(alert.id)}
+                  onClick={() => handleDismiss(alert.type)}
                   aria-label="Dismiss alert"
                   className="min-w-[44px] min-h-[44px] flex items-center justify-center hover:bg-black/5 rounded-xl transition-colors"
                 >

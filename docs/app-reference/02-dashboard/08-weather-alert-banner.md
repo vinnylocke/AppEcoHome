@@ -2,7 +2,7 @@
 
 > A horizontal banner stack at the top of the Dashboard / Weather tab showing any active weather alerts (frost, heatwave, strong wind, heavy rain, dry spell).
 
-**Rendered on:** `/dashboard?view=dashboard`, `/dashboard?view=locations`, `/dashboard?view=calendar`, `/dashboard?view=weather` (the latter with `isForecastScreen=true`)
+**Rendered on:** **app-wide** — a slim `compact` bar at the top of every padded screen (in `App.tsx`'s `<main>`), plus the **full** always-on banner on the Weather view (`/dashboard?view=weather`, `isForecastScreen=true`). The compact bar is hidden on the Weather view (no doubling) and on focus-mode screens. Each compact row is tappable → opens the Weather view, with a per-type dismiss ✕.
 **Source file:** `src/components/WeatherAlertBanner.tsx`
 
 ---
@@ -52,7 +52,7 @@ This is fetched by `home-dashboard-stats` (server-side) and surfaces to the App.
 
 ### Data flow — write paths
 
-Per-alert session dismissal is stored in `sessionStorage[`rhozly_alert_dismissed_${alert.id}`]`. The alert isn't deleted from the DB — it just hides locally until session expires or the cron updates / expires the row.
+**Per-type, per-day dismissal (2026-06).** Dismissing an alert stores `localStorage["dismissed-weather-alerts"]` as a map of alert **type → the local date dismissed** (`{ heat: "2026-06-23" }`). An alert type stays hidden **app-wide only for that calendar day**; the next day it reappears if the alert is still active — a gentle reminder, not spam. The alert is never deleted from the DB. The **Weather view ignores dismissal entirely** (`isForecastScreen`). Pure helpers in `src/lib/weatherAlertDismissal.ts` (`isDismissedToday` / `dismiss` / `parseDismissed`, the last dropping the legacy permanent id-array format). (Replaces the earlier permanent localStorage id-array model.)
 
 ### Edge functions invoked
 

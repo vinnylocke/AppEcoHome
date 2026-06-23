@@ -1350,6 +1350,13 @@ function AppShell() {
                       the screen edge so the surface can size itself with
                       h-full; non-focus routes get the standard page padding. */}
                   <div className={isFocusMode ? "h-full" : "p-4 md:p-8 pb-28 md:pb-8 min-h-full"}>
+                    {/* App-wide compact weather-alert bar — on every padded screen
+                        except the Weather view (which shows the full banner). */}
+                    {!isFocusMode && dashboardView !== "weather" && (
+                      <div data-testid="global-weather-alert-bar" className="mb-4">
+                        <WeatherAlertBanner alerts={alerts} compact />
+                      </div>
+                    )}
                     <Suspense fallback={RouteFallback}>
                     <Routes>
                       <Route path="/" element={<Navigate to={isMobile ? "/quick" : "/dashboard"} replace />} />
@@ -1418,10 +1425,11 @@ function AppShell() {
                               <div
                                 className="col-span-full space-y-6"
                               >
-                                <WeatherAlertBanner
-                                  alerts={alerts}
-                                  isForecastScreen={dashboardView === "weather"}
-                                />
+                                {/* Full always-on banner only on the Weather view;
+                                    other screens use the app-wide compact bar. */}
+                                {dashboardView === "weather" && (
+                                  <WeatherAlertBanner alerts={alerts} isForecastScreen />
+                                )}
 
                                 <div className="flex items-center justify-between px-1">
                                   <div data-testid="dashboard-view-switcher" className="bg-rhozly-primary/5 p-1 rounded-2xl flex w-full">

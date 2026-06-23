@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Improved",
+    "items": [
+      "Weather alerts now show as a slim bar on every screen (tap it to open the forecast), so you won't miss frost or a heatwave. Dismiss one and it stays hidden for the day, reappearing the next day if the weather's still on the way. The Weather section always shows the full alerts."
+    ]
+  }
+]
