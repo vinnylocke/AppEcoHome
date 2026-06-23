@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "label": "New",
+    "items": [
+      "Automation Receipt — a new automation action that tells you the outcome each time an automation is checked: whether it ran, was held back by its rate limit (a nudge that you may want to adjust it), or failed."
+    ]
+  },
+  {
+    "label": "Removed",
+    "items": [
+      "Automations no longer notify automatically — add the new Automation Receipt action if you want to be told the outcome, so you're in full control of when an automation speaks up."
+    ]
+  },
+  {
+    "label": "Improved",
+    "items": [
+      "Automation run history now shows how many members were alerted, instead of a confusing notification count."
+    ]
+  }
+]

@@ -296,7 +296,7 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
                     <select value={a.action_kind} onChange={(e) => setAction(i, { action_kind: e.target.value as ActionKind })} className="rounded-lg border border-gray-200 p-1.5 text-sm font-semibold">
                       <option value="valve_open">Open valve</option>
                       <option value="valve_close">Close valve</option>
-                      <option value="notification">Notify</option>
+                      <option value="notification">Automation Receipt</option>
                       <option value="complete_task">Complete task</option>
                     </select>
                     {(a.action_kind === "valve_open" || a.action_kind === "valve_close") && (
@@ -309,7 +309,9 @@ export default function AutomationBuilderModal({ homeId, automationId, onSaved, 
                       <label className="text-xs text-gray-500">for <input type="number" value={a.valve_duration_seconds ?? 1800} onChange={(e) => setAction(i, { valve_duration_seconds: Number(e.target.value) })} className="rounded-lg border border-gray-200 p-1.5 text-sm w-20 mx-1" />s</label>
                     )}
                     {a.action_kind === "notification" && (
-                      <input value={a.notification_title ?? ""} onChange={(e) => setAction(i, { notification_title: e.target.value })} placeholder="Title (optional)" className="flex-1 rounded-lg border border-gray-200 p-1.5 text-sm" />
+                      <span className="flex-1 text-xs text-gray-500" data-testid={`action-receipt-hint-${i}`}>
+                        Sends each home member the outcome — ran, held back (rate limit), or failed — when this automation is checked.
+                      </span>
                     )}
                     {a.action_kind === "complete_task" && (
                       <BlueprintActionSelect index={i} value={a.target_blueprint_id} blueprints={blueprints} onChange={(id) => setAction(i, { target_blueprint_id: id })} />

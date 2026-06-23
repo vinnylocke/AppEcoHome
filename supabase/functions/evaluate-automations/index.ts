@@ -29,6 +29,7 @@ import { isRateLimited, windowStartIso, FIRED_STATUSES, shouldCollapseRateLimitS
 import { defaultWindowOpen, type DefaultWindow } from "../_shared/automationWindow.ts";
 import { treeHasTimeTrigger, treeAffectedByDevice } from "../_shared/automationCandidates.ts";
 import { fanoutActions } from "../_shared/fanoutActions.ts";
+import { sendReceipt } from "../_shared/automationReceipt.ts";
 import { applyEdgeClaimFilter } from "../_shared/automationClaim.ts";
 
 const FN = "evaluate-automations";
@@ -185,10 +186,16 @@ async function processOne(
         }).eq("id", (lastRun as { id: string }).id);
         if (updErr) logError(FN, "skip_run_update_failed", { id, message: updErr.message });
       } else {
+        // Transitioning INTO rate-limited (a fresh skip row, not a collapse) →
+        // one receipt per episode telling the user it was held back + why.
+        const membersAlerted = await sendReceipt(
+          db, { id, home_id: homeId, name: automation.name as string }, "rate_limited",
+          { rateLimitCount: runLimitCount, rateLimitWindowHours: windowHours, nextEligibleAt: nextIso },
+        );
         const { error: skipErr } = await db.from("automation_runs").insert({
           automation_id: id, home_id: homeId, triggered_by: "schedule",
           status: "skipped_rate_limited",
-          devices_triggered: { notifications: 0, valves_queued: 0 },
+          devices_triggered: { members_alerted: membersAlerted, valves_queued: 0 },
           trigger_reason: reason,
           completed_at: now.toISOString(),
         });
@@ -232,10 +239,14 @@ async function processOne(
   const runId = (runIns as { id: string }).id;
 
   const fanout = await fanoutActions(db, { id, home_id: homeId, name: automation.name as string }, runId, now);
+  const membersAlerted = await sendReceipt(
+    db, { id, home_id: homeId, name: automation.name as string }, "ran",
+    { valvesFired: fanout.valves_queued, tasksCompleted: fanout.tasks_completed.length },
+  );
 
   await db.from("automation_runs").update({
     completed_at: now.toISOString(),
-    devices_triggered: { notifications: fanout.notifications_queued, valves_queued: fanout.valves_queued },
+    devices_triggered: { members_alerted: membersAlerted, valves_queued: fanout.valves_queued },
     tasks_completed: fanout.tasks_completed,
   }).eq("id", runId);
 

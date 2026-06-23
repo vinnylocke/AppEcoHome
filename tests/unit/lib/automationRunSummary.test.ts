@@ -2,10 +2,16 @@ import { describe, it, expect } from "vitest";
 import { summariseAutomationRun } from "../../../src/lib/automationRunSummary";
 
 describe("summariseAutomationRun", () => {
-  it("handles the condition-engine object shape (regression: used to crash)", () => {
+  it("handles the receipt object shape — members alerted", () => {
     expect(
-      summariseAutomationRun({ devices_triggered: { notifications: 2, valves_queued: 1 } }),
-    ).toEqual(["1 valve triggered", "2 notifications sent"]);
+      summariseAutomationRun({ devices_triggered: { members_alerted: 2, valves_queued: 1 } }),
+    ).toEqual(["1 valve triggered", "2 members alerted"]);
+  });
+
+  it("reads the legacy `notifications` count as members alerted (old rows)", () => {
+    expect(
+      summariseAutomationRun({ devices_triggered: { notifications: 1, valves_queued: 0 } }),
+    ).toEqual(["1 member alerted"]);
   });
 
   it("handles the legacy array shape", () => {
@@ -32,7 +38,7 @@ describe("summariseAutomationRun", () => {
   it("returns [] for empty / null / missing data", () => {
     expect(summariseAutomationRun({})).toEqual([]);
     expect(summariseAutomationRun({ devices_triggered: null })).toEqual([]);
-    expect(summariseAutomationRun({ devices_triggered: { notifications: 0, valves_queued: 0 } })).toEqual([]);
+    expect(summariseAutomationRun({ devices_triggered: { members_alerted: 0, valves_queued: 0 } })).toEqual([]);
     expect(summariseAutomationRun({ devices_triggered: [] })).toEqual([]);
   });
 });

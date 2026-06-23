@@ -25,7 +25,6 @@ export interface ActionRow {
 export interface TaskCompletion { blueprint_id: string; title: string; already_done: boolean }
 
 export interface FanoutResult {
-  notifications_queued: number;
   valves_queued: number;
   tasks_completed: TaskCompletion[];
 }
@@ -43,31 +42,16 @@ export async function fanoutActions(
   const { data: actions } = await db.from("automation_actions")
     .select("id, action_kind, notification_title, notification_body, target_device_id, target_blueprint_id, valve_duration_seconds, ord")
     .eq("automation_id", automation.id).order("ord", { ascending: true });
-  if (!actions?.length) return { notifications_queued: 0, valves_queued: 0, tasks_completed: [] };
+  if (!actions?.length) return { valves_queued: 0, tasks_completed: [] };
 
-  let notificationsQueued = 0, valvesQueued = 0;
+  let valvesQueued = 0;
   const tasksCompleted: TaskCompletion[] = [];
-  let memberIds: string[] = [];
-  if ((actions as ActionRow[]).some((a) => a.action_kind === "notification")) {
-    const { data: members } = await db.from("home_members").select("user_id").eq("home_id", automation.home_id);
-    memberIds = (members ?? []).map((m: { user_id: string }) => m.user_id);
-  }
 
   let valveStaggerSeconds = 0;
   for (const action of actions as ActionRow[]) {
-    if (action.action_kind === "notification") {
-      if (memberIds.length === 0) continue;
-      const title = action.notification_title?.trim() || automation.name;
-      const body = action.notification_body?.trim() || `Automation "${automation.name}" triggered.`;
-      const rows = memberIds.map((uid) => ({
-        user_id: uid, home_id: automation.home_id, title, body,
-        type: "automation_sensor", data: { route: "/integrations", automationId: automation.id }, is_read: false,
-      }));
-      const { error } = await db.from("notifications").insert(rows);
-      if (error) logError(FN, "notification_insert_failed", { automation_id: automation.id, message: error.message });
-      else notificationsQueued += rows.length;
-      continue;
-    }
+    // `notification` actions are receipts — sent by the runner at decision time,
+    // not here. The fan-out just executes the side-effecting actions.
+    if (action.action_kind === "notification") continue;
     if (action.action_kind === "valve_open" || action.action_kind === "valve_close") {
       if (!action.target_device_id) continue;
       // valve_open with a duration also enqueues the paired turn_off, so the
@@ -106,5 +90,5 @@ export async function fanoutActions(
       }
     }
   }
-  return { notifications_queued: notificationsQueued, valves_queued: valvesQueued, tasks_completed: tasksCompleted };
+  return { valves_queued: valvesQueued, tasks_completed: tasksCompleted };
 }

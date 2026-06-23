@@ -11,6 +11,7 @@
 import type { ExecutorContext, MutationExecutor, MutationResult } from "./mutations.ts";
 import { summariseTree, type ConditionNode } from "../../_shared/conditionTree.ts";
 import { fanoutActions } from "../../_shared/fanoutActions.ts";
+import { sendReceipt } from "../../_shared/automationReceipt.ts";
 import {
   buildTriggerTree, buildActions, treeReferencedIds, actionDeviceIds,
   type GroupInput, type ActionInput, type BuiltAction,
@@ -235,15 +236,19 @@ export const run_automation: MutationExecutor = {
     if (error) throw error;
     const runId = (runRow as { id: string }).id;
     const fanout = await fanoutActions(ctx.db, { id: a.id, home_id: ctx.homeId, name: a.name as string }, runId, now);
+    const membersAlerted = await sendReceipt(
+      ctx.db, { id: a.id, home_id: ctx.homeId, name: a.name as string }, "ran",
+      { valvesFired: fanout.valves_queued, tasksCompleted: fanout.tasks_completed.length },
+    );
     await ctx.db.from("automation_runs").update({
       status: "success",
-      devices_triggered: { notifications: fanout.notifications_queued, valves_queued: fanout.valves_queued },
+      devices_triggered: { members_alerted: membersAlerted, valves_queued: fanout.valves_queued },
       tasks_completed: fanout.tasks_completed,
       completed_at: now.toISOString(),
     }).eq("id", runId);
     return {
-      summary: `Ran "${a.name}" — ${fanout.valves_queued} valve(s) queued, ${fanout.notifications_queued} notification(s), ${fanout.tasks_completed.length} task(s) completed. Valves fire on the next drain (within a few minutes).`,
-      payload: { runId, ...fanout },
+      summary: `Ran "${a.name}" — ${fanout.valves_queued} valve(s) queued, ${fanout.tasks_completed.length} task(s) completed${membersAlerted ? `, ${membersAlerted} member(s) alerted` : ""}. Valves fire on the next drain (within a few minutes).`,
+      payload: { runId, membersAlerted, ...fanout },
       // No undo — you can't un-fire a run.
     };
   },

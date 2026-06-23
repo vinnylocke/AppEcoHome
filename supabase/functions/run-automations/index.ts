@@ -11,6 +11,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { decryptCredentials } from "../_shared/integrations/encrypt.ts";
 import { fanoutActions } from "../_shared/fanoutActions.ts";
+import { sendReceipt } from "../_shared/automationReceipt.ts";
 import { buildControlPayload, resolveEffectiveDuration } from "../_shared/integrations/ewelinkDevice.ts";
 import { regionToApiBase } from "../_shared/integrations/ewelinkAuth.ts";
 import { log, warn, error as logError } from "../_shared/logger.ts";
@@ -395,69 +396,6 @@ async function completeTasks(
   return results;
 }
 
-/** Format a duration in seconds as a human-readable phrase that doesn't
- *  round sub-minute runs up to "1 min" (a 30s run used to display as
- *  "1 min" because Math.round(0.5) === 1). Singular/plural is also
- *  handled so the body never reads "1 minutes". */
-function formatDuration(seconds: number): string {
-  const s = Math.max(0, Math.round(seconds));
-  if (s < 60) return `${s} ${s === 1 ? "second" : "seconds"}`;
-  const mins = Math.floor(s / 60);
-  const rem = s - mins * 60;
-  if (rem === 0) return `${mins} ${mins === 1 ? "minute" : "minutes"}`;
-  return `${mins} ${mins === 1 ? "minute" : "minutes"} ${rem} ${rem === 1 ? "second" : "seconds"}`;
-}
-
-async function sendNotification(
-  db: ReturnType<typeof createClient>,
-  homeId: string,
-  automationName: string,
-  status: string,
-  durationSeconds: number,
-  automationId: string,
-  rainMm = 0,
-  heatMaxTempC?: number,
-): Promise<void> {
-  const durationText = formatDuration(durationSeconds);
-
-  let title: string;
-  let body: string;
-  if (status === "skipped_weather") {
-    const mmText = rainMm > 0 ? ` (${rainMm}mm forecast)` : "";
-    title = `${automationName} skipped — rain detected`;
-    body = `Your garden didn't need extra water today${mmText}.`;
-  } else if (status === "success" || status === "partial") {
-    if (heatMaxTempC !== undefined) {
-      title = `${automationName} watered (hot weather)`;
-      body = `Hot day forecast — ${Math.round(heatMaxTempC)}°C. Valves ran for ${durationText}${status === "partial" ? " (some devices failed)" : "."}`;
-    } else {
-      title = `${automationName} watered your garden`;
-      body = `Valves ran for ${durationText}${status === "partial" ? " (some devices failed)" : " successfully"}.`;
-    }
-  } else {
-    title = `${automationName} failed to water`;
-    body = "Check your device connections and try again.";
-  }
-
-  const { data: members } = await db
-    .from("home_members")
-    .select("user_id")
-    .eq("home_id", homeId);
-
-  if (!members || members.length === 0) return;
-
-  await db.from("notifications").insert(
-    (members as Array<Record<string, unknown>>).map((m) => ({
-      user_id: m.user_id,
-      home_id: homeId,
-      title,
-      body,
-      type: "automation_run",
-      data: { route: "/integrations", automationId },
-      is_read: false,
-    })),
-  );
-}
 
 async function drainValveQueue(db: ReturnType<typeof createClient>): Promise<void> {
   const now = new Date().toISOString();
@@ -484,7 +422,7 @@ async function drainValveQueue(db: ReturnType<typeof createClient>): Promise<voi
 
     const { data: automation } = await db
       .from("automations")
-      .select("duration_seconds, retry_on_failure")
+      .select("duration_seconds, retry_on_failure, name")
       .eq("id", (runRow as Record<string, unknown>).automation_id as string)
       .single();
 
@@ -537,8 +475,8 @@ async function drainValveQueue(db: ReturnType<typeof createClient>): Promise<voi
       error_message: ok ? null : "eWeLink control failed",
     }).eq("id", entry.id as string);
 
+    const run = runRow as Record<string, unknown>;
     if (ok) {
-      const run = runRow as Record<string, unknown>;
       await db.from("valve_events").insert({
         device_id: deviceId,
         home_id: run.home_id as string,
@@ -548,6 +486,14 @@ async function drainValveQueue(db: ReturnType<typeof createClient>): Promise<voi
         duration_seconds: command === "turn_on" ? (auto.duration_seconds as number) : null,
         fired_at: now,
       });
+    } else if (command === "turn_on") {
+      // The optimistic "ran" receipt already went out when the automation fired;
+      // a turn-on failure here corrects it (only if a receipt action is configured).
+      await sendReceipt(
+        db,
+        { id: run.automation_id as string, home_id: run.home_id as string, name: (auto.name as string) ?? "Your automation" },
+        "failed",
+      ).catch(() => {});
     }
 
     log(FN, "queue_drain", { entryId: entry.id, deviceId, command, success: ok });
@@ -589,14 +535,19 @@ async function runAutomation(
   const fanout = await fanoutActions(db, { id: automationId, home_id: homeId, name: automationName }, runId, now);
   await drainValveQueue(db).catch((e) => warn(FN, "manual_drain_error", { error: e.message }));
 
+  const membersAlerted = await sendReceipt(
+    db, { id: automationId, home_id: homeId, name: automationName }, "ran",
+    { valvesFired: fanout.valves_queued, tasksCompleted: fanout.tasks_completed.length },
+  );
+
   await db.from("automation_runs").update({
     status: "success",
-    devices_triggered: { notifications: fanout.notifications_queued, valves_queued: fanout.valves_queued },
+    devices_triggered: { members_alerted: membersAlerted, valves_queued: fanout.valves_queued },
     tasks_completed: fanout.tasks_completed,
     completed_at: now.toISOString(),
   }).eq("id", runId);
 
-  log(FN, "automation_complete", { automationId, runId, valves: fanout.valves_queued, notifications: fanout.notifications_queued, tasks: fanout.tasks_completed.length });
+  log(FN, "automation_complete", { automationId, runId, valves: fanout.valves_queued, membersAlerted, tasks: fanout.tasks_completed.length });
   return { status: "success", runId };
 }
 
