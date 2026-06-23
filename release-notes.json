@@ -1,8 +1,1 @@
-[
-  {
-    "label": "Fixed",
-    "items": [
-      "Automations that control a device (like a watering valve) were sending the \"it ran\" notification a few minutes before the valve actually switched on. The valve now fires immediately when the automation triggers, so the notification matches what really happened."
-    ]
-  }
-]
+[]
