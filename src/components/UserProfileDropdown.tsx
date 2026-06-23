@@ -352,7 +352,7 @@ export default function UserProfileDropdown({ displayName, firstName, email, sub
                 <span className="text-rhozly-on-surface/40 group-hover:text-rhozly-primary transition-colors">
                   <ImageIcon size={15} />
                 </span>
-                <span className="flex-1 text-left">Image credits</span>
+                <span className="flex-1 text-left">Credits &amp; sources</span>
                 <ChevronRight size={12} className="text-rhozly-on-surface/20 group-hover:text-rhozly-primary/50 transition-colors" />
               </button>
               {onCheckForUpdate && (

@@ -94,7 +94,9 @@ interface ImageCredit {
 
 Stored as `image_credit jsonb` on `plants`, `inventory_items`, `plant_journals`. The unified shape also rides in `plant-image-search`'s response (`image_credit` per image) and Verdantly / Perenual mapped responses.
 
-Surfaced via `<ImageCredit credit={…} variant="overlay" | "inline" | "badge-only" />` and the `<CreditedImage>` wrapper. Tapping any badge opens `<CreditPopover>` — provider, attribution, licence link, source link, and a footer link to `/credits` (the umbrella attribution page). Backfill for existing rows is deferred to Wave 22.0004; in the meantime the badge dims and points to `/credits`.
+Surfaced via `<ImageCredit credit={…} variant="overlay" | "inline" | "badge-only" />` and the `<CreditedImage>` wrapper. Tapping any badge opens `<CreditPopover>` — provider, attribution, licence link, source link, and a footer link to `/credits`. Backfill for existing rows is deferred to Wave 22.0004; in the meantime the badge dims and points to `/credits`.
+
+**`/credits` is now the broader "Credits & Sources" page** (2026-06): it lists *every* external source Rhozly uses — plant data (Perenual, Verdantly), the plant-library reference sources (GBIF, Wikidata, Wikipedia, iNaturalist), plant ID (Pl@ntNet), weather (Open-Meteo + air quality), images, AI (Gemini, Imagen) and infrastructure (Supabase, Firebase, Resend, Stripe) — grouped by category with what each provides, the user-facing surfaces where it's used, and licence links. The data lives in `src/constants/dataSources.ts` (`DATA_SOURCES`); `CreditsPage.tsx` renders the grouped sections. Reached from the profile dropdown ("Credits & sources") + every image credit popover.
 
 **Wave 22.0004 — backfill + remaining hero surfaces:**
 - One-off SQL migration `20260710000000_image_credits_backfill.sql` populates:
