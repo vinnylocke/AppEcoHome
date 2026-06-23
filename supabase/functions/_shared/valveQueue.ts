@@ -1,0 +1,172 @@
+// Shared valve-queue drainer.
+//
+// `automation_valve_queue` holds pending `turn_on` / `turn_off` entries with a
+// `fire_at`. Draining = for every entry whose `fire_at <= now`, hit the device
+// (eWeLink) and stamp the row `fired` / `failed`. Used by BOTH:
+//   • run-automations  — the 5-min `drain-valve-queue` cron + manual "Run now".
+//   • evaluate-automations — inline, right after queueing, so an auto-fired
+//     valve actuates immediately instead of at the next drain tick (which is
+//     what made the "ran" receipt arrive up to 5 min early).
+//
+// `db: any` so callers pinned to different supabase-js versions pass cleanly
+// (same reasoning as `fanoutActions`).
+
+import { decryptCredentials } from "./integrations/encrypt.ts";
+import { buildControlPayload } from "./integrations/ewelinkDevice.ts";
+import { regionToApiBase } from "./integrations/ewelinkAuth.ts";
+import { sendReceipt } from "./automationReceipt.ts";
+import { log } from "./logger.ts";
+
+const FN = "valve-queue";
+const EWELINK_APP_ID = Deno.env.get("EWELINK_APP_ID") ?? "";
+
+/** Fire a single valve command at the device, with one optional retry. */
+export async function fireValve(
+  apiBase: string,
+  device: Record<string, unknown>,
+  command: "turn_on" | "turn_off",
+  durationSeconds: number,
+  retryOnFailure: boolean,
+  accessToken: string,
+): Promise<boolean> {
+  const meta = device.metadata as Record<string, unknown>;
+  const { apiPath, payload } = buildControlPayload(
+    meta,
+    command,
+    command === "turn_off" ? 0 : durationSeconds,
+    device.external_device_id as string,
+  );
+
+  const attempt = async () => {
+    const res = await fetch(`${apiBase}${apiPath}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${accessToken}`,
+        "X-CK-Appid": EWELINK_APP_ID,
+      },
+      body: JSON.stringify(payload),
+    });
+    const body = await res.json() as Record<string, unknown>;
+    return body.error === 0;
+  };
+
+  const ok = await attempt();
+  if (!ok && retryOnFailure) {
+    await new Promise((r) => setTimeout(r, 10_000));
+    return await attempt();
+  }
+  return ok;
+}
+
+/**
+ * Drain due valve-queue entries. Pass `{ runId }` to drain only one run's
+ * entries (used by the inline auto-fire path so it touches just its own
+ * just-queued `turn_on`); omit it to drain everything due (the cron sweep).
+ */
+export async function drainValveQueue(
+  // deno-lint-ignore no-explicit-any
+  db: any,
+  opts: { runId?: string } = {},
+): Promise<void> {
+  const now = new Date().toISOString();
+
+  let query = db
+    .from("automation_valve_queue")
+    .select("id, device_id, automation_run_id, command")
+    .eq("status", "pending")
+    .lte("fire_at", now);
+  if (opts.runId) query = query.eq("automation_run_id", opts.runId);
+
+  const { data: pending } = await query;
+  if (!pending || (pending as unknown[]).length === 0) return;
+
+  for (const entry of pending as Array<Record<string, unknown>>) {
+    const deviceId = entry.device_id as string;
+
+    const { data: runRow } = await db
+      .from("automation_runs")
+      .select("automation_id, home_id, triggered_by")
+      .eq("id", entry.automation_run_id as string)
+      .single();
+    if (!runRow) continue;
+
+    const { data: automation } = await db
+      .from("automations")
+      .select("duration_seconds, retry_on_failure, name")
+      .eq("id", (runRow as Record<string, unknown>).automation_id as string)
+      .single();
+
+    const { data: device } = await db
+      .from("devices")
+      .select("id, name, external_device_id, metadata, integration_id")
+      .eq("id", deviceId)
+      .single();
+
+    if (!automation || !device) {
+      await db.from("automation_valve_queue")
+        .update({ status: "failed", error_message: "Device or automation not found" })
+        .eq("id", entry.id as string);
+      continue;
+    }
+
+    const auto = automation as Record<string, unknown>;
+    const dev = device as Record<string, unknown>;
+
+    const { data: integration } = await db
+      .from("integrations")
+      .select("credentials_encrypted, region")
+      .eq("id", dev.integration_id as string)
+      .single();
+
+    if (!integration) {
+      await db.from("automation_valve_queue")
+        .update({ status: "failed", error_message: "Integration not found" })
+        .eq("id", entry.id as string);
+      continue;
+    }
+
+    const integ = integration as Record<string, unknown>;
+    const { accessToken } = await decryptCredentials(integ.credentials_encrypted as string);
+    const apiBase = regionToApiBase(integ.region as string);
+
+    const command = ((entry.command as string) ?? "turn_on") as "turn_on" | "turn_off";
+    const ok = await fireValve(
+      apiBase,
+      dev,
+      command,
+      auto.duration_seconds as number,
+      auto.retry_on_failure as boolean,
+      accessToken,
+    );
+
+    await db.from("automation_valve_queue").update({
+      status: ok ? "fired" : "failed",
+      fired_at: ok ? now : null,
+      error_message: ok ? null : "eWeLink control failed",
+    }).eq("id", entry.id as string);
+
+    const run = runRow as Record<string, unknown>;
+    if (ok) {
+      await db.from("valve_events").insert({
+        device_id: deviceId,
+        home_id: run.home_id as string,
+        automation_id: run.automation_id as string,
+        event_type: command,
+        triggered_by: (run.triggered_by as string) === "manual" ? "manual" : "scheduled",
+        duration_seconds: command === "turn_on" ? (auto.duration_seconds as number) : null,
+        fired_at: now,
+      });
+    } else if (command === "turn_on") {
+      // The optimistic "ran" receipt already went out when the automation fired;
+      // a turn-on failure here corrects it (only if a receipt action is configured).
+      await sendReceipt(
+        db,
+        { id: run.automation_id as string, home_id: run.home_id as string, name: (auto.name as string) ?? "Your automation" },
+        "failed",
+      ).catch(() => {});
+    }
+
+    log(FN, "queue_drain", { entryId: entry.id, deviceId, command, success: ok });
+  }
+}

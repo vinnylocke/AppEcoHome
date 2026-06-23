@@ -30,6 +30,7 @@ import { defaultWindowOpen, type DefaultWindow } from "../_shared/automationWind
 import { treeHasTimeTrigger, treeAffectedByDevice } from "../_shared/automationCandidates.ts";
 import { fanoutActions } from "../_shared/fanoutActions.ts";
 import { sendReceipt } from "../_shared/automationReceipt.ts";
+import { drainValveQueue } from "../_shared/valveQueue.ts";
 import { applyEdgeClaimFilter } from "../_shared/automationClaim.ts";
 
 const FN = "evaluate-automations";
@@ -243,6 +244,16 @@ async function processOne(
     db, { id, home_id: homeId, name: automation.name as string }, "ran",
     { valvesFired: fanout.valves_queued, tasksCompleted: fanout.tasks_completed.length },
   );
+
+  // Fire the valve(s) we just queued for THIS run immediately, rather than
+  // leaving them for the next 5-min drain cron — otherwise the "ran" receipt
+  // above lands minutes before the valve actually opens. Mirrors the manual
+  // "Run now" path; a turn-on failure inside the drain sends the "failed"
+  // correction. Non-fatal — the drain cron remains the safety net.
+  if (fanout.valves_queued > 0) {
+    await drainValveQueue(db, { runId }).catch((e) =>
+      logError(FN, "inline_drain_failed", { id, message: e instanceof Error ? e.message : String(e) }));
+  }
 
   await db.from("automation_runs").update({
     completed_at: now.toISOString(),
