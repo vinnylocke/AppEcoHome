@@ -18,6 +18,7 @@ A three-tier automated testing framework for the Rhozly app (React 19 + Supabase
 10. [Extending the Framework](#10-extending-the-framework)
 11. [Environment Setup](#11-environment-setup)
 12. [Current Test Inventory](#12-current-test-inventory)
+13. [Test Reporting — JUnit, Allure & Jira](#13-test-reporting--junit-allure--jira)
 
 ---
 
@@ -883,3 +884,41 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 > **Seed files:** 13 seed files apply in order: `00_bootstrap`, `01_locations_areas`, `02_plants_shed`, `03_tasks_blueprints`, `04_weather`, `05_planner`, `06_ailments_watchlist`, `07_guides`, `08_profile_preferences`, `09_stats`, `10_lux_readings`, `11_community_guides`, `12_shopping_lists`. `11_community_guides.sql` seeds 2 published community guides (UUIDs `0000000N-0000-0000-0010-000000000001/2`) with stars and comments. `12_shopping_lists.sql` seeds 2 shopping lists with 6 items and pre-completes Phase 1 of "Summer Veg Plan" for planner Phase 2 tests.
 
 > **RLS / edge function tests (Deno):** The integration tests in `rls_isolation.test.ts` and `edge_function_auth.test.ts` connect to the local Supabase instance and require both worker accounts to be seeded (`npm run test:seed`). They are skipped automatically if `VITE_SUPABASE_PUBLISHABLE_KEY` is not in the environment. The `npm run test:functions` command now includes `--env=.env.test` to load these vars automatically.
+
+---
+
+## 13. Test Reporting — JUnit, Allure & Jira
+
+Every tier emits **JUnit XML** — the universal format any Jira test-management app (AgileTest, Qase, Xray, Zephyr…) or report tool consumes — and those are rolled up into a single **Allure report**.
+
+### JUnit XML output
+
+| Tier | Reporter | Output |
+|------|----------|--------|
+| Unit (Vitest) | `junit` reporter (in `vitest.config.ts`) | `test-results/junit/vitest.xml` |
+| Functions (Deno) | `--reporter=junit` (orchestrator redirects stdout) | `test-results/junit/deno.xml` |
+| E2E (Playwright) | `junit` reporter (in `playwright.config.ts`) | `test-results/junit/playwright.xml` |
+
+`test-results/` is git-ignored. Point any **Jira test app** at `test-results/junit/*.xml` (or download the `junit-results` artifact from the CI run) to import every test + result into Jira.
+
+### Unified Allure report (local)
+
+```bash
+npm run test:report        # runs Vitest + Deno, builds ./allure-report
+npm run test:report:e2e    # also runs Playwright (needs local Supabase + dev server)
+npm run report:open        # opens the report in a browser
+```
+
+Each suite is best-effort: a failing suite is captured in the report rather than aborting it. Requires a JRE (Allure runs on Java; the repo ships `allure-commandline`).
+
+### CI → GitHub Pages
+
+`.github/workflows/tests.yml` runs the suites, builds the Allure report (with **run-to-run history**), publishes it to **GitHub Pages**, and uploads the JUnit XML as a `junit-results` artifact. On every push to `main` the live report updates.
+
+- **One-time setup:** repo **Settings → Pages → Source = "GitHub Actions"**.
+- **Vitest** runs with no secrets. The pure **Deno** tests run in CI when the `INTEGRATION_ENCRYPTION_KEY` **Actions** secret is set (the workflow auto-enables Deno when it's present). The few integration tests that need a local Supabase (`rls_isolation`, `edge_function_auth`) self-skip in CI — their `VITE_SUPABASE_PUBLISHABLE_KEY` is intentionally not provided, so they don't fail for want of a local DB.
+- **Playwright E2E** needs a seeded Supabase + the dev server, so it's run locally (`npm run test:report:e2e`) rather than in CI for now.
+
+### Wiring a Jira test app
+
+The JUnit XML is the integration point — install **AgileTest** (free tier), **Qase**, or similar on the company-managed Jira project, then add a CI step that POSTs `test-results/junit/*.xml` to its REST import endpoint. The repo's JUnit output already matches what those apps expect.
