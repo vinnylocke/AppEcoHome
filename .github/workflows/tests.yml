@@ -45,7 +45,12 @@ jobs:
       - run: npm ci --legacy-peer-deps
 
       - name: Vitest (unit) → JUnit
-        run: npx vitest run
+        run: |
+          # Placeholder VITE_* env so the Supabase client constructs — unit tests
+          # mock every real call, they just need a valid-shaped URL + key. These
+          # are public anon values (they ship in the browser bundle), not secrets.
+          printf 'VITE_SUPABASE_URL=https://placeholder.supabase.co\nVITE_SUPABASE_PUBLISHABLE_KEY=sb_publishable_placeholder\n' > .env
+          npx vitest run
         continue-on-error: true
 
       - name: Install Deno
