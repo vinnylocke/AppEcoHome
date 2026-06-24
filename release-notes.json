@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "On phones and small screens, the send button in the chat windows (Plant Doctor and Head Gardener) could be pushed off the edge of the screen — it now always stays visible."
+    ]
+  }
+]

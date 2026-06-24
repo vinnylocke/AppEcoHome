@@ -96,13 +96,13 @@ export default function HeadGardenerChat({ homeId }: { homeId: string }) {
           onChange={(e) => setInput(e.target.value)}
           data-testid="chat-input"
           placeholder="Ask your head gardener…"
-          className="flex-1 rounded-2xl border border-rhozly-outline/15 bg-white px-4 py-3 text-[14px] font-medium focus:outline-none focus:ring-2 focus:ring-rhozly-primary/30"
+          className="flex-1 min-w-0 rounded-2xl border border-rhozly-outline/15 bg-white px-4 py-3 text-[14px] font-medium focus:outline-none focus:ring-2 focus:ring-rhozly-primary/30"
         />
         <button
           type="submit"
           disabled={sending || !input.trim()}
           data-testid="chat-send"
-          className="p-3 rounded-2xl bg-rhozly-primary text-white disabled:opacity-50"
+          className="shrink-0 p-3 rounded-2xl bg-rhozly-primary text-white disabled:opacity-50"
         >
           <Send size={18} />
         </button>

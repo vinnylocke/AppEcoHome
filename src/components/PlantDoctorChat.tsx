@@ -1410,7 +1410,7 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder={pendingImage ? "Ask about this photo…" : pendingAudio ? "🎤 Voice ready — tap send" : "Ask about your garden…"}
-              className="flex-1 bg-rhozly-surface-low rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-rhozly-primary/20 transition-all"
+              className="flex-1 min-w-0 bg-rhozly-surface-low rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-rhozly-primary/20 transition-all"
               disabled={isLoading || isLoadingHistory}
             />
             <button
