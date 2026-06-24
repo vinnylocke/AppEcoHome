@@ -916,7 +916,7 @@ Each suite is best-effort: a failing suite is captured in the report rather than
 `.github/workflows/tests.yml` runs the suites, builds the Allure report (with **run-to-run history**), publishes it to **GitHub Pages**, and uploads the JUnit XML as a `junit-results` artifact. On every push to `main` the live report updates.
 
 - **One-time setup:** repo **Settings → Pages → Source = "GitHub Actions"**.
-- **Vitest** runs with no secrets. To include the **Deno** suite in CI, add these repo secrets (the workflow auto-enables Deno when `SUPABASE_SECRET_KEY` is present): `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`, `SUPABASE_SECRET_KEY`, `TEST_USER_PASSWORD`, `VERDANTLY_API_KEY`, `INTEGRATION_ENCRYPTION_KEY`.
+- **Vitest** runs with no secrets. The pure **Deno** tests run in CI when the `INTEGRATION_ENCRYPTION_KEY` **Actions** secret is set (the workflow auto-enables Deno when it's present). The few integration tests that need a local Supabase (`rls_isolation`, `edge_function_auth`) self-skip in CI — their `VITE_SUPABASE_PUBLISHABLE_KEY` is intentionally not provided, so they don't fail for want of a local DB.
 - **Playwright E2E** needs a seeded Supabase + the dev server, so it's run locally (`npm run test:report:e2e`) rather than in CI for now.
 
 ### Wiring a Jira test app

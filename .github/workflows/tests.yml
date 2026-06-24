@@ -7,12 +7,12 @@ name: Tests & Allure Report
 #
 # Enable once: repo Settings → Pages → Source = "GitHub Actions".
 #
-# Vitest (unit) runs with no secrets. The Deno (edge-function) suite runs only
-# when its secrets are configured (see env.RUN_DENO below) — add these repo
-# secrets to include it: VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY,
-# SUPABASE_SECRET_KEY, TEST_USER_PASSWORD, VERDANTLY_API_KEY,
-# INTEGRATION_ENCRYPTION_KEY. (Playwright E2E needs a seeded Supabase + the dev
-# server, so it's left to local `npm run test:report:e2e` for now.)
+# Vitest (unit) runs with no secrets. The pure Deno (edge-function) tests run
+# when the INTEGRATION_ENCRYPTION_KEY repo secret is set (env.RUN_DENO below);
+# the handful of integration tests that need a local Supabase self-skip in CI
+# (their VITE_SUPABASE_PUBLISHABLE_KEY is intentionally not provided).
+# (Playwright E2E needs a seeded Supabase + the dev server, so it's left to
+# local `npm run test:report:e2e` for now.)
 
 on:
   push:
@@ -33,7 +33,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      RUN_DENO: ${{ secrets.SUPABASE_SECRET_KEY != '' }}
+      RUN_DENO: ${{ secrets.INTEGRATION_ENCRYPTION_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -62,11 +62,8 @@ jobs:
           deno test --allow-env --allow-net --config supabase/tests/deno.json \
             --reporter=junit supabase/tests/ > test-results/junit/deno.xml
         env:
-          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
-          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
-          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
-          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
-          VERDANTLY_API_KEY: ${{ secrets.VERDANTLY_API_KEY }}
+          # Only the encryption key — the Supabase-connection vars are deliberately
+          # omitted so the local-DB integration tests self-skip instead of failing.
           INTEGRATION_ENCRYPTION_KEY: ${{ secrets.INTEGRATION_ENCRYPTION_KEY }}
 
       - uses: actions/setup-java@v4
