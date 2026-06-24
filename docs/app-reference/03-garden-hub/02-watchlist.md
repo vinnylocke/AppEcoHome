@@ -27,7 +27,7 @@ AilmentWatchlist
 │   └── Add Ailment button → AilmentAddModal
 ├── AilmentCard ×N
 │   ├── Cover image (from ailment.thumbnail_url)
-│   ├── Source badge (Manual / Perenual / AI)
+│   ├── Source badge (Manual / Library / Perenual / AI — `SOURCE_META`)
 │   ├── Photos quick-add overlay
 │   ├── Archive/Restore + Delete buttons (perm-gated)
 │   ├── Type badge (Pest / Disease / Invasive)
@@ -74,7 +74,7 @@ Roll up `plant_instance_ailments` into `affectedCounts: Record<ailmentId, number
 
 | Tier | Behaviour |
 |------|-----------|
-| **1 · Library** (free) | Filters the seeded `ailment_library` client-side (`filterAilmentLibrary`) → results carry a **Library** chip → tap **Add** → `addLibraryAilmentToWatchlist` (`source='ai'`). |
+| **1 · Library** (free, all tiers) | Filters the seeded `ailment_library` client-side (`filterAilmentLibrary`) → results carry a **Library** chip → tap **Add** → `addLibraryAilmentToWatchlist` (**`source='library'`** since `20260824000000`; was `'ai'`). |
 | **2 · Databases** | "Search more databases" button → escalates with the query → `perenual-proxy` (`searchPestDisease`) → cart-select → insert (`source='perenual'`). |
 | **3 · Rhozly AI ✦** (AI tier) | "Search with Rhozly AI" → `generate-ailment-suggestions` → on add, also **persists the result to the shared `ailment_library`** via `add-ailment-to-library` (so future users find it in Tier 1) + inserts to the watchlist (`source='ai'`). |
 | **Manual** | "or add manually" → the free-form `StepBuilder` form (name, type, description, symptoms, prevention/remedy steps). |
@@ -215,7 +215,7 @@ Three modes:
 | Element | Meaning |
 |---------|---------|
 | Type badge | Pest / Disease / Invasive |
-| Source badge | Manual / Perenual / AI |
+| Source badge | Manual / Library / Perenual / AI |
 | N plants affected | Count of `plant_instance_ailments` rows with status='active' |
 | Steps count | Prevention + remedy total |
 | Photos overlay | Tap to add evidence photo |

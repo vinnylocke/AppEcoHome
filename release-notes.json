@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Improved",
+    "items": [
+      "Plants and ailments you add from the built-in Library now show a clear \"Library\" label, instead of being grouped in with AI suggestions — so it's obvious where each one came from."
+    ]
+  }
+]

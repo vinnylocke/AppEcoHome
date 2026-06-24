@@ -37,7 +37,7 @@ describe("mapLibraryToWatchlistPayload", () => {
     expect(p.home_id).toBe("home-1");
     expect(p.name).toBe("Late Blight");
     expect(p.type).toBe("disease");
-    expect(p.source).toBe("ai");
+    expect(p.source).toBe("library"); // library adds are a first-class source, not 'ai'
     expect(p.affected_plants).toEqual(["tomato", "potato"]);
     expect(p.thumbnail_url).toBe("http://x/y.jpg");
     expect(p.symptoms).toHaveLength(2);

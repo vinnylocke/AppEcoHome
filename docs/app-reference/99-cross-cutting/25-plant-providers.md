@@ -1,6 +1,6 @@
-# Plant Providers — Perenual, Verdantly, AI
+# Plant Providers — Library, Verdantly, Perenual, AI
 
-> Plant species records come from three sources: **Perenual** (commercial plant DB, Botanist+ tier), **Verdantly** (curated DB, **Botanist+ — now gated like Perenual via `enable_perenual`**, server-side in `verdantly-search` + `companion-planting`), and **AI** (Rhozly's PlantDoctorService, Sage+ tier). The unified `plantProvider.ts` abstracts source selection.
+> Plant species can be added from five sources: **Manual** (typed in by hand), the **Library** (the ~94k-row seeded `plant_library` catalogue — the **default search source for every tier, including Sprout**), **Verdantly** + **Perenual** (external DBs, both gated by `enable_perenual`), and **AI** (Rhozly's `PlantDoctorService`, gated by `ai_enabled`). A picked **Library** plant is cloned into the **global** `plants` catalogue (`home_id = null`, `source = 'ai'`, deduped by `scientific_name_key`) — there is no separate `'library'` source value, so a library plant is distinguished from a true AI plant by `home_id IS NULL`. The unified `plantProvider.ts` + `searchPreference.ts` abstract source selection and entitlement clamping.
 
 ---
 
@@ -25,12 +25,14 @@ getProviderPlantDetails({ source, perenual_id?, verdantly_id? })
 
 ### `plants.source` values
 
-- `manual` — user-created (ManualPlantCreation)
+- `manual` — user-created (ManualPlantCreation), home-private
 - `api` — Perenual
 - `verdantly` — Verdantly DB
-- `ai` — Rhozly AI
+- `ai` — Rhozly AI **and Library**. A plant picked from the seeded **Library** is cloned into the GLOBAL catalogue (`home_id = null`, `source = 'ai'`, deduped by `scientific_name_key`); a true home-private AI plant has `home_id` set. There is **no** `'library'` source value — `home_id IS NULL` is what marks a library plant.
 
-DB constraint `plants_source_check` enforces the set.
+DB constraint `plants_source_check` enforces the set (`manual` / `api` / `verdantly` / `ai`). Plants have **no** `library` source value — a library plant is a home-private `source='ai'` row whose `forked_from_plant_id` points at the global catalogue (TheShed badges those as **Library**, not AI).
+
+The **ailment** equivalent (`ailments_source_check`, widened by `20260824000000`) allows `manual` / `perenual` / `ai` / **`library`**. Unlike plants, ailments ARE marked with a first-class `library` source: `addLibraryAilmentToWatchlist` / `mapLibraryToWatchlistPayload` store `source='library'`, and the Watchlist renders a **Library** badge (`SOURCE_META.library`). (No historical backfill — old library adds stored as `ai` stay `ai`.)
 
 ### Edge functions
 
@@ -95,12 +97,18 @@ Normalises an AI care-guide response into `PlantDetails`.
 
 `plants.data` jsonb stores the last fetched provider payload. Subsequent reads skip the network when possible.
 
-### Provider preference order
+### Search sources by entitlement (`searchPreference.ts`)
 
-When multiple providers return results, ranking depends on context:
-- Sage+ user: AI > Perenual > Verdantly (AI tuned to user's prefs).
-- Botanist user: Perenual > Verdantly.
-- Sprout user: Verdantly only.
+`availablePlantSources(ent)` = **Library** (everyone) + (`enablePerenual` → Verdantly, Perenual) + (`aiEnabled` → AI); Manual creation is always available. `clampPlantSource` silently downgrades a stored choice the user is no longer entitled to back to **Library** (so we never offer a source they can't use).
+
+| Tier | `ai_enabled` | `enable_perenual` | Plant sources | Ailment sources |
+|------|:---:|:---:|---|---|
+| **Sprout** | ✗ | ✗ | Library, Manual | Library, Manual |
+| **Botanist** | ✓ | ✗ | Library, AI, Manual | Library, AI, Manual |
+| **Sage** | ✗ | ✓ | Library, Verdantly, Perenual, Manual | Library, Perenual, Manual |
+| **Evergreen** | ✓ | ✓ | all | all |
+
+Ailment (Watchlist) sources mirror this with **no Verdantly** (`availableAilmentSources`). When several providers return results, ranking favours AI for Sage+ (tuned to the user's prefs), then Perenual, then Verdantly.
 
 ---
 

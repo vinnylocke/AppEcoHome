@@ -29,6 +29,7 @@ import {
   Sun,
   Square as SquareIcon,
   FileText,
+  Library,
 } from "lucide-react";
 import { toast } from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
@@ -1844,18 +1845,27 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
                         />
                       );
                     })()}
+                    {/* A catalogue-forked AI plant (forked_from_plant_id set) came from
+                        the seeded Library — badge it "Library", not "AI". */}
+                    {(() => {
+                      const isLibrary = plant.source === "ai" && plant.forked_from_plant_id != null;
+                      return (
                     <span className={`bg-white/90 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-black uppercase flex items-center gap-1.5 shadow-sm border border-white/20 ${
                       plant.source === "api"       ? "text-rhozly-primary" :
                       plant.source === "verdantly" ? "text-emerald-600" :
+                      isLibrary                    ? "text-emerald-600" :
                       plant.source === "ai"        ? "text-amber-500" :
                                                      "text-rhozly-on-surface/60"
                     }`}>
                       {plant.source === "api"       ? <Database size={10} /> :
                        plant.source === "verdantly" ? <Database size={10} /> :
+                       isLibrary                    ? <Library size={10} /> :
                        plant.source === "ai"        ? <Sparkles size={10} /> :
                                                       <Edit3 size={10} />}
-                      {plant.source === "api" ? "Perenual" : plant.source === "verdantly" ? "Verdantly" : plant.source === "ai" ? "AI" : "Manual"}
+                      {plant.source === "api" ? "Perenual" : plant.source === "verdantly" ? "Verdantly" : isLibrary ? "Library" : plant.source === "ai" ? "AI" : "Manual"}
                     </span>
+                      );
+                    })()}
                   </div>
                 </div>
                 <div className="p-6">

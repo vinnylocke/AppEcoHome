@@ -62,7 +62,7 @@ export interface Ailment {
   affected_plants: string[];
   prevention_steps: AilmentStep[];
   remedy_steps: AilmentStep[];
-  source: "manual" | "perenual" | "ai";
+  source: "manual" | "perenual" | "ai" | "library";
   perenual_id?: number;
   thumbnail_url?: string;
   is_archived: boolean;
@@ -1513,6 +1513,7 @@ function AddAilmentModal({
 // ─── Source badge helpers ─────────────────────────────────────────────────────
 
 const SOURCE_META: Record<string, { icon: React.ReactNode; label: string; colour: string }> = {
+  library:  { icon: <Library size={10} />,  label: "Library",  colour: "text-emerald-600" },
   perenual: { icon: <IconPlantDB size={10} />, label: "Plant Database", colour: "text-rhozly-primary" },
   ai:       { icon: <IconAI size={10} />, label: "AI",       colour: "text-amber-500" },
   manual:   { icon: <Edit3 size={10} />,    label: "Manual",   colour: "text-rhozly-on-surface/60" },

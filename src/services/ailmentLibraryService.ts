@@ -90,7 +90,7 @@ export interface WatchlistInsert {
   affected_plants: string[];
   prevention_steps: AilmentStep[];
   remedy_steps: AilmentStep[];
-  source: "ai";
+  source: "library";
   perenual_id: null;
   thumbnail_url: string | null;
 }
@@ -117,7 +117,7 @@ export function mapLibraryToWatchlistPayload(a: LibraryAilment, homeId: string):
     affected_plants: a.affected_plant_types ?? [],
     prevention_steps,
     remedy_steps,
-    source: "ai",
+    source: "library",
     perenual_id: null,
     thumbnail_url: a.thumbnail_url ?? a.image_url ?? null,
   };
