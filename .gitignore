@@ -40,6 +40,9 @@ supabase/.temp/
 # Generated test output
 playwright-report/
 test-results/
+allure-results/
+allure-report/
+allure-history/
 .playwright-mcp/
 .vercel
 

@@ -1,0 +1,113 @@
+name: Tests & Allure Report
+
+# Runs the automated suites, collects JUnit XML, builds a unified Allure report,
+# and publishes it to GitHub Pages (with run-to-run history). The raw JUnit XML
+# is also uploaded as a workflow artifact for any Jira test app (AgileTest /
+# Qase / Xray) to import.
+#
+# Enable once: repo Settings → Pages → Source = "GitHub Actions".
+#
+# Vitest (unit) runs with no secrets. The Deno (edge-function) suite runs only
+# when its secrets are configured (see env.RUN_DENO below) — add these repo
+# secrets to include it: VITE_SUPABASE_URL, VITE_SUPABASE_PUBLISHABLE_KEY,
+# SUPABASE_SECRET_KEY, TEST_USER_PASSWORD, VERDANTLY_API_KEY,
+# INTEGRATION_ENCRYPTION_KEY. (Playwright E2E needs a seeded Supabase + the dev
+# server, so it's left to local `npm run test:report:e2e` for now.)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      RUN_DENO: ${{ secrets.SUPABASE_SECRET_KEY != '' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      - run: npm ci --legacy-peer-deps
+
+      - name: Vitest (unit) → JUnit
+        run: npx vitest run
+        continue-on-error: true
+
+      - name: Install Deno
+        if: env.RUN_DENO == 'true'
+        uses: denoland/setup-deno@v2
+        with:
+          deno-version: v2.x
+
+      - name: Deno (edge functions) → JUnit
+        if: env.RUN_DENO == 'true'
+        continue-on-error: true
+        run: |
+          mkdir -p test-results/junit
+          deno test --allow-env --allow-net --config supabase/tests/deno.json \
+            --reporter=junit supabase/tests/ > test-results/junit/deno.xml
+        env:
+          VITE_SUPABASE_URL: ${{ secrets.VITE_SUPABASE_URL }}
+          VITE_SUPABASE_PUBLISHABLE_KEY: ${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
+          SUPABASE_SECRET_KEY: ${{ secrets.SUPABASE_SECRET_KEY }}
+          TEST_USER_PASSWORD: ${{ secrets.TEST_USER_PASSWORD }}
+          VERDANTLY_API_KEY: ${{ secrets.VERDANTLY_API_KEY }}
+          INTEGRATION_ENCRYPTION_KEY: ${{ secrets.INTEGRATION_ENCRYPTION_KEY }}
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: "temurin"
+          java-version: "21"
+
+      - name: Restore Allure history
+        uses: actions/cache@v4
+        with:
+          path: allure-history
+          key: allure-history-${{ github.run_id }}
+          restore-keys: allure-history-
+
+      - name: Build Allure report
+        run: |
+          mkdir -p test-results/junit
+          if [ -d allure-history ]; then cp -r allure-history test-results/junit/history; fi
+          npx allure generate test-results/junit --clean -o allure-report
+          rm -rf allure-history && cp -r allure-report/history allure-history || true
+
+      - name: Upload JUnit artifacts (for Jira test apps)
+        uses: actions/upload-artifact@v4
+        with:
+          name: junit-results
+          path: test-results/junit/*.xml
+          if-no-files-found: ignore
+
+      - name: Upload Pages artifact
+        if: github.ref == 'refs/heads/main'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: allure-report
+
+  deploy:
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

@@ -20,7 +20,12 @@ export default defineConfig({
   workers: process.env.CI ? 2 : 4,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 1,
-  reporter: process.env.CI ? "github" : "html",
+  // JUnit XML (for any Jira test app + the Allure report) always; plus the
+  // GitHub annotations in CI / the rich HTML report locally.
+  reporter: [
+    ["junit", { outputFile: "test-results/junit/playwright.xml" }],
+    process.env.CI ? ["github"] : ["html", { open: "never" }],
+  ],
   use: {
     baseURL: "http://localhost:5173",
     trace: "on-first-retry",

@@ -6,6 +6,8 @@ export default defineConfig({
     environment: "jsdom",
     globals: true,
     passWithNoTests: true,
+    // JUnit XML alongside the console output — feeds the Allure report + any Jira test app.
+    reporters: ["default", ["junit", { outputFile: "test-results/junit/vitest.xml" }]],
     coverage: {
       provider: "v8",
       include: ["src/lib/**", "src/hooks/**"],
