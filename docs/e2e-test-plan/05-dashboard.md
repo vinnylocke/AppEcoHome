@@ -56,6 +56,7 @@ Tier is forced to Sprout by mocking the narrow `user_profiles?select=subscriptio
 |---|---|---|---|---|
 | DASH-040 | ✅ | Head Gardener card shows compact upgrade teaser, not the full panel | `user_profiles` tier→sprout | ✅ Passing |
 | DASH-041 | ✅ | AI Insight card shows compact upgrade teaser, not the full panel | `user_profiles` tier→sprout | ✅ Passing |
+| DASH-042 | ✅ | No full-size upgrade panel anywhere on the Sprout dashboard (guards the `FeatureGate fallback={null}` fix) | `user_profiles` tier→sprout | ✅ Passing |
 
 ## Location detail (LocationPage)
 

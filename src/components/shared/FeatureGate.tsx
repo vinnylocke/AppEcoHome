@@ -25,5 +25,8 @@ export default function FeatureGate({
 }) {
   const { loading, hasFeature } = useEntitlements(tier);
   if (loading || hasFeature(feature)) return <>{children}</>;
-  return <>{fallback ?? <UpgradeNudge feature={feature} />}</>;
+  // Only fall back to the default upsell when NO fallback was supplied. An
+  // explicit `fallback={null}` means "render nothing when locked" — using `??`
+  // here would treat that null as absent and wrongly show the full UpgradeNudge.
+  return <>{fallback !== undefined ? fallback : <UpgradeNudge feature={feature} />}</>;
 }

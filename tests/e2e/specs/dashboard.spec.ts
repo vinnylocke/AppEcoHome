@@ -800,4 +800,17 @@ test.describe("Dashboard — locked feature teasers for Sprout (RHO-2)", () => {
     await expect(card.getByText(/Upgrade to .* to use AI Insights/i)).toBeVisible({ timeout: 10000 });
     await expect(card.getByTestId("upgrade-nudge-cta-ai_insights")).not.toBeVisible();
   });
+
+  test("DASH-042: no full-size upgrade panel renders anywhere on the Sprout dashboard", async ({ authenticatedPage }) => {
+    await forceSprout(authenticatedPage);
+    await authenticatedPage.goto("/dashboard");
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.waitForLoad();
+    await expect(authenticatedPage.getByText(/Upgrade to .* to use Head Gardener/i)).toBeVisible({ timeout: 10000 });
+
+    // The full-size UpgradeNudge has a "See plans" CTA (`upgrade-nudge-cta-*`); the compact
+    // teaser does not. After the FeatureGate fix, locked gates with fallback={null} render
+    // nothing — so no full panel (e.g. SeasonalPicksCard) should appear. Guards RHO-2.
+    await expect(authenticatedPage.locator('[data-testid^="upgrade-nudge-cta-"]')).toHaveCount(0);
+  });
 });

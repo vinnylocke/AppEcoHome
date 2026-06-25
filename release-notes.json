@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "Locked premium prompts no longer appear as oversized panels. On the free (Sprout) plan the dashboard's Head Gardener and AI Insights now show a compact one-line upgrade teaser, and other locked prompts (seasonal picks, area AI, automations) are hidden — so your tasks and weekly overview are visible straight away."
+    ]
+  }
+]

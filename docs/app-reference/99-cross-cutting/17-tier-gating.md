@@ -104,7 +104,10 @@ Head Gardener edge functions (`synthesize-garden-brief`, `garden-manager-report`
 re-check before doing any work.
 Consumed by `useEntitlements(tierProp?)` (`src/hooks/useEntitlements.ts`, module-cached tier fetch) and
 the reusable `<FeatureGate feature tier? fallback?>` + `<UpgradeNudge feature compact? />`
-(`src/components/shared/`). **Wired (all open):** `light_sensor` (LightSensor), `garden_layout`
+(`src/components/shared/`). **`FeatureGate` fallback semantics:** omit `fallback` → the full default
+`UpgradeNudge` panel; `fallback={null}` → render **nothing**; `fallback={<UpgradeNudge … compact />}`
+→ the slim one-line teaser. (Before RHO-2 a `??` bug made `fallback={null}` wrongly render the full
+panel — fixed 2026-06-25 to `fallback !== undefined ? fallback : <UpgradeNudge/>`.) **Wired (all open):** `light_sensor` (LightSensor), `garden_layout`
 (GardenLayoutList) + `garden_layout_3d` (GardenLayout3D), `sun_tracker` (SunTrajectoryAR),
 `microclimate` (MicroclimateReportModal), `visualiser` (PlantVisualiser), `nursery` (NurseryTab),
 `garden_walk` (GardenWalk), `shopping` (ShoppingLists), `guide_authoring` (CommunityGuideEditor),
