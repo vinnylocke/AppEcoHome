@@ -8,6 +8,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { serviceClient } from "../_shared/supabaseClient.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { stripeClient } from "../_shared/stripe.ts";
+import { ensureStripeCustomer } from "../_shared/stripeCustomer.ts";
 import { isValidTier, priceIdForTier } from "../_shared/stripeTiers.ts";
 import { log } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
@@ -55,16 +56,12 @@ serve(async (req) => {
     const stripe = stripeClient();
 
     // Find-or-create the Stripe Customer and persist it so future checkouts +
-    // the billing portal reuse the same customer.
-    let customerId = profile?.stripe_customer_id ?? null;
-    if (!customerId) {
-      const customer = await stripe.customers.create({
-        email: profile?.email ?? undefined,
-        metadata: { uid: userId },
-      });
-      customerId = customer.id;
-      await db.from("user_profiles").update({ stripe_customer_id: customerId }).eq("uid", userId);
-    }
+    // the billing portal reuse the same customer (shared with the on-signup path).
+    const customerId = await ensureStripeCustomer(db, stripe, {
+      uid: userId,
+      email: profile?.email ?? null,
+      stripe_customer_id: profile?.stripe_customer_id ?? null,
+    });
 
     // Already subscribed? Send them to the billing portal to change plans rather
     // than stacking a second subscription (which would double-bill).

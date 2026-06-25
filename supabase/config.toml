@@ -651,3 +651,8 @@ verify_jwt = false
 # Daily pg_cron trigger (net.http_post) — no user JWT.
 [functions.sync-stripe-ai-cost]
 verify_jwt = false
+
+# Called by the on-signup DB trigger (net.http_post, publishable bearer) with
+# { uid } — no user JWT. Find-or-creates that user's Stripe customer.
+[functions.stripe-ensure-customer]
+verify_jwt = false
