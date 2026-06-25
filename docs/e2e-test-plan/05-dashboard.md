@@ -48,6 +48,15 @@ Covers the main `/dashboard` surface (weather card, location tiles, daily-tasks 
 | DASH-035 | ✅ | Overdue task visible (due -7 days, Pending) | — | ✅ Passing |
 | DASH-036 | ✅ | Skipped task not in Pending tab | — | ✅ Passing |
 
+## Locked feature teasers — Sprout (RHO-2)
+
+Tier is forced to Sprout by mocking the narrow `user_profiles?select=subscription_tier` read; the rest of the app keeps its (Evergreen) profile so the dashboard still loads.
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| DASH-040 | ✅ | Head Gardener card shows compact upgrade teaser, not the full panel | `user_profiles` tier→sprout | ✅ Passing |
+| DASH-041 | ✅ | AI Insight card shows compact upgrade teaser, not the full panel | `user_profiles` tier→sprout | ✅ Passing |
+
 ## Location detail (LocationPage)
 
 | ID | Type | Description | Mock | Status |

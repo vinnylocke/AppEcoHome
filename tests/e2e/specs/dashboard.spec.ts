@@ -757,3 +757,47 @@ test.describe("Dashboard — Calendar view (Section 04)", () => {
     ).not.toBeVisible({ timeout: 5000 });
   });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section 02 — Locked-feature teasers for Sprout (RHO-2)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test.describe("Dashboard — locked feature teasers for Sprout (RHO-2)", () => {
+  // The seeded account is Evergreen. useEntitlements resolves the tier from a
+  // narrow `user_profiles?select=subscription_tier` read, so mocking just that
+  // request flips the entitlement to Sprout while the rest of the app keeps its
+  // real profile — the dashboard still loads, only the gated cards lock.
+  async function forceSprout(page: import("@playwright/test").Page) {
+    await page.route(/user_profiles\?select=subscription_tier&/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ subscription_tier: "sprout" }),
+      }),
+    );
+  }
+
+  test("DASH-040: Head Gardener card shows the compact upgrade teaser, not the full panel", async ({ authenticatedPage }) => {
+    await forceSprout(authenticatedPage);
+    await authenticatedPage.goto("/dashboard");
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.waitForLoad();
+
+    const card = authenticatedPage.getByTestId("dashboard-head-gardener-card");
+    // Compact teaser present (one-line "Upgrade to … to use Head Gardener")…
+    await expect(card.getByText(/Upgrade to .* to use Head Gardener/i)).toBeVisible({ timeout: 10000 });
+    // …and NOT the full-size panel (its "See plans" CTA only exists in the big variant).
+    await expect(card.getByTestId("upgrade-nudge-cta-head_gardener")).not.toBeVisible();
+  });
+
+  test("DASH-041: AI Insights card shows the compact upgrade teaser, not the full panel", async ({ authenticatedPage }) => {
+    await forceSprout(authenticatedPage);
+    await authenticatedPage.goto("/dashboard");
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.waitForLoad();
+
+    const card = authenticatedPage.getByTestId("dashboard-assistant-card");
+    await expect(card.getByText(/Upgrade to .* to use AI Insights/i)).toBeVisible({ timeout: 10000 });
+    await expect(card.getByTestId("upgrade-nudge-cta-ai_insights")).not.toBeVisible();
+  });
+});

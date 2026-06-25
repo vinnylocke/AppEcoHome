@@ -167,10 +167,12 @@ App.tsx wraps everything in `HomeRealtimeProvider` and subscribes via `Dashboard
 
 ### Tier gating
 
-- **Sprout** (free): full Dashboard except the AssistantCard. Insights are AI-driven so the card stays hidden for non-AI tiers.
-- **Botanist** (paid, no AI): same as Sprout — no AssistantCard. Quiz prompt and getting-started checklist still appear.
-- **Sage** (paid + AI): full Dashboard with AssistantCard surfacing user_insights.
-- **Evergreen** (top): same as Sage. Currently no Evergreen-exclusive elements on this surface.
+- **Sprout** (free): full Dashboard. The Head Gardener card and the AI Insight card each render a **compact one-line upgrade teaser** (`UpgradeNudge compact`) instead of the feature — discoverable but unobtrusive (RHO-2; previously these were either full-size upsell panels that dominated the screen or hidden entirely).
+- **Botanist** (paid, no AI): same as Sprout — compact upgrade teasers for both cards.
+- **Sage** (paid + AI): AssistantCard surfaces user_insights; the Head Gardener card is still a compact teaser (Head Gardener is Evergreen-only).
+- **Evergreen** (top): both the Head Gardener card and the AI Insight card render fully.
+
+> Note: the compact teaser on `AssistantCard` is opt-in via `showUpgradeWhenLocked` — only the Dashboard passes it. On Planner/Shed the AssistantCard still hides entirely when locked.
 
 ### Beta gating
 
@@ -285,10 +287,10 @@ The bulk of the page below the brief. It contains:
 
 | Tier | Differences on Dashboard |
 |------|--------------------------|
-| Sprout | No AssistantCard. No Plant Doctor chat (button hidden / gated). Full week-strip + tasks + weather. |
+| Sprout | Head Gardener + AI Insight cards show a compact one-line upgrade teaser. No Plant Doctor chat (button hidden / gated). Full week-strip + tasks + weather. |
 | Botanist | Same as Sprout (Botanist is a higher paid tier without AI add-ons by default). |
-| Sage | AssistantCard renders when insights exist. Plant Doctor chat available from the "Got a plant question?" chip. |
-| Evergreen | Same as Sage. |
+| Sage | AssistantCard renders when insights exist; Head Gardener card still shows a compact teaser. Plant Doctor chat available from the "Got a plant question?" chip. |
+| Evergreen | Head Gardener + AI Insight cards render fully. |
 
 ### New user vs returning user vs power user
 

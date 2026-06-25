@@ -29,6 +29,7 @@ The app is called **Rhozly** — use this name in all user-facing text and commi
 | [docs/deployment.md](docs/deployment.md) | **Deployment process** — maintenance mode, Vercel pipeline, rollback procedure |
 | [docs/app-reference/00-INDEX.md](docs/app-reference/00-INDEX.md) | **Master app reference** — dual-voice docs (senior dev + expert gardener) for every UI surface, modal, and cross-cutting concern. **Must be kept in sync with every code change.** |
 | [docs/app-reference/_template.md](docs/app-reference/_template.md) | The canonical template for new app-reference files. Use it verbatim when adding a new surface. |
+| [docs/jira-workflow.md](docs/jira-workflow.md) | **Jira bug workflow** — the two flows (Triage → In Planning; Implementation → In Test), status/transition IDs, reproduction procedure, and the ticket template. Read it before touching any Jira ticket. |
 
 **Always read the relevant plan document at the start of a session** before making changes to a feature area.
 
@@ -49,6 +50,19 @@ npm run deploy
 This sets maintenance mode ON, pushes DB migrations, deploys to Vercel, then turns maintenance OFF automatically. Never deploy by pushing to GitHub alone — the migration + maintenance steps must run first.
 
 If a deploy fails mid-way, run `npm run maintenance:off` to bring the app back online before investigating.
+
+---
+
+## Working Jira Tickets
+
+**When asked to work with Jira (triage bugs, plan fixes, or implement approved fixes), read [docs/jira-workflow.md](docs/jira-workflow.md) first and follow it exactly.** It is the single source of truth for the process.
+
+Two flows, gated by ticket status:
+
+- **Triage** ("triage jiras" / "look at the new bugs") — for **To Do** bugs, one at a time: digest → reproduce in Playwright using the credentials on the ticket → capture evidence → write a plan to `docs/plans/` and post it as a comment → transition to **In Planning**. Then stop and wait for human approval. **Never implement during triage.**
+- **Implementation** ("fix the approved jiras") — for **Plan Approved** bugs, one at a time: read the plan + ticket comments → **if an answer needed to implement is missing, move it back to In Planning with a comment listing the questions, and stop** → transition to **In Progress** → implement per the plan (tests + doc updates per the rules above) → local test + `npm run build` → **deploy live (`npm run deploy`)** → transition to **In Test**. **Never set Done** — the human verifies on-device.
+
+Credentials always come from the ticket — never reset a test account's password.
 
 ---
 

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Leaf, ArrowRight } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import FeatureGate from "../shared/FeatureGate";
+import UpgradeNudge from "../shared/UpgradeNudge";
 import type { ManagerReport } from "../../lib/managerReport";
 
 /**
@@ -65,7 +66,7 @@ function HeadGardenerCardInner() {
 
 export default function HeadGardenerCard() {
   return (
-    <FeatureGate feature="head_gardener" fallback={null}>
+    <FeatureGate feature="head_gardener" fallback={<UpgradeNudge feature="head_gardener" compact />}>
       <HeadGardenerCardInner />
     </FeatureGate>
   );

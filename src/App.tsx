@@ -1555,7 +1555,7 @@ function AppShell() {
                                           <HeadGardenerCard />
                                         </div>
                                         <div data-testid="dashboard-assistant-card">
-                                          <AssistantCard userId={session.user.id} />
+                                          <AssistantCard userId={session.user.id} showUpgradeWhenLocked />
                                         </div>
                                       </Suspense>
                                     )}

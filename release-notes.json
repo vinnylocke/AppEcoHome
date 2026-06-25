@@ -1,1 +1,8 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "On the free (Sprout) plan, the Head Gardener and AI Insights upgrade prompts on the dashboard are now compact one-line teasers, so your tasks and weekly overview show right away instead of being pushed down the screen."
+    ]
+  }
+]

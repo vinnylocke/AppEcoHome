@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import { Sparkles, X, ChevronDown, ChevronUp } from "lucide-react";
 import { supabase } from "../lib/supabase";
 import FeatureGate from "./shared/FeatureGate";
+import UpgradeNudge from "./shared/UpgradeNudge";
 
 interface Insight {
   id: string;
@@ -15,9 +16,18 @@ interface AssistantCardProps {
   contextLabel?: string;
 }
 
-export default function AssistantCard(props: React.ComponentProps<typeof AssistantCardInner>) {
+export default function AssistantCard(
+  { showUpgradeWhenLocked = false, ...props }:
+    React.ComponentProps<typeof AssistantCardInner> & { showUpgradeWhenLocked?: boolean },
+) {
+  // Most surfaces (Planner, Shed) hide the card entirely when locked. The dashboard
+  // opts in to a compact "🔒 upgrade" teaser so Sprout users still see the feature exists
+  // without the old full-size panel dominating the screen (RHO-2).
   return (
-    <FeatureGate feature="ai_insights" fallback={null}>
+    <FeatureGate
+      feature="ai_insights"
+      fallback={showUpgradeWhenLocked ? <UpgradeNudge feature="ai_insights" compact /> : null}
+    >
       <AssistantCardInner {...props} />
     </FeatureGate>
   );
