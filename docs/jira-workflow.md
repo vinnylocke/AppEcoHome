@@ -79,14 +79,25 @@ Operate on **Bug** issues in **To Do** (scoped to the named epic, default `RHO-1
 6. **Implement** per the plan and all CLAUDE.md rules (tests mandatory, app-reference +
    e2e-test-plan docs in sync, `data-testid` on new interactive elements, never modify app
    code for tests).
-7. **Local test** — relevant tests (`npm run test:unit` / `test:functions` / `test:e2e` as
+7. **Add an automated test that captures the bug (mandatory).** The goal is *coverage*, not
+   running a suite now: every Jira bug gets a permanent automated test that reproduces its
+   scenario, so the **next full regression run** re-checks it and the bug can't silently come
+   back. Reproduce the original failing condition (tier / route / state), assert the fixed
+   behaviour, and assert the old broken behaviour is gone (e.g. DASH-042 asserts *no*
+   full-size upsell panel renders on the Sprout dashboard). Reference the ticket ID in the
+   test name/comment and add the row(s) to the matching `docs/e2e-test-plan/<NN>-<surface>.md`.
+   Prefer Playwright for user-facing flows; Vitest / Deno for pure logic. **Adding the test is
+   the requirement — you don't need to run the full suite now** (it runs in CI / the next
+   regression pass; run the single new spec if the local stack is already up). If the scenario
+   genuinely can't be automated, say so explicitly in the In-Test comment and explain why.
+8. **Local test** — relevant tests (`npm run test:unit` / `test:functions` / `test:e2e` as
    applicable) + `npm run build` green.
-8. **Push live** — deploy with `npm run deploy`, following [docs/deployment.md](deployment.md)
+9. **Push live** — deploy with `npm run deploy`, following [docs/deployment.md](deployment.md)
    (maintenance mode, migrations, Vercel, release notes + version bump, then `git push origin main`).
-9. **Transition → In Test** (`transition` id `31`) — **only after the fix is live**. Add a
-   comment noting the released version. **Never set Done** — the human verifies on-device
-   and moves it to Done.
-10. **Report** what changed, the released version, and how to verify.
+10. **Transition → In Test** (`transition` id `31`) — **only after the fix is live**. Add a
+    comment noting the released version. **Never set Done** — the human verifies on-device
+    and moves it to Done.
+11. **Report** what changed, the released version, and how to verify.
 
 ---
 
