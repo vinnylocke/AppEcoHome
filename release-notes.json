@@ -1,1 +1,9 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "Automations could run a valve for longer than the time you set (e.g. a 5-minute watering running up to ~10 minutes). Valves now close on time, and can no longer be triggered twice at once.",
+      "Removed the per-valve \"default run duration\" setting — it was redundant since the run time is set on each automation."
+    ]
+  }
+]

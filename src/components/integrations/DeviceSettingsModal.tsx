@@ -19,9 +19,6 @@ interface Props {
 export default function DeviceSettingsModal({ device, onClose, onUpdated }: Props) {
   const trapRef = useFocusTrap<HTMLDivElement>(true);
   const [name, setName] = useState(device.name);
-  const [duration, setDuration] = useState<number>(
-    (device.metadata?.default_duration_seconds as number | undefined) ?? 1800
-  );
   const [isHomeShutoff, setIsHomeShutoff] = useState<boolean>(
     !!(device.metadata?.is_home_shutoff)
   );
@@ -77,9 +74,11 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
       area_id: areaId || null,
     };
     if (device.device_type === "water_valve") {
+      // `default_duration_seconds` is preserved via the metadata spread — it's
+      // now a silent safety failsafe; the duration is set per-automation, so the
+      // editable field was removed (it was redundant + confusing).
       updates.metadata = {
         ...device.metadata,
-        default_duration_seconds: duration,
         is_home_shutoff: isHomeShutoff,
       };
     }
@@ -204,33 +203,10 @@ export default function DeviceSettingsModal({ device, onClose, onUpdated }: Prop
             </div>
           )}
 
-          {/* Valve options */}
+          {/* Valve options — the per-valve run time is set on each automation,
+              so there's no editable device default here (it was redundant). */}
           {device.device_type === "water_valve" && (
             <>
-              <div>
-                <label className="block text-sm font-semibold text-rhozly-on-surface mb-1.5">
-                  Default run duration
-                </label>
-                <div className="flex items-center gap-3">
-                  <input
-                    type="number"
-                    min={60}
-                    max={7200}
-                    step={60}
-                    value={duration}
-                    onChange={(e) => setDuration(Number(e.target.value))}
-                    data-testid="settings-duration"
-                    className="w-28 px-4 py-3 rounded-2xl border border-rhozly-outline/30 bg-white text-rhozly-on-surface focus:outline-none focus:border-rhozly-primary text-sm"
-                  />
-                  <span className="text-sm text-rhozly-on-surface-variant">
-                    seconds ({Math.round(duration / 60)} min)
-                  </span>
-                </div>
-                <p className="text-xs text-rhozly-on-surface-variant mt-1">
-                  The valve will auto-off after this duration as a safety failsafe.
-                </p>
-              </div>
-
               <label className="flex items-start gap-3 cursor-pointer" data-testid="settings-home-shutoff">
                 <input
                   type="checkbox"

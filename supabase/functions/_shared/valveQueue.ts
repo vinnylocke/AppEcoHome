@@ -84,6 +84,18 @@ export async function drainValveQueue(
   for (const entry of pending as Array<Record<string, unknown>>) {
     const deviceId = entry.device_id as string;
 
+    // Atomically claim the entry so the inline drain (evaluate-automations) and
+    // the cron drain can't both fire it — the double-turn_on race seen in the
+    // valve_events. The conditional update on status=pending lets one drain win;
+    // the loser gets 0 rows and skips.
+    const { data: claimed } = await db
+      .from("automation_valve_queue")
+      .update({ status: "firing" })
+      .eq("id", entry.id as string)
+      .eq("status", "pending")
+      .select("id");
+    if (!claimed || (claimed as unknown[]).length === 0) continue;
+
     const { data: runRow } = await db
       .from("automation_runs")
       .select("automation_id, home_id, triggered_by")
@@ -131,11 +143,28 @@ export async function drainValveQueue(
     const apiBase = regionToApiBase(integ.region as string);
 
     const command = ((entry.command as string) ?? "turn_on") as "turn_on" | "turn_off";
+
+    // Auto-off countdown = the automation's per-action valve duration (what the
+    // user set), not the legacy automations.duration_seconds default. Looked up
+    // by (automation, device); falls back to automations.duration_seconds.
+    let runSeconds = auto.duration_seconds as number;
+    if (command === "turn_on") {
+      const { data: act } = await db
+        .from("automation_actions")
+        .select("valve_duration_seconds")
+        .eq("automation_id", (runRow as Record<string, unknown>).automation_id as string)
+        .eq("action_kind", "valve_open")
+        .eq("target_device_id", deviceId)
+        .maybeSingle();
+      const v = (act as { valve_duration_seconds?: unknown } | null)?.valve_duration_seconds;
+      if (typeof v === "number" && v > 0) runSeconds = v;
+    }
+
     const ok = await fireValve(
       apiBase,
       dev,
       command,
-      auto.duration_seconds as number,
+      runSeconds,
       auto.retry_on_failure as boolean,
       accessToken,
     );
@@ -154,7 +183,7 @@ export async function drainValveQueue(
         automation_id: run.automation_id as string,
         event_type: command,
         triggered_by: (run.triggered_by as string) === "manual" ? "manual" : "scheduled",
-        duration_seconds: command === "turn_on" ? (auto.duration_seconds as number) : null,
+        duration_seconds: command === "turn_on" ? runSeconds : null,
         fired_at: now,
       });
     } else if (command === "turn_on") {
