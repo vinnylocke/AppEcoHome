@@ -38,7 +38,9 @@ The Dashboard Tab opens with a personalised greeting (Daily Brief), then layers 
     ├── AssistantCard (conditional — user_insights row exists)
     └── HomeDashboard (always)
         ├── TodayFocusCard (variant: "dashboard")
-        ├── WeekAheadPreview (sneak-peek card → /weekly)
+        ├── WeekAheadPreview (sneak-peek card → /weekly; wrapped in
+        │      <FeatureGate feature="ai_insights" fallback={null}> — RHO-9,
+        │      Evergreen-only, hidden for Sprout/Botanist/Sage)
         ├── Header (weekly date range + Refresh)
         ├── SeasonalPicksCard (variant: "dashboard")
         ├── Week strip with day chips
@@ -58,7 +60,7 @@ The `/dashboard` content is driven by state held in the `AppShell` component:
 | `rawWeather` | `WeatherSnapshot \| null` | Latest `weather_snapshots` row's `data` JSONB |
 | `alerts` | `WeatherAlert[]` | Active `weather_alerts` rows |
 | `locationTaskCounts` | `Record<locationId, number>` | Today's task count per location |
-| `overdueTaskCount` | `number` | Sum of all pending overdue tasks across home |
+| `overdueTaskCount` | `number` | Count of pending overdue tasks **across the whole home** (home-scoped, RHO-3). Computed in `fetchDashboardData` by fetching home-scoped candidate rows and filtering them through `taskFilters.isTaskOverdueToday` — the same predicate the task list uses — so the Daily Brief "Overdue" chip agrees with the list below it. Previously location-scoped, which excluded home/personal-scoped (NULL-location) tasks and disagreed with the list |
 | `homeLatLng` | `{ lat, lng } \| null` | For sun calculations on DailyBriefCard |
 | `hardinessZone` | `number \| null` | USDA zone on the homes table |
 | `dashboardLoaded` | `boolean` | Has `fetchDashboardData()` resolved at least once |
@@ -145,6 +147,17 @@ Most writes on Dashboard happen via child components (TaskList toggling completi
 | `home-dashboard-stats` | On every fetchDashboardData | `{ homeId }` | See above | None — read-only aggregator |
 | `app-help` | Indirectly via Help Center button (top nav) | `{ query, page }` | Markdown answer | None — read-only |
 
+#### Garden Snapshot stat semantics (RHO-13 / 14 / 15 / 16)
+
+The Garden Snapshot's weekly counts come from `home-dashboard-stats`. The pure count logic lives in `supabase/functions/_shared/dashboardStats.ts` (Deno-tested in `supabase/tests/dashboardStats.test.ts`).
+
+- **Task query is widened** — the function fetches `due_date <= weekEnd OR window_end_date >= weekStart` (mirroring `taskEngine.ts`), plus `inventory_item_ids` + `blueprint_id`. This is required so overdue-from-prior-weeks and pre-week-start harvest windows load at all.
+- **Total / Overdue / Pending (RHO-14):** Total + Pending stay **week-scoped** (effective span intersects the ISO week); **Overdue is computed over the full widened set** (all not-Completed/Skipped with effective due `< today`, snooze- and harvest-window-aware) so overdue "no matter how old" is reflected.
+- **Carried-over line (RHO-14 "additional count"):** a small line above the headline tiles (`dash-tasks-carried-over`) shows `priorOverdue` (open overdue whose effective due `< weekStart`) and `completedThisWeek`. These are **not** folded into the headline tiles. The Deno function does not materialise ghost tasks — a documented limitation to verify on-device.
+- **Total Tasks tile route (RHO-13):** navigates to `/dashboard?view=calendar&date=<today>` (matching every sibling tile), **not** `/schedule` (Routines / BlueprintManager).
+- **Week Overview day strip (RHO-15):** prior-week overdue rolls onto the **Sunday** bucket; harvest-window tasks count on **every** in-window day; each day shows overdue + pending.
+- **Harvests Due (RHO-16):** = distinct plants + each unlinked harvest counts as 1, over harvests whose window overlaps the week. Subject key = `plant:<inventory_item_id>` for linked, else `harvest:<blueprint_id ?? id>`. Completed harvests use the same subject-keyed dedup.
+
 ### Cron / scheduled jobs that affect this surface
 
 | Cron | Cadence | What it produces that Dashboard reads |
@@ -171,6 +184,8 @@ App.tsx wraps everything in `HomeRealtimeProvider` and subscribes via `Dashboard
 - **Botanist** (paid, no AI): same as Sprout — compact upgrade teasers for both cards.
 - **Sage** (paid + AI): AssistantCard surfaces user_insights; the Head Gardener card is still a compact teaser (Head Gardener is Evergreen-only).
 - **Evergreen** (top): both the Head Gardener card and the AI Insight card render fully.
+
+The **Week Ahead card** (`WeekAheadPreview`, deep-links to the Evergreen-only `/weekly` overview) is gated behind `ai_insights` with `fallback={null}` — so it is **hidden for Sprout / Botanist / Sage** and only shown for Evergreen (RHO-9). Previously it rendered for everyone and led Sprout users into a full-size upsell page. The gate resolves the tier itself via `useEntitlements`; no tier prop is plumbed from `App.tsx`, so there can be a brief flash before the cached tier resolves.
 
 > Note: the compact teaser on `AssistantCard` is opt-in via `showUpgradeWhenLocked` — only the Dashboard passes it. On Planner/Shed the AssistantCard still hides entirely when locked.
 
@@ -287,7 +302,7 @@ The bulk of the page below the brief. It contains:
 
 | Tier | Differences on Dashboard |
 |------|--------------------------|
-| Sprout | Head Gardener + AI Insight cards show a compact one-line upgrade teaser. No Plant Doctor chat (button hidden / gated). Full week-strip + tasks + weather. |
+| Sprout | Head Gardener + AI Insight cards show a compact one-line upgrade teaser. No Plant Doctor chat — both the global chat FAB (RHO-10) and the Daily Brief "Got a plant question?" chip (RHO-11) are hidden for non-AI tiers. Full week-strip + tasks + weather. |
 | Botanist | Same as Sprout (Botanist is a higher paid tier without AI add-ons by default). |
 | Sage | AssistantCard renders when insights exist; Head Gardener card still shows a compact teaser. Plant Doctor chat available from the "Got a plant question?" chip. |
 | Evergreen | Head Gardener + AI Insight cards render fully. |

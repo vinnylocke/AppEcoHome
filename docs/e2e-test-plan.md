@@ -43,6 +43,7 @@ This file is the **index**. Each section's test rows + seed dependencies + page-
 | 26 | Cross-home Data Isolation | `data-isolation.spec.ts` (isolation project) | [26-data-isolation.md](e2e-test-plan/26-data-isolation.md) |
 | 27 | Help Center — Documentation drawer | `help-center-docs.spec.ts` | [27-help-center-docs.md](e2e-test-plan/27-help-center-docs.md) |
 | 28 | Head Gardener (AI manager) | `head-gardener.spec.ts` | [28-head-gardener.md](e2e-test-plan/28-head-gardener.md) |
+| 29 | Garden Walk | `garden-walk.spec.ts` | [29-garden-walk.md](e2e-test-plan/29-garden-walk.md) |
 
 ## Workflow
 

@@ -22,6 +22,7 @@ import TaskList from "./TaskList";
 import SeasonalPicksCard from "./seasonal/SeasonalPicksCard";
 import TodayFocusCard from "./shared/TodayFocusCard";
 import WeekAheadPreview from "./shared/WeekAheadPreview";
+import FeatureGate from "./shared/FeatureGate";
 import { usePersona } from "../hooks/usePersona";
 
 interface Props {
@@ -118,12 +119,48 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
       {/* ── Tasks This Week ──────────────────────────────────────────────── */}
       <section>
         <SectionHeader icon={<CheckCircle2 size={16} />} title="Tasks This Week" />
+        {/* RHO-14 "additional count" (interpretation flagged for on-device
+            verification): a small carried-over/activity line above the
+            headline tiles. `priorOverdue` = open overdue carried in from
+            before this week; `completedThisWeek` = tasks completed this week.
+            These are computed server-side over the widened task set and are
+            deliberately NOT folded into the Total/Overdue/Pending tiles. */}
+        {(tasks.priorOverdue > 0 || tasks.completedThisWeek > 0) && (
+          <div
+            data-testid="dash-tasks-carried-over"
+            className="mb-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-bold text-rhozly-on-surface/55"
+          >
+            {tasks.priorOverdue > 0 && (
+              <button
+                type="button"
+                data-testid="dash-tasks-carried-over-prior"
+                onClick={() => navigate(`/dashboard?view=calendar&date=${new Date().toISOString().split("T")[0]}`)}
+                className="inline-flex items-center gap-1 text-red-700 hover:underline"
+              >
+                <AlertTriangle size={12} />
+                {tasks.priorOverdue} carried over from earlier weeks
+              </button>
+            )}
+            {tasks.completedThisWeek > 0 && (
+              <span
+                data-testid="dash-tasks-completed-this-week"
+                className="inline-flex items-center gap-1 text-emerald-700"
+              >
+                <CheckCircle2 size={12} />
+                {tasks.completedThisWeek} completed this week
+              </span>
+            )}
+          </div>
+        )}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
           <StatCard
             data-testid="dash-stat-tasks-total"
             label="Total Tasks"
+            // RHO-13: Total Tasks opens the Calendar agenda (matching every
+            // sibling tile), not the Routines page (/schedule). /schedule is
+            // BlueprintManager, which doesn't show this week's task instances.
             value={tasks.total}
-            onClick={() => navigate("/schedule")}
+            onClick={() => navigate(`/dashboard?view=calendar&date=${new Date().toISOString().split("T")[0]}`)}
           />
           <StatCard
             data-testid="dash-stat-tasks-completed"
@@ -532,8 +569,17 @@ export default function HomeDashboard({ homeId, aiEnabled, isPremium }: Props) {
       <TodayFocusCard homeId={homeId} variant="dashboard" />
 
       {/* Sneak-peek of the Sunday-morning Weekly Overview — previews
-          task / weather / sow counts and deep-links to /weekly. */}
-      <WeekAheadPreview homeId={homeId} />
+          task / weather / sow counts and deep-links to /weekly.
+          RHO-9: /weekly is the AI-insights Weekly Overview, gated
+          Evergreen-only. Gate the entry card on the same `ai_insights`
+          feature so Sprout/Botanist/Sage don't tap an available-looking
+          card and land on a full-size upsell. FeatureGate resolves the
+          tier itself via useEntitlements; `fallback={null}` renders
+          nothing when locked (a brief flash before the tier resolves is
+          acceptable — App.tsx doesn't plumb a tier prop here). */}
+      <FeatureGate feature="ai_insights" fallback={null}>
+        <WeekAheadPreview homeId={homeId} />
+      </FeatureGate>
 
       {/* Garden Walk launcher — only surfaces once the user has enough
           plants to make a guided walk feel worthwhile (UX review
@@ -542,7 +588,9 @@ export default function HomeDashboard({ homeId, aiEnabled, isPremium }: Props) {
         <button
           type="button"
           data-testid="dash-garden-walk"
-          onClick={() => navigate("/walk")}
+          // RHO-7/8: preserve the origin so the walk returns here on
+          // Done/Stop/empty/error instead of the mobile /quick shortcut.
+          onClick={() => navigate("/walk", { state: { from: "/dashboard" } })}
           className="group w-full rounded-3xl bg-gradient-to-br from-rhozly-primary via-rhozly-primary to-rhozly-primary-container text-white text-left p-4 flex items-center gap-3 shadow-[0_8px_22px_-8px_rgba(7,87,55,0.55)] hover:-translate-y-0.5 active:scale-[0.99] transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-rhozly-primary/40 relative overflow-hidden"
         >
           <span

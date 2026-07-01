@@ -759,6 +759,75 @@ test.describe("Dashboard — Calendar view (Section 04)", () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Section 02 — Garden Snapshot stat tiles (RHO-13)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test.describe("Dashboard — Garden Snapshot stat tiles (RHO-13)", () => {
+  // The Garden Snapshot is collapsed for non-experienced personas; expand it
+  // so the stat tiles render, then click the Total Tasks tile.
+  async function openSnapshot(page: import("@playwright/test").Page) {
+    const toggle = page.getByTestId("dash-snapshot-toggle");
+    await toggle.waitFor({ state: "visible", timeout: 10000 });
+    const totalTile = page.getByTestId("dash-stat-tasks-total");
+    if (!(await totalTile.isVisible().catch(() => false))) {
+      await toggle.click();
+    }
+    await totalTile.waitFor({ state: "visible", timeout: 10000 });
+  }
+
+  test("DASH-050: Total Tasks tile navigates to the calendar view (not /schedule)", async ({ authenticatedPage }) => {
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.goto();
+    await dashboard.waitForLoad();
+
+    await openSnapshot(authenticatedPage);
+    await authenticatedPage.getByTestId("dash-stat-tasks-total").click();
+
+    // RHO-13: must land on the Calendar agenda, matching the sibling tiles —
+    // NOT the Routines page (/schedule).
+    await expect(authenticatedPage).toHaveURL(/view=calendar/, { timeout: 8000 });
+    await expect(authenticatedPage).not.toHaveURL(/\/schedule/);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section 02 — Week Ahead card tier gating (RHO-9)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test.describe("Dashboard — Week Ahead card gating (RHO-9)", () => {
+  async function forceSproutTier(page: import("@playwright/test").Page) {
+    await page.route(/user_profiles\?select=subscription_tier&/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ subscription_tier: "sprout" }),
+      }),
+    );
+  }
+
+  test("DASH-051: Week Ahead card is hidden for Sprout (ai_insights-gated)", async ({ authenticatedPage }) => {
+    await forceSproutTier(authenticatedPage);
+    await authenticatedPage.goto("/dashboard");
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.waitForLoad();
+
+    // RHO-9: WeekAheadPreview deep-links to /weekly (Evergreen-only). Now gated
+    // behind ai_insights with fallback={null}, so Sprout sees nothing — no
+    // available-looking card leading to a locked upsell page.
+    await expect(authenticatedPage.getByTestId("dash-week-ahead-card")).not.toBeVisible({ timeout: 8000 });
+  });
+
+  test("DASH-052: Week Ahead card is visible for the Evergreen seed account", async ({ authenticatedPage }) => {
+    // No tier override — the seeded account is Evergreen and entitled to ai_insights.
+    await authenticatedPage.goto("/dashboard");
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.waitForLoad();
+
+    await expect(authenticatedPage.getByTestId("dash-week-ahead-card")).toBeVisible({ timeout: 10000 });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Section 02 — Locked-feature teasers for Sprout (RHO-2)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -812,5 +881,122 @@ test.describe("Dashboard — locked feature teasers for Sprout (RHO-2)", () => {
     // teaser does not. After the FeatureGate fix, locked gates with fallback={null} render
     // nothing — so no full panel (e.g. SeasonalPicksCard) should appear. Guards RHO-2.
     await expect(authenticatedPage.locator('[data-testid^="upgrade-nudge-cta-"]')).toHaveCount(0);
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section 02 — Plant chat entry points are AI-gated (RHO-10 + RHO-11)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test.describe("Dashboard — plant chat AI-gating for Sprout (RHO-10 / RHO-11)", () => {
+  // The seeded account is AI-enabled (Evergreen). The full profile fetch selects
+  // `ai_enabled`, so intercept it and force `ai_enabled: false` (a Sprout profile)
+  // while leaving the rest of the profile untouched. Both the global chat FAB
+  // (App.tsx) and the Daily Brief "Got a plant question?" chip (DailyBriefCard)
+  // read this flag and must disappear together.
+  async function forceNonAi(page: import("@playwright/test").Page) {
+    const supabaseUrl = process.env.VITE_SUPABASE_URL ?? "";
+    // The full profile read starts `select=uid,home_id,...` — distinct from the
+    // narrow `select=subscription_tier` entitlements read.
+    await page.route(/\/rest\/v1\/user_profiles\?select=uid/, async (route) => {
+      const resp = await route.fetch();
+      let body: any = null;
+      try {
+        body = await resp.json();
+      } catch {
+        return route.fulfill({ response: resp });
+      }
+      const patchRow = (row: any) => ({ ...row, ai_enabled: false, subscription_tier: "sprout" });
+      const patched = Array.isArray(body) ? body.map(patchRow) : body ? patchRow(body) : body;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        headers: { ...resp.headers() },
+        body: JSON.stringify(patched),
+      });
+    });
+    // Keep the entitlements read consistent (Head Gardener/AI Insights teasers).
+    await page.route(/user_profiles\?select=subscription_tier&/, (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ subscription_tier: "sprout" }),
+      }),
+    );
+    void supabaseUrl;
+  }
+
+  test("DASH-043: Sprout dashboard hides the global Plant Doctor chat FAB", async ({ authenticatedPage }) => {
+    await forceNonAi(authenticatedPage);
+    await authenticatedPage.goto("/dashboard");
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.waitForLoad();
+
+    // The Daily Brief must be present so we know the dashboard actually rendered.
+    await expect(authenticatedPage.getByTestId("daily-brief-card")).toBeVisible({ timeout: 10000 });
+    // …but the chat FAB (mounted globally in App.tsx) must NOT be present.
+    await expect(authenticatedPage.getByTestId("plant-doctor-chat-fab")).toHaveCount(0);
+  });
+
+  test("DASH-044: Sprout dashboard hides the Daily Brief 'Got a plant question?' chip", async ({ authenticatedPage }) => {
+    await forceNonAi(authenticatedPage);
+    await authenticatedPage.goto("/dashboard");
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.waitForLoad();
+
+    await expect(authenticatedPage.getByTestId("daily-brief-card")).toBeVisible({ timeout: 10000 });
+    await expect(authenticatedPage.getByTestId("daily-brief-ask-ai")).toHaveCount(0);
+  });
+
+  test("DASH-045: AI-enabled account still shows the chat FAB and the chip", async ({ authenticatedPage }) => {
+    // No profile override — the seeded account is AI-enabled, so both entry points render.
+    await authenticatedPage.goto("/dashboard");
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.waitForLoad();
+
+    await expect(authenticatedPage.getByTestId("daily-brief-ask-ai")).toBeVisible({ timeout: 10000 });
+    await expect(authenticatedPage.getByTestId("plant-doctor-chat-fab")).toBeVisible({ timeout: 10000 });
+  });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Section 02 — Daily Brief overdue chip agrees with the task list (RHO-3)
+// ─────────────────────────────────────────────────────────────────────────────
+
+test.describe("Dashboard — overdue chip vs task list parity (RHO-3)", () => {
+  // The Daily Brief "Overdue" chip is now home-scoped + ghost-aware (runs the
+  // same `isTaskOverdueToday` predicate the list uses). Its number must equal
+  // the number of overdue tasks the list actually shows. Each overdue task card
+  // renders an "Overdue since …" badge, so counting those gives the list's
+  // overdue count independently of the chip's own query.
+  test("DASH-046: overdue chip count equals the overdue tasks shown in the list", async ({ authenticatedPage }) => {
+    const dashboard = new DashboardPage(authenticatedPage);
+    await dashboard.goto();
+    await dashboard.waitForLoad();
+
+    const overdueChip = authenticatedPage.getByRole("button", { name: /\d+ overdue tasks?/i });
+    const chipVisible = await overdueChip.isVisible({ timeout: 8000 }).catch(() => false);
+
+    if (!chipVisible) {
+      // "All caught up" state — the chip renders "Today N tasks" instead. The
+      // list must then show zero overdue cards for the two to agree.
+      const overdueBadges = await authenticatedPage.getByText(/Overdue since/i).count();
+      expect(overdueBadges).toBe(0);
+      return;
+    }
+
+    // Parse the chip's overdue number from its accessible name.
+    const label = (await overdueChip.getAttribute("aria-label")) ?? "";
+    const chipCount = parseInt(label.match(/(\d+)\s+overdue/i)?.[1] ?? "0", 10);
+
+    // The calendar's "today" agenda includes every overdue carry-in home-wide,
+    // each stamped with an "Overdue since" badge — that's the list's overdue set.
+    await dashboard.gotoCalendar();
+    const taskList = new TaskListPage(authenticatedPage);
+    await taskList.waitForLoad();
+    await authenticatedPage.waitForTimeout(800);
+
+    const listOverdueCount = await authenticatedPage.getByText(/Overdue since/i).count();
+    expect(listOverdueCount).toBe(chipCount);
   });
 });

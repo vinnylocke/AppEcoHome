@@ -1,1 +1,11 @@
-[]
+[
+  {
+    "label": "Fixed",
+    "items": [
+      "Free (Sprout) plan: AI plant chat (the chat button and the \"Got a plant question?\" link) and the \"Plan your Sunday\" week overview are no longer shown when they aren't part of your plan.",
+      "Dashboard task counts are now accurate — \"Tasks This Week\", the Week Overview day strip, and \"Harvests Due\" correctly include overdue tasks from earlier weeks and active harvest ranges, and the overdue number in the summary now matches the task list. A new line shows tasks carried over from before this week plus how many you've completed.",
+      "Garden Walk: the Snap photo panel now scrolls into view when opened, and finishing or leaving the walk returns you to the screen you started from instead of the mobile shortcut screen.",
+      "The \"Total Tasks\" stat now opens the calendar, and tapping an upgrade banner scrolls straight to the plan options."
+    ]
+  }
+]

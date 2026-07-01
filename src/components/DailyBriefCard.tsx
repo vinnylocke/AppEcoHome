@@ -15,6 +15,7 @@ interface Props {
   homeLat?: number | null;
   homeLng?: number | null;
   hardinessZone?: number | null;
+  aiEnabled?: boolean; // Gates the "Got a plant question?" AI chat chip (RHO-11)
 }
 
 function timeOfDayGreeting(d: Date): string {
@@ -39,6 +40,7 @@ export default function DailyBriefCard({
   homeLat,
   homeLng,
   hardinessZone,
+  aiEnabled = false,
 }: Props) {
   const navigate = useNavigate();
   const { setIsOpen, setPageContext } = usePlantDoctor();
@@ -263,28 +265,32 @@ export default function DailyBriefCard({
                 : <>{sun ? <>Sunrise was {formatTime(sun.sunrise)} · day length {sun ? formatHoursMinutes((sun.sunset.getTime() - sun.sunrise.getTime()) / 3_600_000) : "—"}</> : "Plan your day below"}</>
               }
             </p>
-            <button
-              onClick={() => {
-                setPageContext({
-                  action: "Asking from the dashboard Daily Brief",
-                  context: {
-                    today_task_count: todayTaskCount,
-                    overdue_count: overdueCount,
-                    weather_summary: weather?.summary ?? null,
-                    weather_temp_c: weather?.temp ?? null,
-                    hardiness_zone: hardinessZone ?? null,
-                  },
-                });
-                setIsOpen(true);
-              }}
-              data-testid="daily-brief-ask-ai"
-              className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-white/15 transition-colors"
-              aria-label="Ask Rhozly AI a question"
-              title="Ask Rhozly AI"
-            >
-              <MessageSquare size={11} />
-              Got a plant question?
-            </button>
+            {/* Plant chat is an AI feature — hidden for non-AI tiers (RHO-11).
+                Gated together with the global chat FAB in App.tsx (RHO-10). */}
+            {aiEnabled && (
+              <button
+                onClick={() => {
+                  setPageContext({
+                    action: "Asking from the dashboard Daily Brief",
+                    context: {
+                      today_task_count: todayTaskCount,
+                      overdue_count: overdueCount,
+                      weather_summary: weather?.summary ?? null,
+                      weather_temp_c: weather?.temp ?? null,
+                      hardiness_zone: hardinessZone ?? null,
+                    },
+                  });
+                  setIsOpen(true);
+                }}
+                data-testid="daily-brief-ask-ai"
+                className="inline-flex items-center gap-1.5 bg-white/15 hover:bg-white/25 text-white text-[10px] font-black uppercase tracking-widest px-2.5 py-1 rounded-full border border-white/15 transition-colors"
+                aria-label="Ask Rhozly AI a question"
+                title="Ask Rhozly AI"
+              >
+                <MessageSquare size={11} />
+                Got a plant question?
+              </button>
+            )}
           </div>
           <button
             onClick={() => navigate("/dashboard?view=calendar")}

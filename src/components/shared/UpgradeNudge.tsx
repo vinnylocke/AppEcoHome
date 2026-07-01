@@ -21,7 +21,7 @@ export default function UpgradeNudge({ feature, compact = false }: { feature: Fe
       <button
         type="button"
         data-testid={`upgrade-nudge-${feature}`}
-        onClick={() => navigate("/gardener")}
+        onClick={() => navigate("/gardener?section=plans")}
         className="w-full flex items-center justify-center gap-2 py-2.5 rounded-2xl border border-dashed border-rhozly-outline/30 text-[11px] font-bold text-rhozly-on-surface/50 hover:bg-rhozly-surface transition-colors"
       >
         <Lock size={12} /> Upgrade to {tierText} to use {label}
@@ -44,7 +44,7 @@ export default function UpgradeNudge({ feature, compact = false }: { feature: Fe
       <button
         type="button"
         data-testid={`upgrade-nudge-cta-${feature}`}
-        onClick={() => navigate("/gardener")}
+        onClick={() => navigate("/gardener?section=plans")}
         className="inline-flex items-center gap-2 px-5 py-2.5 rounded-2xl bg-rhozly-primary text-white text-sm font-black hover:opacity-90 transition-opacity"
       >
         See plans

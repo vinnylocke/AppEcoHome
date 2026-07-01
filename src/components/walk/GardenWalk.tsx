@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useReducer, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { Loader2, AlertCircle, ArrowLeft } from "lucide-react";
 import { supabase } from "../../lib/supabase";
 import { Logger } from "../../lib/errorHandler";
@@ -125,6 +125,14 @@ export default function GardenWalk(props: React.ComponentProps<typeof GardenWalk
 
 function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
   const navigate = useNavigate();
+  const location = useLocation();
+  // RHO-7/8: return to wherever the walk was launched from. The launch
+  // sites pass `state.from` (dashboard → "/dashboard", Quick Access tile →
+  // "/quick"). Default to "/quick" when absent — a hard refresh mid-walk
+  // drops location.state, and the mobile Quick Access menu is the safe
+  // fallback (matches the pre-fix behaviour).
+  const returnTo =
+    (location.state as { from?: string } | null)?.from ?? "/quick";
   const [state, dispatch] = useReducer(reducer, { kind: "loading" } as WalkState);
   // `startedAtMs` is tracked per-walk-instance — re-set on Walk Again so
   // the new session's duration starts at zero, not from the original
@@ -202,9 +210,9 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
       walkService.endSession(state.sessionId, state.summary).catch(() => {});
       dispatch({ type: "finish", durationMs });
     } else {
-      navigate("/quick");
+      navigate(returnTo);
     }
-  }, [state, startedAtMs, navigate]);
+  }, [state, startedAtMs, navigate, returnTo]);
 
   // ── Render branches ────────────────────────────────────────────────
 
@@ -236,11 +244,12 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
           <p className="text-sm text-red-900/80 mb-4">{state.message}</p>
           <button
             type="button"
-            onClick={() => navigate("/quick")}
+            data-testid="garden-walk-error-back"
+            onClick={() => navigate(returnTo)}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-rhozly-primary text-white text-xs font-black uppercase tracking-widest"
           >
             <ArrowLeft size={14} />
-            Back to Quick Menu
+            Back
           </button>
         </div>
       </div>
@@ -262,11 +271,12 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
           </p>
           <button
             type="button"
-            onClick={() => navigate("/quick")}
+            data-testid="garden-walk-empty-back"
+            onClick={() => navigate(returnTo)}
             className="inline-flex items-center gap-1.5 px-4 py-2 rounded-2xl bg-rhozly-primary text-white text-xs font-black uppercase tracking-widest"
           >
             <ArrowLeft size={14} />
-            Back to Quick Menu
+            Back
           </button>
         </div>
       </div>
@@ -278,7 +288,7 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
       <WalkSummaryCard
         durationMs={state.durationMs}
         summary={state.summary}
-        onDone={() => navigate("/quick")}
+        onDone={() => navigate(returnTo)}
         onWalkAgain={bootstrap}
       />
     );

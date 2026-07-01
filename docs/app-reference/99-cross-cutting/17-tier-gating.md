@@ -63,7 +63,7 @@ Then `onTierChange()` lifts flags into App state so the rest of the app re-rende
 | Feature | Gate |
 |---------|------|
 | Plant Doctor Identify / Diagnose / Pest / Multi-ID | `ai_enabled` |
-| Plant Doctor Chat | `ai_enabled` |
+| Plant Doctor Chat | `ai_enabled` — **all** entry points gated together: the global chat FAB (`<PlantDoctorChat>` mount in `src/App.tsx`, RHO-10) and the Daily Brief "Got a plant question?" chip (`DailyBriefCard` `aiEnabled` prop, RHO-11). A non-AI (Sprout) user has no chat entry point at all. |
 | AI Assistant Card | `ai_enabled` |
 | New Plan Form (AI blueprint) | `ai_enabled` |
 | Garden Overhaul (photo redesign) | `ai_enabled` (Sage+) |
@@ -104,7 +104,12 @@ Head Gardener edge functions (`synthesize-garden-brief`, `garden-manager-report`
 re-check before doing any work.
 Consumed by `useEntitlements(tierProp?)` (`src/hooks/useEntitlements.ts`, module-cached tier fetch) and
 the reusable `<FeatureGate feature tier? fallback?>` + `<UpgradeNudge feature compact? />`
-(`src/components/shared/`). **`FeatureGate` fallback semantics:** omit `fallback` → the full default
+(`src/components/shared/`). **`UpgradeNudge` deep-links to the plan picker (RHO-12):** both its
+compact button and its full-panel "See plans" CTA `navigate("/gardener?section=plans")`.
+`GardenerProfile` reads `?section=plans`, forces the Account tab, scrolls the `#plan-section`
+("Your Plan") card into view, then strips the param — mirroring the existing `?section=quick-launcher`
+pattern. The effect depends on the section param value (not just mount) so it still fires when a nudge
+is tapped while already on `/gardener`. **`FeatureGate` fallback semantics:** omit `fallback` → the full default
 `UpgradeNudge` panel; `fallback={null}` → render **nothing**; `fallback={<UpgradeNudge … compact />}`
 → the slim one-line teaser. (Before RHO-2 a `??` bug made `fallback={null}` wrongly render the full
 panel — fixed 2026-06-25 to `fallback !== undefined ? fallback : <UpgradeNudge/>`.) **Wired (all open):** `light_sensor` (LightSensor), `garden_layout`

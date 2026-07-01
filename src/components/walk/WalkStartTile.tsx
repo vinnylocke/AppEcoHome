@@ -45,7 +45,10 @@ export default function WalkStartTile({ enabled }: Props) {
     <button
       type="button"
       data-testid="quick-tile-walk"
-      onClick={() => navigate("/walk")}
+      // RHO-7/8: preserve the origin (Quick Access) so the walk returns
+      // to /quick on exit. GardenWalk defaults to /quick when no origin
+      // is present, so this keeps the current mobile behaviour explicit.
+      onClick={() => navigate("/walk", { state: { from: "/quick" } })}
       className="group w-full rounded-3xl bg-gradient-to-br from-rhozly-primary via-rhozly-primary to-rhozly-primary-container text-white text-left p-4 flex items-center gap-3 shadow-[0_8px_22px_-8px_rgba(7,87,55,0.55)] hover:-translate-y-0.5 active:scale-[0.99] transition-all focus:outline-none focus-visible:ring-4 focus-visible:ring-rhozly-primary/40 relative overflow-hidden"
     >
       <span

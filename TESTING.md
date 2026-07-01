@@ -819,8 +819,9 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `gapAnalysis.test.ts` | 12 | Head Gardener goal-gap engine — `analyseGaps` (year-round-colour bare-season detection case-insensitive, grow-your-own no-edibles + harvest-gap, attract-wildlife, low-maintenance overload, family-safe toxic flags, multi-goal accumulation, full-coverage → no gap) |
 | `managerLog.test.ts` | 6 | Head Gardener continuity log — `gapKey`/`gapTitle`, `diffGapLog` (opens new gaps, closes gone gaps, simultaneous open+close, ignores null target_id, no-op) |
 | `geminiParts.test.ts` | 6 | `joinPartsText` — joins all Gemini `content.parts` text (multi-part concatenation, ignores non-text/functionCall parts, empty/non-array → ""); guards the multi-part-truncation bug that emptied the Head Gardener report + cut off the insights summary |
+| `dashboardStats.test.ts` | 16 | `home-dashboard-stats` count helpers (`_shared/dashboardStats.ts`) — RHO-14 tasks-this-week (prior-week overdue counted, week-scoped total/pending, snooze/harvest-window aware, completedThisWeek), RHO-15 day strip (prior-week overdue → Sunday, harvest window spans in-week days, per-day overdue+pending), RHO-16 harvests-due subject-keyed dedup (3-plant task→3, same plant once, unlinked→1, recurring blueprint once, linked+unlinked distinct, Completed/Skipped excluded, pre-week window overlap) |
 
-### E2E tests — 475 tests across 32 files (+ 13 isolation tests)
+### E2E tests — 481 tests across 33 files (+ 13 isolation tests)
 
 > `ailment-library.spec.ts` (Section 24) covers the browse shell (heading, search, kind filter chips) + the "Browse the ailment library" navigation from the Watchlist. Shell-only (the seeded e2e DB has no `ailment_library` rows → grid empty state).
 
@@ -849,7 +850,8 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `nursery-lifecycle.spec.ts` | 22 | The Nursery — Section 25 (NURSERY-001..052): browse + Plants/Nursery toggle, empty state, Add Packet via Shed-pick + free-text paths, Log Sowing, Observe Germination (75% rate), Discard, full + partial Plant Out (creates `inventory_items` row with `from_sowing_id`, fires AutomationEngine non-fatally), Plant Out gated when plant_id null, "From the Nursery" badge on InstanceEditModal, bulk paste (regex + mocked AI), AddTaskModal Nursery picker, Care Guide tab pill, Shopping refill banner render + Add + hidden states |
 | `shopping-edge-cases.spec.ts` | 4 | Shopping gaps (SHOP-E-001..004): Add Item sheet renders Plant + Product tabs, Product tab fields render, completed section toggle renders (seed completed list), Add-to-Shed surfaces on the seeded checked-plants list |
 | `planner-restore.spec.ts` | 3 | Planner Archive/Restore (PLN-R-001..003): seeded archived plan visible on Archived tab, options menu shows Restore + Delete, Restore moves plan from Archived → Pending (Active) |
-| `dashboard.spec.ts` | 43 | Dashboard sections, weather card, daily tasks, plant grid, nav links, pull-to-refresh |
+| `dashboard.spec.ts` | 46 | Dashboard sections, weather card, daily tasks, plant grid, nav links, pull-to-refresh; RHO-13 Total Tasks tile → calendar (DASH-050); RHO-9 Week Ahead card gating (DASH-051/052) |
+| `garden-walk.spec.ts` | 3 | Garden Walk `/walk` — RHO-7/8 return-to-origin on exit (WALK-001) + "Back" label (WALK-002), RHO-6 Snap sheet scroll/focus into view (WALK-010) |
 | `head-gardener.spec.ts` | 7 | Head Gardener `/manager` (HG-001..007): hub heading + tabs, Overview report (mocked) headline/section/gap, continuity log seeded open item, Brief tab seeded brief, Year Plan tab seeded items, Insights tab embedded feed, Ask tab grounded reply (mocked) |
 | `plants.spec.ts` | 4 | Shed page load, search input, nav link, plants-or-empty state |
 | `shed-crud.spec.ts` | 30 | Add plant (manual + AI), edit, archive, restore, delete, search/filter, detail drawer |

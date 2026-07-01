@@ -1016,7 +1016,7 @@ function AccountTab({ userId, homeId, displayName, email, subscriptionTier, isAd
       </section>
 
       {/* Plan */}
-      <section className="bg-white rounded-2xl border border-rhozly-outline/10 p-4 space-y-3">
+      <section id="plan-section" className="bg-white rounded-2xl border border-rhozly-outline/10 p-4 space-y-3">
         <h3 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">Your Plan</h3>
         <div className="grid grid-cols-2 gap-2">
           {TIERS.map((tier) => {
@@ -1441,6 +1441,24 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // "See plans" deep link (?section=plans): the tier-locked UpgradeNudge banners
+  // route here (RHO-12). Force the Account tab (where the plan picker lives),
+  // scroll to the "Your Plan" section, then strip the param. Depends on the
+  // section value (not just mount) so it still fires when a nudge is tapped
+  // while already on /gardener.
+  useEffect(() => {
+    if (params.get("section") !== "plans") return;
+    setTabState("account");
+    const t = setTimeout(() => {
+      document.getElementById("plan-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    }, 350);
+    const p = new URLSearchParams(params);
+    p.delete("section");
+    setParams(p, { replace: true });
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [params.get("section")]);
 
   // Avatar — fetched on mount; updated via PhotoUploader.
   const [avatarUrl, setAvatarUrl] = useState<string | null>(null);

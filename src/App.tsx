@@ -122,6 +122,7 @@ const AssistantCard       = lazy(() => import("./components/AssistantCard"));
 const AuditPage           = lazy(() => import("./components/AuditPage"));
 import { extractCurrentWeather } from "./lib/clientCache";
 import { getLocalDateString } from "./lib/taskEngine";
+import { isTaskOverdueToday } from "./lib/taskFilters";
 
 // Service worker update checks + background-time reload safety net.
 if ("serviceWorker" in navigator) {
@@ -720,6 +721,7 @@ function AppShell() {
         setLocations(data.locations);
 
         const locationIds = data.locations.map((l: any) => l.id);
+        const homeId = profile.home_id!;
         if (locationIds.length > 0) {
           const todayStr = getLocalDateString(new Date());
 
@@ -741,20 +743,23 @@ function AppShell() {
               .eq("due_date", todayStr)
               .neq("status", "Skipped")
               .neq("status", "Completed"),
+            // RHO-3: the Daily Brief "Overdue" chip must agree with the
+            // ghost-aware TaskEngine list below it. Scope by `home_id` (not
+            // `location_id`) so home/personal-scoped tasks with a NULL
+            // location count too, and fetch the raw snooze/harvest columns so
+            // the final overdue decision runs through the SAME predicate the
+            // list uses (`taskFilters.isTaskOverdueToday`) rather than a
+            // near-copy of the rules in SQL. A candidate must have an
+            // effective due date before today, so pre-filter on either the
+            // original due_date OR an open harvest window that could have
+            // closed — the JS predicate makes the final call.
             supabase
               .from("tasks")
-              .select("id", { count: "exact", head: true })
-              .in("location_id", locationIds)
-              .lt("due_date", todayStr)
+              .select("id, status, due_date, next_check_at, window_end_date")
+              .eq("home_id", homeId)
               .neq("status", "Skipped")
               .neq("status", "Completed")
-              // Wave 20: a harvest task is NOT overdue while its window
-              // is still open (window_end_date >= today). And a "Not yet"
-              // snooze (next_check_at > today) hides the task entirely
-              // until the snooze expires. Both `or` filters keep the
-              // non-Wave-20 tasks (where the columns are NULL) intact.
-              .or(`window_end_date.is.null,window_end_date.lt.${todayStr}`)
-              .or(`next_check_at.is.null,next_check_at.lte.${todayStr}`),
+              .or(`due_date.lt.${todayStr},window_end_date.not.is.null`),
             supabase
               .from("task_blueprints")
               .select("id, location_id, start_date, created_at, end_date, frequency_days")
@@ -762,7 +767,14 @@ function AppShell() {
               .eq("is_recurring", true),
           ]);
 
-          snapshotOverdueTaskCount = overdueResult.count ?? 0;
+          // Run the same predicate the TaskEngine list uses so the chip and
+          // the list agree (RHO-3). `isTaskOverdueToday` excludes completed /
+          // skipped rows, keeps harvest tasks that are still inside their
+          // window, and is snooze-aware (a "Not yet" snooze pushes the
+          // effective due date forward).
+          snapshotOverdueTaskCount = (overdueResult.data ?? []).filter((t: any) =>
+            isTaskOverdueToday(t, todayStr),
+          ).length;
           setOverdueTaskCount(snapshotOverdueTaskCount);
 
           snapshotAlerts = alertResult.data || [];
@@ -1487,6 +1499,7 @@ function AppShell() {
                                       homeLat={homeLatLng.lat}
                                       homeLng={homeLatLng.lng}
                                       hardinessZone={hardinessZone}
+                                      aiEnabled={!!profile?.ai_enabled}
                                     />
                                     {/* Complete Home Profile quiz prompt */}
                                     {quizCompleted === false && !quizPromptDismissed && !quizPromptIsSnoozed && (
@@ -2004,7 +2017,9 @@ function AppShell() {
           {canUsePortal &&
             createPortal(
               <div className="font-body text-rhozly-on-surface antialiased">
-                {profile?.home_id && (
+                {/* Plant chat is an AI feature — only mount for AI-enabled tiers
+                    (RHO-10). Server re-verifies ai_enabled on every chat call. */}
+                {profile?.home_id && profile?.ai_enabled && (
                   <PlantDoctorChat homeId={profile.home_id} />
                 )}
                 <HelpCenter

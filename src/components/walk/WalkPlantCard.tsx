@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import {
   Camera,
   Check,
@@ -76,6 +76,30 @@ export default function WalkPlantCard({
   const [snapUrl, setSnapUrl] = useState<string | null>(null);
   const [noteText, setNoteText] = useState("");
   const [noteSaving, setNoteSaving] = useState(false);
+
+  // RHO-6: on a wide landscape screen the Snap/Note sheets mount as a
+  // `fixed inset-0` overlay whose actionable content is top-aligned, so
+  // nothing draws the eye — it looks like the tap did nothing. Scroll the
+  // sheet's own scroll body to the top and move focus into it when it
+  // opens. The Note sheet already autoFocuses its textarea; the Snap
+  // sheet has no natural focus target, so we focus its scroll body.
+  const snapSheetBodyRef = useRef<HTMLDivElement | null>(null);
+  const noteSheetBodyRef = useRef<HTMLDivElement | null>(null);
+  useEffect(() => {
+    if (sheet === null) return;
+    const body = sheet === "snap" ? snapSheetBodyRef.current : noteSheetBodyRef.current;
+    if (!body) return;
+    const prefersReducedMotion =
+      typeof window !== "undefined" &&
+      window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+    body.scrollIntoView({ block: "start", behavior: prefersReducedMotion ? "auto" : "smooth" });
+    body.scrollTop = 0;
+    // The Note sheet's textarea autoFocuses itself — don't steal focus
+    // from it (or fight PhotoUploader's file-input focus in the Snap
+    // sheet). Focus the scroll body only for the Snap sheet, so keyboard
+    // users land inside the newly-mounted section.
+    if (sheet === "snap") body.focus({ preventScroll: true });
+  }, [sheet]);
 
   const closeSheets = () => {
     setSheet(null);
@@ -364,7 +388,12 @@ export default function WalkPlantCard({
               <X size={18} />
             </button>
           </header>
-          <div className="flex-1 overflow-y-auto px-4">
+          <div
+            ref={snapSheetBodyRef}
+            data-testid="walk-snap-sheet-body"
+            tabIndex={-1}
+            className="flex-1 overflow-y-auto px-4 outline-none"
+          >
             <PhotoUploader
               bucket="plant-images"
               pathPrefix={`walks/${homeId}/${plant.inventoryItemId}`}
@@ -424,7 +453,11 @@ export default function WalkPlantCard({
               <X size={18} />
             </button>
           </header>
-          <div className="flex-1 overflow-y-auto px-4">
+          <div
+            ref={noteSheetBodyRef}
+            data-testid="walk-note-sheet-body"
+            className="flex-1 overflow-y-auto px-4"
+          >
             <textarea
               data-testid="walk-note-input"
               autoFocus

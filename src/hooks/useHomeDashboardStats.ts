@@ -30,6 +30,10 @@ export interface HomeDashboardStats {
     skippedByRain: number;
     streak: number;
     memberBreakdown: MemberStat[];
+    /** RHO-14: open tasks carried in from before this week (overdue, effective due < weekStart). */
+    priorOverdue: number;
+    /** RHO-14: tasks completed within this week. */
+    completedThisWeek: number;
   };
   garden: {
     totalPlants: number;

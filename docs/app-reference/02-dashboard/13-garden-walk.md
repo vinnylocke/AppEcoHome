@@ -47,7 +47,7 @@ GardenWalk  (mounted at /walk, under the focus-mode shell)
         ├── Walk-what's-left button → re-fires the bootstrap callback,
         │   opens a new session, surfaces just the plants the user
         │   hasn't actioned today
-        └── Done button → navigate("/quick")
+        └── Done button → navigate(returnTo)  // origin, default /quick (RHO-7)
 ```
 
 ### Props received
@@ -134,10 +134,25 @@ Sessions + visits are user-scoped per the migration policies: any home member ca
 
 | State | Result |
 |---|---|
-| Build walk-list fails | Full-screen error card with "Back to Quick Menu" |
-| Empty home (no inventory_items, or all archived / indoor with skipIndoor) | Friendly "Nothing to walk today" empty state |
+| Build walk-list fails | Full-screen error card with a **"Back"** button (`garden-walk-error-back`) that returns to the origin (RHO-8) |
+| Empty home (no inventory_items, or all archived / indoor with skipIndoor) | Friendly "Nothing to walk today" empty state with a **"Back"** button (`garden-walk-empty-back`) returning to the origin (RHO-8) |
 | Snap / Note save fails | Inline toast; the card stays open so the user can retry |
 | Network drops mid-walk | Walk advances on local state regardless; visit rows replay via Supabase client retry. End-of-walk update may fail silently — the summary still renders |
+
+### Return-navigation contract (RHO-7 / RHO-8)
+
+Every exit (Done, Stop, empty, error) returns to the surface the walk was **launched from**, not a hardcoded `/quick`. The launch sites pass the origin in router state:
+
+| Launch site | `navigate("/walk", { state: { from } })` |
+|---|---|
+| Dashboard launcher (`HomeDashboard.tsx`, `dash-garden-walk`) | `from: "/dashboard"` |
+| Quick Access tile (`WalkStartTile.tsx`, `quick-tile-walk`) | `from: "/quick"` |
+
+`GardenWalk` reads `useLocation().state?.from` into `returnTo`, defaulting to `/quick` when absent (a hard refresh mid-walk drops `location.state`, so the mobile Quick Access menu is the safe fallback). All four exits call `navigate(returnTo)`.
+
+### Snap / Note sheet focus (RHO-6)
+
+The Snap and Note sheets are `fixed inset-0 z-50` overlays. On a wide landscape screen their actionable content is top-aligned with empty space below, so a plain conditional mount looked like nothing happened. A `useEffect` keyed on the active `sheet` scrolls the sheet's own `overflow-y-auto` body into view (`walk-snap-sheet-body` / `walk-note-sheet-body`) and moves focus inside it — the Note sheet's `<textarea autoFocus>` keeps its own focus; the Snap sheet (no natural target) focuses its scroll body. Motion respects `prefers-reduced-motion`.
 
 ### Performance notes
 
@@ -192,7 +207,7 @@ When you advance past the last card (or hit Stop):
 - *"You walked N plants in X minutes Y seconds."*
 - Stats: photos taken, notes added, tasks completed, ailments flagged.
 - **Walk what's left** → re-fires the walk with the same-day-visited filter on, so it naturally surfaces just the plants you haven't actioned today. If there's nothing left, you land on the friendly *"Nothing to walk today"* empty state — a satisfying signal that the garden's covered.
-- **Done** → back to Quick Access.
+- **Done** → back to where you started the walk (the Dashboard if you launched it from there; Quick Access on mobile).
 
 ### Information on display — what every field means
 

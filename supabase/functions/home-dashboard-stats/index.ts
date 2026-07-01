@@ -2,6 +2,12 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { requireAuth } from "../_shared/requireAuth.ts";
 import { log } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
+import {
+  computeDayStrip,
+  computeHarvestCounts,
+  computeTaskStats,
+  type StatTask,
+} from "../_shared/dashboardStats.ts";
 
 const FN = "home-dashboard-stats";
 const CORS = {
@@ -56,13 +62,18 @@ Deno.serve(async (req) => {
       doctorResult,
       ailmentsResult,
     ] = await Promise.all([
-      // 1. Tasks this week — all relevant columns for grouping
+      // 1. Tasks — widened for RHO-14/15/16. The old query was strictly
+      //    `due_date` in [weekStart, weekEnd], which dropped:
+      //      (a) overdue tasks carried in from BEFORE this week, and
+      //      (b) harvest-window tasks whose window opens before weekStart.
+      //    Mirror taskEngine.ts: `due_date <= weekEnd OR window_end_date >= weekStart`.
+      //    `inventory_item_ids` + `blueprint_id` are needed for the RHO-16
+      //    subject-keyed harvest dedup.
       db
         .from("tasks")
-        .select("id, status, type, due_date, completed_by, auto_completed_reason, completed_at, window_end_date, next_check_at")
+        .select("id, status, type, due_date, completed_by, auto_completed_reason, completed_at, window_end_date, next_check_at, inventory_item_ids, blueprint_id")
         .eq("home_id", homeId)
-        .gte("due_date", weekStart)
-        .lte("due_date", weekEnd),
+        .or(`due_date.lte.${weekEnd},window_end_date.gte.${weekStart}`),
 
       // 2. Home members (user_ids only — profiles fetched separately)
       db
@@ -144,46 +155,44 @@ Deno.serve(async (req) => {
       : { data: [] };
 
     // ── Tasks aggregation ───────────────────────────────────────────────────
-    const tasks = tasksResult.data ?? [];
-    const taskTotal = tasks.filter((t) => t.status !== "Skipped").length;
-    const taskCompleted = tasks.filter((t) => t.status === "Completed").length;
-    const taskAutoCompleted = tasks.filter(
+    // `tasks` is now the WIDENED set (prior-week overdue + future harvest
+    // windows included — see the query above). Counts that must stay
+    // "this week only" derive from `weekTasks` (effective span intersects
+    // the ISO week); RHO-14/15/16 counts use the full widened set.
+    const tasks = (tasksResult.data ?? []) as StatTask[];
+    const weekTasks = tasks.filter((t) => {
+      const eff = (t.next_check_at && t.due_date && t.next_check_at > t.due_date)
+        ? t.next_check_at
+        : t.due_date;
+      if (eff == null) return false;
+      if (t.window_end_date) return eff <= weekEnd && t.window_end_date >= weekStart;
+      return eff >= weekStart && eff <= weekEnd;
+    });
+
+    // RHO-14: Total / Overdue / Pending. Total + Pending stay week-scoped;
+    // Overdue is computed over the FULL widened set so overdue-from-any-
+    // prior-week is reflected. `priorOverdue` + `completedThisWeek` are the
+    // RHO-14 "additional count" (a small carried-over/activity stat).
+    const taskStats = computeTaskStats(tasks, weekStart, weekEnd, today);
+    const taskTotal = taskStats.total;
+    const taskOverdue = taskStats.overdue;
+    const taskPending = taskStats.pending;
+
+    const taskCompleted = weekTasks.filter((t) => t.status === "Completed").length;
+    const taskAutoCompleted = weekTasks.filter(
       (t) => t.status === "Completed" && t.auto_completed_reason,
     ).length;
-    const taskSkippedByRain = tasks.filter(
+    const taskSkippedByRain = weekTasks.filter(
       (t) =>
         t.status === "Skipped" &&
         t.auto_completed_reason?.toLowerCase().includes("rain"),
     ).length;
-    // Wave 20 contract:
-    //   - Harvest window task is "active" through `window_end_date`,
-    //     so it is NOT overdue while today <= window_end_date.
-    //   - A "Not yet" snooze sets `next_check_at = today + N`. The task
-    //     is hidden from Today (and from overdue/pending counters) while
-    //     today < next_check_at.
-    const isSnoozed = (t: any) =>
-      t.next_check_at != null && t.next_check_at > today;
-    const isHarvestWindowActive = (t: any) =>
-      t.window_end_date != null && t.window_end_date >= today;
-    const taskOverdue = tasks.filter(
-      (t) =>
-        t.due_date < today
-        && !["Completed", "Skipped"].includes(t.status)
-        && !isSnoozed(t)
-        && !isHarvestWindowActive(t),
-    ).length;
-    const taskPending = tasks.filter(
-      (t) =>
-        t.due_date >= today
-        && !["Completed", "Skipped"].includes(t.status)
-        && !isSnoozed(t),
-    ).length;
     const completionRate =
       taskTotal > 0 ? Math.round((taskCompleted / taskTotal) * 100) : 0;
 
-    // By category
+    // By category (week-scoped)
     const taskByCategory: Record<string, number> = {};
-    for (const t of tasks.filter((t) => t.status !== "Skipped")) {
+    for (const t of weekTasks.filter((t) => t.status !== "Skipped")) {
       const cat = t.type ?? "Other";
       taskByCategory[cat] = (taskByCategory[cat] ?? 0) + 1;
     }
@@ -203,10 +212,10 @@ Deno.serve(async (req) => {
         completed: 0,
       };
     }
-    for (const t of tasks) {
+    for (const t of weekTasks) {
       if (t.status !== "Completed") continue;
       if (t.auto_completed_reason) continue; // automation-completed
-      const uid = t.completed_by;
+      const uid = (t as { completed_by?: string | null }).completed_by;
       if (uid && memberCompletions[uid]) {
         memberCompletions[uid].completed++;
       }
@@ -214,9 +223,9 @@ Deno.serve(async (req) => {
 
     // Completion streak — consecutive days from weekStart through today with ≥1 completed task
     const completedDates = new Set(
-      tasks
-        .filter((t) => t.status === "Completed")
-        .map((t) => t.due_date.slice(0, 10)),
+      weekTasks
+        .filter((t) => t.status === "Completed" && t.due_date)
+        .map((t) => t.due_date!.slice(0, 10)),
     );
     let streak = 0;
     const startDay = new Date(weekStart);
@@ -232,16 +241,14 @@ Deno.serve(async (req) => {
       checkDay.setUTCDate(checkDay.getUTCDate() + 1);
     }
 
-    // ── Harvest aggregation ─────────────────────────────────────────────────
-    const harvestTasks = tasks.filter((t) =>
-      ["Harvesting", "Harvest"].includes(t.type ?? "") && t.status !== "Skipped",
-    );
-    const harvestBlueprintsDue = new Set(
-      harvestTasks.map((t) => t.id), // deduplicate by task id (blueprints may generate multiple)
-    ).size;
-    const harvestBlueprintsCompleted = harvestTasks.filter(
-      (t) => t.status === "Completed",
-    ).length;
+    // ── Harvest aggregation (RHO-16) ────────────────────────────────────────
+    // "Harvests Due" = distinct plants + each unlinked harvest counts as 1,
+    // for harvests whose window overlaps this ISO week. Completed harvests
+    // are counted on the same subject-keyed basis. Runs over the full widened
+    // set so pre-week-start windows are caught.
+    const harvestCounts = computeHarvestCounts(tasks, weekStart, weekEnd);
+    const harvestBlueprintsDue = harvestCounts.due;
+    const harvestBlueprintsCompleted = harvestCounts.completed;
 
     const yieldRecords = yieldResult.data ?? [];
     const harvestInstanceIds = new Set(
@@ -253,8 +260,8 @@ Deno.serve(async (req) => {
       totalYieldByUnit[y.unit] = (totalYieldByUnit[y.unit] ?? 0) + (y.value ?? 0);
     }
 
-    // ── Pruning aggregation ─────────────────────────────────────────────────
-    const pruningTasks = tasks.filter((t) => t.type === "Pruning" && t.status !== "Skipped");
+    // ── Pruning aggregation (week-scoped) ───────────────────────────────────
+    const pruningTasks = weekTasks.filter((t) => t.type === "Pruning" && t.status !== "Skipped");
     const pruningBlueprintsDue = new Set(pruningTasks.map((t) => t.id)).size;
     const pruningBlueprintsCompleted = pruningTasks.filter(
       (t) => t.status === "Completed",
@@ -310,50 +317,10 @@ Deno.serve(async (req) => {
         return sum + (Array.isArray(arr) ? arr.length : 0);
       }, 0);
 
-    // ── Day-by-day upcoming strip ───────────────────────────────────────────
-    const dayStrip: Array<{
-      date: string;
-      total: number;
-      completedOnTime: number;
-      completedLate: number;
-      overdue: number;
-      pending: number;
-      isPast: boolean;
-      isToday: boolean;
-    }> = [];
-    const stripDay = new Date(weekStart);
-    const stripEnd = new Date(weekEnd);
-    while (stripDay <= stripEnd) {
-      const ds = stripDay.toISOString().slice(0, 10);
-      const dayTasks = tasks.filter((t) => t.due_date.slice(0, 10) === ds && t.status !== "Skipped");
-      const completedOnTime = dayTasks.filter(
-        (t) => t.status === "Completed" && t.completed_at != null && t.completed_at.slice(0, 10) <= ds,
-      ).length;
-      const completedLate = dayTasks.filter(
-        (t) => t.status === "Completed" && (t.completed_at == null || t.completed_at.slice(0, 10) > ds),
-      ).length;
-      const overdue = dayTasks.filter(
-        (t) =>
-          t.status !== "Completed"
-          && ds < today
-          && !isSnoozed(t)
-          && !isHarvestWindowActive(t),
-      ).length;
-      const pending = dayTasks.filter(
-        (t) => t.status !== "Completed" && ds >= today && !isSnoozed(t),
-      ).length;
-      dayStrip.push({
-        date: ds,
-        total: dayTasks.length,
-        completedOnTime,
-        completedLate,
-        overdue,
-        pending,
-        isPast: ds < today,
-        isToday: ds === today,
-      });
-      stripDay.setUTCDate(stripDay.getUTCDate() + 1);
-    }
+    // ── Day-by-day upcoming strip (RHO-15) ──────────────────────────────────
+    // Prior-week overdue rolls onto the Sunday bucket; harvest-window tasks
+    // count on every in-window day; each day shows overdue + pending.
+    const dayStrip = computeDayStrip(tasks, weekStart, weekEnd, today);
 
     const result = {
       tasks: {
@@ -367,6 +334,11 @@ Deno.serve(async (req) => {
         skippedByRain: taskSkippedByRain,
         streak,
         memberBreakdown: Object.values(memberCompletions),
+        // RHO-14 "additional count" (interpretation flagged for on-device
+        // verification): carried-over overdue from before this week +
+        // tasks completed this week. Not folded into total/pending.
+        priorOverdue: taskStats.priorOverdue,
+        completedThisWeek: taskStats.completedThisWeek,
       },
       garden: {
         totalPlants,

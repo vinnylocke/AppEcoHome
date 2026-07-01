@@ -176,6 +176,7 @@ Every setting that isn't gardening-specific lives here — name, email, password
 - Pick a tier → confirm modal.
 - Writes the new tier + AI flag + Perenual flag.
 - Take effect immediately across the app — no refresh needed.
+- The tier cards live in the "Your Plan" section (`#plan-section`). Tier-locked `UpgradeNudge` banners across the app deep-link here via `/gardener?section=plans`, which forces this Account tab and scrolls the plan cards into view (RHO-12).
 
 #### 5. AI Usage
 

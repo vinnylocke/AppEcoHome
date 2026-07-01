@@ -34,7 +34,7 @@ DailyBriefCard
     ├── Zone chip (when hardinessZone known)
     ├── Microclimate chip
     ├── Free-text climate hint ("Sunrise was 06:14 · day length 13h 22m")
-    ├── "Got a plant question?" chip (opens Plant Doctor chat)
+    ├── "Got a plant question?" chip (opens Plant Doctor chat — only when aiEnabled)
     └── "Open today's calendar" link
 ```
 
@@ -51,6 +51,7 @@ DailyBriefCard
 | `overdueCount` | `number` | App.tsx state.overdueTaskCount | Overdue chip (replaces Today if > 0) |
 | `homeLat`, `homeLng` | `number \| null` | App.tsx state.homeLatLng | For sun calculations |
 | `hardinessZone` | `number \| null` | App.tsx state.hardinessZone | Zone chip |
+| `aiEnabled` | `boolean` (default `false`) | `!!profile?.ai_enabled` in App.tsx | Gates the "Got a plant question?" chat chip (RHO-11). Wrapped in `{aiEnabled && (…)}`; gated together with the global chat FAB in App.tsx (RHO-10) |
 
 ### Local state
 
@@ -91,7 +92,7 @@ None directly — all data piped in via props from App.tsx which subscribes upst
 
 | Tier | Differences |
 |------|-------------|
-| Sprout | "Got a plant question?" chip is hidden (chat is AI-only) |
+| Sprout | "Got a plant question?" chip is hidden (chat is AI-only). Enforced via the `aiEnabled` prop (RHO-11) — gated together with the global chat FAB (RHO-10) so a Sprout user has no chat entry point at all |
 | Botanist | Same as Sprout |
 | Sage | "Got a plant question?" chip visible |
 | Evergreen | Same as Sage |

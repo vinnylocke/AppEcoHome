@@ -150,3 +150,29 @@ describe("isTaskOverdueToday", () => {
     ).toBe(false);
   });
 });
+
+// RHO-3: the Daily Brief "Overdue" chip now feeds the same rows this helper
+// filters (home-scoped, not location-scoped). The helper is location-agnostic —
+// it never inspects a location_id — so a home/personal-scoped task with no
+// location still counts. These cases lock that contract in place so the chip
+// and the ghost-aware task list agree.
+describe("isTaskOverdueToday — RHO-3 chip/list parity", () => {
+  it("counts an overdue home/personal-scoped task (no location fields present)", () => {
+    // The row the chip query returns has no location_id at all; the helper
+    // must still flag it as overdue purely on the due_date.
+    expect(isTaskOverdueToday({ status: "Pending", due_date: YESTERDAY }, TODAY)).toBe(true);
+  });
+
+  it("filtering an array yields the same count the list would show", () => {
+    const rows = [
+      { status: "Pending", due_date: YESTERDAY },                                   // overdue
+      { status: "Pending", due_date: PAST_WEEK },                                   // overdue
+      { status: "Pending", due_date: TODAY },                                       // due today — not overdue
+      { status: "Pending", due_date: YESTERDAY, next_check_at: IN_3_DAYS },         // snoozed forward — not overdue
+      { status: "Pending", due_date: YESTERDAY, window_end_date: WEEK_AHEAD },      // still in harvest window — not overdue
+      { status: "Completed", due_date: PAST_WEEK },                                 // done — not overdue
+    ];
+    const count = rows.filter((t) => isTaskOverdueToday(t, TODAY)).length;
+    expect(count).toBe(2);
+  });
+});

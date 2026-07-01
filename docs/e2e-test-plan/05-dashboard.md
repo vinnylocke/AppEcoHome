@@ -58,6 +58,41 @@ Tier is forced to Sprout by mocking the narrow `user_profiles?select=subscriptio
 | DASH-041 | ✅ | AI Insight card shows compact upgrade teaser, not the full panel | `user_profiles` tier→sprout | ✅ Passing |
 | DASH-042 | ✅ | No full-size upgrade panel anywhere on the Sprout dashboard (guards the `FeatureGate fallback={null}` fix) | `user_profiles` tier→sprout | ✅ Passing |
 
+## Garden Snapshot stat tiles (RHO-13)
+
+The Garden Snapshot is collapsed for non-experienced personas; the test expands it via `dash-snapshot-toggle` before clicking a tile.
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| DASH-050 | ✅ | "Total Tasks" tile navigates to the Calendar view (`view=calendar`), not `/schedule` (Routines) | — | ✅ Passing |
+
+## Week Ahead card gating (RHO-9)
+
+`WeekAheadPreview` deep-links to the Evergreen-only `/weekly` overview; it is now wrapped in `<FeatureGate feature="ai_insights" fallback={null}>` so Sprout doesn't tap an available-looking card into a locked page.
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| DASH-051 | ✅ | Week Ahead card (`dash-week-ahead-card`) is hidden for Sprout | `user_profiles` tier→sprout | ✅ Passing |
+| DASH-052 | ✅ | Week Ahead card is visible for the Evergreen seed account | — | ✅ Passing |
+
+## Plant chat AI-gating — Sprout (RHO-10 / RHO-11)
+
+Chat is an AI feature; both entry points must disappear for a non-AI tier. The full profile read (`user_profiles?select=uid,…`) is intercepted and `ai_enabled` is forced to `false` (a Sprout profile) while the rest of the profile passes through.
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| DASH-043 | ✅ | Sprout dashboard hides the global Plant Doctor chat FAB (`plant-doctor-chat-fab`) while the Daily Brief still renders | `user_profiles` `ai_enabled`→false | ✅ Passing |
+| DASH-044 | ✅ | Sprout dashboard hides the Daily Brief "Got a plant question?" chip (`daily-brief-ask-ai`) | `user_profiles` `ai_enabled`→false | ✅ Passing |
+| DASH-045 | ✅ | AI-enabled (seeded) account still shows both the chat FAB and the chip | — | ✅ Passing |
+
+## Overdue chip ↔ task list parity (RHO-3)
+
+The Daily Brief "Overdue" chip is now home-scoped + ghost-aware (runs the same `taskFilters.isTaskOverdueToday` predicate the list uses), so its count must equal the overdue tasks the list shows.
+
+| ID | Type | Description | Mock | Status |
+|---|---|---|---|---|
+| DASH-046 | ✅ | Overdue chip count equals the number of "Overdue since …" task cards in the list (or both are zero in the "all caught up" state) | — | ✅ Passing |
+
 ## Location detail (LocationPage)
 
 | ID | Type | Description | Mock | Status |
