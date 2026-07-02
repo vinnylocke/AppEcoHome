@@ -22,6 +22,12 @@ const HOME_TABLES = [
   { table: "plans",             filter: (id: string) => `home_id=eq.${id}` },
   { table: "shopping_lists",    filter: (id: string) => `home_id=eq.${id}` },
   { table: "shopping_list_items", filter: (id: string) => `home_id=eq.${id}` },
+  // plant_instance_ailments: needed by AilmentWatchlist's affected-plant
+  // counts. Trade-off: one more table on the shared channel means the
+  // realtime server evaluates its RLS filter for every connected client,
+  // but the table only changes on explicit user action (linking/unlinking
+  // an ailment) so the extra write-rate cost is negligible.
+  { table: "plant_instance_ailments", filter: (id: string) => `home_id=eq.${id}` },
 ] as const;
 
 export type HomeRealtimeTable = (typeof HOME_TABLES)[number]["table"];

@@ -29,6 +29,7 @@ import { buildUserContext, renderContextBlock, type ContextSection } from "../_s
 import { personaInstruction, type Persona } from "../_shared/persona.ts";
 import { normalisePlantFirstBlueprint } from "../_shared/plantFirstBlueprint.ts";
 import { extractPreferencesFromFeedback, savePreferences, ENTITY_TYPES } from "../_shared/preferences.ts";
+import { luxBandLabel } from "../_shared/luxBand.ts";
 
 const FN = "generate-plant-first-plan";
 
@@ -225,9 +226,10 @@ Deno.serve(async (req) => {
     // Existing areas (with ids) — only meaningful when the mode can reuse them.
     const existingAreasBlock = areaMode !== "new" && ctx.areas.length > 0
       ? "USER'S EXISTING AREAS (assign by id where they fit):\n" +
-        ctx.areas.map((a) =>
-          `  - id=${a.id} | ${a.name} | ${a.isOutside ? "outdoor" : "indoor"} | ${a.growingMedium ?? "unknown medium"}${a.mediumPh ? ` | pH ${a.mediumPh}` : ""}`,
-        ).join("\n")
+        ctx.areas.map((a) => {
+          const sun = luxBandLabel(a.lightIntensityLux);
+          return `  - id=${a.id} | ${a.name} | ${a.isOutside ? "outdoor" : "indoor"} | ${a.growingMedium ?? "unknown medium"}${a.mediumPh ? ` | pH ${a.mediumPh}` : ""}${sun ? ` | sun: ${sun}` : ""}`;
+        }).join("\n")
       : "USER'S EXISTING AREAS: (not used in this mode)";
 
     // If they chose "existing" but have no areas, fall back to "new".

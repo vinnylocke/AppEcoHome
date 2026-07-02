@@ -683,8 +683,8 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     historyForAI: { role: string; content: string }[],
     image: PendingImage | null | undefined,
     priorPlanSuggested: boolean,
-    // Optional: the regenerate path calls without it, so `message` is sent
-    // as undefined on that path (pre-existing behaviour, preserved).
+    // The user turn being answered — sent as `message` to agent-chat.
+    // The regenerate path resends the most recent user message here.
     userText?: string,
     audio?: VoiceCaptureResult | null,
   ): Promise<{
@@ -938,7 +938,18 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
         (m) => m.role === "assistant" && !!m.plan_suggestion,
       );
 
-      const data = await callAI(historyForAI, null, priorPlanSuggested);
+      // Regenerate = resend the last user turn. Without it, agent-chat
+      // receives `message: undefined` and has nothing to answer.
+      const lastUserMessage = [...messagesWithoutLast]
+        .reverse()
+        .find((m) => m.role === "user");
+
+      const data = await callAI(
+        historyForAI,
+        null,
+        priorPlanSuggested,
+        lastUserMessage?.content,
+      );
 
       const assistantKey = nextKey();
       scrollToNewMsgRef.current = true;

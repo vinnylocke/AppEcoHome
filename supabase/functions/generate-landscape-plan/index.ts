@@ -15,6 +15,7 @@ import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { deriveClimate, frostDatesForHome } from "../_shared/climateZones.ts";
 import { getSeason } from "../_shared/userContext.ts";
 import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
+import { luxBandLabel } from "../_shared/luxBand.ts";
 
 const FN = "generate-landscape-plan";
 
@@ -217,7 +218,7 @@ Deno.serve(async (req) => {
         .eq("id", homeId)
         .maybeSingle(),
       supabase.from("areas")
-        .select("id, name, locations!inner(home_id)")
+        .select("id, name, light_intensity_lux, locations!inner(home_id)")
         .eq("locations.home_id", homeId),
       supabase.from("inventory_items")
         .select("plant_name, status, area_id")
@@ -284,7 +285,10 @@ Deno.serve(async (req) => {
 
       ${personalMemoryBlock}
 
-      USER'S CURRENT GARDEN AREAS: ${JSON.stringify((areas || []).map((a: any) => ({ id: a.id, name: a.name })))}
+      USER'S CURRENT GARDEN AREAS: ${JSON.stringify((areas || []).map((a: any) => {
+        const sunlight = luxBandLabel(a.light_intensity_lux);
+        return { id: a.id, name: a.name, ...(sunlight ? { sunlight } : {}) };
+      }))}
       USER'S CURRENT INVENTORY: ${JSON.stringify(inventory || [])}
 
       CRITICAL RULES:

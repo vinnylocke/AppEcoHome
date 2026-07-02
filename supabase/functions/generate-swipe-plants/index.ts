@@ -8,6 +8,7 @@ import { logAiUsage } from "../_shared/aiUsage.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 import { fetchHomeRotationBlocks, renderRotationBlock } from "../_shared/rotationContext.ts";
+import { luxBandLabel } from "../_shared/luxBand.ts";
 
 const FN = "generate-swipe-plants";
 
@@ -104,7 +105,7 @@ Deno.serve(async (req) => {
       // areas has no home_id or is_outside — both live on the parent location.
       supabase
         .from("areas")
-        .select("id, name, locations!inner(home_id, is_outside)")
+        .select("id, name, light_intensity_lux, locations!inner(home_id, is_outside)")
         .eq("locations.home_id", homeId),
       fetchHomeRotationBlocks(supabase, homeId).catch(() => ({})),
     ]);
@@ -119,12 +120,21 @@ Deno.serve(async (req) => {
     // families so the AI's plant suggestions are inherently rotation-aware.
     // Indoor areas (is_outside === false) are skipped because rotation
     // rules don't apply to them.
-    const areas: Array<{ id: string; name: string; is_outside: boolean | null }> =
+    const areas: Array<{ id: string; name: string; is_outside: boolean | null; sunlight: string | null }> =
       ((areasRes?.data ?? []) as any[]).map((a: any) => ({
         id: a.id,
         name: a.name,
         is_outside: a.locations?.is_outside ?? null,
+        sunlight: luxBandLabel(a.light_intensity_lux),
       }));
+
+    // Ground suggestions in measured light where the user has readings.
+    const sunlightLines = areas
+      .filter((a) => a.sunlight)
+      .map((a) => `  - ${a.name}: ${a.sunlight}`);
+    const sunlightText = sunlightLines.length > 0
+      ? `\nGARDEN AREAS — MEASURED LIGHT (favour plants suited to these levels):\n${sunlightLines.join("\n")}`
+      : "";
     const rotationLines: string[] = [];
     for (const a of areas) {
       if (a.is_outside === false) continue;
@@ -150,6 +160,7 @@ Deno.serve(async (req) => {
 
       PLANTS ALREADY SHOWN (do NOT repeat these):
       ${alreadySeenPlantNames.length > 0 ? alreadySeenPlantNames.join(", ") : "None yet."}
+      ${sunlightText}
       ${rotationText}
 
       RULES:

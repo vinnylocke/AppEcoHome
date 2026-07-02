@@ -369,7 +369,7 @@ npm run test:e2e
 npm run test:unit            # Vitest — src/lib/ pure functions (95 tests)
 npm run test:unit:watch      # Vitest watch mode for development
 npm run test:unit:coverage   # Vitest + HTML coverage report
-npm run test:functions       # Deno — Edge Function shared logic (51 tests)
+npm run test:functions       # Deno — Edge Function shared logic (751 tests)
 npm run test:e2e             # Playwright — browser E2E (~306 tests)
 npm run test:e2e:fresh       # Seed all 4 workers, then run all E2E tests
 npm run test:e2e:ui          # Playwright interactive UI (best for debugging)

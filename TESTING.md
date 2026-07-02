@@ -779,10 +779,11 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `dataSources.test.ts` | 5 | Credits & Sources data (`DATA_SOURCES`) — required fields, known categories, unique ids, every category non-empty, covers the key external sources |
 | `weatherAlertDismissal.test.ts` | 7 | App-wide weather-alert dismissal — `todayLocal`, `isDismissedToday` (per-type, reappears next day), `dismiss`/`undismiss` (immutable), `parseDismissed` (drops legacy id-array, keeps valid map, total on junk) |
 
-### Edge function tests — Deno (744 tests across 59 files)
+### Edge function tests — Deno (751 tests across 60 files)
 
 | File | Tests | Rule / Pattern |
 |------|-------|----------------|
+| `luxBand.test.ts` | 6 | `_shared/luxBand.ts` — `luxBand` band boundaries (<10k low / 10–25k moderate / 25–45k bright / ≥45k full sun) + `luxBandLabel` rendering and null/invalid handling (AI grounding from `areas.light_intensity_lux`) |
 | `stripeTiers.test.ts` | 7 | Stripe billing — `isValidTier`, `tierToFlags` (mirrors `src/constants/tiers.ts`), `PAID_TIERS`, `priceIdForTier`/`tierFromPriceId` (env mapping), `tierFromMetadata`, `statusGrantsAccess` |
 | `heatwave.test.ts` | 8 | Heatwave rule — climate-aware threshold (`heatThresholdForClimate`) incl. UK 25°C override, full-window scan, 3-consecutive-day "heatwave" grouping + `dates` |
 | `frostRisk.test.ts` | 9 | Frost risk rule (tropical vs standard thresholds) + imminent-hourly + forward daily-min frost nights + `dates` |

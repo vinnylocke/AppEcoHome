@@ -1046,9 +1046,7 @@ function AddAilmentModal({
                       className="flex-1 p-4 bg-rhozly-surface-low rounded-2xl font-black text-sm border border-transparent focus:border-rhozly-primary outline-none"
                     />
                     <button
-                      // Type-only cast: onClick passes the MouseEvent as `q`
-                      // (pre-existing behaviour, preserved verbatim).
-                      onClick={searchPerenual as unknown as React.MouseEventHandler<HTMLButtonElement>}
+                      onClick={() => searchPerenual(perenualQuery)}
                       disabled={perenualLoading}
                       className="min-w-[44px] min-h-[44px] px-5 rounded-2xl bg-rhozly-primary text-white font-black text-sm flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform disabled:opacity-60"
                     >
@@ -1165,9 +1163,7 @@ function AddAilmentModal({
                       className="flex-1 p-4 bg-rhozly-surface-lowest rounded-2xl font-black text-sm border border-rhozly-outline/10 focus:border-amber-500 outline-none"
                     />
                     <button
-                      // Type-only cast: onClick passes the MouseEvent as `q`
-                      // (pre-existing behaviour, preserved verbatim).
-                      onClick={searchWithAI as unknown as React.MouseEventHandler<HTMLButtonElement>}
+                      onClick={() => searchWithAI(aiQuery)}
                       disabled={aiSearchLoading || !aiQuery.trim()}
                       className="min-w-[52px] min-h-[52px] px-5 rounded-2xl bg-amber-500 text-white font-black text-sm flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform disabled:opacity-60"
                       aria-label="Search with AI"
@@ -1742,9 +1738,7 @@ export default function AilmentWatchlist({ homeId, aiEnabled = false }: { homeId
 
   useEffect(() => { fetchAilments(); fetchAffectedCounts(); }, [fetchAilments, fetchAffectedCounts]);
   useHomeRealtime("ailments", fetchAilments);
-  // Type-only cast: "plant_instance_ailments" is not in HOME_TABLES, so this
-  // subscription never receives postgres_changes events (pre-existing).
-  useHomeRealtime("plant_instance_ailments" as unknown as Parameters<typeof useHomeRealtime>[0], fetchAffectedCounts);
+  useHomeRealtime("plant_instance_ailments", fetchAffectedCounts);
 
   const handleConfirmAction = async () => {
     const { ailment, type } = confirmState;

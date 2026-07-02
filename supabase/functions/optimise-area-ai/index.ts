@@ -8,6 +8,7 @@ import { requireAuth } from "../_shared/requireAuth.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { requireHomeMembership } from "../_shared/requireHomeMembership.ts";
 import { buildAliasMap, restoreNamesInObject } from "../_shared/idAlias.ts";
+import { luxBandLabel } from "../_shared/luxBand.ts";
 
 const FN = "optimise-area-ai";
 
@@ -216,7 +217,7 @@ Deno.serve(async (req) => {
 
       // is_outside lives on the parent location; climate_zone on homes.
       db.from("areas")
-        .select("id, name, locations(name, is_outside, home_id)")
+        .select("id, name, light_intensity_lux, locations(name, is_outside, home_id)")
         .eq("id", areaId)
         .maybeSingle(),
 
@@ -287,6 +288,7 @@ Deno.serve(async (req) => {
     const location   = (areaRow as any)?.locations;
     const areaName   = (areaRow as any)?.name ?? "Unknown area";
     const isOutside  = location?.is_outside ? "outdoor" : "indoor";
+    const areaSunlight = luxBandLabel((areaRow as any)?.light_intensity_lux);
     const climateZone = (homeRow as any)?.climate_zone ?? "unknown";
     const hardinessZone = (homeRow as any)?.hardiness_zone ?? "unknown";
 
@@ -339,7 +341,7 @@ Deno.serve(async (req) => {
       feedbackSection += "Do NOT repeat proposals the user has already rejected. Adjust your analysis accordingly.\n";
     }
 
-    const prompt = `AREA: ${areaId} (${isOutside})
+    const prompt = `AREA: ${areaId} (${isOutside})${areaSunlight ? `\nSUNLIGHT: ${areaSunlight}` : ""}
 LOCATION: climate zone: ${climateZone}
 HOME: hardiness zone ${hardinessZone}
 

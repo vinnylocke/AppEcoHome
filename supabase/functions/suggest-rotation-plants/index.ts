@@ -6,6 +6,7 @@ import { guardAiByUser } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { enforceRateLimit } from "../_shared/rateLimit.ts";
 import { fetchAreaRotationBlock } from "../_shared/rotationContext.ts";
+import { luxBandLabel } from "../_shared/luxBand.ts";
 import {
   buildSuggestPrompt,
   SUGGEST_RESPONSE_SCHEMA,
@@ -66,7 +67,7 @@ Deno.serve(async (req) => {
     const [areaRes, homeRes, rotationBlock, inventoryRes] = await Promise.all([
       supabase
         .from("areas")
-        .select("name, growing_medium, medium_ph, water_movement")
+        .select("name, light_intensity_lux, growing_medium, medium_ph, water_movement")
         .eq("id", areaId)
         .maybeSingle(),
       supabase
@@ -96,6 +97,7 @@ Deno.serve(async (req) => {
       hemisphere: home?.lat != null ? (home.lat >= 0 ? "Northern" : "Southern") : null,
       locationHint: home?.country ?? null,
       areaContext: {
+        sunlight: luxBandLabel(area.light_intensity_lux),
         soil: area.growing_medium ?? null,
         ph: area.medium_ph ?? null,
         waterMovement: area.water_movement ?? null,

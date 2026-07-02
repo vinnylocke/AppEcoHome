@@ -7,6 +7,8 @@
  * plant-doctor edge function so they ground their AI reasoning in the
  * same context.
  */
+import { luxBandLabel } from "./luxBand.ts";
+
 export async function buildEnvBlock(
   supabase: any,
   { inventoryItemId, areaId, homeId }: {
@@ -32,7 +34,7 @@ export async function buildEnvBlock(
     areaId
       // areas has no is_outside/sunlight — is_outside lives on the parent location.
       ? supabase.from("areas")
-          .select("name, growing_medium, medium_ph, medium_texture, water_movement, nutrient_source, locations(is_outside)")
+          .select("name, light_intensity_lux, growing_medium, medium_ph, medium_texture, water_movement, nutrient_source, locations(is_outside)")
           .eq("id", areaId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
@@ -68,6 +70,8 @@ export async function buildEnvBlock(
   if (area) {
     lines.push(`GROWING ENVIRONMENT:`);
     lines.push(`  Area: ${area.name} (${area.locations?.is_outside ? "Outdoor" : "Indoor"})`);
+    const sunlight = luxBandLabel(area.light_intensity_lux);
+    if (sunlight) lines.push(`  Sunlight: ${sunlight}`);
     if (area.growing_medium) lines.push(`  Growing medium: ${area.growing_medium}`);
     if (area.medium_ph) lines.push(`  Soil pH: ${area.medium_ph}`);
     if (area.medium_texture) lines.push(`  Texture: ${area.medium_texture}`);

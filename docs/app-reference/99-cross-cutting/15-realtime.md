@@ -43,6 +43,7 @@ Internally:
 | `task_blueprints` | BlueprintManager |
 | `shopping_lists` | ShoppingLists hook |
 | `shopping_list_items` | ShoppingLists hook |
+| `plant_instance_ailments` | AilmentWatchlist — refreshes affected-plant counts when an ailment is linked/unlinked. Added to `HOME_TABLES` + the `supabase_realtime` publication (migration `20260829000000_plant_instance_ailments_realtime.sql`). Low write rate (explicit user action only), so the per-client channel cost is negligible. |
 | `integration_devices` | IntegrationsPage |
 | `automations` | AutomationsSection |
 | `home_dashboard_stats` (if subscribed) | Dashboard |

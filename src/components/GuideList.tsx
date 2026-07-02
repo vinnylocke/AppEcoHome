@@ -726,17 +726,14 @@ export default function GuideList() {
       ) : filteredGuides.length === 0 ? (
         <div className="text-center py-20 bg-white rounded-3xl border border-dashed border-rhozly-outline/20 shadow-sm">
           <BookOpen className="mx-auto w-12 h-12 text-rhozly-on-surface/20 mb-4" />
+          {/* Community-tab emptiness is handled inside CommunityGuidesTab
+              ("No community guides yet") — this block only renders on the
+              Rhozly guides tab. */}
           <p className="font-black text-xl text-rhozly-on-surface/50 mb-2">
-            {/* Cast: inside the rhozly-tab block this comparison is always
-                false (dead branch, pre-existing behaviour preserved). */}
-            {(activeTab as string) === "community" && !searchQuery && selectedLabel === "All"
-              ? "No community guides yet"
-              : "No guides found"}
+            No guides found
           </p>
           <p className="text-sm font-bold text-rhozly-on-surface/40">
-            {(activeTab as string) === "community" && !searchQuery && selectedLabel === "All"
-              ? "Be the first to share your garden knowledge!"
-              : "Try adjusting your search or tag filters."}
+            Try adjusting your search or tag filters.
           </p>
         </div>
       ) : (

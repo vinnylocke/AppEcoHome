@@ -16,6 +16,7 @@ import { loadPreferences, formatPreferencesBlock } from "./preferences.ts";
 import type { Preference } from "./preferences.ts";
 import { deriveClimate, frostDatesForHome } from "./climateZones.ts";
 import { reverseGeocodeCity } from "./locationContext.ts";
+import { luxBandLabel } from "./luxBand.ts";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -29,6 +30,8 @@ export interface UserContextArea {
   isOutside: boolean;
   growingMedium: string | null;
   mediumPh: number | null;
+  /** Measured light intensity from areas.light_intensity_lux (null when never measured). */
+  lightIntensityLux: number | null;
 }
 
 export interface UserContextInventoryItem {
@@ -167,7 +170,7 @@ export async function buildUserContext(
       // Areas (via locations)
       homeId && !skip.has("garden")
         ? db.from("areas")
-            .select("id, name, growing_medium, medium_ph, locations(name, home_id, is_outside)")
+            .select("id, name, growing_medium, medium_ph, light_intensity_lux, locations(name, home_id, is_outside)")
             .eq("locations.home_id", homeId)
         : Promise.resolve({ data: [] }),
 
@@ -278,6 +281,7 @@ export async function buildUserContext(
       isOutside: a.locations?.is_outside ?? false,
       growingMedium: a.growing_medium ?? null,
       mediumPh: a.medium_ph ?? null,
+      lightIntensityLux: a.light_intensity_lux ?? null,
     }));
 
   // ── Inventory ──────────────────────────────────────────────────────────────
@@ -481,7 +485,8 @@ export function renderContextBlock(
             const loc = a.locationName ? ` @ ${a.locationName}` : "";
             const env = a.isOutside ? "outdoor" : "indoor";
             const medium = a.growingMedium ?? "unknown medium";
-            lines.push(`  • ${a.name}${loc} — ${env}, ${medium}${a.mediumPh ? `, pH ${a.mediumPh}` : ""}`);
+            const sun = luxBandLabel(a.lightIntensityLux);
+            lines.push(`  • ${a.name}${loc} — ${env}, ${medium}${a.mediumPh ? `, pH ${a.mediumPh}` : ""}${sun ? `, sun: ${sun}` : ""}`);
           }
         }
         if (ctx.inventory.length === 0) {

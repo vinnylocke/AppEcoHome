@@ -480,15 +480,20 @@ export default function GardenEditorToolbar(props: Props) {
           {bubbleOpen === "layers" && (
             <div className="pointer-events-auto bg-white rounded-2xl shadow-xl border border-rhozly-outline/15 p-2 flex items-center gap-1">
               <LayersGroup
-                // Type-only cast: this call site never passed the companions
-                // overlay props (pre-existing behaviour, preserved verbatim —
-                // the Companions button here receives undefined setters).
-                {...({
-                  showLuxOverlay,
-                  setShowLuxOverlay,
-                  showSunOverlay,
-                  setShowSunOverlay,
-                } as React.ComponentProps<typeof LayersGroup>)}
+                showLuxOverlay={showLuxOverlay}
+                setShowLuxOverlay={setShowLuxOverlay}
+                showSunOverlay={showSunOverlay}
+                setShowSunOverlay={setShowSunOverlay}
+                showCompanionsOverlay={showCompanionsOverlay}
+                setShowCompanionsOverlay={setShowCompanionsOverlay}
+                showFrostOverlay={showFrostOverlay}
+                setShowFrostOverlay={setShowFrostOverlay}
+                showWindOverlay={showWindOverlay}
+                setShowWindOverlay={setShowWindOverlay}
+                showPhOverlay={showPhOverlay}
+                setShowPhOverlay={setShowPhOverlay}
+                showMoistureOverlay={showMoistureOverlay}
+                setShowMoistureOverlay={setShowMoistureOverlay}
               />
             </div>
           )}

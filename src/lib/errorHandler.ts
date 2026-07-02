@@ -6,10 +6,17 @@ export const Logger = {
     if (import.meta.env.DEV) console.log(`📘 [INFO]: ${message}`, data || "");
   },
 
-  // `_context` is accepted (some callers pass one, mirroring Logger.error)
-  // but intentionally unused — warn only logs to the console in DEV.
-  warn: (message: string, data?: any, _context?: Record<string, any>) => {
+  warn: (message: string, data?: any, context?: Record<string, any>) => {
     if (import.meta.env.DEV) console.warn(`📙 [WARN]: ${message}`, data || "");
+
+    // Mirror Logger.error: attach the context to Sentry so warnings
+    // carry the same diagnostic detail as errors.
+    if (context) {
+      Sentry.withScope((scope) => {
+        scope.setExtras(context);
+        Sentry.captureMessage(`${message}`, "warning");
+      });
+    }
   },
 
   // ✨ UPGRADED: Now accepts a userFriendlyMessage to show in a toast!

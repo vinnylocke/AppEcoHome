@@ -62,6 +62,24 @@ Deno.test("buildEnvBlock — emits GROWING ENVIRONMENT lines when area is found"
   assertStringIncludes(result, "Drainage: well_drained");
 });
 
+Deno.test("buildEnvBlock — emits sunlight band from areas.light_intensity_lux", async () => {
+  const db = makeMockSupabase({
+    areas: {
+      data: {
+        name: "South Bed",
+        locations: { is_outside: true },
+        light_intensity_lux: 35000,
+      },
+    },
+    area_lux_readings: { data: [] },
+    inventory_items: { data: [] },
+    tasks: { data: [] },
+    weather_snapshots: { data: null },
+  });
+  const result = await buildEnvBlock(db, { areaId: "area-1" });
+  assertStringIncludes(result, "Sunlight: bright (35000 lux measured)");
+});
+
 Deno.test("buildEnvBlock — averages multiple lux readings", async () => {
   const db = makeMockSupabase({
     areas: { data: null },
