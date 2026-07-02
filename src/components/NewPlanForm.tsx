@@ -145,7 +145,9 @@ export default function NewPlanForm({
       // Fire-and-forget: log the event and save structured preferences extracted
       // directly from the form fields (no AI needed — form is already structured).
       saveInitialPromptMemory(homeId, newPlan.id, payloadData);
-      logEvent(EVENT.PLAN_CREATED, { plan_id: newPlan.id, plan_name: newPlan.name });
+      // Cast: only `id` is selected above, so `name` is undefined at runtime
+      // (pre-existing behaviour, preserved verbatim).
+      logEvent(EVENT.PLAN_CREATED, { plan_id: newPlan.id, plan_name: (newPlan as any).name });
 
       toast.success("Project Generated Successfully!", { id: toastId });
       onSuccess();

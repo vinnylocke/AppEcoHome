@@ -374,7 +374,11 @@ npm run test:e2e             # Playwright — browser E2E (~306 tests)
 npm run test:e2e:fresh       # Seed all 4 workers, then run all E2E tests
 npm run test:e2e:ui          # Playwright interactive UI (best for debugging)
 npm run test:all             # All three tiers sequentially
+npm run typecheck            # REAL type check (tsconfig.app.json — plain `tsc --noEmit` checks nothing)
+npm run check:schema         # Diff column names in queries against the live PROD schema (add --local for local)
 ```
+
+**`npm run typecheck` and `npm run check:schema` must both pass before any deploy** — `scripts/deploy.mjs` runs them as step 0 and aborts (before maintenance mode) on failure. Run them after any `src/` or query change; a missing import shipped a production crash (RHOZLY-3Q) and phantom column names shipped silent data blanks (RHOZLY-3P) before these gates existed.
 
 E2E tests require env vars — see [TESTING.md § Environment Setup](TESTING.md#11-environment-setup).
 

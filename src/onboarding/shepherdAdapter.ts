@@ -1,4 +1,8 @@
-import Shepherd from "shepherd.js";
+import Shepherd, {
+  type Tour,
+  type StepOptions,
+  type StepOptionsButton,
+} from "shepherd.js";
 import type { FlowDef } from "./types";
 
 // Four panels that together cover everything EXCEPT the target spotlight.
@@ -78,7 +82,7 @@ export function buildTour(
   flowDef: FlowDef,
   onComplete: () => void,
   onCancel: () => void,
-): Shepherd.Tour {
+): Tour {
   const isMobile = window.innerWidth < 640;
 
   const tour = new Shepherd.Tour({
@@ -91,6 +95,9 @@ export function buildTour(
       floatingUIOptions: {
         middleware: [],
       },
+      // `popperOptions` was dropped from Shepherd's StepOptions when it moved
+      // to floating-ui; the key is passed through unchanged (and ignored by
+      // Shepherd 15) — cast below preserves the existing runtime object.
       popperOptions: {
         modifiers: [
           {
@@ -118,7 +125,7 @@ export function buildTour(
           },
         ],
       },
-    },
+    } as StepOptions,
   });
 
   const total = flowDef.steps.length;
@@ -127,7 +134,7 @@ export function buildTour(
     const isFirst = index === 0;
     const isLast = index === total - 1;
 
-    const buttons: Shepherd.Step.StepOptionsButton[] = [];
+    const buttons: StepOptionsButton[] = [];
 
     if (!isFirst) {
       buttons.push({

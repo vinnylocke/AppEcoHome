@@ -30,8 +30,9 @@ export async function buildEnvBlock(
       : Promise.resolve({ data: [] }),
 
     areaId
+      // areas has no is_outside/sunlight — is_outside lives on the parent location.
       ? supabase.from("areas")
-          .select("name, is_outside, sunlight, growing_medium, medium_ph, medium_texture, water_movement, nutrient_source")
+          .select("name, growing_medium, medium_ph, medium_texture, water_movement, nutrient_source, locations(is_outside)")
           .eq("id", areaId)
           .maybeSingle()
       : Promise.resolve({ data: null }),
@@ -66,8 +67,7 @@ export async function buildEnvBlock(
   const area = areaRes.data;
   if (area) {
     lines.push(`GROWING ENVIRONMENT:`);
-    lines.push(`  Area: ${area.name} (${area.is_outside ? "Outdoor" : "Indoor"})`);
-    if (area.sunlight) lines.push(`  Sunlight: ${area.sunlight}`);
+    lines.push(`  Area: ${area.name} (${area.locations?.is_outside ? "Outdoor" : "Indoor"})`);
     if (area.growing_medium) lines.push(`  Growing medium: ${area.growing_medium}`);
     if (area.medium_ph) lines.push(`  Soil pH: ${area.medium_ph}`);
     if (area.medium_texture) lines.push(`  Texture: ${area.medium_texture}`);

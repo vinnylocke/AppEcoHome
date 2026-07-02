@@ -90,7 +90,7 @@ export default function PhotoTimelineTab({ inventoryItemId }: PhotoTimelineTabPr
         const [journalsRes, tasksRes, ailmentsRes] = await Promise.all([
           supabase
             .from("plant_journals")
-            .select("id, subject, description, image_url, created_at, entry_date")
+            .select("id, subject, description, image_url, created_at")
             .eq("inventory_item_id", inventoryItemId)
             .not("image_url", "is", null),
           supabase
@@ -116,7 +116,7 @@ export default function PhotoTimelineTab({ inventoryItemId }: PhotoTimelineTabPr
           url: row.image_url,
           subject: row.subject || "Journal entry",
           description: row.description || null,
-          date: row.entry_date ?? row.created_at,
+          date: row.created_at,
           source: "journal",
         }));
 

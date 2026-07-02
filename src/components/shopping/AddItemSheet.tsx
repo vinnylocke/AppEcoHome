@@ -51,8 +51,10 @@ export default function AddItemSheet({
 
   // Library plants are our curated AI-built data; map them + manual to "ai"
   // for the shopping_list_items.source column which expects a known value.
-  const selectionSource = (sel: PlantSelection): string =>
-    sel.source === "library" || sel.source === "manual" ? "ai" : sel.source;
+  // Cast: PlantSelection.source is a plain string; at runtime the non-mapped
+  // value is the provider source (e.g. "perenual").
+  const selectionSource = (sel: PlantSelection) =>
+    (sel.source === "library" || sel.source === "manual" ? "ai" : sel.source) as "perenual" | "ai" | "shed";
 
   const handlePlantSelected = async (sel: PlantSelection) => {
     setSubmitting(true);

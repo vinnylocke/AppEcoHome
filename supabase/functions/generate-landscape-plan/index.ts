@@ -217,7 +217,7 @@ Deno.serve(async (req) => {
         .eq("id", homeId)
         .maybeSingle(),
       supabase.from("areas")
-        .select("id, name, sunlight, locations!inner(home_id)")
+        .select("id, name, locations!inner(home_id)")
         .eq("locations.home_id", homeId),
       supabase.from("inventory_items")
         .select("plant_name, status, area_id")
@@ -284,7 +284,7 @@ Deno.serve(async (req) => {
 
       ${personalMemoryBlock}
 
-      USER'S CURRENT GARDEN AREAS: ${JSON.stringify((areas || []).map((a: any) => ({ id: a.id, sunlight: a.sunlight })))}
+      USER'S CURRENT GARDEN AREAS: ${JSON.stringify((areas || []).map((a: any) => ({ id: a.id, name: a.name })))}
       USER'S CURRENT INVENTORY: ${JSON.stringify(inventory || [])}
 
       CRITICAL RULES:

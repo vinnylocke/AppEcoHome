@@ -1028,7 +1028,7 @@ function AppShell() {
         .eq("uid", userId);
       profileData.home_id = fallbackId;
     }
-    setProfile(profileData);
+    setProfile(profileData as UserProfile | null);
     if (profileData?.onboarding_state) {
       setOnboardingState(profileData.onboarding_state);
     }
@@ -1881,11 +1881,14 @@ function AppShell() {
                       <Route path="/doctor" element={
                         <div className="h-full animate-in fade-in duration-500">
                           <PlantDoctor
-                            homeId={profile?.home_id}
+                            // Casts: this route can render before the profile
+                            // resolves; PlantDoctor guards internally on a
+                            // missing homeId (pre-existing behaviour).
+                            homeId={profile?.home_id as string}
                             userId={session?.user?.id}
-                            aiEnabled={profile?.ai_enabled}
-                            isPremium={profile?.enable_perenual}
-                            perenualEnabled={profile?.enable_perenual}
+                            aiEnabled={profile?.ai_enabled as boolean}
+                            isPremium={profile?.enable_perenual as boolean}
+                            perenualEnabled={profile?.enable_perenual as boolean}
                           />
                         </div>
                       } />

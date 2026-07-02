@@ -199,7 +199,7 @@ Deno.serve(async (req) => {
         .eq("is_archived", false),
 
       db.from("inventory_items")
-        .select("id, plant_name, health_status, date_planted, area_id")
+        .select("id, plant_name, planted_at, area_id")
         .eq("home_id", homeId)
         .eq("area_id", areaId),
 
@@ -210,23 +210,26 @@ Deno.serve(async (req) => {
         .not("blueprint_id", "is", null),
 
       db.from("ailments")
-        .select("id, title, category, severity, ailment_plant_links(inventory_item_id)")
+        .select("id, name, type, plant_instance_ailments(plant_instance_id)")
         .eq("home_id", homeId)
         .eq("is_archived", false),
 
+      // is_outside lives on the parent location; climate_zone on homes.
       db.from("areas")
-        .select("id, name, is_outside, locations(name, climate_zone, home_id)")
+        .select("id, name, locations(name, is_outside, home_id)")
         .eq("id", areaId)
         .maybeSingle(),
 
       db.from("homes")
-        .select("id, hardiness_zone, latitude, longitude")
+        .select("id, hardiness_zone, climate_zone")
         .eq("id", homeId)
         .maybeSingle(),
 
+      // weather_alerts is LOCATION-scoped (no home_id column) — filter
+      // through the locations join.
       db.from("weather_alerts")
-        .select("alert_type, severity")
-        .eq("home_id", homeId)
+        .select("type, severity, locations!inner(home_id)")
+        .eq("locations.home_id", homeId)
         .gte("created_at", sevenDaysAgo),
     ]);
 
@@ -259,7 +262,7 @@ Deno.serve(async (req) => {
 
     // Ailments linked to plants in this area
     const areaAilments = (ailments ?? []).filter((a: any) =>
-      (a.ailment_plant_links ?? []).some((l: any) => areaInstanceIds.has(l.inventory_item_id))
+      (a.plant_instance_ailments ?? []).some((l: any) => areaInstanceIds.has(l.plant_instance_id))
     );
 
     // Build inventory name map for blueprint plant label lookup
@@ -283,8 +286,8 @@ Deno.serve(async (req) => {
     // -----------------------------------------------------------------------
     const location   = (areaRow as any)?.locations;
     const areaName   = (areaRow as any)?.name ?? "Unknown area";
-    const isOutside  = (areaRow as any)?.is_outside ? "outdoor" : "indoor";
-    const climateZone = location?.climate_zone ?? "unknown";
+    const isOutside  = location?.is_outside ? "outdoor" : "indoor";
+    const climateZone = (homeRow as any)?.climate_zone ?? "unknown";
     const hardinessZone = (homeRow as any)?.hardiness_zone ?? "unknown";
 
     // Build alias map so area names never appear in the Gemini prompt.
@@ -303,20 +306,20 @@ Deno.serve(async (req) => {
     }).join("\n");
 
     const plantLines = (inventoryItems ?? []).map((item: any) =>
-      `  ID: ${item.id}  Name: ${item.plant_name}  Health: ${item.health_status ?? "unknown"}  Planted: ${item.date_planted ?? "unknown"}`
+      `  ID: ${item.id}  Name: ${item.plant_name}  Planted: ${item.planted_at ?? "unknown"}`
     ).join("\n") || "  (no plants recorded in this area)";
 
     const ailmentLines = areaAilments.length > 0
       ? areaAilments.map((a: any) => {
-          const linkedPlants = (a.ailment_plant_links ?? [])
-            .map((l: any) => invNameMap[l.inventory_item_id] ?? l.inventory_item_id)
+          const linkedPlants = (a.plant_instance_ailments ?? [])
+            .map((l: any) => invNameMap[l.plant_instance_id] ?? l.plant_instance_id)
             .filter(Boolean).join(", ");
-          return `  ${a.category}: ${a.title} (severity: ${a.severity ?? "unknown"}) — affecting: ${linkedPlants || "unknown"}`;
+          return `  ${a.type}: ${a.name} — affecting: ${linkedPlants || "unknown"}`;
         }).join("\n")
       : "  None";
 
     const weatherLines = (weatherAlerts ?? []).length > 0
-      ? (weatherAlerts as any[]).map((w) => `  ${w.alert_type} (${w.severity})`).join("\n")
+      ? (weatherAlerts as any[]).map((w) => `  ${w.type} (${w.severity})`).join("\n")
       : "  None";
 
     let feedbackSection = "";

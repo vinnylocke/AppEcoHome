@@ -46,7 +46,9 @@ export default function InstanceStatsTab({ instance }: Props) {
         ]);
         setYieldRecords(yieldData);
         setTasks((tasksRes.data ?? []) as TaskRow[]);
-        setAilments((ailmentsRes.data ?? []) as AilmentLink[]);
+        // via unknown: supabase infers the `ailment` FK join as an array,
+        // but at runtime it's a single object (to-one relationship).
+        setAilments((ailmentsRes.data ?? []) as unknown as AilmentLink[]);
       } catch {
         // show empty states on error
       } finally {

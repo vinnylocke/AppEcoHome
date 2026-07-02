@@ -66,12 +66,12 @@ Deno.serve(async (req) => {
     const [areaRes, homeRes, rotationBlock, inventoryRes] = await Promise.all([
       supabase
         .from("areas")
-        .select("name, sunlight, growing_medium, medium_ph, water_movement, is_outside")
+        .select("name, growing_medium, medium_ph, water_movement")
         .eq("id", areaId)
         .maybeSingle(),
       supabase
         .from("homes")
-        .select("hemisphere, postcode")
+        .select("lat, country")
         .eq("id", homeId)
         .maybeSingle(),
       fetchAreaRotationBlock(supabase, homeId, areaId),
@@ -93,10 +93,9 @@ Deno.serve(async (req) => {
 
     const userPrompt = buildSuggestPrompt({
       areaName: area.name ?? "this area",
-      hemisphere: home?.hemisphere ?? null,
-      locationHint: home?.postcode ?? null,
+      hemisphere: home?.lat != null ? (home.lat >= 0 ? "Northern" : "Southern") : null,
+      locationHint: home?.country ?? null,
       areaContext: {
-        sunlight: area.sunlight ?? null,
         soil: area.growing_medium ?? null,
         ph: area.medium_ph ?? null,
         waterMovement: area.water_movement ?? null,

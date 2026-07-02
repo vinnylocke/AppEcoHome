@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
         .from("weather_snapshots")
         .select("data")
         .eq("home_id", home_id)
-        .order("created_at", { ascending: false })
+        .order("updated_at", { ascending: false })
         .limit(1)
         .maybeSingle(),
     ]);

@@ -125,8 +125,10 @@ export default function DeviceBatteryPanel({ device, onResetRecorded, canManage 
               <XAxis dataKey="t" hide />
               <YAxis domain={[0, 100]} hide />
               <Tooltip
-                formatter={(v: number) => [`${Math.round(v)}%`, "Battery"]}
-                labelFormatter={(t: number) => new Date(t).toLocaleDateString()}
+                // Casts: recharts' Tooltip formatter types are wider than
+                // the runtime values this chart produces.
+                formatter={((v: number) => [`${Math.round(v)}%`, "Battery"]) as any}
+                labelFormatter={((t: number) => new Date(t).toLocaleDateString()) as (label: unknown) => string}
                 contentStyle={{ fontSize: 11, borderRadius: 8 }}
               />
               <Line type="monotone" dataKey="v" stroke="#16a34a" strokeWidth={2} dot={false} />

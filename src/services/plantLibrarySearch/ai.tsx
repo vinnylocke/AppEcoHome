@@ -78,7 +78,10 @@ export const aiMethod: SearchMethod<Record<string, never>> = {
           is_edible: null,
           is_toxic_pets: null,
           is_toxic_humans: null,
-        } as PlantLibraryRow);
+          // via unknown: the synthetic candidate intentionally omits the
+          // remaining PlantLibraryRow columns (consumers only read the
+          // fields above plus the _aiCandidate flag).
+        } as unknown as PlantLibraryRow);
       }
     }
 

@@ -404,7 +404,8 @@ export default function TaskList({
 
           for (const [aId, items] of Object.entries(itemsByArea)) {
             await AutomationEngine.applyPlantedAutomations(
-              items,
+              // Cast: reduce over untyped supabase rows infers `unknown`.
+              items as any[],
               aId,
               todayString,
             );

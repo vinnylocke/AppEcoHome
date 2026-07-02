@@ -98,13 +98,14 @@ Deno.serve(async (req) => {
     const [inventoryRes, existingPrefs, areasRes, rotationBlocks] = await Promise.all([
       supabase
         .from("inventory_items")
-        .select("plant_name, areas(name, sunlight)")
+        .select("plant_name, areas(name)")
         .eq("home_id", homeId),
       loadPreferences(supabase, userId ? { userId } : { homeId }),
+      // areas has no home_id or is_outside — both live on the parent location.
       supabase
         .from("areas")
-        .select("id, name, is_outside")
-        .eq("home_id", homeId),
+        .select("id, name, locations!inner(home_id, is_outside)")
+        .eq("locations.home_id", homeId),
       fetchHomeRotationBlocks(supabase, homeId).catch(() => ({})),
     ]);
 
@@ -119,7 +120,11 @@ Deno.serve(async (req) => {
     // Indoor areas (is_outside === false) are skipped because rotation
     // rules don't apply to them.
     const areas: Array<{ id: string; name: string; is_outside: boolean | null }> =
-      (areasRes?.data ?? []) as any;
+      ((areasRes?.data ?? []) as any[]).map((a: any) => ({
+        id: a.id,
+        name: a.name,
+        is_outside: a.locations?.is_outside ?? null,
+      }));
     const rotationLines: string[] = [];
     for (const a of areas) {
       if (a.is_outside === false) continue;

@@ -27,7 +27,9 @@ import { getLocalDateString } from "../lib/taskEngine";
 interface PlantAssignmentModalProps {
   plant: any;
   locations: any[];
-  onAssign: (data: any) => Promise<void>;
+  // Resolves with the created inventory rows (TheShed.handleAssign) so the
+  // planted-automation hook below can run against them.
+  onAssign: (data: any) => Promise<any[] | null | undefined>;
   onClose: () => void;
   isAssigning: boolean;
   homeId: string;

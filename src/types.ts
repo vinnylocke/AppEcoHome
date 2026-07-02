@@ -2,6 +2,8 @@ export interface UserProfile {
   uid: string;
   email: string;
   display_name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   home_id: string | null;
   ai_enabled: boolean;
   enable_perenual: boolean;
@@ -10,6 +12,9 @@ export interface UserProfile {
   created_at: string;
   onboarding_state: Record<string, "completed" | "dismissed">;
   can_view_audit?: boolean;
+  /** Admin flag (user_profiles.is_admin, boolean not null default false).
+   *  Optional here because not every profile fetch selects it. */
+  is_admin?: boolean;
   is_beta: boolean;
   /** Timestamp the user completed (or skipped) the welcome carousel.
    *  NULL = brand-new account — render the welcome modal on next login. */

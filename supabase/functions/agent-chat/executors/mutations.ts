@@ -46,11 +46,12 @@ export interface MutationExecutor {
 // Helper — fetch the human-readable name of an area for previews.
 async function areaLabel(ctx: ExecutorContext, areaId: string | null | undefined): Promise<string> {
   if (!areaId) return "";
+  // areas has no home_id — ownership flows through location_id → locations.home_id.
   const { data } = await ctx.db
     .from("areas")
-    .select("name, location_id")
+    .select("name, location_id, locations!inner(home_id)")
     .eq("id", areaId)
-    .eq("home_id", ctx.homeId)
+    .eq("locations.home_id", ctx.homeId)
     .maybeSingle();
   return data?.name ?? "an area";
 }
@@ -187,9 +188,9 @@ export const add_plant_to_shed: MutationExecutor = {
     if (args.area_id) {
       const { data: area } = await ctx.db
         .from("areas")
-        .select("name, location_id")
+        .select("name, location_id, locations!inner(home_id)")
         .eq("id", args.area_id)
-        .eq("home_id", ctx.homeId)
+        .eq("locations.home_id", ctx.homeId)
         .maybeSingle();
       areaName = area?.name ?? null;
       locationId = area?.location_id ?? null;
@@ -259,9 +260,9 @@ export const assign_plant_to_area: MutationExecutor = {
 
     const { data: area } = await ctx.db
       .from("areas")
-      .select("name, location_id")
+      .select("name, location_id, locations!inner(home_id)")
       .eq("id", args.area_id)
-      .eq("home_id", ctx.homeId)
+      .eq("locations.home_id", ctx.homeId)
       .maybeSingle();
     if (!area) throw new Error("Area not found.");
 

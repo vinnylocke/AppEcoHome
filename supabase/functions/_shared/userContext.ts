@@ -27,7 +27,6 @@ export interface UserContextArea {
   name: string;
   locationName: string | null;
   isOutside: boolean;
-  sunlight: string | null;
   growingMedium: string | null;
   mediumPh: number | null;
 }
@@ -168,7 +167,7 @@ export async function buildUserContext(
       // Areas (via locations)
       homeId && !skip.has("garden")
         ? db.from("areas")
-            .select("id, name, is_outside, sunlight, growing_medium, medium_ph, locations(name, home_id)")
+            .select("id, name, growing_medium, medium_ph, locations(name, home_id, is_outside)")
             .eq("locations.home_id", homeId)
         : Promise.resolve({ data: [] }),
 
@@ -207,7 +206,7 @@ export async function buildUserContext(
         ? db.from("weather_snapshots")
             .select("data")
             .eq("home_id", homeId)
-            .order("created_at", { ascending: false })
+            .order("updated_at", { ascending: false })
             .limit(1)
             .maybeSingle()
         : Promise.resolve({ data: null }),
@@ -276,8 +275,7 @@ export async function buildUserContext(
       id: a.id,
       name: a.name,
       locationName: a.locations?.name ?? null,
-      isOutside: a.is_outside ?? false,
-      sunlight: a.sunlight ?? null,
+      isOutside: a.locations?.is_outside ?? false,
       growingMedium: a.growing_medium ?? null,
       mediumPh: a.medium_ph ?? null,
     }));
@@ -482,9 +480,8 @@ export function renderContextBlock(
           for (const a of ctx.areas) {
             const loc = a.locationName ? ` @ ${a.locationName}` : "";
             const env = a.isOutside ? "outdoor" : "indoor";
-            const sun = a.sunlight ?? "unknown light";
             const medium = a.growingMedium ?? "unknown medium";
-            lines.push(`  • ${a.name}${loc} — ${env}, ${sun}, ${medium}${a.mediumPh ? `, pH ${a.mediumPh}` : ""}`);
+            lines.push(`  • ${a.name}${loc} — ${env}, ${medium}${a.mediumPh ? `, pH ${a.mediumPh}` : ""}`);
           }
         }
         if (ctx.inventory.length === 0) {

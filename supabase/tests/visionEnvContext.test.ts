@@ -43,8 +43,7 @@ Deno.test("buildEnvBlock — emits GROWING ENVIRONMENT lines when area is found"
     areas: {
       data: {
         name: "South Bed",
-        is_outside: true,
-        sunlight: "full_sun",
+        locations: { is_outside: true },
         growing_medium: "loam",
         medium_ph: 6.5,
         water_movement: "well_drained",
@@ -59,7 +58,6 @@ Deno.test("buildEnvBlock — emits GROWING ENVIRONMENT lines when area is found"
   const result = await buildEnvBlock(db, { areaId: "area-1" });
   assertStringIncludes(result, "GROWING ENVIRONMENT:");
   assertStringIncludes(result, "Area: South Bed (Outdoor)");
-  assertStringIncludes(result, "Sunlight: full_sun");
   assertStringIncludes(result, "Soil pH: 6.5");
   assertStringIncludes(result, "Drainage: well_drained");
 });

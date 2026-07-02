@@ -434,7 +434,7 @@ export default function AddTaskModal({
     setForm((prev) => {
       const removing = prev.inventory_item_ids.includes(id);
       const newIds = removing
-        ? prev.inventory_item_ids.filter((i) => i !== id)
+        ? prev.inventory_item_ids.filter((i: string) => i !== id)
         : [...prev.inventory_item_ids, id];
       const inst = availablePlantsInArea.find((p: any) => p.id === id);
       if (inst) {
@@ -1364,10 +1364,10 @@ export default function AddTaskModal({
  * to the description. Existing user-typed content is preserved; we only
  * touch the title when it's empty so the user isn't surprised.
  */
-function applyNurseryPacketToForm(
+function applyNurseryPacketToForm<F extends { title: string; description: string }>(
   entry: NurseryListEntry,
-  form: { title: string; description: string },
-  setForm: React.Dispatch<React.SetStateAction<typeof form & Record<string, unknown>>>,
+  form: F,
+  setForm: React.Dispatch<React.SetStateAction<F>>,
 ): void {
   const variety = entry.packet.variety?.trim();
   const common = entry.plant?.common_name?.trim();

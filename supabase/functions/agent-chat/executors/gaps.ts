@@ -135,7 +135,7 @@ export const complete_shopping_list: MutationExecutor = {
 // ── Ailments ─────────────────────────────────────────────────────────────────
 async function loadAilmentLink(ctx: ExecutorContext, inventoryItemId: unknown, ailmentId: unknown) {
   if (typeof inventoryItemId !== "string" || typeof ailmentId !== "string") throw new Error("inventory_item_id and ailment_id are required.");
-  const { data } = await ctx.db.from("plant_instance_ailments").select("id, status").eq("home_id", ctx.homeId).eq("plant_instance_id", inventoryItemId).eq("ailment_id", ailmentId).order("created_at", { ascending: false }).limit(1).maybeSingle();
+  const { data } = await ctx.db.from("plant_instance_ailments").select("id, status").eq("home_id", ctx.homeId).eq("plant_instance_id", inventoryItemId).eq("ailment_id", ailmentId).order("linked_at", { ascending: false }).limit(1).maybeSingle();
   if (!data) throw new Error("No link between that plant and ailment was found.");
   return data as { id: string; status: string };
 }
@@ -255,9 +255,9 @@ async function ownArea(ctx: ExecutorContext, areaId: unknown) {
 
 async function loadLocation(ctx: ExecutorContext, id: unknown) {
   if (typeof id !== "string" || !id) throw new Error("location_id is required.");
-  const { data } = await ctx.db.from("locations").select("id, name, postcode").eq("id", id).eq("home_id", ctx.homeId).maybeSingle();
+  const { data } = await ctx.db.from("locations").select("id, name").eq("id", id).eq("home_id", ctx.homeId).maybeSingle();
   if (!data) throw new Error("Location not found in this home.");
-  return data as { id: string; name: string; postcode: string | null };
+  return data as { id: string; name: string };
 }
 
 export const rename_area: MutationExecutor = {
@@ -317,7 +317,7 @@ export const delete_location: MutationExecutor = {
     if ((areas ?? 0) > 0) throw new Error(`"${l.name}" still has ${areas} area(s) — delete or move them first.`);
     const { error } = await ctx.db.from("locations").delete().eq("id", l.id).eq("home_id", ctx.homeId);
     if (error) throw error;
-    return { summary: `Location "${l.name}" deleted.`, payload: { id: l.id }, affected_row_refs: { table: "locations", ids: [l.id], op: "delete", previous_state: { row: { home_id: ctx.homeId, name: l.name, postcode: l.postcode } } } };
+    return { summary: `Location "${l.name}" deleted.`, payload: { id: l.id }, affected_row_refs: { table: "locations", ids: [l.id], op: "delete", previous_state: { row: { home_id: ctx.homeId, name: l.name } } } };
   },
   async undo(ctx, refs) {
     if (refs.op !== "delete" || !refs.previous_state?.row) return;

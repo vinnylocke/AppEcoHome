@@ -74,10 +74,12 @@ Deno.serve(async (req) => {
     let locationLine = "";
     let hemisphere = "Northern";
     if (userId) {
+      // homes has no user_id column — membership lives on home_members.
       const { data: home } = await supabase
         .from("homes")
-        .select("country, lat, lng, timezone")
-        .eq("user_id", userId)
+        .select("country, lat, lng, timezone, home_members!inner(user_id)")
+        .eq("home_members.user_id", userId)
+        .limit(1)
         .maybeSingle();
 
       if (home) {

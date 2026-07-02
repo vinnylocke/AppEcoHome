@@ -39,7 +39,7 @@ export const AutomationEngine = {
     if (!targetAreaId) return;
 
     try {
-      const grouped = itemsToPlant.reduce(
+      const grouped: Record<string, string[]> = itemsToPlant.reduce(
         (acc, item) => {
           if (!acc[item.plant_id]) acc[item.plant_id] = [];
           acc[item.plant_id].push(item.id);
@@ -69,7 +69,8 @@ export const AutomationEngine = {
 
             if (matchingBp) {
               const updatedIds = Array.from(
-                new Set([...(matchingBp.inventory_item_ids || []), ...itemIds]),
+                // Cast: jsonb column typed as unknown by the client; holds string ids.
+                new Set([...((matchingBp.inventory_item_ids || []) as string[]), ...itemIds]),
               );
               await supabase
                 .from("task_blueprints")
@@ -84,7 +85,7 @@ export const AutomationEngine = {
               if (pendingTasks) {
                 for (const pt of pendingTasks) {
                   const updatedTaskIds = Array.from(
-                    new Set([...(pt.inventory_item_ids || []), ...itemIds]),
+                    new Set([...((pt.inventory_item_ids || []) as string[]), ...itemIds]),
                   );
                   await supabase
                     .from("tasks")

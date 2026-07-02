@@ -37,7 +37,9 @@ const CATEGORY_COLOUR: Record<FlowCategory, string> = {
   Community:         "bg-amber-500/10 text-amber-800",
 };
 
-function StatusIcon({ status }: { status: string }) {
+// OnboardingState values can also be reserved-key objects; anything that
+// isn't "completed"/"dismissed" renders the neutral circle.
+function StatusIcon({ status }: { status: string | Record<string, true> }) {
   if (status === "completed")
     return <CheckCircle2 size={16} className="text-emerald-500 shrink-0" />;
   if (status === "dismissed")

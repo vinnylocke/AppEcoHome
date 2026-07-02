@@ -147,7 +147,10 @@ export function scheduleFromSchedulableTask(
   return {
     title: t.title,
     description: t.description,
-    task_type: validatedType,
+    // Cast: SuggestedTask declares the four core types, but validated task
+    // types also include Pruning/Fertilizing/Inspection at runtime
+    // (pre-existing behaviour — consumers treat task_type as a string).
+    task_type: validatedType as SuggestedTask["task_type"],
     due_in_days: dueInDays,
     is_recurring: t.is_recurring,
     frequency_days: t.is_recurring ? (t.frequency_days ?? 7) : null,

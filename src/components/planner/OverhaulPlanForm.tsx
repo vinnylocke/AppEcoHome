@@ -432,7 +432,7 @@ function Step2Highlight({
   onHasStrokesChange,
 }: {
   photoPreviewUrl: string | null;
-  highlighterRef: React.RefObject<PhotoHighlighterHandle>;
+  highlighterRef: React.RefObject<PhotoHighlighterHandle | null>;
   onHasStrokesChange: (has: boolean) => void;
 }) {
   return (

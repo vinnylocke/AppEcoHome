@@ -697,8 +697,11 @@ export default function WeatherForecast({ weatherData, alerts, homeId, onRefresh
                     data={hourlyData}
                     margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                     onClick={(e) => {
-                      if (e?.activeTooltipIndex !== undefined && e.activeTooltipIndex >= 0) {
-                        setSelectedHourIndex(e.activeTooltipIndex);
+                      // Cast: recharts types this as number | string | null;
+                      // at runtime the hourly chart always yields a number.
+                      const idx = e?.activeTooltipIndex as number | undefined;
+                      if (idx !== undefined && idx >= 0) {
+                        setSelectedHourIndex(idx);
                       }
                     }}
                   >

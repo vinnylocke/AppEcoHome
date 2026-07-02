@@ -129,10 +129,12 @@ export default function TodayFocusCard({ homeId, variant = "dashboard", classNam
       try {
         const { supabase } = await import("../../lib/supabase");
         const today = getLocalDateString(new Date());
+        // weather_alerts is LOCATION-scoped (no home_id column) — filter
+        // through the locations join.
         const { data } = await supabase
           .from("weather_alerts")
-          .select("type")
-          .eq("home_id", homeId)
+          .select("type, locations!inner(home_id)")
+          .eq("locations.home_id", homeId)
           .eq("is_active", true)
           .gte("starts_at", today)
           .lt("starts_at", `${today}T23:59:59`)

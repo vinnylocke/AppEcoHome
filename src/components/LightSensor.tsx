@@ -85,7 +85,7 @@ function LightSensorInner({ homeId }: LightSensorProps) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
   const sensorListenerRef = useRef<any>(null);
   const targetLuxRef = useRef<number>(0);
   const currentLuxRef = useRef<number>(0);

@@ -683,7 +683,9 @@ export default function PlantDoctorChat({ homeId }: { homeId: string }) {
     historyForAI: { role: string; content: string }[],
     image: PendingImage | null | undefined,
     priorPlanSuggested: boolean,
-    userText: string,
+    // Optional: the regenerate path calls without it, so `message` is sent
+    // as undefined on that path (pre-existing behaviour, preserved).
+    userText?: string,
     audio?: VoiceCaptureResult | null,
   ): Promise<{
     reply: string;

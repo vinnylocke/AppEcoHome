@@ -101,7 +101,15 @@ export function getQueue(): QueuedWrite[] {
 // enqueue() can stamp items without an async session lookup.
 let knownUserId: string | null = null;
 
-export function enqueue(item: Omit<QueuedWrite, "id" | "queuedAt">): QueuedWrite {
+// Omit distributed over the QueuedWrite union — a plain Omit collapses the
+// union to its common keys, losing variant fields like `taskId`.
+type QueuedWriteInput = QueuedWrite extends infer T
+  ? T extends QueuedWrite
+    ? Omit<T, "id" | "queuedAt">
+    : never
+  : never;
+
+export function enqueue(item: QueuedWriteInput): QueuedWrite {
   const queued: QueuedWrite = {
     ...item,
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,

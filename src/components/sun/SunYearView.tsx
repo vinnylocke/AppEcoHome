@@ -92,9 +92,9 @@ function findKeyEvents(samples: YearSample[]): KeyEvent[] {
     }
   }
   return [
-    { date: samples[maxIdx].date, label: "Longest day", type: "solstice-summer" },
+    { date: samples[maxIdx].date, label: "Longest day", type: "solstice-summer" as const },
     ...equinoxes,
-    { date: samples[minIdx].date, label: "Shortest day", type: "solstice-winter" },
+    { date: samples[minIdx].date, label: "Shortest day", type: "solstice-winter" as const },
   ].sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 

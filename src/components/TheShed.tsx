@@ -1293,7 +1293,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
       if (searchQuery.trim()) {
         const query = searchQuery.toLowerCase();
         const matchesCommon = p.common_name.toLowerCase().includes(query);
-        const matchesScientific = p.scientific_name?.some((name) =>
+        const matchesScientific = p.scientific_name?.some((name: string) =>
           name.toLowerCase().includes(query),
         );
         if (!matchesCommon && !matchesScientific) return false;

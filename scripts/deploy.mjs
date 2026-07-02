@@ -197,6 +197,16 @@ async function deploy() {
 
   console.log("\n🌿 Rhozly deploy — starting\n");
 
+  // Step 0: pre-flight gates — BEFORE maintenance goes on, so a failure
+  // never strands the app in maintenance mode. Both gates exist because
+  // bugs shipped without them: a missing React import crashed /walk
+  // (RHOZLY-3Q — plain `tsc --noEmit` on the root solution-style tsconfig
+  // checks nothing), and phantom column names 400'd queries silently
+  // (RHOZLY-3P).
+  console.log("🧪  [0/6] Pre-flight: typecheck + schema column check...");
+  run("npm run typecheck");
+  run("node scripts/check-schema-columns.mjs");
+
   // Step 1: maintenance ON
   console.log("🔧  [1/3] Turning maintenance mode ON...");
   await setMaintenance(true, MAINTENANCE_MESSAGE);

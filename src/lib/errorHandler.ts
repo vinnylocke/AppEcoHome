@@ -6,7 +6,9 @@ export const Logger = {
     if (import.meta.env.DEV) console.log(`📘 [INFO]: ${message}`, data || "");
   },
 
-  warn: (message: string, data?: any) => {
+  // `_context` is accepted (some callers pass one, mirroring Logger.error)
+  // but intentionally unused — warn only logs to the console in DEV.
+  warn: (message: string, data?: any, _context?: Record<string, any>) => {
     if (import.meta.env.DEV) console.warn(`📙 [WARN]: ${message}`, data || "");
   },
 

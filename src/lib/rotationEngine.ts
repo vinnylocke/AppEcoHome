@@ -152,7 +152,7 @@ export function buildAreaRotationHistory(
   const seasons: RotationHistorySeason[] = Array.from(allYears)
     .sort((a, b) => b - a)
     .map((year) => {
-      const byFam = buckets.get(year) ?? new Map();
+      const byFam = buckets.get(year) ?? new Map<string, string[]>();
       const families: RotationHistoryFamilyEntry[] = Array.from(byFam.entries()).map(
         ([family, plants]) => ({
           family,

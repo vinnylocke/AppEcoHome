@@ -245,12 +245,12 @@ export const create_location: MutationExecutor = {
   },
 
   async execute(ctx, args) {
+    // locations has no postcode column — the arg is preview-only context.
     const { data, error } = await ctx.db
       .from("locations")
       .insert({
         home_id: ctx.homeId,
         name: args.name,
-        postcode: args.postcode ?? null,
       })
       .select("id, name")
       .single();

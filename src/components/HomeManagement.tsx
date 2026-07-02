@@ -107,7 +107,8 @@ interface HomeWithRole {
   id: string;
   name: string;
   address: string | null;
-  role: "owner" | "member";
+  // Full role union — home_members_role_check allows owner/admin/member/viewer.
+  role: Role;
   country: string | null;
   timezone: string | null;
   lat: number | null;

@@ -43,7 +43,8 @@ export default function NavItem({
       <div
         className={`relative z-10 flex items-center justify-center transition-transform duration-150 ${active ? "scale-110" : "group-hover:scale-110"}`}
       >
-        {React.cloneElement(icon, { className: "w-6 h-6" })}
+        {/* Cast: nav icons are lucide elements, which accept className. */}
+        {React.cloneElement(icon as React.ReactElement<{ className?: string }>, { className: "w-6 h-6" })}
         {/* Collapsed: badge sits as a small dot on the icon corner */}
         {showBadge && isCollapsed && (
           <span

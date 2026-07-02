@@ -144,17 +144,8 @@ Deno.serve(async (req) => {
         locationContext = { placement: locRow.placement ?? null };
       }
     }
-    // Postcode lives on `homes`, not `locations`.
-    if (instance.home_id) {
-      const { data: homeRow } = await supabase
-        .from("homes")
-        .select("postcode")
-        .eq("id", instance.home_id)
-        .maybeSingle();
-      if (homeRow?.postcode) {
-        locationContext = { ...locationContext, postcode: homeRow.postcode };
-      }
-    }
+    // `homes` has no postcode column — the prompt's optional postcode line
+    // simply stays absent.
 
     // Recent weather summary — `weather_snapshots` stores a single jsonb
     // blob per home; surface it raw if it's recent.

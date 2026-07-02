@@ -226,7 +226,7 @@ Deno.serve(async (req) => {
     const existingAreasBlock = areaMode !== "new" && ctx.areas.length > 0
       ? "USER'S EXISTING AREAS (assign by id where they fit):\n" +
         ctx.areas.map((a) =>
-          `  - id=${a.id} | ${a.name} | ${a.isOutside ? "outdoor" : "indoor"} | ${a.sunlight ?? "unknown light"} | ${a.growingMedium ?? "unknown medium"}${a.mediumPh ? ` | pH ${a.mediumPh}` : ""}`,
+          `  - id=${a.id} | ${a.name} | ${a.isOutside ? "outdoor" : "indoor"} | ${a.growingMedium ?? "unknown medium"}${a.mediumPh ? ` | pH ${a.mediumPh}` : ""}`,
         ).join("\n")
       : "USER'S EXISTING AREAS: (not used in this mode)";
 

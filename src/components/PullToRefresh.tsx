@@ -1,4 +1,4 @@
-import React, { useState, useRef, ReactNode } from "react";
+import React, { useState, useRef, type ReactNode } from "react";
 import { Loader2, ArrowDown } from "lucide-react";
 import toast from "react-hot-toast";
 

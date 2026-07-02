@@ -43,6 +43,10 @@ export interface Task {
   area_id?: string;
   plan_id?: string;
   inventory_item_ids?: string[];
+  /** Harvest-window end (tasks.window_end_date, date). */
+  window_end_date?: string | null;
+  /** Next snoozed-check date for harvest windows (tasks.next_check_at, date). */
+  next_check_at?: string | null;
   isGhost?: boolean;
   overdueCarryoverSince?: string;
   lateCompletionFrom?: string;

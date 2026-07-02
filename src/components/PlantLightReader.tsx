@@ -42,7 +42,7 @@ export default function PlantLightReader({ plantName, optimalRange, onClose, are
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
-  const animationFrameRef = useRef<number>();
+  const animationFrameRef = useRef<number | undefined>(undefined);
   const sensorListenerRef = useRef<any>(null);
   const targetLuxRef = useRef(0);
   const currentLuxRef = useRef(0);

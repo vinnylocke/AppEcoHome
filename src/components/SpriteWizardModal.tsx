@@ -425,14 +425,16 @@ export default function SpriteWizardModal({ plants, homeId, onComplete, onClose 
   const handleUseCached = async () => {
     if (!cachedUrl) return;
     const next = new Map(confirmedSprites);
-    next.set(plant.id, cachedUrl);
+    // Cast: plant.id is string | number; keys are used consistently with
+    // whatever the row provides (no coercion, preserved verbatim).
+    next.set(plant.id as string, cachedUrl);
     setConfirmedSprites(next);
     advancePlant(next);
   };
 
   const finalisePlant = (spriteUrl: string) => {
     const next = new Map(confirmedSprites);
-    next.set(plant.id, spriteUrl);
+    next.set(plant.id as string, spriteUrl);
     setConfirmedSprites(next);
     setSaving(false);
     advancePlant(next);

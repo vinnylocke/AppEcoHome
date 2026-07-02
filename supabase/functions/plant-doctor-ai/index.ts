@@ -163,14 +163,13 @@ Deno.serve(async (req) => {
     const existingPrefs = ctx.preferences;
 
     // Compact inventory block grouped by area (richer than the generic garden section).
-    const plantsByArea: Record<string, { areaName: string; sunlight: string | null; plants: string[] }> = {};
+    const plantsByArea: Record<string, { areaName: string; plants: string[] }> = {};
     const unassignedPlants: string[] = [];
     for (const item of ctx.inventory) {
       const label = `${item.plantName}${item.nickname ? ` (${item.nickname})` : ""}${item.growthState ? ` [${item.growthState}]` : ""}`;
       if (item.areaId && item.areaName) {
         if (!plantsByArea[item.areaId]) {
-          const area = ctx.areas.find((a) => a.id === item.areaId);
-          plantsByArea[item.areaId] = { areaName: item.areaName, sunlight: area?.sunlight ?? null, plants: [] };
+          plantsByArea[item.areaId] = { areaName: item.areaName, plants: [] };
         }
         plantsByArea[item.areaId].plants.push(label);
       } else {
@@ -179,7 +178,7 @@ Deno.serve(async (req) => {
     }
     const inventoryContext = [
       ...Object.values(plantsByArea).map(
-        (g) => `${g.areaName}${g.sunlight ? ` (${g.sunlight})` : ""}: ${g.plants.join(", ")}`,
+        (g) => `${g.areaName}: ${g.plants.join(", ")}`,
       ),
       ...(unassignedPlants.length > 0 ? [`Unassigned: ${unassignedPlants.join(", ")}`] : []),
     ].join("\n") || "No plants currently planted.";

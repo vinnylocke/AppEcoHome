@@ -29,7 +29,9 @@ const CAT: Record<string, { label: string; cls: string }> = {
   pests: { label: "Pest risk", cls: "bg-rose-50 text-rose-700" },
 };
 
-function AiInsightsPageInner() {
+// Takes no props today; the ignored `_props` param exists so the gated
+// wrapper below can derive/forward its props type via ComponentProps.
+function AiInsightsPageInner(_props: Record<string, unknown>) {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState<string | null>(null);

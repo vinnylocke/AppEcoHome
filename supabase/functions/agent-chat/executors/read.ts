@@ -126,7 +126,7 @@ export async function exec_list_blueprints(
 export async function exec_list_locations(ctx: ExecutorContext): Promise<ExecResult> {
   const { data, error } = await ctx.db
     .from("locations")
-    .select("id, name, postcode, is_outside")
+    .select("id, name, placement, is_outside")
     .eq("home_id", ctx.homeId)
     .order("name");
   if (error) throw error;
@@ -185,7 +185,7 @@ export async function exec_list_ailments(
 ): Promise<ExecResult> {
   let q = ctx.db
     .from("ailments")
-    .select("id, name, type, severity, notes, is_archived")
+    .select("id, name, type, description, is_archived")
     .eq("home_id", ctx.homeId)
     .order("created_at", { ascending: false });
   if (!args.include_archived) q = q.eq("is_archived", false);
@@ -206,10 +206,10 @@ export async function exec_list_shopping_lists(
 ): Promise<ExecResult> {
   let listQ = ctx.db
     .from("shopping_lists")
-    .select("id, name, kind, is_completed, created_at")
+    .select("id, name, status, created_at")
     .eq("home_id", ctx.homeId)
     .order("created_at", { ascending: false });
-  if (!args.include_completed) listQ = listQ.eq("is_completed", false);
+  if (!args.include_completed) listQ = listQ.eq("status", "active");
 
   const { data: lists, error } = await listQ;
   if (error) throw error;
@@ -220,7 +220,7 @@ export async function exec_list_shopping_lists(
   const listIds = lists.map((l) => l.id);
   const { data: items } = await ctx.db
     .from("shopping_list_items")
-    .select("id, list_id, kind, name, quantity, plant_id, is_checked")
+    .select("id, list_id, item_type, name, quantity, is_checked")
     .in("list_id", listIds);
 
   const itemsByList: Record<string, any[]> = {};
@@ -243,26 +243,26 @@ export async function exec_list_seed_packets(
 ): Promise<ExecResult> {
   let q = ctx.db
     .from("seed_packets")
-    .select("id, plant_id, plant_name, variety, sow_by_date, expiry_date, quantity_remaining")
+    .select("id, plant_id, variety, sow_by, quantity_remaining, plants(common_name)")
     .eq("home_id", ctx.homeId)
-    .order("sow_by_date", { ascending: true });
+    .order("sow_by", { ascending: true });
 
   if (args.sown === true) {
     // Sown packets have at least one row in seed_sowings linking to them.
     // Two-pass: list packets with any sowing.
     const { data: sowings } = await ctx.db
       .from("seed_sowings")
-      .select("packet_id")
+      .select("seed_packet_id")
       .eq("home_id", ctx.homeId);
-    const sownIds = [...new Set((sowings ?? []).map((s: any) => s.packet_id))];
+    const sownIds = [...new Set((sowings ?? []).map((s: any) => s.seed_packet_id))];
     if (sownIds.length === 0) return { payload: [], summary: "No sown packets yet." };
     q = q.in("id", sownIds);
   } else if (args.sown === false) {
     const { data: sowings } = await ctx.db
       .from("seed_sowings")
-      .select("packet_id")
+      .select("seed_packet_id")
       .eq("home_id", ctx.homeId);
-    const sownIds = [...new Set((sowings ?? []).map((s: any) => s.packet_id))];
+    const sownIds = [...new Set((sowings ?? []).map((s: any) => s.seed_packet_id))];
     if (sownIds.length > 0) q = q.not("id", "in", `(${sownIds.join(",")})`);
   }
 
@@ -338,7 +338,7 @@ export async function exec_get_plant_details(
   }
   const { data, error } = await ctx.db
     .from("plants")
-    .select("id, common_name, scientific_name, source, cycle, sunlight, watering, care_guide_data, default_image")
+    .select("id, common_name, scientific_name, source, cycle, sunlight, watering, care_guide_data, image_url")
     .eq("id", id)
     .maybeSingle();
   if (error) throw error;
@@ -353,11 +353,13 @@ export async function exec_get_plant_details(
 export async function exec_get_weather_now(ctx: ExecutorContext): Promise<ExecResult> {
   const [{ data: snapshot }, { data: alerts }] = await Promise.all([
     ctx.db.from("weather_snapshots").select("data").eq("home_id", ctx.homeId).maybeSingle(),
+    // weather_alerts is LOCATION-scoped (no home_id column) — filter
+    // through the locations join.
     ctx.db
       .from("weather_alerts")
-      .select("id, alert_type, severity, message, valid_until")
-      .eq("home_id", ctx.homeId)
-      .gte("valid_until", new Date().toISOString()),
+      .select("id, type, severity, message, ends_at, locations!inner(home_id)")
+      .eq("locations.home_id", ctx.homeId)
+      .gte("ends_at", new Date().toISOString()),
   ]);
 
   return {
@@ -387,15 +389,17 @@ export async function exec_get_overdue_summary(ctx: ExecutorContext): Promise<Ex
       .limit(20),
     ctx.db
       .from("ailments")
-      .select("id, name, type, severity")
+      .select("id, name, type")
       .eq("home_id", ctx.homeId)
       .eq("is_archived", false)
       .limit(10),
+    // weather_alerts is LOCATION-scoped (no home_id column) — filter
+    // through the locations join.
     ctx.db
       .from("weather_alerts")
-      .select("id, alert_type, severity, message")
-      .eq("home_id", ctx.homeId)
-      .gte("valid_until", new Date().toISOString())
+      .select("id, type, severity, message, locations!inner(home_id)")
+      .eq("locations.home_id", ctx.homeId)
+      .gte("ends_at", new Date().toISOString())
       .limit(5),
   ]);
 

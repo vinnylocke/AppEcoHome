@@ -63,7 +63,8 @@ async function buildAndValidate(ctx: ExecutorContext, trigger: GroupInput, actio
 
 async function deriveLocationId(ctx: ExecutorContext, areaId: string | null | undefined): Promise<string | null> {
   if (!areaId) return null;
-  const { data } = await ctx.db.from("areas").select("location_id").eq("id", areaId).eq("home_id", ctx.homeId).maybeSingle();
+  // areas has no home_id — ownership flows through location_id → locations.home_id.
+  const { data } = await ctx.db.from("areas").select("location_id, locations!inner(home_id)").eq("id", areaId).eq("locations.home_id", ctx.homeId).maybeSingle();
   return (data?.location_id as string | null) ?? null;
 }
 

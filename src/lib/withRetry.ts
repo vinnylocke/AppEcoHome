@@ -63,8 +63,12 @@ function waitForOnline(safetyMs = 30_000): Promise<void> {
  * Race a promise against a timeout. The timeout rejection includes the
  * label so logs are easier to follow.
  */
-function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
-  if (ms <= 0) return p;
+function withTimeout<T>(
+  p: PromiseLike<T>,
+  ms: number,
+  label: string,
+): Promise<T> {
+  if (ms <= 0) return Promise.resolve(p);
   return new Promise<T>((resolve, reject) => {
     let settled = false;
     const timer = setTimeout(() => {
@@ -106,7 +110,9 @@ function looksLikeSupabaseError(value: unknown): boolean {
 }
 
 export async function withRetry<T>(
-  fn: () => Promise<T>,
+  // PromiseLike, not Promise: supabase-js query builders are thenables
+  // that only fire when awaited — exactly what callers pass here.
+  fn: () => PromiseLike<T>,
   opts: WithRetryOptions = {},
 ): Promise<T> {
   const {

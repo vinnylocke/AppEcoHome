@@ -447,10 +447,11 @@ function MetricHistoryChart({ title, metric, unit, domain, history, sensors, win
               boxShadow: "0 2px 12px rgba(0,0,0,.08)",
               fontSize: 12,
             }}
-            labelFormatter={fmt}
-            formatter={(value: number | string) =>
-              typeof value === "number" ? [`${value.toFixed(1)}${unit}`] : [String(value)]
-            }
+            // Casts: recharts' Tooltip formatter types are wider (ReactNode /
+            // undefined) than the runtime values these charts produce.
+            labelFormatter={fmt as (label: unknown) => string}
+            formatter={((value: number | string) =>
+              typeof value === "number" ? [`${value.toFixed(1)}${unit}`] : [String(value)]) as any}
           />
           {sensors.map((s, i) => (
             <Line

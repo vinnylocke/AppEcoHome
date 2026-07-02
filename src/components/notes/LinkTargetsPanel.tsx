@@ -57,8 +57,8 @@ async function loadOptions(homeId: string): Promise<PickerOption[]> {
       .limit(100),
     supabase
       .from("areas")
-      .select("id, name, location_id")
-      .eq("home_id", homeId)
+      .select("id, name, location_id, locations!inner(home_id)")
+      .eq("locations.home_id", homeId)
       .order("name", { ascending: true })
       .limit(200),
     supabase
@@ -68,17 +68,17 @@ async function loadOptions(homeId: string): Promise<PickerOption[]> {
       .order("created_at", { ascending: false })
       .limit(100),
     supabase
-      .from("ailments_watchlist")
-      .select("id, common_name, scientific_name")
+      .from("ailments")
+      .select("id, name, scientific_name")
       .eq("home_id", homeId)
-      .is("archived_at", null)
-      .order("common_name", { ascending: true })
+      .eq("is_archived", false)
+      .order("name", { ascending: true })
       .limit(200),
     supabase
       .from("seed_packets")
-      .select("id, label, scientific_name")
+      .select("id, variety, plants(common_name)")
       .eq("home_id", homeId)
-      .order("label", { ascending: true })
+      .order("variety", { ascending: true })
       .limit(200),
   ]);
 
@@ -101,10 +101,11 @@ async function loadOptions(homeId: string): Promise<PickerOption[]> {
     out.push({ target_type: "plan", target_id: r.id as string, label: r.name as string, sub: (r.status as string | null) ?? undefined });
   }
   for (const r of ailments.data ?? []) {
-    out.push({ target_type: "ailment", target_id: r.id as string, label: (r.common_name as string) ?? (r.scientific_name as string) ?? "Ailment" });
+    out.push({ target_type: "ailment", target_id: r.id as string, label: (r.name as string) ?? (r.scientific_name as string) ?? "Ailment" });
   }
   for (const r of seeds.data ?? []) {
-    out.push({ target_type: "seed_packet", target_id: r.id as string, label: (r.label as string) ?? (r.scientific_name as string) ?? "Seed packet" });
+    const plant = Array.isArray((r as any).plants) ? (r as any).plants[0] : (r as any).plants;
+    out.push({ target_type: "seed_packet", target_id: r.id as string, label: (r.variety as string) ?? (plant?.common_name as string) ?? "Seed packet" });
   }
   return out;
 }

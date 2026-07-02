@@ -201,8 +201,7 @@ export default function GlobalSearch({ homeId }: Props) {
           want("guides")
             ? supabase
                 .from("guides")
-                .select("id, data, is_published")
-                .eq("is_published", true)
+                .select("id, data")
                 .limit(40)
             : Promise.resolve({ data: [] }),
         ]);

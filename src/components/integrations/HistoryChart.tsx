@@ -183,7 +183,9 @@ function ChartBlock({
           />
           <Tooltip
             contentStyle={{ borderRadius: 12, border: "none", boxShadow: "0 2px 12px rgba(0,0,0,.08)", fontSize: 12 }}
-            labelFormatter={fmt}
+            // Cast: recharts types the label as ReactNode; at runtime it is
+            // the bucket string.
+            labelFormatter={fmt as (label: unknown) => string}
           />
           <Line
             type="monotone"

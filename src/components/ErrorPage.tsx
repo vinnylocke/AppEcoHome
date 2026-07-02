@@ -78,7 +78,9 @@ export default function ErrorPage({ error, appVersion }: ErrorPageProps) {
         .finally(() => window.location.reload());
       return;
     }
-    window.location.reload();
+    // Cast: TS narrows `window` to `never` here because the DOM lib types
+    // `caches` as always present; older browsers can still reach this line.
+    (window as Window).location.reload();
   };
 
   const sendReport = async () => {
