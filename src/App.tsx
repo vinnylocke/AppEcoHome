@@ -772,14 +772,18 @@ function AppShell() {
       // request now, in parallel with the queries below): a home with no
       // locations but home/personal tasks previously never ran this query
       // and cached a hard 0 into the dashboard snapshot.
-      const overduePromise = supabase
-        .from("tasks")
-        .select("id, status, due_date, next_check_at, window_end_date")
-        .eq("home_id", homeId)
-        .neq("status", "Skipped")
-        .neq("status", "Completed")
-        .or(`due_date.lt.${todayStr},window_end_date.not.is.null`)
-        .then((r) => r);
+      // Promise.resolve(builder) subscribes the thenable, which is what
+      // actually fires the PostgREST request now (in parallel with the
+      // queries below) — and yields a properly-typed real Promise.
+      const overduePromise = Promise.resolve(
+        supabase
+          .from("tasks")
+          .select("id, status, due_date, next_check_at, window_end_date")
+          .eq("home_id", homeId)
+          .neq("status", "Skipped")
+          .neq("status", "Completed")
+          .or(`due_date.lt.${todayStr},window_end_date.not.is.null`),
+      ) as Promise<{ data: Array<Record<string, unknown>> | null; error: unknown }>;
 
       if (data.locations) {
         snapshotLocations = data.locations;

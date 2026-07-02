@@ -1,6 +1,6 @@
 import React from "react";
 import { useNavigate } from "react-router-dom";
-import { AlertCircle, CloudLightning, Zap, BatteryLow, Droplets, Wheat, ChevronRight } from "lucide-react";
+import { AlertCircle, CloudLightning, Zap, BatteryLow, Droplets, Wheat, ChevronRight, type LucideIcon } from "lucide-react";
 import type { AttentionItem } from "../../hooks/useHomeOverview";
 
 /**
@@ -10,7 +10,7 @@ import type { AttentionItem } from "../../hooks/useHomeOverview";
  * a pro sees their real problem list.
  */
 
-const KIND_STYLES: Record<string, { icon: React.ElementType; classes: string }> = {
+const KIND_STYLES: Record<string, { icon: LucideIcon; classes: string }> = {
   overdue_tasks: { icon: AlertCircle, classes: "bg-red-50 text-red-700 border-red-100" },
   weather_alert: { icon: CloudLightning, classes: "bg-sky-50 text-sky-700 border-sky-100" },
   automation_failed: { icon: Zap, classes: "bg-amber-50 text-amber-700 border-amber-100" },

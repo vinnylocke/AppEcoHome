@@ -1,1 +1,10 @@
-[]
+[
+  {
+    "label": "Fixes",
+    "items": [
+      "Garden Walk no longer crashes when opened — sorry about that one.",
+      "Weekly weather alert counts on the stats panel now show real numbers (they'd been silently stuck at zero).",
+      "Live soil and valve chips on the new Dashboard now load reliably."
+    ]
+  }
+]
