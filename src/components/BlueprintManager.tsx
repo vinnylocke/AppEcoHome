@@ -33,6 +33,7 @@ import { scorePlantByPreferences } from "../hooks/useUserPreferences";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { useHomeRealtime } from "../hooks/useHomeRealtime";
 import { Logger } from "../lib/errorHandler";
+import { getLocalDateString } from "../lib/taskEngine";
 
 interface BlueprintManagerProps {
   homeId: string;
@@ -123,8 +124,20 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
     }
   }, [searchParams, setSearchParams]);
 
+  // Generation guard (stale responses from a previous home must not land)
+  // + first-load tracking so realtime refreshes don't flash the skeleton.
+  const fetchGen = useRef(0);
+  const hasLoadedRef = useRef(false);
+  useEffect(() => {
+    hasLoadedRef.current = false;
+  }, [homeId]);
+
   const fetchBlueprints = useCallback(async () => {
-    setLoading(true);
+    const gen = ++fetchGen.current;
+    // Skeleton only on the initial load: flipping the whole list to
+    // skeletons on every realtime event made the page flash whenever any
+    // member touched a blueprint.
+    if (!hasLoadedRef.current) setLoading(true);
     setFetchError(false);
     try {
       const { data: bpData, error: bpError } = await supabase
@@ -147,6 +160,8 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
         .from("inventory_items")
         .select("id, plant_name")
         .eq("home_id", homeId);
+
+      if (gen !== fetchGen.current) return;
 
       const invMap = (invData || []).reduce(
         (acc, item) => {
@@ -208,10 +223,11 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
       });
 
       setBlueprints(enrichedBlueprints);
+      hasLoadedRef.current = true;
     } catch (err: any) {
-      setFetchError(true);
+      if (gen === fetchGen.current) setFetchError(true);
     } finally {
-      setLoading(false);
+      if (gen === fetchGen.current) setLoading(false);
     }
   }, [homeId, retryTick]);
 
@@ -750,7 +766,7 @@ export default function BlueprintManager({ homeId, aiEnabled = false }: Blueprin
                   if (!bp.frequency_days || bp.frequency_days <= 0) return null;
                   const anchorStr = (bp.start_date || bp.created_at || new Date().toISOString()).split("T")[0];
                   const anchorMs = new Date(anchorStr).getTime();
-                  const todayMs = new Date(new Date().toISOString().split("T")[0]).getTime();
+                  const todayMs = new Date(getLocalDateString(new Date())).getTime();
                   const endMs = bp.end_date ? new Date(bp.end_date).getTime() : null;
                   const dayMs = 24 * 60 * 60 * 1000;
 

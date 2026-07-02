@@ -45,6 +45,7 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 // 🚀 IMPORT THE ENGINE
 import { AutomationEngine } from "../lib/automationEngine";
 import { logEvent, EVENT } from "../events/registry";
+import { getLocalDateString } from "../lib/taskEngine";
 
 const GROWTH_STATES = [
   "Germination",
@@ -171,7 +172,7 @@ export default function InstanceEditModal({
     is_established: instance.is_established,
     planted_at: instance.planted_at
       ? instance.planted_at.split("T")[0]
-      : new Date().toISOString().split("T")[0],
+      : getLocalDateString(new Date()),
   });
 
   useEffect(() => {
@@ -305,8 +306,8 @@ export default function InstanceEditModal({
         // area_id is null (unassigned-but-planted) — schedules will
         // attach later when the user places the plant.
         const baseDateStr = payload.is_established
-          ? new Date().toISOString().split("T")[0]
-          : payload.planted_at || new Date().toISOString().split("T")[0];
+          ? getLocalDateString(new Date())
+          : payload.planted_at || getLocalDateString(new Date());
 
         const updatedItem = { ...instance, ...payload };
         await AutomationEngine.applyPlantedAutomations(
@@ -319,8 +320,8 @@ export default function InstanceEditModal({
         // Pick up the area-anchored automations now that we have an
         // area to attach to.
         const baseDateStr = payload.is_established
-          ? new Date().toISOString().split("T")[0]
-          : payload.planted_at || new Date().toISOString().split("T")[0];
+          ? getLocalDateString(new Date())
+          : payload.planted_at || getLocalDateString(new Date());
         const updatedItem = { ...instance, ...payload };
         await AutomationEngine.applyPlantedAutomations(
           [updatedItem],

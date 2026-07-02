@@ -33,8 +33,28 @@ function parseSafeDate(d: string): number {
   return new Date(`${d}T12:00:00Z`).getTime();
 }
 
+// Calendar-year addition ("same date next year"), not +365 days — a span
+// containing 29 Feb landed the rolled date one day early.
+function addYears(ms: number, years: number): number {
+  const d = new Date(ms);
+  d.setUTCFullYear(d.getUTCFullYear() + years);
+  return d.getTime();
+}
+
 function formatSafeDate(ms: number): string {
   return new Date(ms).toISOString().split("T")[0];
+}
+
+// The user's LOCAL calendar date. Inlined (not imported from taskEngine)
+// so this file stays a pure date-math module with no supabase dependency.
+// The UTC date it replaced flips at the wrong wall-clock moment: a UTC+10
+// user at 8am got a first task dated yesterday; a UTC-5 user at 11pm got
+// the first occurrence pushed a full cycle late.
+function localTodayStr(): string {
+  const d = new Date();
+  const month = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${d.getFullYear()}-${month}-${day}`;
 }
 
 /**
@@ -79,7 +99,7 @@ export function buildBlueprintFromSchedule(opts: {
 
       // Roll the end forward a year if it'd otherwise be before start.
       if (startRef?.startsWith("Seasonal:") && endMs < startMs) {
-        endMs += 365 * MS_PER_DAY;
+        endMs = addYears(endMs, 1);
       }
     }
     endMs += endOffset * MS_PER_DAY;
@@ -93,9 +113,9 @@ export function buildBlueprintFromSchedule(opts: {
     const cycleStr = plantCycle.toLowerCase();
     const triggerMs = parseSafeDate(triggerDateStr);
     if (cycleStr.includes("annual") && !cycleStr.includes("perennial")) {
-      absoluteMaxEndMs = triggerMs + 365 * MS_PER_DAY;
+      absoluteMaxEndMs = addYears(triggerMs, 1);
     } else if (cycleStr.includes("biennial")) {
-      absoluteMaxEndMs = triggerMs + 730 * MS_PER_DAY;
+      absoluteMaxEndMs = addYears(triggerMs, 2);
     }
   }
 
@@ -114,7 +134,7 @@ export function buildBlueprintFromSchedule(opts: {
   // first task to land TODAY rather than retroactively. Without this,
   // a "trigger date = last week" would generate tasks in the past.
   const triggerMs = parseSafeDate(triggerDateStr);
-  const todayMs = parseSafeDate(new Date().toISOString().split("T")[0]);
+  const todayMs = parseSafeDate(localTodayStr());
   const floorMs = Math.max(triggerMs, todayMs);
 
   if (startMs < floorMs) {

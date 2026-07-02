@@ -29,41 +29,25 @@ serve(async (req) => {
     const targetBlueprintId = body.blueprint_id;
     log(FN, "request_received", { blueprintId: targetBlueprintId ?? "all" });
 
-    // 1. Load blueprints + last task per blueprint in parallel.
-    // The lastTask lookup uses DISTINCT ON so we get one row per
-    // blueprint_id in a single query instead of N+1 sequential reads.
+    // 1. Load active blueprints. Archived blueprints must never materialise
+    // (the frontend ghost engine filters them; the cron re-creating tasks for
+    // a soft-deleted schedule was the "archived blueprint keeps watering"
+    // bug). No last-task lookup any more: occurrences are projected straight
+    // from the start_date grid below, so the previous unbounded tasks scan
+    // (silently truncated at PostgREST's max_rows=1000, which restarted old
+    // blueprints from today) is gone entirely.
     let bpQuery = supabase
       .from("task_blueprints")
       .select("*")
-      .eq("is_recurring", true);
+      .eq("is_recurring", true)
+      .eq("is_archived", false);
     if (targetBlueprintId) bpQuery = bpQuery.eq("id", targetBlueprintId);
 
-    let lastTasksQuery = supabase
-      .from("tasks")
-      .select("blueprint_id, due_date")
-      .not("blueprint_id", "is", null);
-    if (targetBlueprintId) lastTasksQuery = lastTasksQuery.eq("blueprint_id", targetBlueprintId);
-
-    const [
-      { data: blueprints, error: bpError },
-      { data: allBlueprintTasks, error: ltError },
-    ] = await Promise.all([bpQuery, lastTasksQuery]);
-
+    const { data: blueprints, error: bpError } = await bpQuery;
     if (bpError) throw bpError;
-    if (ltError) throw ltError;
-
-    // Build blueprint_id → max(due_date) map in JS (single pass)
-    const lastTaskByBp = new Map<string, string>();
-    for (const t of allBlueprintTasks ?? []) {
-      const existing = lastTaskByBp.get(t.blueprint_id as string);
-      if (!existing || (t.due_date as string) > existing) {
-        lastTaskByBp.set(t.blueprint_id as string, t.due_date as string);
-      }
-    }
 
     log(FN, "blueprints_loaded", {
       count: blueprints?.length ?? 0,
-      withLastTask: lastTaskByBp.size,
       targetBlueprintId: targetBlueprintId ?? "all",
     });
 
@@ -95,23 +79,37 @@ serve(async (req) => {
         continue;
       }
       const startStr = bp.start_date || bp.created_at.split("T")[0];
-      const lastDate = lastTaskByBp.get(bp.id);
+      const freq = bp.frequency_days as number;
+      if (!freq || freq <= 0) continue;
 
-      let nextDate: Date;
-      if (lastDate) {
-        nextDate = parseSafeDate(lastDate);
-        nextDate.setDate(nextDate.getDate() + bp.frequency_days);
-      } else {
-        // No prior tasks: start from bp.start_date but clamp to today.
-        const fromStart = parseSafeDate(startStr);
-        const today = parseSafeDate(todayStr);
-        nextDate = fromStart < today ? today : fromStart;
-      }
+      // Project strictly on the start_date grid (start + k·freq), the same
+      // phase the frontend ghost engine uses. Anchoring on the last existing
+      // task drifted the grid after a postpone, and clamping to today put new
+      // blueprints off-grid — both made the cron and the ghost engine emit
+      // the same schedule on different days (double-frequency duplicates).
+      // Dates that already have a task (incl. postponed originals) are
+      // dropped by the unique_blueprint_date constraint at insert time.
+      const startMs = parseSafeDate(startStr).getTime();
+      const todayMs = parseSafeDate(todayStr).getTime();
+      const stepMs = freq * 86_400_000;
+      const cyclesToSkip = Math.max(0, Math.ceil((todayMs - startMs) / stepMs));
+      let nextMs = startMs + cyclesToSkip * stepMs;
 
-      const bpEndDate = bp.end_date ? parseSafeDate(bp.end_date) : null;
+      const endMs = bp.end_date ? parseSafeDate(bp.end_date).getTime() : null;
+      const pausedUntilMs = bp.paused_until
+        ? parseSafeDate(bp.paused_until).getTime()
+        : null;
+      const maxMs = maxDate.getTime();
 
-      while (nextDate <= maxDate) {
-        if (bpEndDate && nextDate > bpEndDate) break;
+      while (nextMs <= maxMs) {
+        if (endMs !== null && nextMs > endMs) break;
+
+        // Occurrences inside a pause window are skipped permanently; the
+        // grid resumes at the first occurrence on/after paused_until.
+        if (pausedUntilMs !== null && nextMs < pausedUntilMs) {
+          nextMs += stepMs;
+          continue;
+        }
 
         tasksToInsert.push({
           home_id: bp.home_id,
@@ -119,7 +117,7 @@ serve(async (req) => {
           title: bp.title,
           description: bp.description,
           type: bp.task_type,
-          due_date: nextDate.toISOString().split("T")[0],
+          due_date: new Date(nextMs).toISOString().split("T")[0],
           location_id: bp.location_id,
           area_id: bp.area_id,
           // Prefer the array column (set by automationEngine); fall back to the
@@ -131,7 +129,7 @@ serve(async (req) => {
               : null,
         });
 
-        nextDate.setDate(nextDate.getDate() + bp.frequency_days);
+        nextMs += stepMs;
       }
     }
 

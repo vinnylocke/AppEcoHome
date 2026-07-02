@@ -2,6 +2,7 @@ import React, { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Sunset, CheckCircle2, CloudRain, Thermometer, Sparkles, ChevronRight, Leaf, MessageSquare, Wind } from "lucide-react";
 import SunCalc from "suncalc";
+import { getLocalDateString } from "../lib/taskEngine";
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 
 interface Props {
@@ -67,7 +68,10 @@ export default function DailyBriefCard({
     if (!rawWeather?.daily?.time) return null;
     const times: string[] = rawWeather.daily.time;
     const mins: number[] = rawWeather.daily.temperature_2m_min ?? [];
-    const todayKey = now.toISOString().split("T")[0];
+    // Open-Meteo daily.time entries are local-to-location dates — the UTC
+    // date flips at the wrong wall-clock moment (evening in the Americas
+    // read tomorrow's min; mornings east of UTC read yesterday's).
+    const todayKey = getLocalDateString(now);
     const todayIdx = times.findIndex(t => t === todayKey);
     if (todayIdx === -1) return null;
     const tonightMin = mins[todayIdx];

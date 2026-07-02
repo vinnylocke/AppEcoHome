@@ -29,7 +29,9 @@ The `generate-weekly-overviews` function now accepts an optional JSON body:
 ```
 
 - **No body** (cron path) — iterates every home and inserts a `weekly_overview` notification per member, exactly as before.
-- **`home_id` set** (manual regen from `/weekly`) — scopes all queries + upsert to that single home. `notify` defaults to **false** on this path so users don't receive a duplicate push from their own Regenerate tap. Override with `notify: true` if you ever need a programmatic notification trigger.
+- **`home_id` set** (manual regen from `/weekly`) — scopes all queries + upsert to that single home. **The caller must be a member of that home**: the function resolves the caller from the JWT (401 if unauthenticated) and checks `home_members` (403 "Not a member of that home" otherwise) — without this, any authenticated user could regenerate (and with `notify: true`, re-notify) another home's overview. `notify` defaults to **false** on this path so users don't receive a duplicate push from their own Regenerate tap. Override with `notify: true` if you ever need a programmatic notification trigger.
+
+**Wind events fixed:** `extractWeatherEvents` now reads the correct Open-Meteo daily snapshot key `windspeed_10m_max` (no underscore between wind/speed — matching sync-weather's request). It previously read `wind_speed_10m_max`, which never exists in the snapshot, so wind was always 0 and strong-wind lines could never fire.
 
 The function also responds correctly to `OPTIONS` preflights with the standard `corsHeaders` constant — required for browser-side `supabase.functions.invoke` calls from `https://rhozly.com`. Same pattern applied to `weekly-optimise-digest` and `fetch-pollen`.
 

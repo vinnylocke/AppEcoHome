@@ -59,6 +59,27 @@ serve(async (req) => {
       } catch { /* empty body = cron call */ }
     }
 
+    // Manual path (home_id in body): the caller must be a member of that
+    // home — otherwise any authenticated user could trigger (and with
+    // notify:true, spam) another home's digest.
+    if (bodyHomeId) {
+      const jwt = req.headers.get("Authorization")?.replace("Bearer ", "").trim() ?? "";
+      const { data: userData } = await supabase.auth.getUser(jwt);
+      const callerId = userData?.user?.id ?? null;
+      if (!callerId) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: jsonHeaders });
+      }
+      const { data: membership } = await supabase
+        .from("home_members")
+        .select("home_id")
+        .eq("home_id", bodyHomeId)
+        .eq("user_id", callerId)
+        .maybeSingle();
+      if (!membership) {
+        return new Response(JSON.stringify({ error: "Not a member of that home" }), { status: 403, headers: jsonHeaders });
+      }
+    }
+
     const { start, end } = getPastWeekWindow();
     log(FN, "start", { start, end, bodyHomeId, notify });
 
@@ -146,7 +167,28 @@ serve(async (req) => {
           (uid) => shouldNotify(prefsByUser[uid], "optimiseDigest"),
         );
         if (eligibleUsers.length === 0) continue;
-        const notifications = eligibleUsers.map((user_id) => ({
+
+        // Atomic send-once claim per (user, past-week start) — a duplicate
+        // cron fire re-notified every member (no idempotency guard existed).
+        const { data: wonClaims, error: claimErr } = await supabase
+          .from("notification_claims")
+          .upsert(
+            eligibleUsers.map((user_id) => ({
+              user_id,
+              kind: "optimise_digest",
+              claim_date: start,
+            })),
+            { onConflict: "user_id,kind,claim_date", ignoreDuplicates: true },
+          )
+          .select("user_id");
+        if (claimErr) {
+          warn(FN, "claim_failed", { home_id: home.id, error: claimErr.message });
+          continue; // fail closed — no claim, no send
+        }
+        const winners = new Set((wonClaims ?? []).map((w) => w.user_id));
+        const claimedUsers = eligibleUsers.filter((uid) => winners.has(uid));
+        if (claimedUsers.length === 0) continue;
+        const notifications = claimedUsers.map((user_id) => ({
           user_id,
           home_id: home.id,
           title,

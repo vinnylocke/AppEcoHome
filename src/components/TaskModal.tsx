@@ -887,7 +887,7 @@ export default function TaskModal({
             <>
               {/* Due Date row — always visible */}
               {(() => {
-                const today = new Date().toISOString().split("T")[0];
+                const today = getLocalDateString(new Date());
                 // Wave-20 — window tasks (Harvesting with `window_end_date`)
                 // are only overdue past the window close; inside the window
                 // they're "active", not overdue.

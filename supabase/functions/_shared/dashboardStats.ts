@@ -28,6 +28,24 @@ export interface StatTask {
 const DONE = new Set(["Completed", "Skipped"]);
 const HARVEST_TYPES = new Set(["Harvesting", "Harvest"]);
 
+/**
+ * The user's LOCAL calendar date of `completed_at`. The column is a UTC
+ * timestamptz while weekStart/weekEnd/today are the client's local dates —
+ * slicing the raw UTC date drops evening completions into the next local
+ * day (a Saturday-20:00 completion in the Americas fell out of that week).
+ * `tzOffsetMinutes` is the client's `new Date().getTimezoneOffset()`
+ * (positive west of UTC).
+ */
+export function completedDateLocal(
+  t: StatTask,
+  tzOffsetMinutes: number,
+): string | null {
+  if (!t.completed_at) return null;
+  const ms = Date.parse(t.completed_at);
+  if (Number.isNaN(ms)) return t.completed_at.slice(0, 10);
+  return new Date(ms - tzOffsetMinutes * 60_000).toISOString().slice(0, 10);
+}
+
 /** Effective due date — shifted forward to the snooze date when snoozed. */
 export function effectiveDueDate(t: StatTask): string | null {
   const due = t.due_date ?? null;
@@ -124,6 +142,7 @@ export function computeTaskStats(
   weekStart: string,
   weekEnd: string,
   today: string,
+  tzOffsetMinutes = 0,
 ): TaskStats {
   let overdue = 0;
   let pending = 0;
@@ -146,7 +165,7 @@ export function computeTaskStats(
     }
 
     if (t.status === "Completed") {
-      const done = t.completed_at?.slice(0, 10) ?? null;
+      const done = completedDateLocal(t, tzOffsetMinutes);
       if (done != null && done >= weekStart && done <= weekEnd) completedThisWeek += 1;
     }
   }
@@ -178,6 +197,7 @@ export function computeDayStrip(
   weekStart: string,
   weekEnd: string,
   today: string,
+  tzOffsetMinutes = 0,
 ): DayBucket[] {
   const days: string[] = [];
   const cursor = new Date(`${weekStart}T00:00:00Z`);
@@ -204,6 +224,10 @@ export function computeDayStrip(
   const sundayBucket = byDate.get(sunday);
   if (sundayBucket) {
     for (const t of tasks) {
+      // Window tasks whose window reaches into this week are handled by the
+      // per-day branch below — rolling them up here too double-counted a
+      // closed straddling window (once on Sunday + once per in-window day).
+      if (t.window_end_date && t.window_end_date >= weekStart) continue;
       if (!isOverdue(t, today)) continue;
       const eff = effectiveDueDate(t) ?? t.due_date ?? null;
       if (eff != null && eff < weekStart) {
@@ -223,9 +247,12 @@ export function computeDayStrip(
         if (!isWindowActiveOn(t, ds)) continue;
         bucket.total += 1;
         if (t.status === "Completed") {
-          const done = t.completed_at?.slice(0, 10) ?? null;
-          if (done != null && done <= ds) bucket.completedOnTime += 1;
-          else bucket.completedLate += 1;
+          // "Late" for a window task means completed AFTER the window
+          // closed — not after the per-day cursor (which painted orange
+          // "late" pips on in-window days before the completion date).
+          const done = completedDateLocal(t, tzOffsetMinutes);
+          if (done != null && done > t.window_end_date) bucket.completedLate += 1;
+          else bucket.completedOnTime += 1;
         } else if (ds < today && !isWindowActiveOn(t, today)) {
           bucket.overdue += 1;
         } else {
@@ -239,7 +266,7 @@ export function computeDayStrip(
       if (eff == null || eff.slice(0, 10) !== ds) continue;
       bucket.total += 1;
       if (t.status === "Completed") {
-        const done = t.completed_at?.slice(0, 10) ?? null;
+        const done = completedDateLocal(t, tzOffsetMinutes);
         if (done != null && done <= ds) bucket.completedOnTime += 1;
         else bucket.completedLate += 1;
       } else if (ds < today) {

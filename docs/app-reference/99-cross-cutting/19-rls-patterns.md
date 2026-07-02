@@ -47,7 +47,7 @@ Every home-scoped table includes `home_id`. Policies join via subquery on `home_
 
 ### Permission-sensitive policies
 
-For writes that require specific permissions (e.g. `shed.delete`), the policy uses:
+For writes that require specific permissions (e.g. `shed.delete`), the policy shape is:
 
 ```sql
 WHERE user_id = auth.uid()
@@ -56,6 +56,12 @@ WHERE user_id = auth.uid()
     OR (permissions ->> 'shed.delete')::bool IS TRUE
   )
 ```
+
+**Caveat — current enforcement reality:** only `tasks.view_members` and `audit.view_all` are actually permission-enforced in RLS today. Every other permission key (`shed.delete` included) is enforced **client-side only** — a member with a session token could bypass those keys via direct PostgREST calls. Flagged as open item 6.1 in [docs/plans/bug-audit-2026-07-02.md](../../plans/bug-audit-2026-07-02.md); the pattern above is the template to use when a key is promoted to RLS.
+
+### `inventory_items` — migrated to the canonical pattern
+
+Until migration `20260827000000_inventory_items_rls_home_members.sql`, `inventory_items` was the outlier: its policy trusted `user_profiles.home_id` (the user's own "currently active home" pointer) instead of `home_members`. Two failures: (1) a removed member's profile still pointed at the home, so a kicked member kept full read/write/delete over the entire shed until they switched homes; (2) a legitimate member of a second home couldn't see that home's shed unless it was their active profile home (broke `multiple_homes`). The policy is now the canonical `home_members` membership subquery (`home_members_can_manage_inventory`, `FOR ALL` with matching `USING` / `WITH CHECK`, `(SELECT auth.uid())` wrapped).
 
 ### Source-aware global-row policy (`plants` table)
 

@@ -34,10 +34,18 @@ Deno.serve(async (req) => {
     if (authResult instanceof Response) return authResult;
     const userId = authResult.user.id;
 
-    const { homeId, weekStart, weekEnd, today } = await req.json();
+    const { homeId, weekStart, weekEnd, today, tzOffsetMinutes } = await req.json();
     if (!homeId || !weekStart || !weekEnd || !today) {
       return json({ error: "homeId, weekStart, weekEnd, today required" }, 400);
     }
+    // Client's Date.getTimezoneOffset() — used to bucket UTC completed_at
+    // timestamps onto the client's LOCAL calendar days. Optional: older
+    // clients that don't send it keep the previous UTC behaviour.
+    const tzOffset = Number(tzOffsetMinutes) || 0;
+    // Inclusive end-of-week bound for timestamptz columns. A bare date
+    // string coerces to Saturday 00:00, silently dropping everything
+    // logged ON Saturday from the weekly counts.
+    const weekEndTs = `${weekEnd}T23:59:59.999Z`;
 
     // Verify membership
     const { data: membership } = await db
@@ -50,9 +58,13 @@ Deno.serve(async (req) => {
 
     log(FN, "start", { homeId, weekStart, weekEnd, today });
 
+    const TASK_COLS =
+      "id, status, type, due_date, completed_by, auto_completed_reason, completed_at, window_end_date, next_check_at, inventory_item_ids, blueprint_id";
+
     // ── Run all queries in parallel ─────────────────────────────────────────
     const [
-      tasksResult,
+      openTasksResult,
+      doneTasksResult,
       membersResult,
       automationRunsResult,
       yieldResult,
@@ -62,18 +74,31 @@ Deno.serve(async (req) => {
       doctorResult,
       ailmentsResult,
     ] = await Promise.all([
-      // 1. Tasks — widened for RHO-14/15/16. The old query was strictly
-      //    `due_date` in [weekStart, weekEnd], which dropped:
-      //      (a) overdue tasks carried in from BEFORE this week, and
-      //      (b) harvest-window tasks whose window opens before weekStart.
-      //    Mirror taskEngine.ts: `due_date <= weekEnd OR window_end_date >= weekStart`.
-      //    `inventory_item_ids` + `blueprint_id` are needed for the RHO-16
-      //    subject-keyed harvest dedup.
+      // 1a. OPEN tasks — widened for RHO-14/15/16 so overdue carried in
+      //     from before this week and pre-week harvest windows are caught.
+      //     Restricted to Pending so the set stays bounded: the previous
+      //     single `due_date <= weekEnd` query matched every historical
+      //     Completed/Skipped row the home ever had, and PostgREST's
+      //     max_rows=1000 silently truncated it — every count quietly
+      //     degraded once a home passed 1,000 task rows.
       db
         .from("tasks")
-        .select("id, status, type, due_date, completed_by, auto_completed_reason, completed_at, window_end_date, next_check_at, inventory_item_ids, blueprint_id")
+        .select(TASK_COLS)
         .eq("home_id", homeId)
+        .eq("status", "Pending")
         .or(`due_date.lte.${weekEnd},window_end_date.gte.${weekStart}`),
+
+      // 1b. RESOLVED tasks (Completed/Skipped) — bounded to this week's
+      //     activity: due (or window) inside the week, or completed within
+      //     the week (any due date, for the completedThisWeek stat).
+      db
+        .from("tasks")
+        .select(TASK_COLS)
+        .eq("home_id", homeId)
+        .neq("status", "Pending")
+        .or(
+          `and(due_date.gte.${weekStart},due_date.lte.${weekEnd}),and(due_date.lte.${weekEnd},window_end_date.gte.${weekStart}),completed_at.gte.${weekStart}`,
+        ),
 
       // 2. Home members (user_ids only — profiles fetched separately)
       db
@@ -87,7 +112,7 @@ Deno.serve(async (req) => {
         .select("id, status, tasks_completed")
         .eq("home_id", homeId)
         .gte("triggered_at", weekStart)
-        .lte("triggered_at", weekEnd),
+        .lte("triggered_at", weekEndTs),
 
       // 4. Yield records this week
       db
@@ -95,7 +120,7 @@ Deno.serve(async (req) => {
         .select("id, instance_id, value, unit")
         .eq("home_id", homeId)
         .gte("harvested_at", weekStart)
-        .lte("harvested_at", weekEnd),
+        .lte("harvested_at", weekEndTs),
 
       // 5. Pruning records this week
       db
@@ -103,7 +128,7 @@ Deno.serve(async (req) => {
         .select("id, instance_id")
         .eq("home_id", homeId)
         .gte("pruned_at", weekStart)
-        .lte("pruned_at", weekEnd),
+        .lte("pruned_at", weekEndTs),
 
       // 6. Inventory items (active counts + new this week)
       db
@@ -132,7 +157,7 @@ Deno.serve(async (req) => {
         .select("id")
         .eq("home_id", homeId)
         .gte("created_at", weekStart)
-        .lte("created_at", weekEnd),
+        .lte("created_at", weekEndTs),
 
       // 9. New watchlist ailments this week
       db
@@ -141,7 +166,7 @@ Deno.serve(async (req) => {
         .eq("home_id", homeId)
         .eq("is_archived", false)
         .gte("created_at", weekStart)
-        .lte("created_at", weekEnd),
+        .lte("created_at", weekEndTs),
     ]);
 
     // Fetch user profiles for member display names
@@ -155,11 +180,15 @@ Deno.serve(async (req) => {
       : { data: [] };
 
     // ── Tasks aggregation ───────────────────────────────────────────────────
-    // `tasks` is now the WIDENED set (prior-week overdue + future harvest
-    // windows included — see the query above). Counts that must stay
-    // "this week only" derive from `weekTasks` (effective span intersects
-    // the ISO week); RHO-14/15/16 counts use the full widened set.
-    const tasks = (tasksResult.data ?? []) as StatTask[];
+    // `tasks` is the WIDENED set (prior-week overdue + future harvest
+    // windows included — see the queries above; open and resolved rows are
+    // disjoint by status so a plain concat can't duplicate). Counts that
+    // must stay "this week only" derive from `weekTasks` (effective span
+    // intersects the ISO week); RHO-14/15/16 counts use the full set.
+    const tasks = [
+      ...((openTasksResult.data ?? []) as StatTask[]),
+      ...((doneTasksResult.data ?? []) as StatTask[]),
+    ];
     const weekTasks = tasks.filter((t) => {
       const eff = (t.next_check_at && t.due_date && t.next_check_at > t.due_date)
         ? t.next_check_at
@@ -173,7 +202,7 @@ Deno.serve(async (req) => {
     // Overdue is computed over the FULL widened set so overdue-from-any-
     // prior-week is reflected. `priorOverdue` + `completedThisWeek` are the
     // RHO-14 "additional count" (a small carried-over/activity stat).
-    const taskStats = computeTaskStats(tasks, weekStart, weekEnd, today);
+    const taskStats = computeTaskStats(tasks, weekStart, weekEnd, today, tzOffset);
     const taskTotal = taskStats.total;
     const taskOverdue = taskStats.overdue;
     const taskPending = taskStats.pending;
@@ -279,7 +308,7 @@ Deno.serve(async (req) => {
     const inventory = inventoryResult.data ?? [];
     const totalPlants = inventory.length;
     const plantsAddedThisWeek = inventory.filter(
-      (i) => i.created_at >= weekStart && i.created_at <= weekEnd,
+      (i) => i.created_at >= weekStart && i.created_at <= weekEndTs,
     ).length;
 
     // ── Weather aggregation ─────────────────────────────────────────────────
@@ -320,7 +349,7 @@ Deno.serve(async (req) => {
     // ── Day-by-day upcoming strip (RHO-15) ──────────────────────────────────
     // Prior-week overdue rolls onto the Sunday bucket; harvest-window tasks
     // count on every in-window day; each day shows overdue + pending.
-    const dayStrip = computeDayStrip(tasks, weekStart, weekEnd, today);
+    const dayStrip = computeDayStrip(tasks, weekStart, weekEnd, today, tzOffset);
 
     const result = {
       tasks: {

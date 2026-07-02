@@ -171,17 +171,25 @@ async function fireValve(
   );
 
   const attempt = async () => {
-    const res = await fetch(`${apiBase}${apiPath}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        "X-CK-Appid": EWELINK_APP_ID,
-      },
-      body: JSON.stringify(payload),
-    });
-    const body = await res.json() as Record<string, unknown>;
-    return body.error === 0;
+    // Timeout + catch: one hung coolkit.cc request must not stall the whole
+    // automation run, and a non-JSON gateway error page counts as a failed
+    // attempt instead of throwing past the caller.
+    try {
+      const res = await fetch(`${apiBase}${apiPath}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+          "X-CK-Appid": EWELINK_APP_ID,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const body = await res.json() as Record<string, unknown>;
+      return body.error === 0;
+    } catch {
+      return false;
+    }
   };
 
   const ok = await attempt();

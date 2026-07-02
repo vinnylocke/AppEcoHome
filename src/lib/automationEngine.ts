@@ -139,7 +139,7 @@ export const AutomationEngine = {
                 if (initialTaskDate) {
                   // Clamp to today: if the user backdated their planting, the first task
                   // should still be due today, not in the past.
-                  const todayStr = new Date().toISOString().split("T")[0];
+                  const todayStr = getLocalDateString(new Date());
                   const dueDate = initialTaskDate < todayStr ? todayStr : initialTaskDate;
                   await supabase.from("tasks").insert({
                     home_id: createdBp.home_id,

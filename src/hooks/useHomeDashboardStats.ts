@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { supabase } from "../lib/supabase";
 
 export interface MemberStat {
@@ -98,6 +98,15 @@ export function useHomeDashboardStats(homeId: string | null) {
   const [error, setError] = useState<string | null>(null);
   const [weekBounds, setWeekBounds] = useState<{ weekStart: string; weekEnd: string } | null>(null);
 
+  // Guard against home-switch races: a slow response for the previous home
+  // must not land after (and overwrite) the new home's stats. Also clear
+  // the old home's panel instead of showing it under the new home's header.
+  const activeHomeRef = useRef(homeId);
+  useEffect(() => {
+    activeHomeRef.current = homeId;
+    setStats(null);
+  }, [homeId]);
+
   const refresh = useCallback(async () => {
     if (!homeId) return;
     setLoading(true);
@@ -107,15 +116,28 @@ export function useHomeDashboardStats(homeId: string | null) {
       setWeekBounds({ weekStart, weekEnd });
       const { data, error: fnErr } = await supabase.functions.invoke(
         "home-dashboard-stats",
-        { body: { homeId, weekStart, weekEnd, today } },
+        {
+          body: {
+            homeId,
+            weekStart,
+            weekEnd,
+            today,
+            // Lets the server bucket UTC completed_at timestamps onto OUR
+            // local calendar days (evening completions were falling into
+            // the next day's counts).
+            tzOffsetMinutes: new Date().getTimezoneOffset(),
+          },
+        },
       );
+      if (activeHomeRef.current !== homeId) return;
       if (fnErr) throw fnErr;
       setStats(data as HomeDashboardStats);
     } catch (err) {
+      if (activeHomeRef.current !== homeId) return;
       console.error("[useHomeDashboardStats]", err);
       setError("Could not load dashboard stats.");
     } finally {
-      setLoading(false);
+      if (activeHomeRef.current === homeId) setLoading(false);
     }
   }, [homeId]);
 

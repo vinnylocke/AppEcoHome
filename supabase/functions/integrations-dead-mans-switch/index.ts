@@ -62,7 +62,9 @@ Deno.serve(async () => {
 
         if (!integration) continue;
 
-        const { accessToken } = await decryptCredentials(integration.credentials_encrypted);
+        const { accessToken } = await decryptCredentials(
+          integration.credentials_encrypted,
+        );
         const meta = device.metadata as Record<string, unknown>;
 
         let apiPath: string;
@@ -72,31 +74,48 @@ Deno.serve(async () => {
           apiPath = `/v2/device/thing/sub/status`;
           payload = {
             id: meta.parent_device_id,
-            params: { switches: [{ switch: "off", outlet: 0 }], subDevId: meta.sub_device_id },
+            params: {
+              switches: [{ switch: "off", outlet: 0 }],
+              subDevId: meta.sub_device_id,
+            },
           };
         } else {
           apiPath = `/v2/device/thing/status`;
           payload = { id: meta.direct_device_id, params: { switch: "off" } };
         }
 
-        const controlRes = await fetch(`${EWELINK_BASE}${apiPath}`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${accessToken}`,
-            "X-CK-Appid": appId,
-          },
-          body: JSON.stringify(payload),
-        });
-
-        const controlJson = await controlRes.json();
+        let controlJson: Record<string, unknown>;
+        try {
+          const controlRes = await fetch(`${EWELINK_BASE}${apiPath}`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${accessToken}`,
+              "X-CK-Appid": appId,
+            },
+            body: JSON.stringify(payload),
+            signal: AbortSignal.timeout(15_000),
+          });
+          controlJson = await controlRes.json();
+        } catch (fetchErr) {
+          // Timeout / network / non-JSON body — treat as a failed turn-off so
+          // the command stays armed and is retried, rather than throwing past
+          // the disarm logic below.
+          controlJson = { error: -1, msg: String(fetchErr) };
+        }
         const success = controlJson.error === 0;
         const now = new Date();
 
         // Insert off reading
         if (success) {
           const reading: ValveReading = { state: "off" };
-          await insertReading({ db, deviceId: cmd.device_id, homeId: cmd.home_id, data: reading, recordedAt: now });
+          await insertReading({
+            db,
+            deviceId: cmd.device_id,
+            homeId: cmd.home_id,
+            data: reading,
+            recordedAt: now,
+          });
         }
 
         // Log the dead-man's trip
@@ -105,26 +124,48 @@ Deno.serve(async () => {
           home_id: cmd.home_id,
           issued_by: null,
           command: "turn_off",
-          parameters: { source: "dead_mans_switch", original_command_id: cmd.id },
+          parameters: {
+            source: "dead_mans_switch",
+            original_command_id: cmd.id,
+          },
           status: success ? "success" : "failed",
           error_message: success ? null : JSON.stringify(controlJson),
           acknowledged_at: success ? now.toISOString() : null,
         });
 
-        // Clear the original command's auto_off_at so it won't trigger again
-        await db
-          .from("device_commands")
-          .update({ auto_off_at: null })
-          .eq("id", cmd.id);
+        // Disarm ONLY on success. Clearing auto_off_at after a failed turn-off
+        // would silently drop the safety retry and leave the valve running.
+        // On failure, push auto_off_at 5 minutes forward instead: the switch
+        // stays armed and keeps retrying, without a failed-command row every
+        // 60-second cron tick.
+        if (success) {
+          await db
+            .from("device_commands")
+            .update({ auto_off_at: null })
+            .eq("id", cmd.id);
+        } else {
+          await db
+            .from("device_commands")
+            .update({
+              auto_off_at: new Date(Date.now() + 5 * 60_000).toISOString(),
+            })
+            .eq("id", cmd.id);
+        }
 
         results.push(`${cmd.device_id}: ${success ? "turned off" : "failed"}`);
       } catch (err) {
-        console.error(`Dead-man's switch: error processing command ${cmd.id}:`, err);
+        console.error(
+          `Dead-man's switch: error processing command ${cmd.id}:`,
+          err,
+        );
         results.push(`${cmd.device_id}: error`);
       }
     }
 
-    return new Response(`Processed ${results.length} overdue commands:\n${results.join("\n")}`, { status: 200 });
+    return new Response(
+      `Processed ${results.length} overdue commands:\n${results.join("\n")}`,
+      { status: 200 },
+    );
   } catch (err) {
     console.error("integrations-dead-mans-switch error:", err);
     await captureException("integrations-dead-mans-switch", err);

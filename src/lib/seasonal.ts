@@ -8,7 +8,16 @@ export function getFrequencyDays(wateringTerm: string): number {
   return 7;
 }
 
-export function getHemisphere(country?: string, timezone?: string): Hemisphere {
+export function getHemisphere(
+  country?: string,
+  timezone?: string,
+  lat?: number | null,
+): Hemisphere {
+  // Latitude is authoritative when known — the country list below is a
+  // heuristic that misclassifies much of the southern hemisphere.
+  if (typeof lat === "number" && Number.isFinite(lat) && lat !== 0) {
+    return lat < 0 ? "southern" : "northern";
+  }
   const southernCountries = [
     "australia",
     "new zealand",
@@ -17,6 +26,24 @@ export function getHemisphere(country?: string, timezone?: string): Hemisphere {
     "argentina",
     "chile",
     "peru",
+    "uruguay",
+    "paraguay",
+    "bolivia",
+    "ecuador",
+    "indonesia",
+    "madagascar",
+    "zimbabwe",
+    "namibia",
+    "botswana",
+    "mozambique",
+    "zambia",
+    "malawi",
+    "angola",
+    "tanzania",
+    "fiji",
+    "papua new guinea",
+    "samoa",
+    "vanuatu",
   ];
   const searchString = `${country || ""} ${timezone || ""}`.toLowerCase();
   return southernCountries.some((c) => searchString.includes(c))
@@ -36,23 +63,40 @@ export function normalizePeriods(input: any): string[] {
   return [];
 }
 
+const MONTH_KEYS = [
+  "jan", "feb", "mar", "apr", "may", "jun",
+  "jul", "aug", "sep", "oct", "nov", "dec",
+] as const;
+const MONTH_DAYS = [31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31];
+
+function monthRange(idx: number): { start: string; end: string } {
+  const mm = String(idx + 1).padStart(2, "0");
+  return { start: `${mm}-01`, end: `${mm}-${String(MONTH_DAYS[idx]).padStart(2, "0")}` };
+}
+
 export function getSinglePeriodRange(
   period: string,
   hemisphere: Hemisphere,
 ): { start: string; end: string } {
   const p = period.toLowerCase();
-  if (p.includes("jan")) return { start: "01-01", end: "01-31" };
-  if (p.includes("feb")) return { start: "02-01", end: "02-28" };
-  if (p.includes("mar")) return { start: "03-01", end: "03-31" };
-  if (p.includes("apr")) return { start: "04-01", end: "04-30" };
-  if (p.includes("may")) return { start: "05-01", end: "05-31" };
-  if (p.includes("jun")) return { start: "06-01", end: "06-30" };
-  if (p.includes("jul")) return { start: "07-01", end: "07-31" };
-  if (p.includes("aug")) return { start: "08-01", end: "08-31" };
-  if (p.includes("sep")) return { start: "09-01", end: "09-30" };
-  if (p.includes("oct")) return { start: "10-01", end: "10-31" };
-  if (p.includes("nov")) return { start: "11-01", end: "11-30" };
-  if (p.includes("dec")) return { start: "12-01", end: "12-31" };
+
+  // Month names from the plant providers (Perenual/Verdantly) are calibrated
+  // to the northern hemisphere — shift them 6 months for southern users, or
+  // an Australian tomato gets a midwinter "June harvest" blueprint (the
+  // season names below were already shifted; explicit months were not).
+  // Multiple month mentions ("June to August") span first→last instead of
+  // truncating to the first match.
+  const shift = hemisphere === "southern" ? 6 : 0;
+  const mentioned = MONTH_KEYS
+    .map((key, idx) => ({ idx, pos: p.indexOf(key) }))
+    .filter((m) => m.pos >= 0)
+    .sort((a, b) => a.pos - b.pos);
+  if (mentioned.length > 0) {
+    const startIdx = (mentioned[0].idx + shift) % 12;
+    const endIdx = (mentioned[mentioned.length - 1].idx + shift) % 12;
+    return { start: monthRange(startIdx).start, end: monthRange(endIdx).end };
+  }
+
   if (p.includes("spring"))
     return hemisphere === "northern"
       ? { start: "03-01", end: "05-31" }

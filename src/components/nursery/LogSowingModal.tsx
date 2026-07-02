@@ -6,6 +6,7 @@ import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { logSowing } from "../../services/nurseryService";
 import { Logger } from "../../lib/errorHandler";
 import { logEvent, EVENT } from "../../events/registry";
+import { getLocalDateString } from "../../lib/taskEngine";
 
 interface Props {
   homeId: string;
@@ -16,7 +17,7 @@ interface Props {
   onLogged?: (sowingId: string) => void;
 }
 
-const todayIso = () => new Date().toISOString().split("T")[0];
+const todayIso = () => getLocalDateString(new Date());
 
 /**
  * Slim modal for recording a new sowing against a packet. Creates a

@@ -113,7 +113,7 @@ The inventory map joins back to blueprints (which reference inventory by `invent
 
 ### Realtime channels
 
-`useHomeRealtime("task_blueprints", refetch)` — multi-device sync.
+`useHomeRealtime("task_blueprints", refetch)` — multi-device sync. Realtime-triggered refreshes are **silent**: the skeleton (`loading`) shows only on the initial load per home (`hasLoadedRef`, reset on `homeId` change), so another member touching a blueprint no longer flashes the whole list to skeletons. `fetchBlueprints` also carries a generation guard — a stale response from a previous home (or a superseded refetch) is discarded instead of overwriting the current home's list.
 
 ### Edge functions invoked
 
@@ -154,7 +154,7 @@ Some Optimise scenario types are beta-gated; see [Optimise Tab](./08-optimise-ta
 
 - Single fetch + parallel inventory lookup.
 - Filters computed client-side via `useMemo`.
-- Realtime keeps list current across devices.
+- Realtime keeps list current across devices (silent refresh — no skeleton after first load).
 - Pause menu uses local `pauseMenuId` (no portal) since it's anchored inline.
 
 ### Linked storage buckets

@@ -14,7 +14,7 @@ pattern-scan (cron, every 8h)
             └── batch-upsert into pattern_hits
 
 pattern-evaluate (cron, every 8h, +30 min)
-└── score + dedupe pattern_hits → user_insights
+└── score + dedupe pattern_hits → user_insights (≤25 hits/run; gives up after 3 failed attempts)
 
 user_insights ──► AssistantCard on the dashboard
 
@@ -58,6 +58,10 @@ Example detectors (illustrative names):
 }
 ```
 
+### `pattern-scan` fleet scan
+
+The per-run candidate queries (`user_events` activity window + `home_members`) are paged via `_shared/pagedSelect.ts` `fetchAllPages` — un-ranged selects silently truncate at PostgREST `max_rows=1000`, so active users past the cap were never scanned for patterns.
+
 ### `pattern-evaluate`
 
 Reads recent `pattern_hits`, applies dedup + scoring (severity × recency), emits `user_insights`:
@@ -71,6 +75,8 @@ Reads recent `pattern_hits`, applies dedup + scoring (severity × recency), emit
   status: "active" | "dismissed",
 }
 ```
+
+**Batch + retry bounds:** each run processes at most **25** unevaluated hits (was 80 — the Gemini calls run serially and each cascade attempt can burn its full 45s timeout × retries, so the worst case blew the edge-function wall clock long before hit #80). A hit that fails evaluation (unparseable response, exhausted cascade) increments `user_pattern_hits.eval_attempts` (migration `20260828000100`); after **3 failed attempts** the hit is marked `evaluated` with no insight instead of being retried — and billed — every 8-hour run forever.
 
 ### Deterministic patterns (no AI eval)
 

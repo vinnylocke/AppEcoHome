@@ -19,6 +19,7 @@
 
 import { serviceClient } from "../_shared/supabaseClient.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
+import { guardAiByUser } from "../_shared/aiGuard.ts";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import {
@@ -82,6 +83,17 @@ Deno.serve(async (req) => {
     const authResult = await requireAuth(req, db as unknown as Parameters<typeof requireAuth>[1]);
     if (authResult instanceof Response) return authResult;
     const userId = authResult.user.id;
+
+    // Chat is an AI feature (RHO-10): the client only mounts it for
+    // ai_enabled tiers, and this is the server-side re-verification the
+    // App.tsx gate comment promises. Applies to every action — tool
+    // confirm/cancel/undo are part of the same AI surface.
+    const aiGuardErr = await guardAiByUser(
+      db as unknown as Parameters<typeof guardAiByUser>[0],
+      userId,
+    );
+    if (aiGuardErr) return aiGuardErr;
+
     const authToken = req.headers.get("Authorization")?.replace("Bearer ", "").trim() ?? "";
 
     const body = await req.json().catch(() => ({}));

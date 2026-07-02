@@ -13,6 +13,7 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { supabase } from "../lib/supabase";
 import { heatThresholdForClimate } from "../lib/heatThreshold";
 import InfoTooltip from "./InfoTooltip";
+import { getLocalDateString } from "../lib/taskEngine";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -330,7 +331,16 @@ export default function WeatherForecast({ weatherData, alerts, homeId, onRefresh
 
   const { setPageContext } = usePlantDoctor();
 
-  const today = useMemo(() => new Date().toISOString().split("T")[0], []);
+  // Local "today" that rolls over at midnight — the mount-frozen memo left
+  // a PWA open overnight (tablet on a shelf) comparing every forecast day
+  // against yesterday's "Today" until a remount.
+  const [today, setToday] = useState(() => getLocalDateString(new Date()));
+  useEffect(() => {
+    const now = new Date();
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime();
+    const t = setTimeout(() => setToday(getLocalDateString(new Date())), nextMidnight - now.getTime() + 1_000);
+    return () => clearTimeout(t);
+  }, [today]);
 
   // Climate-aware heat threshold (UK homes → 25°C) for the Garden Intelligence rule.
   const [heatThresholdC, setHeatThresholdC] = useState(28);

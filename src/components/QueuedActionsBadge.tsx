@@ -1,6 +1,26 @@
-import React from "react";
+import React, { useSyncExternalStore } from "react";
 import { Loader2, RefreshCw, UploadCloud } from "lucide-react";
 import { useOfflineQueue } from "../hooks/useOfflineQueue";
+
+// Live online state: reading navigator.onLine during render froze the value
+// until an unrelated re-render — after connectivity returned, the badge
+// could stay disabled ("Will sync when you're back online") indefinitely.
+function subscribeOnline(cb: () => void) {
+  window.addEventListener("online", cb);
+  window.addEventListener("offline", cb);
+  return () => {
+    window.removeEventListener("online", cb);
+    window.removeEventListener("offline", cb);
+  };
+}
+
+function useOnline(): boolean {
+  return useSyncExternalStore(
+    subscribeOnline,
+    () => navigator.onLine,
+    () => true,
+  );
+}
 
 /**
  * Header chip showing how many actions are waiting to sync. Tappable to
@@ -8,10 +28,9 @@ import { useOfflineQueue } from "../hooks/useOfflineQueue";
  */
 export default function QueuedActionsBadge() {
   const { count, flush, isFlushing } = useOfflineQueue();
+  const online = useOnline();
 
   if (count === 0) return null;
-
-  const online = typeof navigator !== "undefined" ? navigator.onLine : true;
 
   return (
     <button

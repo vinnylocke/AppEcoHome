@@ -9,7 +9,8 @@ import {
   shouldNotify,
   type NotificationPrefs,
 } from "../_shared/notificationPrefs.ts";
-import { localMinutesOfDay, isReminderDue, isNearSunset } from "../_shared/notificationTiming.ts";
+import { localMinutesOfDay, localDateInTz, isReminderDue, isNearSunset } from "../_shared/notificationTiming.ts";
+import { fetchAllPages } from "../_shared/pagedSelect.ts";
 
 const FN = "daily-batch-notifications";
 
@@ -33,24 +34,21 @@ serve(async (_req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
     const now = new Date();
-    const today = now.toISOString().split("T")[0];
     const dedupSinceIso = new Date(now.getTime() - DEDUP_MS).toISOString();
 
     // 1. Cheap fetch first — homes, members, prefs (NO tasks yet; only pulled
-    //    below for homes that actually have someone due now).
-    const [
-      { data: allMembers, error: memberError },
-      { data: allHomes, error: homesError },
-      { data: userPlantPrefs },
-      { data: profileRows },
-    ] = await Promise.all([
-      supabase.from("home_members").select("user_id, home_id"),
-      supabase.from("homes").select("id, lat, lng, timezone"),
-      supabase.from("planner_preferences").select("user_id, entity_name").eq("entity_type", "plant").eq("sentiment", "positive"),
-      supabase.from("user_profiles").select("uid, notification_prefs"),
+    //    below for homes that actually have someone due now). Paged: these
+    //    are whole-table fleet scans, and PostgREST silently truncates
+    //    un-ranged selects at max_rows=1000 — user #1001 never got a digest.
+    const [allMembers, allHomes, userPlantPrefs, profileRows] = await Promise.all([
+      fetchAllPages(() => supabase.from("home_members").select("user_id, home_id").order("user_id")),
+      fetchAllPages(() => supabase.from("homes").select("id, lat, lng, timezone").order("id")),
+      fetchAllPages(() =>
+        supabase.from("planner_preferences").select("user_id, entity_name")
+          .eq("entity_type", "plant").eq("sentiment", "positive").order("user_id")
+      ),
+      fetchAllPages(() => supabase.from("user_profiles").select("uid, notification_prefs").order("uid")),
     ]);
-    if (memberError) throw memberError;
-    if (homesError) throw homesError;
 
     const prefsByUser: Record<string, NotificationPrefs> = {};
     for (const row of (profileRows ?? []) as Array<{ uid: string; notification_prefs: NotificationPrefs | null }>) {
@@ -62,15 +60,23 @@ serve(async (_req) => {
     }
     const homeMembers = (allMembers ?? []) as Array<{ user_id: string; home_id: string }>;
 
-    // 2. Rolling per-user dedup: who already got a digest / golden hour in ~18 h.
-    const { data: recentNotifs } = await supabase
-      .from("notifications")
-      .select("user_id, type")
-      .in("type", ["daily_batch", "golden_hour"])
-      .gte("created_at", dedupSinceIso);
+    // 2. Rolling per-user pre-filter: who already got a digest / golden hour
+    //    in ~18 h. This is a cheap work-avoidance pass only — the atomic
+    //    send-once guarantee is the notification_claims insert in step 6.
+    //    Paged + error-checked: the old unchecked, unbounded read failed
+    //    OPEN on a transient error and truncated at 1000 rows, both of
+    //    which re-notified users.
+    const recentNotifs = await fetchAllPages<{ user_id: string; type: string }>(() =>
+      supabase
+        .from("notifications")
+        .select("user_id, type")
+        .in("type", ["daily_batch", "golden_hour"])
+        .gte("created_at", dedupSinceIso)
+        .order("created_at", { ascending: false })
+    );
     const sentDigest = new Set<string>();
     const sentGolden = new Set<string>();
-    for (const n of (recentNotifs ?? []) as Array<{ user_id: string; type: string }>) {
+    for (const n of recentNotifs) {
       if (n.type === "daily_batch") sentDigest.add(n.user_id);
       else if (n.type === "golden_hour") sentGolden.add(n.user_id);
     }
@@ -90,16 +96,30 @@ serve(async (_req) => {
     // 4. Build the digest — only fetch tasks for homes with a due member.
     if (dueDigestMembers.length > 0) {
       const dueHomeIds = [...new Set(dueDigestMembers.map((m) => m.home_id))];
+
+      // Per-home LOCAL dates: the digest fires at the user's local reminder
+      // time, but dueness was judged against the UTC date — a UTC+10 user's
+      // 08:00 digest ran at 22:00 UTC *yesterday* and excluded tasks due on
+      // their actual today, every single day.
+      const localDateByHome = new Map<string, string>();
+      for (const hid of dueHomeIds) {
+        localDateByHome.set(hid, localDateInTz(now, homesById.get(hid)?.timezone ?? "UTC"));
+      }
+      const maxLocalDate = [...localDateByHome.values()].sort().pop()!;
+
       const { data: pendingTasks } = await supabase
         .from("tasks")
         .select("id, home_id, title, type, due_date, next_check_at, window_end_date, status")
         .eq("status", "Pending")
         .in("home_id", dueHomeIds)
-        .lte("due_date", today);
-      const actionableTasks = (pendingTasks ?? []).filter((t: any) => isTaskActionableToday(t, today));
+        .lte("due_date", maxLocalDate);
       const tasksByHome: Record<string, any[]> = {};
-      for (const t of actionableTasks as any[]) {
-        if (t.home_id) (tasksByHome[t.home_id] ??= []).push(t);
+      for (const t of (pendingTasks ?? []) as any[]) {
+        if (!t.home_id) continue;
+        const localToday = localDateByHome.get(t.home_id)!;
+        if (t.due_date > localToday) continue;
+        if (!isTaskActionableToday(t, localToday)) continue;
+        (tasksByHome[t.home_id] ??= []).push(t);
       }
 
       const prefsByPlannerUser: Record<string, Set<string>> = {};
@@ -188,15 +208,53 @@ serve(async (_req) => {
       return new Response(JSON.stringify({ message: "Nothing due this tick." }), { status: 200 });
     }
 
-    const { error: insertError } = await supabase.from("notifications").insert(notificationsToInsert);
-    if (insertError) throw insertError;
+    // 6. Atomic send-once claim BEFORE the insert (the insert is the
+    //    side-effect — push-webhook fans out on it). The pre-filter in
+    //    step 2 is read-then-write and therefore racy: two overlapping
+    //    invocations both saw "not sent" and double-pushed. Claiming
+    //    (user, kind, local date) via ON CONFLICT DO NOTHING lets exactly
+    //    one run win each key; a claim failure throws (fail closed, no
+    //    duplicate spray). In-run dedupe first: a user in N homes gets one
+    //    digest (first home wins) instead of N-or-one depending on timing.
+    const seenKeys = new Set<string>();
+    const deduped = notificationsToInsert.filter((n) => {
+      const key = `${n.user_id}:${n.type}`;
+      if (seenKeys.has(key)) return false;
+      seenKeys.add(key);
+      return true;
+    });
+
+    const claimRows = deduped.map((n) => ({
+      user_id: n.user_id,
+      kind: n.type,
+      claim_date: localDateInTz(now, homesById.get(n.home_id as string)?.timezone ?? "UTC"),
+    }));
+    const { data: wonClaims, error: claimError } = await supabase
+      .from("notification_claims")
+      .upsert(claimRows, { onConflict: "user_id,kind,claim_date", ignoreDuplicates: true })
+      .select("user_id, kind");
+    if (claimError) throw claimError;
+    const wonKeys = new Set((wonClaims ?? []).map((w) => `${w.user_id}:${w.kind}`));
+    const toSend = deduped.filter((n) => wonKeys.has(`${n.user_id}:${n.type}`));
+
+    if (toSend.length > 0) {
+      const { error: insertError } = await supabase.from("notifications").insert(toSend);
+      if (insertError) throw insertError;
+    }
+
+    // Housekeeping: claims are only meaningful for the dedup horizon.
+    await supabase
+      .from("notification_claims")
+      .delete()
+      .lt("claim_date", new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000).toISOString().split("T")[0]);
 
     log(FN, "complete", {
-      sent: notificationsToInsert.length,
+      sent: toSend.length,
+      claimedOut: deduped.length - toSend.length,
       dueDigestMembers: dueDigestMembers.length,
-      homesTotal: allHomes?.length ?? 0,
+      homesTotal: allHomes.length,
     });
-    return new Response(JSON.stringify({ success: true, sent: notificationsToInsert.length }), {
+    return new Response(JSON.stringify({ success: true, sent: toSend.length }), {
       headers: { "Content-Type": "application/json" },
     });
   } catch (error: any) {

@@ -10,6 +10,7 @@ import RainWaterAdvice from "./RainWaterAdvice";
 import QuickAddTaskModal from "./QuickAddTaskModal";
 import TaskList from "../TaskList";
 import AddToDoListModal from "../todo/AddToDoListModal";
+import { getLocalDateString } from "../../lib/taskEngine";
 
 interface Props {
   homeId: string;
@@ -51,7 +52,7 @@ export default function LocalizedTaskCalendar({ homeId, aiEnabled, isPremium }: 
 
     (async () => {
       try {
-        const todayIso = new Date().toISOString().split("T")[0];
+        const todayIso = getLocalDateString(new Date());
 
         const [weatherRes, climateRes, tasksRes] = await Promise.all([
           supabase

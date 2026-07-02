@@ -15,6 +15,7 @@ import OptimisationHistory from "./OptimisationHistory";
 import { ConfirmModal } from "./ConfirmModal";
 import { logEvent, EVENT } from "../events/registry";
 import { useBetaFeedbackContext } from "../context/BetaFeedbackContext";
+import { getLocalDateString } from "../lib/taskEngine";
 
 interface Location {
   id: string;
@@ -284,7 +285,7 @@ export default function OptimiseTab({ homeId, aiEnabled }: Props) {
 
         let newBlueprintId: string | null = null;
         if (needsNewBlueprint) {
-          const today = new Date().toISOString().split("T")[0];
+          const today = getLocalDateString(new Date());
 
           const { data: newBp, error: insertErr } = await supabase
             .from("task_blueprints")

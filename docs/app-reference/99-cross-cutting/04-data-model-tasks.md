@@ -120,15 +120,23 @@ Prevents duplicate materialised tasks for the same blueprint on the same date. C
 
 Ghost id format: `ghost-{blueprint_id}-{YYYY-MM-DD}`. Frontend can distinguish via `task.isGhost`.
 
+**Ghost date math is pure UTC.** Date-only strings parse as UTC midnight, so the old local-getter formatting (`getLocalDateString`) emitted every ghost a day early west of UTC — breaking the `(blueprint_id:due_date)` dedup against cron-materialised tasks and inserting wrong-date rows on materialisation. The grid is now projected in UTC milliseconds and formatted via `toISOString()`.
+
+**Pause semantics (`paused_until`).** Occurrences strictly **before** `paused_until` are skipped *permanently* — a past pause window never resurrects its ghosts as overdue. Occurrences **on/after** `paused_until` still emit even while the pause is active, so a one-week pause doesn't blank next month's calendar. (Previously a paused blueprint emitted no ghosts at all during the pause, then resurrected in-pause occurrences as overdue once it lapsed.) The one-per-window harvest ghost is the exception: it's a single long-lived task, so it's suppressed entirely while `today < paused_until` and reappears once the pause lapses if the window is still open.
+
 ### Materialisation
 
 When the user completes / postpones / edits a ghost, `materializeTask(ghost)` inserts a real `tasks` row and returns it.
 
 ### `generate-tasks` cron
 
-Daily job that iterates active blueprints (start ≤ today ≤ end, not paused, not archived) and either:
-- Materialises tasks for today (older flow), or
-- Lets the ghost system handle it on the fly.
+Daily job that materialises upcoming task rows from recurring blueprints. Current behaviour:
+
+- Loads only `is_recurring = true` **and `is_archived = false`** blueprints — archived (soft-deleted) blueprints must never materialise (the cron re-creating tasks for a soft-deleted schedule was the "archived blueprint keeps watering" bug).
+- Projects occurrences **strictly from the start_date grid** (`start_date + k·frequency_days`) — the same phase the frontend ghost engine uses. It no longer anchors on the last existing task (which drifted the grid after a postpone) or clamps new blueprints to today (which put them off-grid); both used to make the cron and the ghost engine emit the same schedule on different days (double-frequency duplicates).
+- The old unbounded last-task scan is gone entirely — it was silently truncated at PostgREST's `max_rows=1000`, which restarted old blueprints from today. Dates that already have a task (including postponed originals) are dropped by the `unique_blueprint_date` constraint at insert time.
+- **Skips occurrences before `paused_until` permanently**; the grid resumes at the first occurrence on/after it — matching the ghost engine's pause semantics.
+- Still skips harvest blueprints with `end_date` (owned by the frontend ghost engine — see the Wave 21.0004 invariant above).
 
 ### Dependencies
 

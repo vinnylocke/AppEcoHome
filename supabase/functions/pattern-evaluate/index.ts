@@ -9,8 +9,16 @@ import { captureException } from "../_shared/sentry.ts";
 
 const FN = "pattern-evaluate";
 
-// Max hits to process per run — prevents timeouts on large backlogs.
-const BATCH_LIMIT = 80;
+// Max hits to process per run — prevents timeouts on large backlogs. Was 80,
+// but the calls run serially and each cascade attempt can burn its full 45s
+// timeout × retries — the worst case blew the edge-function wall clock long
+// before hit #80. 25 per 8-hourly run still clears real backlogs.
+const BATCH_LIMIT = 25;
+
+// Give up on a hit after this many failed evaluations (parse failures,
+// exhausted cascades). Retrying forever billed Gemini every run for the
+// same broken payload.
+const MAX_EVAL_ATTEMPTS = 3;
 
 // Patterns whose detector already decided significance — skip the postponement-
 // tuned AI eval and surface them deterministically (structural soil signals).
@@ -51,7 +59,7 @@ Deno.serve(async (_req) => {
     // Fetch unevaluated hits, oldest first so backlog clears in order
     const { data: hits, error: hitsErr } = await db
       .from("user_pattern_hits")
-      .select("id, user_id, pattern_id, inventory_item_id, blueprint_id, raw_data, created_at")
+      .select("id, user_id, pattern_id, inventory_item_id, blueprint_id, raw_data, created_at, eval_attempts")
       .eq("evaluated", false)
       .order("created_at", { ascending: true })
       .limit(BATCH_LIMIT);
@@ -310,12 +318,20 @@ Deno.serve(async (_req) => {
         evaluated++;
       } catch (err: any) {
         errors++;
-        warn(FN, "hit_error", {
+        const attempts = ((hit.eval_attempts as number) ?? 0) + 1;
+        const giveUp = attempts >= MAX_EVAL_ATTEMPTS;
+        warn(FN, giveUp ? "hit_gave_up" : "hit_error", {
           hitId: hit.id,
           patternId: hit.pattern_id,
+          attempts,
           error: String(err),
         });
-        // Leave evaluated=false so the hit retries on the next run
+        // Retry on the next run until MAX_EVAL_ATTEMPTS, then mark
+        // evaluated (no insight) so a broken payload can't bill forever.
+        await db
+          .from("user_pattern_hits")
+          .update(giveUp ? { evaluated: true, eval_attempts: attempts } : { eval_attempts: attempts })
+          .eq("id", hit.id);
       }
     }
 

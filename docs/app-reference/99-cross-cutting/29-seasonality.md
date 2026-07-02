@@ -8,9 +8,10 @@
 
 ```
 src/lib/seasonal.ts
-├── getHemisphere(country | lat) → "northern" | "southern"
+├── getHemisphere(country?, timezone?, lat?) → "northern" | "southern"
 ├── getSeason(date, hemisphere) → "spring" | "summer" | "autumn" | "winter"
-├── normalizePeriods(periods, hemisphere) → shifted dates for SH users
+├── normalizePeriods(input) → string[] (shape normalisation only — no shifting)
+├── getSinglePeriodRange(period, hemisphere) → { start, end } MM-DD (SH month shifting lives here)
 └── buildAutoSeasonalSchedules(plant, hemisphere) → blueprints
 ```
 
@@ -18,13 +19,13 @@ src/lib/seasonal.ts
 
 ## Role 1 — Technical Reference
 
-### `getHemisphere(country, lat?)`
+### `getHemisphere(country?, timezone?, lat?)`
 
-Inputs:
-- `country` (preferred — strict mapping for known countries)
-- `lat` (fallback — sign determines hemisphere)
+Inputs, in precedence order:
+- `lat` — **authoritative when provided** (finite, non-zero): `lat < 0` → southern. The country list is only a heuristic that misclassifies much of the southern hemisphere.
+- `country` + `timezone` — fallback substring match against an expanded southern-country list (Australia, New Zealand, South Africa, Brazil, Argentina, Chile, Peru, Uruguay, Paraguay, Bolivia, Ecuador, Indonesia, Madagascar, Zimbabwe, Namibia, Botswana, Mozambique, Zambia, Malawi, Angola, Tanzania, Fiji, Papua New Guinea, Samoa, Vanuatu).
 
-Returns `"northern" | "southern"`.
+Returns `"northern" | "southern"` (default northern).
 
 ### Season boundaries
 
@@ -35,17 +36,37 @@ Returns `"northern" | "southern"`.
 | Autumn | Sep 1 – Nov 30 | Mar 1 – May 31 |
 | Winter | Dec 1 – Feb 28/29 | Jun 1 – Aug 31 |
 
-### `normalizePeriods(periods, hemisphere)`
+### `normalizePeriods(input)` + `getSinglePeriodRange(period, hemisphere)`
 
-When provider data (Perenual, Verdantly) lists months for planting / harvest / pruning windows assuming Northern Hemisphere, this helper shifts the months by 6 for SH users.
+`normalizePeriods(input)` only normalises provider period data (string / array / object shapes) into a `string[]` — it does **no** hemisphere shifting.
+
+The shifting lives in `getSinglePeriodRange(period, hemisphere)`, which resolves a period string to an `{ start, end }` MM-DD range:
+
+- **Explicit month names** ("June") are calibrated to the northern hemisphere by the plant providers (Perenual / Verdantly), so they're shifted **+6 months for southern users** — otherwise an Australian tomato gets a midwinter "June harvest" blueprint. (Season names like "summer" were already hemisphere-shifted; explicit months now are too.)
+- **Month ranges** ("June to August") span first→last mentioned month instead of truncating to the first match — and the range wraps the year boundary for SH when the shift pushes it across (e.g. "June to August" → Dec–Feb).
 
 ```ts
-normalizePeriods([3, 4, 5], "southern") // → [9, 10, 11]
+getSinglePeriodRange("June", "southern")           // → { start: "12-01", end: "12-31" }
+getSinglePeriodRange("June to August", "southern") // → { start: "12-01", end: "02-28" }
 ```
+
+### Wrap-around month windows (`scheduleFromSchedulableTask`)
+
+`src/lib/scheduleFromSchedulableTask.ts` now handles month windows that wrap the year boundary (`["Nov","Dec","Jan"]` — every SH summer window does). Plain min/max used to collapse such windows to Jan..Dec = "active all year", producing "sow now" tasks in midwinter. The window start is now the month after the largest cyclic gap between the sorted months, the end is the month before that gap, and active/end-date math follows the (possibly wrapping) first→last window across the year boundary.
 
 ### `buildAutoSeasonalSchedules(plant, hemisphere)`
 
 Generates per-plant seasonal blueprints (e.g. "plant in spring", "prune after fruiting") shifted for hemisphere.
+
+### Server-side hemisphere — `update-plant-states`
+
+The `update-plant-states` cron mirrors the lat-first rule: hemisphere prefers `homes.lat` (`lat < 0` → southern, when finite and non-zero) and only falls back to an **expanded** southern country/timezone list (Uruguay, Paraguay, Bolivia, Indonesia, Madagascar, Zimbabwe, Namibia, Botswana, Mozambique, Zambia, Tanzania, Fiji, Papua New Guinea added to the original 7). The old 7-country list ran most southern-hemisphere homes' growth-state transitions 6 months out of phase.
+
+### Local "today" — client-wide sweep
+
+All ~30 client-side `new Date().toISOString().split("T")[0]` "today" sites now use `getLocalDateString` (the user's **local** calendar day). The UTC date flips at the wrong wall-clock moment — a UTC+10 user at 8am got "yesterday", a UTC−5 user at 11pm got "tomorrow" — skewing overdue badges, calendar anchors, schedule floors and more.
+
+`src/lib/plantScheduleGenerator.ts` is the one exception in mechanism (not behaviour): it inlines its own `localTodayStr()` so it stays a pure date-math module with no supabase-adjacent import. It also replaced `+365d`/`+730d` arithmetic with **calendar-year addition** (`addYears` via `setUTCFullYear`) for the seasonal year-roll and the annual/biennial blueprint end caps — a span containing 29 Feb landed the rolled date one day early.
 
 ### Used by
 
@@ -85,5 +106,7 @@ Without hemisphere awareness, an Australian user would get "plant tomatoes in Ma
 ## Code references for ongoing maintenance
 
 - `src/lib/seasonal.ts`
+- `src/lib/scheduleFromSchedulableTask.ts` — month-window → blueprint dates (wrap-around aware)
 - `src/lib/plantScheduleFactory.ts` — uses `buildAutoSeasonalSchedules`
-- `supabase/functions/update-plant-states/index.ts`
+- `src/lib/plantScheduleGenerator.ts` — local-today floor + leap-safe `addYears` caps
+- `supabase/functions/update-plant-states/index.ts` — lat-first hemisphere, paged planted-items scan

@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
+import { fetchAllPages } from "../_shared/pagedSelect.ts";
 
 const FN = "update-plant-states";
 
@@ -23,8 +24,14 @@ const STATE_WEIGHTS: Record<string, number> = {
   Senescence: 7,
 };
 
-// Helper to determine Hemisphere
-const getHemisphere = (country?: string, timezone?: string) => {
+// Helper to determine Hemisphere. Latitude is authoritative when known —
+// the country list is a heuristic that misclassified most of the southern
+// hemisphere (Uruguay, Indonesia, Zimbabwe, …) and ran their seasonal
+// growth-state transitions 6 months out of phase.
+const getHemisphere = (country?: string, timezone?: string, lat?: number | null) => {
+  if (typeof lat === "number" && Number.isFinite(lat) && lat !== 0) {
+    return lat < 0 ? "southern" : "northern";
+  }
   const southern = [
     "australia",
     "new zealand",
@@ -33,6 +40,19 @@ const getHemisphere = (country?: string, timezone?: string) => {
     "argentina",
     "chile",
     "peru",
+    "uruguay",
+    "paraguay",
+    "bolivia",
+    "indonesia",
+    "madagascar",
+    "zimbabwe",
+    "namibia",
+    "botswana",
+    "mozambique",
+    "zambia",
+    "tanzania",
+    "fiji",
+    "papua new guinea",
   ];
   const search = `${country || ""} ${timezone || ""}`.toLowerCase();
   if (southern.some((c) => search.includes(c))) return "southern";
@@ -46,7 +66,7 @@ const isMonthInSeason = (
   hemisphere: string,
 ) => {
   if (!seasonsData) return false;
-  let periods = [];
+  let periods: string[] = [];
   if (Array.isArray(seasonsData))
     periods = seasonsData.flatMap((i) =>
       typeof i === "string" ? i.split(/,|\band\b|&/i) : [],
@@ -104,19 +124,23 @@ serve(async (req) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "",
     );
 
-    // Fetch all actively planted items with their plant species data and home location
-    const { data: items, error } = await supabase
-      .from("inventory_items")
-      .select(
-        `
+    // Fetch all actively planted items with their plant species data and
+    // home location. Paged: an un-ranged select truncates silently at
+    // PostgREST's max_rows=1000, so plants past row 1000 never advanced
+    // their growth state.
+    const items = await fetchAllPages(() =>
+      supabase
+        .from("inventory_items")
+        .select(
+          `
         id, growth_state, planted_at,
         plants(cycle, flowering_season, harvest_season),
-        homes(country, timezone)
+        homes(country, timezone, lat)
       `,
-      )
-      .eq("status", "Planted");
-
-    if (error) throw error;
+        )
+        .eq("status", "Planted")
+        .order("id")
+    );
 
     log(FN, "items_loaded", { count: items?.length ?? 0 });
 
@@ -132,6 +156,7 @@ serve(async (req) => {
       const hemisphere = getHemisphere(
         item.homes?.country,
         item.homes?.timezone,
+        item.homes?.lat,
       );
       const isFlowering = isMonthInSeason(
         item.plants?.flowering_season,

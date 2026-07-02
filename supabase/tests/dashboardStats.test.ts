@@ -185,3 +185,75 @@ Deno.test("DASH-STATS-027: a harvest window entirely before the week does not co
   ];
   assertEquals(computeHarvestCounts(tasks, WEEK_START, WEEK_END).due, 0);
 });
+
+// ─── Bug-audit 2026-07-02 regressions ────────────────────────────────────────
+
+Deno.test("DASH-STATS-028: closed pre-week harvest window straddling weekStart counts once, not on Sunday roll-up AND in-window days", () => {
+  // Window Fri 2026-06-26 → Mon 2026-06-29, closed unactioned (today = Wed).
+  // In-window days inside this week: Sun 28, Mon 29. Previously this counted
+  // on Sunday's roll-up AND on both in-window days (3 overdue for 1 harvest).
+  const tasks: StatTask[] = [
+    task({
+      id: "h1",
+      type: "Harvesting",
+      due_date: "2026-06-26",
+      window_end_date: "2026-06-29",
+    }),
+  ];
+  const strip = computeDayStrip(tasks, WEEK_START, WEEK_END, TODAY);
+  const totalOverdue = strip.reduce((n, d) => n + d.overdue, 0);
+  assertEquals(totalOverdue, 2); // Sun + Mon in-window days only — no roll-up double
+  const sunday = strip.find((d) => d.date === SUNDAY)!;
+  assertEquals(sunday.overdue, 1); // via the window branch, not the roll-up too
+});
+
+Deno.test("DASH-STATS-029: window closed entirely before the week still rolls onto Sunday", () => {
+  const tasks: StatTask[] = [
+    task({
+      id: "h2",
+      type: "Harvesting",
+      due_date: "2026-06-20",
+      window_end_date: "2026-06-25", // fully pre-week, closed unactioned
+    }),
+  ];
+  const strip = computeDayStrip(tasks, WEEK_START, WEEK_END, TODAY);
+  const sunday = strip.find((d) => d.date === SUNDAY)!;
+  assertEquals(sunday.overdue, 1);
+  assertEquals(strip.reduce((n, d) => n + d.overdue, 0), 1);
+});
+
+Deno.test("DASH-STATS-030: harvest completed mid-window is on-time for every in-window day", () => {
+  // Window Sun 28 → Fri 2026-07-03, completed Tue 30. Previously Sun/Mon
+  // (days before the completion date) showed 'completedLate' pips.
+  const tasks: StatTask[] = [
+    task({
+      id: "h3",
+      type: "Harvesting",
+      due_date: "2026-06-28",
+      window_end_date: "2026-07-03",
+      status: "Completed",
+      completed_at: "2026-06-30T10:00:00Z",
+    }),
+  ];
+  const strip = computeDayStrip(tasks, WEEK_START, WEEK_END, TODAY);
+  assertEquals(strip.reduce((n, d) => n + d.completedLate, 0), 0);
+  assertEquals(strip.reduce((n, d) => n + d.completedOnTime, 0) > 0, true);
+});
+
+Deno.test("DASH-STATS-031: tzOffsetMinutes buckets an evening completion onto the LOCAL day", () => {
+  // Sat 2026-07-04 21:00 in UTC-5 = Sun 2026-07-05 02:00 UTC. With the
+  // client's offset (300) the completion belongs to Saturday — inside the
+  // week. Without it, the UTC date fell into next week and was dropped.
+  const tasks: StatTask[] = [
+    task({
+      id: "t-late",
+      due_date: "2026-07-04",
+      status: "Completed",
+      completed_at: "2026-07-05T02:00:00Z",
+    }),
+  ];
+  const withOffset = computeTaskStats(tasks, WEEK_START, WEEK_END, TODAY, 300);
+  assertEquals(withOffset.completedThisWeek, 1);
+  const withoutOffset = computeTaskStats(tasks, WEEK_START, WEEK_END, TODAY, 0);
+  assertEquals(withoutOffset.completedThisWeek, 0);
+});

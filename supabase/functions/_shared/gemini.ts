@@ -145,12 +145,9 @@ export async function callGeminiCascade(
       attemptsForModel = attempt;
       log(fn, "model_attempt", { model, attempt, ...extra });
       try {
-        const result = await Promise.race([
-          callOnce(apiKey, model, messages, opts),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Timeout")), timeoutMs),
-          ),
-        ]);
+        const result = await raceWithTimeout(timeoutMs, (signal) =>
+          callOnce(apiKey, model, messages, opts, signal),
+        );
         log(fn, "model_success", { model, attempt, tokens: result.usage.totalTokenCount, ...extra });
         return result;
       } catch (err: any) {
@@ -183,11 +180,43 @@ export async function callGeminiCascade(
   );
 }
 
+/**
+ * Race `make(signal)` against a timeout that ABORTS the losing request.
+ * The old bare Promise.race left the timed-out fetch running to
+ * completion — the retry then started a SECOND live request and both
+ * billed tokens (the Imagen helpers already did this correctly).
+ */
+async function raceWithTimeout<T>(
+  timeoutMs: number,
+  make: (signal: AbortSignal) => Promise<T>,
+): Promise<T> {
+  const controller = new AbortController();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const attempt = make(controller.signal);
+  // The post-abort rejection of the losing promise must not surface as an
+  // unhandled rejection after the race has already settled.
+  attempt.catch(() => {});
+  try {
+    return await Promise.race([
+      attempt,
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => {
+          controller.abort();
+          reject(new Error("Timeout"));
+        }, timeoutMs);
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
 async function callOnce(
   apiKey: string,
   model: string,
   messages: GeminiMessage[],
   opts: GeminiOptions,
+  signal?: AbortSignal,
 ): Promise<{ text: string; usage: GeminiUsage }> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -213,6 +242,7 @@ async function callOnce(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal,
   });
 
   if (!res.ok) {
@@ -321,12 +351,9 @@ export async function callGeminiWithTools(
       attemptsForModel = attempt;
       log(fn, "tool_model_attempt", { model, attempt, toolCount: tools.length, ...extra });
       try {
-        const result = await Promise.race([
-          callOnceWithTools(apiKey, model, messages, tools, opts),
-          new Promise<never>((_, reject) =>
-            setTimeout(() => reject(new Error("Timeout")), timeoutMs),
-          ),
-        ]);
+        const result = await raceWithTimeout(timeoutMs, (signal) =>
+          callOnceWithTools(apiKey, model, messages, tools, opts, signal),
+        );
         log(fn, "tool_model_success", {
           model,
           attempt,
@@ -371,6 +398,7 @@ async function callOnceWithTools(
   messages: GeminiMessage[],
   tools: GeminiToolDeclaration[],
   opts: GeminiOptions & { toolChoice?: "AUTO" | "ANY" | "NONE" },
+  signal?: AbortSignal,
 ): Promise<GeminiToolResponse> {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -396,6 +424,7 @@ async function callOnceWithTools(
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+    signal,
   });
 
   if (!res.ok) {

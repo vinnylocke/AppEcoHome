@@ -38,17 +38,25 @@ export async function fireValve(
   );
 
   const attempt = async () => {
-    const res = await fetch(`${apiBase}${apiPath}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${accessToken}`,
-        "X-CK-Appid": EWELINK_APP_ID,
-      },
-      body: JSON.stringify(payload),
-    });
-    const body = await res.json() as Record<string, unknown>;
-    return body.error === 0;
+    // Timeout + catch: a hung coolkit.cc request must not stall the whole
+    // drain, and a non-JSON error page from a gateway must count as a failed
+    // attempt, not throw past the caller and strand the queue entry in 'firing'.
+    try {
+      const res = await fetch(`${apiBase}${apiPath}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${accessToken}`,
+          "X-CK-Appid": EWELINK_APP_ID,
+        },
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const body = await res.json() as Record<string, unknown>;
+      return body.error === 0;
+    } catch {
+      return false;
+    }
   };
 
   const ok = await attempt();
@@ -70,6 +78,27 @@ export async function drainValveQueue(
   opts: { runId?: string } = {},
 ): Promise<void> {
   const now = new Date().toISOString();
+
+  // Recover entries stuck in 'firing': a drain that died mid-fire (function
+  // wall-clock kill, deploy restart) holds the claim forever and the drain
+  // query below only sees 'pending'. A stale turn_off goes back to pending —
+  // re-sending "off" to the device is idempotent and losing it means the valve
+  // relies solely on the device countdown. A stale turn_on is marked failed:
+  // re-firing an open minutes late would water outside the scheduled window.
+  const staleCutoff = new Date(Date.now() - 5 * 60_000).toISOString();
+  await db.from("automation_valve_queue")
+    .update({ status: "pending" })
+    .eq("status", "firing")
+    .eq("command", "turn_off")
+    .lte("fire_at", staleCutoff);
+  await db.from("automation_valve_queue")
+    .update({
+      status: "failed",
+      error_message: "Stale firing claim — drain died mid-fire",
+    })
+    .eq("status", "firing")
+    .eq("command", "turn_on")
+    .lte("fire_at", staleCutoff);
 
   let query = db
     .from("automation_valve_queue")
@@ -96,106 +125,159 @@ export async function drainValveQueue(
       .select("id");
     if (!claimed || (claimed as unknown[]).length === 0) continue;
 
-    const { data: runRow } = await db
-      .from("automation_runs")
-      .select("automation_id, home_id, triggered_by")
-      .eq("id", entry.automation_run_id as string)
-      .single();
-    if (!runRow) continue;
+    // From here the entry is claimed: any throw (decrypt failure, DB error)
+    // must stamp the row 'failed' rather than leave it in 'firing' forever.
+    try {
+      const { data: runRow } = await db
+        .from("automation_runs")
+        .select("automation_id, home_id, triggered_by")
+        .eq("id", entry.automation_run_id as string)
+        .single();
+      if (!runRow) {
+        await db.from("automation_valve_queue")
+          .update({
+            status: "failed",
+            error_message: "Automation run not found",
+          })
+          .eq("id", entry.id as string);
+        continue;
+      }
 
-    const { data: automation } = await db
-      .from("automations")
-      .select("duration_seconds, retry_on_failure, name")
-      .eq("id", (runRow as Record<string, unknown>).automation_id as string)
-      .single();
+      const { data: automation } = await db
+        .from("automations")
+        .select("duration_seconds, retry_on_failure, name")
+        .eq("id", (runRow as Record<string, unknown>).automation_id as string)
+        .single();
 
-    const { data: device } = await db
-      .from("devices")
-      .select("id, name, external_device_id, metadata, integration_id")
-      .eq("id", deviceId)
-      .single();
+      const { data: device } = await db
+        .from("devices")
+        .select("id, name, external_device_id, metadata, integration_id")
+        .eq("id", deviceId)
+        .single();
 
-    if (!automation || !device) {
-      await db.from("automation_valve_queue")
-        .update({ status: "failed", error_message: "Device or automation not found" })
-        .eq("id", entry.id as string);
-      continue;
-    }
+      if (!automation || !device) {
+        await db.from("automation_valve_queue")
+          .update({
+            status: "failed",
+            error_message: "Device or automation not found",
+          })
+          .eq("id", entry.id as string);
+        continue;
+      }
 
-    const auto = automation as Record<string, unknown>;
-    const dev = device as Record<string, unknown>;
+      const auto = automation as Record<string, unknown>;
+      const dev = device as Record<string, unknown>;
 
-    const { data: integration } = await db
-      .from("integrations")
-      .select("credentials_encrypted, region")
-      .eq("id", dev.integration_id as string)
-      .single();
+      const { data: integration } = await db
+        .from("integrations")
+        .select("credentials_encrypted, region")
+        .eq("id", dev.integration_id as string)
+        .single();
 
-    if (!integration) {
-      await db.from("automation_valve_queue")
-        .update({ status: "failed", error_message: "Integration not found" })
-        .eq("id", entry.id as string);
-      continue;
-    }
+      if (!integration) {
+        await db.from("automation_valve_queue")
+          .update({ status: "failed", error_message: "Integration not found" })
+          .eq("id", entry.id as string);
+        continue;
+      }
 
-    const integ = integration as Record<string, unknown>;
-    const { accessToken } = await decryptCredentials(integ.credentials_encrypted as string);
-    const apiBase = regionToApiBase(integ.region as string);
+      const integ = integration as Record<string, unknown>;
+      const { accessToken } = await decryptCredentials(
+        integ.credentials_encrypted as string,
+      );
+      const apiBase = regionToApiBase(integ.region as string);
 
-    const command = ((entry.command as string) ?? "turn_on") as "turn_on" | "turn_off";
+      const command = ((entry.command as string) ?? "turn_on") as
+        | "turn_on"
+        | "turn_off";
 
-    // Auto-off countdown = the automation's per-action valve duration (what the
-    // user set), not the legacy automations.duration_seconds default. Looked up
-    // by (automation, device); falls back to automations.duration_seconds.
-    let runSeconds = auto.duration_seconds as number;
-    if (command === "turn_on") {
-      const { data: act } = await db
-        .from("automation_actions")
-        .select("valve_duration_seconds")
-        .eq("automation_id", (runRow as Record<string, unknown>).automation_id as string)
-        .eq("action_kind", "valve_open")
-        .eq("target_device_id", deviceId)
-        .maybeSingle();
-      const v = (act as { valve_duration_seconds?: unknown } | null)?.valve_duration_seconds;
-      if (typeof v === "number" && v > 0) runSeconds = v;
-    }
+      // Auto-off countdown = the automation's per-action valve duration (what the
+      // user set), not the legacy automations.duration_seconds default. Looked up
+      // by (automation, device); falls back to automations.duration_seconds.
+      let runSeconds = auto.duration_seconds as number;
+      if (command === "turn_on") {
+        // .limit(1) + order: two valve_open actions targeting the same device
+        // would make a bare .maybeSingle() error out and silently fall back to
+        // the legacy automations.duration_seconds default.
+        const { data: act } = await db
+          .from("automation_actions")
+          .select("valve_duration_seconds")
+          .eq(
+            "automation_id",
+            (runRow as Record<string, unknown>).automation_id as string,
+          )
+          .eq("action_kind", "valve_open")
+          .eq("target_device_id", deviceId)
+          .order("id")
+          .limit(1)
+          .maybeSingle();
+        const v = (act as { valve_duration_seconds?: unknown } | null)
+          ?.valve_duration_seconds;
+        if (typeof v === "number" && v > 0) runSeconds = v;
+      }
 
-    const ok = await fireValve(
-      apiBase,
-      dev,
-      command,
-      runSeconds,
-      auto.retry_on_failure as boolean,
-      accessToken,
-    );
+      const ok = await fireValve(
+        apiBase,
+        dev,
+        command,
+        runSeconds,
+        auto.retry_on_failure as boolean,
+        accessToken,
+      );
 
-    await db.from("automation_valve_queue").update({
-      status: ok ? "fired" : "failed",
-      fired_at: ok ? now : null,
-      error_message: ok ? null : "eWeLink control failed",
-    }).eq("id", entry.id as string);
+      await db.from("automation_valve_queue").update({
+        status: ok ? "fired" : "failed",
+        fired_at: ok ? now : null,
+        error_message: ok ? null : "eWeLink control failed",
+      }).eq("id", entry.id as string);
 
-    const run = runRow as Record<string, unknown>;
-    if (ok) {
-      await db.from("valve_events").insert({
-        device_id: deviceId,
-        home_id: run.home_id as string,
-        automation_id: run.automation_id as string,
-        event_type: command,
-        triggered_by: (run.triggered_by as string) === "manual" ? "manual" : "scheduled",
-        duration_seconds: command === "turn_on" ? runSeconds : null,
-        fired_at: now,
+      const run = runRow as Record<string, unknown>;
+      if (ok) {
+        await db.from("valve_events").insert({
+          device_id: deviceId,
+          home_id: run.home_id as string,
+          automation_id: run.automation_id as string,
+          event_type: command,
+          triggered_by: (run.triggered_by as string) === "manual"
+            ? "manual"
+            : "scheduled",
+          duration_seconds: command === "turn_on" ? runSeconds : null,
+          fired_at: now,
+        });
+      } else if (command === "turn_on") {
+        // The optimistic "ran" receipt already went out when the automation fired;
+        // a turn-on failure here corrects it (only if a receipt action is configured).
+        await sendReceipt(
+          db,
+          {
+            id: run.automation_id as string,
+            home_id: run.home_id as string,
+            name: (auto.name as string) ?? "Your automation",
+          },
+          "failed",
+        ).catch(() => {});
+      }
+
+      log(FN, "queue_drain", {
+        entryId: entry.id,
+        deviceId,
+        command,
+        success: ok,
       });
-    } else if (command === "turn_on") {
-      // The optimistic "ran" receipt already went out when the automation fired;
-      // a turn-on failure here corrects it (only if a receipt action is configured).
-      await sendReceipt(
-        db,
-        { id: run.automation_id as string, home_id: run.home_id as string, name: (auto.name as string) ?? "Your automation" },
-        "failed",
-      ).catch(() => {});
+    } catch (err) {
+      await db.from("automation_valve_queue")
+        .update({
+          status: "failed",
+          error_message: `Drain error: ${
+            err instanceof Error ? err.message : String(err)
+          }`,
+        })
+        .eq("id", entry.id as string);
+      log(FN, "queue_drain_error", {
+        entryId: entry.id,
+        deviceId,
+        error: String(err),
+      });
     }
-
-    log(FN, "queue_drain", { entryId: entry.id, deviceId, command, success: ok });
   }
 }

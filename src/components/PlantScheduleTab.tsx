@@ -23,6 +23,7 @@ import { ConfirmModal } from "./ConfirmModal";
 
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
+import { getLocalDateString } from "../lib/taskEngine";
 
 interface Props {
   homeId: string;
@@ -327,7 +328,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
     }
 
     const plantedMs = parseSafeDate(plantedAtStr);
-    const todayMs = parseSafeDate(new Date().toISOString().split("T")[0]);
+    const todayMs = parseSafeDate(getLocalDateString(new Date()));
     const floorMs = Math.max(plantedMs, todayMs);
 
     if (startMs < floorMs) {
@@ -431,7 +432,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
       if (delBpErr) throw delBpErr;
 
       const blueprintsToCreate: any[] = [];
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = getLocalDateString(new Date());
       const currentYear = new Date().getFullYear();
 
       for (const p of existingPlants) {
@@ -636,7 +637,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
           if (delBpErr) throw delBpErr;
 
           const blueprintsToCreate: any[] = [];
-          const todayStr = new Date().toISOString().split("T")[0];
+          const todayStr = getLocalDateString(new Date());
           const currentYear = new Date().getFullYear();
 
           for (const p of existingPlants) {
@@ -733,7 +734,7 @@ export default function PlantScheduleTab({ homeId, plant }: Props) {
         return;
       }
 
-      const today = new Date().toISOString().split("T")[0];
+      const today = getLocalDateString(new Date());
       const firstLocation = instances[0].location_id;
       const firstArea = instances[0].area_id;
       const { error: bpErr } = await supabase

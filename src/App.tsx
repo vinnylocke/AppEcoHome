@@ -42,6 +42,9 @@ import {
   purgeLegacyV1DashboardCaches,
 } from "./lib/dashboardCache";
 import { clearLocalPins as clearQuickLauncherPins } from "./lib/quickLauncherPrefs";
+import { clearQueue as clearOfflineQueue } from "./lib/offlineQueue";
+import { clearAllShedCaches } from "./hooks/useCachedShed";
+import { invalidateEntitlements } from "./hooks/useEntitlements";
 import * as Sentry from "@sentry/react";
 import WeatherForecast from "./components/WeatherForecast";
 import { WeatherAlertBanner } from "./components/WeatherAlertBanner";
@@ -273,6 +276,14 @@ function AppShell() {
   }, [isFocusMode]);
 
   const [session, setSession] = useState<any>(null);
+  // Ref mirror of `session` for stable callbacks (handleProfileRealtime has
+  // [] deps for subscriber identity — reading `session` directly there froze
+  // the first-render null forever, so realtime profile refreshes no-op'd).
+  const sessionRef = useRef<any>(null);
+  // fetchDashboardData race guards: generation ticket (latest invocation
+  // wins) + once-per-home cache hydration (see comments inside the fetch).
+  const dashboardFetchGen = useRef(0);
+  const dashboardHydratedHomes = useRef<Set<string>>(new Set());
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [profileLoadError, setProfileLoadError] = useState(false);
@@ -534,7 +545,7 @@ function AppShell() {
     | undefined;
   const quizPromptIsSnoozed =
     typeof quizPromptSnoozedUntil === "string" &&
-    quizPromptSnoozedUntil > new Date().toISOString().split("T")[0];
+    quizPromptSnoozedUntil > getLocalDateString(new Date());
   const persistQuizPromptSnooze = async (days: number) => {
     if (!session?.user?.id) return;
     const target = new Date();
@@ -623,17 +634,28 @@ function AppShell() {
 
   const fetchDashboardData = useCallback(async () => {
     if (!profile?.home_id) return;
+    const fetchHomeId = profile.home_id;
+
+    // Race guard: this fetch is triggered from several places (mount,
+    // home switch, route nav, realtime, visibility) with no in-flight
+    // dedupe — whichever response landed LAST used to win, so a slow
+    // response for the previous home could repaint its data under the
+    // new home's header. Latest invocation wins; stale ones stop
+    // applying state at the next checkpoint.
+    const gen = ++dashboardFetchGen.current;
+    const isStale = () => gen !== dashboardFetchGen.current;
 
     setDashboardError(false);
 
     // Local-first cache — hydrate the entire dashboard state from
-    // localStorage IMMEDIATELY so the first paint isn't blank while
-    // the network catches up. The cache is overwritten at the end of
-    // the successful fetch path (and on realtime / nav-back), so a
-    // background revalidation always wins eventually. The legacy
-    // sessionStorage caches stay as a secondary fallback for now —
-    // they'll be deleted in a follow-up release.
-    const cached = readDashboardCache(profile.home_id);
+    // localStorage so the first paint isn't blank while the network
+    // catches up. ONCE per home per session: hydrating on every refetch
+    // rewound live state to the last snapshot, and when the following
+    // network fetch failed, the rewound (older) values stayed on screen.
+    const cached = dashboardHydratedHomes.current.has(fetchHomeId)
+      ? null
+      : readDashboardCache(fetchHomeId);
+    dashboardHydratedHomes.current.add(fetchHomeId);
     if (cached) {
       const s = cached.snapshot;
       setRawWeather(s.rawWeather);
@@ -686,6 +708,8 @@ function AppShell() {
       { retries: 2, label: "fetchDashboardData.homes" },
     );
 
+    if (isStale()) return;
+
     if (error) {
       Logger.error("Failed to fetch home data", error);
       // No toast — the inline retry card on /dashboard handles this
@@ -716,17 +740,41 @@ function AppShell() {
       setHomeLatLng(snapshotHomeLatLng);
       setHardinessZone(snapshotHardinessZone);
 
+      const homeId = profile.home_id!;
+      const todayStr = getLocalDateString(new Date());
+
+      // RHO-3: the Daily Brief "Overdue" chip must agree with the
+      // ghost-aware TaskEngine list below it. Scope by `home_id` (not
+      // `location_id`) so home/personal-scoped tasks with a NULL
+      // location count too, and fetch the raw snooze/harvest columns so
+      // the final overdue decision runs through the SAME predicate the
+      // list uses (`taskFilters.isTaskOverdueToday`) rather than a
+      // near-copy of the rules in SQL. A candidate must have an
+      // effective due date before today, so pre-filter on either the
+      // original due_date OR an open harvest window that could have
+      // closed — the JS predicate makes the final call.
+      //
+      // Deliberately OUTSIDE the locations branch (`.then()` starts the
+      // request now, in parallel with the queries below): a home with no
+      // locations but home/personal tasks previously never ran this query
+      // and cached a hard 0 into the dashboard snapshot.
+      const overduePromise = supabase
+        .from("tasks")
+        .select("id, status, due_date, next_check_at, window_end_date")
+        .eq("home_id", homeId)
+        .neq("status", "Skipped")
+        .neq("status", "Completed")
+        .or(`due_date.lt.${todayStr},window_end_date.not.is.null`)
+        .then((r) => r);
+
       if (data.locations) {
         snapshotLocations = data.locations;
         setLocations(data.locations);
 
         const locationIds = data.locations.map((l: any) => l.id);
-        const homeId = profile.home_id!;
         if (locationIds.length > 0) {
-          const todayStr = getLocalDateString(new Date());
-
-          // Fetch alerts, today's physical tasks, overdue tasks, and blueprints in parallel
-          const [alertResult, todayTasksResult, overdueResult, bpResult] = await Promise.all([
+          // Fetch alerts, today's physical tasks, and blueprints in parallel
+          const [alertResult, todayTasksResult, bpResult] = await Promise.all([
             supabase
               .from("weather_alerts")
               .select("*")
@@ -736,46 +784,25 @@ function AppShell() {
               // multi-day heatwave/frost doesn't drop off after day one.
               .gte("ends_at", new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString())
               .order("starts_at", { ascending: true }),
+            // Skipped rows stay in this fetch: a Skipped task is a tombstone
+            // that must suppress the ghost count for its blueprint (the list
+            // hides it — the chip must not count it back in). It's excluded
+            // from the visible count in the loop below instead.
             supabase
               .from("tasks")
-              .select("id, blueprint_id, location_id")
+              .select("id, blueprint_id, location_id, status")
               .in("location_id", locationIds)
               .eq("due_date", todayStr)
-              .neq("status", "Skipped")
               .neq("status", "Completed"),
-            // RHO-3: the Daily Brief "Overdue" chip must agree with the
-            // ghost-aware TaskEngine list below it. Scope by `home_id` (not
-            // `location_id`) so home/personal-scoped tasks with a NULL
-            // location count too, and fetch the raw snooze/harvest columns so
-            // the final overdue decision runs through the SAME predicate the
-            // list uses (`taskFilters.isTaskOverdueToday`) rather than a
-            // near-copy of the rules in SQL. A candidate must have an
-            // effective due date before today, so pre-filter on either the
-            // original due_date OR an open harvest window that could have
-            // closed — the JS predicate makes the final call.
-            supabase
-              .from("tasks")
-              .select("id, status, due_date, next_check_at, window_end_date")
-              .eq("home_id", homeId)
-              .neq("status", "Skipped")
-              .neq("status", "Completed")
-              .or(`due_date.lt.${todayStr},window_end_date.not.is.null`),
             supabase
               .from("task_blueprints")
-              .select("id, location_id, start_date, created_at, end_date, frequency_days")
+              .select("id, location_id, start_date, created_at, end_date, frequency_days, task_type, paused_until")
               .in("location_id", locationIds)
-              .eq("is_recurring", true),
+              .eq("is_recurring", true)
+              .eq("is_archived", false),
           ]);
 
-          // Run the same predicate the TaskEngine list uses so the chip and
-          // the list agree (RHO-3). `isTaskOverdueToday` excludes completed /
-          // skipped rows, keeps harvest tasks that are still inside their
-          // window, and is snooze-aware (a "Not yet" snooze pushes the
-          // effective due date forward).
-          snapshotOverdueTaskCount = (overdueResult.data ?? []).filter((t: any) =>
-            isTaskOverdueToday(t, todayStr),
-          ).length;
-          setOverdueTaskCount(snapshotOverdueTaskCount);
+          if (isStale()) return;
 
           snapshotAlerts = alertResult.data || [];
           setAlerts(snapshotAlerts as any[]);
@@ -788,7 +815,11 @@ function AppShell() {
           const existingByLocation: Record<string, Set<string>> = {};
           (todayTasksResult.data || []).forEach((t: any) => {
             if (t.location_id) {
-              counts[t.location_id] = (counts[t.location_id] || 0) + 1;
+              // Skipped rows suppress the ghost (below) but aren't visible
+              // tasks — the list hides them, so the chip must too.
+              if (t.status !== "Skipped") {
+                counts[t.location_id] = (counts[t.location_id] || 0) + 1;
+              }
               if (t.blueprint_id) {
                 if (!existingByLocation[t.location_id]) existingByLocation[t.location_id] = new Set();
                 existingByLocation[t.location_id].add(t.blueprint_id);
@@ -798,13 +829,22 @@ function AppShell() {
 
           (bpResult.data || []).forEach((bp: any) => {
             if (!bp.location_id || !bp.frequency_days) return;
+            // Mirror the TaskEngine pause rule: occurrences before
+            // paused_until never count.
+            if (bp.paused_until && todayStr < String(bp.paused_until).split("T")[0]) return;
             const anchorStr = (bp.start_date || bp.created_at || new Date().toISOString()).split("T")[0];
             const anchorMs = new Date(anchorStr).getTime();
             if (todayMs < anchorMs) return;
             if (bp.end_date && todayMs > new Date(bp.end_date).getTime()) return;
-            const diffDays = Math.round((todayMs - anchorMs) / (1000 * 60 * 60 * 24));
             const existing = existingByLocation[bp.location_id];
-            if (diffDays % bp.frequency_days === 0 && (!existing || !existing.has(bp.id))) {
+            if (existing?.has(bp.id)) return;
+            // Windowed harvest blueprints emit ONE window task active across
+            // [start_date, end_date] — counting them on every freq-aligned
+            // day multiplied them. In-window (checked above) counts once.
+            const isHarvestWindow =
+              (bp.task_type === "Harvesting" || bp.task_type === "Harvest") && bp.end_date;
+            const diffDays = Math.round((todayMs - anchorMs) / (1000 * 60 * 60 * 24));
+            if (isHarvestWindow || diffDays % bp.frequency_days === 0) {
               counts[bp.location_id] = (counts[bp.location_id] || 0) + 1;
             }
           });
@@ -813,6 +853,18 @@ function AppShell() {
           setLocationTaskCounts(counts);
         }
       }
+
+      // Run the same predicate the TaskEngine list uses so the chip and
+      // the list agree (RHO-3). `isTaskOverdueToday` excludes completed /
+      // skipped rows, keeps harvest tasks that are still inside their
+      // window, and is snooze-aware (a "Not yet" snooze pushes the
+      // effective due date forward).
+      const overdueResult = await overduePromise;
+      if (isStale()) return;
+      snapshotOverdueTaskCount = (overdueResult.data ?? []).filter((t: any) =>
+        isTaskOverdueToday(t, todayStr),
+      ).length;
+      setOverdueTaskCount(snapshotOverdueTaskCount);
 
       if (data.weather_snapshots) {
         const snapshots = data.weather_snapshots;
@@ -834,7 +886,7 @@ function AppShell() {
                   .eq("home_id", profile.home_id)
                   .single()
                   .then(({ data: fresh }) => {
-                    if (fresh?.data) setRawWeather(fresh.data);
+                    if (fresh?.data && !isStale()) setRawWeather(fresh.data);
                   });
               })
               .catch(() => { /* fall through — page still works with stale data */ });
@@ -889,6 +941,7 @@ function AppShell() {
     setDashboardLoaded(true);
     setLastSyncedAt(Date.now());
     } catch (unexpected) {
+      if (isStale()) return;
       // Outer-catch guard: a network blip on the homes query (or any of
       // the parallel children) used to throw an unhandled rejection here
       // and leave the UI stuck in the loading skeleton with no retry
@@ -963,10 +1016,18 @@ function AppShell() {
     }
   };
 
-  // Convenience wrapper used by realtime callbacks and manual refresh
+  // Keep the ref in lockstep with the state for the stable callbacks below.
+  useEffect(() => {
+    sessionRef.current = session;
+  }, [session]);
+
+  // Convenience wrapper used by realtime callbacks and manual refresh.
+  // Reads the session via ref so stale closures (e.g. the []-dep
+  // handleProfileRealtime) still see the live session.
   const refreshProfile = () => {
-    if (!session?.user) return Promise.resolve();
-    return loadProfile(session.user.id);
+    const s = sessionRef.current;
+    if (!s?.user) return Promise.resolve();
+    return loadProfile(s.user.id);
   };
 
   const handleManualRefresh = async () => {
@@ -1093,11 +1154,20 @@ function AppShell() {
         }
       } else {
         setProfile(null);
-        // Sign-out: nuke every cached dashboard snapshot + per-device
-        // launcher pins so a different account opening the app on the
-        // same device never sees the previous user's data or shortcuts.
+        // Sign-out: nuke every cached dashboard snapshot, shed cache,
+        // per-device launcher pins AND the pending offline write queue so a
+        // different account opening the app on the same device never sees —
+        // or replays — the previous user's data.
         clearAllDashboardCaches();
+        clearAllShedCaches();
         clearQuickLauncherPins();
+        clearOfflineQueue();
+        invalidateEntitlements();
+        // Drop the legacy service-worker runtime cache that used to hold
+        // authenticated API responses (pre bug-audit-2026-07-02 §5.1).
+        if ("caches" in window) {
+          void caches.delete("remote-resources").catch(() => {});
+        }
       }
     });
 
@@ -1797,12 +1867,16 @@ function AppShell() {
                               onDisplayNameChange={(name) =>
                                 setProfile((prev: any) => prev ? { ...prev, display_name: name } : prev)
                               }
-                              onTierChange={(tier, aiEnabled, perenualEnabled) =>
+                              onTierChange={(tier, aiEnabled, perenualEnabled) => {
                                 setProfile((prev: any) => prev
                                   ? { ...prev, subscription_tier: tier, ai_enabled: aiEnabled, enable_perenual: perenualEnabled }
                                   : prev
-                                )
-                              }
+                                );
+                                // Every mounted FeatureGate reads the module
+                                // cache — without this, an upgrade left the
+                                // paid surfaces locked until a full reload.
+                                invalidateEntitlements();
+                              }}
                             />
                           </div>
                         ) : null

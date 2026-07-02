@@ -14,6 +14,7 @@ import {
   plantOutSowing,
   type SeedSowing,
 } from "../../services/nurseryService";
+import { getLocalDateString } from "../../lib/taskEngine";
 
 interface Props {
   homeId: string;
@@ -40,7 +41,7 @@ interface LocationOption {
   areas: AreaOption[];
 }
 
-const todayIso = () => new Date().toISOString().split("T")[0];
+const todayIso = () => getLocalDateString(new Date());
 
 /**
  * Plant Out — the marquee Nursery flow. Pick an area + planted date +

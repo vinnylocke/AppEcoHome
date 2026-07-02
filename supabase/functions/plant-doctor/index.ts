@@ -4,7 +4,7 @@ import { captureException } from "../_shared/sentry.ts";
 import { callGeminiCascade, toMessages, VISION_DIAGNOSIS_MODELS } from "../_shared/gemini.ts";
 import { extractJsonObject } from "../_shared/extractJson.ts";
 import { loadPreferences, formatPreferencesBlock } from "../_shared/preferences.ts";
-import { guardAiByHome, guardPerenualByHome } from "../_shared/aiGuard.ts";
+import { guardAiByHome, guardAiByUser, guardPerenualByHome } from "../_shared/aiGuard.ts";
 import { logAiUsage } from "../_shared/aiUsage.ts";
 import { getIdentifyQuota, type IdentifyQuota } from "../_shared/identifyQuota.ts";
 import { requireAuth } from "../_shared/requireAuth.ts";
@@ -654,8 +654,13 @@ Deno.serve(async (req) => {
       || action === "seasonal_picks"
       || action === "identify_vision";
 
-    if (homeId && !skipAiGate) {
-      const guardErr = await guardAiByHome(supabase, homeId);
+    // homeId is client-controlled and optional for the heavy vision actions
+    // (diagnose / identify_pest only need an image) — omitting it must not
+    // skip the tier gate, so fall back to the caller's own ai_enabled flag.
+    if (!skipAiGate) {
+      const guardErr = homeId
+        ? await guardAiByHome(supabase, homeId)
+        : await guardAiByUser(supabase, callerUserId);
       if (guardErr) return guardErr;
     }
 

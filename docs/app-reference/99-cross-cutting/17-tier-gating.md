@@ -63,7 +63,7 @@ Then `onTierChange()` lifts flags into App state so the rest of the app re-rende
 | Feature | Gate |
 |---------|------|
 | Plant Doctor Identify / Diagnose / Pest / Multi-ID | `ai_enabled` |
-| Plant Doctor Chat | `ai_enabled` — **all** entry points gated together: the global chat FAB (`<PlantDoctorChat>` mount in `src/App.tsx`, RHO-10) and the Daily Brief "Got a plant question?" chip (`DailyBriefCard` `aiEnabled` prop, RHO-11). A non-AI (Sprout) user has no chat entry point at all. |
+| Plant Doctor Chat | `ai_enabled` — **all** entry points gated together: the global chat FAB (`<PlantDoctorChat>` mount in `src/App.tsx`, RHO-10) and the Daily Brief "Got a plant question?" chip (`DailyBriefCard` `aiEnabled` prop, RHO-11). A non-AI (Sprout) user has no chat entry point at all. Server-side, `agent-chat` re-verifies via `guardAiByUser` on **every** action (including tool confirm/cancel/undo) — the client mount gate is no longer the only enforcement. |
 | AI Assistant Card | `ai_enabled` |
 | New Plan Form (AI blueprint) | `ai_enabled` |
 | Garden Overhaul (photo redesign) | `ai_enabled` (Sage+) |
@@ -104,7 +104,14 @@ Head Gardener edge functions (`synthesize-garden-brief`, `garden-manager-report`
 re-check before doing any work.
 Consumed by `useEntitlements(tierProp?)` (`src/hooks/useEntitlements.ts`, module-cached tier fetch) and
 the reusable `<FeatureGate feature tier? fallback?>` + `<UpgradeNudge feature compact? />`
-(`src/components/shared/`). **`UpgradeNudge` deep-links to the plan picker (RHO-12):** both its
+(`src/components/shared/`). **Loading behaviour:** while entitlements are still resolving, `FeatureGate`
+renders children only for features open to sprout (i.e. open to every tier — no flash possible) and
+renders **nothing** for gated features until the tier lands. Rendering children during load used to
+mount Evergreen surfaces (Head Gardener, Week Ahead) for Sprout users on every cold start — a visible
+flash plus their mount-effect fetches. Pass `tier` to skip the loading state entirely.
+**Cache invalidation:** `invalidateEntitlements()` (`src/hooks/useEntitlements.ts`) resets the module
+cache and re-resolves — called on tier change and sign-out so already-mounted gates pick up the new
+tier without a full reload (mounted gates keep showing the last-known tier until the fresh one lands). **`UpgradeNudge` deep-links to the plan picker (RHO-12):** both its
 compact button and its full-panel "See plans" CTA `navigate("/gardener?section=plans")`.
 `GardenerProfile` reads `?section=plans`, forces the Account tab, scrolls the `#plan-section`
 ("Your Plan") card into view, then strips the param — mirroring the existing `?section=quick-launcher`
@@ -127,7 +134,9 @@ wiring itself is a no-op while everything is open). See
 ### Client + server enforcement
 
 - Client gates the UI (hides / paywall messaging).
-- Edge functions re-verify (`if (!profile.ai_enabled) return 403`).
+- Edge functions re-verify via the `_shared/aiGuard.ts` helpers (`guardAiByHome` / `guardAiByUser`) → 403 `"AI tier required"`.
+- **Fail closed:** both aiGuard helpers now treat a *missing* profile row as not entitled (403). Previously `if (profile && !profile.ai_enabled)` silently granted access when the profile lookup returned nothing.
+- **`plant-doctor` homeId fallback:** `homeId` is client-controlled and optional for the heavy vision actions (diagnose / identify_pest only need an image). When the request omits `homeId`, the function falls back to `guardAiByUser(callerUserId)` — omitting `homeId` no longer bypasses the tier gate.
 
 ### "Honour system" billing
 

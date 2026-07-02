@@ -29,6 +29,7 @@ import { isRateLimited, windowStartIso, FIRED_STATUSES, shouldCollapseRateLimitS
 import { defaultWindowOpen, type DefaultWindow } from "../_shared/automationWindow.ts";
 import { treeHasTimeTrigger, treeAffectedByDevice } from "../_shared/automationCandidates.ts";
 import { fanoutActions } from "../_shared/fanoutActions.ts";
+import { fetchAllPages } from "../_shared/pagedSelect.ts";
 import { sendReceipt } from "../_shared/automationReceipt.ts";
 import { drainValveQueue } from "../_shared/valveQueue.ts";
 import { applyEdgeClaimFilter } from "../_shared/automationClaim.ts";
@@ -277,12 +278,15 @@ serve(async (req: Request) => {
     const deviceId = typeof body.deviceId === "string" ? body.deviceId : null;
     const scope: "event" | "time" | "all" = deviceId ? "event" : body.scope === "time" ? "time" : "all";
 
-    const { data: allActive, error: listErr } = await db
-      .from("automations").select("*").eq("is_active", true);
-    if (listErr) throw listErr;
+    // Paged: an un-ranged select truncates silently at PostgREST's
+    // max_rows=1000 — active automations past the cap would simply never
+    // be evaluated.
+    const allActive = await fetchAllPages(() =>
+      db.from("automations").select("*").eq("is_active", true).order("id")
+    );
 
     // ── Select the candidate set for this scope ──────────────────────────────
-    let automations = (allActive ?? []) as Array<Record<string, unknown>>;
+    let automations = allActive as Array<Record<string, unknown>>;
     if (scope === "time") {
       automations = automations.filter((a) => {
         const t = a.trigger_logic as ConditionNode | null;

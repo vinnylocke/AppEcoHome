@@ -1,6 +1,6 @@
 # PWA — Service Worker, Update Flow, Install
 
-> Rhozly is a Progressive Web App. `vite-plugin-pwa` generates a service worker that precaches assets and runtime-caches API responses. The browser can install it as a home-screen app on supported platforms (Chrome, Edge, Safari with manual flow).
+> Rhozly is a Progressive Web App. `vite-plugin-pwa` generates a service worker that precaches the app shell and runtime-caches static media only (Supabase public storage + external image hosts) — API responses are never cached. The browser can install it as a home-screen app on supported platforms (Chrome, Edge, Safari with manual flow).
 
 ---
 
@@ -26,10 +26,11 @@ Typical config:
 VitePWA({
   registerType: "prompt",      // or "autoUpdate"
   workbox: {
+    cleanupOutdatedCaches: true,
     runtimeCaching: [
-      // Supabase storage public images
-      // Wikipedia images
-      // etc.
+      // supabase-public-media — Supabase Storage public objects
+      // remote-images — Unsplash / Wikimedia / Perenual
+      // (nothing else — no catch-all route)
     ],
   },
   manifest: {
@@ -85,12 +86,14 @@ An in-flight guard prevents pile-up when several triggers fire close together. W
 
 ### Runtime cache strategies
 
-| Pattern | Strategy |
-|---------|----------|
-| Static assets | CacheFirst |
-| Supabase storage public | StaleWhileRevalidate |
-| External images | CacheFirst (24h) |
-| Supabase API calls | NetworkOnly (live data) |
+The SW registers **exactly two** runtime routes; anything without a route is NetworkOnly by default:
+
+| Cache name | Pattern | Strategy |
+|------------|---------|----------|
+| `supabase-public-media` | Supabase Storage public objects (`/storage/v1/object/public/`) | StaleWhileRevalidate, 500 entries / 30 days, purge on quota error |
+| `remote-images` | `images.unsplash.com`, `upload.wikimedia.org`, `perenual.com` | StaleWhileRevalidate, 300 entries / 30 days, purge on quota error |
+
+Everything else — Supabase REST / Auth / Edge Functions / Realtime, Open-Meteo, Firebase — has **no route = NetworkOnly** (live data, never cached). This replaced a `/^https:\/\//` NetworkFirst catch-all (`remote-resources` cache) that wrote every authenticated PostgREST response into Cache Storage: stale data replayed after mutations on flaky networks, another account's rows readable at rest on shared devices, and unbounded growth. Sign-out also deletes the legacy `remote-resources` cache on devices that still carry it.
 
 ### Background updates
 

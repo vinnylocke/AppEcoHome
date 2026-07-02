@@ -24,6 +24,7 @@ import TodayFocusCard from "./shared/TodayFocusCard";
 import WeekAheadPreview from "./shared/WeekAheadPreview";
 import FeatureGate from "./shared/FeatureGate";
 import { usePersona } from "../hooks/usePersona";
+import { getLocalDateString } from "../lib/taskEngine";
 
 interface Props {
   homeId: string;
@@ -134,7 +135,7 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
               <button
                 type="button"
                 data-testid="dash-tasks-carried-over-prior"
-                onClick={() => navigate(`/dashboard?view=calendar&date=${new Date().toISOString().split("T")[0]}`)}
+                onClick={() => navigate(`/dashboard?view=calendar&date=${getLocalDateString(new Date())}`)}
                 className="inline-flex items-center gap-1 text-red-700 hover:underline"
               >
                 <AlertTriangle size={12} />
@@ -160,14 +161,14 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
             // sibling tile), not the Routines page (/schedule). /schedule is
             // BlueprintManager, which doesn't show this week's task instances.
             value={tasks.total}
-            onClick={() => navigate(`/dashboard?view=calendar&date=${new Date().toISOString().split("T")[0]}`)}
+            onClick={() => navigate(`/dashboard?view=calendar&date=${getLocalDateString(new Date())}`)}
           />
           <StatCard
             data-testid="dash-stat-tasks-completed"
             label="Completed"
             value={tasks.completed}
             sub={`${tasks.completionRate}% rate`}
-            onClick={() => navigate(`/dashboard?view=calendar&date=${new Date().toISOString().split("T")[0]}`)}
+            onClick={() => navigate(`/dashboard?view=calendar&date=${getLocalDateString(new Date())}`)}
           />
           <StatCard
             data-testid="dash-stat-tasks-overdue"
@@ -177,19 +178,19 @@ function StatsPanel({ stats, homeId }: { stats: HomeDashboardStats; homeId: stri
             // Routines page (/schedule) doesn't filter by overdue, so
             // the previous /schedule?filter=overdue route just dropped
             // the user into the routines list with no filter applied.
-            onClick={tasks.overdue > 0 ? () => navigate(`/dashboard?view=calendar&date=${new Date().toISOString().split("T")[0]}`) : undefined}
+            onClick={tasks.overdue > 0 ? () => navigate(`/dashboard?view=calendar&date=${getLocalDateString(new Date())}`) : undefined}
           />
           <StatCard
             data-testid="dash-stat-tasks-pending"
             label="Pending"
             value={tasks.pending}
-            onClick={tasks.pending > 0 ? () => navigate(`/dashboard?view=calendar&date=${new Date().toISOString().split("T")[0]}`) : undefined}
+            onClick={tasks.pending > 0 ? () => navigate(`/dashboard?view=calendar&date=${getLocalDateString(new Date())}`) : undefined}
           />
           <StatCard
             data-testid="dash-stat-tasks-auto"
             label="Done automatically"
             value={tasks.autoCompleted}
-            onClick={tasks.autoCompleted > 0 ? () => navigate(`/dashboard?view=calendar&date=${new Date().toISOString().split("T")[0]}`) : undefined}
+            onClick={tasks.autoCompleted > 0 ? () => navigate(`/dashboard?view=calendar&date=${getLocalDateString(new Date())}`) : undefined}
           />
           <StatCard
             data-testid="dash-stat-tasks-streak"
@@ -556,10 +557,27 @@ export default function HomeDashboard({ homeId, aiEnabled, isPremium }: Props) {
     } catch { /* SSR / private mode */ }
     return persona === "experienced";
   })();
-  const [snapshotOpen, setSnapshotOpen] = useState(initialSnapshotOpen);
+  const [snapshotOpen, setSnapshotOpenState] = useState(initialSnapshotOpen);
+  // Persist only when the USER toggles — the previous persist-on-mount
+  // effect froze the first-render default forever: usePersona() typically
+  // resolves after first render, so an experienced user's open-by-default
+  // was written as "false" on their first visit and never recovered.
+  const setSnapshotOpen = (next: boolean | ((prev: boolean) => boolean)) => {
+    setSnapshotOpenState((prev) => {
+      const value = typeof next === "function" ? next(prev) : next;
+      try { localStorage.setItem(STORAGE_KEY, value ? "true" : "false"); } catch { /* ignore */ }
+      return value;
+    });
+  };
+  // With no stored preference yet, follow the persona once it resolves
+  // (it lands after first render — the initial state above saw null).
   useEffect(() => {
-    try { localStorage.setItem(STORAGE_KEY, snapshotOpen ? "true" : "false"); } catch { /* ignore */ }
-  }, [snapshotOpen]);
+    try {
+      if (localStorage.getItem(STORAGE_KEY) === null) {
+        setSnapshotOpenState(persona === "experienced");
+      }
+    } catch { /* ignore */ }
+  }, [persona]);
 
   return (
     <div className="space-y-5">

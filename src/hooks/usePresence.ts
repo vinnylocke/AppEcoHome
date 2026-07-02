@@ -31,11 +31,15 @@ export function usePresence(channelKey: string, userId: string | null): PresentM
       avatar_url:   null,
     };
 
-    const channel = supabase.channel(channelKey, {
-      config: { presence: { key: userId } },
-    });
+    // Created lazily AFTER the profile fetch resolves: creating it here let
+    // a fast unmount/remount with the same channelKey (StrictMode dev,
+    // closing and reopening the same plan) spawn a second channel with an
+    // identical topic while the first was mid-teardown — duplicate-topic
+    // join errors in supabase-js.
+    let channel: ReturnType<typeof supabase.channel> | null = null;
 
     const refreshOthers = () => {
+      if (!channel) return;
       const state = channel.presenceState() as Record<string, any[]>;
       const next: PresentMember[] = [];
       for (const [uid, entries] of Object.entries(state)) {
@@ -63,12 +67,15 @@ export function usePresence(channelKey: string, userId: string | null): PresentM
       };
       if (cancelled) return;
 
+      channel = supabase.channel(channelKey, {
+        config: { presence: { key: userId } },
+      });
       channel
         .on("presence", { event: "sync" }, refreshOthers)
         .on("presence", { event: "join" }, refreshOthers)
         .on("presence", { event: "leave" }, refreshOthers)
         .subscribe(async (status) => {
-          if (status === "SUBSCRIBED") {
+          if (status === "SUBSCRIBED" && channel) {
             await channel.track({
               ...myMeta,
               joined_at: new Date().toISOString(),
@@ -79,7 +86,9 @@ export function usePresence(channelKey: string, userId: string | null): PresentM
 
     return () => {
       cancelled = true;
-      void channel.unsubscribe();
+      // removeChannel (not bare unsubscribe): unsubscribe leaves the channel
+      // object registered on the client, accumulating across plan opens.
+      if (channel) void supabase.removeChannel(channel);
     };
   }, [channelKey, userId]);
 

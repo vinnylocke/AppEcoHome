@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { Logger } from "../lib/errorHandler";
+import { getLocalDateString } from "../lib/taskEngine";
 
 /**
  * Sowing Auto-Create Service
@@ -51,7 +52,7 @@ export async function commitSowingFromTask(
   input: CommitSowingInput,
 ): Promise<string | null> {
   try {
-    const sownOn = input.sownOn || new Date().toISOString().slice(0, 10);
+    const sownOn = input.sownOn || getLocalDateString(new Date());
     const { data, error } = await supabase
       .from("seed_sowings")
       .insert({

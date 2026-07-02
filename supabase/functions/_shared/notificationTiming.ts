@@ -16,6 +16,18 @@ export function localMinutesOfDay(now: Date, tz: string): number {
   return h * 60 + m;
 }
 
+/** YYYY-MM-DD for `now` interpreted in IANA `tz` (en-CA gives ISO order). */
+export function localDateInTz(now: Date, tz: string): string {
+  try {
+    return new Intl.DateTimeFormat("en-CA", {
+      timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    }).format(now);
+  } catch {
+    // Bad tz string — fall back to UTC.
+    return now.toISOString().split("T")[0];
+  }
+}
+
 function toMin(hhmm: string): number {
   const m = /^(\d{1,2}):(\d{2})/.exec(hhmm ?? "");
   if (!m) return 8 * 60; // default 08:00 on a malformed value

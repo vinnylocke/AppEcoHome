@@ -155,7 +155,14 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
   // can re-trigger it. Today's same-day-visited filter inside
   // buildWalkList means a second walk naturally surfaces just what's
   // left.
+  // Superseded-bootstrap guard: a dep change (or StrictMode dev
+  // double-mount) mid-flight otherwise starts TWO walk_sessions rows and
+  // the loser is orphaned with no endSession — and its slower response
+  // could win the dispatch.
+  const bootstrapGen = useRef(0);
+
   const bootstrap = useCallback(async () => {
+    const gen = ++bootstrapGen.current;
     dispatch({ type: "restart" });
     setStartedAtMs(Date.now());
     try {
@@ -163,8 +170,22 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
         walkService.startSession(homeId, userId),
         buildWalkList(homeId, userId, settings),
       ]);
+      if (gen !== bootstrapGen.current) {
+        // A newer bootstrap superseded this one — close the orphan session.
+        walkService
+          .endSession(session.id, {
+            plantsVisited: 0,
+            photosTaken: 0,
+            notesAdded: 0,
+            tasksCompleted: 0,
+            ailmentsFlagged: 0,
+          })
+          .catch(() => {});
+        return;
+      }
       dispatch({ type: "loaded", sessionId: session.id, list });
     } catch (err: unknown) {
+      if (gen !== bootstrapGen.current) return;
       const message = err instanceof Error ? err.message : "Couldn't start your walk.";
       Logger.error("GardenWalk bootstrap failed", err, { homeId });
       dispatch({ type: "error", message });
@@ -314,7 +335,11 @@ function GardenWalkInner({ homeId, userId, aiEnabled }: Props) {
     );
   }
   return (
+    // Keyed by plant: without it, React reuses the card instance when
+    // advancing, so the previous plant's scroll offset and in-flight
+    // upload state (snapUploading) bled into the next plant's card.
     <WalkPlantCard
+      key={current.inventoryItemId}
       homeId={homeId}
       aiEnabled={aiEnabled}
       plant={current}

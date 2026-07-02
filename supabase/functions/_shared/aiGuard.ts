@@ -31,7 +31,8 @@ export async function guardAiByHome(
     .eq("uid", member.user_id)
     .single();
 
-  if (profile && !profile.ai_enabled) {
+  // Fail closed: a missing owner profile must not grant paid AI access.
+  if (!profile || !profile.ai_enabled) {
     return new Response(JSON.stringify({ error: "AI tier required" }), {
       status: 403,
       headers: { ...CORS, "Content-Type": "application/json" },
@@ -54,7 +55,8 @@ export async function guardAiByUser(
     .eq("uid", userId)
     .single();
 
-  if (profile && !profile.ai_enabled) {
+  // Fail closed: a missing profile must not grant paid AI access.
+  if (!profile || !profile.ai_enabled) {
     return new Response(JSON.stringify({ error: "AI tier required" }), {
       status: 403,
       headers: { ...CORS, "Content-Type": "application/json" },

@@ -128,6 +128,7 @@ function humanise(field: string): string {
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { getLocalDateString } from "../lib/taskEngine";
 
 interface PlantEditModalProps {
   homeId: string;
@@ -383,7 +384,7 @@ export default function PlantEditModal({
       const areaIds = new Set((items ?? []).map((i: any) => i.area_id).filter(Boolean));
 
       // Open tasks across these instances
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = getLocalDateString(new Date());
       const [tasksRes, ailmentRes, luxRes] = await Promise.all([
         instanceIds.length === 0
           ? Promise.resolve({ data: [] })

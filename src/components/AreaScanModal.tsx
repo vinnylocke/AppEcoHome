@@ -14,6 +14,7 @@ import { getQuestionsToAsk } from "../lib/scanQuestions";
 import type { ScanQuestion } from "../lib/scanQuestions";
 import { logEvent, EVENT } from "../events/registry";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { getLocalDateString } from "../lib/taskEngine";
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -296,7 +297,7 @@ export default function AreaScanModal({
           location_id: area.location_id ?? null,
           title: suggestion.title,
           description: suggestion.description,
-          start_date: new Date().toISOString().split("T")[0],
+          start_date: getLocalDateString(new Date()),
           frequency_days: suggestion.frequency_days,
           is_recurring: true,
           task_type: "General",

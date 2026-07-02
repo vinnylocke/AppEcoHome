@@ -54,6 +54,21 @@ Deno.serve(async (req) => {
 
     let homeIds: string[];
     if (body.homeId) {
+      // On-demand path: verify_jwt is off (cron calls without a user JWT),
+      // so without this check any holder of the public anon key could loop
+      // { homeId } against an Evergreen home and burn Gemini spend. The
+      // caller must be a signed-in member of the home they're refreshing.
+      const jwt = req.headers.get("Authorization")?.replace("Bearer ", "").trim() ?? "";
+      const { data: userData } = await db.auth.getUser(jwt);
+      const callerId = userData?.user?.id ?? null;
+      if (!callerId) return json({ error: "Unauthorized" }, 401);
+      const { data: membership } = await db
+        .from("home_members")
+        .select("home_id")
+        .eq("home_id", body.homeId)
+        .eq("user_id", callerId)
+        .maybeSingle();
+      if (!membership) return json({ error: "Not a member of that home" }, 403);
       homeIds = [body.homeId];
     } else {
       const { data } = await db.from("ailments").select("home_id").in("type", ["pest", "disease"]);

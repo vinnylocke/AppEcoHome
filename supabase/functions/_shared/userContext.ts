@@ -327,16 +327,17 @@ export async function buildUserContext(
     topTaskTypes    = summaryRow.top_task_types   ?? [];
     recentEventCount = completedCount + postponedCount + skippedCount;
   } else {
-    // Live aggregation fallback
+    // Live aggregation fallback. Event names are lowercase — see
+    // src/events/registry.ts (uppercase matching made these always zero).
     const rawEvents: any[] = (behaviourLiveResult.data ?? []) as any[];
-    completedCount  = rawEvents.filter((e) => e.event_type === "TASK_COMPLETED").length;
-    postponedCount  = rawEvents.filter((e) => e.event_type === "TASK_POSTPONED").length;
-    skippedCount    = rawEvents.filter((e) => e.event_type === "TASK_SKIPPED").length;
+    completedCount  = rawEvents.filter((e) => e.event_type === "task_completed").length;
+    postponedCount  = rawEvents.filter((e) => e.event_type === "task_postponed").length;
+    skippedCount    = rawEvents.filter((e) => e.event_type === "task_skipped").length;
     const totalActioned = completedCount + postponedCount + skippedCount;
     postponeRate = totalActioned > 0 ? Math.round((postponedCount / totalActioned) * 10_000) / 10_000 : 0;
 
     const typeCounts: Record<string, number> = {};
-    for (const e of rawEvents.filter((e) => e.event_type === "TASK_COMPLETED")) {
+    for (const e of rawEvents.filter((e) => e.event_type === "task_completed")) {
       const t = e.meta?.task_type as string | undefined;
       if (t) typeCounts[t] = (typeCounts[t] ?? 0) + 1;
     }

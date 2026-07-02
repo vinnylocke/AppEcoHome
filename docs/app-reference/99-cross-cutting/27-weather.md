@@ -9,6 +9,7 @@
 ```
 sync-weather (cron, hourly)
 └── for each home with lat/lng:
+    ├── skip if snapshot fresher than 55 min (freshness guard)
     └── fetch Open-Meteo (current + 7-day forecast)
         └── upsert weather_snapshots row
 
@@ -17,8 +18,14 @@ analyse-weather (cron, hourly)
 └── for each weather_snapshot:
     └── for each rule in _shared/weatherRules/:
         └── evaluate(ctx) → WeatherRuleResult
-            └── insert / update weather_alerts
+            ├── insert / update weather_alerts
+            └── notifications: one row PER home member (user_id set,
+                weatherAlerts pref honoured), deduped per day on type:title
 ```
+
+**sync-weather freshness guard is 55 min, not 60:** each home's snapshot is stamped mid-run (home #50 gets stamped minutes past the hour), so a full one-hour guard made late-listed homes alternate skip/update at the hourly cron — effectively 2-hour weather.
+
+**analyse-weather notification fan-out (2026-07-02):** weather-alert notifications are now inserted one row per home member **with `user_id`** — `push-webhook` drops rows without one, so the old home-level rows never delivered as push. Each member's `weatherAlerts` pref is checked via `shouldNotify`. Cross-run dedup is keyed on `type:title` (was type-only, which suppressed every *different* same-day weather event after the first, since all rules emit type `weather_alert`). See [Notifications](./12-notifications.md).
 
 ### Alert lifecycle (Wave 21.0004)
 

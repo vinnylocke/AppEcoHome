@@ -31,7 +31,7 @@ import {
 } from "lucide-react";
 import toast from "react-hot-toast";
 import { Logger } from "../lib/errorHandler";
-import { enqueue as enqueueWrite } from "../lib/offlineQueue";
+import { enqueue as enqueueWrite, getQueue, remove as removeQueued } from "../lib/offlineQueue";
 import TaskModal from "./TaskModal";
 import { TaskEngine } from "../lib/taskEngine";
 import { getLocalDateString, formatDisplayDate } from "../lib/dateUtils";
@@ -721,11 +721,16 @@ export default function TaskList({
           .eq("id", task.blueprint_id)
           .single();
         if (bp?.start_date) {
-          const newStart = new Date(bp.start_date);
-          newStart.setDate(newStart.getDate() + offsetDays);
+          // Pure-UTC shift: date-only strings parse as UTC midnight, so
+          // formatting via local getters slid the grid an extra day back
+          // for users west of UTC.
+          const startMs = Date.parse(`${String(bp.start_date).split("T")[0]}T00:00:00Z`);
+          const newStartStr = new Date(startMs + offsetDays * 86_400_000)
+            .toISOString()
+            .split("T")[0];
           await supabase
             .from("task_blueprints")
-            .update({ start_date: getLocalDateString(newStart) })
+            .update({ start_date: newStartStr })
             .eq("id", task.blueprint_id);
         }
       }
@@ -806,6 +811,13 @@ export default function TaskList({
           // We only queue real tasks — ghost tasks need a multi-step insert
           // that's harder to replay safely.
           if (typeof navigator !== "undefined" && navigator.onLine === false) {
+            // One queued status per task: a refetch while offline repaints
+            // the task as Pending (queued state isn't overlaid on fetches),
+            // so users tap complete again — replace the older entry instead
+            // of queueing a duplicate.
+            for (const q of getQueue()) {
+              if (q.kind === "task-status" && q.taskId === task.id) removeQueued(q.id);
+            }
             enqueueWrite({
               kind: "task-status",
               taskId: task.id,
@@ -922,6 +934,11 @@ export default function TaskList({
       }
       onTaskUpdated?.();
     } catch (err) {
+      // Undo the optimistic toggle — the comment above always promised
+      // this, but the catch never did it: an online failure (500, RLS)
+      // left the task shown Completed while the server said Pending.
+      setTasks((prev) => prev.map((t) => (t.id === task.id ? task : t)));
+      if (selectedTask?.id === task.id) setSelectedTask(task);
       Logger.error("Toggle task completion failed", err, { homeId, taskId: task.id, newStatus }, "Update failed.");
     } finally {
       setIsUpdatingTask(null);

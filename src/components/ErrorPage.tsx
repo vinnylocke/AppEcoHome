@@ -52,13 +52,32 @@ export default function ErrorPage({ error, appVersion }: ErrorPageProps) {
     // Clear known caches that could be holding broken state, then reload
     try {
       sessionStorage.clear();
-      // Don't clear localStorage entirely — preserves their preferences
-      const preserve = ["rhozly_welcomed", "rhozly_notif_prefs", "rhozly_dashboard_view"];
+      // Don't clear localStorage entirely — preserves their preferences.
+      // The offline queue is preserved too: it holds the user's UNSYNCED
+      // garden actions, not cached state — wiping it here silently lost
+      // work. Both prefix conventions are matched (`rhozly_` legacy and
+      // `rhozly:` colon-namespaced — dashboard/seasonal-picks caches, the
+      // most likely holders of poisoned state, use the latter).
+      const preserve = [
+        "rhozly_welcomed",
+        "rhozly_notif_prefs",
+        "rhozly_dashboard_view",
+        "rhozly_offline_queue_v1",
+      ];
       const keys = Object.keys(localStorage);
       for (const k of keys) {
-        if (!preserve.includes(k) && k.startsWith("rhozly_")) localStorage.removeItem(k);
+        if (preserve.includes(k)) continue;
+        if (k.startsWith("rhozly_") || k.startsWith("rhozly:")) localStorage.removeItem(k);
       }
     } catch { /* ignore */ }
+    // Runtime service-worker caches can hold the broken responses too.
+    if ("caches" in window) {
+      void caches.keys()
+        .then((names) => Promise.all(names.map((n) => caches.delete(n))))
+        .catch(() => {})
+        .finally(() => window.location.reload());
+      return;
+    }
     window.location.reload();
   };
 

@@ -48,7 +48,7 @@ DailyBriefCard
 | `locations` | `Array<{ lat?, lng? }>` | App.tsx state.locations | Fallback for sun events if home lat/lng missing |
 | `alerts` | `Array<{ severity?, title? }>` | App.tsx state.alerts | Conditional alert hint in footer |
 | `todayTaskCount` | `number` | Aggregated from `locationTaskCounts` | Today chip |
-| `overdueCount` | `number` | App.tsx state.overdueTaskCount | Overdue chip (replaces Today if > 0) |
+| `overdueCount` | `number` | App.tsx state.overdueTaskCount | Overdue chip (replaces Today if > 0). Home-scoped (RHO-3); the query now runs even for homes with **zero locations** — it was inside the locations branch and cached a hard 0 for location-less homes |
 | `homeLat`, `homeLng` | `number \| null` | App.tsx state.homeLatLng | For sun calculations |
 | `hardinessZone` | `number \| null` | App.tsx state.hardinessZone | Zone chip |
 | `aiEnabled` | `boolean` (default `false`) | `!!profile?.ai_enabled` in App.tsx | Gates the "Got a plant question?" chat chip (RHO-11). Wrapped in `{aiEnabled && (…)}`; gated together with the global chat FAB in App.tsx (RHO-10) |
@@ -62,7 +62,7 @@ DailyBriefCard
 | `goldenAM`, `goldenPM` | derived | Golden hour windows (sunrise / sunset ± 60min) |
 | `isCurrentlyInGoldenHour` | derived | now falls inside either window |
 | `goldenHourComingUp` | derived | within 2h of next golden hour |
-| `frostHint` | derived | from rawWeather.daily — tonight's min < 2°C |
+| `frostHint` | derived | from rawWeather.daily — tonight's min < 2°C. The daily array is keyed on the **local** date (`getLocalDateString(now)`), not the UTC date — Open-Meteo `daily.time` entries are local-to-location, so the UTC key flipped at the wrong wall-clock moment (evenings in the Americas read tomorrow's min; mornings east of UTC read yesterday's) |
 
 ### Data flow — read paths
 

@@ -7,6 +7,7 @@ import { Logger } from "../lib/errorHandler";
 import { BlueprintService } from "../services/blueprintService";
 import { useFocusTrap } from "../hooks/useFocusTrap";
 import { buildBlueprintFromSchedule } from "../lib/plantScheduleGenerator";
+import { getLocalDateString } from "../lib/taskEngine";
 
 interface Schedule {
   id: string;
@@ -38,7 +39,7 @@ interface Props {
   onGenerated: () => void;
 }
 
-const isoToday = () => new Date().toISOString().split("T")[0];
+const isoToday = () => getLocalDateString(new Date());
 
 /**
  * Lets the user generate tasks from a single plant_schedules row by

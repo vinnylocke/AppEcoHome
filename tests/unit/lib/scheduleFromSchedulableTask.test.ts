@@ -91,6 +91,45 @@ describe("scheduleFromSchedulableTask", () => {
   });
 
   // ── year-round ───────────────────────────────────────────────────────
+
+  // ── wrap-around windows (bug-audit-2026-07-02 §4.2) ─────────────────
+  test("Nov-Jan wrap window in June: due at 1 Nov, NOT active year-round", () => {
+    // Today: 2026-06-15. Window Nov-Jan wraps the year boundary — plain
+    // min/max used to collapse it to Jan..Dec and emit a "sow now" task
+    // in midwinter.
+    const today = new Date(2026, 5, 15);
+    const out = scheduleFromSchedulableTask(
+      mk({ active_months: ["Nov", "Dec", "Jan"] }),
+      { today },
+    );
+    // 1 Nov 2026 is 139 days from 15 Jun 2026.
+    expect(out.due_in_days).toBe(139);
+    // End = 31 Jan 2027 = 91 days after 1 Nov 2026.
+    expect(out.end_offset_days).toBe(91);
+  });
+
+  test("Nov-Jan wrap window in December: active now, ends 31 Jan next year", () => {
+    const today = new Date(2026, 11, 10);
+    const out = scheduleFromSchedulableTask(
+      mk({ active_months: ["Nov", "Dec", "Jan"] }),
+      { today },
+    );
+    expect(out.due_in_days).toBe(0);
+    // 10 Dec 2026 -> 31 Jan 2027 = 52 days.
+    expect(out.end_offset_days).toBe(52);
+  });
+
+  test("Nov-Jan wrap window in early January: active now, ends this month", () => {
+    const today = new Date(2026, 0, 10);
+    const out = scheduleFromSchedulableTask(
+      mk({ active_months: ["Nov", "Dec", "Jan"] }),
+      { today },
+    );
+    expect(out.due_in_days).toBe(0);
+    // 10 Jan -> 31 Jan 2026 = 21 days.
+    expect(out.end_offset_days).toBe(21);
+  });
+
   test("null active_months => year-round; due in 0 days, default 365 end window for recurring", () => {
     const out = scheduleFromSchedulableTask(
       mk({ active_months: null, frequency_days: 14 }),

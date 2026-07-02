@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { AlertCircle, CloudRain, Sun, Flame, Snowflake, Trophy, CheckCircle2, ChevronRight, Sparkles } from "lucide-react";
 import { useHomeDashboardStats, type HomeDashboardStats } from "../../hooks/useHomeDashboardStats";
 import { usePersona } from "../../hooks/usePersona";
+import { getLocalDateString } from "../../lib/taskEngine";
 
 interface Props {
   homeId: string;
@@ -51,7 +52,7 @@ export function decideTodayFocus(args: {
     // overdue tasks actually surface. The previous /schedule?filter=
     // route landed users on an unfiltered Routines list because the
     // Routines page doesn't read the filter param.
-    const todayStr = new Date().toISOString().split("T")[0];
+    const todayStr = getLocalDateString(new Date());
     return {
       variant: "urgent",
       shortMessage:
@@ -127,7 +128,7 @@ export default function TodayFocusCard({ homeId, variant = "dashboard", classNam
     (async () => {
       try {
         const { supabase } = await import("../../lib/supabase");
-        const today = new Date().toISOString().split("T")[0];
+        const today = getLocalDateString(new Date());
         const { data } = await supabase
           .from("weather_alerts")
           .select("type")

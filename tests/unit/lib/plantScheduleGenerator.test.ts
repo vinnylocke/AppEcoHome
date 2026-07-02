@@ -121,7 +121,7 @@ describe("buildBlueprintFromSchedule — lifecycle caps", () => {
     expect(result.end_date).toBe("2027-05-15");
   });
 
-  it("caps end_date at +730 days for biennials", () => {
+  it("caps end_date at two calendar years for biennials (leap-day safe)", () => {
     const result = buildBlueprintFromSchedule({
       schedule: {
         start_reference: "Trigger Date",
@@ -134,7 +134,7 @@ describe("buildBlueprintFromSchedule — lifecycle caps", () => {
       plantCycle: "Biennial",
       targetYear: 2026,
     });
-    expect(result.end_date).toBe("2028-05-14");
+    expect(result.end_date).toBe("2028-05-15");
   });
 
   it("does not cap perennials", () => {

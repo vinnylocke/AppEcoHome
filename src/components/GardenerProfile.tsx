@@ -14,6 +14,7 @@ import PersonaSetting from "./PersonaSetting";
 import JournalAutoUpdateSetting from "./JournalAutoUpdateSetting";
 import { TTS_VOICES, DEFAULT_VOICE_ID } from "../constants/voices";
 import { mergeVoiceSettings, type VoiceSettings } from "../lib/voiceSettings";
+import { getLocalDateString } from "../lib/taskEngine";
 
 interface Props {
   userId: string;
@@ -523,7 +524,7 @@ function DataExportSection({ userId }: { userId: string }) {
       const url = URL.createObjectURL(blob);
       const a = document.createElement("a");
       a.href = url;
-      a.download = `rhozly-export-${new Date().toISOString().split("T")[0]}.json`;
+      a.download = `rhozly-export-${getLocalDateString(new Date())}.json`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -1452,10 +1453,14 @@ export default function GardenerProfile({ userId, homeId, displayName, email, su
     setTabState("account");
     const t = setTimeout(() => {
       document.getElementById("plan-section")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      // Strip the param only AFTER the scroll fires. This effect depends on
+      // the param, so stripping it synchronously changed the dep and ran the
+      // cleanup — cancelling this very timer before it could scroll (the
+      // visible half of RHO-12 never happened).
+      const p = new URLSearchParams(params);
+      p.delete("section");
+      setParams(p, { replace: true });
     }, 350);
-    const p = new URLSearchParams(params);
-    p.delete("section");
-    setParams(p, { replace: true });
     return () => clearTimeout(t);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [params.get("section")]);

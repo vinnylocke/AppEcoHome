@@ -4,6 +4,7 @@ import { log, warn } from "../_shared/logger.ts";
 import { PATTERNS } from "../_shared/patterns/index.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { pLimit } from "../_shared/concurrency.ts";
+import { fetchAllPages } from "../_shared/pagedSelect.ts";
 
 const FN = "pattern-scan";
 
@@ -24,23 +25,32 @@ serve(async (_req) => {
       Date.now() - ACTIVITY_WINDOW_DAYS * 86_400_000,
     ).toISOString();
 
-    const [{ data: recentEventRows }, { data: allMembers }] = await Promise.all([
-      db
-        .from("user_events")
-        .select("user_id")
-        .gte("created_at", activityCutoff),
-      db
-        .from("home_members")
-        .select("user_id, home_id"),
+    // Paged: both are fleet scans — the un-ranged selects truncated at
+    // PostgREST's max_rows=1000, so active users past the cap were never
+    // scanned for patterns.
+    const [recentEventRows, allMembers] = await Promise.all([
+      fetchAllPages<{ user_id: string }>(() =>
+        db
+          .from("user_events")
+          .select("user_id")
+          .gte("created_at", activityCutoff)
+          .order("created_at")
+      ),
+      fetchAllPages<{ user_id: string; home_id: string }>(() =>
+        db
+          .from("home_members")
+          .select("user_id, home_id")
+          .order("user_id")
+      ),
     ]);
 
     const userIds = [
-      ...new Set((recentEventRows ?? []).map((r: any) => r.user_id as string)),
+      ...new Set(recentEventRows.map((r) => r.user_id)),
     ];
 
     // user_id → first home_id (multi-home users get their oldest membership)
     const userHome = new Map<string, string>();
-    for (const m of allMembers ?? []) {
+    for (const m of allMembers) {
       if (!userHome.has(m.user_id)) userHome.set(m.user_id, m.home_id);
     }
 

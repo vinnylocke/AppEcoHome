@@ -150,7 +150,10 @@ function extractWeatherEvents(
     const tmin = Number(daily.temperature_2m_min?.[i] ?? NaN);
     const tmax = Number(daily.temperature_2m_max?.[i] ?? NaN);
     const rain = Number(daily.precipitation_sum?.[i] ?? 0);
-    const wind = Number(daily.wind_speed_10m_max?.[i] ?? 0);
+    // Open-Meteo daily key is `windspeed_10m_max` (no underscore between
+    // wind/speed — matches sync-weather's request); `wind_speed_10m_max`
+    // never exists in the snapshot, so wind read as 0 forever.
+    const wind = Number(daily.windspeed_10m_max?.[i] ?? 0);
 
     if (Number.isFinite(tmin) && tmin <= 2) {
       events.push({
@@ -369,6 +372,27 @@ serve(async (req) => {
       } catch { /* empty / non-JSON body = treat as cron call */ }
     }
 
+    // Manual path (home_id in body): the caller must be a member of that
+    // home. Without this, any authenticated user could regenerate — and
+    // with notify:true, re-notify — another home's weekly overview.
+    if (bodyHomeId) {
+      const jwt = req.headers.get("Authorization")?.replace("Bearer ", "").trim() ?? "";
+      const { data: userData } = await supabase.auth.getUser(jwt);
+      const callerId = userData?.user?.id ?? null;
+      if (!callerId) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), { status: 401, headers: jsonHeaders });
+      }
+      const { data: membership } = await supabase
+        .from("home_members")
+        .select("home_id")
+        .eq("home_id", bodyHomeId)
+        .eq("user_id", callerId)
+        .maybeSingle();
+      if (!membership) {
+        return new Response(JSON.stringify({ error: "Not a member of that home" }), { status: 403, headers: jsonHeaders });
+      }
+    }
+
     const { weekStart, weekEnd } = getUpcomingWeekWindow();
     log(FN, "start", { weekStart, weekEnd, bodyHomeId, notify });
 
@@ -524,19 +548,42 @@ serve(async (req) => {
 
       // 11. Notify every member — suppressed on manual regenerate.
       if (notify) {
+        // Atomic send-once claim per (user, week): the overview upsert above
+        // is idempotent but these notifications weren't — a duplicate cron
+        // fire (pg_net retry) re-notified every member of every home.
+        const { data: wonClaims, error: claimErr } = await supabase
+          .from("notification_claims")
+          .upsert(
+            membersByHome[home.id].map((user_id) => ({
+              user_id,
+              kind: "weekly_overview",
+              claim_date: weekStart,
+            })),
+            { onConflict: "user_id,kind,claim_date", ignoreDuplicates: true },
+          )
+          .select("user_id");
+        if (claimErr) {
+          warn(FN, "claim_failed", { home_id: home.id, error: claimErr.message });
+          continue; // fail closed — no claim, no send
+        }
+        const winners = new Set((wonClaims ?? []).map((w) => w.user_id));
+        if (winners.size === 0) continue;
+
         const taskTotal = Object.values(taskCounts).reduce((a, b) => a + b, 0);
         const body = taskTotal === 0
           ? "Your week's overview is ready — no scheduled tasks but plenty of seasonal ideas inside."
           : `Your week ahead: ${taskTotal} task${taskTotal === 1 ? "" : "s"}${weatherEvents.length ? ` · ${weatherEvents.length} weather alert${weatherEvents.length === 1 ? "" : "s"}` : ""}. Tap to plan.`;
-        const notifications = membersByHome[home.id].map((user_id) => ({
-          user_id,
-          home_id: home.id,
-          title: "🌿 Your week ahead",
-          body,
-          type: "weekly_overview",
-          data: { route: "/weekly" },
-          is_read: false,
-        }));
+        const notifications = membersByHome[home.id]
+          .filter((user_id) => winners.has(user_id))
+          .map((user_id) => ({
+            user_id,
+            home_id: home.id,
+            title: "🌿 Your week ahead",
+            body,
+            type: "weekly_overview",
+            data: { route: "/weekly" },
+            is_read: false,
+          }));
         const { error: notifErr } = await supabase
           .from("notifications")
           .insert(notifications);

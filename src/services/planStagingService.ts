@@ -1,4 +1,5 @@
 import { supabase } from "../lib/supabase";
+import { getLocalDateString } from "../lib/taskEngine";
 
 export async function injectBlueprintTasks(params: {
   homeId: string;
@@ -136,7 +137,7 @@ export async function activateMaintenanceBlueprints(params: {
     frequency_days: task.frequency_days,
     is_recurring: true,
     is_auto_generated: true,
-    start_date: new Date().toISOString().split("T")[0],
+    start_date: getLocalDateString(new Date()),
   }));
 
   if (blueprintsToInsert.length > 0) {

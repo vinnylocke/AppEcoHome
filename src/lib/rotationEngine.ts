@@ -92,6 +92,13 @@ export interface RotationRecommendation {
 function rowYear(row: InventoryItemForRotation): number | null {
   const raw = row.planted_at || row.ended_at || row.created_at;
   if (!raw) return null;
+  // Date-ONLY values: take the year straight off the string — they parse
+  // as UTC midnight, so `getFullYear()` (local) bucketed a `YYYY-01-01`
+  // planting into the PREVIOUS year for users west of UTC, skewing the
+  // "grown X of last N years" rotation advice at the year boundary.
+  // Real timestamps fall through to the local-year read below.
+  const dateOnly = /^(\d{4})-\d{2}-\d{2}$/.exec(String(raw));
+  if (dateOnly) return Number(dateOnly[1]);
   const d = new Date(raw);
   if (Number.isNaN(d.getTime())) return null;
   return d.getFullYear();

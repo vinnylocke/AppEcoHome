@@ -62,6 +62,7 @@ import NurseryTab from "./nursery/NurseryTab";
 import InfoTooltip from "./InfoTooltip";
 import EmptyState from "./shared/EmptyState";
 import AssistantCard from "./AssistantCard";
+import { getLocalDateString } from "../lib/taskEngine";
 
 async function fetchFirstAvailableImage(plantName: string): Promise<string> {
   const [wiki, pixabay] = await Promise.all([
@@ -1317,7 +1318,7 @@ export default function TheShed({ homeId, aiEnabled = false, perenualEnabled = f
     if (!homeId) return;
     let cancelled = false;
     (async () => {
-      const todayStr = new Date().toISOString().split("T")[0];
+      const todayStr = getLocalDateString(new Date());
       const [invRes, planTasksRes, openTasksRes, ailmentsRes] = await Promise.all([
         supabase
           .from("inventory_items")

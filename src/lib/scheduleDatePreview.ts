@@ -81,10 +81,13 @@ export function formatPreviewLine(
       .map((d) => {
         const ms = isoToMs(d);
         if (ms == null) return d;
+        // ms is a UTC midnight — format in UTC or the label renders the
+        // previous day for users west of Greenwich.
         return new Intl.DateTimeFormat(locale, {
           weekday: "short",
           day: "numeric",
           month: "short",
+          timeZone: "UTC",
         }).format(new Date(ms));
       })
       .join(" · ");

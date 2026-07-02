@@ -689,3 +689,78 @@ describe("TaskEngine.fetchTasksWithGhosts — in-flight dedup", () => {
     expect(TaskEngine.peekCache(PARAMS)).not.toBeNull();
   });
 });
+
+// ---- Pause handling (bug-audit-2026-07-02 §3.4) ----
+//
+// A pause suppresses only occurrences strictly BEFORE paused_until — and it
+// suppresses them permanently, so a lapsed pause never resurrects its
+// in-pause ghosts as overdue. Occurrences on/after paused_until always emit,
+// even while the pause is still active (next month's calendar must not be
+// blank during a one-week pause).
+
+describe("TaskEngine.fetchTasksWithGhosts — paused blueprints", () => {
+  beforeEach(setupMock);
+
+  test("active pause skips only occurrences before paused_until", async () => {
+    // Grid: May 1, May 8. Paused until May 8 → May 1 suppressed, May 8 emitted.
+    const bp = makeBlueprint({ paused_until: "2026-05-08" });
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", [bp]);
+
+    const result = await TaskEngine.fetchTasksWithGhosts(PARAMS);
+    const ghosts = result.tasks.filter((t: any) => t.isGhost);
+
+    expect(ghosts.map((g: any) => g.due_date)).toEqual(["2026-05-08"]);
+  });
+
+  test("pause covering the whole window emits no ghosts", async () => {
+    const bp = makeBlueprint({ paused_until: "2026-06-01" });
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", [bp]);
+
+    const result = await TaskEngine.fetchTasksWithGhosts(PARAMS);
+    expect(result.tasks.filter((t: any) => t.isGhost)).toHaveLength(0);
+  });
+
+  test("expired pause does NOT resurrect ghosts inside the past pause window", async () => {
+    // Today = May 20 (pause over). Viewing May 1–14: May 1 + May 8 fell
+    // inside the pause → stay suppressed instead of reappearing overdue.
+    const bp = makeBlueprint({ paused_until: "2026-05-10" });
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", [bp]);
+
+    const result = await TaskEngine.fetchTasksWithGhosts({
+      ...PARAMS,
+      todayStr: "2026-05-20",
+    });
+    expect(result.tasks.filter((t: any) => t.isGhost)).toHaveLength(0);
+  });
+
+  test("harvest window ghost is suppressed while the pause is active and returns after it lapses", async () => {
+    const harvestBp = makeBlueprint({
+      task_type: "Harvesting",
+      start_date: "2026-05-01",
+      end_date: "2026-05-14",
+      paused_until: "2026-05-05",
+    });
+
+    // Active pause (today May 1 < paused_until) → no window ghost.
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", [harvestBp]);
+    const paused = await TaskEngine.fetchTasksWithGhosts(PARAMS);
+    expect(paused.tasks.filter((t: any) => t.isGhost)).toHaveLength(0);
+
+    // Pause lapsed (today May 6) → the still-open window is relevant again.
+    setupMock();
+    queueTable("tasks", [], []);
+    queueTable("task_blueprints", [harvestBp]);
+    const resumed = await TaskEngine.fetchTasksWithGhosts({
+      ...PARAMS,
+      todayStr: "2026-05-06",
+    });
+    const windowGhosts = resumed.tasks.filter((t: any) => t.isGhost);
+    expect(windowGhosts).toHaveLength(1);
+    expect(windowGhosts[0].due_date).toBe("2026-05-01");
+    expect(windowGhosts[0].window_end_date).toBe("2026-05-14");
+  });
+});

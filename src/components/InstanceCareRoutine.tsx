@@ -20,6 +20,7 @@ import { ConfirmModal } from "./ConfirmModal";
 // 🧠 IMPORT THE AI CONTEXT
 import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { BlueprintService } from "../services/blueprintService";
+import { getLocalDateString } from "../lib/taskEngine";
 
 interface InstanceCareRoutineProps {
   inventoryItemId: string;
@@ -59,7 +60,7 @@ export default function InstanceCareRoutine({
   // Add New Routine State
   const [isAdding, setIsAdding] = useState(false);
   const [isSavingNew, setIsSavingNew] = useState(false);
-  const todayStr = new Date().toISOString().split("T")[0];
+  const todayStr = getLocalDateString(new Date());
   const [newRoutine, setNewRoutine] = useState({
     title: "",
     description: "",

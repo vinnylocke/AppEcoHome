@@ -55,7 +55,34 @@ export function HomeRealtimeProvider({
       );
     }
 
-    channel.subscribe();
+    // Status-aware subscribe: without a callback, a failed join
+    // (CHANNEL_ERROR / TIMED_OUT — token race at app start, realtime quota)
+    // was invisible and every "self-refreshing" list stayed static for the
+    // whole session. And events that occur during a websocket gap are NOT
+    // replayed on rejoin — so on any recovery we fan out one refetch per
+    // registered table to reconcile whatever was missed.
+    let hadDisconnect = false;
+    const notifyAll = () => {
+      for (const cbs of registry.current.values()) {
+        cbs.forEach((cb) => {
+          try { cb(); } catch { /* consumer errors must not kill the loop */ }
+        });
+      }
+    };
+    channel.subscribe((status) => {
+      if (status === "SUBSCRIBED") {
+        if (hadDisconnect) {
+          hadDisconnect = false;
+          notifyAll();
+        }
+        return;
+      }
+      if (status === "CHANNEL_ERROR" || status === "TIMED_OUT" || status === "CLOSED") {
+        // supabase-js retries the join itself; we just remember the gap so
+        // the eventual SUBSCRIBED triggers a reconciling refetch.
+        hadDisconnect = true;
+      }
+    });
 
     return () => {
       supabase.removeChannel(channel);

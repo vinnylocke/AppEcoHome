@@ -86,30 +86,52 @@ export function scheduleFromSchedulableTask(
       endOffsetDays = 0;
     }
   } else {
-    // Sort months ascending so we can find the next occurrence.
+    // The window may wrap the year boundary (["Nov","Dec","Jan"] — every
+    // southern-hemisphere summer window does). Plain min/max collapsed such
+    // windows to Jan..Dec = "active all year", producing "sow now" tasks in
+    // midwinter. Instead, the window START is the month after the largest
+    // cyclic gap between the sorted months, and the END is the month before
+    // that gap.
     const sortedAsc = [...months].sort((a, b) => a - b);
-    const firstMonthIdx = sortedAsc[0];
-    const lastMonthIdx = sortedAsc[sortedAsc.length - 1];
+    let gapStartIdx = 0;
+    let largestGap = -1;
+    for (let i = 0; i < sortedAsc.length; i++) {
+      const prev = sortedAsc[(i - 1 + sortedAsc.length) % sortedAsc.length];
+      const gap = (sortedAsc[i] - prev + 12) % 12;
+      if (gap > largestGap) {
+        largestGap = gap;
+        gapStartIdx = i;
+      }
+    }
+    const firstMonthIdx = sortedAsc[gapStartIdx];
+    const lastMonthIdx = sortedAsc[(gapStartIdx - 1 + sortedAsc.length) % sortedAsc.length];
+    const wraps = firstMonthIdx > lastMonthIdx;
 
-    // "Active right now" means today's month is between first and last,
-    // inclusive (or in the set when non-contiguous — for v1 we treat
-    // first→last as the window; gappy windows are rare).
-    const isActive = todayM >= firstMonthIdx && todayM <= lastMonthIdx;
+    // "Active right now" means today's month is inside the (possibly
+    // wrapping) first→last window; gappy windows are treated as contiguous.
+    const isActive = wraps
+      ? todayM >= firstMonthIdx || todayM <= lastMonthIdx
+      : todayM >= firstMonthIdx && todayM <= lastMonthIdx;
 
     let startDate: Date;
     if (isActive) {
       startDate = new Date(todayY, todayM, todayD);
     } else if (todayM < firstMonthIdx) {
-      // Active later this year.
+      // Active later this year. (A wrapping window's inactive stretch is
+      // always before firstMonthIdx, so it lands here too.)
       startDate = new Date(todayY, firstMonthIdx, 1);
     } else {
       // Active in the next calendar year.
       startDate = new Date(todayY + 1, firstMonthIdx, 1);
     }
 
-    const startYear = startDate.getFullYear();
+    // End = the NEXT occurrence of the last month on/after the start —
+    // across the year boundary when the window wraps.
     // End-of-last-month day = day 0 of (last+1).
-    const endDate = new Date(startYear, lastMonthIdx + 1, 0);
+    const endYear = lastMonthIdx < startDate.getMonth()
+      ? startDate.getFullYear() + 1
+      : startDate.getFullYear();
+    const endDate = new Date(endYear, lastMonthIdx + 1, 0);
 
     dueInDays = daysBetween(today, startDate);
 

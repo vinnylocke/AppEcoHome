@@ -35,7 +35,8 @@
 | `rhozly_high_contrast` | Accessibility |
 | `rhozly_guides_visited` | First-visit banner dismissal |
 | `rhozly_global_search_recent` | Recent search queries |
-| `rhozly_queue` | Offline queue (see [Offline Queue](./16-offline-queue.md)) |
+| `rhozly_offline_queue_v1` | Offline queue (see [Offline Queue](./16-offline-queue.md)) |
+| `rhozly_shed_cache_{home_id}` | Per-home shed snapshot (plants + locations) written by `useCachedShed` |
 | `rhozly_shopping_plan_suggest_dismissed` | Shopping banner |
 | `rhozly:dashboard:v1:{home_id}` | Local-first dashboard snapshot (see Dashboard snapshot below) |
 | `rhozly_quick_launcher_v1` | Quick Launcher pin order — `{ pinned: string[] }`. Synced to `user_profiles.quick_launcher_pins`. Cleared on sign-out. |
@@ -56,7 +57,7 @@ Owned by `src/lib/dashboardCache.ts` and read/written by `src/App.tsx`'s `fetchD
 
 **Lifecycle:**
 
-1. On mount with a `home_id`, `readDashboardCache(home_id)` is called synchronously. On hit, the snapshot hydrates state and the dashboard paints. `isStale` is set if the snapshot is older than 24 h.
+1. On mount with a `home_id`, `readDashboardCache(home_id)` is called synchronously. On hit, the snapshot hydrates state and the dashboard paints. `isStale` is set if the snapshot is older than 24 h. Hydration happens **once per home per session** — later refetch invocations skip the hydrate step, so a failed revalidation no longer rewinds live state back to the snapshot.
 2. `fetchDashboardData` runs in parallel via `withRetry`. On success, every state-setter also writes into a snapshot accumulator, and at the end `writeDashboardCache(home_id, snapshot)` overwrites the entry with fresh data.
 3. On failure with a cache hit present, the cached data stays visible and the error surfaces non-destructively — the existing retry layer eventually catches up.
 
@@ -68,7 +69,7 @@ Owned by `src/lib/dashboardCache.ts` and read/written by `src/App.tsx`'s `fetchD
 
 **Cache is cleared by:**
 
-- Sign-out — `clearAllDashboardCaches()` runs in the `onAuthStateChange` else branch to avoid leaking one user's data to another on shared devices.
+- Sign-out — `clearAllDashboardCaches()` runs in the `onAuthStateChange` else branch to avoid leaking one user's data to another on shared devices. Sign-out also clears the per-home shed caches via `clearAllShedCaches()` (`src/hooks/useCachedShed.ts`) for the same reason.
 - A version bump of `:v1:` → `:v2:` — old keys simply stop matching and are ignored (then evicted by quota when localStorage fills).
 - Corrupt blob on read — the read path try/catches `JSON.parse` and `clearDashboardCache(home_id)` on parse failure, so a poisoned write can't permanently break the next read.
 
@@ -84,7 +85,7 @@ Owned by `src/lib/dashboardCache.ts` and read/written by `src/App.tsx`'s `fetchD
 
 | Hook | What it caches |
 |------|----------------|
-| `useCachedShed` | Plants + inventory for the home (in-memory, refetch on mutate) |
+| `useCachedShed` | Plants + locations for the home — localStorage-backed per home (`rhozly_shed_cache_{home_id}`), instant paint + background sync; cleared on sign-out via `clearAllShedCaches()` |
 | `useCommunityGuides` | Community guide list/single |
 | `useHomeDashboardStats` | Dashboard stats |
 | `usePlantDoctorSessions` | Plant Doctor history |
@@ -129,7 +130,7 @@ The app feels instant for warm sessions because so much is cached, and on cold o
 
 - **Hard refresh:** when stuck on stale data, pull-to-refresh or hard reload. Pull-to-refresh also overwrites the dashboard snapshot, so you're guaranteed fresh data after.
 - **Cold open while offline:** the dashboard still paints — you can browse plants, see your task list, read locations. Actions that require the network will queue (see [Offline Queue](./16-offline-queue.md)) and replay when you're back online.
-- **Nuclear:** Clear Cache button in [ErrorPage](../09-persistent-ui/08-error-page.md) wipes localStorage + service worker.
+- **Nuclear:** Clear Cache button in [ErrorPage](../09-persistent-ui/08-error-page.md) clears sessionStorage, removes localStorage keys matching **both** the `rhozly_` and `rhozly:` prefixes (preserving `rhozly_welcomed`, `rhozly_notif_prefs`, `rhozly_dashboard_view`, and crucially `rhozly_offline_queue_v1` — the queue holds *unsynced writes*, not cached state, so wiping it would silently lose work), then deletes **all** service-worker Cache Storage entries before reloading.
 
 ---
 
@@ -146,7 +147,8 @@ The app feels instant for warm sessions because so much is cached, and on cold o
 - `src/lib/dashboardCache.ts` — local-first dashboard snapshot read/write/clear
 - `src/lib/quickLauncherPrefs.ts` — local-first launcher pins (mirrors Supabase via `user_profiles.quick_launcher_pins`)
 - `src/hooks/useQuickLauncherPins.ts` — local-first hook for launcher pins (same pattern as dashboard)
-- `src/App.tsx` — `fetchDashboardData` snapshot accumulator + read-on-mount wiring, sign-out clears both caches
+- `src/App.tsx` — `fetchDashboardData` snapshot accumulator + read-on-mount wiring, sign-out clears dashboard + shed caches (and the offline queue)
+- `src/components/ErrorPage.tsx` — Clear Cache button (prefix-matched localStorage sweep + SW Cache Storage wipe)
 - `tests/unit/lib/dashboardCache.test.ts`
 - `tests/unit/lib/quickLauncherPrefs.test.ts`
 - `vite.config.ts` — PWA runtime caching config

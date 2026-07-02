@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { computeUnlocked, type AchievementStats } from "../lib/achievements";
+import { getLocalDateString } from "../lib/taskEngine";
 
 export interface AchievementsResult {
   stats: AchievementStats | null;
@@ -65,9 +66,13 @@ export function useAchievements(userId: string | null, homeId: string | null): A
         const activityDates = new Set<string>();
 
         for (const e of events as any[]) {
-          // Track dates for streak computation
+          // Track dates for streak computation — on the user's LOCAL
+          // calendar day. Slicing the UTC timestamp bucketed an 8:30pm EDT
+          // completion into tomorrow, so a user gardening every evening in
+          // the Americas could log on consecutive local days yet break
+          // their streak.
           if (e.created_at) {
-            activityDates.add(e.created_at.slice(0, 10));
+            activityDates.add(getLocalDateString(new Date(e.created_at)));
           }
 
           const month = e.created_at ? new Date(e.created_at).getUTCMonth() + 1 : 0;
@@ -112,7 +117,7 @@ export function useAchievements(userId: string | null, homeId: string | null): A
           if (currentRun > longestStreak) longestStreak = currentRun;
         }
         // Current streak: walk backwards from today
-        const todayStr = new Date().toISOString().slice(0, 10);
+        const todayStr = getLocalDateString(new Date());
         let checkDate = todayStr;
         while (activityDates.has(checkDate)) {
           streakDays++;

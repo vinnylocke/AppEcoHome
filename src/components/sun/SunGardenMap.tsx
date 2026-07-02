@@ -24,6 +24,7 @@ import {
   type EffectiveSunResult,
 } from "../../lib/sun/effectiveSun";
 import { classifyFrostRisk, type FrostRisk } from "../../lib/garden/microclimate";
+import { getLocalDateString } from "../../lib/taskEngine";
 
 interface GardenLayout {
   id: string;
@@ -320,7 +321,7 @@ export default function SunGardenMap({ homeId, latLng, selectedDate }: Props) {
   }, [pickedPlant, sunHoursByShape]);
 
   // Cloud-adjusted effective sun per shape (only meaningful for today)
-  const todayKey = new Date().toISOString().split("T")[0];
+  const todayKey = getLocalDateString(new Date());
   const isViewingToday = dateKey === todayKey;
   const effectiveSunByShape = useMemo(() => {
     if (!isViewingToday || !rawWeather || shapes.length === 0) {

@@ -2,6 +2,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { log, warn, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
 import { deriveClimate } from "../_shared/climateZones.ts";
+import { shouldNotify, type NotificationPrefs } from "../_shared/notificationPrefs.ts";
 import {
   WEATHER_RULES,
   EMPTY_RESULT,
@@ -192,9 +193,15 @@ Deno.serve(async (req) => {
           is_active: true,
         }))
       );
-      await supabase
+      const { error: alertErr } = await supabase
         .from("weather_alerts")
         .upsert(dbAlerts, { onConflict: "location_id, type" });
+      if (alertErr) {
+        logError(FN, "weather_alerts_upsert_failed", {
+          homeId,
+          error: alertErr.message,
+        });
+      }
     }
 
     // --- Execute: auto-complete tasks ---
@@ -232,27 +239,66 @@ Deno.serve(async (req) => {
     // --- Execute: notifications (dedup within run AND across runs for today) ---
 
     if (notifications.length > 0) {
-      // Fetch notification types already inserted for this home today so we
-      // don't re-insert the same weather alert on consecutive daily syncs.
+      // Fetch notifications already inserted for this home today so we don't
+      // re-insert the same weather alert on consecutive syncs. Keyed on
+      // type:title (matching the intra-run `seen` set) — every weather rule
+      // emits type "weather_alert", so keying on type alone suppressed every
+      // DIFFERENT weather event for the rest of the day after the first one.
       const { data: todayNotifs } = await supabase
         .from("notifications")
-        .select("type")
+        .select("type, title")
         .eq("home_id", homeId)
         .gte("created_at", today + "T00:00:00Z");
-      const todayTypes = new Set((todayNotifs ?? []).map((n: any) => n.type));
+      const todayKeys = new Set(
+        (todayNotifs ?? []).map((n: any) => `${n.type}:${n.title}`),
+      );
 
       const seen = new Set<string>();
       const deduped = notifications.filter((n) => {
         const key = `${n.type}:${n.title}`;
-        if (seen.has(key) || todayTypes.has(n.type)) return false;
+        if (seen.has(key) || todayKeys.has(key)) return false;
         seen.add(key);
         return true;
       });
 
       if (deduped.length > 0) {
-        await supabase.from("notifications").insert(
-          deduped.map((n) => ({ home_id: homeId, ...n })),
+        // Fan out one row PER MEMBER: push-webhook drops any notification
+        // row without a user_id, so home-level rows were never delivered
+        // as push. Honour each member's weatherAlerts preference.
+        const { data: members } = await supabase
+          .from("home_members")
+          .select("user_id")
+          .eq("home_id", homeId);
+        const memberIds: string[] = (members ?? []).map((m: any) => m.user_id);
+
+        const { data: profiles } = memberIds.length > 0
+          ? await supabase
+            .from("user_profiles")
+            .select("uid, notification_prefs")
+            .in("uid", memberIds)
+          : { data: [] };
+        const prefsByUid = new Map<string, NotificationPrefs | null>(
+          (profiles ?? []).map((p: any) => [p.uid, p.notification_prefs ?? null]),
         );
+
+        const recipients = memberIds.filter((uid) =>
+          shouldNotify(prefsByUid.get(uid), "weatherAlerts")
+        );
+        const rows = recipients.flatMap((uid) =>
+          deduped.map((n) => ({ home_id: homeId, user_id: uid, ...n }))
+        );
+
+        if (rows.length > 0) {
+          const { error: notifErr } = await supabase
+            .from("notifications")
+            .insert(rows);
+          if (notifErr) {
+            logError(FN, "notification_insert_failed", {
+              homeId,
+              error: notifErr.message,
+            });
+          }
+        }
       }
     }
 

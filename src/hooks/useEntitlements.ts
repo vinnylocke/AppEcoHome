@@ -27,6 +27,20 @@ async function loadTier(): Promise<void> {
   return inFlight;
 }
 
+/**
+ * Drop the cached tier and re-resolve. Call after anything that changes the
+ * user's tier (plan upgrade/downgrade, account switch) — without this, every
+ * mounted FeatureGate kept the stale tier until a full reload, so a user who
+ * just upgraded stayed locked out of the features they paid for.
+ * Mounted gates keep showing the last-known tier until the fresh one lands
+ * (no flash of locked/unlocked while re-fetching).
+ */
+export function invalidateEntitlements(): void {
+  cachedTier = null;
+  inFlight = null;
+  if (listeners.size > 0) void loadTier();
+}
+
 export interface Entitlements {
   tier: TierId;
   loading: boolean;
@@ -44,10 +58,12 @@ export function useEntitlements(tierProp?: TierId | null): Entitlements {
 
   useEffect(() => {
     if (tierProp) { setTier(tierProp); return; }
-    if (cachedTier !== null) { setTier(cachedTier); return; }
+    // Stay subscribed even when the cache is warm, so invalidateEntitlements
+    // (tier switch) propagates to already-mounted gates.
     const l = (t: TierId) => setTier(t);
     listeners.add(l);
-    loadTier();
+    if (cachedTier !== null) setTier(cachedTier);
+    else void loadTier();
     return () => { listeners.delete(l); };
   }, [tierProp]);
 

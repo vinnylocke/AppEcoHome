@@ -51,12 +51,21 @@ Debugging "no push" (verified 2026-06-19): confirm in order — (1) a `notificat
 Pseudocode (Wave 22.0044 — snooze + window + per-user mute aware):
 
 ```ts
-// Pull tasks with the Wave 20+ snooze + window columns.
-pendingTasks = tasks where status='Pending' AND due_date <= today
+// Fleet scans (home_members, homes, planner_preferences, user_profiles) are
+// paged via _shared/pagedSelect.ts fetchAllPages — PostgREST silently
+// truncates un-ranged selects at max_rows=1000, so user #1001 never got a
+// digest.
+
+// Pull tasks with the Wave 20+ snooze + window columns. Dueness is judged
+// against each home's LOCAL calendar date (homes.timezone via localDateInTz
+// in _shared/notificationTiming.ts), not UTC "today" — a UTC+10 user's
+// 08:00 digest used to run at 22:00 UTC *yesterday* and exclude tasks due
+// on their actual today.
+pendingTasks = tasks where status='Pending' AND due_date <= maxLocalDate
             (selecting type, next_check_at, window_end_date, status)
 prefsByUser = user_profiles.notification_prefs  // sparse jsonb
 
-actionableTasks = pendingTasks.filter(isTaskActionableToday)
+actionableTasks = pendingTasks.filter(t => isTaskActionableToday(t, localTodayForHome(t.home_id)))
 //   - hides "Not yet → N days" snoozes (effective_due > today)
 //   - hides harvest tasks past their window_end_date
 
@@ -71,11 +80,24 @@ for each user:
   push notification with grouped payload
 
 // Golden Hour pass is gated by prefs.goldenHour the same way.
+
+// Before inserting: in-run dedupe by (user, kind) — a user in multiple
+// homes deterministically gets ONE digest per day (first home wins) — then
+// claim (user_id, kind, claim_date) in notification_claims. Only claim
+// winners are inserted.
 ```
+
+**Atomic send-once claims (`notification_claims`, migration `20260828000000`):** the per-user dedup used to be read-then-write on recent `notifications` rows — overlapping invocations (pg_net retry, a slow run overlapping the next 15-min tick) both saw "not sent" and double-pushed, and an ignored error on the dedup read failed *open* and re-notified everyone. Now each run claims `(user_id, kind, local claim_date)` rows via `ON CONFLICT DO NOTHING` (upsert with `ignoreDuplicates`) **before** inserting into `notifications`; whoever wins the insert sends, everyone else skips, and a claim error throws (fail closed — no duplicate spray). The rolling ~18 h recent-notifications read remains only as a cheap pre-filter — it is now paged and error-checked (fail closed). Claims older than 7 days are pruned each run. The table is service-role only (RLS enabled, no policies/grants).
 
 **Delivery timing (2026-06-19):** `daily-batch-notifications` now runs **every 15 min** (not a single 08:00 UTC fire). The task digest is delivered at each user's chosen **local `reminderTime`** (`notification_prefs.reminderTime`, default `"08:00"` local — editable in the Notifications tab); golden hour fires **~45 min before each home's real sunset**. Per-user dedup is a rolling ~18 h window. Pure timing helpers: `_shared/notificationTiming.ts` (`localMinutesOfDay`, `isReminderDue`, `isNearSunset`). See [Cron Jobs](./11-cron-jobs.md).
 
 The shared helper `_shared/taskFilters.ts` is the SERVER-SIDE MIRROR of `src/lib/taskFilters.ts`. Both must agree — if the client says a task is hidden today, the server agrees and skips the push. Covered by `supabase/tests/notificationFilters.test.ts`.
+
+### `analyse-weather` weather-alert notifications
+
+`analyse-weather` now inserts **one `notifications` row per home member, with `user_id` set** — `push-webhook` drops any row without a `user_id`, so the old home-level rows (no `user_id`) were never delivered as push. Each member's `weatherAlerts` preference is honoured via `shouldNotify(prefs, "weatherAlerts")` (`_shared/notificationPrefs.ts`) before fan-out.
+
+Cross-run dedup (per home, per day) is keyed on **`type:title`** — matching the intra-run `seen` set. It used to key on `type` alone, but every weather rule emits type `weather_alert`, so the first alert of the day suppressed every *different* same-day weather event (a frost alert would block a later wind alert).
 
 ### Notification categories (from [Notifications Tab](../06-account/02-notifications-tab.md))
 
@@ -97,10 +119,11 @@ The shared helper `_shared/taskFilters.ts` is the SERVER-SIDE MIRROR of `src/lib
 
 | Cron | Effect |
 |------|--------|
-| `daily-batch-notifications` | Daily push delivery (Wave 21.B added Golden Hour wiring per home; Wave 22.0044 added snooze + window filtering + per-user category mute respect) |
+| `daily-batch-notifications` | Daily push delivery (Wave 21.B added Golden Hour wiring per home; Wave 22.0044 added snooze + window filtering + per-user category mute respect). Send-once via `notification_claims` (see section above); dueness per home-local date; fleet queries paged. |
+| `analyse-weather` | Hourly weather-rule alerts → per-member `notifications` rows with `user_id` (push-deliverable), `weatherAlerts` pref honoured, `type:title` cross-run dedup — see section above |
 | `weekly-digest` | Weekly summary EMAIL (Resend) — separate from in-app `weekly_overview`. Wave 22.0044: dedups recipients across multi-home members (one combined email by default; `digestStyle: per_home` opts back into the legacy fan-out). Vertical weather strip (mobile-readable) + clickable task rows linking to the Calendar agenda for that day. |
-| `generate-weekly-overviews` | **Wave 21.A** — Sunday 06:00 UTC. Builds the jsonb payload on `weekly_overviews` per home + writes `weekly_overview` notification |
-| `weekly-optimise-digest` | **Wave 21.C** — Sunday 07:00 UTC. Activity-aware digest pointing at Optimise tab |
+| `generate-weekly-overviews` | **Wave 21.A** — Sunday 06:00 UTC. Builds the jsonb payload on `weekly_overviews` per home + writes `weekly_overview` notification. Notify path claims `(user, 'weekly_overview', week-start)` in `notification_claims` before inserting — a duplicate cron fire no longer re-notifies every member. Manual `home_id` path requires the caller to be a signed-in member of that home (401/403 otherwise). |
+| `weekly-optimise-digest` | **Wave 21.C** — Sunday 07:00 UTC. Activity-aware digest pointing at Optimise tab. Same `notification_claims` send-once claim (`(user, 'optimise_digest', past-week start)`) + same home-membership check on the manual `home_id` path. |
 | `fetch-pollen-daily` | **Wave 21.E** — daily 02:00 UTC. Pulls Open-Meteo pollen data into `pollen_snapshots` |
 | `push-webhook` | External-source push triggers |
 
@@ -135,5 +158,8 @@ Not used for notifications today.
 
 - `src/hooks/usePushNotifications.ts`
 - `supabase/functions/daily-batch-notifications/index.ts`
+- `supabase/functions/_shared/notificationTiming.ts` — `localMinutesOfDay`, `localDateInTz`, `isReminderDue`, `isNearSunset`
+- `supabase/functions/_shared/pagedSelect.ts` — `fetchAllPages` paged fleet scans
 - `supabase/functions/push-webhook/index.ts`
 - `supabase/migrations/*_user_devices.sql`
+- `supabase/migrations/20260828000000_notification_claims.sql` — `notification_claims` send-once table

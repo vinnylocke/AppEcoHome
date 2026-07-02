@@ -43,12 +43,15 @@ Deno.serve(async (req) => {
     }
 
     let processedHomesCount = 0;
-    const ONE_HOUR_MS = 60 * 60 * 1000;
+    // 55 min, not 60: each home's snapshot is stamped MID-run (home #50
+    // gets stamped at :03), so a full one-hour guard made late-listed homes
+    // alternate skip/update at the hourly cron — effectively 2-hour weather.
+    const FRESHNESS_GUARD_MS = 55 * 60 * 1000;
 
     for (const home of homes) {
       try {
-        // Idempotency guard: skip homes already synced within the last hour
-        // to prevent duplicate runs from cron retries or manual triggers.
+        // Idempotency guard: skip homes already synced within the guard
+        // window to prevent duplicate runs from cron retries or manual triggers.
         const { data: existing } = await supabase
           .from("weather_snapshots")
           .select("updated_at")
@@ -56,7 +59,7 @@ Deno.serve(async (req) => {
           .single();
         if (existing?.updated_at) {
           const msSinceSync = Date.now() - new Date(existing.updated_at).getTime();
-          if (msSinceSync < ONE_HOUR_MS) {
+          if (msSinceSync < FRESHNESS_GUARD_MS) {
             console.log(`⏭️ Skipping home ${home.id} — synced ${Math.round(msSinceSync / 60000)}min ago`);
             continue;
           }

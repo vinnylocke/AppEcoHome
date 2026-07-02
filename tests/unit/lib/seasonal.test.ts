@@ -166,14 +166,36 @@ describe("getSinglePeriodRange — named seasons", () => {
 });
 
 describe("getSinglePeriodRange — calendar months", () => {
-  test("january → 01-01 to 01-31 (hemisphere-independent)", () => {
+  test("january → 01-01 to 01-31 in the northern hemisphere", () => {
     expect(getSinglePeriodRange("january", "northern")).toEqual({
       start: "01-01",
       end: "01-31",
     });
+  });
+
+  test("month names shift +6 months for southern users (provider data is NH-calibrated)", () => {
+    // 29-seasonality contract: Perenual/Verdantly month names describe the
+    // northern-hemisphere calendar; an Australian user's "january" is july.
     expect(getSinglePeriodRange("january", "southern")).toEqual({
-      start: "01-01",
-      end: "01-31",
+      start: "07-01",
+      end: "07-31",
+    });
+    expect(getSinglePeriodRange("june", "southern")).toEqual({
+      start: "12-01",
+      end: "12-31",
+    });
+  });
+
+  test("month ranges span first→last instead of truncating to the first month", () => {
+    expect(getSinglePeriodRange("june to august", "northern")).toEqual({
+      start: "06-01",
+      end: "08-31",
+    });
+    // Southern shift of the same range wraps the year boundary (Dec–Feb),
+    // matching the wrap convention the season names already use.
+    expect(getSinglePeriodRange("june to august", "southern")).toEqual({
+      start: "12-01",
+      end: "02-28",
     });
   });
 

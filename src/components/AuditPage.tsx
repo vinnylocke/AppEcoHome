@@ -15,6 +15,7 @@ import {
 import { supabase } from "../lib/supabase";
 import { usePermissions } from "../context/HomePermissionsContext";
 import InfoTooltip from "./InfoTooltip";
+import { getLocalDateString } from "../lib/taskEngine";
 
 interface Props {
   homeId: string;
@@ -127,7 +128,7 @@ const FUNCTION_LABELS: Record<string, string> = {
 const PAGE_SIZE = 100;
 
 function todayStr() {
-  return new Date().toISOString().slice(0, 10);
+  return getLocalDateString(new Date());
 }
 
 function thirtyDaysAgoStr() {

@@ -28,7 +28,7 @@ GardenWalk  (mounted at /walk, under the focus-mode shell)
 ├── on mount → walkService.startSession + buildWalkList run in parallel
 ├── reducer state: loading | empty | error | walking | finished
 ├── walking
-│   └── WalkPlantCard
+│   └── WalkPlantCard   (keyed by the current plant's inventoryItemId — see State below)
 │       ├── Header (progress chip + Stop button)
 │       ├── Hero image
 │       ├── Name + area + band chip + context chips
@@ -65,6 +65,7 @@ GardenWalk  (mounted at /walk, under the focus-mode shell)
 - `useReducer` with the state machine above (`WalkState`, `WalkAction`).
 - `startedAtMs` captured once at mount for the end-of-walk duration.
 - `settings` hydrated from `localStorage["rhozly:walk:settings"]` (falls back to `DEFAULT_WALK_SETTINGS`). Settings UI is v2; v1 stores defaults.
+- `WalkPlantCard` is rendered with `key={current.inventoryItemId}` so React remounts the card per plant — without it, React reused the card instance on advance and the previous plant's scroll offset and in-flight upload state (`snapUploading`) bled into the next plant's card.
 
 ### Data flow — read paths
 
@@ -86,7 +87,7 @@ The pure helper `composeAndOrderWalk` does band assignment + sort. Bands (highes
 
 | Trigger | Call | Notes |
 |---|---|---|
-| Mount | `INSERT garden_walk_sessions (home_id, user_id)` | One row per walk; `ended_at` left NULL |
+| Mount | `INSERT garden_walk_sessions (home_id, user_id)` | One row per walk; `ended_at` left NULL. The bootstrap carries a **superseded-run guard** (generation counter): if a dep change or React StrictMode dev double-mount starts a second bootstrap mid-flight, the losing `startSession`'s orphan row is closed with `endSession` (zeroed metrics) and its response is discarded, so a slower stale response can never win the dispatch |
 | Snap save | `INSERT plant_journals (inventory_item_id, subject, image_url)` then `INSERT garden_walk_visits (session_id, outcome='snapped')` | The PhotoUploader uploads to `plant-images/walks/{homeId}/{itemId}/...` first |
 | Note save | `INSERT plant_journals (inventory_item_id, subject, description)` then visit row with `outcome='noted'` |
 | All good | `INSERT garden_walk_visits (outcome='all_good')` |

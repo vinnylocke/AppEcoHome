@@ -158,7 +158,8 @@ None.
 
 ### Tier gating
 
-- Chat overlay is hidden entirely on non-AI tiers.
+- Chat overlay is hidden entirely on non-AI tiers (client gate — the `<PlantDoctorChat>` mount in `src/App.tsx`, RHO-10).
+- **Server-side re-verification:** `agent-chat` now re-checks `ai_enabled` via `guardAiByUser` on **every** action — including tool confirm / cancel / undo — returning 403 "AI tier required" otherwise. This makes the App.tsx gate comment ("the server re-verifies") actually true; previously the client mount gate was the only enforcement.
 
 ### Beta gating
 

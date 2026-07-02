@@ -128,6 +128,12 @@ serve(async (req) => {
       );
     }
 
+    // Invite tokens speak the invite-facing vocabulary (editor/viewer) but
+    // home_members_role_check allows owner/admin/member/viewer — inserting
+    // 'editor' verbatim violates the constraint and the invitee can never
+    // join. Map to the membership vocabulary here.
+    const memberRole = invite.role === "editor" ? "member" : invite.role;
+
     // Atomic-ish: insert the membership + flip used_at. If the
     // membership insert succeeds but the flip fails (unlikely), the
     // owner sees a stale "pending" entry — they can revoke it from the
@@ -137,7 +143,7 @@ serve(async (req) => {
       .insert({
         home_id: invite.home_id,
         user_id: userId,
-        role: invite.role,
+        role: memberRole,
       });
     if (memberErr) {
       logError(FN, "member_insert_failed", {

@@ -736,15 +736,18 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 416 tests across 37 files
+### Unit tests — 1,088 tests across 105 files
+
+> Counts from `npm run test:unit` (authoritative). The table below inventories the core `src/lib/` suites.
 
 | File | Tests | Functions covered |
 |------|-------|-------------------|
-| `seasonal.test.ts` | 20 | `getFrequencyDays`, `getHemisphere`, `normalizePeriods`, `getSinglePeriodRange` |
+| `seasonal.test.ts` | 34 | `getFrequencyDays`, `getHemisphere` (lat-authoritative + expanded SH country list), `normalizePeriods`, `getSinglePeriodRange` (SH +6-month shift for explicit months, month ranges) |
 | `dateUtils.test.ts` | 8 | `getLocalDateString`, `formatDisplayDate` |
 | `plantScheduleFactory.test.ts` | 17 | `buildAutoSeasonalSchedules` |
 | `automationEngine.test.ts` | 17 | `calculateSeasonalDate`, `ailmentTaskType`, `frequencyDays` |
-| `taskEngine.test.ts` | 33 | `fetchTasksWithGhosts` (ghost generation, tombstone suppression, completed task filtering) |
+| `taskEngine.test.ts` | 41 | `fetchTasksWithGhosts` (ghost generation, tombstone suppression, completed task filtering, `paused_until` semantics — pre-pause occurrences suppressed permanently, post-pause occurrences emit during the pause) |
+| `scheduleFromSchedulableTask.test.ts` | 28 | `scheduleFromSchedulableTask` — month-window → blueprint dates, incl. wrap-around windows (Nov–Jan) |
 | `useHomeRealtime.test.ts` | 6 | `useHomeRealtime` — callback fires on matching table, debounce, multi-subscriber, cleanup |
 | `plantLabels.test.ts` | 23 | `derivePlantLabels` — plant_type, cycle variants, watering variants, drought_tolerant, care_level, indoor, edible, tropical, pruning deduplication |
 | `yieldService.test.ts` | 10 | `validateYieldValue`, `fetchYieldRecords`, `insertYieldRecord`, `deleteYieldRecord`, `updateExpectedHarvestDate` |
@@ -776,7 +779,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `dataSources.test.ts` | 5 | Credits & Sources data (`DATA_SOURCES`) — required fields, known categories, unique ids, every category non-empty, covers the key external sources |
 | `weatherAlertDismissal.test.ts` | 7 | App-wide weather-alert dismissal — `todayLocal`, `isDismissedToday` (per-type, reappears next day), `dismiss`/`undismiss` (immutable), `parseDismissed` (drops legacy id-array, keeps valid map, total on junk) |
 
-### Edge function tests — Deno
+### Edge function tests — Deno (734 tests across 58 files)
 
 | File | Tests | Rule / Pattern |
 |------|-------|----------------|
@@ -815,11 +818,11 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `plantFirstBlueprint.test.ts` | 6 | Plant-first planner output hardening — `normalisePlantFirstBlueprint`: caps areas (max 6), drops plant-less areas, clamps quantities (1–99) + `frequency_days` (1–365), coerces missing fields, derives `is_new` from `existing_area_id` |
 | `automationClaim.test.ts` | 3 | Automation firing race guard — `applyEdgeClaimFilter` keys the optimistic-CAS claim on the exact `last_fired_at` read (`IS NULL` when never fired, `eq` otherwise; never an unconditional update), so concurrent cron/event invocations can't double-fire the same rising edge |
 | `automationReceipt.test.ts` | 7 | Automation Receipt — `buildReceipt` outcome messages (ran with valves/tasks, notify-only, rate-limited with limit/next/nudge, failed, partial, skipped-weather, window labels + fallback name) |
-| `valveQueue.test.ts` | 4 | Shared `drainValveQueue` — empty queue no-op, `{ runId }` scopes the query to that run, successful `turn_on` marks `fired` + logs a `valve_event`, failed `turn_on` marks `failed` (no event). Guards the fix where the auto path now drains inline so the "ran" receipt isn't sent ~5 min before the valve opens |
+| `valveQueue.test.ts` | 7 | Shared `drainValveQueue` — empty queue no-op (beyond the stale-claim sweep), stale `firing` rows swept (turn_off retries / turn_on dead-letters), `{ runId }` scopes the query to that run, successful `turn_on` marks `fired` + logs a `valve_event`, failed `turn_on` marks `failed` (no event), claim-lock lost-claim skip, countdown uses the action's `valve_duration_seconds`. Guards the fix where the auto path now drains inline so the "ran" receipt isn't sent ~5 min before the valve opens |
 | `gapAnalysis.test.ts` | 12 | Head Gardener goal-gap engine — `analyseGaps` (year-round-colour bare-season detection case-insensitive, grow-your-own no-edibles + harvest-gap, attract-wildlife, low-maintenance overload, family-safe toxic flags, multi-goal accumulation, full-coverage → no gap) |
 | `managerLog.test.ts` | 6 | Head Gardener continuity log — `gapKey`/`gapTitle`, `diffGapLog` (opens new gaps, closes gone gaps, simultaneous open+close, ignores null target_id, no-op) |
 | `geminiParts.test.ts` | 6 | `joinPartsText` — joins all Gemini `content.parts` text (multi-part concatenation, ignores non-text/functionCall parts, empty/non-array → ""); guards the multi-part-truncation bug that emptied the Head Gardener report + cut off the insights summary |
-| `dashboardStats.test.ts` | 16 | `home-dashboard-stats` count helpers (`_shared/dashboardStats.ts`) — RHO-14 tasks-this-week (prior-week overdue counted, week-scoped total/pending, snooze/harvest-window aware, completedThisWeek), RHO-15 day strip (prior-week overdue → Sunday, harvest window spans in-week days, per-day overdue+pending), RHO-16 harvests-due subject-keyed dedup (3-plant task→3, same plant once, unlinked→1, recurring blueprint once, linked+unlinked distinct, Completed/Skipped excluded, pre-week window overlap) |
+| `dashboardStats.test.ts` | 20 | `home-dashboard-stats` count helpers (`_shared/dashboardStats.ts`) — RHO-14 tasks-this-week (prior-week overdue counted, week-scoped total/pending, snooze/harvest-window aware, completedThisWeek), RHO-15 day strip (prior-week overdue → Sunday, harvest window spans in-week days, per-day overdue+pending), RHO-16 harvests-due subject-keyed dedup (3-plant task→3, same plant once, unlinked→1, recurring blueprint once, linked+unlinked distinct, Completed/Skipped excluded, pre-week window overlap), plus DASH-STATS-028..031 regressions (tz-local `completed_at` bucketing, no Sunday double-count for straddling closed windows, window tasks "late" only after window end) |
 
 ### E2E tests — 481 tests across 33 files (+ 13 isolation tests)
 

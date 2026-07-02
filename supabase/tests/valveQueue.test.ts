@@ -41,6 +41,7 @@ function makeDb(rows: Record<string, unknown[]>, opts: { claim?: unknown[] } = {
       eq(col: string, val: unknown) { state.filters.push(["eq", col, val]); return b; },
       lte(col: string, val: unknown) { state.filters.push(["lte", col, val]); return b; },
       order() { return b; },
+      limit() { return b; },
       single() { state.single = true; return resolve(); },
       maybeSingle() { state.single = true; return resolve(); },
       // deno-lint-ignore no-explicit-any
@@ -75,13 +76,39 @@ async function queueRows() {
   };
 }
 
-const valveUpdate = (writes: Array<{ table: string; op: string; payload?: unknown }>, status: string) =>
-  writes.find((w) => w.table === "automation_valve_queue" && w.op === "update" && (w.payload as { status?: string })?.status === status);
+// The stale-claim sweep (bug-audit-2026-07-02 §9.2) runs two unconditional
+// UPDATEs at the top of every drain; tests about per-entry outcomes must
+// not confuse those recovery writes with entry status changes.
+const SWEEP_ERROR = "Stale firing claim — drain died mid-fire";
+const isSweepWrite = (w: { table: string; op: string; payload?: unknown }) => {
+  if (w.table !== "automation_valve_queue" || w.op !== "update") return false;
+  const p = w.payload as { status?: string; error_message?: string } | null;
+  if (!p) return false;
+  if (p.error_message === SWEEP_ERROR) return true;
+  return p.status === "pending" && Object.keys(p).length === 1;
+};
 
-Deno.test("drainValveQueue — empty queue is a no-op", async () => {
+const valveUpdate = (writes: Array<{ table: string; op: string; payload?: unknown }>, status: string) =>
+  writes.find((w) => !isSweepWrite(w) && w.table === "automation_valve_queue" && w.op === "update" && (w.payload as { status?: string })?.status === status);
+
+Deno.test("drainValveQueue — empty queue is a no-op (beyond the stale-claim sweep)", async () => {
   const { db, writes } = makeDb({ automation_valve_queue: [] });
   await drainValveQueue(db);
-  assertEquals(writes.length, 0);
+  assertEquals(writes.filter((w) => !isSweepWrite(w)).length, 0);
+});
+
+Deno.test("drainValveQueue — stale 'firing' rows are swept: turn_off retries, turn_on dead-letters", async () => {
+  const { db, ops } = makeDb({ automation_valve_queue: [] });
+  await drainValveQueue(db);
+  const sweepOps = ops.filter((o) =>
+    o.table === "automation_valve_queue" && o.op === "update" &&
+    (o.filters as unknown[][]).some((f) => f[0] === "eq" && f[1] === "status" && f[2] === "firing")
+  );
+  assertEquals(sweepOps.length, 2, "one sweep per command kind");
+  const commandOf = (o: { filters: unknown[] }) =>
+    (o.filters as unknown[][]).find((f) => f[1] === "command")?.[2];
+  assert(sweepOps.some((o) => commandOf(o) === "turn_off"), "turn_off sweep present");
+  assert(sweepOps.some((o) => commandOf(o) === "turn_on"), "turn_on sweep present");
 });
 
 Deno.test("drainValveQueue — { runId } scopes the queue query to that run", async () => {

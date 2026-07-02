@@ -2,6 +2,7 @@ import React, { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { X, MapPin, Loader2, Minus, Plus, Navigation, BrainCircuit } from "lucide-react";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { getLocalDateString } from "../lib/taskEngine";
 
 interface BulkAssignData {
   areaId: string;
@@ -56,7 +57,7 @@ export default function BulkAssignModal({
   const [noArea, setNoArea] = useState(false);
   const [isPlanted, setIsPlanted] = useState(false);
   const [isEstablished, setIsEstablished] = useState(false);
-  const [plantedDate, setPlantedDate] = useState(new Date().toISOString().split("T")[0]);
+  const [plantedDate, setPlantedDate] = useState(getLocalDateString(new Date()));
   const [growthState, setGrowthState] = useState("Vegetative");
   const [smartSchedules, setSmartSchedules] = useState(true);
   const [quantities, setQuantities] = useState<Record<number, number>>(() =>

@@ -22,6 +22,7 @@ import { usePlantDoctor } from "../context/PlantDoctorContext";
 import { AutomationEngine } from "../lib/automationEngine"; // 🚀 IMPORT THE ENGINE
 import { logEvent, EVENT } from "../events/registry";
 import { useFocusTrap } from "../hooks/useFocusTrap";
+import { getLocalDateString } from "../lib/taskEngine";
 
 interface PlantAssignmentModalProps {
   plant: any;
@@ -73,7 +74,7 @@ export default function PlantAssignmentModal({
     areaId: "",
     quantity: 1,
     isPlanted: false,
-    plantedDate: new Date().toISOString().split("T")[0],
+    plantedDate: getLocalDateString(new Date()),
     isEstablished: false,
     growthState: "Vegetative",
   });
@@ -276,7 +277,7 @@ export default function PlantAssignmentModal({
 
       if (formData.isPlanted && createdItems && createdItems.length > 0) {
         const baseDateStr = formData.isEstablished
-          ? new Date().toISOString().split("T")[0]
+          ? getLocalDateString(new Date())
           : formData.plantedDate;
         await AutomationEngine.applyPlantedAutomations(
           createdItems,

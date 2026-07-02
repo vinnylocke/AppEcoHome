@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { log, error as logError } from "../_shared/logger.ts";
 import { captureException } from "../_shared/sentry.ts";
+import { fetchAllPages } from "../_shared/pagedSelect.ts";
 
 const FN = "refresh-behaviour-summary";
 const WINDOW_DAYS = 30;
@@ -31,16 +32,16 @@ serve(async (req) => {
 
     log(FN, "run_start", { windowStart });
 
-    // Fetch all events in the rolling window.
-    const { data: events, error: eventsErr } = await db
-      .from("user_events")
-      .select("user_id, event_type, meta, created_at")
-      .gte("created_at", windowStart)
-      .order("created_at", { ascending: false });
-
-    if (eventsErr) throw eventsErr;
-
-    const raw: any[] = events ?? [];
+    // Fetch all events in the rolling window. Paged: past 1000 events/month
+    // PostgREST silently truncated the un-ranged select and the aggregates
+    // were computed from an arbitrary recent slice.
+    const raw: any[] = await fetchAllPages(() =>
+      db
+        .from("user_events")
+        .select("user_id, event_type, meta, created_at")
+        .gte("created_at", windowStart)
+        .order("created_at", { ascending: false })
+    );
 
     // Aggregate per user.
     type Agg = {
@@ -75,24 +76,25 @@ serve(async (req) => {
         agg.lastActiveAt = e.created_at;
       }
 
+      // Event names come from src/events/registry.ts and are lowercase —
+      // matching UPPERCASE here left every behaviour count at zero.
       switch (e.event_type) {
-        case "TASK_COMPLETED": {
+        case "task_completed": {
           agg.completed++;
           const t = e.meta?.task_type as string | undefined;
           if (t) agg.typeCounts[t] = (agg.typeCounts[t] ?? 0) + 1;
           break;
         }
-        case "TASK_POSTPONED":
+        case "task_postponed":
           agg.postponed++;
           break;
-        case "TASK_SKIPPED":
+        case "task_skipped":
           agg.skipped++;
           break;
-        case "PLANT_ADDED":
-        case "INVENTORY_ADDED":
+        case "plant_added":
           agg.plantsAdded++;
           break;
-        case "AI_CHAT_SENT":
+        case "plant_doctor_chat_message":
           agg.aiChatCount++;
           break;
       }

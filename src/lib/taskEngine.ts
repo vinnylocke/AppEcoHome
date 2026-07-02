@@ -78,15 +78,18 @@ export function collectHarvestWindowDates(
   for (const t of tasks) {
     if (!t.window_end_date || !t.due_date) continue;
     if (t.status && t.status !== "Pending") continue;
-    const start = new Date(t.due_date);
-    const end = new Date(t.window_end_date);
-    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) continue;
-    if (end < start) continue;
-    const cursor = new Date(start);
+    // Iterate in pure UTC: date-only strings parse as UTC midnight, so
+    // formatting with local getters shifted the whole tint a day early
+    // west of UTC (out of step with the string-compared window logic).
+    const startMs = Date.parse(`${t.due_date.split("T")[0]}T00:00:00Z`);
+    const endMs = Date.parse(`${t.window_end_date.split("T")[0]}T00:00:00Z`);
+    if (Number.isNaN(startMs) || Number.isNaN(endMs)) continue;
+    if (endMs < startMs) continue;
+    let cursorMs = startMs;
     let guard = 0;
-    while (cursor <= end && guard++ < 400) {
-      set.add(getLocalDateString(cursor));
-      cursor.setDate(cursor.getDate() + 1);
+    while (cursorMs <= endMs && guard++ < 400) {
+      set.add(new Date(cursorMs).toISOString().split("T")[0]);
+      cursorMs += 86_400_000;
     }
   }
   return set;
@@ -327,7 +330,14 @@ export const TaskEngine = {
         const isDueInWindow =
           task.due_date >= startDateStr && task.due_date <= endDateStr;
         const timestamp = task.updated_at || task.created_at || task.due_date;
-        const completedDateStr = timestamp.split("T")[0];
+        // updated_at/created_at are UTC timestamptz — slicing the UTC date
+        // and comparing to the LOCAL window strings drops/includes tasks
+        // off by one day at range edges (evening completions in the
+        // Americas). Convert real timestamps to the local calendar day;
+        // date-only fallbacks pass through untouched.
+        const completedDateStr = timestamp.includes("T")
+          ? getLocalDateString(new Date(timestamp))
+          : timestamp;
         const isCompletedInWindow =
           completedDateStr >= startDateStr && completedDateStr <= endDateStr;
         return isDueInWindow || isCompletedInWindow;
@@ -375,14 +385,17 @@ export const TaskEngine = {
 
       // Generate ghost tasks from blueprints (pure JS — no DB calls).
       const ghosts: any[] = [];
-      const nowMs = Date.now();
       bps.forEach((bp) => {
         if (!bp.frequency_days || !bp.start_date) return;
 
-        // Paused blueprints don't generate ghost tasks until the pause ends.
-        const pausedUntil = bp.paused_until ? new Date(bp.paused_until).getTime() : null;
-        const isPaused = pausedUntil !== null && pausedUntil > nowMs;
-        if (isPaused) return;
+        // Pause handling: occurrences BEFORE paused_until are skipped
+        // permanently (so a past pause window never resurrects its ghosts
+        // as overdue), while occurrences on/after paused_until still emit —
+        // a one-week pause must not blank next month's calendar. Date-string
+        // compares keep this timezone-safe.
+        const pausedUntilStr = bp.paused_until
+          ? String(bp.paused_until).split("T")[0]
+          : null;
 
         // ── Harvest window branch ────────────────────────────────────────
         // Harvest blueprints with both a start_date AND end_date emit ONE
@@ -399,6 +412,11 @@ export const TaskEngine = {
           (bp.task_type === "Harvesting" || bp.task_type === "Harvest")
           && bp.end_date
         ) {
+          // A window ghost is one long-lived task, not a per-day grid —
+          // suppress it while the pause is actually active; once the pause
+          // lapses the still-open window is relevant again.
+          if (pausedUntilStr && todayStr < pausedUntilStr) return;
+
           const ghostStartIso = bp.start_date;
           const intersectsRange =
             ghostStartIso <= endDateStr && bp.end_date >= startDateStr;
@@ -433,24 +451,38 @@ export const TaskEngine = {
         }
 
         const freq = bp.frequency_days;
-        let currentGhostDate = new Date(bp.start_date);
-        const targetEndDate = new Date(endDateStr);
 
-        const windowStart = new Date(startDateStr);
-        if (currentGhostDate < windowStart) {
-          const diffTime = Math.abs(
-            windowStart.getTime() - currentGhostDate.getTime(),
-          );
-          const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        // Grid math in pure UTC milliseconds. Date-only strings parse as
+        // UTC midnight, so the previous local-getter formatting
+        // (getLocalDateString) emitted every ghost a day early west of UTC
+        // — which broke the (blueprint_id:due_date) dedup against
+        // cron-materialised tasks and inserted wrong-date rows on
+        // materialisation.
+        const MS_PER_DAY = 86_400_000;
+        const parseUtcMs = (s: string) =>
+          Date.parse(`${String(s).split("T")[0]}T00:00:00Z`);
+        const stepMs = freq * MS_PER_DAY;
+
+        let ghostMs = parseUtcMs(bp.start_date);
+        const rangeStartMs = parseUtcMs(startDateStr);
+        const rangeEndMs = parseUtcMs(endDateStr);
+        if (Number.isNaN(ghostMs)) return;
+
+        if (ghostMs < rangeStartMs) {
+          const diffDays = Math.ceil((rangeStartMs - ghostMs) / MS_PER_DAY);
           const cyclesToSkip = Math.ceil(diffDays / freq);
-          currentGhostDate.setDate(
-            currentGhostDate.getDate() + cyclesToSkip * freq,
-          );
+          ghostMs += cyclesToSkip * stepMs;
         }
 
-        while (currentGhostDate <= targetEndDate) {
-          const ghostDateStr = getLocalDateString(currentGhostDate);
+        while (ghostMs <= rangeEndMs) {
+          const ghostDateStr = new Date(ghostMs).toISOString().split("T")[0];
           if (bp.end_date && ghostDateStr > bp.end_date) break;
+
+          // Skip occurrences inside the pause window (see comment above).
+          if (pausedUntilStr && ghostDateStr < pausedUntilStr) {
+            ghostMs += stepMs;
+            continue;
+          }
 
           const alreadyExists =
             materialisedKeys.has(`${bp.id}:${ghostDateStr}`)
@@ -481,7 +513,7 @@ export const TaskEngine = {
               isGhost: true,
             });
           }
-          currentGhostDate.setDate(currentGhostDate.getDate() + freq);
+          ghostMs += stepMs;
         }
       });
 

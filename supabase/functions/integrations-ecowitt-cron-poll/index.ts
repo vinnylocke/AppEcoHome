@@ -86,7 +86,8 @@ async function pollIntegration(
     url.searchParams.set("mac", mac.toUpperCase());
     url.searchParams.set("call_back", "all");
 
-    const res = await fetch(url.toString());
+    // Timeout: one hung Ecowitt request must not stall the whole fleet poll.
+    const res = await fetch(url.toString(), { signal: AbortSignal.timeout(15_000) });
     if (!res.ok) continue;
 
     const json = await res.json();
@@ -154,11 +155,17 @@ serve(async (_req: Request) => {
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
     );
 
+    // Poll "error" integrations too: the failure handler below demotes to
+    // status='error', and nothing else automated ever restores 'active' —
+    // one transient Ecowitt blip at 03:00 silently stopped a user's soil
+    // readings until they noticed and tapped "Sync now". A successful poll
+    // re-stamps status='active' (see pollIntegration), so errored setups
+    // self-heal on the next tick once the API recovers.
     const { data: integrations, error: intErr } = await db
       .from("integrations")
       .select("id, home_id, credentials_encrypted")
       .eq("provider", "ecowitt")
-      .eq("status", "active");
+      .in("status", ["active", "error"]);
 
     if (intErr) throw intErr;
 

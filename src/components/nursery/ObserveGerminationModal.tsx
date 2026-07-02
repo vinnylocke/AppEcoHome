@@ -6,6 +6,7 @@ import { useFocusTrap } from "../../hooks/useFocusTrap";
 import { observeSowing, type SeedSowing } from "../../services/nurseryService";
 import { Logger } from "../../lib/errorHandler";
 import { logEvent, EVENT } from "../../events/registry";
+import { getLocalDateString } from "../../lib/taskEngine";
 
 interface Props {
   /** The sowing being observed — needs at least id, sown_on and sown_count. */
@@ -15,7 +16,7 @@ interface Props {
   onSaved?: () => void;
 }
 
-const todayIso = () => new Date().toISOString().split("T")[0];
+const todayIso = () => getLocalDateString(new Date());
 
 /**
  * Records the germinated_count + observed_on for a sowing. Moves the
