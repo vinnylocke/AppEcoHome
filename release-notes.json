@@ -1,10 +1,1 @@
-[
-  {
-    "label": "Under the hood",
-    "items": [
-      "A sweep found and fixed 78 places where the app asked the database for fields that didn't exist — AI features like the garden coach, area optimiser and rotation suggestions now see your real garden data again.",
-      "The Watchlist's linked-plant lists, note linking and plant search results are more reliable.",
-      "Two new automated safety gates now run before every release so these classes of bug can't ship again."
-    ]
-  }
-]
+[]
