@@ -70,9 +70,13 @@ Deno.serve(async (req) => {
       alertsRes,
       failedRunsRes,
     ] = await Promise.all([
+      // NOTE: no `hazard` column exists on locations (LocationTile's
+      // site.hazard read is schema drift — always undefined via the `*`
+      // select). Naming it here 400'd the whole query in production and,
+      // unchecked, silently blanked every telemetry chip.
       db
         .from("locations")
-        .select("id, name, is_outside, hazard, areas ( id, name )")
+        .select("id, name, is_outside, areas ( id, name )")
         .eq("home_id", homeId),
       db
         .from("inventory_items")
@@ -105,6 +109,24 @@ Deno.serve(async (req) => {
         .gte("triggered_at", dayAgoIso)
         .limit(5),
     ]);
+
+    // Fail LOUDLY on any read error: the client soft-fails by design, so a
+    // silent partial result here renders as "no chips" with zero signal —
+    // which is exactly how the hazard-column bug shipped.
+    const failures = [
+      ["locations", locationsRes.error],
+      ["inventory_items", itemsRes.error],
+      ["devices", devicesRes.error],
+      ["latest_device_readings", readingsRes.error],
+      ["tasks", openTasksRes.error],
+      ["weather_alerts", alertsRes.error],
+      ["automation_runs", failedRunsRes.error],
+    ].filter(([, e]) => e);
+    if (failures.length > 0) {
+      throw new Error(
+        `home-overview reads failed: ${failures.map(([n, e]) => `${n}: ${(e as { message?: string }).message}`).join(" | ")}`,
+      );
+    }
 
     const locations = locationsRes.data ?? [];
     const items = itemsRes.data ?? [];
@@ -144,6 +166,8 @@ Deno.serve(async (req) => {
           .in("status", ["pending", "failed"])
           .gte("fire_at", dayAgoIso),
       ]);
+      if (eventsRes.error) throw new Error(`valve_events read failed: ${eventsRes.error.message}`);
+      if (queueRes.error) throw new Error(`automation_valve_queue read failed: ${queueRes.error.message}`);
       valveEvents = (eventsRes.data ?? []) as ValveEventRow[];
       valveQueue = (queueRes.data ?? []) as ValveQueueRow[];
     }
@@ -247,7 +271,7 @@ Deno.serve(async (req) => {
         id: loc.id,
         name: loc.name,
         is_outside: loc.is_outside,
-        hazard: loc.hazard ?? null,
+        hazard: null,
         tasksToday: tasksTodayByLocation.get(loc.id) ?? 0,
         areas,
       };
