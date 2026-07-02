@@ -1,18 +1,1 @@
-[
-  {
-    "label": "Fixes",
-    "items": [
-      "Watchlist: the Perenual and AI search buttons work again (typing Enter always did).",
-      "Watchlist plant links now refresh live across devices.",
-      "Garden editor: the floating Layers menu no longer breaks when opening Companions.",
-      "Plant Doctor chat: \"Regenerate\" now actually re-asks your question."
-    ]
-  },
-  {
-    "label": "Smarter AI grounding",
-    "items": [
-      "Your measured light readings now inform every AI feature — area advice, plant suggestions, rotation planning and the visualiser all know how sunny each area really is.",
-      "The garden coach also sees your recent week's real temperatures and rainfall."
-    ]
-  }
-]
+[]
