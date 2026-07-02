@@ -224,6 +224,22 @@ export const DEFAULT_QUICK_LAUNCHER_PINS: readonly string[] = [
   "shed",
 ];
 
+/**
+ * Persona-aware default pins for the Home dashboard's quick-actions row
+ * (docs/plans/new-home-dashboard.md §3.4). Only consulted when the user has
+ * never customised their pins; a saved preference always wins. New/unknown
+ * gardeners get the learning-and-capturing set (the classic defaults);
+ * experienced gardeners get the operating set.
+ */
+export function defaultQuickLauncherPins(
+  persona: "new" | "experienced" | null | undefined,
+): readonly string[] {
+  if (persona === "experienced") {
+    return ["walk", "today", "journal", "light-sensor"];
+  }
+  return DEFAULT_QUICK_LAUNCHER_PINS;
+}
+
 export const QUICK_LAUNCHER_MIN = 1;
 export const QUICK_LAUNCHER_MAX = 10;
 

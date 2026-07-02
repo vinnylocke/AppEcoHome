@@ -155,6 +155,20 @@ Per-worker substitution is `1000011` → `${w + 1}00011`. Worker 1 (test1) forks
 
 **Important:** these fork IDs look like leftover plants from old `plant-doctor` runs but they're NOT — they're load-bearing seed data for `ai-plant-freshness.spec.ts` and `ai-plant-override.spec.ts`. Don't scrub plants where `id < 1_000_000 AND source = 'ai'` in any `beforeAll` cleanup; it will delete these and silently break 7 tests across two specs.
 
+### Integrations telemetry — UUIDs at `0013-`–`0016-` (`13_integrations.sql`)
+
+Backs the Home dashboard's Phase 2 sensor/valve chips (`home-overview` endpoint). The soil sensor sits on Raised Bed A (`0002-...001`) with a `now()`-stamped reading (moisture 45% / 18.5 °C / battery 82% → chip reads "Soil: OK" / "45%", never stale-grey); the water valve sits on South Border (`0002-...002`) with a `turn_on` valve event 2 hours ago (600 s run → always idle by test time, never "running"). `credentials_encrypted` is a placeholder — nothing in the suite decrypts it.
+
+```
+INTEGRATION_ECOWITT  = 00000001-0000-0000-0013-000000000001  (ecowitt, active, region eu)
+DEVICE_SOIL_SENSOR   = 00000001-0000-0000-0014-000000000001  (Raised Bed A Sensor — soil_sensor, battery 82%)
+DEVICE_WATER_VALVE   = 00000001-0000-0000-0014-000000000002  (South Border Valve — water_valve)
+READING_SOIL_FRESH   = 00000001-0000-0000-0015-000000000001  (device_readings — re-stamped to now() every seed run)
+VALVE_EVENT_LAST_RUN = 00000001-0000-0000-0016-000000000001  (valve_events — turn_on, now() - 2h, 600s)
+```
+
+> The `0013-` block is shared with the Head Gardener continuity log below — different tables (`integrations` vs `garden_manager_log`), so the identical UUID strings never collide.
+
 ### Head Gardener — UUIDs at `0013-` (`14_head_gardener.sql`)
 
 `garden_brief` and `garden_manager_reports` are keyed by `home_id` (one row per home); the continuity log uses the `0013-` block.
@@ -213,6 +227,7 @@ All seed files use `ON CONFLICT DO UPDATE`, so re-running is safe. Seeds that re
 | `11_community_guides.sql` | 2 published guides with stars + comments |
 | `12_shopping_lists.sql` | 2 lists (1 active, 1 completed) with 6 items |
 | `13_ai_freshness.sql` | Cherry Tomato + Lavender catalogue + per-home forks |
+| `13_integrations.sql` | Ecowitt integration + soil sensor (Raised Bed A, fresh reading) + water valve (South Border, 2h-old run) |
 | `14_head_gardener.sql` | Confirmed Garden Brief + cached Estate Report + 2 continuity-log entries |
 
 > **Lost or corrupted seed data?** `npm run test:seed` restores it. Each seed file is independent.

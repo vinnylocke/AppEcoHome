@@ -227,7 +227,7 @@ test.describe("Dashboard — quiz banner (Section 02)", () => {
     );
 
     // Re-navigate so the useEffect re-runs with the mocked response
-    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.goto("/dashboard?view=overview");
     await authenticatedPage.waitForTimeout(800);
 
     const dashboard = new DashboardPage(authenticatedPage);
@@ -241,7 +241,7 @@ test.describe("Dashboard — quiz banner (Section 02)", () => {
       route => route.fulfill({ status: 200, contentType: "application/json", body: "null" }),
     );
 
-    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.goto("/dashboard?view=overview");
     await authenticatedPage.waitForTimeout(800);
 
     const dashboard = new DashboardPage(authenticatedPage);
@@ -260,7 +260,7 @@ test.describe("Dashboard — quiz banner (Section 02)", () => {
       route => route.fulfill({ status: 200, contentType: "application/json", body: "null" }),
     );
 
-    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.goto("/dashboard?view=overview");
     await authenticatedPage.waitForTimeout(800);
 
     const dashboard = new DashboardPage(authenticatedPage);
@@ -807,7 +807,7 @@ test.describe("Dashboard — Week Ahead card gating (RHO-9)", () => {
 
   test("DASH-051: Week Ahead card is hidden for Sprout (ai_insights-gated)", async ({ authenticatedPage }) => {
     await forceSproutTier(authenticatedPage);
-    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.waitForLoad();
 
@@ -819,7 +819,7 @@ test.describe("Dashboard — Week Ahead card gating (RHO-9)", () => {
 
   test("DASH-052: Week Ahead card is visible for the Evergreen seed account", async ({ authenticatedPage }) => {
     // No tier override — the seeded account is Evergreen and entitled to ai_insights.
-    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.waitForLoad();
 
@@ -848,7 +848,7 @@ test.describe("Dashboard — locked feature teasers for Sprout (RHO-2)", () => {
 
   test("DASH-040: Head Gardener card shows the compact upgrade teaser, not the full panel", async ({ authenticatedPage }) => {
     await forceSprout(authenticatedPage);
-    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.waitForLoad();
 
@@ -861,7 +861,7 @@ test.describe("Dashboard — locked feature teasers for Sprout (RHO-2)", () => {
 
   test("DASH-041: AI Insights card shows the compact upgrade teaser, not the full panel", async ({ authenticatedPage }) => {
     await forceSprout(authenticatedPage);
-    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.waitForLoad();
 
@@ -872,7 +872,7 @@ test.describe("Dashboard — locked feature teasers for Sprout (RHO-2)", () => {
 
   test("DASH-042: no full-size upgrade panel renders anywhere on the Sprout dashboard", async ({ authenticatedPage }) => {
     await forceSprout(authenticatedPage);
-    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.waitForLoad();
     await expect(authenticatedPage.getByText(/Upgrade to .* to use Head Gardener/i)).toBeVisible({ timeout: 10000 });
@@ -928,7 +928,7 @@ test.describe("Dashboard — plant chat AI-gating for Sprout (RHO-10 / RHO-11)",
 
   test("DASH-043: Sprout dashboard hides the global Plant Doctor chat FAB", async ({ authenticatedPage }) => {
     await forceNonAi(authenticatedPage);
-    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.waitForLoad();
 
@@ -940,7 +940,7 @@ test.describe("Dashboard — plant chat AI-gating for Sprout (RHO-10 / RHO-11)",
 
   test("DASH-044: Sprout dashboard hides the Daily Brief 'Got a plant question?' chip", async ({ authenticatedPage }) => {
     await forceNonAi(authenticatedPage);
-    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.waitForLoad();
 
@@ -950,7 +950,7 @@ test.describe("Dashboard — plant chat AI-gating for Sprout (RHO-10 / RHO-11)",
 
   test("DASH-045: AI-enabled account still shows the chat FAB and the chip", async ({ authenticatedPage }) => {
     // No profile override — the seeded account is AI-enabled, so both entry points render.
-    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.goto("/dashboard?view=overview");
     const dashboard = new DashboardPage(authenticatedPage);
     await dashboard.waitForLoad();
 

@@ -296,6 +296,7 @@ E2E tests run with up to 4 parallel workers, each backed by its own isolated Sup
 | `07_guides.sql` | 3 guides (Beginner, Intermediate) |
 | `08_profile_preferences.sql` | Quiz completion + 5 planner preferences |
 | `12_shopping_lists.sql` | 2 shopping lists (1 active, 1 completed) with 6 items; pre-completes Summer Veg Plan Phase 1 |
+| `13_integrations.sql` | Ecowitt integration + soil sensor on Raised Bed A (fresh reading: 45% / 18.5°C / battery 82%) + water valve on South Border (turn_on event 2h ago) |
 
 **Fixed UUID convention** — all seed entities use the same prefixes across files:
 
@@ -317,6 +318,10 @@ E2E tests run with up to 4 parallel workers, each backed by its own isolated Sup
 | Preferences | `00000000-0000-0000-000c-00000000000{n}` |
 | Shopping lists | `00000000-0000-0000-0011-00000000000{n}` |
 | Shopping list items | `00000000-0000-0000-0012-00000000000{n}` |
+| Integration | `00000000-0000-0000-0013-000000000001` |
+| Devices | `00000000-0000-0000-0014-00000000000{n}` |
+| Device readings | `00000000-0000-0000-0015-00000000000{n}` |
+| Valve events | `00000000-0000-0000-0016-00000000000{n}` |
 
 **Workflow:**
 ```bash

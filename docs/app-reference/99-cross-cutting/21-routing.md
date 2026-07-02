@@ -22,7 +22,7 @@ BrowserRouter
     │   (Wave 6: on mobile, the /quick/* AND /walk routes render in focus
     │    mode — persistent top bar + side nav hidden; QuickAccessMenuButton +
     │    MobileNavDrawer provide nav access on demand. Desktop unchanged.)
-    ├── /dashboard         ← Home (Dashboard / Locations / Calendar / Weather sub-tabs via ?view=)
+    ├── /dashboard         ← Dashboard container (Dashboard [home] / Overview / Locations / Calendar / Weather sub-tabs via ?view=)
     ├── /shed              ← GardenHub (Shed / Watchlist / Senescence sub-tabs via ?tab=)
     ├── /schedule          ← BlueprintManager
     ├── /planner           ← PlannerHub (?tab=planner|shopping)
@@ -61,7 +61,7 @@ BrowserRouter
 
 | Pattern | Purpose |
 |---------|---------|
-| `?view=X` | Sub-tab within Dashboard (dashboard \| locations \| calendar \| weather) |
+| `?view=X` | Sub-tab within Dashboard (home \| overview \| locations \| calendar \| weather — see the table below) |
 | `?tab=X` | Sub-tab elsewhere (Garden Hub shed/watchlist/senescence, Planner, Guides, Account, Routines blueprints/optimise) |
 | `?open=X` | Auto-open a modal on the destination |
 | `?q=X` | Search query (Guides) |
@@ -71,6 +71,28 @@ BrowserRouter
 | `?section=quick-launcher` | Scroll to the Quick Launcher picker on Account settings |
 | `?section=plans` | Force the Account tab + scroll to the "Your Plan" picker (`#plan-section`); tier-locked `UpgradeNudge` banners route here (RHO-12) |
 | `?ailment=X` | Deep-link an Ailment Library entry |
+
+### `/dashboard` `?view=` param (new-home-dashboard, Phase 1)
+
+Parsed in `src/App.tsx` (~line 505):
+
+| `?view=` value | Resolves to | Label | Content |
+|---------------|-------------|-------|---------|
+| *(absent)* | `home` | **Dashboard** | The new Home main dashboard (default) — [Home (Main Dashboard)](../02-dashboard/17-home-main.md) |
+| `home` | `home` | Dashboard | Same |
+| `overview` | `overview` | Overview | The classic dashboard feed, content unchanged — [Dashboard Tab (Overview)](../02-dashboard/01-dashboard-tab.md) |
+| `locations` | `locations` | Locations | unchanged |
+| `calendar` | `calendar` | Calendar | unchanged |
+| `weather` | `weather` | Weather | unchanged |
+| `dashboard` *(legacy)* | `home` | — | Backwards compat: old deep links / notifications land on the view now labelled "Dashboard" |
+| *anything else* | `home` | — | Unknown values fall back to the default |
+
+**localStorage persistence (`rhozly_dashboard_view`):**
+
+- Visiting `/dashboard` with an explicit `?view=` writes the **resolved** view (legacy `dashboard` persists as `home`).
+- Visiting plain `/dashboard` restores the saved view **once per mount** only (subsequent sub-tab clicks to "Dashboard" stick, and record `home` for next session).
+- Only `overview | locations | calendar | weather` are restored. A stored legacy `"dashboard"` value is **deliberately not restored** — it falls through to the new `home` default once at release; the user's next explicit choice is respected from then on.
+- The switcher's "Dashboard" button navigates to plain `/dashboard` (no param); the other four navigate to `/dashboard?view=<v>` (all `replace: true`).
 
 ### Quick-add deep links (from GlobalQuickAdd)
 
@@ -130,6 +152,8 @@ You can bookmark, share, and back-button anywhere. "Open me on the Watchlist wit
 
 ## Related reference files
 
+- [Home (Main Dashboard)](../02-dashboard/17-home-main.md) — the `?view=home` default + legacy mapping consumer
+- [Dashboard Tab (Overview)](../02-dashboard/01-dashboard-tab.md) — `?view=overview`
 - [Global Quick Add](../08-modals-and-overlays/23-global-quick-add.md)
 - [Header / Top Bar](../09-persistent-ui/01-header.md)
 - [Capacitor](./23-capacitor.md)

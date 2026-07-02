@@ -6,7 +6,7 @@ import { test } from "../fixtures/auth";
 
 test.describe("Navigation deep-links", () => {
   test("NAV-001: Dashboard 'Completed' tile → calendar agenda", async ({ authenticatedPage }) => {
-    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.goto("/dashboard?view=overview");
     const tile = authenticatedPage.getByTestId("dash-stat-tasks-completed");
     const visible = await tile.isVisible({ timeout: 10000 }).catch(() => false);
     if (!visible) { test.skip(); return; }

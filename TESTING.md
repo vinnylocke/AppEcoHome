@@ -701,7 +701,7 @@ The account email is derived automatically inside `tests/e2e/fixtures/auth.ts` f
 
 ### Local DB setup — seeding the test accounts
 
-All numbered test seeds (`supabase/seeds/00_bootstrap.sql` → `08_profile_preferences.sql`) use `ON CONFLICT DO UPDATE` so they are fully idempotent — safe to re-run at any time without wiping the database first.
+All numbered test seeds (`supabase/seeds/00_bootstrap.sql` → `14_head_gardener.sql`, including `13_integrations.sql` — the ecowitt integration + soil sensor + water valve telemetry backing the Home dashboard chips) use `ON CONFLICT DO UPDATE` so they are fully idempotent — safe to re-run at any time without wiping the database first. The canonical per-file contents table lives in [docs/e2e-test-plan/01-seeded-fixtures.md](docs/e2e-test-plan/01-seeded-fixtures.md).
 
 **When to do what:**
 
@@ -736,7 +736,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 
 ## 12. Current Test Inventory
 
-### Unit tests — 1,088 tests across 105 files
+### Unit tests — 1,091 tests across 105 files
 
 > Counts from `npm run test:unit` (authoritative). The table below inventories the core `src/lib/` suites.
 
@@ -779,7 +779,7 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `dataSources.test.ts` | 5 | Credits & Sources data (`DATA_SOURCES`) — required fields, known categories, unique ids, every category non-empty, covers the key external sources |
 | `weatherAlertDismissal.test.ts` | 7 | App-wide weather-alert dismissal — `todayLocal`, `isDismissedToday` (per-type, reappears next day), `dismiss`/`undismiss` (immutable), `parseDismissed` (drops legacy id-array, keeps valid map, total on junk) |
 
-### Edge function tests — Deno (734 tests across 58 files)
+### Edge function tests — Deno (744 tests across 59 files)
 
 | File | Tests | Rule / Pattern |
 |------|-------|----------------|
@@ -823,8 +823,9 @@ The `playwright.config.ts` is configured with `webServer.reuseExistingServer: tr
 | `managerLog.test.ts` | 6 | Head Gardener continuity log — `gapKey`/`gapTitle`, `diffGapLog` (opens new gaps, closes gone gaps, simultaneous open+close, ignores null target_id, no-op) |
 | `geminiParts.test.ts` | 6 | `joinPartsText` — joins all Gemini `content.parts` text (multi-part concatenation, ignores non-text/functionCall parts, empty/non-array → ""); guards the multi-part-truncation bug that emptied the Head Gardener report + cut off the insights summary |
 | `dashboardStats.test.ts` | 20 | `home-dashboard-stats` count helpers (`_shared/dashboardStats.ts`) — RHO-14 tasks-this-week (prior-week overdue counted, week-scoped total/pending, snooze/harvest-window aware, completedThisWeek), RHO-15 day strip (prior-week overdue → Sunday, harvest window spans in-week days, per-day overdue+pending), RHO-16 harvests-due subject-keyed dedup (3-plant task→3, same plant once, unlinked→1, recurring blueprint once, linked+unlinked distinct, Completed/Skipped excluded, pre-week window overlap), plus DASH-STATS-028..031 regressions (tz-local `completed_at` bucketing, no Sunday double-count for straddling closed windows, window tasks "late" only after window end) |
+| `homeOverview.test.ts` | 10 | `home-overview` pure helpers (`_shared/homeOverview.ts`, HOME-OV-001..010) — `deriveValveState` (running inside the turn_on countdown, never past `duration_seconds`, newer turn_off wins, failed-queue-newer-than-last-event → failed, `nextRunAt` = earliest pending turn_on), `soilBand` (<30 dry / >70 wet), `rankAttention` (overdue > alert > failed automation > battery/soil > harvest; max 4; empty when calm), `summariseSoilReading` (null-safe, `readingAgeMin`, battery falls back to the reading payload) |
 
-### E2E tests — 481 tests across 33 files (+ 13 isolation tests)
+### E2E tests — 489 tests across 34 files (+ 13 isolation tests)
 
 > `ailment-library.spec.ts` (Section 24) covers the browse shell (heading, search, kind filter chips) + the "Browse the ailment library" navigation from the Watchlist. Shell-only (the seeded e2e DB has no `ailment_library` rows → grid empty state).
 
@@ -855,6 +856,7 @@ The `isolation` Playwright project (`npx playwright test --project=isolation` / 
 | `planner-restore.spec.ts` | 3 | Planner Archive/Restore (PLN-R-001..003): seeded archived plan visible on Archived tab, options menu shows Restore + Delete, Restore moves plan from Archived → Pending (Active) |
 | `dashboard.spec.ts` | 46 | Dashboard sections, weather card, daily tasks, plant grid, nav links, pull-to-refresh; RHO-13 Total Tasks tile → calendar (DASH-050); RHO-9 Week Ahead card gating (DASH-051/052) |
 | `garden-walk.spec.ts` | 3 | Garden Walk `/walk` — RHO-7/8 return-to-origin on exit (WALK-001) + "Back" label (WALK-002), RHO-6 Snap sheet scroll/focus into view (WALK-010) |
+| `home-main.spec.ts` | 8 | New Home main dashboard `?view=home` (HOME-001..008, all passing 2026-07-02): default landing + 5-tab switcher, overview grid renders seeded locations/areas, legacy `?view=dashboard` → home, `?view=overview` shows the classic page, default quick-action tiles, density toggle persists `rhozly:home:density`, today's tasks "See all" → calendar; HOME-008 (Phase 2) mocks `home-overview` via `mockEdgeFunction` and asserts the sensor chip, valve chip ("Watering" running state) and `soil_dry` attention card. Page Object: `pages/HomeMainPage.ts`. `DashboardPage.goto()` repointed to `?view=overview` |
 | `head-gardener.spec.ts` | 7 | Head Gardener `/manager` (HG-001..007): hub heading + tabs, Overview report (mocked) headline/section/gap, continuity log seeded open item, Brief tab seeded brief, Year Plan tab seeded items, Insights tab embedded feed, Ask tab grounded reply (mocked) |
 | `plants.spec.ts` | 4 | Shed page load, search input, nav link, plants-or-empty state |
 | `shed-crud.spec.ts` | 30 | Add plant (manual + AI), edit, archive, restore, delete, search/filter, detail drawer |

@@ -5,7 +5,7 @@
 **Seed dependencies:** `00_bootstrap.sql`, `01_locations_areas.sql`, `03_tasks_blueprints.sql`, `04_weather.sql`
 **App-reference:** [02-dashboard/01-dashboard-tab.md](../app-reference/02-dashboard/01-dashboard-tab.md)
 
-Covers the main `/dashboard` surface (weather card, location tiles, daily-tasks panel), the **Calendar** view at `/dashboard?view=calendar`, and the **Location detail** view at `/dashboard?locationId=…`.
+Covers the classic dashboard surface — now the **Overview** sub-tab at `/dashboard?view=overview` (weather card, location tiles, daily-tasks panel) — plus the **Calendar** view at `/dashboard?view=calendar` and the **Location detail** view at `/dashboard?locationId=…`. Plain `/dashboard` lands on the new **Home** view, covered separately in [30-home-main.md](./30-home-main.md).
 
 ## Weather widget
 

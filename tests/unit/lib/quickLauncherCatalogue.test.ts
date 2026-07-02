@@ -4,6 +4,8 @@ import {
   QUICK_LAUNCHER_BY_ID,
   QUICK_LAUNCHER_CATALOGUE,
   resolvePins,
+  defaultQuickLauncherPins,
+  DEFAULT_QUICK_LAUNCHER_PINS,
   type QuickLauncherAvailabilityCtx,
 } from "../../../src/lib/quickLauncherCatalogue";
 
@@ -83,5 +85,32 @@ describe("partitionForPicker", () => {
     expect(availIds).toContain("capture");
     expect(availIds).not.toContain("today");
     expect(availIds).not.toContain("shed");
+  });
+});
+
+// ── Persona-aware defaults (new-home-dashboard plan §3.4) ─────────────────
+
+describe("defaultQuickLauncherPins", () => {
+  test("experienced gardeners get the operating set", () => {
+    expect(defaultQuickLauncherPins("experienced")).toEqual([
+      "walk",
+      "today",
+      "journal",
+      "light-sensor",
+    ]);
+  });
+
+  test("new / unknown gardeners get the classic learning set", () => {
+    expect(defaultQuickLauncherPins("new")).toEqual([...DEFAULT_QUICK_LAUNCHER_PINS]);
+    expect(defaultQuickLauncherPins(null)).toEqual([...DEFAULT_QUICK_LAUNCHER_PINS]);
+    expect(defaultQuickLauncherPins(undefined)).toEqual([...DEFAULT_QUICK_LAUNCHER_PINS]);
+  });
+
+  test("every persona default id exists in the catalogue", () => {
+    for (const persona of ["experienced", "new", null] as const) {
+      for (const id of defaultQuickLauncherPins(persona)) {
+        expect(QUICK_LAUNCHER_BY_ID[id], `unknown pin id ${id}`).toBeDefined();
+      }
+    }
   });
 });

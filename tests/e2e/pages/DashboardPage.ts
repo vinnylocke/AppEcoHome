@@ -49,7 +49,10 @@ export class DashboardPage {
   }
 
   async goto() {
-    await this.page.goto("/dashboard");
+    // The classic dashboard now lives on the "Overview" sub-tab; plain
+    // /dashboard lands on the new Home view (see HomeMainPage). This page
+    // object models the classic content, so it navigates straight there.
+    await this.page.goto("/dashboard?view=overview");
   }
 
   async gotoCalendar() {

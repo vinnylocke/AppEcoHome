@@ -29,7 +29,7 @@ async function openTaskByTitle(
   page: import("@playwright/test").Page,
   title: string,
 ) {
-  await page.goto("/dashboard");
+  await page.goto("/dashboard?view=overview");
   await page
     .locator(".animate-spin, .animate-pulse")
     .first()

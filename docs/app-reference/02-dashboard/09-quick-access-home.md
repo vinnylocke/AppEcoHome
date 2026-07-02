@@ -64,6 +64,8 @@ QuickAccessLens (mounted at /quick/lens)
 
 The launcher is data-driven. Every pinnable destination has a stable id, label, description, icon, accent and route in `QUICK_LAUNCHER_CATALOGUE` (`src/lib/quickLauncherCatalogue.ts`). User preference is `string[]` of ids stored in two places:
 
+> **Shared with the Home dashboard (new-home-dashboard Phase 1):** the [Home view](./17-home-main.md)'s quick-actions row (`src/components/home/QuickActionsRow.tsx`) renders from this same catalogue + saved pins — customising in one place changes both surfaces. One difference for **never-customised** users: the Home row applies **persona-aware defaults** via `defaultQuickLauncherPins(persona)` (`quickLauncherCatalogue.ts`) — `experienced` → `walk / today / journal / light-sensor`, everything else → the classic `doctor / today / capture / shed`. "Never customised" is detected via `hasStoredPins()` (`quickLauncherPrefs.ts`), a new export that checks whether the raw `rhozly_quick_launcher_v1` key exists — `readLocalPins()` can't distinguish "never customised" from "customised to exactly the defaults" since it returns the default set for both. **A saved pin preference always wins** on both surfaces; `/quick` itself still uses the classic defaults via `readLocalPins()`.
+
 Current catalogue (16 destinations): `lens`, `today`, `capture`, `library`, `shed`, `planner`, `walk`, `doctor`, `shopping`, plus the Journal + Tools Hub additions — `journal` (`/journal`), `guides` (`/guides`), `garden-layout`, `visualiser`, `light-sensor`, `sun-tracker`, and `weekly` (`/weekly`, the Wave 21 Weekly Overview page). Adding a pinnable destination = appending one catalogue entry; the picker auto-renders it.
 
 | Layer | Key | Role |
@@ -242,6 +244,7 @@ No difference.
 
 ## Related reference files
 
+- [Home (Main Dashboard)](./17-home-main.md) — the desktop Home view's quick-actions row shares this launcher's catalogue + pins (persona-aware defaults when never customised)
 - [Plant Doctor](../05-tools/02-plant-doctor.md) — the underlying Analyse flow; `/quick/lens` mounts it in `compact` mode
 - [Home Dashboard](./01-home-dashboard.md) — the desktop home; reachable from Quick Access via "Open full dashboard"
 - [Routing](../99-cross-cutting/21-routing.md) — `/`, `/quick`, `/quick/lens` route definitions; documents the Wave 6 focus-mode exclusion of the persistent chrome
@@ -256,8 +259,9 @@ No difference.
 - `src/components/QuickAccessHome.tsx` — the customisable launcher home
 - `src/components/quick/QuickTile.tsx` — reusable tile (live / coming-soon variants); 7 launcher accents (green / amber / red / blue / purple / teal / slate) + 3 legacy row accents
 - `src/components/quick/QuickLauncherPicker.tsx` — the Account-Settings picker (pinned / available / reset)
-- `src/lib/quickLauncherCatalogue.ts` — `QUICK_LAUNCHER_CATALOGUE`, `QUICK_LAUNCHER_BY_ID`, `resolvePins`, `partitionForPicker`, `DEFAULT_QUICK_LAUNCHER_PINS`
-- `src/lib/quickLauncherPrefs.ts` — `readLocalPins` / `writeLocalPins` / `clearLocalPins` / `fetchRemotePins` / `saveRemotePins`
+- `src/lib/quickLauncherCatalogue.ts` — `QUICK_LAUNCHER_CATALOGUE`, `QUICK_LAUNCHER_BY_ID`, `resolvePins`, `partitionForPicker`, `DEFAULT_QUICK_LAUNCHER_PINS`, `defaultQuickLauncherPins(persona)` (Home-row persona defaults)
+- `src/lib/quickLauncherPrefs.ts` — `readLocalPins` / `writeLocalPins` / `clearLocalPins` / `fetchRemotePins` / `saveRemotePins` / `hasStoredPins` (never-customised detection for the Home row)
+- `src/components/home/QuickActionsRow.tsx` — the Home dashboard consumer of the shared pins
 - `src/hooks/useQuickLauncherPins.ts` — local-first hook (pins / isRevalidating / save / resetToDefaults)
 - `src/components/QuickAccessLens.tsx` — `/quick/lens` wrapper around PlantDoctor (compact mode)
 - `src/components/PlantDoctor.tsx` — accepts a `compact?: boolean` prop; when true, hides the tab bar + secondary action row

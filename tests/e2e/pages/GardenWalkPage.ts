@@ -56,7 +56,7 @@ export class GardenWalkPage {
 
   /** Launch a walk from the dashboard launcher (preserves origin state). */
   async startFromDashboard() {
-    await this.page.goto("/dashboard");
+    await this.page.goto("/dashboard?view=overview");
     const launcher = this.page.getByTestId("dash-garden-walk");
     await launcher.waitFor({ state: "visible", timeout: 15000 });
     await launcher.click();

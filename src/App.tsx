@@ -87,6 +87,7 @@ import BetaFeedbackBanner from "./components/BetaFeedbackBanner";
 
 // Heavy route components — lazy loaded so they don't bloat the initial bundle
 const HomeDashboard       = lazy(() => import("./components/HomeDashboard"));
+const HomeMain            = lazy(() => import("./components/home/HomeMain"));
 const AdminGuideGenerator = lazy(() => import("./components/AdminGuideGenerator"));
 const PlantLibraryAdmin = lazy(() => import("./components/admin/PlantLibraryAdmin"));
 const AiCallsAdmin = lazy(() => import("./components/admin/AiCallsAdmin"));
@@ -495,7 +496,16 @@ function AppShell() {
 
   const [searchParams, setSearchParamsForView] = useSearchParams();
   const selectedLocationId = searchParams.get("locationId");
-  const dashboardView = (searchParams.get("view") as "dashboard" | "locations" | "calendar" | "weather") || "dashboard";
+  // "home" (labelled Dashboard) is the new default main page; the previous
+  // dashboard lives on unchanged as "overview". Legacy deep links with
+  // ?view=dashboard map to home — the tab that now carries that label.
+  // See docs/plans/new-home-dashboard.md.
+  type DashboardView = "home" | "overview" | "locations" | "calendar" | "weather";
+  const dashboardView: DashboardView = (() => {
+    const raw = searchParams.get("view");
+    if (raw === "overview" || raw === "locations" || raw === "calendar" || raw === "weather") return raw;
+    return "home"; // default, explicit "home", legacy "dashboard", or anything unknown
+  })();
 
   // Persist last selected dashboard view; restore on first visit to /dashboard with no view param.
   // Restore only runs once per mount — otherwise clicking the "Dashboard" sub-tab from a non-default
@@ -506,20 +516,24 @@ function AppShell() {
     if (selectedLocationId) return; // viewing a specific location, not switching views
     const urlView = searchParams.get("view");
     if (urlView) {
-      // User has an explicit view — remember it and mark restore as resolved
-      localStorage.setItem("rhozly_dashboard_view", urlView);
+      // User has an explicit view — remember the RESOLVED view (legacy
+      // "dashboard" persists as "home") and mark restore as resolved.
+      localStorage.setItem("rhozly_dashboard_view", dashboardView);
       hasRestoredViewRef.current = true;
       return;
     }
     // No view param — only restore on first mount; subsequent clicks to "Dashboard" sub-tab must stick
     if (hasRestoredViewRef.current) {
       // User explicitly chose the default view this session — record it so next session opens here too
-      localStorage.setItem("rhozly_dashboard_view", "dashboard");
+      localStorage.setItem("rhozly_dashboard_view", "home");
       return;
     }
     hasRestoredViewRef.current = true;
     const saved = localStorage.getItem("rhozly_dashboard_view");
-    if (saved && saved !== "dashboard" && ["locations", "calendar", "weather"].includes(saved)) {
+    // Legacy saved "dashboard" intentionally falls through to the default —
+    // everyone lands on the new Home page once at release; their next
+    // explicit choice is respected from then on.
+    if (saved && ["overview", "locations", "calendar", "weather"].includes(saved)) {
       const next = new URLSearchParams(searchParams);
       next.set("view", saved);
       setSearchParamsForView(next, { replace: true });
@@ -699,7 +713,7 @@ function AppShell() {
             locations (
               *,
               areas ( id, name ),
-              inventory_items ( id, status )
+              inventory_items ( id, status, area_id, growth_state, plant_name )
             )
           `,
           )
@@ -1049,7 +1063,7 @@ function AppShell() {
     if (!profile?.home_id) return;
     const { data } = await supabase
       .from("inventory_items")
-      .select("id, status, location_id")
+      .select("id, status, location_id, area_id, growth_state, plant_name")
       .eq("home_id", profile.home_id)
       .limit(500);
     if (!data) return;
@@ -1515,19 +1529,23 @@ function AppShell() {
 
                                 <div className="flex items-center justify-between px-1">
                                   <div data-testid="dashboard-view-switcher" className="bg-rhozly-primary/5 p-1 rounded-2xl flex w-full">
-                                    {["dashboard", "locations", "calendar", "weather"].map(
-                                      (v) => (
-                                        <button
-                                          key={v}
-                                          onClick={() =>
-                                            navigate(v === "dashboard" ? "/dashboard" : `/dashboard?view=${v}`, { replace: true })
-                                          }
-                                          className={`flex-1 px-2 sm:px-4 py-2 min-h-[44px] rounded-xl text-xs sm:text-sm text-center transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm font-bold" : "text-rhozly-on-surface/50 hover:text-rhozly-primary font-normal"}`}
-                                        >
-                                          {v.charAt(0).toUpperCase() + v.slice(1)}
-                                        </button>
-                                      ),
-                                    )}
+                                    {([
+                                      { v: "home", label: "Dashboard" },
+                                      { v: "overview", label: "Overview" },
+                                      { v: "locations", label: "Locations" },
+                                      { v: "calendar", label: "Calendar" },
+                                      { v: "weather", label: "Weather" },
+                                    ] as const).map(({ v, label }) => (
+                                      <button
+                                        key={v}
+                                        onClick={() =>
+                                          navigate(v === "home" ? "/dashboard" : `/dashboard?view=${v}`, { replace: true })
+                                        }
+                                        className={`flex-1 px-1.5 sm:px-4 py-2 min-h-[44px] rounded-xl text-xs sm:text-sm text-center transition-all ${dashboardView === v ? "bg-white text-rhozly-primary shadow-sm font-bold" : "text-rhozly-on-surface/50 hover:text-rhozly-primary font-normal"}`}
+                                      >
+                                        {label}
+                                      </button>
+                                    ))}
                                   </div>
                                 </div>
                                 {/* Sync status indicator — tells the user when their data was last refreshed */}
@@ -1540,9 +1558,10 @@ function AppShell() {
                                   </span>
                                 </div>
 
-                                {dashboardView === "dashboard" ? (
+                                {dashboardView === "home" || dashboardView === "overview" ? (
                                   <div className="space-y-5">
-                                    {/* Getting Started checklist — shown to new users until all steps done or dismissed */}
+                                    {/* Getting Started checklist — shown to new users until all steps done or dismissed.
+                                        Shared by Home + Overview so new gardeners see it wherever they land. */}
                                     {profile?.home_id && session?.user?.id && (
                                       <GettingStartedChecklist
                                         homeId={profile.home_id}
@@ -1557,6 +1576,32 @@ function AppShell() {
                                     <NotificationOptInCard />
                                     {/* PWA install prompt — only when beforeinstallprompt fires + not already installed */}
                                     <InstallPwaPrompt />
+                                    {dashboardView === "home" ? (
+                                      /* The new main dashboard — see docs/plans/new-home-dashboard.md */
+                                      <Suspense fallback={RouteFallback}>
+                                        {profile?.home_id && (
+                                          <HomeMain
+                                            homeId={profile.home_id}
+                                            userId={session?.user?.id ?? null}
+                                            firstName={profile?.first_name ?? null}
+                                            weather={weather}
+                                            rawWeather={rawWeather}
+                                            locations={locations}
+                                            locationTaskCounts={locationTaskCounts}
+                                            overdueTaskCount={overdueTaskCount}
+                                            aiEnabled={!!profile?.ai_enabled}
+                                            isPremium={!!profile?.enable_perenual}
+                                            availabilityCtx={{
+                                              subscriptionTier: profile?.subscription_tier ?? null,
+                                              aiEnabled: !!profile?.ai_enabled,
+                                              isBeta: !!profile?.is_beta,
+                                              homeId: profile?.home_id ?? null,
+                                            }}
+                                          />
+                                        )}
+                                      </Suspense>
+                                    ) : (
+                                    <>
                                     {/* Daily Brief — greets the user, surfaces today's tasks, weather, golden hour, frost risk in one card */}
                                     <DailyBriefCard
                                       firstName={profile?.first_name ?? null}
@@ -1648,6 +1693,8 @@ function AppShell() {
                                         <HomeDashboard homeId={profile.home_id} aiEnabled={!!profile?.ai_enabled} isPremium={!!profile?.enable_perenual} />
                                       )}
                                     </Suspense>
+                                    </>
+                                    )}
                                   </div>
                                 ) : dashboardView === "locations" ? (
                                   <div className="space-y-5">

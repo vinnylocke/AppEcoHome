@@ -1,8 +1,8 @@
-# Dashboard Tab
+# Dashboard Tab (Overview)
 
-> The default landing surface — a single scrollable view that tells you what's happening in your garden today and what to do next.
+> The classic scrollable feed that tells you what's happening in your garden today and what to do next — now the **"Overview"** sub-tab. Plain `/dashboard` lands on the new [Home (Main Dashboard)](./17-home-main.md).
 
-**Route:** `/dashboard` (default view; the sub-tab strip uses `?view=dashboard|locations|calendar|weather`).
+**Route:** `/dashboard?view=overview` (the sub-tab strip uses `?view=home|overview|locations|calendar|weather`; `home` is the default and is labelled "Dashboard". Legacy `?view=dashboard` deep links now map to `home` — see [Routing](../99-cross-cutting/21-routing.md)).
 **Source files (entry points):**
 - `src/App.tsx` (lines ~979–1273) — renders the `/dashboard` route and houses the sub-tab switcher
 - `src/components/HomeDashboard.tsx` — the weekly stats + today's tasks panel
@@ -16,7 +16,7 @@
 
 ## Quick Summary
 
-The Dashboard Tab opens with a personalised greeting (Daily Brief), then layers on any urgent prompts (onboarding checklist, notification opt-in, quiz reminder), an AI Insight card if the pattern engine has surfaced one, and finally the Home Dashboard — a weekly stats strip plus today's task list. It's the only screen most users open daily.
+The Overview sub-tab opens with a personalised greeting (Daily Brief), then layers on any urgent prompts (onboarding checklist, notification opt-in, quiz reminder), an AI Insight card if the pattern engine has surfaced one, and finally the Home Dashboard — a weekly stats strip plus today's task list. Its content is **unchanged** by the new-home-dashboard work — only the label and view param changed: the default `/dashboard` landing is now the [Home view](./17-home-main.md), and this page is one tap to the right.
 
 ---
 
@@ -27,14 +27,15 @@ The Dashboard Tab opens with a personalised greeting (Daily Brief), then layers 
 ```
 /dashboard route (App.tsx)
 ├── WeatherAlertBanner (when alerts present)
-├── Sub-tab strip (Dashboard / Locations / Calendar / Weather)
+├── Sub-tab strip (Dashboard / Overview / Locations / Calendar / Weather)
 ├── Sync status indicator (top-right of body)
-└── dashboardView === "dashboard"
-    ├── GettingStartedChecklist (conditional — onboarding not complete)
-    ├── NotificationOptInCard (conditional — first session, permission default)
-    ├── InstallPwaPrompt (conditional — beforeinstallprompt fired)
+├── Shared by BOTH the "home" and "overview" branches (hoisted above the split):
+│   ├── GettingStartedChecklist (conditional — onboarding not complete)
+│   ├── NotificationOptInCard (conditional — first session, permission default)
+│   └── InstallPwaPrompt (conditional — beforeinstallprompt fired)
+└── dashboardView === "overview"   ← this page (the "home" branch renders HomeMain — see 17-home-main.md)
     ├── DailyBriefCard (always)
-    ├── Quiz Prompt Card (conditional — quiz not completed & not dismissed)
+    ├── Quiz Prompt Card (conditional — quiz not completed & not dismissed; renders ONLY here, not on the Home view)
     ├── AssistantCard (conditional — user_insights row exists)
     └── HomeDashboard (always)
         ├── TodayFocusCard (variant: "dashboard")
@@ -280,9 +281,9 @@ The bulk of the page below the brief. It contains:
 
 - A small "Synced 23s ago" text that updates every 15 s. Tap pull-to-refresh anywhere on the page to force a re-sync.
 
-#### 8. Sub-tab switcher (Dashboard / Locations / Calendar / Weather)
+#### 8. Sub-tab switcher (Dashboard / Overview / Locations / Calendar / Weather)
 
-- All four are different views of the same Dashboard tab. Selection is persisted in localStorage and remembered for next session (with the fix from earlier this week — the persist-restore now only runs once on mount, so clicking "Dashboard" from another sub-tab actually returns to dashboard).
+- All five are different views of the same Dashboard tab. "Dashboard" is the new [Home view](./17-home-main.md) (the default landing); "Overview" is this page. Selection is persisted in localStorage `rhozly_dashboard_view` and remembered for next session (the persist-restore only runs once on mount, so clicking "Dashboard" from another sub-tab actually returns to the default; a legacy stored `"dashboard"` value deliberately falls through to the new Home default once).
 
 ### Information on display — what every field means
 
@@ -325,7 +326,8 @@ The amber BetaFeedbackBanner sits above the page. Aside from that, no Dashboard-
 
 ### Common mistakes / pitfalls
 
-- **Mistaking the sub-tab strip for primary navigation.** The four sub-tabs (Dashboard / Locations / Calendar / Weather) are all *inside* the Dashboard route — they don't navigate away. Primary nav is on the left sidebar.
+- **Mistaking the sub-tab strip for primary navigation.** The five sub-tabs (Dashboard / Overview / Locations / Calendar / Weather) are all *inside* the Dashboard route — they don't navigate away. Primary nav is on the left sidebar.
+- **Looking for this page on plain `/dashboard`.** That now lands on the new Home view — this classic feed is the "Overview" sub-tab, content intact.
 - **Believing the Daily Brief is "live".** It refreshes when you visit / pull-to-refresh. The "Synced X ago" indicator tells you how stale it is.
 - **Assuming the AI Insight is a directive.** It's a hypothesis from a pattern detector — "Got it" just acknowledges it. You're free to ignore.
 - **Dismissing the quiz card thinking it's optional.** It is optional, but the AI's recommendations get measurably better with quiz data. The dismiss flow requires confirm to avoid hiding it forever by accident.
@@ -348,6 +350,7 @@ The amber BetaFeedbackBanner sits above the page. Aside from that, no Dashboard-
 
 ## Related reference files
 
+- [Home (Main Dashboard)](./17-home-main.md) — the new default `/dashboard` landing view; shares the onboarding cards with this page
 - [Locations Tab](./02-locations-tab.md)
 - [Calendar Tab](./03-calendar-tab.md)
 - [Weather Tab](./04-weather-tab.md)

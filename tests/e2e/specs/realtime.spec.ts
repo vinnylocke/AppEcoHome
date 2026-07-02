@@ -104,7 +104,7 @@ test.describe("Realtime — Section 15", () => {
       return;
     }
 
-    await authenticatedPage.goto("/dashboard");
+    await authenticatedPage.goto("/dashboard?view=overview");
     await authenticatedPage
       .locator(".animate-spin, .animate-pulse")
       .first()

@@ -46,6 +46,22 @@ export function sanitisePins(input: unknown): string[] {
   return out;
 }
 
+/**
+ * True when the user has an explicitly saved pin preference on this device
+ * (readLocalPins can't distinguish "never customised" from "customised to
+ * exactly the defaults" — it returns the default set for both). The Home
+ * dashboard's quick-actions row uses this to decide whether persona-aware
+ * defaults may apply.
+ */
+export function hasStoredPins(): boolean {
+  if (typeof window === "undefined") return false;
+  try {
+    return window.localStorage.getItem(LOCAL_KEY) !== null;
+  } catch {
+    return false;
+  }
+}
+
 export function readLocalPins(): string[] {
   if (typeof window === "undefined") return [...DEFAULT_QUICK_LAUNCHER_PINS];
   try {

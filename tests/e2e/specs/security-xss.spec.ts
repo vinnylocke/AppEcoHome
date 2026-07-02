@@ -25,7 +25,7 @@ async function assertNoXss(page: import("@playwright/test").Page) {
 
 authTest.describe("XSS — Task title", () => {
   authTest("XSS-001: XSS payload in task title is escaped", async ({ authenticatedPage: page }) => {
-    await page.goto("/dashboard");
+    await page.goto("/dashboard?view=overview");
 
     // Open the quick-add task modal or inline form
     const addTaskBtn = page.getByRole("button", { name: /add task/i }).first();

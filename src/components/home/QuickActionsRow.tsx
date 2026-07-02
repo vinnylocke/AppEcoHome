@@ -1,0 +1,78 @@
+import React from "react";
+import { useNavigate } from "react-router-dom";
+import { Settings2 } from "lucide-react";
+import QuickTile from "../quick/QuickTile";
+import {
+  resolvePins,
+  defaultQuickLauncherPins,
+  type QuickLauncherAvailabilityCtx,
+} from "../../lib/quickLauncherCatalogue";
+import { hasStoredPins } from "../../lib/quickLauncherPrefs";
+import { useQuickLauncherPins } from "../../hooks/useQuickLauncherPins";
+
+/**
+ * Quick-actions row on the Home dashboard (new-home-dashboard plan §3.4).
+ * Reuses the /quick launcher catalogue + saved pins so customisation
+ * carries across surfaces; when the user has never customised, the
+ * defaults are persona-aware (learning set for new gardeners, operating
+ * set for experienced). "Customise" goes to the existing picker in
+ * Gardener Profile.
+ */
+
+interface Props {
+  userId: string | null;
+  homeId: string | null;
+  persona: "new" | "experienced" | null;
+  availabilityCtx: QuickLauncherAvailabilityCtx;
+}
+
+export default function QuickActionsRow({ userId, homeId, persona, availabilityCtx }: Props) {
+  const navigate = useNavigate();
+  const { pins } = useQuickLauncherPins(userId);
+
+  // A saved preference always wins; persona defaults only apply to users
+  // who never customised (the prefs layer returns the classic defaults for
+  // both cases, so "customised" is detected via the raw storage key).
+  const effectivePins = hasStoredPins() ? pins : defaultQuickLauncherPins(persona);
+  const tiles = resolvePins(effectivePins, availabilityCtx).slice(0, 6);
+
+  if (tiles.length === 0) return null;
+
+  return (
+    <section data-testid="home-quick-actions">
+      <div className="flex items-center justify-between px-1 mb-2">
+        <h2 className="text-xs font-black uppercase tracking-widest text-rhozly-on-surface/40">
+          Quick actions
+        </h2>
+        <button
+          data-testid="home-quick-actions-customise"
+          onClick={() => navigate("/gardener?section=quick-launcher")}
+          className="flex items-center gap-1 text-[11px] font-bold text-rhozly-on-surface/45 hover:text-rhozly-primary transition"
+        >
+          <Settings2 size={12} />
+          Customise
+        </button>
+      </div>
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2">
+        {tiles.map((dest) => {
+          const Icon = dest.icon;
+          return (
+            <QuickTile
+              key={dest.id}
+              testId={`home-quick-tile-${dest.id}`}
+              accent={dest.accent}
+              layout="compact"
+              icon={<Icon strokeWidth={2.25} />}
+              title={dest.label}
+              description={dest.description}
+              onClick={() => {
+                dest.onTap?.({ homeId });
+                navigate(dest.route);
+              }}
+            />
+          );
+        })}
+      </div>
+    </section>
+  );
+}
