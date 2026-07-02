@@ -137,12 +137,15 @@ Deno.serve(async (req) => {
         .eq("home_id", homeId)
         .in("status", ["In Shed", "Planted", "Germinating"]),
 
-      // 7. Weather: alerts + snapshot for rainfall
+      // 7. Weather: alerts + snapshot for rainfall.
+      // weather_alerts is LOCATION-scoped (no home_id column) — filtering on
+      // home_id 400'd silently here since the RHO-14 rewrite, so the weekly
+      // alert counts were always 0. Same phantom-column class as RHOZLY-3P.
       Promise.all([
         db
           .from("weather_alerts")
-          .select("id, type, severity, is_active, starts_at")
-          .eq("home_id", homeId)
+          .select("id, type, severity, is_active, starts_at, locations!inner(home_id)")
+          .eq("locations.home_id", homeId)
           .gte("starts_at", weekStart),
         db
           .from("weather_snapshots")

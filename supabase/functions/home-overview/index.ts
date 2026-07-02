@@ -94,10 +94,12 @@ Deno.serve(async (req) => {
         .eq("home_id", homeId)
         .eq("status", "Pending")
         .or(`due_date.lte.${closingCutoff},window_end_date.gte.${today}`),
+      // weather_alerts is LOCATION-scoped (no home_id column) — filter
+      // through the locations join. Caught by Sentry RHOZLY-3P.
       db
         .from("weather_alerts")
-        .select("type, message, is_active")
-        .eq("home_id", homeId)
+        .select("type, message, is_active, locations!inner(home_id)")
+        .eq("locations.home_id", homeId)
         .eq("is_active", true)
         .order("starts_at", { ascending: false })
         .limit(5),
