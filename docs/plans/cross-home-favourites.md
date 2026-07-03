@@ -296,3 +296,15 @@ All new interactive elements get `data-testid`s (`shed-scope-toggle`, `favourite
 7. **Permissions** — confirm "add to home" should respect `shed.add` / `ailments.add` client gates (favouriting itself ungated).
 8. **Live vs frozen for catalogue-backed plant favourites** — proposed: display live global-catalogue data when the ref resolves, snapshot otherwise. Or always-frozen for total predictability?
 9. **Sprout seed volume** — happy with ~6/4/3 favourites (plants/ailments/packets) spread across the account's 3 homes?
+
+## Answers 2026-07-03 (user) — design adjustments
+
+1. **Naming**: "Home | Favourites" confirmed; today's list becomes the Home tab.
+2. **Favourites start empty** + first-visit hint banner: confirmed.
+3. **Identity & editability (design change)**: dedupe by **unique plant id, not scientific name**. Only `source='manual'` plants are editable; `api`/`ai`/`verdantly` plants become **locked (read-only)** in the edit surfaces — an adjacent scope addition: PlantEditModal (and any edit path) disables editing for non-manual sources. AI generation always creates a NEW plant row with its own id, even when one with the same name exists (no name-based merging). Favourite identity key = the referenced plant's id (canonical/global id where present; the origin row id for manual snapshots). Re-favouriting the same id refreshes the snapshot/no-ops.
+4. **Seed packets = variety reference** (variety + plant + vendor; never live stock/sowings): confirmed.
+5. **Source × tier action gating (stricter than proposed)**: actions on a plant/ailment/packet whose `source` exceeds the viewer's entitlements are **view-only** — a Sprout user can see `api`/`ai` entries in the Home tab but cannot act on them; `enable_perenual`-only users can act on `api` but not `ai`; `ai_enabled`-only users the inverse; Evergreen both. *Interpretation to confirm: "anything except view" is read as blocking BOTH favourite AND add-to-home for above-tier sources (not just add-to-home). Enforced client-side (disabled controls with an explanatory tooltip/upsell) and server-side.*
+6. **Packet images**: copy the storage object into the favourite at favourite-time.
+7. Awaiting clarification (member-permissions interaction) — see below.
+8. **Always live**: favourites with a resolvable canonical reference always display live data; the snapshot is retained only as a tombstone fallback when the reference is gone.
+9. **Sprout test data volume**: increase to ~10 favourite plants, ~6 ailments, ~5 packets across the account's homes.
